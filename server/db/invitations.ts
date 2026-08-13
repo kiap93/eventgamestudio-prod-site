@@ -1,0 +1,130 @@
+import { getSupabaseServerClient } from '../supabase.js';
+import { OrgInvitationRecord, OrgRole } from './types.js';
+import crypto from 'node:crypto';
+
+export interface InvitationWithOrgDetails extends OrgInvitationRecord {
+  organization_name: string;
+}
+
+export async function createInvitation(
+  params: {
+    id?: string;
+    organization_id: string;
+    email: string;
+    role: OrgRole;
+    token_hash: string;
+    invited_by: string;
+    expires_at: string;
+  },
+  env?: Record<string, any>
+): Promise<OrgInvitationRecord> {
+  const supabase = getSupabaseServerClient(env);
+  const id = params.id || crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('organization_invitations')
+    .insert({
+      id,
+      organization_id: params.organization_id,
+      email: params.email.trim().toLowerCase(),
+      role: params.role,
+      token_hash: params.token_hash,
+      invited_by: params.invited_by,
+      expires_at: params.expires_at,
+      created_at: now,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error in createInvitation:', error);
+    throw new Error(`Failed to create invitation: ${error.message}`);
+  }
+
+  return data as OrgInvitationRecord;
+}
+
+export async function getInvitationByTokenHash(
+  tokenHash: string,
+  env?: Record<string, any>
+): Promise<InvitationWithOrgDetails | null> {
+  const supabase = getSupabaseServerClient(env);
+  const { data, error } = await supabase
+    .from('organization_invitations')
+    .select(`
+      *,
+      organizations (
+        name
+      )
+    `)
+    .eq('token_hash', tokenHash)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error in getInvitationByTokenHash:', error);
+    throw new Error(`Failed to get invitation by token: ${error.message}`);
+  }
+
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    organization_id: data.organization_id,
+    email: data.email,
+    role: data.role as OrgRole,
+    token_hash: data.token_hash,
+    invited_by: data.invited_by,
+    expires_at: data.expires_at,
+    accepted_at: data.accepted_at,
+    created_at: data.created_at,
+    organization_name: data.organizations?.name || 'Organization',
+  };
+}
+
+export async function getActiveOrgInvitations(
+  organizationId: string,
+  env?: Record<string, any>
+): Promise<OrgInvitationRecord[]> {
+  const supabase = getSupabaseServerClient(env);
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('organization_invitations')
+    .select('id, email, role, expires_at, created_at, organization_id, token_hash, invited_by, accepted_at')
+    .eq('organization_id', organizationId)
+    .is('accepted_at', null)
+    .gt('expires_at', now)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error in getActiveOrgInvitations:', error);
+    throw new Error(`Failed to get active organization invitations: ${error.message}`);
+  }
+
+  return (data || []) as OrgInvitationRecord[];
+}
+
+export async function markInvitationAccepted(
+  id: string,
+  env?: Record<string, any>
+): Promise<OrgInvitationRecord> {
+  const supabase = getSupabaseServerClient(env);
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('organization_invitations')
+    .update({
+      accepted_at: now,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error in markInvitationAccepted:', error);
+    throw new Error(`Failed to mark invitation as accepted: ${error.message}`);
+  }
+
+  return data as OrgInvitationRecord;
+}

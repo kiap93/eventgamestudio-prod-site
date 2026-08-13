@@ -1,0 +1,126 @@
+import { GameTheme } from './types';
+
+export const cnyTheme: GameTheme = {
+  id: 'chinese-new-year',
+  base_theme_id: 'chinese-new-year',
+  name: 'Lunar New Year Fortune Catch',
+  slug: 'cny-fortune',
+  description: 'Festive Lunar New Year game catching red packets (Angpow) and avoiding firecrackers.',
+  status: 'active',
+  is_active: false,
+
+  branding: {
+    gameTitle: 'LUNAR NEW YEAR FORTUNE',
+    subtitle: 'Catch lucky red packets, avoid exploding firecrackers!',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+
+  background_url: 'theme_chinese-new-year_bg',
+
+  basket_config: {
+    name: 'Fortune Basket',
+    imageUrl: null,
+    width: 140,
+    height: 70,
+    catchAreaRatio: 0.75,
+    speed: 550,
+    collisionWidthRatio: 0.75,
+    collisionHeightRatio: 0.15,
+    collisionOffsetYRatio: 0.32,
+  },
+
+  items_config: [
+    {
+      id: 'red_packet',
+      name: 'Red Packet (Angpow)',
+      imageUrl: null,
+      points: 10,
+      speedMultiplier: 1.0,
+      spawnWeight: 75,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+    },
+    {
+      id: 'firecracker',
+      name: 'Exploding Firecracker',
+      imageUrl: null,
+      points: -10,
+      speedMultiplier: 1.25,
+      spawnWeight: 20,
+      enabled: true,
+      isHazard: true,
+      isBonus: false,
+    },
+    {
+      id: 'gold_ingot',
+      name: 'Gold Ingot (Yuanbao)',
+      imageUrl: null,
+      points: 50,
+      speedMultiplier: 1.3,
+      spawnWeight: 5,
+      enabled: true,
+      isHazard: false,
+      isBonus: true,
+    },
+  ],
+
+  physics_config: {
+    gameDurationSeconds: 20,
+    baseFallSpeed: 520,
+    fallSpeedMultiplier: 0.7,
+    spawnIntervalMin: 550,
+    spawnIntervalMax: 1000,
+    difficultyStages: [
+      { timeThreshold: 0, spawnInterval: 1000, speedMin: 350, speedMax: 500, hazardRatio: 0.2, bonusRatio: 0.05, stageName: 'Stage 1: Spring Blessing' },
+      { timeThreshold: 7, spawnInterval: 750, speedMin: 420, speedMax: 600, hazardRatio: 0.3, bonusRatio: 0.08, stageName: 'Stage 2: Dragon Dance' },
+      { timeThreshold: 14, spawnInterval: 550, speedMin: 520, speedMax: 720, hazardRatio: 0.4, bonusRatio: 0.12, stageName: 'Stage 3: Fortune Cascade!' },
+    ],
+  },
+
+  visuals_config: {
+    particleGood: 'particle_gold',
+    particleBad: 'particle_spike',
+    particleBonus: 'particle_gold',
+    primaryColor: '#dc2626',
+    secondaryColor: '#eab308',
+    accentColor: '#fde047',
+    textColor: '#ffffff',
+    cardGoodBg: 'rgba(153, 27, 27, 0.7)',
+    cardGoodBorder: 'rgba(220, 38, 38, 0.5)',
+    cardBadBg: 'rgba(69, 10, 10, 0.7)',
+    cardBadBorder: 'rgba(185, 28, 28, 0.5)',
+    bgGradientFrom: '#450a0a',
+    bgGradientTo: '#991b1b',
+  },
+
+  sounds_config: { soundVolume: 0.8, soundEnabled: true, bgmEnabled: true },
+
+  // Backward compatibility
+  background: '/assets/cny_bg.png',
+  catcher: '/assets/fortune_basket.png',
+  fallingObject: '/assets/angpow.png',
+  badFallingObject: '/assets/firecracker.png',
+  bonusFallingObject: '/assets/gold_ingot.png',
+  gameTitle: 'FORTUNE ANGPOW CATCH',
+  subtitle: 'Catch falling red packets, avoid explosive firecrackers!',
+  fallingObjectName: 'RED PACKET',
+  badFallingObjectName: 'FIRECRACKER',
+  bonusFallingObjectName: 'GOLD INGOT',
+  catcherName: 'FORTUNE BASKET',
+  particles: {
+    good: 'particle_gold_coin',
+    bad: 'particle_spark',
+    bonus: 'particle_ingot_shine',
+  },
+  colors: {
+    primary: '#dc2626',
+    secondary: '#eab308',
+    accent: '#fef08a',
+    cardGoodBg: 'rgba(153, 27, 27, 0.6)',
+    cardGoodBorder: 'rgba(239, 68, 68, 0.5)',
+    cardBadBg: 'rgba(120, 53, 15, 0.6)',
+    cardBadBorder: 'rgba(245, 158, 11, 0.5)',
+  },
+};

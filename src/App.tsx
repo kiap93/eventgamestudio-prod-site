@@ -1,0 +1,53 @@
+import React from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { useRouteContext } from './hooks/useRouteContext';
+import { LoginPage } from './components/auth/LoginPage';
+import { CreateOrganizationPage } from './components/auth/CreateOrganizationPage';
+import { AcceptInvitePage } from './components/auth/AcceptInvitePage';
+import { DashboardLayout } from './components/layout/DashboardLayout';
+import { GameOnlyLayout } from './components/layout/GameOnlyLayout';
+
+const AppContent: React.FC = () => {
+  const { isAuthenticated, isLoading, currentOrganization } = useAuth();
+  const routeContext = useRouteContext();
+
+  // 1. PUBLIC EVENT GAME ROUTE: /{organization-slug}/{game-slug}
+  // MUST ALWAYS render in Public Event Game Mode (GameOnlyLayout), whether logged in or logged out.
+  if (routeContext.isPublicGameRoute) {
+    return <GameOnlyLayout />;
+  }
+
+  // 2. ACCEPT INVITE ROUTE
+  if (routeContext.mode === 'accept_invite') {
+    return <AcceptInvitePage />;
+  }
+
+  // 3. STUDIO / ADMIN ROUTES (Require Authentication)
+  if (isLoading) {
+    return (
+      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans space-y-3">
+        <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-slate-400 font-medium">Loading Durian Catcher Studio...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || routeContext.mode === 'login') {
+    return <LoginPage />;
+  }
+
+  if (!currentOrganization || routeContext.mode === 'create_org') {
+    return <CreateOrganizationPage />;
+  }
+
+  return <DashboardLayout />;
+};
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+

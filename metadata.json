@@ -1,0 +1,8 @@
+{
+  "name": "Copy of Remix Durian Catcher",
+  "description": "A retro 2D arcade game and visual Theme Studio with live simulation, customizable catchers, falling items, procedural audio soundscapes, and branding.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

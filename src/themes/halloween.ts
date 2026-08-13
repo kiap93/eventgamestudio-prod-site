@@ -1,0 +1,126 @@
+import { GameTheme } from './types';
+
+export const halloweenTheme: GameTheme = {
+  id: 'halloween',
+  base_theme_id: 'halloween',
+  name: 'Spooky Halloween Catch',
+  slug: 'spooky-halloween',
+  description: 'Haunted night arcade game catching spooky candies and avoiding poisonous spiders.',
+  status: 'active',
+  is_active: false,
+
+  branding: {
+    gameTitle: 'SPOOKY HALLOWEEN CATCH',
+    subtitle: 'Catch tasty candies, avoid venomous spiders!',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+
+  background_url: 'theme_halloween_bg',
+
+  basket_config: {
+    name: 'Jack-o-Lantern Bucket',
+    imageUrl: null,
+    width: 140,
+    height: 70,
+    catchAreaRatio: 0.75,
+    speed: 550,
+    collisionWidthRatio: 0.75,
+    collisionHeightRatio: 0.15,
+    collisionOffsetYRatio: 0.32,
+  },
+
+  items_config: [
+    {
+      id: 'spooky_candy',
+      name: 'Sweet Candy',
+      imageUrl: null,
+      points: 10,
+      speedMultiplier: 1.0,
+      spawnWeight: 75,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+    },
+    {
+      id: 'creepy_spider',
+      name: 'Creepy Spider',
+      imageUrl: null,
+      points: -10,
+      speedMultiplier: 1.2,
+      spawnWeight: 20,
+      enabled: true,
+      isHazard: true,
+      isBonus: false,
+    },
+    {
+      id: 'gold_skull',
+      name: 'Golden Skull',
+      imageUrl: null,
+      points: 50,
+      speedMultiplier: 1.3,
+      spawnWeight: 5,
+      enabled: true,
+      isHazard: false,
+      isBonus: true,
+    },
+  ],
+
+  physics_config: {
+    gameDurationSeconds: 20,
+    baseFallSpeed: 500,
+    fallSpeedMultiplier: 0.7,
+    spawnIntervalMin: 550,
+    spawnIntervalMax: 1000,
+    difficultyStages: [
+      { timeThreshold: 0, spawnInterval: 1000, speedMin: 350, speedMax: 500, hazardRatio: 0.2, bonusRatio: 0.05, stageName: 'Stage 1: Twilight Woods' },
+      { timeThreshold: 7, spawnInterval: 750, speedMin: 400, speedMax: 600, hazardRatio: 0.3, bonusRatio: 0.08, stageName: 'Stage 2: Witching Hour' },
+      { timeThreshold: 14, spawnInterval: 550, speedMin: 500, speedMax: 700, hazardRatio: 0.4, bonusRatio: 0.12, stageName: 'Stage 3: Full Moon Fright!' },
+    ],
+  },
+
+  visuals_config: {
+    particleGood: 'particle_gold',
+    particleBad: 'particle_spike',
+    particleBonus: 'particle_gold',
+    primaryColor: '#ea580c',
+    secondaryColor: '#a855f7',
+    accentColor: '#facc15',
+    textColor: '#ffffff',
+    cardGoodBg: 'rgba(124, 45, 18, 0.7)',
+    cardGoodBorder: 'rgba(234, 88, 12, 0.5)',
+    cardBadBg: 'rgba(76, 29, 149, 0.7)',
+    cardBadBorder: 'rgba(168, 85, 247, 0.5)',
+    bgGradientFrom: '#111827',
+    bgGradientTo: '#4c1d95',
+  },
+
+  sounds_config: { soundVolume: 0.8, soundEnabled: true, bgmEnabled: true },
+
+  // Backward compatibility
+  background: '/assets/halloween_bg.png',
+  catcher: '/assets/pumpkin_bucket.png',
+  fallingObject: '/assets/spooky_candy.png',
+  badFallingObject: '/assets/poison_spider.png',
+  bonusFallingObject: '/assets/golden_skull.png',
+  gameTitle: 'SPOOKY CANDY CATCH',
+  subtitle: 'Catch falling sweet candies, avoid poisonous spiders!',
+  fallingObjectName: 'SWEET CANDY',
+  badFallingObjectName: 'POISON SPIDER',
+  bonusFallingObjectName: 'GOLDEN SKULL',
+  catcherName: 'PUMPKIN BUCKET',
+  particles: {
+    good: 'particle_candy_sparkle',
+    bad: 'particle_cobweb',
+    bonus: 'particle_ghost_glow',
+  },
+  colors: {
+    primary: '#f97316',
+    secondary: '#a855f7',
+    accent: '#facc15',
+    cardGoodBg: 'rgba(88, 28, 135, 0.6)',
+    cardGoodBorder: 'rgba(168, 85, 247, 0.5)',
+    cardBadBg: 'rgba(67, 20, 7, 0.6)',
+    cardBadBorder: 'rgba(249, 115, 22, 0.5)',
+  },
+};
