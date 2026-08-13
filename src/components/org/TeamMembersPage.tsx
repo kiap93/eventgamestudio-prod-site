@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../lib/api';
 import { Users, Mail, UserPlus, Shield, Trash2, Copy, Check, Clock, ShieldCheck } from 'lucide-react';
 
 interface Member {
@@ -36,9 +37,7 @@ export const TeamMembersPage: React.FC = () => {
     if (!currentOrganization || !token) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/organizations/${currentOrganization.id}/members`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiFetch(`/api/organizations/${currentOrganization.id}/members`);
       if (res.ok) {
         const data = await res.json();
         setMembers(data.members || []);
@@ -64,10 +63,9 @@ export const TeamMembersPage: React.FC = () => {
     setMessage(null);
 
     try {
-      const res = await fetch(`/api/organizations/${currentOrganization.id}/invitations`, {
+      const res = await apiFetch(`/api/organizations/${currentOrganization.id}/invitations`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -98,9 +96,8 @@ export const TeamMembersPage: React.FC = () => {
     if (!currentOrganization || !confirm(`Remove ${email} from ${currentOrganization.name}?`)) return;
 
     try {
-      const res = await fetch(`/api/organizations/${currentOrganization.id}/members/${memberId}`, {
+      const res = await apiFetch(`/api/organizations/${currentOrganization.id}/members/${memberId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.ok) {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../lib/api';
 import { UserCheck, ShieldAlert, Building2, KeyRound } from 'lucide-react';
 
 export const AcceptInvitePage: React.FC = () => {
@@ -22,7 +23,7 @@ export const AcceptInvitePage: React.FC = () => {
 
   useEffect(() => {
     if (!clientId) {
-      fetch('/api/config')
+      apiFetch('/api/config')
         .then((res) => res.json())
         .then((data) => {
           if (data.googleClientId) {
@@ -43,7 +44,7 @@ export const AcceptInvitePage: React.FC = () => {
     }
     setToken(inviteToken);
 
-    fetch(`/api/invitations/verify?token=${encodeURIComponent(inviteToken)}`)
+    apiFetch(`/api/invitations/verify?token=${encodeURIComponent(inviteToken)}`)
       .then(async (res) => {
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
@@ -68,7 +69,7 @@ export const AcceptInvitePage: React.FC = () => {
     setError(null);
 
     try {
-      const res = await fetch('/api/invitations/accept', {
+      const res = await apiFetch('/api/invitations/accept', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

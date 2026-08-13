@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../lib/api';
 import { ShieldCheck, Gamepad2, AlertTriangle, KeyRound } from 'lucide-react';
 
 declare global {
@@ -21,7 +22,7 @@ export const LoginPage: React.FC = () => {
   // Fetch client ID from server if not set at build time
   useEffect(() => {
     if (!clientId) {
-      fetch('/api/config')
+      apiFetch('/api/config')
         .then((res) => res.json())
         .then((data) => {
           if (data.googleClientId) {

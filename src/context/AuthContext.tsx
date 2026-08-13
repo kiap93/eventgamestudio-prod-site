@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { GameTheme, registerThemes, setActiveTheme, normalizeGameTheme, getActiveTheme } from '../themes';
+import { apiFetch } from '../lib/api';
 
 export interface User {
   id: string;
@@ -77,10 +78,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (url: string, options: RequestInit = {}) => {
       const currentToken = token || localStorage.getItem('app_token');
       const headers = new Headers(options.headers || {});
-      if (currentToken) {
+      if (currentToken && !headers.has('Authorization')) {
         headers.set('Authorization', `Bearer ${currentToken}`);
       }
-      return fetch(url, { ...options, headers });
+      return apiFetch(url, { ...options, headers });
     },
     [token]
   );
@@ -210,9 +211,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const currentToken = localStorage.getItem('app_token');
     if (!currentToken) return;
     try {
-      const res = await fetch('/api/games', {
-        headers: { Authorization: `Bearer ${currentToken}` },
-      });
+      const res = await authFetch('/api/games');
       if (res.ok) {
         const data = await res.json();
         if (data.games && data.games.length > 0) {
@@ -222,7 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error('Failed to fetch active game', err);
     }
-  }, []);
+  }, [authFetch]);
 
   const refreshSession = useCallback(async () => {
     const currentToken = localStorage.getItem('app_token');
@@ -232,9 +231,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const res = await fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${currentToken}` },
-      });
+      const res = await authFetch('/api/auth/me');
 
       if (res.ok) {
         const data = await res.json();
@@ -257,7 +254,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  }, [fetchActiveGame, fetchThemes]);
+  }, [authFetch, fetchActiveGame, fetchThemes]);
 
   useEffect(() => {
     refreshSession();
@@ -266,7 +263,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (idToken: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/google', {
+      const res = await apiFetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
@@ -287,9 +284,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentOrganization(active);
 
       if (active) {
-        const gameRes = await fetch('/api/games', {
-          headers: { Authorization: `Bearer ${data.token}` },
-        });
+        const gameRes = await authFetch('/api/games');
         if (gameRes.ok) {
           const gameData = await gameRes.json();
           if (gameData.games && gameData.games.length > 0) {

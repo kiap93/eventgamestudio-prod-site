@@ -52,13 +52,24 @@ export interface Env {
 }
 
 function corsHeaders(request: Request): Record<string, string> {
-  const origin = request.headers.get('Origin') || '*';
-  return {
-    'Access-Control-Allow-Origin': origin,
+  const origin = request.headers.get('Origin');
+  const reqHeaders = request.headers.get('Access-Control-Request-Headers');
+
+  const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Organization-ID',
-    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Headers': reqHeaders || 'Content-Type, Authorization, X-Organization-ID, Accept',
+    'Access-Control-Max-Age': '86400',
   };
+
+  if (origin && origin !== 'null') {
+    headers['Access-Control-Allow-Origin'] = origin;
+    headers['Access-Control-Allow-Credentials'] = 'true';
+    headers['Vary'] = 'Origin';
+  } else {
+    headers['Access-Control-Allow-Origin'] = '*';
+  }
+
+  return headers;
 }
 
 function jsonResponse(data: any, status = 200, extraHeaders: Record<string, string> = {}): Response {
