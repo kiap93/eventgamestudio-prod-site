@@ -1,5 +1,7 @@
 name = "eventgamestudio-api"
-main = "worker.js"
+main = "./worker/worker.ts"
 compatibility_date = "2026-08-07"
 compatibility_flags = ["nodejs_compat"]
 
+[vars]
+SUPABASE_URL = "https://bnfjcgkbdluzlwadyycl.supabase.co"
