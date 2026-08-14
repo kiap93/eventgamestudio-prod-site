@@ -18,8 +18,10 @@ import {
   getGamesByOrgId,
   getGameById,
   ensureDefaultGame,
+  ensureDefaultGames,
   updateGameCustomization,
   ensureDefaultThemes,
+  getThemesByOrgId,
   getThemeById,
   createTheme,
   updateTheme,
@@ -27,6 +29,13 @@ import {
   activateTheme,
   deleteTheme,
   uploadGameAsset,
+  getEventsByOrgId,
+  getEventById,
+  getEventByPublicToken,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  cancelEvent,
 } from './server/db/index.js';
 
 import {
@@ -773,6 +782,7 @@ export default {
           physics_config,
           visuals_config,
           sounds_config,
+          layout,
         } = body;
 
         if (!name || typeof name !== 'string') {
@@ -794,6 +804,7 @@ export default {
             physics_config,
             visuals_config,
             sounds_config,
+            layout,
           },
           env
         );
@@ -833,6 +844,7 @@ export default {
           physics_config,
           visuals_config,
           sounds_config,
+          layout,
         } = body;
 
         const updatedTheme = await updateTheme(
@@ -850,6 +862,7 @@ export default {
             physics_config,
             visuals_config,
             sounds_config,
+            layout,
           },
           env
         );
@@ -1018,6 +1031,219 @@ export default {
         );
 
         return jsonResponse({ game: updatedGame }, 200, cors);
+      }
+
+      const getGameThemesParams = parseRoute('/api/games/:gameId/themes', pathname);
+      if (getGameThemesParams && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { gameId } = getGameThemesParams;
+
+        const game = await getGameById(gameId, env);
+        if (!game) {
+          return errorResponse('Game not found', 404, cors);
+        }
+
+        const { isMember } = await verifyOrgMembershipAndPermission(user.id, game.organization_id, 'game.view', env);
+        if (!isMember) {
+          return errorResponse('Access denied to this game', 403, cors);
+        }
+
+        const themes = await getThemesByOrgId(game.organization_id, gameId, env);
+        return jsonResponse({ themes }, 200, cors);
+      }
+
+      // ==========================================
+      // 8. Events & Public Deployment Routes
+      // ==========================================
+      if (pathname === '/api/events' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const organizationId = auth.jwtPayload?.organizationId;
+
+        if (!organizationId) {
+          return errorResponse('No active organization selected', 422, cors);
+        }
+
+        const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.view', env);
+        if (!isMember) {
+          return errorResponse('Forbidden: You are not a member of this organization', 403, cors);
+        }
+
+        const events = await getEventsByOrgId(organizationId, env);
+        return jsonResponse({ events }, 200, cors);
+      }
+
+      const getEventParams = parseRoute('/api/events/:eventId', pathname);
+      if (getEventParams && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = getEventParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view', env);
+        if (!isMember) {
+          return errorResponse('Forbidden: Access denied to this event', 403, cors);
+        }
+
+        return jsonResponse({ event }, 200, cors);
+      }
+
+      if (pathname === '/api/events' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const organizationId = auth.jwtPayload?.organizationId;
+
+        if (!organizationId) {
+          return errorResponse('No active organization selected', 422, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot create events', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { name, game_theme_id, event_date, starts_at, expires_at, status } = body;
+
+        if (!name || typeof name !== 'string' || !name.trim()) {
+          return errorResponse('Event name is required', 422, cors);
+        }
+
+        if (!game_theme_id) {
+          return errorResponse('Game Theme selection is required', 422, cors);
+        }
+
+        if (!starts_at || !expires_at) {
+          return errorResponse('Start time and Expiry time are required', 422, cors);
+        }
+
+        const event = await createEvent(
+          {
+            organization_id: organizationId,
+            game_theme_id,
+            name,
+            event_date,
+            starts_at,
+            expires_at,
+            status,
+            created_by: user.id,
+          },
+          env
+        );
+
+        const enrichedEvent = await getEventById(event.id, env);
+        return jsonResponse({ event: enrichedEvent }, 201, cors);
+      }
+
+      const updateEventParams = parseRoute('/api/events/:eventId', pathname);
+      if (updateEventParams && method === 'PUT') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = updateEventParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot edit events', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { name, game_theme_id, event_date, starts_at, expires_at, status } = body;
+
+        const updated = await updateEvent(
+          eventId,
+          {
+            name,
+            game_theme_id,
+            event_date,
+            starts_at,
+            expires_at,
+            status,
+          },
+          env
+        );
+
+        const enriched = await getEventById(updated.id, env);
+        return jsonResponse({ event: enriched }, 200, cors);
+      }
+
+      const deleteEventParams = parseRoute('/api/events/:eventId', pathname);
+      if (deleteEventParams && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = deleteEventParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || !['owner', 'admin'].includes(role || '')) {
+          return errorResponse('Permission denied: Only owners and admins can delete events', 403, cors);
+        }
+
+        await deleteEvent(eventId, env);
+        return jsonResponse({ success: true }, 200, cors);
+      }
+
+      const cancelEventParams = parseRoute('/api/events/:eventId/cancel', pathname);
+      if (cancelEventParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = cancelEventParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot cancel events', 403, cors);
+        }
+
+        const cancelled = await cancelEvent(eventId, env);
+        const enriched = await getEventById(cancelled.id, env);
+        return jsonResponse({ event: enriched }, 200, cors);
+      }
+
+      const publicEventParams = parseRoute('/api/public/events/:publicToken', pathname);
+      if (publicEventParams && method === 'GET') {
+        const { publicToken } = publicEventParams;
+        if (!publicToken) {
+          return errorResponse('Public token required', 422, cors);
+        }
+
+        const event = await getEventByPublicToken(publicToken, env);
+        if (!event) {
+          return errorResponse('Event not found or invalid URL', 404, cors);
+        }
+
+        return jsonResponse({ event }, 200, cors);
       }
 
       return errorResponse('Not found', 404, cors);

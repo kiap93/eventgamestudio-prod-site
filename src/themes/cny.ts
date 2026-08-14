@@ -1,4 +1,5 @@
 import { GameTheme } from './types';
+import { DEFAULT_GAME_LAYOUT } from './layout';
 
 export const cnyTheme: GameTheme = {
   id: 'chinese-new-year',
@@ -96,6 +97,7 @@ export const cnyTheme: GameTheme = {
   },
 
   sounds_config: { soundVolume: 0.8, soundEnabled: true, bgmEnabled: true },
+  layout: DEFAULT_GAME_LAYOUT,
 
   // Backward compatibility
   background: '/assets/cny_bg.png',

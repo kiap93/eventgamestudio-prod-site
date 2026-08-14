@@ -1,4 +1,5 @@
 import { GameTheme, ThemeDropItem } from './types';
+import { normalizeGameLayout } from './layout';
 import { durianTheme } from './durian';
 import { christmasTheme } from './christmas';
 import { cnyTheme } from './cny';
@@ -263,6 +264,7 @@ export function normalizeGameTheme(raw: any): GameTheme {
     physics_config,
     visuals_config,
     sounds_config,
+    layout: normalizeGameLayout(raw.layout ?? raw.layout_config ?? basePreset.layout),
 
     // Backward-compat props resolved with theme defaults
     gameTitle: branding.gameTitle,

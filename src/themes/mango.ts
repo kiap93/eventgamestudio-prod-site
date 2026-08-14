@@ -1,4 +1,5 @@
 import { GameTheme } from './types';
+import { DEFAULT_GAME_LAYOUT } from './layout';
 
 export const mangoTheme: GameTheme = {
   id: 'mango',
@@ -96,6 +97,7 @@ export const mangoTheme: GameTheme = {
   },
 
   sounds_config: { soundVolume: 0.8, soundEnabled: true, bgmEnabled: true },
+  layout: DEFAULT_GAME_LAYOUT,
 
   // Backward compatibility
   background: '/assets/mango_bg.png',

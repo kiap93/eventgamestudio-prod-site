@@ -23,6 +23,7 @@ import {
   getGamesByOrgId,
   getGameById,
   ensureDefaultGame,
+  ensureDefaultGames,
   updateGameCustomization,
   uploadGameAsset,
   getThemesByOrgId,
@@ -33,6 +34,13 @@ import {
   activateTheme,
   duplicateTheme,
   ensureDefaultThemes,
+  getEventsByOrgId,
+  getEventById,
+  getEventByPublicToken,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  cancelEvent,
 } from './server/db/index.js';
 
 import {
@@ -619,12 +627,13 @@ app.post('/api/upload', authenticateJWT, upload.single('file'), async (req: Auth
 
 /**
  * GET /api/themes
- * List all themes for active organization
+ * List all themes for active organization (optionally filtered by ?gameId=...)
  */
 app.get('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const organizationId = req.jwtPayload?.organizationId;
+    const gameId = req.query.gameId as string | undefined;
 
     if (!organizationId) {
       res.status(422).json({ error: 'No active organization selected' });
@@ -639,6 +648,10 @@ app.get('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) =
 
     const org = await getOrganizationById(organizationId);
     let themes = await ensureDefaultThemes(organizationId, org?.name || 'Studio');
+
+    if (gameId) {
+      themes = themes.filter((t) => t.game_id === gameId);
+    }
 
     res.json({ themes });
   } catch (err: any) {
@@ -677,7 +690,7 @@ app.get('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
 
 /**
  * POST /api/themes
- * Create new theme for organization
+ * Create new theme for organization and specific game
  */
 app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -698,6 +711,7 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
     const {
       name,
       slug,
+      game_id,
       description,
       status,
       is_active,
@@ -708,6 +722,7 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
       physics_config,
       visuals_config,
       sounds_config,
+      layout,
     } = req.body;
 
     if (!name || typeof name !== 'string') {
@@ -717,6 +732,7 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
 
     const theme = await createTheme({
       organization_id: organizationId,
+      game_id,
       name,
       slug,
       description,
@@ -729,6 +745,7 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
       physics_config,
       visuals_config,
       sounds_config,
+      layout,
     });
 
     res.status(201).json({ theme });
@@ -772,6 +789,7 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       physics_config,
       visuals_config,
       sounds_config,
+      layout,
     } = req.body;
 
     const updatedTheme = await updateTheme(themeId, {
@@ -787,6 +805,7 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       physics_config,
       visuals_config,
       sounds_config,
+      layout,
     });
 
     res.json({ theme: updatedTheme });
@@ -828,7 +847,7 @@ app.post('/api/themes/:themeId/duplicate', authenticateJWT, async (req: Authenti
 
 /**
  * POST /api/themes/:themeId/activate
- * Set theme as the active theme for the organization
+ * Set theme as the active theme for its game in the organization
  */
 app.post('/api/themes/:themeId/activate', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -890,7 +909,7 @@ app.delete('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReq
 
 /**
  * GET /api/games
- * Get primary game for active organization from Supabase
+ * Get games catalog for active organization from Supabase
  */
 app.get('/api/games', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -908,12 +927,8 @@ app.get('/api/games', authenticateJWT, async (req: AuthenticatedRequest, res) =>
       return;
     }
 
-    let games = await getGamesByOrgId(organizationId);
-    if (games.length === 0) {
-      const org = await getOrganizationById(organizationId);
-      const defaultGame = await ensureDefaultGame(organizationId, org?.name || 'Studio');
-      games = [defaultGame];
-    }
+    const org = await getOrganizationById(organizationId);
+    const games = await ensureDefaultGames(organizationId, org?.name || 'Studio');
 
     res.json({ games });
   } catch (err: any) {
@@ -951,8 +966,37 @@ app.get('/api/games/:gameId', authenticateJWT, async (req: AuthenticatedRequest,
 });
 
 /**
+ * GET /api/games/:gameId/themes
+ * Get all themes scoped to a specific game
+ */
+app.get('/api/games/:gameId/themes', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { gameId } = req.params;
+
+    const game = await getGameById(gameId);
+    if (!game) {
+      res.status(404).json({ error: 'Game not found' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, game.organization_id, 'game.view');
+    if (!isMember) {
+      res.status(403).json({ error: 'Access denied to this game' });
+      return;
+    }
+
+    const themes = await getThemesByOrgId(game.organization_id, gameId);
+    res.json({ themes });
+  } catch (err: any) {
+    console.error('Get game themes error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * PUT /api/games/:gameId/customization
- * Update game customization (background, basket, items, settings) in Supabase
+ * Update game customization in Supabase
  */
 app.put('/api/games/:gameId/customization', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -966,7 +1010,6 @@ app.put('/api/games/:gameId/customization', authenticateJWT, async (req: Authent
       return;
     }
 
-    // Determine permission needed
     let requiredPerm = 'game.view';
     if (background_url !== undefined) requiredPerm = 'game.background.edit';
     else if (items_config !== undefined) requiredPerm = 'game.items.edit';
@@ -995,6 +1038,246 @@ app.put('/api/games/:gameId/customization', authenticateJWT, async (req: Authent
     res.json({ game: updatedGame });
   } catch (err: any) {
     console.error('Update game customization error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// EVENTS & PUBLIC DEPLOYMENT ENDPOINTS
+// ----------------------------------------------------
+
+/**
+ * GET /api/events
+ * List all events for the active organization
+ */
+app.get('/api/events', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const organizationId = req.jwtPayload?.organizationId;
+
+    if (!organizationId) {
+      res.status(422).json({ error: 'No active organization selected' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.view');
+    if (!isMember) {
+      res.status(403).json({ error: 'Forbidden: You are not a member of this organization' });
+      return;
+    }
+
+    const events = await getEventsByOrgId(organizationId);
+    res.json({ events });
+  } catch (err: any) {
+    console.error('Get events error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/events/:eventId
+ * Get details for a specific event
+ */
+app.get('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view');
+    if (!isMember) {
+      res.status(403).json({ error: 'Forbidden: Access denied to this event' });
+      return;
+    }
+
+    res.json({ event });
+  } catch (err: any) {
+    console.error('Get event details error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events
+ * Create a new event deployment linking a Game Theme
+ */
+app.post('/api/events', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const organizationId = req.jwtPayload?.organizationId;
+
+    if (!organizationId) {
+      res.status(422).json({ error: 'No active organization selected' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot create events' });
+      return;
+    }
+
+    const { name, game_theme_id, event_date, starts_at, expires_at, status } = req.body;
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(422).json({ error: 'Event name is required' });
+      return;
+    }
+
+    if (!game_theme_id) {
+      res.status(422).json({ error: 'Game Theme selection is required' });
+      return;
+    }
+
+    if (!starts_at || !expires_at) {
+      res.status(422).json({ error: 'Start time and Expiry time are required' });
+      return;
+    }
+
+    const event = await createEvent({
+      organization_id: organizationId,
+      game_theme_id,
+      name,
+      event_date,
+      starts_at,
+      expires_at,
+      status,
+      created_by: user.id,
+    });
+
+    const enrichedEvent = await getEventById(event.id);
+    res.status(201).json({ event: enrichedEvent });
+  } catch (err: any) {
+    console.error('Create event error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PUT /api/events/:eventId
+ * Update event parameters (supports live theme correction)
+ */
+app.put('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot edit events' });
+      return;
+    }
+
+    const { name, game_theme_id, event_date, starts_at, expires_at, status } = req.body;
+
+    const updated = await updateEvent(eventId, {
+      name,
+      game_theme_id,
+      event_date,
+      starts_at,
+      expires_at,
+      status,
+    });
+
+    const enriched = await getEventById(updated.id);
+    res.json({ event: enriched });
+  } catch (err: any) {
+    console.error('Update event error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/events/:eventId
+ * Delete an event
+ */
+app.delete('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || !['owner', 'admin'].includes(role || '')) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can delete events' });
+      return;
+    }
+
+    await deleteEvent(eventId);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Delete event error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:eventId/cancel
+ * Cancel an active or scheduled event
+ */
+app.post('/api/events/:eventId/cancel', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot cancel events' });
+      return;
+    }
+
+    const cancelled = await cancelEvent(eventId);
+    const enriched = await getEventById(cancelled.id);
+    res.json({ event: enriched });
+  } catch (err: any) {
+    console.error('Cancel event error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/public/events/:publicToken
+ * Public unauthenticated endpoint for event players
+ */
+app.get('/api/public/events/:publicToken', async (req, res) => {
+  try {
+    const { publicToken } = req.params;
+    if (!publicToken) {
+      res.status(422).json({ error: 'Public token required' });
+      return;
+    }
+
+    const event = await getEventByPublicToken(publicToken);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found or invalid URL' });
+      return;
+    }
+
+    res.json({ event });
+  } catch (err: any) {
+    console.error('Public event resolution error:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -1,0 +1,367 @@
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Calendar,
+  Clock,
+  Sparkles,
+  Gamepad2,
+  Check,
+  AlertCircle,
+  Link,
+} from 'lucide-react';
+
+interface GameThemeOption {
+  id: string;
+  name: string;
+  slug: string;
+  game_id?: string | null;
+  game_name?: string;
+  game_slug?: string;
+}
+
+interface EditEventDialogProps {
+  isOpen: boolean;
+  event: any;
+  onClose: () => void;
+  onEventUpdated: (updatedEvent: any) => void;
+}
+
+export const EditEventDialog: React.FC<EditEventDialogProps> = ({
+  isOpen,
+  event,
+  onClose,
+  onEventUpdated,
+}) => {
+  const [name, setName] = useState('');
+  const [selectedThemeId, setSelectedThemeId] = useState<string>('');
+  const [startsAt, setStartsAt] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [status, setStatus] = useState<'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled'>('scheduled');
+
+  const [themes, setThemes] = useState<GameThemeOption[]>([]);
+  const [loadingThemes, setLoadingThemes] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const formatForInput = (d: Date | string) => {
+    const dateObj = new Date(d);
+    if (isNaN(dateObj.getTime())) return '';
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const year = dateObj.getFullYear();
+    const month = pad(dateObj.getMonth() + 1);
+    const day = pad(dateObj.getDate());
+    const hours = pad(dateObj.getHours());
+    const mins = pad(dateObj.getMinutes());
+    return `${year}-${month}-${day}T${hours}:${mins}`;
+  };
+
+  useEffect(() => {
+    if (!event || !isOpen) return;
+
+    setName(event.name || '');
+    setSelectedThemeId(event.game_theme_id || '');
+    setStartsAt(formatForInput(event.starts_at));
+    setExpiresAt(formatForInput(event.expires_at));
+    setStatus(event.status || 'scheduled');
+  }, [event, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchThemes = async () => {
+      try {
+        setLoadingThemes(true);
+        const res = await fetch('/api/themes', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('app_token') || ''}`,
+          },
+        });
+        if (!res.ok) throw new Error('Failed to fetch game themes');
+        const data = await res.json();
+        setThemes(data.themes || []);
+      } catch (err: any) {
+        console.error('Error fetching themes:', err);
+      } finally {
+        setLoadingThemes(false);
+      }
+    };
+
+    fetchThemes();
+  }, [isOpen]);
+
+  if (!isOpen || !event) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!name.trim()) {
+      setError('Event name is required');
+      return;
+    }
+
+    if (!selectedThemeId) {
+      setError('Please select a Game Theme');
+      return;
+    }
+
+    const startTime = new Date(startsAt).getTime();
+    const expiryTime = new Date(expiresAt).getTime();
+
+    if (isNaN(startTime) || isNaN(expiryTime)) {
+      setError('Please provide valid start and expiry dates/times');
+      return;
+    }
+
+    if (expiryTime <= startTime) {
+      setError('Expiry time must be later than Start time');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('app_token') || ''}`,
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          game_theme_id: selectedThemeId,
+          event_date: startsAt.split('T')[0],
+          starts_at: new Date(startsAt).toISOString(),
+          expires_at: new Date(expiresAt).toISOString(),
+          status,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update event');
+      }
+
+      const data = await res.json();
+      onEventUpdated(data.event);
+      onClose();
+    } catch (err: any) {
+      console.error('Update event error:', err);
+      setError(err.message || 'Failed to update event');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 font-sans">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-100">Edit Event Deployment</h2>
+              <p className="text-xs text-slate-400 font-mono">
+                Token: {event.public_token} (Permanent Public URL)
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
+          {error && (
+            <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-2.5 text-xs text-red-400">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Event Name */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-slate-300">
+              Event Name <span className="text-amber-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder:text-slate-600 outline-none transition-all"
+            />
+          </div>
+
+          {/* Game Theme Selector (Single bundle) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-300">
+                Assigned Game Theme <span className="text-amber-400">*</span>
+              </label>
+              <span className="text-[11px] text-slate-500">
+                Switch live theme without breaking URL
+              </span>
+            </div>
+
+            {loadingThemes ? (
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl text-center text-xs text-slate-400">
+                Loading game themes...
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-52 overflow-y-auto pr-1">
+                {/* Group themes by Game */}
+                {Array.from(
+                  themes.reduce((groups, theme) => {
+                    const gameKey = theme.game_name || 'Durian Catcher';
+                    if (!groups.has(gameKey)) groups.set(gameKey, []);
+                    groups.get(gameKey)!.push(theme);
+                    return groups;
+                  }, new Map<string, typeof themes>())
+                ).map(([gameName, gameThemeList]) => (
+                  <div key={gameName} className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 px-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{gameName}</span>
+                      <span className="text-slate-600">({gameThemeList.length})</span>
+                    </div>
+
+                    <div className="space-y-1.5 pl-2 border-l border-slate-800 ml-2">
+                      {gameThemeList.map((theme) => {
+                        const isSelected = theme.id === selectedThemeId;
+
+                        return (
+                          <button
+                            key={theme.id}
+                            type="button"
+                            onClick={() => setSelectedThemeId(theme.id)}
+                            className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
+                              isSelected
+                                ? 'bg-amber-500/10 border-amber-500/50 ring-1 ring-amber-500/30'
+                                : 'bg-slate-950 hover:bg-slate-800/60 border-slate-800 text-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div
+                                className={`w-2 h-2 rounded-full ${
+                                  isSelected ? 'bg-amber-400 ring-2 ring-amber-400/30' : 'bg-slate-600'
+                                }`}
+                              />
+                              <div>
+                                <div className="text-xs font-bold text-slate-200">
+                                  {theme.name}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  {theme.slug}
+                                </div>
+                              </div>
+                            </div>
+
+                            {isSelected && (
+                              <div className="p-1 bg-amber-500 text-slate-950 rounded-full">
+                                <Check className="w-3 h-3" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Time Windows */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Starts At</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+                required
+                className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-orange-400" />
+                <span>Expires At</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                required
+                className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Manual Status Override */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-slate-300">
+              Event Status
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as any)}
+              className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none"
+            >
+              <option value="scheduled">Scheduled / Auto-time window</option>
+              <option value="draft">Draft (Hidden)</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          {/* Public Link reminder */}
+          <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 text-slate-300">
+              <Link className="w-4 h-4 text-amber-400" />
+              <span className="font-mono">{window.location.origin}/e/{event.public_token}</span>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold rounded-xl transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5"
+            >
+              {submitting ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Save Changes</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

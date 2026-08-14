@@ -26,6 +26,30 @@ export const DEFAULT_SETTINGS_CONFIG: SettingsConfig = {
   cameraControlEnabled: true,
 };
 
+export const CATALOG_GAMES = [
+  {
+    name: 'Durian Catcher',
+    slug: 'durian-catcher',
+    game_type: 'catch-brand',
+    description: 'Catch falling branded collectibles with precision paddle/basket mechanics and dynamic hazard avoidance.',
+    icon_name: 'Gamepad2',
+  },
+  {
+    name: 'Memory Match',
+    slug: 'memory-match',
+    game_type: 'memory-match',
+    description: 'Grid-based card flip memory matching challenge featuring your custom product graphics and icons.',
+    icon_name: 'Layers',
+  },
+  {
+    name: 'Speed Reflex Tap',
+    slug: 'reaction-tap',
+    game_type: 'reaction-tap',
+    description: 'High-speed reaction tap tester testing player agility and focus on appearing sponsor tokens.',
+    icon_name: 'Zap',
+  },
+];
+
 export async function getGameById(gameId: string, env?: Record<string, any>): Promise<GameRecord | null> {
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
@@ -44,7 +68,7 @@ export async function getGameById(gameId: string, env?: Record<string, any>): Pr
 
 export async function getGamesByOrgId(organizationId: string, env?: Record<string, any>): Promise<GameRecord[]> {
   const supabase = getSupabaseServerClient(env);
-  const { data, error } = await supabase
+  const { data: gamesData, error } = await supabase
     .from('games')
     .select('*')
     .eq('organization_id', organizationId)
@@ -55,7 +79,28 @@ export async function getGamesByOrgId(organizationId: string, env?: Record<strin
     throw new Error(`Failed to list games: ${error.message}`);
   }
 
-  return (data || []) as GameRecord[];
+  const games = (gamesData || []) as GameRecord[];
+
+  // Fetch theme counts per game
+  const { data: themesData } = await supabase
+    .from('game_themes')
+    .select('id, game_id')
+    .eq('organization_id', organizationId);
+
+  const themeCountsByGame = new Map<string, number>();
+  if (themesData) {
+    for (const theme of themesData) {
+      if (theme.game_id) {
+        themeCountsByGame.set(theme.game_id, (themeCountsByGame.get(theme.game_id) || 0) + 1);
+      }
+    }
+  }
+
+  return games.map((game) => ({
+    ...game,
+    game_type: game.game_type || 'catch-brand',
+    theme_count: themeCountsByGame.get(game.id) || 0,
+  }));
 }
 
 export async function createGame(
@@ -64,6 +109,9 @@ export async function createGame(
     organization_id: string;
     name: string;
     slug?: string;
+    game_type?: string;
+    description?: string | null;
+    icon_name?: string | null;
     status?: 'active' | 'archived' | 'draft';
     background_url?: string | null;
     basket_config?: BasketConfig | any;
@@ -75,7 +123,8 @@ export async function createGame(
   const supabase = getSupabaseServerClient(env);
   const id = params.id || crypto.randomUUID();
   const now = new Date().toISOString();
-  const slug = params.slug || 'default-game';
+  const slug = params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const game_type = params.game_type || 'catch-brand';
 
   const { data, error } = await supabase
     .from('games')
@@ -84,6 +133,9 @@ export async function createGame(
       organization_id: params.organization_id,
       name: params.name,
       slug,
+      game_type,
+      description: params.description || null,
+      icon_name: params.icon_name || null,
       status: params.status || 'active',
       background_url: params.background_url || 'forest',
       basket_config: params.basket_config ?? DEFAULT_BASKET_CONFIG,
@@ -103,24 +155,48 @@ export async function createGame(
   return data as GameRecord;
 }
 
-export async function ensureDefaultGame(organizationId: string, orgName: string, env?: Record<string, any>): Promise<GameRecord> {
+export async function ensureDefaultGames(
+  organizationId: string,
+  _orgName?: string,
+  env?: Record<string, any>
+): Promise<GameRecord[]> {
   const existingGames = await getGamesByOrgId(organizationId, env);
-  if (existingGames.length > 0) {
-    return existingGames[0];
+  if (existingGames.length >= CATALOG_GAMES.length) {
+    return existingGames;
   }
 
-  return await createGame(
-    {
-      organization_id: organizationId,
-      name: `${orgName} Game`,
-      slug: 'main-game',
-      background_url: 'forest',
-      basket_config: DEFAULT_BASKET_CONFIG,
-      items_config: DEFAULT_ITEMS_CONFIG,
-      settings_config: DEFAULT_SETTINGS_CONFIG,
-    },
-    env
-  );
+  const existingTypes = new Set(existingGames.map((g) => g.game_type || g.slug));
+
+  for (const catalogGame of CATALOG_GAMES) {
+    if (!existingTypes.has(catalogGame.game_type) && !existingTypes.has(catalogGame.slug)) {
+      try {
+        await createGame(
+          {
+            organization_id: organizationId,
+            name: catalogGame.name,
+            slug: catalogGame.slug,
+            game_type: catalogGame.game_type,
+            description: catalogGame.description,
+            icon_name: catalogGame.icon_name,
+            background_url: '/assets/background.png',
+            basket_config: DEFAULT_BASKET_CONFIG,
+            items_config: DEFAULT_ITEMS_CONFIG,
+            settings_config: DEFAULT_SETTINGS_CONFIG,
+          },
+          env
+        );
+      } catch (err: any) {
+        console.warn('Could not seed game:', catalogGame.name, err.message);
+      }
+    }
+  }
+
+  return await getGamesByOrgId(organizationId, env);
+}
+
+export async function ensureDefaultGame(organizationId: string, orgName: string, env?: Record<string, any>): Promise<GameRecord> {
+  const games = await ensureDefaultGames(organizationId, orgName, env);
+  return games[0];
 }
 
 export async function updateGameCustomization(

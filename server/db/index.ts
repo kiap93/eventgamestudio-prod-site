@@ -5,4 +5,5 @@ export * from './members.js';
 export * from './invitations.js';
 export * from './games.js';
 export * from './themes.js';
+export * from './events.js';
 export * from './storage.js';

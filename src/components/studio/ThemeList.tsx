@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeCard } from './ThemeCard';
 import { CreateThemeDialog } from './CreateThemeDialog';
+import { GameCatalogModal } from './GameCatalogModal';
 import {
   Palette,
   Plus,
@@ -13,6 +14,7 @@ import {
   AlertCircle,
   FolderOpen,
   Filter,
+  Gamepad2,
 } from 'lucide-react';
 
 interface ThemeListProps {
@@ -37,6 +39,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'draft'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Filtered themes list
@@ -127,16 +130,29 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
           </div>
         </div>
 
-        {/* Primary Create Button */}
-        <button
-          type="button"
-          onClick={() => setShowCreateModal(true)}
-          disabled={isViewer}
-          className="w-full md:w-auto px-5 py-3 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm rounded-2xl transition-all shadow-xl shadow-amber-500/10 flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>+ Create New Theme</span>
-        </button>
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          <button
+            type="button"
+            onClick={() => setShowCatalogModal(true)}
+            className="w-full sm:w-auto px-4 py-3 bg-slate-950 hover:bg-slate-800 border border-slate-700 active:scale-95 text-slate-200 font-bold text-xs sm:text-sm rounded-2xl transition-all flex items-center justify-center gap-2"
+            title="Explore Multi-Game Catalog"
+          >
+            <Gamepad2 className="w-4 h-4 text-amber-400" />
+            <span>Game Engines</span>
+          </button>
+
+          {/* Primary Create Button */}
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            disabled={isViewer}
+            className="w-full sm:w-auto px-5 py-3 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm rounded-2xl transition-all shadow-xl shadow-amber-500/10 flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>+ Create New Theme</span>
+          </button>
+        </div>
       </div>
 
       {/* Notification Banner */}
@@ -279,6 +295,13 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
         activeTheme={activeTheme}
         onCreate={createTheme}
         onDuplicate={duplicateTheme}
+      />
+
+      {/* MULTI-GAME PLATFORM CATALOG MODAL */}
+      <GameCatalogModal
+        isOpen={showCatalogModal}
+        onClose={() => setShowCatalogModal(false)}
+        selectedGameType="catch-brand"
       />
     </div>
   );

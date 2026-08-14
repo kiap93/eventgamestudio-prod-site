@@ -7,6 +7,8 @@ import { ItemsTab } from './ItemsTab';
 import { GameplayTab } from './GameplayTab';
 import { AudioTab } from './AudioTab';
 import { BrandingTab } from './BrandingTab';
+import { LayoutTab } from './LayoutTab';
+import { LayoutElementKey, GameLayoutConfig } from '../../themes/layout';
 import {
   ArrowLeft,
   Palette,
@@ -22,6 +24,7 @@ import {
   AlertCircle,
   Play,
   Gamepad2,
+  Grid,
 } from 'lucide-react';
 
 interface ThemeEditorProps {
@@ -43,7 +46,8 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
   const role = currentOrganization?.role || 'viewer';
   const isViewer = role === 'viewer';
 
-  const [activeTab, setActiveTab] = useState<'visuals' | 'items' | 'gameplay' | 'audio' | 'branding'>('visuals');
+  const [activeTab, setActiveTab] = useState<'visuals' | 'items' | 'gameplay' | 'audio' | 'branding' | 'layout'>('visuals');
+  const [selectedLayoutElement, setSelectedLayoutElement] = useState<LayoutElementKey>('clientLogo');
 
   // Draft theme currently being edited
   const [draftTheme, setDraftTheme] = useState<GameTheme | null>(null);
@@ -415,6 +419,19 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               <Palette className="w-3.5 h-3.5" />
               <span>5. Branding</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('layout')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'layout'
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <Grid className="w-3.5 h-3.5" />
+              <span>6. Layout</span>
+            </button>
           </nav>
 
           {/* ACTIVE TAB CONTENT */}
@@ -459,6 +476,15 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
                 uploadingAsset={uploadingAsset}
               />
             )}
+
+            {activeTab === 'layout' && (
+              <LayoutTab
+                theme={draftTheme}
+                onChange={setDraftTheme}
+                selectedElementKey={selectedLayoutElement}
+                onSelectElementKey={setSelectedLayoutElement}
+              />
+            )}
           </div>
         </main>
 
@@ -467,7 +493,20 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
           id="live-theme-preview-container"
           className="lg:col-span-5 xl:col-span-5 space-y-4 lg:sticky lg:top-20"
         >
-          <LiveThemePreview theme={draftTheme} />
+          <LiveThemePreview
+            theme={draftTheme}
+            editableLayout={activeTab === 'layout'}
+            selectedElementKey={selectedLayoutElement}
+            onSelectElementKey={setSelectedLayoutElement}
+            onUpdateLayout={(newLayout) => {
+              if (draftTheme) {
+                setDraftTheme({
+                  ...draftTheme,
+                  layout: newLayout,
+                });
+              }
+            }}
+          />
         </aside>
       </div>
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { GameCustomizerPage } from '../studio/GameCustomizerPage';
 import { TeamMembersPage } from '../org/TeamMembersPage';
+import { EventsPage } from '../events/EventsPage';
 import { GameContainer } from '../GameContainer';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
@@ -12,6 +13,7 @@ import {
   ChevronDown,
   Plus,
   Palette,
+  Calendar,
   ExternalLink,
 } from 'lucide-react';
 
@@ -25,21 +27,24 @@ export const DashboardLayout: React.FC = () => {
     logout,
   } = useAuth();
 
-  const getInitialTab = (): 'customizer' | 'game' | 'team' => {
+  const getInitialTab = (): 'events' | 'customizer' | 'game' | 'team' => {
     const path = window.location.pathname;
+    if (path === '/events' || path.startsWith('/events')) return 'events';
     if (path === '/team') return 'team';
     if (path === '/preview' || path.startsWith('/studio/preview') || path === '/game') return 'game';
-    return 'customizer';
+    return 'events';
   };
 
-  const [activeTab, setActiveTab] = useState<'customizer' | 'game' | 'team'>(() => getInitialTab());
+  const [activeTab, setActiveTab] = useState<'events' | 'customizer' | 'game' | 'team'>(() => getInitialTab());
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
 
   // Sync tab with browser URL history
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
-      if (path === '/team') {
+      if (path === '/events' || path.startsWith('/events')) {
+        setActiveTab('events');
+      } else if (path === '/team') {
         setActiveTab('team');
       } else if (path === '/preview' || path.startsWith('/studio/preview') || path === '/game') {
         setActiveTab('game');
@@ -52,9 +57,13 @@ export const DashboardLayout: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const handleTabChange = (tab: 'customizer' | 'game' | 'team') => {
+  const handleTabChange = (tab: 'events' | 'customizer' | 'game' | 'team') => {
     setActiveTab(tab);
-    if (tab === 'customizer') {
+    if (tab === 'events') {
+      if (window.location.pathname !== '/events') {
+        navigateTo('/events');
+      }
+    } else if (tab === 'customizer') {
       if (!window.location.pathname.startsWith('/game-themes')) {
         navigateTo('/game-themes');
       }
@@ -150,6 +159,18 @@ export const DashboardLayout: React.FC = () => {
           {/* Navigation Tabs */}
           <div className="flex items-center gap-1 bg-slate-950 p-1 border border-slate-800 rounded-xl text-xs">
             <button
+              onClick={() => handleTabChange('events')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                activeTab === 'events'
+                  ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Events</span>
+            </button>
+
+            <button
               onClick={() => handleTabChange('customizer')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-semibold transition-all ${
                 activeTab === 'customizer'
@@ -158,7 +179,7 @@ export const DashboardLayout: React.FC = () => {
               }`}
             >
               <Palette className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Theme Studio</span>
+              <span className="hidden md:inline">Game Themes</span>
             </button>
 
             <button
@@ -222,6 +243,7 @@ export const DashboardLayout: React.FC = () => {
 
       {/* Main Content Body */}
       <main className="flex-1 py-6">
+        {activeTab === 'events' && <EventsPage />}
         {activeTab === 'customizer' && <GameCustomizerPage />}
         {activeTab === 'game' && <GameContainer />}
         {activeTab === 'team' && <TeamMembersPage />}

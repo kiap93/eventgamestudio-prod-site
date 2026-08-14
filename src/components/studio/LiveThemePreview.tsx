@@ -2,6 +2,14 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameTheme, ThemeDropItem } from '../../themes/types';
 import { soundManager } from '../../game/systems/SoundManager';
 import {
+  GameLayoutConfig,
+  LayoutElementKey,
+  LAYOUT_ELEMENT_KEYS,
+  LAYOUT_ELEMENTS_META,
+  DEFAULT_GAME_LAYOUT,
+  normalizeGameLayout,
+} from '../../themes/layout';
+import {
   Volume2,
   VolumeX,
   RotateCcw,
@@ -9,12 +17,25 @@ import {
   Gamepad2,
   Flame,
   Star,
+  Move,
+  Maximize2,
+  Eye,
+  EyeOff,
+  Image as ImageIcon,
+  Trophy,
+  Timer as TimerIcon,
+  Type,
+  Megaphone,
 } from 'lucide-react';
 
 interface LiveThemePreviewProps {
   theme: GameTheme;
   onTriggerItemDrop?: (item: ThemeDropItem) => void;
   className?: string;
+  editableLayout?: boolean;
+  selectedElementKey?: LayoutElementKey | null;
+  onSelectElementKey?: (key: LayoutElementKey) => void;
+  onUpdateLayout?: (newLayout: GameLayoutConfig) => void;
 }
 
 interface SimulatedItem {
@@ -41,9 +62,28 @@ interface SimulatedParticle {
   maxLife: number;
 }
 
-export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({ theme, className = '' }) => {
+interface DragState {
+  isDragging: boolean;
+  isResizing: boolean;
+  elementKey: LayoutElementKey;
+  startPointerX: number;
+  startPointerY: number;
+  startX: number;
+  startY: number;
+  startWidth: number;
+}
+
+export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
+  theme,
+  className = '',
+  editableLayout = false,
+  selectedElementKey = null,
+  onSelectElementKey,
+  onUpdateLayout,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const [isPlaying] = useState<boolean>(true);
   const [isInteractive, setIsInteractive] = useState<boolean>(false);
@@ -53,6 +93,12 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({ theme, class
     theme.physics_config?.gameDurationSeconds || 20
   );
   const [currentStageName, setCurrentStageName] = useState<string>('Stage 1: Calm');
+
+  // Dragging and resizing state for layout elements
+  const [dragState, setDragState] = useState<DragState | null>(null);
+
+  // Normalized layout
+  const layout: GameLayoutConfig = normalizeGameLayout(theme.layout);
 
   // Simulation physics state refs
   const simState = useRef({
@@ -158,222 +204,183 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({ theme, class
 
       if (isPlaying) {
         state.timeElapsed += dt;
-        state.timeRemaining = Math.max(
-          0,
-          (theme.physics_config?.gameDurationSeconds || 20) - state.timeElapsed
-        );
+        const duration = theme.physics_config?.gameDurationSeconds || 20;
+        const remaining = Math.max(0, Math.ceil(duration - state.timeElapsed));
+        state.timeRemaining = remaining;
+        setTimeRemaining(remaining);
 
-        if (state.timeRemaining <= 0) {
-          state.timeElapsed = 0;
-          state.timeRemaining = theme.physics_config?.gameDurationSeconds || 20;
-        }
-
+        // Determine stage
         const stages = theme.physics_config?.difficultyStages || [];
-        let currentStage = stages[0];
-        for (let i = stages.length - 1; i >= 0; i--) {
-          if (state.timeElapsed >= stages[i].timeThreshold) {
-            currentStage = stages[i];
-            break;
+        let curStage = stages[0] || { stageName: 'Stage 1: Calm' };
+        for (const st of stages) {
+          if (state.timeElapsed >= st.timeThreshold) {
+            curStage = st;
           }
         }
-        if (currentStage?.stageName) {
-          setCurrentStageName(currentStage.stageName);
+        setCurrentStageName(curStage.stageName || 'Stage 1');
+
+        // Red flash decay
+        if (state.redFlashAlpha > 0) {
+          state.redFlashAlpha = Math.max(0, state.redFlashAlpha - dt * 2.5);
         }
 
-        const spawnInterval = (currentStage?.spawnInterval || 750) / 1000;
-        if (now - state.lastSpawnTime > spawnInterval * 1000) {
-          state.lastSpawnTime = now;
-          const items = (theme.items_config || []).filter((i) => i.enabled);
-          if (items.length > 0) {
-            const rand = Math.random();
-            let chosen: ThemeDropItem | undefined;
-            const hazards = items.filter((i) => i.isHazard);
-            const bonuses = items.filter((i) => i.isBonus);
-            const goods = items.filter((i) => !i.isHazard && !i.isBonus);
-
-            if (hazards.length > 0 && rand < (currentStage?.hazardRatio ?? 0.25)) {
-              chosen = hazards[Math.floor(Math.random() * hazards.length)];
-            } else if (
-              bonuses.length > 0 &&
-              rand > 1.0 - (currentStage?.bonusRatio ?? 0.08)
-            ) {
-              chosen = bonuses[Math.floor(Math.random() * bonuses.length)];
-            } else if (goods.length > 0) {
-              const totalW = goods.reduce((sum, it) => sum + (it.spawnWeight || 10), 0);
-              let r = Math.random() * totalW;
-              for (const it of goods) {
-                r -= it.spawnWeight || 10;
-                if (r <= 0) {
-                  chosen = it;
-                  break;
-                }
-              }
-              if (!chosen) chosen = goods[0];
-            } else {
-              chosen = items[Math.floor(Math.random() * items.length)];
-            }
-
-            if (chosen) {
-              const baseSpeed =
-                currentStage?.speedMin && currentStage?.speedMax
-                  ? Math.random() * (currentStage.speedMax - currentStage.speedMin) +
-                    currentStage.speedMin
-                  : 380;
-              const fallMult = theme.physics_config?.fallSpeedMultiplier || 0.7;
-              const itemSpeedMult = chosen.speedMultiplier || 1.0;
-
-              state.items.push({
-                id: `item_${now}_${Math.random()}`,
-                config: chosen,
-                x: Math.random() * (V_WIDTH - 200) + 100,
-                y: -30,
-                speed: baseSpeed * fallMult * itemSpeedMult,
-                rotation: 0,
-                rotSpeed: (Math.random() - 0.5) * 3,
-                radius: 26,
-                collected: false,
-              });
-            }
-          }
+        // Basket bounce decay
+        if (state.basketBounce > 0) {
+          state.basketBounce = Math.max(0, state.basketBounce - dt * 8);
         }
 
-        const basketSpeed = (theme.basket_config?.speed || 600) * 1.2;
+        // AI Basket movement in non-interactive mode
         if (!isInteractive) {
-          const goodItems = state.items.filter(
-            (it) => !it.config.isHazard && it.y < V_HEIGHT - 60 && it.y > 50
-          );
-          if (goodItems.length > 0) {
-            goodItems.sort((a, b) => b.y - a.y);
-            state.basketTargetX = goodItems[0].x;
+          const nearestGood = state.items
+            .filter((i) => !i.collected && !i.config.isHazard && i.y > 100)
+            .sort((a, b) => b.y - a.y)[0];
+
+          if (nearestGood) {
+            state.basketTargetX = nearestGood.x;
           } else {
-            state.basketTargetX = V_WIDTH / 2 + Math.sin(state.timeElapsed * 1.5) * 180;
+            state.basketTargetX = 512 + Math.sin(state.timeElapsed * 1.5) * 220;
           }
         }
 
-        const dx = state.basketTargetX - state.basketX;
-        const maxStep = basketSpeed * dt;
-        if (Math.abs(dx) <= maxStep) {
-          state.basketX = state.basketTargetX;
-        } else {
-          state.basketX += Math.sign(dx) * maxStep;
+        // Smooth basket interpolation
+        const basketSpeed = theme.basket_config?.speed || 550;
+        const lerpFactor = Math.min(1, (basketSpeed / 60) * dt * 0.15);
+        state.basketX += (state.basketTargetX - state.basketX) * lerpFactor;
+        state.basketX = Math.max(90, Math.min(V_WIDTH - 90, state.basketX));
+
+        // Spawning logic
+        const spawnInterval = curStage.spawnInterval || 800;
+        if (now - state.lastSpawnTime > spawnInterval) {
+          state.lastSpawnTime = now;
+          const enabledItems = (theme.items_config || []).filter((i) => i.enabled);
+          if (enabledItems.length > 0) {
+            const totalWeight = enabledItems.reduce((acc, item) => acc + (item.spawnWeight || 10), 0);
+            let rnd = Math.random() * totalWeight;
+            let chosen = enabledItems[0];
+            for (const item of enabledItems) {
+              rnd -= item.spawnWeight || 10;
+              if (rnd <= 0) {
+                chosen = item;
+                break;
+              }
+            }
+
+            const baseSpeed = curStage.speedMin || 350;
+            const speedVariation = ((curStage.speedMax || 500) - baseSpeed) * Math.random();
+            const globalMultiplier = theme.physics_config?.fallSpeedMultiplier || 0.7;
+            const itemMult = chosen.speedMultiplier || 1.0;
+            const finalSpeed = (baseSpeed + speedVariation) * globalMultiplier * itemMult;
+
+            state.items.push({
+              id: `item_${Date.now()}_${Math.random()}`,
+              config: chosen,
+              x: Math.random() * (V_WIDTH - 200) + 100,
+              y: -40,
+              speed: finalSpeed,
+              rotation: 0,
+              rotSpeed: (Math.random() - 0.5) * 3,
+              radius: 28,
+              collected: false,
+            });
+          }
         }
 
-        const basketW = theme.basket_config?.width || 120;
-        state.basketX = Math.max(basketW / 2 + 20, Math.min(V_WIDTH - basketW / 2 - 20, state.basketX));
-
-        const basketY = V_HEIGHT - 70;
-        const catchRatio = theme.basket_config?.catchAreaRatio || 0.85;
-        const catchWidth = basketW * catchRatio;
-        const catchHeight = 28;
-        const catchLeft = state.basketX - catchWidth / 2;
-        const catchRight = state.basketX + catchWidth / 2;
-        const catchTop = basketY - catchHeight / 2;
-        const catchBottom = basketY + catchHeight / 2;
+        // Update items and collisions
+        const basketY = V_HEIGHT - 65;
+        const basketW = theme.basket_config?.width || 140;
+        const basketH = theme.basket_config?.height || 70;
+        const catchRatio = theme.basket_config?.catchAreaRatio || 0.8;
+        const catchHalfW = (basketW * catchRatio) / 2;
 
         for (let i = state.items.length - 1; i >= 0; i--) {
           const item = state.items[i];
           item.y += item.speed * dt;
           item.rotation += item.rotSpeed * dt;
 
+          // Check Catch Collision
           if (
             !item.collected &&
-            item.y >= catchTop &&
-            item.y <= catchBottom &&
-            item.x >= catchLeft &&
-            item.x <= catchRight
+            item.y >= basketY - basketH / 2 - 10 &&
+            item.y <= basketY + basketH / 2 &&
+            Math.abs(item.x - state.basketX) <= catchHalfW + item.radius * 0.4
           ) {
             item.collected = true;
+            state.score = Math.max(0, state.score + item.config.points);
             state.caughtCount++;
-            state.score += item.config.points;
+            setScore(state.score);
             state.basketBounce = 1.0;
 
+            if (item.config.isHazard) {
+              state.redFlashAlpha = 0.45;
+              if (!isMuted) soundManager.playOrangeCatch();
+            } else if (item.config.isBonus) {
+              if (!isMuted) soundManager.playGoldenCatch();
+            } else {
+              if (!isMuted) soundManager.playGreenCatch();
+            }
+
+            // Spawn catch burst particles
+            const pCount = item.config.isHazard ? 12 : item.config.isBonus ? 20 : 10;
             const pColor = item.config.isHazard
               ? '#ef4444'
               : item.config.isBonus
-              ? '#fbbf24'
-              : theme.visuals_config?.accentColor || '#10b981';
+              ? '#facc15'
+              : theme.visuals_config?.primaryColor || '#10b981';
 
-            for (let p = 0; p < 12; p++) {
+            for (let p = 0; p < pCount; p++) {
               const angle = Math.random() * Math.PI * 2;
-              const spd = Math.random() * 150 + 60;
+              const speed = Math.random() * 200 + 80;
               state.particles.push({
                 x: item.x,
                 y: item.y,
-                vx: Math.cos(angle) * spd,
-                vy: Math.sin(angle) * spd - 60,
-                alpha: 1.0,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 60,
+                alpha: 1,
                 size: Math.random() * 5 + 3,
                 color: pColor,
                 life: 0,
-                maxLife: 0.5,
+                maxLife: Math.random() * 0.4 + 0.3,
               });
             }
-
-            if (!isMuted) {
-              if (item.config.isHazard) {
-                soundManager.playOrangeCatch();
-              } else if (item.config.isBonus) {
-                soundManager.playGoldenCatch();
-              } else {
-                soundManager.playGreenCatch();
-              }
-            }
-
-            if (item.config.isHazard) {
-              state.redFlashAlpha = 0.4;
-            }
-
-            state.items.splice(i, 1);
-            continue;
           }
 
-          if (item.y > V_HEIGHT + 40) {
+          // Remove out of bounds or collected
+          if (item.y > V_HEIGHT + 60 || item.collected) {
             state.items.splice(i, 1);
           }
         }
 
-        for (let p = state.particles.length - 1; p >= 0; p--) {
-          const part = state.particles[p];
-          part.x += part.vx * dt;
-          part.y += part.vy * dt;
-          part.vy += 300 * dt;
-          part.life += dt;
-          part.alpha = Math.max(0, 1.0 - part.life / part.maxLife);
-          if (part.life >= part.maxLife) {
-            state.particles.splice(p, 1);
+        // Update particles
+        for (let i = state.particles.length - 1; i >= 0; i--) {
+          const p = state.particles[i];
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += 350 * dt; // gravity
+          p.life += dt;
+          p.alpha = Math.max(0, 1 - p.life / p.maxLife);
+          if (p.life >= p.maxLife) {
+            state.particles.splice(i, 1);
           }
         }
-
-        state.redFlashAlpha = Math.max(0, state.redFlashAlpha - dt * 2.5);
-        state.basketBounce = Math.max(0, state.basketBounce - dt * 6.0);
-
-        setScore(state.score);
-        setTimeRemaining(Math.ceil(state.timeRemaining));
       }
 
+      // ================= DRAWING ROUTINE =================
       ctx.clearRect(0, 0, V_WIDTH, V_HEIGHT);
 
       // Background
-      const bgUrl = theme.background_url || theme.background;
-      const bgImg = getOrLoadImage(bgUrl);
+      const bgImg = getOrLoadImage(theme.background_url || theme.background);
       if (bgImg) {
         ctx.drawImage(bgImg, 0, 0, V_WIDTH, V_HEIGHT);
       } else {
+        // Fallback gradient background
         const grad = ctx.createLinearGradient(0, 0, 0, V_HEIGHT);
-        grad.addColorStop(0, theme.visuals_config?.bgGradientFrom || '#091b10');
-        grad.addColorStop(0.5, theme.visuals_config?.bgGradientVia || '#0f2f1d');
-        grad.addColorStop(1, theme.visuals_config?.bgGradientTo || '#040d07');
+        grad.addColorStop(0, theme.visuals_config?.bgGradientFrom || '#064e3b');
+        grad.addColorStop(1, theme.visuals_config?.bgGradientTo || '#022c22');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
       }
 
-      // Scanline effect
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-      for (let y = 0; y < V_HEIGHT; y += 4) {
-        ctx.fillRect(0, y, V_WIDTH, 1.5);
-      }
-
-      // Falling items
+      // Draw Items
       for (const item of state.items) {
         ctx.save();
         ctx.translate(item.x, item.y);
@@ -381,101 +388,60 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({ theme, class
 
         const itemImg = getOrLoadImage(item.config.imageUrl);
         if (itemImg) {
-          const sz = item.radius * 2.2;
-          ctx.drawImage(itemImg, -sz / 2, -sz / 2, sz, sz);
+          const s = item.radius * 2;
+          ctx.drawImage(itemImg, -s / 2, -s / 2, s, s);
         } else {
+          // Fallback item circle
           ctx.beginPath();
           ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
-          if (item.config.isHazard) {
-            ctx.fillStyle = '#ef4444';
-            ctx.shadowColor = '#f87171';
-            ctx.shadowBlur = 10;
-          } else if (item.config.isBonus) {
-            ctx.fillStyle = '#f59e0b';
-            ctx.shadowColor = '#fbbf24';
-            ctx.shadowBlur = 14;
-          } else {
-            ctx.fillStyle = theme.visuals_config?.accentColor || '#10b981';
-            ctx.shadowColor = theme.visuals_config?.accentColor || '#34d399';
-            ctx.shadowBlur = 8;
-          }
+          ctx.fillStyle = item.config.isHazard
+            ? '#ef4444'
+            : item.config.isBonus
+            ? '#facc15'
+            : theme.visuals_config?.primaryColor || '#10b981';
           ctx.fill();
-
-          ctx.shadowBlur = 0;
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 12px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(
-            item.config.isHazard
-              ? '💣'
-              : item.config.isBonus
-              ? '★'
-              : `${item.config.points > 0 ? '+' : ''}${item.config.points}`,
-            0,
-            0
-          );
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = '#ffffff';
+          ctx.stroke();
         }
+
         ctx.restore();
       }
 
-      // Particles
+      // Draw Particles
       for (const p of state.particles) {
         ctx.save();
         ctx.globalAlpha = p.alpha;
         ctx.fillStyle = p.color;
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = 6;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
 
-      // Basket / Catcher
-      const basketW = theme.basket_config?.width || 120;
-      const basketH = theme.basket_config?.height || 54;
-      const basketY = V_HEIGHT - 70;
-      const bounceScale = 1.0 + state.basketBounce * 0.15;
+      // Draw Basket / Catcher
+      const basketY = V_HEIGHT - 65;
+      const basketW = theme.basket_config?.width || 140;
+      const basketH = theme.basket_config?.height || 70;
+      const bounceScale = 1 + state.basketBounce * 0.18;
 
       ctx.save();
       ctx.translate(state.basketX, basketY);
-      ctx.scale(bounceScale, 1.0 / bounceScale);
+      ctx.scale(bounceScale, 2 - bounceScale);
 
-      const catcherUrl = theme.basket_config?.imageUrl || theme.catcher;
-      const catcherImg = getOrLoadImage(catcherUrl);
-
-      if (catcherImg) {
-        ctx.drawImage(catcherImg, -basketW / 2, -basketH / 2, basketW, basketH);
+      const basketImg = getOrLoadImage(theme.basket_config?.imageUrl || theme.catcher);
+      if (basketImg) {
+        ctx.drawImage(basketImg, -basketW / 2, -basketH / 2, basketW, basketH);
       } else {
+        // Fallback basket box
+        ctx.fillStyle = theme.visuals_config?.secondaryColor || '#f59e0b';
         ctx.beginPath();
-        ctx.roundRect(-basketW / 2, -basketH / 2, basketW, basketH, [6, 6, 16, 16]);
-        ctx.fillStyle = '#d97706';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-        ctx.shadowBlur = 8;
+        ctx.roundRect(-basketW / 2, -basketH / 2, basketW, basketH, 12);
         ctx.fill();
-
-        ctx.beginPath();
-        ctx.roundRect(-basketW / 2, -basketH / 2, basketW, 10, [6, 6, 0, 0]);
-        ctx.fillStyle = '#fbbf24';
-        ctx.fill();
-
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#78350f';
-        ctx.font = 'bold 11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(theme.basket_config?.name || 'BASKET', 0, 4);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
       }
-
-      const catchRatio = theme.basket_config?.catchAreaRatio || 0.85;
-      const catchW = basketW * catchRatio;
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-catchW / 2, -basketH / 2 + 2);
-      ctx.lineTo(catchW / 2, -basketH / 2 + 2);
-      ctx.stroke();
 
       ctx.restore();
 
@@ -483,13 +449,6 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({ theme, class
       if (state.redFlashAlpha > 0) {
         ctx.fillStyle = `rgba(239, 68, 68, ${state.redFlashAlpha})`;
         ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
-      }
-
-      // Brand Logo
-      const logoUrl = theme.branding?.clientLogoUrl || theme.branding?.logoUrl || theme.clientLogo || theme.logo;
-      const logoImg = getOrLoadImage(logoUrl);
-      if (logoImg) {
-        ctx.drawImage(logoImg, 24, 20, 120, 36);
       }
 
       animationFrameId = requestAnimationFrame(render);
@@ -502,12 +461,228 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({ theme, class
     };
   }, [isPlaying, isInteractive, isMuted, theme, getOrLoadImage]);
 
+  // Interactive basket movement via pointer
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isInteractive || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const scaleX = 1024 / rect.width;
     const mouseX = (e.clientX - rect.left) * scaleX;
     simState.current.basketTargetX = mouseX;
+  };
+
+  // ================= DRAG & RESIZE HANDLERS FOR LAYOUT ELEMENTS =================
+  const handleElementPointerDown = (
+    key: LayoutElementKey,
+    isResize: boolean,
+    e: React.PointerEvent<HTMLDivElement>
+  ) => {
+    if (!editableLayout) return;
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+
+    onSelectElementKey?.(key);
+
+    const elem = layout[key] || DEFAULT_GAME_LAYOUT[key];
+    const meta = LAYOUT_ELEMENTS_META[key];
+
+    setDragState({
+      isDragging: !isResize,
+      isResizing: isResize,
+      elementKey: key,
+      startPointerX: e.clientX,
+      startPointerY: e.clientY,
+      startX: elem.x,
+      startY: elem.y,
+      startWidth: elem.width || meta.defaultWidth,
+    });
+  };
+
+  const handleContainerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState || !viewportRef.current || !editableLayout) return;
+    e.preventDefault();
+
+    const rect = viewportRef.current.getBoundingClientRect();
+    const deltaXPercent = ((e.clientX - dragState.startPointerX) / rect.width) * 100;
+    const deltaYPercent = ((e.clientY - dragState.startPointerY) / rect.height) * 100;
+
+    const key = dragState.elementKey;
+    const meta = LAYOUT_ELEMENTS_META[key];
+    const currentElem = layout[key] || DEFAULT_GAME_LAYOUT[key];
+
+    if (dragState.isDragging) {
+      const elemWidth = currentElem.width || meta.defaultWidth;
+      const newX = Math.max(0, Math.min(100 - elemWidth, dragState.startX + deltaXPercent));
+      const newY = Math.max(0, Math.min(95, dragState.startY + deltaYPercent));
+
+      const nextLayout: GameLayoutConfig = {
+        ...layout,
+        [key]: {
+          ...currentElem,
+          x: Math.round(newX * 10) / 10,
+          y: Math.round(newY * 10) / 10,
+        },
+      };
+      onUpdateLayout?.(nextLayout);
+    } else if (dragState.isResizing) {
+      const newWidth = Math.max(
+        meta.minWidth,
+        Math.min(meta.maxWidth, dragState.startWidth + deltaXPercent)
+      );
+
+      const nextLayout: GameLayoutConfig = {
+        ...layout,
+        [key]: {
+          ...currentElem,
+          width: Math.round(newWidth * 10) / 10,
+        },
+      };
+      onUpdateLayout?.(nextLayout);
+    }
+  };
+
+  const handleContainerPointerUp = (e?: React.PointerEvent<HTMLDivElement>) => {
+    if (dragState) {
+      e?.preventDefault();
+      setDragState(null);
+    }
+  };
+
+  // Helper to render individual UI element overlay inside the 16:9 canvas
+  const renderLayoutElementOverlay = (key: LayoutElementKey) => {
+    const meta = LAYOUT_ELEMENTS_META[key];
+    const elem = layout[key] || DEFAULT_GAME_LAYOUT[key];
+    const isSelected = selectedElementKey === key;
+    const isVisible = elem.visible;
+    const widthPercent = elem.width || meta.defaultWidth;
+
+    // If not in edit mode and invisible, don't render
+    if (!editableLayout && !isVisible) return null;
+
+    const logoUrl =
+      theme.branding?.clientLogoUrl ||
+      theme.clientLogo ||
+      theme.branding?.logoUrl ||
+      theme.logo ||
+      '/assets/basket.png';
+
+    const getElementContent = () => {
+      switch (key) {
+        case 'clientLogo':
+          return (
+            <div className="w-full h-full flex items-center justify-center p-1 pointer-events-none select-none">
+              <img
+                src={logoUrl}
+                alt="Client Logo"
+                draggable={false}
+                className="max-h-12 w-full object-contain drop-shadow pointer-events-none select-none"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            </div>
+          );
+        case 'scoreHud':
+          return (
+            <div className="w-full bg-slate-950/85 backdrop-blur-sm border border-slate-700/80 rounded-xl px-2.5 py-1.5 shadow-md flex items-center justify-between text-xs font-mono font-black pointer-events-none select-none">
+              <span className="text-slate-400 flex items-center gap-1">
+                <Trophy className="w-3 h-3 text-amber-400" /> SCORE
+              </span>
+              <span style={{ color: theme.branding?.hudColor || '#c8e038' }} className="ml-2 text-sm font-bold">
+                {score}
+              </span>
+            </div>
+          );
+        case 'timer':
+          return (
+            <div className="w-full bg-slate-950/85 backdrop-blur-sm border border-slate-700/80 rounded-xl px-2.5 py-1.5 shadow-md flex items-center justify-between text-xs font-mono font-black pointer-events-none select-none">
+              <span className="text-slate-400 flex items-center gap-1">
+                <TimerIcon className="w-3 h-3 text-teal-400" /> TIME
+              </span>
+              <span className="ml-2 text-sm font-bold text-amber-400">{timeRemaining}s</span>
+            </div>
+          );
+        case 'gameTitle':
+          return (
+            <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-xl px-2.5 py-1 shadow-md text-center pointer-events-none select-none">
+              <div
+                style={{ color: theme.visuals_config?.accentColor || '#10b981' }}
+                className="font-black text-xs uppercase tracking-wider truncate"
+              >
+                {theme.branding?.gameTitle || theme.gameTitle || theme.name}
+              </div>
+              <div className="text-[9px] text-slate-400 font-sans truncate">
+                {currentStageName}
+              </div>
+            </div>
+          );
+        case 'footerSponsor':
+          return (
+            <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-full px-3 py-1 shadow-md text-center flex items-center justify-center gap-1.5 pointer-events-none select-none">
+              <Megaphone className="w-3 h-3 text-amber-400 shrink-0" />
+              <span className="text-[10px] text-slate-300 font-sans truncate">
+                {theme.branding?.subtitle || theme.subtitle || 'Official Event Arcade Challenge'}
+              </span>
+            </div>
+          );
+        default:
+          return null;
+      }
+    };
+
+    return (
+      <div
+        key={key}
+        style={{
+          position: 'absolute',
+          left: `${elem.x}%`,
+          top: `${elem.y}%`,
+          width: `${widthPercent}%`,
+          zIndex: isSelected ? 40 : 20,
+          touchAction: 'none',
+        }}
+        onClick={(e) => {
+          if (editableLayout) {
+            e.stopPropagation();
+            onSelectElementKey?.(key);
+          }
+        }}
+        onPointerDown={(e) => handleElementPointerDown(key, false, e)}
+        className={`transition-shadow select-none group/elem ${
+          editableLayout
+            ? `cursor-move touch-none ${
+                isSelected
+                  ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 rounded-xl shadow-2xl'
+                  : 'hover:ring-1 hover:ring-slate-400/60 rounded-xl'
+              } ${!isVisible ? 'opacity-40 border border-dashed border-rose-400/70' : ''}`
+            : 'pointer-events-none'
+        }`}
+      >
+        {/* Render Element Body */}
+        {getElementContent()}
+
+        {/* Studio Edit Mode Badges and Resize Handles */}
+        {editableLayout && isSelected && (
+          <>
+            {/* Top Selection Label Tag */}
+            <div className="absolute -top-5 left-0 bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded text-[9px] font-mono font-black shadow pointer-events-none whitespace-nowrap z-50 flex items-center gap-1">
+              <Move className="w-2.5 h-2.5" />
+              <span>{meta.shortName}</span>
+              <span>({Math.round(elem.x)}%, {Math.round(elem.y)}%)</span>
+            </div>
+
+            {/* Right Resize Handle */}
+            <div
+              onPointerDown={(e) => handleElementPointerDown(key, true, e)}
+              className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-6 bg-amber-400 hover:bg-amber-300 border border-slate-900 rounded cursor-ew-resize flex items-center justify-center shadow-lg z-50 transition-transform active:scale-110"
+              title="Drag to resize width"
+            >
+              <div className="w-0.5 h-3 bg-slate-950 rounded-full" />
+            </div>
+          </>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -521,7 +696,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({ theme, class
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
           <h2 className="text-xs font-black tracking-wider uppercase text-slate-200 flex items-center gap-1.5">
             <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
-            Live Game Simulation
+            {editableLayout ? 'Interactive Layout Simulation' : 'Live Game Simulation'}
           </h2>
         </div>
 
@@ -544,7 +719,11 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({ theme, class
             className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
             title={isMuted ? 'Unmute preview sounds' : 'Mute preview sounds'}
           >
-            {isMuted ? <VolumeX className="w-3.5 h-3.5 text-slate-500" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
+            {isMuted ? (
+              <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+            ) : (
+              <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+            )}
           </button>
 
           <button
@@ -557,8 +736,14 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({ theme, class
         </div>
       </div>
 
-      {/* Main 16:9 Canvas Viewport */}
-      <div className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group">
+      {/* Main 16:9 Canvas Viewport with Layout Overlays */}
+      <div
+        ref={viewportRef}
+        onPointerMove={handleContainerPointerMove}
+        onPointerUp={handleContainerPointerUp}
+        onPointerCancel={handleContainerPointerUp}
+        className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none"
+      >
         <canvas
           ref={canvasRef}
           width={1024}
@@ -569,35 +754,11 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({ theme, class
           }`}
         />
 
-        {/* HUD Overlay Top */}
-        <div className="absolute top-2 inset-x-3 flex items-center justify-between pointer-events-none text-xs font-mono font-bold select-none">
-          <div className="bg-slate-950/75 backdrop-blur-sm border border-slate-800/80 px-2.5 py-1 rounded-xl flex items-center gap-2">
-            <span
-              style={{ color: theme.branding?.accentColor || '#10b981' }}
-              className="truncate max-w-[130px] font-black"
-            >
-              {theme.branding?.gameTitle || theme.name}
-            </span>
-            <span className="text-[10px] text-slate-400 font-sans px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">
-              {currentStageName}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="bg-slate-950/85 backdrop-blur-sm border border-slate-800 px-2.5 py-1 rounded-xl text-slate-200">
-              TIME: <span className="text-amber-400 font-black">{timeRemaining}s</span>
-            </div>
-            <div
-              style={{ color: theme.branding?.hudColor || '#c8e038' }}
-              className="bg-slate-950/85 backdrop-blur-sm border border-slate-800 px-3 py-1 rounded-xl font-black text-sm"
-            >
-              SCORE: {score}
-            </div>
-          </div>
-        </div>
+        {/* RESPONSIVE LAYOUT ELEMENTS OVERLAYS */}
+        {LAYOUT_ELEMENT_KEYS.map((k) => renderLayoutElementOverlay(k))}
 
         {isInteractive && (
-          <div className="absolute bottom-2 inset-x-0 mx-auto w-fit bg-amber-500/90 text-slate-950 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-lg pointer-events-none animate-bounce">
+          <div className="absolute bottom-2 inset-x-0 mx-auto w-fit bg-amber-500/90 text-slate-950 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-lg pointer-events-none animate-bounce z-30">
             Move mouse / finger horizontally across canvas to catch items!
           </div>
         )}

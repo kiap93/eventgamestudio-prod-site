@@ -172,9 +172,29 @@ export interface ThemeSoundsConfig {
   bgmEnabled?: boolean;
 }
 
+export interface GameLayoutElement {
+  visible: boolean;
+  x: number; // percentage relative to game viewport width (0-100)
+  y: number; // percentage relative to game viewport height (0-100)
+  width?: number; // percentage relative to game viewport width (0-100)
+  height?: number; // percentage relative to game viewport height (0-100)
+}
+
+export interface GameLayoutConfig {
+  clientLogo: GameLayoutElement;
+  scoreHud: GameLayoutElement;
+  timer: GameLayoutElement;
+  gameTitle: GameLayoutElement;
+  footerSponsor: GameLayoutElement;
+  [key: string]: GameLayoutElement | undefined;
+}
+
 export interface GameThemeRecord {
   id: string;
   organization_id: string;
+  game_id?: string | null;
+  game_name?: string;
+  game_slug?: string;
   name: string;
   slug: string;
   description: string | null;
@@ -187,6 +207,7 @@ export interface GameThemeRecord {
   physics_config: ThemePhysicsConfig;
   visuals_config: ThemeVisualsConfig;
   sounds_config: ThemeSoundsConfig;
+  layout?: GameLayoutConfig;
   created_at: string;
   updated_at: string;
 }
@@ -197,11 +218,45 @@ export interface GameRecord {
   active_theme_id?: string | null;
   name: string;
   slug: string;
+  game_type: string;
+  description?: string | null;
+  icon_name?: string | null;
   status: 'active' | 'archived' | 'draft';
   background_url: string | null;
   basket_config: BasketConfig | string | null;
   items_config: ItemConfig[] | string | null;
   settings_config: SettingsConfig | string | null;
+  theme_count?: number;
   created_at: string;
   updated_at: string;
+}
+
+export type EventStatus = 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled';
+
+export interface EventRecord {
+  id: string;
+  organization_id: string;
+  game_theme_id: string;
+  name: string;
+  event_date?: string | null;
+  starts_at: string;
+  expires_at: string;
+  status: EventStatus;
+  public_token: string;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventWithDetails extends EventRecord {
+  calculated_status?: EventStatus;
+  game_theme?: GameThemeRecord | null;
+  game?: {
+    id: string;
+    name: string;
+    slug: string;
+    game_type: string;
+  } | null;
+  organization_name?: string;
+  organization_slug?: string;
 }

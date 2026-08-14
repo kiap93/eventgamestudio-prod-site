@@ -93,6 +93,23 @@ export interface ThemeSoundsConfig {
   hazardTone?: 'low_buzz' | 'spooky_screech' | 'firecracker_pop';
 }
 
+export interface GameLayoutElement {
+  visible: boolean;
+  x: number; // percentage from left (0 to 100)
+  y: number; // percentage from top (0 to 100)
+  width?: number; // percentage of game width (0 to 100)
+  height?: number; // percentage of game height (0 to 100)
+}
+
+export interface GameLayoutConfig {
+  clientLogo: GameLayoutElement;
+  scoreHud: GameLayoutElement;
+  timer: GameLayoutElement;
+  gameTitle: GameLayoutElement;
+  footerSponsor: GameLayoutElement;
+  [key: string]: GameLayoutElement | undefined;
+}
+
 /**
  * Single Source of Truth for a Game Theme
  */
@@ -114,6 +131,7 @@ export interface GameTheme {
   physics_config: ThemePhysicsConfig;
   visuals_config: ThemeVisualsConfig;
   sounds_config: ThemeSoundsConfig;
+  layout?: GameLayoutConfig;
 
   // Convenience / Backward-compatibility properties
   gameTitle?: string;

@@ -6,12 +6,18 @@ import { CreateOrganizationPage } from './components/auth/CreateOrganizationPage
 import { AcceptInvitePage } from './components/auth/AcceptInvitePage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { GameOnlyLayout } from './components/layout/GameOnlyLayout';
+import { PublicEventGameView } from './components/events/PublicEventGameView';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, currentOrganization } = useAuth();
   const routeContext = useRouteContext();
 
-  // 1. PUBLIC EVENT GAME ROUTE: /{organization-slug}/{game-slug}
+  // 1. PUBLIC EVENT ROUTE: /e/:publicToken (Unauthenticated Public Player View)
+  if (routeContext.mode === 'public_event') {
+    return <PublicEventGameView />;
+  }
+
+  // 2. PUBLIC LEGACY GAME ROUTE: /{organization-slug}/{game-slug}
   // MUST ALWAYS render in Public Event Game Mode (GameOnlyLayout), whether logged in or logged out.
   if (routeContext.isPublicGameRoute) {
     return <GameOnlyLayout />;

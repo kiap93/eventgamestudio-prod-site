@@ -3,6 +3,7 @@ import { Volume2, VolumeX, Pause, Play, RotateCcw, HelpCircle, Trophy, Sparkles,
 import { GameState, GameStats, GameSettings } from '../types';
 import { GAME_DURATION_SECONDS } from '../game/config';
 import { GameTheme, THEME_REGISTRY, getActiveTheme } from '../themes';
+import { normalizeGameLayout, GameLayoutConfig } from '../themes/layout';
 
 interface ArcadeUIProps {
   gameState: GameState;
@@ -53,12 +54,20 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
+  const layout: GameLayoutConfig = normalizeGameLayout(activeTheme.layout);
+
   const handleRequestStop = () => {
     if (gameState === 'PLAYING') {
       onPauseGame();
     }
     setShowStopConfirm(true);
   };
+
+  const clientLogoUrl =
+    activeTheme.branding?.clientLogoUrl ||
+    activeTheme.clientLogo ||
+    activeTheme.branding?.logoUrl ||
+    activeTheme.logo;
 
   return (
     <div className="absolute inset-0 pointer-events-none select-none flex flex-col justify-between p-4 overflow-hidden font-mono z-30">
@@ -89,77 +98,178 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
         </div>
       )}
 
-      {/* ================= IN-GAME TOP HUD ================= */}
-      {gameState === 'PLAYING' || gameState === 'PAUSED' ? (
-        <div className="w-full flex justify-between items-start pointer-events-auto z-40">
-          {/* Top Left Score & Timer Panel */}
-          <div className="bg-[#0c2012]/80 border-2 border-[#b2c833] rounded-2xl px-4 py-2.5 shadow-md text-white relative min-w-[190px]">
-            <div className="flex items-center justify-between text-xl font-mono font-bold text-[#c8e038] tracking-wider">
-              <span>SCORE</span>
-              <span className="ml-4">{stats.score}</span>
-            </div>
-            <div className="flex items-center justify-between text-xl font-mono font-bold text-[#c8e038] tracking-wider mt-0.5">
-              <span>TIME</span>
-              <span className="ml-4">{stats.timeRemaining}</span>
-            </div>
+      {/* ================= IN-GAME DYNAMIC LAYOUT HUD ================= */}
+      {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
+        <>
+          {/* Top Right In-Game Controls Dock */}
+          <div className="absolute top-3 right-3 z-50 pointer-events-auto flex items-center gap-1.5 bg-slate-950/80 backdrop-blur-sm p-1.5 rounded-xl border border-slate-700/80 shadow-lg">
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
+              title="Game Settings & Themes"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={onToggleMute}
+              className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
+              title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+            >
+              {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
+            </button>
+
+            {gameState === 'PLAYING' ? (
+              <button
+                onClick={onPauseGame}
+                className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
+                title="Pause Game"
+              >
+                <Pause className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                onClick={onResumeGame}
+                className="p-1.5 rounded-lg bg-[#c8e038] text-[#0c2012] border border-[#b2c833] font-bold transition-all"
+                title="Resume Game"
+              >
+                <Play className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            <button
+              onClick={handleRequestStop}
+              className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-rose-500/80 text-rose-400 hover:bg-rose-950 transition-all flex items-center justify-center"
+              title="Stop Game / Return to Main Menu"
+            >
+              <Square className="w-3.5 h-3.5 fill-rose-400" />
+            </button>
+
+            <button
+              onClick={onToggleFullscreen}
+              className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all font-mono text-xs font-bold"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
+            >
+              ⛶
+            </button>
           </div>
 
-          {/* Top Right Status & Controls Panel */}
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setShowSettingsModal(true)}
-                className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
-                title="Game Settings & Themes"
-              >
-                <Settings className="w-3.5 h-3.5" />
-              </button>
-
-              <button
-                onClick={onToggleMute}
-                className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
-                title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
-              >
-                {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-              </button>
-
-              {gameState === 'PLAYING' ? (
-                <button
-                  onClick={onPauseGame}
-                  className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
-                  title="Pause Game"
-                >
-                  <Pause className="w-3.5 h-3.5" />
-                </button>
-              ) : (
-                <button
-                  onClick={onResumeGame}
-                  className="p-1.5 rounded-lg bg-[#c8e038] text-[#0c2012] border border-[#b2c833] font-bold transition-all"
-                  title="Resume Game"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-              <button
-                onClick={handleRequestStop}
-                className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-rose-500/80 text-rose-400 hover:bg-rose-950 transition-all flex items-center justify-center"
-                title="Stop Game / Return to Main Menu"
-              >
-                <Square className="w-3.5 h-3.5 fill-rose-400" />
-              </button>
-
-              <button
-                onClick={onToggleFullscreen}
-                className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all font-mono text-xs font-bold"
-                title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
-              >
-                ⛶
-              </button>
+          {/* 1. Client Logo Element */}
+          {layout.clientLogo?.visible && clientLogoUrl && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${layout.clientLogo.x}%`,
+                top: `${layout.clientLogo.y}%`,
+                width: `${layout.clientLogo.width || 14}%`,
+                zIndex: 35,
+              }}
+              className="pointer-events-none transition-all flex items-center"
+            >
+              <img
+                src={clientLogoUrl}
+                alt="Client Logo"
+                className="max-h-12 w-full object-contain drop-shadow"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
             </div>
-          </div>
-        </div>
-      ) : null}
+          )}
+
+          {/* 2. Score HUD Element */}
+          {layout.scoreHud?.visible && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${layout.scoreHud.x}%`,
+                top: `${layout.scoreHud.y}%`,
+                width: `${layout.scoreHud.width || 18}%`,
+                zIndex: 35,
+              }}
+              className="pointer-events-none transition-all"
+            >
+              <div className="bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between">
+                <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+                  <Trophy className="w-3.5 h-3.5 text-amber-400" /> SCORE
+                </span>
+                <span
+                  style={{ color: activeTheme.branding?.hudColor || '#c8e038' }}
+                  className="text-base sm:text-lg font-mono font-black ml-2"
+                >
+                  {stats.score}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* 3. Timer Element */}
+          {layout.timer?.visible && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${layout.timer.x}%`,
+                top: `${layout.timer.y}%`,
+                width: `${layout.timer.width || 18}%`,
+                zIndex: 35,
+              }}
+              className="pointer-events-none transition-all"
+            >
+              <div className="bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between">
+                <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+                  <Timer className="w-3.5 h-3.5 text-teal-400" /> TIME
+                </span>
+                <span className="text-base sm:text-lg font-mono font-black text-amber-400 ml-2">
+                  {stats.timeRemaining}s
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* 4. Game Title Element */}
+          {layout.gameTitle?.visible && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${layout.gameTitle.x}%`,
+                top: `${layout.gameTitle.y}%`,
+                width: `${layout.gameTitle.width || 24}%`,
+                zIndex: 35,
+              }}
+              className="pointer-events-none transition-all"
+            >
+              <div className="bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-xl px-3 py-1 shadow-md text-center">
+                <div
+                  style={{ color: activeTheme.branding?.accentColor || activeTheme.visuals_config?.accentColor || '#10b981' }}
+                  className="font-black text-xs sm:text-sm uppercase tracking-wider truncate"
+                >
+                  {activeTheme.branding?.gameTitle || activeTheme.gameTitle || activeTheme.name}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5. Footer / Sponsor Element */}
+          {layout.footerSponsor?.visible && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${layout.footerSponsor.x}%`,
+                top: `${layout.footerSponsor.y}%`,
+                width: `${layout.footerSponsor.width || 32}%`,
+                zIndex: 35,
+              }}
+              className="pointer-events-none transition-all"
+            >
+              <div className="bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-full px-3 py-1 shadow-md text-center flex items-center justify-center gap-1.5">
+                <span className="text-[10px] sm:text-xs text-slate-300 font-sans truncate">
+                  {activeTheme.branding?.subtitle || activeTheme.subtitle || 'Official Event Arcade Challenge'}
+                </span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* ================= START SCREEN OVERLAY (MAIN MENU DIALOG) ================= */}
       {gameState === 'START' && (

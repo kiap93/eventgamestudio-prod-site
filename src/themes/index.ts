@@ -1,4 +1,5 @@
 export * from './types';
+export * from './layout';
 export * from './registry';
 export * from './durian';
 export * from './christmas';

@@ -1,4 +1,5 @@
 import { GameTheme } from './types';
+import { DEFAULT_GAME_LAYOUT } from './layout';
 
 export const durianTheme: GameTheme = {
   id: 'durian',
@@ -140,6 +141,8 @@ export const durianTheme: GameTheme = {
     soundEnabled: true,
     bgmEnabled: true,
   },
+
+  layout: DEFAULT_GAME_LAYOUT,
 
   // Backward compatibility fields
   background: '/assets/background.png',
