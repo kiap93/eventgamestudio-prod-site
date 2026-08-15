@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeCard } from './ThemeCard';
 import { CreateThemeDialog } from './CreateThemeDialog';
 import { GameCatalogModal } from './GameCatalogModal';
+import { GameShell } from '../shell/GameShell';
+import { GameTheme } from '../../themes';
 import {
   Palette,
   Plus,
@@ -15,6 +17,12 @@ import {
   FolderOpen,
   Filter,
   Gamepad2,
+  Play,
+  ArrowLeft,
+  RotateCcw,
+  Maximize2,
+  Minimize2,
+  Edit3,
 } from 'lucide-react';
 
 interface ThemeListProps {
@@ -24,12 +32,11 @@ interface ThemeListProps {
 export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
   const {
     themes,
-    activeTheme,
     createTheme,
     duplicateTheme,
     deleteTheme,
-    activateTheme,
     currentOrganization,
+    activeGame,
     fetchThemes,
   } = useAuth();
 
@@ -37,10 +44,52 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
   const isViewer = role === 'viewer';
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'draft'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'archived'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Live Play Game State
+  const [playingTheme, setPlayingTheme] = useState<GameTheme | null>(null);
+  const [restartKey, setRestartKey] = useState<number>(0);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Sync fullscreen state
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(
+        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
+      );
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    const isCurrentlyFs =
+      !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
+    if (!isCurrentlyFs && !isFullscreen) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else if ((document.documentElement as any).webkitRequestFullscreen) {
+        (document.documentElement as any).webkitRequestFullscreen();
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        }
+      }
+      setIsFullscreen(false);
+    }
+  };
 
   // Filtered themes list
   const filteredThemes = useMemo(() => {
@@ -53,10 +102,10 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
         (theme.branding?.gameTitle && theme.branding.gameTitle.toLowerCase().includes(searchQuery.toLowerCase()));
 
       let matchesStatus = true;
-      if (statusFilter === 'active') {
-        matchesStatus = !!theme.is_active;
-      } else if (statusFilter === 'draft') {
-        matchesStatus = !theme.is_active;
+      if (statusFilter === 'draft') {
+        matchesStatus = theme.status === 'draft';
+      } else if (statusFilter === 'archived') {
+        matchesStatus = theme.status === 'archived';
       }
 
       return matchesSearch && matchesStatus;
@@ -75,15 +124,6 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
       showNotification('success', `Theme duplicated successfully as "${dup.name}"`);
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to duplicate theme');
-    }
-  };
-
-  const handleActivate = async (themeId: string) => {
-    try {
-      const updated = await activateTheme(themeId);
-      showNotification('success', `"${updated.name}" is now the active live theme!`);
-    } catch (err: any) {
-      showNotification('error', err.message || 'Failed to activate theme');
     }
   };
 
@@ -110,51 +150,104 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
     onEditTheme(newThemeId);
   };
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
-      {/* 1. TOP HEADER SECTION */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400">
-              <Palette className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-100 tracking-tight">
-                Theme Studio
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                Manage your game themes and customize them for different events.
-              </p>
-            </div>
-          </div>
-        </div>
+  // ============================================================
+  // FULLSCREEN / DEDICATED LIVE GAME PLAY MODE
+  // ============================================================
+  if (playingTheme) {
+    return (
+      <div
+        className={
+          isFullscreen
+            ? 'fixed inset-0 z-50 w-screen h-screen bg-[#07130b] flex flex-col p-0 m-0 overflow-hidden'
+            : 'max-w-[1400px] mx-auto px-2 sm:px-4 py-3 flex flex-col h-[calc(100vh-80px)] space-y-3'
+        }
+      >
+        {/* Game Navigation Header (hidden when fullscreen) */}
+        {!isFullscreen && (
+          <header className="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 shadow-xl flex items-center justify-between gap-4 shrink-0">
+            {/* Left: Back Button & Theme Name */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPlayingTheme(null)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-slate-950 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition-all shadow-sm"
+                title="Back to Theme Studio"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Themes</span>
+              </button>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-          <button
-            type="button"
-            onClick={() => setShowCatalogModal(true)}
-            className="w-full sm:w-auto px-4 py-3 bg-slate-950 hover:bg-slate-800 border border-slate-700 active:scale-95 text-slate-200 font-bold text-xs sm:text-sm rounded-2xl transition-all flex items-center justify-center gap-2"
-            title="Explore Multi-Game Catalog"
-          >
-            <Gamepad2 className="w-4 h-4 text-amber-400" />
-            <span>Game Engines</span>
-          </button>
+              <div className="hidden sm:block">
+                <h2 className="text-sm font-black text-slate-100 flex items-center gap-2">
+                  <span>{playingTheme.name}</span>
+                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                    Play Mode
+                  </span>
+                </h2>
+              </div>
+            </div>
 
-          {/* Primary Create Button */}
-          <button
-            type="button"
-            onClick={() => setShowCreateModal(true)}
-            disabled={isViewer}
-            className="w-full sm:w-auto px-5 py-3 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm rounded-2xl transition-all shadow-xl shadow-amber-500/10 flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            <span>+ Create New Theme</span>
-          </button>
+            {/* Right: Actions: Edit Theme, Restart, Fullscreen */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onEditTheme(playingTheme.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+                title="Edit theme in Theme Studio"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Edit Theme</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setRestartKey((prev) => prev + 1)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+                title="Restart game"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                <span>Restart</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleFullscreen}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+                title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="w-3.5 h-3.5 text-slate-300" />
+                ) : (
+                  <Maximize2 className="w-3.5 h-3.5 text-slate-300" />
+                )}
+                <span className="hidden sm:inline">{isFullscreen ? 'Exit' : 'Fullscreen'}</span>
+              </button>
+            </div>
+          </header>
+        )}
+
+        {/* Game Viewport Container */}
+        <div
+          className={
+            isFullscreen
+              ? 'flex-1 w-full h-full flex items-center justify-center p-0 m-0 overflow-hidden'
+              : 'flex-1 w-full flex flex-col items-center justify-center bg-slate-950 border border-slate-800 rounded-3xl p-2 sm:p-4 md:p-6 shadow-2xl overflow-hidden min-h-[600px]'
+          }
+        >
+          <GameShell
+            key={`live-game-${playingTheme.id}-${restartKey}`}
+            customTheme={playingTheme}
+            gameType={activeGame?.game_type_id || activeGame?.slug || 'durian'}
+            showCabinetFooter={false}
+            className="w-full h-full"
+          />
         </div>
       </div>
+    );
+  }
 
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       {/* Notification Banner */}
       {actionMessage && (
         <div
@@ -173,7 +266,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
         </div>
       )}
 
-      {/* 2. SEARCH & FILTERS TOOLBAR */}
+      {/* SEARCH, FILTERS & ACTIONS TOOLBAR */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/60 border border-slate-800/80 p-3 rounded-2xl">
         {/* Search Input */}
         <div className="relative w-full sm:max-w-md">
@@ -195,23 +288,39 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
           )}
         </div>
 
-        {/* Status Filter Dropdown */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative w-full sm:w-48">
+        {/* Status Filter Dropdown & Action Buttons */}
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="relative w-full sm:w-40">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
               className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3.5 py-2 focus:outline-none focus:border-amber-500 cursor-pointer"
             >
               <option value="all">All Status ▼</option>
-              <option value="active">Active Only</option>
-              <option value="draft">Draft / Inactive</option>
+              <option value="draft">Drafts Only</option>
+              <option value="archived">Archived</option>
             </select>
           </div>
 
-          <div className="text-[11px] text-slate-500 font-medium px-2 hidden sm:inline whitespace-nowrap">
-            {filteredThemes.length} {filteredThemes.length === 1 ? 'theme' : 'themes'}
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowCatalogModal(true)}
+            className="px-3.5 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shrink-0"
+            title="Explore Multi-Game Catalog"
+          >
+            <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">Engines</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            disabled={isViewer}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+            <span>Create Theme</span>
+          </button>
         </div>
       </div>
 
@@ -229,9 +338,9 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
               <ThemeCard
                 key={theme.id}
                 theme={theme}
+                onPlay={(selectedTheme) => setPlayingTheme(selectedTheme)}
                 onEdit={onEditTheme}
                 onDuplicate={handleDuplicate}
-                onActivate={handleActivate}
                 onDelete={handleDelete}
                 isViewer={isViewer}
                 isOnlyTheme={themes.length <= 1}
@@ -292,7 +401,6 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
         onClose={() => setShowCreateModal(false)}
         onCreated={handleCreated}
         existingThemes={themes}
-        activeTheme={activeTheme}
         onCreate={createTheme}
         onDuplicate={duplicateTheme}
       />

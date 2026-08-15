@@ -4,6 +4,7 @@ export interface UserRecord {
   email: string;
   name: string;
   avatar_url: string | null;
+  is_developer?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -191,7 +192,7 @@ export interface GameLayoutConfig {
 
 export interface GameThemeRecord {
   id: string;
-  organization_id: string;
+  organization_id?: string | null;
   game_id?: string | null;
   game_name?: string;
   game_slug?: string;
@@ -199,7 +200,10 @@ export interface GameThemeRecord {
   slug: string;
   description: string | null;
   status: 'active' | 'archived' | 'draft';
-  is_active: boolean;
+  is_system?: boolean;
+  is_default?: boolean;
+  ownership_type?: 'system' | 'organization';
+  base_theme_id?: string | null;
   branding: ThemeBrandingConfig;
   background_url: string | null;
   basket_config: ThemeBasketConfig;
@@ -214,7 +218,7 @@ export interface GameThemeRecord {
 
 export interface GameRecord {
   id: string;
-  organization_id: string;
+  organization_id?: string | null;
   active_theme_id?: string | null;
   name: string;
   slug: string;
@@ -222,6 +226,8 @@ export interface GameRecord {
   description?: string | null;
   icon_name?: string | null;
   status: 'active' | 'archived' | 'draft';
+  is_system?: boolean;
+  ownership_type?: 'system' | 'organization';
   background_url: string | null;
   basket_config: BasketConfig | string | null;
   items_config: ItemConfig[] | string | null;

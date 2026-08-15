@@ -3,7 +3,6 @@ import { useAuth } from '../../context/AuthContext';
 import { GameCustomizerPage } from '../studio/GameCustomizerPage';
 import { TeamMembersPage } from '../org/TeamMembersPage';
 import { EventsPage } from '../events/EventsPage';
-import { GameContainer } from '../GameContainer';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
   Gamepad2,
@@ -14,28 +13,26 @@ import {
   Plus,
   Palette,
   Calendar,
-  ExternalLink,
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
   const {
     currentUser,
     currentOrganization,
-    activeGame,
     organizations,
     switchOrganization,
     logout,
   } = useAuth();
 
-  const getInitialTab = (): 'events' | 'customizer' | 'game' | 'team' => {
+  const getInitialTab = (): 'events' | 'customizer' | 'team' => {
     const path = window.location.pathname;
     if (path === '/events' || path.startsWith('/events')) return 'events';
     if (path === '/team') return 'team';
-    if (path === '/preview' || path.startsWith('/studio/preview') || path === '/game') return 'game';
+    if (path.startsWith('/game-themes') || path === '/studio') return 'customizer';
     return 'events';
   };
 
-  const [activeTab, setActiveTab] = useState<'events' | 'customizer' | 'game' | 'team'>(() => getInitialTab());
+  const [activeTab, setActiveTab] = useState<'events' | 'customizer' | 'team'>(() => getInitialTab());
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
 
   // Sync tab with browser URL history
@@ -46,8 +43,6 @@ export const DashboardLayout: React.FC = () => {
         setActiveTab('events');
       } else if (path === '/team') {
         setActiveTab('team');
-      } else if (path === '/preview' || path.startsWith('/studio/preview') || path === '/game') {
-        setActiveTab('game');
       } else if (path.startsWith('/game-themes') || path === '/studio') {
         setActiveTab('customizer');
       }
@@ -57,7 +52,7 @@ export const DashboardLayout: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const handleTabChange = (tab: 'events' | 'customizer' | 'game' | 'team') => {
+  const handleTabChange = (tab: 'events' | 'customizer' | 'team') => {
     setActiveTab(tab);
     if (tab === 'events') {
       if (window.location.pathname !== '/events') {
@@ -67,22 +62,11 @@ export const DashboardLayout: React.FC = () => {
       if (!window.location.pathname.startsWith('/game-themes')) {
         navigateTo('/game-themes');
       }
-    } else if (tab === 'game') {
-      if (window.location.pathname !== '/preview') {
-        navigateTo('/preview');
-      }
     } else if (tab === 'team') {
       if (window.location.pathname !== '/team') {
         navigateTo('/team');
       }
     }
-  };
-
-  const publicGameUrl = `/${currentOrganization?.slug || 'organization'}/${activeGame?.slug || 'durian'}`;
-
-  const handleOpenPublicGame = (e: React.MouseEvent) => {
-    e.preventDefault();
-    navigateTo(publicGameUrl);
   };
 
   return (
@@ -97,7 +81,7 @@ export const DashboardLayout: React.FC = () => {
                 <Gamepad2 className="w-5 h-5" />
               </div>
               <span className="font-bold text-sm tracking-tight text-amber-400 hidden sm:inline">
-                Durian Studio
+                Event Game Studio
               </span>
             </div>
 
@@ -179,19 +163,7 @@ export const DashboardLayout: React.FC = () => {
               }`}
             >
               <Palette className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Game Themes</span>
-            </button>
-
-            <button
-              onClick={() => handleTabChange('game')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                activeTab === 'game'
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Gamepad2 className="w-3.5 h-3.5" />
-              <span>Studio Preview</span>
+              <span>Game Themes</span>
             </button>
 
             <button
@@ -207,17 +179,18 @@ export const DashboardLayout: React.FC = () => {
             </button>
           </div>
 
-          {/* Public Game Link & User Profile & Sign Out */}
+          {/* Developer Admin Link & User Profile & Sign Out */}
           <div className="flex items-center gap-3">
-            <a
-              href={publicGameUrl}
-              onClick={handleOpenPublicGame}
-              title="Open Public Event Game Mode"
-              className="hidden lg:flex items-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Public Event Game</span>
-            </a>
+            {currentUser?.is_developer && (
+              <button
+                onClick={() => navigateTo('/developer')}
+                title="Open Developer Admin"
+                className="flex items-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm"
+              >
+                <Gamepad2 className="w-3.5 h-3.5" />
+                <span>Dev Admin</span>
+              </button>
+            )}
 
             <div className="hidden sm:flex items-center gap-2 text-xs">
               <div className="w-7 h-7 rounded-full bg-amber-500/20 border border-amber-500/30 overflow-hidden flex items-center justify-center font-bold text-amber-300">
@@ -245,7 +218,6 @@ export const DashboardLayout: React.FC = () => {
       <main className="flex-1 py-6">
         {activeTab === 'events' && <EventsPage />}
         {activeTab === 'customizer' && <GameCustomizerPage />}
-        {activeTab === 'game' && <GameContainer />}
         {activeTab === 'team' && <TeamMembersPage />}
       </main>
     </div>

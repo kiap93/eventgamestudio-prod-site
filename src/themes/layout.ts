@@ -1,6 +1,87 @@
+import React, { useState, useEffect, RefObject } from 'react';
 import { GameLayoutConfig, GameLayoutElement } from './types';
 
 export type { GameLayoutConfig, GameLayoutElement };
+
+/**
+ * Logical 16:9 Game Design Coordinate System
+ */
+export const DESIGN_WIDTH = 1024;
+export const DESIGN_HEIGHT = 576;
+export const DESIGN_ASPECT_RATIO = DESIGN_WIDTH / DESIGN_HEIGHT; // 16 / 9 (1.7777777778)
+
+/**
+ * Calculates a single proportional UI scale factor based on container dimensions
+ */
+export function calculateGameUiScale(viewportWidth: number, viewportHeight: number): number {
+  if (!viewportWidth || !viewportHeight || isNaN(viewportWidth) || isNaN(viewportHeight)) {
+    return 1;
+  }
+  const scaleX = viewportWidth / DESIGN_WIDTH;
+  const scaleY = viewportHeight / DESIGN_HEIGHT;
+  return Math.min(scaleX, scaleY);
+}
+
+/**
+ * React hook to observe container size and maintain a single responsive UI scale
+ */
+export function useGameUiScale(containerRef: RefObject<HTMLElement | null>): number {
+  const [scale, setScale] = useState<number>(1);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    let rafId: number | null = null;
+
+    const measureAndUpdate = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const currentEl = containerRef.current;
+        if (!currentEl) return;
+        const rect = currentEl.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          const nextScale = calculateGameUiScale(rect.width, rect.height);
+          setScale((prev) => (Math.abs(prev - nextScale) > 0.001 ? nextScale : prev));
+          currentEl.style.setProperty('--game-ui-scale', String(nextScale));
+        }
+      });
+    };
+
+    measureAndUpdate();
+
+    // Secondary delayed check for layout settle on fullscreen/orientation changes
+    const delayedMeasure = () => {
+      measureAndUpdate();
+      setTimeout(measureAndUpdate, 60);
+      setTimeout(measureAndUpdate, 200);
+    };
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        measureAndUpdate();
+      });
+      resizeObserver.observe(el);
+    }
+
+    window.addEventListener('resize', measureAndUpdate);
+    window.addEventListener('orientationchange', delayedMeasure);
+    document.addEventListener('fullscreenchange', delayedMeasure);
+    document.addEventListener('webkitfullscreenchange', delayedMeasure);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener('resize', measureAndUpdate);
+      window.removeEventListener('orientationchange', delayedMeasure);
+      document.removeEventListener('fullscreenchange', delayedMeasure);
+      document.removeEventListener('webkitfullscreenchange', delayedMeasure);
+    };
+  }, [containerRef]);
+
+  return scale;
+}
 
 /**
  * Standard default layout configuration (percentages 0-100 relative to viewport)

@@ -9,7 +9,6 @@ import {
   Trash2,
   Ban,
   Gamepad2,
-  Eye,
   Sparkles,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
@@ -49,12 +48,6 @@ export const EventCard: React.FC<EventCardProps> = ({
   const openPublicGame = (e: React.MouseEvent) => {
     e.stopPropagation();
     window.open(publicUrl, '_blank');
-  };
-
-  const previewInStudio = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const gameType = event.game?.game_type || 'catch-brand';
-    navigateTo(`/preview?game=${gameType}`);
   };
 
   const getStatusBadge = (status: string) => {
@@ -188,16 +181,7 @@ export const EventCard: React.FC<EventCardProps> = ({
             className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm shadow-amber-500/20"
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            <span>Open Link</span>
-          </button>
-
-          <button
-            onClick={previewInStudio}
-            className="hidden sm:flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors"
-            title="Preview in Studio"
-          >
-            <Eye className="w-3.5 h-3.5" />
-            <span>Preview</span>
+            <span>Open Event Link</span>
           </button>
         </div>
 

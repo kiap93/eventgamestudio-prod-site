@@ -31,9 +31,21 @@ import {
   createTheme,
   updateTheme,
   deleteTheme,
-  activateTheme,
   duplicateTheme,
   ensureDefaultThemes,
+  getAllPlatformGames,
+  createPlatformGame,
+  updatePlatformGame,
+  deletePlatformGame,
+  ensureSystemCatalogGames,
+  getSystemThemesByGameId,
+  getAllSystemThemes,
+  createSystemTheme,
+  updateSystemTheme,
+  deleteSystemTheme,
+  duplicateSystemTheme,
+  cloneSystemThemeToOrg,
+  ensureSystemDefaultThemesForGame,
   getEventsByOrgId,
   getEventById,
   getEventByPublicToken,
@@ -45,6 +57,8 @@ import {
 
 import {
   authenticateJWT,
+  authenticateDeveloperAdmin,
+  isUserDeveloperAdmin,
   signAppToken,
   verifyGoogleIdToken,
   verifyOrgMembershipAndPermission,
@@ -126,6 +140,8 @@ app.post('/api/auth/google', async (req, res) => {
 
     const token = signAppToken(user.id, activeOrgId, activeRole as any);
 
+    const isDev = isUserDeveloperAdmin(user);
+
     res.json({
       token,
       user: {
@@ -133,6 +149,7 @@ app.post('/api/auth/google', async (req, res) => {
         email: user.email,
         name: user.name,
         avatar_url: user.avatar_url,
+        is_developer: isDev,
       },
       organizations: memberships,
       activeOrganizationId: activeOrgId || null,
@@ -162,12 +179,15 @@ app.get('/api/auth/me', authenticateJWT, async (req: AuthenticatedRequest, res) 
       activeMember = memberships[0];
     }
 
+    const isDev = isUserDeveloperAdmin(user);
+
     res.json({
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
         avatar_url: user.avatar_url,
+        is_developer: isDev,
       },
       organizations: memberships,
       activeOrganization: activeMember
@@ -714,7 +734,6 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
       game_id,
       description,
       status,
-      is_active,
       branding,
       background_url,
       basket_config,
@@ -737,7 +756,6 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
       slug,
       description,
       status,
-      is_active,
       branding,
       background_url,
       basket_config,
@@ -781,7 +799,6 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       slug,
       description,
       status,
-      is_active,
       branding,
       background_url,
       basket_config,
@@ -797,7 +814,6 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       slug,
       description,
       status,
-      is_active,
       branding,
       background_url,
       basket_config,
@@ -846,30 +862,51 @@ app.post('/api/themes/:themeId/duplicate', authenticateJWT, async (req: Authenti
 });
 
 /**
- * POST /api/themes/:themeId/activate
- * Set theme as the active theme for its game in the organization
+ * GET /api/themes/system
+ * List system default theme templates available for any organization to clone
  */
-app.post('/api/themes/:themeId/activate', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.get('/api/themes/system', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const gameId = req.query.gameId as string | undefined;
+    let themes: any[] = [];
+    if (gameId) {
+      themes = await getSystemThemesByGameId(gameId);
+    } else {
+      themes = await getAllSystemThemes();
+    }
+    res.json({ themes });
+  } catch (err: any) {
+    console.error('Get system themes error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/themes/clone-system/:systemThemeId
+ * Clone a developer system default theme into current organization
+ */
+app.post('/api/themes/clone-system/:systemThemeId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
-    const { themeId } = req.params;
+    const organizationId = req.jwtPayload?.organizationId;
+    const { systemThemeId } = req.params;
+    const { name, game_id } = req.body;
 
-    const theme = await getThemeById(themeId);
-    if (!theme) {
-      res.status(404).json({ error: 'Theme not found' });
+    if (!organizationId) {
+      res.status(422).json({ error: 'No active organization selected' });
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, theme.organization_id, 'game.items.edit');
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit');
     if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Cannot activate themes' });
+      res.status(403).json({ error: 'Permission denied: Cannot create themes' });
       return;
     }
 
-    const activeTheme = await activateTheme(theme.organization_id, themeId);
-    res.json({ theme: activeTheme });
+    const cloned = await cloneSystemThemeToOrg(systemThemeId, organizationId, game_id, name);
+    res.status(201).json({ theme: cloned });
   } catch (err: any) {
-    console.error('Activate theme error:', err);
+    console.error('Clone system theme error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1278,6 +1315,307 @@ app.get('/api/public/events/:publicToken', async (req, res) => {
     res.json({ event });
   } catch (err: any) {
     console.error('Public event resolution error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// DEVELOPER ADMIN API ENDPOINTS
+// ----------------------------------------------------
+
+/**
+ * GET /api/developer/stats
+ * Overview dashboard metrics for developer platform admin
+ */
+app.get('/api/developer/stats', authenticateDeveloperAdmin, async (_req, res) => {
+  try {
+    const games = await getAllPlatformGames();
+    const themes = await getAllSystemThemes();
+    res.json({
+      stats: {
+        totalGames: games.length,
+        activeGames: games.filter((g) => g.status === 'active').length,
+        totalDefaultThemes: themes.length,
+        activeThemes: themes.filter((t) => t.status === 'active').length,
+      },
+    });
+  } catch (err: any) {
+    console.error('Developer stats error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/developer/games
+ * List all platform games with their system theme counts
+ */
+app.get('/api/developer/games', authenticateDeveloperAdmin, async (_req, res) => {
+  try {
+    const games = await getAllPlatformGames();
+    res.json({ games });
+  } catch (err: any) {
+    console.error('Developer get games error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/developer/games
+ * Create a new platform game
+ */
+app.post('/api/developer/games', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const {
+      name,
+      slug,
+      game_type,
+      description,
+      icon_name,
+      status,
+      background_url,
+      basket_config,
+      items_config,
+      settings_config,
+    } = req.body;
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(422).json({ error: 'Game name is required' });
+      return;
+    }
+
+    if (!game_type || typeof game_type !== 'string' || !game_type.trim()) {
+      res.status(422).json({ error: 'Game Type is required (e.g. catch-brand)' });
+      return;
+    }
+
+    const game = await createPlatformGame({
+      name,
+      slug,
+      game_type,
+      description,
+      icon_name,
+      status,
+      background_url,
+      basket_config,
+      items_config,
+      settings_config,
+    });
+
+    res.status(201).json({ game });
+  } catch (err: any) {
+    console.error('Developer create game error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/developer/games/:gameId
+ * Get single platform game details
+ */
+app.get('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { gameId } = req.params;
+    const game = await getGameById(gameId);
+    if (!game) {
+      res.status(404).json({ error: 'Game not found' });
+      return;
+    }
+
+    const themes = await getSystemThemesByGameId(gameId);
+    res.json({ game, themes });
+  } catch (err: any) {
+    console.error('Developer get game error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PUT /api/developer/games/:gameId
+ * Update platform game metadata and defaults
+ */
+app.put('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { gameId } = req.params;
+    const updates = req.body;
+
+    const game = await updatePlatformGame(gameId, updates);
+    res.json({ game });
+  } catch (err: any) {
+    console.error('Developer update game error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/developer/games/:gameId
+ * Delete a platform game
+ */
+app.delete('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { gameId } = req.params;
+    await deletePlatformGame(gameId);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Developer delete game error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/developer/games/:gameId/themes
+ * Get all system default themes for a specific game
+ */
+app.get('/api/developer/games/:gameId/themes', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { gameId } = req.params;
+    const themes = await getSystemThemesByGameId(gameId);
+    res.json({ themes });
+  } catch (err: any) {
+    console.error('Developer get game themes error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/developer/games/:gameId/themes
+ * Create a new system default theme for a game
+ */
+app.post('/api/developer/games/:gameId/themes', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { gameId } = req.params;
+    const {
+      name,
+      slug,
+      description,
+      status,
+      is_default,
+      branding,
+      background_url,
+      basket_config,
+      items_config,
+      physics_config,
+      visuals_config,
+      sounds_config,
+      layout,
+    } = req.body;
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(422).json({ error: 'Theme name is required' });
+      return;
+    }
+
+    const theme = await createSystemTheme({
+      game_id: gameId,
+      name,
+      slug,
+      description,
+      status,
+      is_default,
+      branding,
+      background_url,
+      basket_config,
+      items_config,
+      physics_config,
+      visuals_config,
+      sounds_config,
+      layout,
+    });
+
+    res.status(201).json({ theme });
+  } catch (err: any) {
+    console.error('Developer create theme error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/developer/themes/:themeId
+ * Get single system default theme
+ */
+app.get('/api/developer/themes/:themeId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { themeId } = req.params;
+    const theme = await getThemeById(themeId);
+    if (!theme) {
+      res.status(404).json({ error: 'System theme not found' });
+      return;
+    }
+    res.json({ theme });
+  } catch (err: any) {
+    console.error('Developer get theme error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PUT /api/developer/themes/:themeId
+ * Update a system default theme
+ */
+app.put('/api/developer/themes/:themeId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { themeId } = req.params;
+    const updates = req.body;
+
+    const theme = await updateSystemTheme(themeId, updates);
+    res.json({ theme });
+  } catch (err: any) {
+    console.error('Developer update theme error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/developer/themes/:themeId
+ * Delete a system default theme
+ */
+app.delete('/api/developer/themes/:themeId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { themeId } = req.params;
+    await deleteSystemTheme(themeId);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Developer delete theme error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/developer/themes/:themeId/duplicate
+ * Duplicate a system default theme (for the same game)
+ */
+app.post('/api/developer/themes/:themeId/duplicate', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { themeId } = req.params;
+    const { name } = req.body;
+
+    const duplicated = await duplicateSystemTheme(themeId, name);
+    res.status(201).json({ theme: duplicated });
+  } catch (err: any) {
+    console.error('Developer duplicate theme error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/developer/themes/:themeId/set-default
+ * Mark a system theme as the primary default for its game
+ */
+app.post('/api/developer/themes/:themeId/set-default', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { themeId } = req.params;
+    const theme = await getThemeById(themeId);
+    if (!theme || !theme.game_id) {
+      res.status(404).json({ error: 'Theme not found or missing game link' });
+      return;
+    }
+
+    // Set active_theme_id on the game
+    await updatePlatformGame(theme.game_id, { active_theme_id: themeId });
+    const updatedTheme = await updateSystemTheme(themeId, { is_default: true });
+
+    res.json({ success: true, theme: updatedTheme });
+  } catch (err: any) {
+    console.error('Developer set default theme error:', err);
     res.status(500).json({ error: err.message });
   }
 });

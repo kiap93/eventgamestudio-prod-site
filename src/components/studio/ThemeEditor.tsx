@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { GameTheme } from '../../themes';
 import { LiveThemePreview } from './LiveThemePreview';
@@ -8,6 +8,7 @@ import { GameplayTab } from './GameplayTab';
 import { AudioTab } from './AudioTab';
 import { BrandingTab } from './BrandingTab';
 import { LayoutTab } from './LayoutTab';
+import { GameShell } from '../shell/GameShell';
 import { LayoutElementKey, GameLayoutConfig } from '../../themes/layout';
 import {
   ArrowLeft,
@@ -25,6 +26,8 @@ import {
   Play,
   Gamepad2,
   Grid,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 
 interface ThemeEditorProps {
@@ -36,7 +39,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
   const {
     themes,
     updateTheme,
-    activateTheme,
     uploadAsset,
     currentOrganization,
     activeGame,
@@ -48,6 +50,51 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
 
   const [activeTab, setActiveTab] = useState<'visuals' | 'items' | 'gameplay' | 'audio' | 'branding' | 'layout'>('visuals');
   const [selectedLayoutElement, setSelectedLayoutElement] = useState<LayoutElementKey>('clientLogo');
+
+  // Dedicated Play Live Game state
+  const [isPlayingLiveGame, setIsPlayingLiveGame] = useState<boolean>(false);
+  const [restartKey, setRestartKey] = useState<number>(0);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const liveGameContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Fullscreen change listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(
+        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
+      );
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    const isCurrentlyFs =
+      !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
+    if (!isCurrentlyFs && !isFullscreen) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else if ((document.documentElement as any).webkitRequestFullscreen) {
+        (document.documentElement as any).webkitRequestFullscreen();
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        }
+      }
+      setIsFullscreen(false);
+    }
+  };
 
   // Draft theme currently being edited
   const [draftTheme, setDraftTheme] = useState<GameTheme | null>(null);
@@ -105,15 +152,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
     setErrorMessage(null);
   };
 
-  // Navigate to live game URL /:organization-slug/:game-slug
-  const handlePlayLiveGame = () => {
-    const orgSlug = currentOrganization?.slug || 'organization';
-    const gameSlug = activeGame?.slug || 'durian';
-    const publicUrl = `/${orgSlug}/${gameSlug}`;
-    window.history.pushState(null, '', publicUrl);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  };
-
   // Save Theme to Supabase
   const handleSaveTheme = async () => {
     if (!draftTheme || isViewer) return;
@@ -129,24 +167,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
       setSaveSuccess(true);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to save theme');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Activate Theme
-  const handleActivate = async () => {
-    if (!draftTheme || isViewer) return;
-    try {
-      setSaving(true);
-      const updated = await activateTheme(draftTheme.id);
-      const cloned = JSON.parse(JSON.stringify(updated));
-      setDraftTheme(cloned);
-      setSavedThemeSnapshot(cloned);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to activate theme');
     } finally {
       setSaving(false);
     }
@@ -179,6 +199,101 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
     );
   }
 
+  // ============================================================
+  // PLAY LIVE GAME MODE: CLEAN FULL-PAGE GAME PREVIEW
+  // HIDE Theme Settings / Editor panel, sidebar, tabs, controls
+  // ONLY render the simple toolbar + actual GameShell
+  // ============================================================
+  if (isPlayingLiveGame) {
+    return (
+      <div
+        ref={liveGameContainerRef}
+        className={
+          isFullscreen
+            ? 'fixed inset-0 z-[99999] w-screen h-screen bg-[#07130b] overflow-hidden p-0 m-0 flex flex-col items-center justify-center'
+            : 'max-w-[1600px] mx-auto px-4 sm:px-6 py-4 flex flex-col space-y-4 min-h-[calc(100vh-120px)]'
+        }
+      >
+        {/* Simple Toolbar (hidden in fullscreen) */}
+        {!isFullscreen && (
+          <header className="bg-slate-900 border border-slate-800 rounded-2xl px-4 sm:px-6 py-3 shadow-xl flex items-center justify-between gap-4">
+            {/* Left: Back to Editor + Theme Name */}
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <button
+                type="button"
+                onClick={() => setIsPlayingLiveGame(false)}
+                className="flex items-center gap-2 px-3.5 py-2 bg-slate-950 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4 text-amber-400" />
+                <span>Back to Editor</span>
+              </button>
+
+              <div className="h-5 w-px bg-slate-800 hidden sm:block shrink-0" />
+
+              {/* Theme Name */}
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <h1 className="text-sm sm:text-base font-black text-slate-100 tracking-tight truncate">
+                  {draftTheme.name}
+                </h1>
+                <span className="text-[11px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800 hidden md:inline-block shrink-0">
+                  Live Game Mode
+                </span>
+              </div>
+            </div>
+
+            {/* Right: Restart & Fullscreen */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setRestartKey((prev) => prev + 1)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+                title="Restart game"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                <span>Restart</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleFullscreen}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+                title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="w-3.5 h-3.5 text-slate-300" />
+                ) : (
+                  <Maximize2 className="w-3.5 h-3.5 text-slate-300" />
+                )}
+                <span className="hidden sm:inline">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+              </button>
+            </div>
+          </header>
+        )}
+
+        {/* Full-width Game Viewport using current draftTheme */}
+        <div
+          className={`flex-1 w-full flex flex-col items-center justify-center overflow-hidden ${
+            isFullscreen
+              ? 'p-0 m-0 bg-[#07130b] border-none rounded-none shadow-none h-full'
+              : 'bg-slate-950 border border-slate-800 rounded-3xl p-2 sm:p-4 md:p-6 shadow-2xl min-h-[600px]'
+          }`}
+        >
+          <GameShell
+            key={`live-game-${draftTheme.id}-${restartKey}`}
+            customTheme={draftTheme}
+            gameType={activeGame?.game_type_id || activeGame?.slug || 'durian'}
+            showCabinetFooter={false}
+            className="w-full h-full"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // STANDARD THEME STUDIO EDITOR LAYOUT
+  // ============================================================
   return (
     <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4 space-y-6">
       {/* 1. TOP BAR: BACK BUTTON, THEME HEADER & ACTIONS */}
@@ -201,16 +316,17 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
                 {draftTheme.name}
               </h1>
 
-              {/* Active / Draft Live Status */}
-              {draftTheme.is_active ? (
-                <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-black flex items-center gap-1.5 shadow-sm">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>● Active</span>
+              {/* Status Badge */}
+              {draftTheme.status === 'draft' && (
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-amber-400 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span>Draft</span>
                 </span>
-              ) : (
-                <span className="px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-xs font-semibold flex items-center gap-1.5">
-                  <CircleDot className="w-3.5 h-3.5 text-slate-500" />
-                  <span>○ Draft / Inactive</span>
+              )}
+              {draftTheme.status === 'archived' && (
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-xs font-semibold flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                  <span>Archived</span>
                 </span>
               )}
 
@@ -228,27 +344,13 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               )}
             </div>
             <p className="text-xs text-slate-400">
-              Customize visuals, drop collectibles, physics tuning, and audio for this theme.
+              Customize visuals, drop collectibles, physics tuning, layout positioning, and audio for this theme.
             </p>
           </div>
         </div>
 
-        {/* Right: Actions: Reset, Set as Active, Test Theme, Save Theme */}
+        {/* Right: Actions: Reset, Play Live Game, Save Theme */}
         <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto justify-end">
-          {/* Activate Button (if draft is not active) */}
-          {!draftTheme.is_active && (
-            <button
-              type="button"
-              onClick={handleActivate}
-              disabled={saving || isViewer}
-              className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-md disabled:opacity-50"
-              title="Set this theme as the active live game theme"
-            >
-              <Check className="w-3.5 h-3.5 stroke-[3]" />
-              <span>Set as Active</span>
-            </button>
-          )}
-
           {/* Reset / Undo Draft Button */}
           {hasUnsavedChanges && (
             <button
@@ -263,19 +365,15 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             </button>
           )}
 
-          {/* Test Theme Button (Scrolls to Live Game Simulation or quick test) */}
+          {/* PLAY LIVE GAME BUTTON */}
           <button
             type="button"
-            onClick={() => {
-              const previewEl = document.getElementById('live-theme-preview-container');
-              if (previewEl) {
-                previewEl.scrollIntoView({ behavior: 'smooth' });
-              }
-            }}
-            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-400 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 border border-slate-700"
+            onClick={() => setIsPlayingLiveGame(true)}
+            className="px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-md"
+            title="Play live game in clean full-page mode with the current draft theme"
           >
-            <Gamepad2 className="w-4 h-4" />
-            <span>Test Theme</span>
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Play Live Game</span>
           </button>
 
           {/* PRIMARY ACTION: SAVE THEME */}
@@ -313,9 +411,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
                 <span>Theme saved successfully</span>
               </h4>
               <p className="text-xs text-emerald-300/80 font-medium mt-0.5">
-                {draftTheme.is_active
-                  ? 'Your saved changes are now active in the game.'
-                  : 'Theme saved to database. Activate it when you are ready to publish.'}
+                Your theme changes have been saved and are ready to be used in events.
               </p>
             </div>
           </div>
@@ -323,7 +419,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
           <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end shrink-0">
             <button
               type="button"
-              onClick={handlePlayLiveGame}
+              onClick={() => setIsPlayingLiveGame(true)}
               className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95"
             >
               <Gamepad2 className="w-4 h-4" />
@@ -351,7 +447,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
 
       {/* 2. TWO-COLUMN RESPONSIVE LAYOUT (Editor on Left, Live Simulation on Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* LEFT / MAIN COLUMN: 5 TABS & EDITORS (7 cols on lg) */}
+        {/* LEFT / MAIN COLUMN: 6 TABS & EDITORS (7 cols on lg) */}
         <main className="lg:col-span-7 xl:col-span-7 space-y-5">
           {/* Navigation Tab Pills */}
           <nav className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 p-1.5 rounded-2xl overflow-x-auto">
@@ -498,6 +594,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             editableLayout={activeTab === 'layout'}
             selectedElementKey={selectedLayoutElement}
             onSelectElementKey={setSelectedLayoutElement}
+            onPlayLiveGame={() => setIsPlayingLiveGame(true)}
             onUpdateLayout={(newLayout) => {
               if (draftTheme) {
                 setDraftTheme({
@@ -550,3 +647,4 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
     </div>
   );
 };
+

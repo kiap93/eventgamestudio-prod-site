@@ -5,8 +5,8 @@ import { LoginPage } from './components/auth/LoginPage';
 import { CreateOrganizationPage } from './components/auth/CreateOrganizationPage';
 import { AcceptInvitePage } from './components/auth/AcceptInvitePage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
-import { GameOnlyLayout } from './components/layout/GameOnlyLayout';
 import { PublicEventGameView } from './components/events/PublicEventGameView';
+import { DeveloperAdminPage } from './components/developer/DeveloperAdminPage';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, currentOrganization } = useAuth();
@@ -17,18 +17,12 @@ const AppContent: React.FC = () => {
     return <PublicEventGameView />;
   }
 
-  // 2. PUBLIC LEGACY GAME ROUTE: /{organization-slug}/{game-slug}
-  // MUST ALWAYS render in Public Event Game Mode (GameOnlyLayout), whether logged in or logged out.
-  if (routeContext.isPublicGameRoute) {
-    return <GameOnlyLayout />;
-  }
-
   // 2. ACCEPT INVITE ROUTE
   if (routeContext.mode === 'accept_invite') {
     return <AcceptInvitePage />;
   }
 
-  // 3. STUDIO / ADMIN ROUTES (Require Authentication)
+  // 4. STUDIO / ADMIN / DEVELOPER ROUTES (Require Authentication)
   if (isLoading) {
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans space-y-3">
@@ -40,6 +34,11 @@ const AppContent: React.FC = () => {
 
   if (!isAuthenticated || routeContext.mode === 'login') {
     return <LoginPage />;
+  }
+
+  // 5. DEVELOPER ADMIN ROUTE
+  if (routeContext.mode === 'developer_admin') {
+    return <DeveloperAdminPage />;
   }
 
   if (!currentOrganization || routeContext.mode === 'create_org') {

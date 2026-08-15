@@ -5,20 +5,19 @@ import {
   Edit3,
   MoreVertical,
   Copy,
-  CheckCircle2,
   Trash2,
   Sparkles,
   Calendar,
   Layers,
   ImageOff,
-  Star,
+  Play,
 } from 'lucide-react';
 
 interface ThemeCardProps {
   theme: GameTheme;
+  onPlay: (theme: GameTheme) => void;
   onEdit: (themeId: string) => void;
   onDuplicate: (themeId: string) => void;
-  onActivate: (themeId: string) => void;
   onDelete: (themeId: string) => void;
   isViewer?: boolean;
   isOnlyTheme?: boolean;
@@ -26,9 +25,9 @@ interface ThemeCardProps {
 
 export const ThemeCard: React.FC<ThemeCardProps> = ({
   theme,
+  onPlay,
   onEdit,
   onDuplicate,
-  onActivate,
   onDelete,
   isViewer = false,
   isOnlyTheme = false,
@@ -113,23 +112,37 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
         )}
 
         {/* Status Badge (Top-Left) */}
-        <div className="absolute top-3 left-3 z-10">
-          {theme.is_active ? (
-            <span className="px-3 py-1 rounded-full bg-emerald-500/90 text-slate-950 border border-emerald-400 text-xs font-black flex items-center gap-1.5 shadow-lg backdrop-blur-md">
-              <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse" />
-              <span>Active</span>
+        {theme.status === 'draft' && (
+          <div className="absolute top-3 left-3 z-10">
+            <span className="px-3 py-1 rounded-full bg-slate-950/80 text-amber-300 border border-amber-500/40 text-xs font-semibold flex items-center gap-1.5 shadow-md backdrop-blur-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <span>Draft</span>
             </span>
-          ) : (
-            <span className="px-3 py-1 rounded-full bg-slate-950/80 text-slate-300 border border-slate-700/80 text-xs font-semibold flex items-center gap-1.5 shadow-md backdrop-blur-md">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-              <span>Draft / Inactive</span>
+          </div>
+        )}
+        {theme.status === 'archived' && (
+          <div className="absolute top-3 left-3 z-10">
+            <span className="px-3 py-1 rounded-full bg-slate-950/80 text-slate-400 border border-slate-700/80 text-xs font-semibold flex items-center gap-1.5 shadow-md backdrop-blur-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+              <span>Archived</span>
             </span>
-          )}
+          </div>
+        )}
+
+        {/* Quick Play Hover Overlay */}
+        <div
+          onClick={() => onPlay(theme)}
+          className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center cursor-pointer backdrop-blur-[2px] z-10"
+          title="Click to play game"
+        >
+          <div className="w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center shadow-2xl transform scale-90 group-hover:scale-100 transition-transform active:scale-95">
+            <Play className="w-5 h-5 fill-current ml-0.5" />
+          </div>
         </div>
 
         {/* Quick Catcher Preview Overlay (Bottom-Right) */}
         {theme.basket_config?.imageUrl && (
-          <div className="absolute bottom-2 right-2 bg-slate-950/80 border border-slate-800 p-1.5 rounded-xl backdrop-blur-md flex items-center gap-1.5 shadow-md">
+          <div className="absolute bottom-2 right-2 z-20 bg-slate-950/80 border border-slate-800 p-1.5 rounded-xl backdrop-blur-md flex items-center gap-1.5 shadow-md pointer-events-none">
             <img
               src={theme.basket_config.imageUrl}
               alt={theme.basket_config.name || 'Basket'}
@@ -177,6 +190,18 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                     type="button"
                     onClick={() => {
                       setShowMenu(false);
+                      onPlay(theme);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 rounded-xl transition-colors text-left"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current shrink-0" />
+                    <span className="whitespace-nowrap">Play Game</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
                       onEdit(theme.id);
                     }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 rounded-xl transition-colors text-left"
@@ -197,21 +222,6 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                     <Copy className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                     <span className="whitespace-nowrap">Duplicate</span>
                   </button>
-
-                  {!theme.is_active && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowMenu(false);
-                        onActivate(theme.id);
-                      }}
-                      disabled={isViewer}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/10 rounded-xl transition-colors text-left disabled:opacity-50"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                      <span className="whitespace-nowrap">Set as Active</span>
-                    </button>
-                  )}
 
                   {!isOnlyTheme && (
                     <div className="border-t border-slate-800/80 pt-1 mt-1">
@@ -259,15 +269,26 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
           </div>
         </div>
 
-        {/* Primary Action Button */}
+        {/* Primary Action Buttons: Play Game + Edit Theme */}
         <div className="pt-2 border-t border-slate-800/80 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => onEdit(theme.id)}
-            className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+            onClick={() => onPlay(theme)}
+            className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs rounded-xl transition-all shadow-md shadow-emerald-500/10 flex items-center justify-center gap-1.5"
+            title="Play game with this theme"
           >
-            <Edit3 className="w-4 h-4" />
-            <span>Edit Theme</span>
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Play Game</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onEdit(theme.id)}
+            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 hover:text-white font-bold text-xs rounded-xl transition-all border border-slate-700 flex items-center justify-center gap-1.5"
+            title="Customize theme settings"
+          >
+            <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+            <span>Edit</span>
           </button>
         </div>
       </div>

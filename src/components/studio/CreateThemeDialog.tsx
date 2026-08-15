@@ -7,7 +7,6 @@ interface CreateThemeDialogProps {
   onClose: () => void;
   onCreated: (newThemeId: string) => void;
   existingThemes: GameTheme[];
-  activeTheme: GameTheme | null;
   onCreate: (themeData: Partial<GameTheme>) => Promise<GameTheme>;
   onDuplicate: (themeId: string, newName?: string) => Promise<GameTheme>;
 }
@@ -17,14 +16,13 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
   onClose,
   onCreated,
   existingThemes,
-  activeTheme,
   onCreate,
   onDuplicate,
 }) => {
   const [creationMode, setCreationMode] = useState<'scratch' | 'duplicate'>('scratch');
   const [themeName, setThemeName] = useState('');
   const [sourceThemeId, setSourceThemeId] = useState<string>(() => {
-    return activeTheme?.id || (existingThemes.length > 0 ? existingThemes[0].id : '');
+    return existingThemes.length > 0 ? existingThemes[0].id : '';
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -51,7 +49,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
         onCreated(newTheme.id);
       } else {
         // Start from scratch using clean baseline defaults
-        const base = activeTheme || durianTheme;
+        const base = existingThemes[0] || durianTheme;
         const newTheme = await onCreate({
           name: themeName.trim(),
           slug: themeName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
@@ -230,7 +228,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
               >
                 {existingThemes.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name} {t.is_active ? '★ (Active Live)' : ''}
+                    {t.name}
                   </option>
                 ))}
               </select>

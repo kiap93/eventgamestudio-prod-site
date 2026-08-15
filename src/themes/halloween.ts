@@ -8,7 +8,6 @@ export const halloweenTheme: GameTheme = {
   slug: 'spooky-halloween',
   description: 'Haunted night arcade game catching spooky candies and avoiding poisonous spiders.',
   status: 'active',
-  is_active: false,
 
   branding: {
     gameTitle: 'SPOOKY HALLOWEEN CATCH',

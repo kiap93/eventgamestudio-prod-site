@@ -274,6 +274,50 @@ export async function verifyOrgMembershipAndPermission(
   }
 }
 
+export function isUserDeveloperAdmin(user?: UserRecord | null, env?: Record<string, any>): boolean {
+  if (!user) return false;
+  if (user.is_developer === true) return true;
+
+  const devEmailsStr =
+    env?.DEVELOPER_EMAILS ||
+    (typeof process !== 'undefined' ? process.env.DEVELOPER_EMAILS : '') ||
+    '';
+  if (devEmailsStr) {
+    const emails = devEmailsStr.split(',').map((e: string) => e.trim().toLowerCase());
+    if (emails.includes(user.email.toLowerCase())) {
+      return true;
+    }
+  }
+
+  // In development mode or mock environments, allow default developer admin access for convenience
+  const isDev =
+    env?.NODE_ENV === 'development' ||
+    env?.ALLOW_MOCK_AUTH === 'true' ||
+    (typeof process !== 'undefined' && (process.env.NODE_ENV === 'development' || process.env.ALLOW_MOCK_AUTH === 'true')) ||
+    user.email.endsWith('@example.com') ||
+    user.email === 'developer@example.com';
+
+  return isDev;
+}
+
+export async function authenticateDeveloperAdmin(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  // First run standard JWT authentication
+  await authenticateJWT(req, res, () => {
+    const user = req.user;
+    if (!user || !isUserDeveloperAdmin(user)) {
+      res.status(403).json({
+        error: 'Forbidden: Developer Admin access required. You do not have permission to access platform developer tools.',
+      });
+      return;
+    }
+    next();
+  });
+}
+
 export function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }

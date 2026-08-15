@@ -8,7 +8,6 @@ export const durianTheme: GameTheme = {
   slug: 'durian-catcher',
   description: 'Classic retro arcade game: Catch delicious green durians in a lush tropical forest.',
   status: 'active',
-  is_active: true,
 
   branding: {
     gameTitle: 'DURIAN CATCHER',

@@ -48,14 +48,14 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
 
   // Sync external theme changes
   useEffect(() => {
-    if (initialActiveTheme && initialActiveTheme.id !== activeTheme.id) {
+    if (initialActiveTheme) {
       setActiveThemeState(initialActiveTheme);
       setRegistryActiveTheme(initialActiveTheme);
       if (sceneRef.current) {
         sceneRef.current.refreshTheme();
       }
     }
-  }, [initialActiveTheme, activeTheme.id]);
+  }, [initialActiveTheme]);
 
   // Sync external settings changes
   useEffect(() => {
@@ -123,6 +123,34 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
     const game = new Phaser.Game(gameConfig);
     gameRef.current = game;
 
+    // Resize and fullscreen observer to dynamically refresh canvas scale
+    const handleResize = () => {
+      if (gameRef.current?.scale) {
+        requestAnimationFrame(() => {
+          gameRef.current?.scale?.refresh();
+        });
+      }
+    };
+
+    const delayedResize = () => {
+      handleResize();
+      setTimeout(handleResize, 60);
+      setTimeout(handleResize, 200);
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', delayedResize);
+    document.addEventListener('fullscreenchange', delayedResize);
+    document.addEventListener('webkitfullscreenchange', delayedResize);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        handleResize();
+      });
+      resizeObserver.observe(containerRef.current);
+    }
+
     game.events.once('ready', () => {
       const scene = game.scene.getScene('GameScene') as GameScene;
       sceneRef.current = scene;
@@ -143,15 +171,38 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
         // Apply initial settings
         scene.applySettings(settings);
       }
+      handleResize();
     });
 
     return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', delayedResize);
+      document.removeEventListener('fullscreenchange', delayedResize);
+      document.removeEventListener('webkitfullscreenchange', delayedResize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
     };
   }, []);
+
+  // Sync scale refresh when isFullscreen prop changes
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (gameRef.current?.scale) {
+        gameRef.current.scale.refresh();
+      }
+    };
+    const t1 = setTimeout(handleRefresh, 30);
+    const t2 = setTimeout(handleRefresh, 150);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [isFullscreen]);
 
   // Update Settings handler
   const handleUpdateSettings = (newSettings: GameSettings) => {
@@ -220,39 +271,46 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
   };
 
   return (
-    <div className="w-full h-full relative overflow-hidden flex items-center justify-center">
-      {/* Hidden Video for Gesture Tracking */}
-      <video ref={videoRef} className="hidden" playsInline muted />
+    <div
+      className={`game-viewport relative w-full h-full flex items-center justify-center overflow-hidden bg-[#07130b] ${
+        isFullscreen ? 'game-fullscreen' : ''
+      }`}
+    >
+      {/* 16:9 Proportionally Scaled Game Stage containing Canvas and UI overlay */}
+      <div className="game-stage relative w-full h-full aspect-[16/9] max-w-full max-h-full flex items-center justify-center overflow-hidden">
+        {/* Hidden Video for Gesture Tracking */}
+        <video ref={videoRef} className="hidden" playsInline muted />
 
-      {/* Phaser Canvas Container */}
-      <div
-        ref={containerRef}
-        className="w-full h-full relative overflow-hidden flex items-center justify-center [&>canvas]:max-w-full [&>canvas]:max-h-full [&>canvas]:object-contain"
-      />
+        {/* Phaser Canvas Container */}
+        <div
+          ref={containerRef}
+          className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center pointer-events-auto"
+        />
 
-      {/* Arcade UI Overlay */}
-      <ArcadeUI
-        gameState={gameState}
-        stats={stats}
-        countdownText={countdownText}
-        isMuted={isMuted}
-        onToggleMute={handleToggleMute}
-        cameraActive={cameraActive}
-        onToggleCamera={handleToggleCamera}
-        onStartGame={handleStartGame}
-        onPauseGame={handlePauseGame}
-        onResumeGame={handleResumeGame}
-        onRestartGame={handleRestartGame}
-        onStopGame={handleStopGame}
-        videoRef={videoRef}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={onToggleFullscreen}
-        settings={settings}
-        onUpdateSettings={handleUpdateSettings}
-        onResetSettings={handleResetSettings}
-        activeTheme={activeTheme}
-        onSelectTheme={handleSelectTheme}
-      />
+        {/* Arcade UI Overlay */}
+        <ArcadeUI
+          gameState={gameState}
+          stats={stats}
+          countdownText={countdownText}
+          isMuted={isMuted}
+          onToggleMute={handleToggleMute}
+          cameraActive={cameraActive}
+          onToggleCamera={handleToggleCamera}
+          onStartGame={handleStartGame}
+          onPauseGame={handlePauseGame}
+          onResumeGame={handleResumeGame}
+          onRestartGame={handleRestartGame}
+          onStopGame={handleStopGame}
+          videoRef={videoRef}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={onToggleFullscreen}
+          settings={settings}
+          onUpdateSettings={handleUpdateSettings}
+          onResetSettings={handleResetSettings}
+          activeTheme={activeTheme}
+          onSelectTheme={handleSelectTheme}
+        />
+      </div>
     </div>
   );
 };

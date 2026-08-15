@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../../lib/api';
 import {
   X,
   Calendar,
@@ -71,11 +72,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
     const fetchThemes = async () => {
       try {
         setLoadingThemes(true);
-        const res = await fetch('/api/themes', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('app_token') || ''}`,
-          },
-        });
+        const res = await apiFetch('/api/themes');
         if (!res.ok) throw new Error('Failed to fetch game themes');
         const data = await res.json();
         setThemes(data.themes || []);
@@ -120,12 +117,8 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
 
     try {
       setSubmitting(true);
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await apiFetch(`/api/events/${event.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('app_token') || ''}`,
-        },
         body: JSON.stringify({
           name: name.trim(),
           game_theme_id: selectedThemeId,

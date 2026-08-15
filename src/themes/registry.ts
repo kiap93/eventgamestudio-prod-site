@@ -141,7 +141,6 @@ export function normalizeGameTheme(raw: any): GameTheme {
   const slug = raw.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const description = raw.description ?? basePreset.description;
   const status = raw.status || 'active';
-  const is_active = !!raw.is_active;
 
   const branding = {
     gameTitle: raw.branding?.gameTitle || raw.gameTitle || name.toUpperCase(),
@@ -256,7 +255,6 @@ export function normalizeGameTheme(raw: any): GameTheme {
     base_theme_id,
     description,
     status,
-    is_active,
     branding,
     background_url,
     basket_config,
@@ -300,9 +298,9 @@ export function registerThemes(themes: any[]): void {
     if (normalized.slug) {
       THEME_REGISTRY[normalized.slug] = normalized;
     }
-    if (normalized.is_active) {
-      currentActiveTheme = normalized;
-    }
+  }
+  if (!currentActiveTheme && themes.length > 0) {
+    currentActiveTheme = normalizeGameTheme(themes[0]);
   }
 }
 

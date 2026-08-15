@@ -26,7 +26,6 @@ import {
   createTheme,
   updateTheme,
   duplicateTheme,
-  activateTheme,
   deleteTheme,
   uploadGameAsset,
   getEventsByOrgId,
@@ -36,6 +35,16 @@ import {
   updateEvent,
   deleteEvent,
   cancelEvent,
+  getAllPlatformGames,
+  createPlatformGame,
+  updatePlatformGame,
+  deletePlatformGame,
+  getAllSystemThemes,
+  getSystemThemesByGameId,
+  createSystemTheme,
+  updateSystemTheme,
+  deleteSystemTheme,
+  duplicateSystemTheme,
 } from './server/db/index.js';
 
 import {
@@ -44,6 +53,7 @@ import {
   verifyGoogleIdToken,
   verifyOrgMembershipAndPermission,
   hashToken,
+  isUserDeveloperAdmin,
   AppJWTPayload,
 } from './server/auth.js';
 
@@ -774,7 +784,6 @@ export default {
           slug,
           description,
           status,
-          is_active,
           branding,
           background_url,
           basket_config,
@@ -796,7 +805,6 @@ export default {
             slug,
             description,
             status,
-            is_active,
             branding,
             background_url,
             basket_config,
@@ -836,7 +844,6 @@ export default {
           slug,
           description,
           status,
-          is_active,
           branding,
           background_url,
           basket_config,
@@ -854,7 +861,6 @@ export default {
             slug,
             description,
             status,
-            is_active,
             branding,
             background_url,
             basket_config,
@@ -892,28 +898,6 @@ export default {
 
         const duplicated = await duplicateTheme(themeId, name, env);
         return jsonResponse({ theme: duplicated }, 201, cors);
-      }
-
-      const activateThemeParams = parseRoute('/api/themes/:themeId/activate', pathname);
-      if (activateThemeParams && method === 'POST') {
-        const auth = await authenticateWorkerRequest(request, env, cors);
-        if (!auth.authenticated) return auth.errorResponse!;
-
-        const user = auth.user!;
-        const { themeId } = activateThemeParams;
-
-        const theme = await getThemeById(themeId, env);
-        if (!theme) {
-          return errorResponse('Theme not found', 404, cors);
-        }
-
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, theme.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Cannot activate themes', 403, cors);
-        }
-
-        const activeTheme = await activateTheme(theme.organization_id, themeId, env);
-        return jsonResponse({ theme: activeTheme }, 200, cors);
       }
 
       const deleteThemeParams = parseRoute('/api/themes/:themeId', pathname);
@@ -1244,6 +1228,282 @@ export default {
         }
 
         return jsonResponse({ event }, 200, cors);
+      }
+
+      // ==========================================
+      // 10. Developer Admin Routes
+      // ==========================================
+
+      // GET /api/developer/stats
+      if (pathname === '/api/developer/stats' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const games = await getAllPlatformGames(env);
+        const themes = await getAllSystemThemes(env);
+        return jsonResponse(
+          {
+            stats: {
+              totalGames: games.length,
+              activeGames: games.filter((g) => g.status === 'active').length,
+              totalDefaultThemes: themes.length,
+              activeThemes: themes.filter((t) => t.status === 'active').length,
+            },
+          },
+          200,
+          cors
+        );
+      }
+
+      // GET /api/developer/games
+      if (pathname === '/api/developer/games' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const games = await getAllPlatformGames(env);
+        return jsonResponse({ games }, 200, cors);
+      }
+
+      // POST /api/developer/games
+      if (pathname === '/api/developer/games' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const {
+          name,
+          slug,
+          game_type,
+          description,
+          icon_name,
+          status,
+          background_url,
+          basket_config,
+          items_config,
+          settings_config,
+        } = body;
+
+        if (!name || typeof name !== 'string' || !name.trim()) {
+          return errorResponse('Game name is required', 422, cors);
+        }
+        if (!game_type || typeof game_type !== 'string' || !game_type.trim()) {
+          return errorResponse('Game Type is required (e.g. catch-brand)', 422, cors);
+        }
+
+        const game = await createPlatformGame(
+          {
+            name,
+            slug,
+            game_type,
+            description,
+            icon_name,
+            status,
+            background_url,
+            basket_config,
+            items_config,
+            settings_config,
+          },
+          env
+        );
+
+        return jsonResponse({ game }, 201, cors);
+      }
+
+      // Game Themes routes: /api/developer/games/:gameId/themes
+      const devGameThemesParams = parseRoute('/api/developer/games/:gameId/themes', pathname);
+      if (devGameThemesParams && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { gameId } = devGameThemesParams;
+        const themes = await getSystemThemesByGameId(gameId, env);
+        return jsonResponse({ themes }, 200, cors);
+      }
+
+      if (devGameThemesParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { gameId } = devGameThemesParams;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const {
+          name,
+          slug,
+          description,
+          status,
+          is_default,
+          branding,
+          background_url,
+          basket_config,
+          items_config,
+          physics_config,
+          visuals_config,
+          sounds_config,
+          layout,
+        } = body;
+
+        if (!name || typeof name !== 'string' || !name.trim()) {
+          return errorResponse('Theme name is required', 422, cors);
+        }
+
+        const theme = await createSystemTheme(
+          {
+            game_id: gameId,
+            name,
+            slug,
+            description,
+            status,
+            is_default,
+            branding,
+            background_url,
+            basket_config,
+            items_config,
+            physics_config,
+            visuals_config,
+            sounds_config,
+            layout,
+          },
+          env
+        );
+
+        return jsonResponse({ theme }, 201, cors);
+      }
+
+      // Single Game Routes: /api/developer/games/:gameId
+      const devGameDetailParams = parseRoute('/api/developer/games/:gameId', pathname);
+      if (devGameDetailParams && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { gameId } = devGameDetailParams;
+        const game = await getGameById(gameId, env);
+        if (!game) {
+          return errorResponse('Game not found', 404, cors);
+        }
+
+        const themes = await getSystemThemesByGameId(gameId, env);
+        return jsonResponse({ game, themes }, 200, cors);
+      }
+
+      if (devGameDetailParams && method === 'PUT') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { gameId } = devGameDetailParams;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const game = await updatePlatformGame(gameId, body, env);
+        return jsonResponse({ game }, 200, cors);
+      }
+
+      if (devGameDetailParams && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { gameId } = devGameDetailParams;
+        await deletePlatformGame(gameId, env);
+        return jsonResponse({ success: true }, 200, cors);
+      }
+
+      // Duplicate Theme: /api/developer/themes/:themeId/duplicate
+      const devDuplicateThemeParams = parseRoute('/api/developer/themes/:themeId/duplicate', pathname);
+      if (devDuplicateThemeParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { themeId } = devDuplicateThemeParams;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const duplicated = await duplicateSystemTheme(themeId, body.name, env);
+        return jsonResponse({ theme: duplicated }, 201, cors);
+      }
+
+      // Set Default Theme: /api/developer/themes/:themeId/set-default
+      const devSetDefaultThemeParams = parseRoute('/api/developer/themes/:themeId/set-default', pathname);
+      if (devSetDefaultThemeParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { themeId } = devSetDefaultThemeParams;
+        const theme = await getThemeById(themeId, env);
+        if (!theme || !theme.game_id) {
+          return errorResponse('Theme not found or missing game link', 404, cors);
+        }
+
+        await updatePlatformGame(theme.game_id, { active_theme_id: themeId }, env);
+        const updatedTheme = await updateSystemTheme(themeId, { is_default: true }, env);
+
+        return jsonResponse({ success: true, theme: updatedTheme }, 200, cors);
+      }
+
+      // Single Theme Routes: /api/developer/themes/:themeId
+      const devThemeDetailParams = parseRoute('/api/developer/themes/:themeId', pathname);
+      if (devThemeDetailParams && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { themeId } = devThemeDetailParams;
+        const theme = await getThemeById(themeId, env);
+        if (!theme) {
+          return errorResponse('System theme not found', 404, cors);
+        }
+        return jsonResponse({ theme }, 200, cors);
+      }
+
+      if (devThemeDetailParams && method === 'PUT') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { themeId } = devThemeDetailParams;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const theme = await updateSystemTheme(themeId, body, env);
+        return jsonResponse({ theme }, 200, cors);
+      }
+
+      if (devThemeDetailParams && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { themeId } = devThemeDetailParams;
+        await deleteSystemTheme(themeId, env);
+        return jsonResponse({ success: true }, 200, cors);
       }
 
       return errorResponse('Not found', 404, cors);

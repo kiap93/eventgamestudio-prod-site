@@ -8,6 +8,9 @@ import {
   LAYOUT_ELEMENTS_META,
   DEFAULT_GAME_LAYOUT,
   normalizeGameLayout,
+  DESIGN_WIDTH,
+  DESIGN_HEIGHT,
+  useGameUiScale,
 } from '../../themes/layout';
 import {
   Volume2,
@@ -36,6 +39,7 @@ interface LiveThemePreviewProps {
   selectedElementKey?: LayoutElementKey | null;
   onSelectElementKey?: (key: LayoutElementKey) => void;
   onUpdateLayout?: (newLayout: GameLayoutConfig) => void;
+  onPlayLiveGame?: () => void;
 }
 
 interface SimulatedItem {
@@ -80,10 +84,12 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   selectedElementKey = null,
   onSelectElementKey,
   onUpdateLayout,
+  onPlayLiveGame,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const uiScale = useGameUiScale(viewportRef);
 
   const [isPlaying] = useState<boolean>(true);
   const [isInteractive, setIsInteractive] = useState<boolean>(false);
@@ -584,34 +590,34 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           );
         case 'scoreHud':
           return (
-            <div className="w-full bg-slate-950/85 backdrop-blur-sm border border-slate-700/80 rounded-xl px-2.5 py-1.5 shadow-md flex items-center justify-between text-xs font-mono font-black pointer-events-none select-none">
-              <span className="text-slate-400 flex items-center gap-1">
-                <Trophy className="w-3 h-3 text-amber-400" /> SCORE
+            <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between text-xs font-mono font-black pointer-events-none select-none">
+              <span className="text-slate-200 flex items-center gap-1.5 font-sans font-bold text-xs tracking-wider">
+                <Trophy className="w-4 h-4 text-[#ffd700]" /> SCORE
               </span>
-              <span style={{ color: theme.branding?.hudColor || '#c8e038' }} className="ml-2 text-sm font-bold">
+              <span style={{ color: theme.branding?.hudColor || '#c8e038' }} className="ml-2 text-base font-black">
                 {score}
               </span>
             </div>
           );
         case 'timer':
           return (
-            <div className="w-full bg-slate-950/85 backdrop-blur-sm border border-slate-700/80 rounded-xl px-2.5 py-1.5 shadow-md flex items-center justify-between text-xs font-mono font-black pointer-events-none select-none">
-              <span className="text-slate-400 flex items-center gap-1">
-                <TimerIcon className="w-3 h-3 text-teal-400" /> TIME
+            <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between text-xs font-mono font-black pointer-events-none select-none">
+              <span className="text-slate-200 flex items-center gap-1.5 font-sans font-bold text-xs tracking-wider">
+                <TimerIcon className="w-4 h-4 text-teal-400" /> TIME
               </span>
-              <span className="ml-2 text-sm font-bold text-amber-400">{timeRemaining}s</span>
+              <span className="ml-2 text-base font-black text-amber-400">{timeRemaining}s</span>
             </div>
           );
         case 'gameTitle':
           return (
-            <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-xl px-2.5 py-1 shadow-md text-center pointer-events-none select-none">
+            <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-xl px-3 py-1 shadow-md text-center pointer-events-none select-none">
               <div
                 style={{ color: theme.visuals_config?.accentColor || '#10b981' }}
                 className="font-black text-xs uppercase tracking-wider truncate"
               >
                 {theme.branding?.gameTitle || theme.gameTitle || theme.name}
               </div>
-              <div className="text-[9px] text-slate-400 font-sans truncate">
+              <div className="text-[10px] text-slate-400 font-sans truncate">
                 {currentStageName}
               </div>
             </div>
@@ -619,8 +625,8 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         case 'footerSponsor':
           return (
             <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-full px-3 py-1 shadow-md text-center flex items-center justify-center gap-1.5 pointer-events-none select-none">
-              <Megaphone className="w-3 h-3 text-amber-400 shrink-0" />
-              <span className="text-[10px] text-slate-300 font-sans truncate">
+              <Megaphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="text-xs text-slate-300 font-sans truncate">
                 {theme.branding?.subtitle || theme.subtitle || 'Official Event Arcade Challenge'}
               </span>
             </div>
@@ -650,7 +656,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         onPointerDown={(e) => handleElementPointerDown(key, false, e)}
         className={`transition-shadow select-none group/elem ${
           editableLayout
-            ? `cursor-move touch-none ${
+            ? `cursor-move touch-none pointer-events-auto ${
                 isSelected
                   ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 rounded-xl shadow-2xl'
                   : 'hover:ring-1 hover:ring-slate-400/60 rounded-xl'
@@ -701,6 +707,17 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
+          {onPlayLiveGame && (
+            <button
+              onClick={onPlayLiveGame}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md ring-1 ring-emerald-400 active:scale-95"
+              title="Switch to full-page live playable game mode"
+            >
+              <Gamepad2 className="w-3 h-3" />
+              <span>Play Live Game</span>
+            </button>
+          )}
+
           <button
             onClick={() => setIsInteractive(!isInteractive)}
             className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
@@ -736,26 +753,40 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         </div>
       </div>
 
-      {/* Main 16:9 Canvas Viewport with Layout Overlays */}
+      {/* Main 16:9 Canvas Viewport with Scaled Layout Overlays */}
       <div
         ref={viewportRef}
         onPointerMove={handleContainerPointerMove}
         onPointerUp={handleContainerPointerUp}
         onPointerCancel={handleContainerPointerUp}
-        className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none"
+        className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none flex items-center justify-center"
       >
         <canvas
           ref={canvasRef}
-          width={1024}
-          height={576}
+          width={DESIGN_WIDTH}
+          height={DESIGN_HEIGHT}
           onPointerMove={handlePointerMove}
           className={`w-full h-full object-contain ${
             isInteractive ? 'cursor-ew-resize' : 'cursor-default'
           }`}
         />
 
-        {/* RESPONSIVE LAYOUT ELEMENTS OVERLAYS */}
-        {LAYOUT_ELEMENT_KEYS.map((k) => renderLayoutElementOverlay(k))}
+        {/* RESPONSIVE SCALED LOGICAL LAYOUT OVERLAYS (1024x576) */}
+        <div
+          className="game-ui-layer pointer-events-none select-none absolute inset-0"
+          style={{
+            width: `${DESIGN_WIDTH}px`,
+            height: `${DESIGN_HEIGHT}px`,
+            minWidth: `${DESIGN_WIDTH}px`,
+            minHeight: `${DESIGN_HEIGHT}px`,
+            maxWidth: `${DESIGN_WIDTH}px`,
+            maxHeight: `${DESIGN_HEIGHT}px`,
+            transform: `scale(${uiScale})`,
+            transformOrigin: 'top left',
+          }}
+        >
+          {LAYOUT_ELEMENT_KEYS.map((k) => renderLayoutElementOverlay(k))}
+        </div>
 
         {isInteractive && (
           <div className="absolute bottom-2 inset-x-0 mx-auto w-fit bg-amber-500/90 text-slate-950 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-lg pointer-events-none animate-bounce z-30">

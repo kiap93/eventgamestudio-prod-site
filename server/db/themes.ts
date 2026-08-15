@@ -19,7 +19,6 @@ export const DEFAULT_DURIAN_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
   slug: 'durian-catcher',
   description: 'Classic retro arcade theme: Catch delicious green durians in a lush tropical forest.',
   status: 'active',
-  is_active: true,
   branding: {
     gameTitle: 'DURIAN CATCHER',
     subtitle: 'Catch falling green durians, avoid spiky orange ones!',
@@ -161,7 +160,6 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
     slug: 'christmas-rush',
     description: 'Catch holiday presents in Santa sack, beware of lumps of coal!',
     status: 'active',
-    is_active: false,
     branding: {
       gameTitle: 'CHRISTMAS GIFT RUSH',
       subtitle: 'Catch holiday presents, avoid lumps of coal!',
@@ -246,7 +244,6 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
     slug: 'cny-fortune',
     description: 'Catch lucky red packets and gold ingots, dodge fiery firecrackers!',
     status: 'active',
-    is_active: false,
     branding: {
       gameTitle: 'LUNAR NEW YEAR FORTUNE',
       subtitle: 'Catch lucky red packets, avoid exploding firecrackers!',
@@ -331,7 +328,6 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
     slug: 'spooky-halloween',
     description: 'Catch delicious Halloween candy in a pumpkin bucket, avoid scary spiders!',
     status: 'active',
-    is_active: false,
     branding: {
       gameTitle: 'SPOOKY HALLOWEEN CATCH',
       subtitle: 'Catch tasty candies, avoid venomous spiders!',
@@ -416,7 +412,6 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
     slug: 'mango-harvest',
     description: 'Catch sweet honey mangoes in a wooden crate, dodge sour rotten ones!',
     status: 'active',
-    is_active: false,
     branding: {
       gameTitle: 'MANGO ORCHARD HARVEST',
       subtitle: 'Catch sweet ripe mangoes, avoid sour green ones!',
@@ -568,13 +563,13 @@ export async function getActiveThemeForOrg(
     .from('game_themes')
     .select('*, games(id, name, slug, game_type)')
     .eq('organization_id', organizationId)
-    .eq('is_active', true);
+    .order('created_at', { ascending: true });
 
   if (gameId) {
     query = query.eq('game_id', gameId);
   }
 
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await query.limit(1).maybeSingle();
 
   if (error) {
     console.error('Error in getActiveThemeForOrg:', error);
@@ -599,7 +594,6 @@ export async function createTheme(
     slug?: string;
     description?: string | null;
     status?: 'active' | 'archived' | 'draft';
-    is_active?: boolean;
     branding?: ThemeBrandingConfig;
     background_url?: string | null;
     basket_config?: ThemeBasketConfig;
@@ -628,15 +622,6 @@ export async function createTheme(
     }
   }
 
-  // If this new theme is marked active, deactivate others in this game and org
-  if (params.is_active && resolvedGameId) {
-    await supabase
-      .from('game_themes')
-      .update({ is_active: false, updated_at: now })
-      .eq('organization_id', params.organization_id)
-      .eq('game_id', resolvedGameId);
-  }
-
   const { data, error } = await supabase
     .from('game_themes')
     .insert({
@@ -647,7 +632,6 @@ export async function createTheme(
       slug,
       description: params.description ?? null,
       status: params.status || 'active',
-      is_active: params.is_active ?? false,
       branding: params.branding ?? DEFAULT_DURIAN_THEME.branding,
       background_url: params.background_url ?? DEFAULT_DURIAN_THEME.background_url,
       basket_config: params.basket_config ?? DEFAULT_DURIAN_THEME.basket_config,
@@ -684,22 +668,6 @@ export async function updateTheme(
   const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
 
-  // If is_active is set to true, deactivate other themes in the same game & organization
-  if (updates.is_active) {
-    const existing = await getThemeById(themeId, env);
-    if (existing) {
-      let deactivateQuery = supabase
-        .from('game_themes')
-        .update({ is_active: false, updated_at: now })
-        .eq('organization_id', existing.organization_id);
-
-      if (existing.game_id) {
-        deactivateQuery = deactivateQuery.eq('game_id', existing.game_id);
-      }
-      await deactivateQuery;
-    }
-  }
-
   const payload: any = {
     ...updates,
     updated_at: now,
@@ -715,63 +683,6 @@ export async function updateTheme(
   if (error) {
     console.error('Error in updateTheme:', error);
     throw new Error(`Failed to update theme: ${error.message}`);
-  }
-
-  const item = data as any;
-  return {
-    ...item,
-    game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Durian Catcher',
-    game_slug: item.games?.slug || 'durian-catcher',
-  } as GameThemeRecord;
-}
-
-export async function activateTheme(
-  organizationId: string,
-  themeId: string,
-  env?: Record<string, any>
-): Promise<GameThemeRecord> {
-  const supabase = getSupabaseServerClient(env);
-  const now = new Date().toISOString();
-
-  const theme = await getThemeById(themeId, env);
-  if (!theme) {
-    throw new Error('Theme not found to activate');
-  }
-
-  const targetGameId = theme.game_id;
-
-  // 1. Deactivate themes for this specific game (or org)
-  let deactivateQuery = supabase
-    .from('game_themes')
-    .update({ is_active: false, updated_at: now })
-    .eq('organization_id', organizationId);
-
-  if (targetGameId) {
-    deactivateQuery = deactivateQuery.eq('game_id', targetGameId);
-  }
-  await deactivateQuery;
-
-  // 2. Activate target theme
-  const { data, error } = await supabase
-    .from('game_themes')
-    .update({ is_active: true, updated_at: now })
-    .eq('id', themeId)
-    .eq('organization_id', organizationId)
-    .select('*, games(id, name, slug, game_type)')
-    .single();
-
-  if (error) {
-    console.error('Error in activateTheme:', error);
-    throw new Error(`Failed to activate theme: ${error.message}`);
-  }
-
-  // 3. Update active_theme_id on the specific game
-  if (targetGameId) {
-    await supabase
-      .from('games')
-      .update({ active_theme_id: themeId, updated_at: now })
-      .eq('id', targetGameId);
   }
 
   const item = data as any;
@@ -804,7 +715,6 @@ export async function duplicateTheme(
       slug,
       description: existing.description,
       status: 'draft',
-      is_active: false,
       branding: existing.branding,
       background_url: existing.background_url,
       basket_config: existing.basket_config,
@@ -820,20 +730,6 @@ export async function duplicateTheme(
 
 export async function deleteTheme(themeId: string, env?: Record<string, any>): Promise<void> {
   const supabase = getSupabaseServerClient(env);
-  const theme = await getThemeById(themeId, env);
-  if (!theme) return;
-
-  // Prevent deleting if it's the only active theme
-  if (theme.is_active) {
-    const all = await getThemesByOrgId(theme.organization_id, theme.game_id || undefined, env);
-    if (all.length > 1) {
-      const nextTheme = all.find((t) => t.id !== themeId);
-      if (nextTheme) {
-        await activateTheme(theme.organization_id, nextTheme.id, env);
-      }
-    }
-  }
-
   const { error } = await supabase
     .from('game_themes')
     .delete()
@@ -844,6 +740,369 @@ export async function deleteTheme(themeId: string, env?: Record<string, any>): P
     throw new Error(`Failed to delete theme: ${error.message}`);
   }
 }
+
+// ============================================================================
+// DEVELOPER ADMIN SYSTEM DEFAULT THEMES MANAGEMENT
+// ============================================================================
+
+export async function getSystemThemesByGameId(gameId: string, env?: Record<string, any>): Promise<GameThemeRecord[]> {
+  const supabase = getSupabaseServerClient(env);
+
+  let { data, error } = await supabase
+    .from('game_themes')
+    .select('*, games(id, name, slug, game_type)')
+    .eq('game_id', gameId)
+    .or('is_system.eq.true,organization_id.is.null')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error in getSystemThemesByGameId:', error);
+    throw new Error(`Failed to list system themes: ${error.message}`);
+  }
+
+  let list = (data || []) as any[];
+
+  // If no system themes exist for this game, check if we should seed default preset themes
+  if (list.length === 0) {
+    const { getGameById } = await import('./games.js');
+    const game = await getGameById(gameId, env);
+    if (game && (game.game_type === 'catch-brand' || game.slug.includes('durian') || game.is_system)) {
+      await ensureSystemDefaultThemesForGame(gameId, game.game_type || 'catch-brand', env);
+      const res = await supabase
+        .from('game_themes')
+        .select('*, games(id, name, slug, game_type)')
+        .eq('game_id', gameId)
+        .or('is_system.eq.true,organization_id.is.null')
+        .order('created_at', { ascending: true });
+      list = (res.data || []) as any[];
+    }
+  }
+
+  return list.map((item) => ({
+    ...item,
+    is_system: true,
+    ownership_type: 'system',
+    game_id: item.game_id || item.games?.id || gameId,
+    game_name: item.games?.name || 'Durian Catcher',
+    game_slug: item.games?.slug || 'durian-catcher',
+  })) as GameThemeRecord[];
+}
+
+export async function getAllSystemThemes(env?: Record<string, any>): Promise<GameThemeRecord[]> {
+  const supabase = getSupabaseServerClient(env);
+
+  const { data, error } = await supabase
+    .from('game_themes')
+    .select('*, games(id, name, slug, game_type)')
+    .or('is_system.eq.true,organization_id.is.null')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error in getAllSystemThemes:', error);
+    throw new Error(`Failed to list all system themes: ${error.message}`);
+  }
+
+  const list = (data || []) as any[];
+  return list.map((item) => ({
+    ...item,
+    is_system: true,
+    ownership_type: 'system',
+    game_id: item.game_id || item.games?.id || null,
+    game_name: item.games?.name || 'Unknown Game',
+    game_slug: item.games?.slug || 'unknown-game',
+  })) as GameThemeRecord[];
+}
+
+export async function createSystemTheme(
+  params: {
+    game_id: string;
+    name: string;
+    slug?: string;
+    description?: string | null;
+    status?: 'active' | 'archived' | 'draft';
+    is_default?: boolean;
+    branding?: ThemeBrandingConfig;
+    background_url?: string | null;
+    basket_config?: ThemeBasketConfig;
+    items_config?: ThemeDropItem[];
+    physics_config?: ThemePhysicsConfig;
+    visuals_config?: ThemeVisualsConfig;
+    sounds_config?: ThemeSoundsConfig;
+    layout?: any;
+  },
+  env?: Record<string, any>
+): Promise<GameThemeRecord> {
+  const supabase = getSupabaseServerClient(env);
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const slug = params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+  const { data, error } = await supabase
+    .from('game_themes')
+    .insert({
+      id,
+      organization_id: null,
+      game_id: params.game_id,
+      is_system: true,
+      ownership_type: 'system',
+      is_default: params.is_default ?? false,
+      name: params.name,
+      slug,
+      description: params.description ?? null,
+      status: params.status || 'active',
+      branding: params.branding ?? DEFAULT_DURIAN_THEME.branding,
+      background_url: params.background_url ?? DEFAULT_DURIAN_THEME.background_url,
+      basket_config: params.basket_config ?? DEFAULT_DURIAN_THEME.basket_config,
+      items_config: params.items_config ?? DEFAULT_DURIAN_THEME.items_config,
+      physics_config: params.physics_config ?? DEFAULT_DURIAN_THEME.physics_config,
+      visuals_config: params.visuals_config ?? DEFAULT_DURIAN_THEME.visuals_config,
+      sounds_config: params.sounds_config ?? DEFAULT_DURIAN_THEME.sounds_config,
+      layout: params.layout ?? DEFAULT_DURIAN_THEME.layout,
+      created_at: now,
+      updated_at: now,
+    })
+    .select('*, games(id, name, slug, game_type)')
+    .single();
+
+  if (error) {
+    console.error('Error in createSystemTheme:', error);
+    throw new Error(`Failed to create system theme: ${error.message}`);
+  }
+
+  const item = data as any;
+  return {
+    ...item,
+    is_system: true,
+    ownership_type: 'system',
+    game_id: item.game_id || item.games?.id || params.game_id,
+    game_name: item.games?.name || 'Durian Catcher',
+    game_slug: item.games?.slug || 'durian-catcher',
+  } as GameThemeRecord;
+}
+
+export async function updateSystemTheme(
+  themeId: string,
+  updates: Partial<Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at'>>,
+  env?: Record<string, any>
+): Promise<GameThemeRecord> {
+  const supabase = getSupabaseServerClient(env);
+  const now = new Date().toISOString();
+
+  const payload: any = {
+    ...updates,
+    is_system: true,
+    ownership_type: 'system',
+    updated_at: now,
+  };
+
+  const { data, error } = await supabase
+    .from('game_themes')
+    .update(payload)
+    .eq('id', themeId)
+    .select('*, games(id, name, slug, game_type)')
+    .single();
+
+  if (error) {
+    console.error('Error in updateSystemTheme:', error);
+    throw new Error(`Failed to update system theme: ${error.message}`);
+  }
+
+  const item = data as any;
+  return {
+    ...item,
+    is_system: true,
+    ownership_type: 'system',
+    game_id: item.game_id || item.games?.id || null,
+    game_name: item.games?.name || 'Durian Catcher',
+    game_slug: item.games?.slug || 'durian-catcher',
+  } as GameThemeRecord;
+}
+
+export async function deleteSystemTheme(themeId: string, env?: Record<string, any>): Promise<void> {
+  const supabase = getSupabaseServerClient(env);
+
+  // Check if any events reference this theme
+  const { data: events } = await supabase
+    .from('events')
+    .select('id')
+    .eq('game_theme_id', themeId)
+    .limit(1);
+
+  if (events && events.length > 0) {
+    throw new Error('Cannot delete system theme: Active or past events are currently assigned to this theme.');
+  }
+
+  const { error } = await supabase.from('game_themes').delete().eq('id', themeId);
+  if (error) {
+    console.error('Error in deleteSystemTheme:', error);
+    throw new Error(`Failed to delete system theme: ${error.message}`);
+  }
+}
+
+export async function duplicateSystemTheme(
+  themeId: string,
+  newName?: string,
+  env?: Record<string, any>
+): Promise<GameThemeRecord> {
+  const existing = await getThemeById(themeId, env);
+  if (!existing) {
+    throw new Error('System theme not found to duplicate');
+  }
+
+  const name = newName || `${existing.name} (Copy)`;
+  const slug = `${existing.slug}-copy-${Date.now().toString().slice(-4)}`;
+
+  return await createSystemTheme(
+    {
+      game_id: existing.game_id || '',
+      name,
+      slug,
+      description: existing.description,
+      status: 'draft',
+      branding: existing.branding,
+      background_url: existing.background_url,
+      basket_config: existing.basket_config,
+      items_config: existing.items_config,
+      physics_config: existing.physics_config,
+      visuals_config: existing.visuals_config,
+      sounds_config: existing.sounds_config,
+      layout: existing.layout,
+    },
+    env
+  );
+}
+
+export async function cloneSystemThemeToOrg(
+  systemThemeId: string,
+  targetOrgId: string,
+  targetGameId?: string,
+  customName?: string,
+  env?: Record<string, any>
+): Promise<GameThemeRecord> {
+  const systemTheme = await getThemeById(systemThemeId, env);
+  if (!systemTheme) {
+    throw new Error('System default theme not found to customize');
+  }
+
+  const name = customName || `${systemTheme.name}`;
+  const slug = `${systemTheme.slug}-${Date.now().toString().slice(-4)}`;
+
+  const supabase = getSupabaseServerClient(env);
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  let resolvedGameId = targetGameId;
+  if (!resolvedGameId) {
+    // Find organization's corresponding game
+    const { data: orgGames } = await supabase
+      .from('games')
+      .select('id')
+      .eq('organization_id', targetOrgId)
+      .limit(1);
+    if (orgGames && orgGames.length > 0) {
+      resolvedGameId = orgGames[0].id;
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('game_themes')
+    .insert({
+      id,
+      organization_id: targetOrgId,
+      game_id: resolvedGameId || systemTheme.game_id || null,
+      base_theme_id: systemThemeId,
+      is_system: false,
+      ownership_type: 'organization',
+      name,
+      slug,
+      description: systemTheme.description,
+      status: 'active',
+      branding: systemTheme.branding,
+      background_url: systemTheme.background_url,
+      basket_config: systemTheme.basket_config,
+      items_config: systemTheme.items_config,
+      physics_config: systemTheme.physics_config,
+      visuals_config: systemTheme.visuals_config,
+      sounds_config: systemTheme.sounds_config,
+      layout: systemTheme.layout,
+      created_at: now,
+      updated_at: now,
+    })
+    .select('*, games(id, name, slug, game_type)')
+    .single();
+
+  if (error) {
+    console.error('Error in cloneSystemThemeToOrg:', error);
+    throw new Error(`Failed to clone theme to organization: ${error.message}`);
+  }
+
+  const item = data as any;
+  return {
+    ...item,
+    game_id: item.game_id || item.games?.id || resolvedGameId,
+    game_name: item.games?.name || 'Durian Catcher',
+    game_slug: item.games?.slug || 'durian-catcher',
+  } as GameThemeRecord;
+}
+
+export async function ensureSystemDefaultThemesForGame(
+  gameId: string,
+  gameType: string = 'catch-brand',
+  env?: Record<string, any>
+): Promise<GameThemeRecord[]> {
+  const supabase = getSupabaseServerClient(env);
+  const created: GameThemeRecord[] = [];
+
+  for (let i = 0; i < PRESET_THEMES.length; i++) {
+    const preset = PRESET_THEMES[i];
+    const isFirst = i === 0;
+
+    try {
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      const { data } = await supabase
+        .from('game_themes')
+        .insert({
+          id,
+          organization_id: null,
+          game_id: gameId,
+          is_system: true,
+          ownership_type: 'system',
+          is_default: isFirst,
+          name: preset.name,
+          slug: preset.slug,
+          description: preset.description,
+          status: 'active',
+          branding: preset.branding,
+          background_url: preset.background_url,
+          basket_config: preset.basket_config,
+          items_config: preset.items_config,
+          physics_config: preset.physics_config,
+          visuals_config: preset.visuals_config,
+          sounds_config: preset.sounds_config,
+          layout: (preset as any).layout ?? DEFAULT_DURIAN_THEME.layout,
+          created_at: now,
+          updated_at: now,
+        })
+        .select('*, games(id, name, slug, game_type)')
+        .single();
+
+      if (data) {
+        created.push({
+          ...data,
+          is_system: true,
+          ownership_type: 'system',
+          game_id: gameId,
+        } as GameThemeRecord);
+      }
+    } catch (err: any) {
+      console.warn('Could not seed system theme:', preset.name, err.message);
+    }
+  }
+
+  return created;
+}
+
 
 /**
  * Ensures that the organization has games and default themes available.
@@ -897,7 +1156,6 @@ export async function ensureDefaultThemes(
         slug: preset.slug,
         description: preset.description,
         status: preset.status,
-        is_active: isFirst,
         branding: preset.branding,
         background_url: preset.background_url,
         basket_config: preset.basket_config,

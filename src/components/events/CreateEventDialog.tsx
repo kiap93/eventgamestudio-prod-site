@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../lib/api';
 import {
   X,
   Calendar,
@@ -19,7 +20,6 @@ interface GameThemeOption {
   game_id?: string | null;
   game_name?: string;
   game_slug?: string;
-  is_active?: boolean;
   status?: string;
 }
 
@@ -77,20 +77,15 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     const fetchThemes = async () => {
       try {
         setLoadingThemes(true);
-        const res = await fetch('/api/themes', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('app_token') || ''}`,
-          },
-        });
+        const res = await apiFetch('/api/themes');
         if (!res.ok) throw new Error('Failed to fetch game themes');
         const data = await res.json();
         const list = (data.themes || []) as GameThemeOption[];
         setThemes(list);
 
-        // Auto select first active theme or first available
+        // Select first available theme by default
         if (list.length > 0) {
-          const active = list.find((t) => t.is_active) || list[0];
-          setSelectedThemeId(active.id);
+          setSelectedThemeId(list[0].id);
         }
       } catch (err: any) {
         console.error('Error fetching themes for event:', err);
@@ -133,12 +128,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
     try {
       setSubmitting(true);
-      const res = await fetch('/api/events', {
+      const res = await apiFetch('/api/events', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('app_token') || ''}`,
-        },
         body: JSON.stringify({
           name: name.trim(),
           game_theme_id: selectedThemeId,

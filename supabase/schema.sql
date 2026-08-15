@@ -109,7 +109,6 @@ CREATE TABLE IF NOT EXISTS public.game_themes (
   slug TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'draft')),
-  is_active BOOLEAN NOT NULL DEFAULT false,
   branding JSONB NOT NULL DEFAULT '{}'::jsonb,
   background_url TEXT,
   basket_config JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -125,7 +124,6 @@ CREATE TABLE IF NOT EXISTS public.game_themes (
 CREATE INDEX IF NOT EXISTS idx_game_themes_org_id ON public.game_themes (organization_id);
 CREATE INDEX IF NOT EXISTS idx_game_themes_game_id ON public.game_themes (game_id);
 CREATE INDEX IF NOT EXISTS idx_game_themes_slug ON public.game_themes (slug);
-CREATE INDEX IF NOT EXISTS idx_game_themes_is_active ON public.game_themes (is_active);
 
 -- Foreign key link for games.active_theme_id
 DO $$

@@ -121,7 +121,6 @@ export interface GameTheme {
   base_theme_id?: string;
   description?: string | null;
   status: 'active' | 'archived' | 'draft';
-  is_active: boolean;
 
   // Configuration groups
   branding: ThemeBrandingConfig;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouteContext } from '../../hooks/useRouteContext';
 import { GameContainer } from '../GameContainer';
+import { apiFetch } from '../../lib/api';
 import {
   Calendar,
   Clock,
@@ -63,7 +64,7 @@ export const PublicEventGameView: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/public/events/${publicToken}`);
+      const res = await apiFetch(`/api/public/events/${publicToken}`);
       if (!res.ok) {
         if (res.status === 404) {
           throw new Error('Event not found or link has expired.');
@@ -86,13 +87,38 @@ export const PublicEventGameView: React.FC = () => {
     fetchEvent();
   }, [publicToken]);
 
+  // Sync fullscreen state
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(
+        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
+      );
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
+
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+    const isCurrentlyFs =
+      !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
+    if (!isCurrentlyFs && !isFullscreen) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else if ((document.documentElement as any).webkitRequestFullscreen) {
+        (document.documentElement as any).webkitRequestFullscreen();
+      }
       setIsFullscreen(true);
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        }
       }
       setIsFullscreen(false);
     }
@@ -258,42 +284,53 @@ export const PublicEventGameView: React.FC = () => {
   const remainingTime = Math.max(0, expiryTime - now);
 
   return (
-    <div className="min-h-screen w-screen bg-slate-950 text-slate-100 flex flex-col font-sans select-none overflow-x-hidden">
-      {/* Top Event Banner for Live Players */}
-      <header className="bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-2 flex items-center justify-between z-40">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-            <span>LIVE EVENT</span>
+    <div
+      className={`h-screen h-[100dvh] w-screen max-w-[100vw] bg-[#07130b] text-slate-100 flex flex-col font-sans select-none overflow-hidden ${
+        isFullscreen ? 'p-0 m-0' : ''
+      }`}
+    >
+      {/* Top Event Banner for Live Players (auto-collapses cleanly in fullscreen for immersion) */}
+      {!isFullscreen && (
+        <header className="h-12 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-2 flex items-center justify-between z-40 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+              <span>LIVE EVENT</span>
+            </div>
+            <span className="font-bold text-xs text-slate-200 truncate max-w-[200px] sm:max-w-md">
+              {eventData.name}
+            </span>
           </div>
-          <span className="font-bold text-xs text-slate-200 truncate max-w-[200px] sm:max-w-md">
-            {eventData.name}
-          </span>
-        </div>
 
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-mono">
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
-            <span>Ends in: {formatCountdown(remainingTime)}</span>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+              <Clock className="w-3.5 h-3.5 text-amber-400" />
+              <span>Ends in: {formatCountdown(remainingTime)}</span>
+            </div>
+
+            <button
+              onClick={toggleFullscreen}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors"
+              title="Toggle Fullscreen"
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
           </div>
-
-          <button
-            onClick={toggleFullscreen}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors"
-            title="Toggle Fullscreen"
-          >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Main Play Area */}
-      <main className="flex-1 flex items-center justify-center p-2 sm:p-4">
-        <div className="w-full max-w-2xl h-[calc(100vh-60px)] max-h-[860px]">
+      <main
+        className={`flex-1 w-full min-h-0 min-w-0 max-w-full overflow-hidden flex flex-col items-center justify-center ${
+          isFullscreen ? 'p-0 m-0 h-full' : 'p-1 sm:p-2 sm:px-3'
+        }`}
+      >
+        <div className="w-full h-full min-h-0 min-w-0 max-w-full max-h-full flex flex-col items-center justify-center overflow-hidden">
           <GameContainer
             gameType={gameType}
-            initialTheme={theme}
-            readOnlyCustomization={true}
+            customTheme={theme}
+            showCabinetFooter={!isFullscreen}
+            className="w-full h-full max-w-full max-h-full"
           />
         </div>
       </main>

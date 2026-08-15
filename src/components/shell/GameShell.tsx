@@ -78,19 +78,24 @@ export const GameShell: React.FC<GameShellProps> = ({
   }, []);
 
   const handleToggleFullscreen = () => {
-    const targetElement = containerRef.current?.parentElement || document.documentElement;
-    if (!document.fullscreenElement) {
-      if (targetElement.requestFullscreen) {
-        targetElement.requestFullscreen().catch(() => {});
-      } else if ((targetElement as any).webkitRequestFullscreen) {
-        (targetElement as any).webkitRequestFullscreen();
+    const isCurrentlyFs =
+      !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
+    if (!isCurrentlyFs && !isFullscreen) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else if ((document.documentElement as any).webkitRequestFullscreen) {
+        (document.documentElement as any).webkitRequestFullscreen();
       }
+      setIsFullscreen(true);
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      } else if ((document as any).webkitExitFullscreen) {
-        (document as any).webkitExitFullscreen();
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        }
       }
+      setIsFullscreen(false);
     }
   };
 
@@ -99,27 +104,39 @@ export const GameShell: React.FC<GameShellProps> = ({
   };
 
   return (
-    <div className={`w-full h-full flex flex-col items-center justify-center bg-[#07130b] overflow-hidden relative ${className}`}>
-      {/* Outer Cabinet Frame */}
-      <div
-        ref={containerRef}
-        className="game-cabinet relative w-full max-w-[1024px] aspect-[16/9] bg-[#0c2012] border-4 border-[#1e4627] rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.15)] overflow-hidden flex items-center justify-center [container-type:size]"
-      >
-        {/* Dynamic Game Component */}
-        <GameComponent
-          activeTheme={activeTheme}
-          settings={settings}
-          config={gameDef.defaultConfig}
-          isMuted={isMuted}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={handleToggleFullscreen}
-          onToggleMute={handleToggleMute}
-        />
+    <div
+      className={
+        isFullscreen
+          ? 'game-fullscreen fixed inset-0 z-[99999] w-screen h-screen bg-[#07130b] overflow-hidden p-0 m-0 flex flex-col items-center justify-center'
+          : `w-full h-full max-w-full max-h-full flex flex-col items-center justify-center bg-[#07130b] overflow-hidden relative ${className}`
+      }
+    >
+      {/* Cabinet Frame Wrapper: Uses available viewport space dynamically */}
+      <div className={isFullscreen ? 'w-full h-full p-0 m-0 flex items-center justify-center' : 'flex-1 w-full min-h-0 min-w-0 flex items-center justify-center overflow-hidden p-1 sm:p-2'}>
+        <div
+          ref={containerRef}
+          className={
+            isFullscreen
+              ? 'relative w-full h-full max-w-full max-h-full aspect-[16/9] overflow-hidden flex items-center justify-center p-0 m-0 border-none rounded-none bg-[#07130b] shadow-none'
+              : 'game-cabinet relative aspect-[16/9] bg-[#0c2012] border-2 sm:border-4 border-[#1e4627] rounded-2xl sm:rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.15)] overflow-hidden flex items-center justify-center'
+          }
+        >
+          {/* Dynamic Game Component */}
+          <GameComponent
+            activeTheme={activeTheme}
+            settings={settings}
+            config={gameDef.defaultConfig}
+            isMuted={isMuted}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={handleToggleFullscreen}
+            onToggleMute={handleToggleMute}
+          />
+        </div>
       </div>
 
-      {/* Footer Branding */}
-      {showCabinetFooter && (
-        <footer className="mt-3 text-slate-500 font-mono text-xs flex items-center gap-2">
+      {/* Footer Branding (only in windowed mode, placed outside the game viewport) */}
+      {!isFullscreen && showCabinetFooter && (
+        <footer className="h-6 sm:h-7 mb-1 text-slate-500 font-mono text-[10px] sm:text-xs flex items-center gap-2 shrink-0 select-none">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <span>{activeTheme.gameTitle || gameDef.name}</span>
           <span className="text-slate-600">•</span>

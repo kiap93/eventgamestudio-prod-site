@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../lib/api';
 import { EventCard } from './EventCard';
 import { CreateEventDialog } from './CreateEventDialog';
 import { EditEventDialog } from './EditEventDialog';
@@ -32,11 +33,7 @@ export const EventsPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/events', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('app_token') || ''}`,
-        },
-      });
+      const res = await apiFetch('/api/events');
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -73,11 +70,8 @@ export const EventsPage: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`/api/events/${eventId}`, {
+      const res = await apiFetch(`/api/events/${eventId}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('app_token') || ''}`,
-        },
       });
 
       if (!res.ok) {
@@ -97,11 +91,8 @@ export const EventsPage: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`/api/events/${eventId}/cancel`, {
+      const res = await apiFetch(`/api/events/${eventId}/cancel`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('app_token') || ''}`,
-        },
       });
 
       if (!res.ok) {

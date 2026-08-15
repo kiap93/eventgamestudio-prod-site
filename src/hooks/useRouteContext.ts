@@ -8,7 +8,8 @@ export type PresentationMode =
   | 'studio_preview'
   | 'login'
   | 'accept_invite'
-  | 'create_org';
+  | 'create_org'
+  | 'developer_admin';
 
 export interface RouteContext {
   mode: PresentationMode;
@@ -16,11 +17,15 @@ export interface RouteContext {
   isPublicEventRoute: boolean;
   isStudioRoute: boolean;
   isPreviewRoute: boolean;
+  isDeveloperAdminRoute: boolean;
   publicToken?: string;
   organizationSlug?: string;
   gameSlug?: string;
   deploymentId?: string;
   gameType?: string;
+  developerGameId?: string;
+  developerThemeId?: string;
+  developerAction?: 'new-theme' | 'edit-theme' | 'new-game' | 'edit-game' | 'test-play';
   pathname: string;
 }
 
@@ -39,6 +44,7 @@ const RESERVED_PREFIXES = new Set([
   'assets',
   'play',
   'games',
+  'developer',
 ]);
 
 export function parseRoute(pathname: string): RouteContext {
@@ -46,6 +52,49 @@ export function parseRoute(pathname: string): RouteContext {
   const parts = cleanPath.split('?')[0].split('/').filter(Boolean);
   const searchParams = new URLSearchParams(window.location.search);
   const queryGameType = searchParams.get('game') || searchParams.get('gameType') || DEFAULT_GAME_TYPE;
+
+  // 0. Check for Developer Admin routes (/developer/...)
+  if (parts.length >= 1 && parts[0].toLowerCase() === 'developer') {
+    // /developer
+    // /developer/games
+    // /developer/games/:gameId
+    // /developer/games/:gameId/themes/new
+    // /developer/games/:gameId/themes/:themeId/edit
+    // /developer/themes/:themeId/edit
+    let developerGameId: string | undefined = undefined;
+    let developerThemeId: string | undefined = undefined;
+    let developerAction: RouteContext['developerAction'] = undefined;
+
+    if (parts[1] === 'games' && parts[2]) {
+      developerGameId = parts[2];
+      if (parts[3] === 'themes') {
+        if (parts[4] === 'new') {
+          developerAction = 'new-theme';
+        } else if (parts[4]) {
+          developerThemeId = parts[4];
+          if (parts[5] === 'edit') developerAction = 'edit-theme';
+          if (parts[5] === 'test') developerAction = 'test-play';
+        }
+      }
+    } else if (parts[1] === 'themes' && parts[2]) {
+      developerThemeId = parts[2];
+      if (parts[3] === 'edit') developerAction = 'edit-theme';
+      if (parts[3] === 'test') developerAction = 'test-play';
+    }
+
+    return {
+      mode: 'developer_admin',
+      isPublicGameRoute: false,
+      isPublicEventRoute: false,
+      isStudioRoute: false,
+      isPreviewRoute: false,
+      isDeveloperAdminRoute: true,
+      developerGameId,
+      developerThemeId,
+      developerAction,
+      pathname: cleanPath,
+    };
+  }
 
   // 1. Check for Public Event Route: /e/:publicToken
   if (parts.length >= 2 && parts[0].toLowerCase() === 'e') {
@@ -55,6 +104,7 @@ export function parseRoute(pathname: string): RouteContext {
       isPublicEventRoute: true,
       isStudioRoute: false,
       isPreviewRoute: false,
+      isDeveloperAdminRoute: false,
       publicToken: parts[1],
       gameType: queryGameType,
       pathname: cleanPath,
@@ -69,6 +119,7 @@ export function parseRoute(pathname: string): RouteContext {
       isPublicEventRoute: false,
       isStudioRoute: false,
       isPreviewRoute: false,
+      isDeveloperAdminRoute: false,
       pathname: cleanPath,
     };
   }
@@ -81,6 +132,7 @@ export function parseRoute(pathname: string): RouteContext {
       isPublicEventRoute: false,
       isStudioRoute: false,
       isPreviewRoute: false,
+      isDeveloperAdminRoute: false,
       pathname: cleanPath,
     };
   }
@@ -93,78 +145,19 @@ export function parseRoute(pathname: string): RouteContext {
       isPublicEventRoute: false,
       isStudioRoute: false,
       isPreviewRoute: false,
+      isDeveloperAdminRoute: false,
       pathname: cleanPath,
     };
   }
 
-  // 5. Check for Studio Preview (/preview or /studio/preview or /game/preview)
-  if (cleanPath === '/preview' || cleanPath.startsWith('/studio/preview') || cleanPath === '/game/preview') {
-    return {
-      mode: 'studio_preview',
-      isPublicGameRoute: false,
-      isPublicEventRoute: false,
-      isStudioRoute: true,
-      isPreviewRoute: true,
-      gameType: queryGameType,
-      pathname: cleanPath,
-    };
-  }
-
-  // 6. Check for generic Play Route: /play/:deploymentId or /play/:orgSlug/:gameSlug
-  if (parts.length >= 2 && parts[0].toLowerCase() === 'play') {
-    return {
-      mode: 'public_game',
-      isPublicGameRoute: true,
-      isPublicEventRoute: false,
-      isStudioRoute: false,
-      isPreviewRoute: false,
-      deploymentId: parts[1],
-      organizationSlug: parts[2] ? parts[1] : undefined,
-      gameSlug: parts[2] || parts[1],
-      gameType: queryGameType,
-      pathname: cleanPath,
-    };
-  }
-
-  // 7. Check for Public Game Route: /{organization-slug}/{game-slug}
-  // Matches 2 parts where the first part is NOT a reserved keyword
-  // Examples: /acme/durian, /durian-corp/spooky-halloween, /demo/durian-catcher
-  if (parts.length === 2 && !RESERVED_PREFIXES.has(parts[0].toLowerCase())) {
-    return {
-      mode: 'public_game',
-      isPublicGameRoute: true,
-      isPublicEventRoute: false,
-      isStudioRoute: false,
-      isPreviewRoute: false,
-      organizationSlug: parts[0],
-      gameSlug: parts[1],
-      gameType: queryGameType,
-      pathname: cleanPath,
-    };
-  }
-
-  // Also support /game or /game/:gameSlug as public game route
-  if (parts.length >= 1 && (parts[0].toLowerCase() === 'game' || parts[0].toLowerCase() === 'games') && cleanPath !== '/game/preview') {
-    return {
-      mode: 'public_game',
-      isPublicGameRoute: true,
-      isPublicEventRoute: false,
-      isStudioRoute: false,
-      isPreviewRoute: false,
-      organizationSlug: undefined,
-      gameSlug: parts[1] || 'durian',
-      gameType: parts[0].toLowerCase() === 'games' && parts[1] ? parts[1] : queryGameType,
-      pathname: cleanPath,
-    };
-  }
-
-  // 8. Default: Studio Route (e.g. /, /studio, /events, /game-themes, /team)
+  // 5. Default: Studio Route (e.g. /, /studio, /events, /game-themes, /team)
   return {
     mode: 'studio',
     isPublicGameRoute: false,
     isPublicEventRoute: false,
     isStudioRoute: true,
     isPreviewRoute: false,
+    isDeveloperAdminRoute: false,
     gameType: queryGameType,
     pathname: cleanPath,
   };

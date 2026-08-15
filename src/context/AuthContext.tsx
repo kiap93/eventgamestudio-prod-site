@@ -7,6 +7,7 @@ export interface User {
   email: string;
   name: string;
   avatar_url: string | null;
+  is_developer?: boolean;
 }
 
 export interface Organization {
@@ -51,7 +52,6 @@ interface AuthContextType {
   createTheme: (themeData: Partial<GameTheme>) => Promise<GameTheme>;
   updateTheme: (themeId: string, themeData: Partial<GameTheme>) => Promise<GameTheme>;
   deleteTheme: (themeId: string) => Promise<void>;
-  activateTheme: (themeId: string) => Promise<GameTheme>;
   duplicateTheme: (themeId: string, newName?: string) => Promise<GameTheme>;
   updateGameCustomization: (data: {
     background_url?: string | null;
@@ -99,10 +99,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           registerThemes(normalizedList);
           setThemes(normalizedList);
 
-          const active = normalizedList.find((t: GameTheme) => t.is_active) || normalizedList[0];
-          if (active) {
-            setActiveTheme(active);
-            setActiveThemeState(active);
+          const defaultTheme = normalizedList[0];
+          if (defaultTheme && !activeTheme) {
+            setActiveTheme(defaultTheme);
+            setActiveThemeState(defaultTheme);
           }
           return normalizedList;
         }
@@ -111,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Failed to fetch themes:', err);
     }
     return [];
-  }, [authFetch]);
+  }, [authFetch, activeTheme]);
 
   const createTheme = async (themeData: Partial<GameTheme>): Promise<GameTheme> => {
     const res = await authFetch('/api/themes', {
@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const data = await res.json();
     const normalized = normalizeGameTheme(data.theme);
     setThemes((prev) => prev.map((t) => (t.id === themeId ? normalized : t)));
-    if (normalized.is_active || activeTheme?.id === themeId) {
+    if (activeTheme?.id === themeId) {
       setActiveTheme(normalized);
       setActiveThemeState(normalized);
     }
@@ -164,29 +164,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setThemes((prev) => prev.filter((t) => t.id !== themeId));
-  };
-
-  const activateTheme = async (themeId: string): Promise<GameTheme> => {
-    const res = await authFetch(`/api/themes/${themeId}/activate`, {
-      method: 'POST',
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to activate theme');
-    }
-
-    const data = await res.json();
-    const normalized = normalizeGameTheme(data.theme);
-    setThemes((prev) =>
-      prev.map((t) => ({
-        ...t,
-        is_active: t.id === themeId,
-      }))
-    );
-    setActiveTheme(normalized);
-    setActiveThemeState(normalized);
-    return normalized;
   };
 
   const duplicateTheme = async (themeId: string, newName?: string): Promise<GameTheme> => {
@@ -418,7 +395,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         createTheme,
         updateTheme,
         deleteTheme,
-        activateTheme,
         duplicateTheme,
         updateGameCustomization,
         uploadAsset,

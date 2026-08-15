@@ -122,6 +122,8 @@ export class TextureGenerator {
       } else {
         if (scene.textures.exists('background')) {
           this.aliasTexture(scene, 'background', bgKey);
+        } else {
+          this.createDurianBg(scene, bgKey);
         }
       }
     }
@@ -874,6 +876,69 @@ export class TextureGenerator {
     grad.addColorStop(1, '#15803d');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 1024, 576);
+
+    canvas.refresh();
+  }
+
+  private static createDurianBg(scene: Phaser.Scene, key: string) {
+    const canvas = scene.textures.createCanvas(key, 1024, 576);
+    if (!canvas) return;
+    const ctx = canvas.context;
+
+    // Tropical Jungle Gradient Sky
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 576);
+    skyGrad.addColorStop(0, '#10301d');
+    skyGrad.addColorStop(0.35, '#1e4d2b');
+    skyGrad.addColorStop(0.7, '#2d6a3f');
+    skyGrad.addColorStop(1, '#52796f');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, 1024, 576);
+
+    // Warm Sunbeam Light Streaks
+    ctx.fillStyle = 'rgba(254, 240, 138, 0.08)';
+    for (let i = 0; i < 6; i++) {
+      ctx.beginPath();
+      ctx.moveTo(120 + i * 150, 0);
+      ctx.lineTo(200 + i * 150, 0);
+      ctx.lineTo(310 + i * 150, 576);
+      ctx.lineTo(190 + i * 150, 576);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Distant Rainforest Mountains / Canopy
+    ctx.fillStyle = '#173f27';
+    for (let x = -20; x <= 1044; x += 45) {
+      const radius = 50 + Math.sin(x * 0.04) * 20;
+      ctx.beginPath();
+      ctx.arc(x, 260, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Mid-ground Jungle Tree Trunks
+    ctx.fillStyle = '#283618';
+    for (let x = 60; x < 1000; x += 80) {
+      ctx.fillRect(x, 220, 20, 300);
+    }
+
+    // Foreground Lush Vines & Hanging Fronds
+    ctx.fillStyle = '#1b4332';
+    ctx.beginPath();
+    ctx.ellipse(512, -20, 580, 150, 0, 0, Math.PI);
+    ctx.fill();
+
+    ctx.fillStyle = '#2d6a4f';
+    for (let x = 30; x < 1020; x += 60) {
+      ctx.beginPath();
+      ctx.arc(x, 70, 40 + Math.sin(x * 0.08) * 15, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Bottom Ground / Mossy Riverbed
+    ctx.fillStyle = '#132a13';
+    ctx.fillRect(0, 500, 1024, 76);
+    ctx.fillStyle = '#31572c';
+    ctx.fillRect(0, 496, 1024, 10);
 
     canvas.refresh();
   }

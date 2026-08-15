@@ -64,7 +64,13 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.bgImage = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, bgTexture).setDepth(0);
-    this.bgImage.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+    // Cover mode scaling to preserve aspect ratio without stretching or distortion
+    const bgFrame = this.textures.getFrame(bgTexture, '__BASE');
+    const texW = bgFrame && bgFrame.width > 0 ? bgFrame.width : GAME_WIDTH;
+    const texH = bgFrame && bgFrame.height > 0 ? bgFrame.height : GAME_HEIGHT;
+    const bgScale = Math.max(GAME_WIDTH / texW, GAME_HEIGHT / texH);
+    this.bgImage.setScale(bgScale);
+    this.bgImage.setPosition(GAME_WIDTH / 2, GAME_HEIGHT / 2);
 
     // 2. Ambient Particles Weather Effect
     const particleKey = theme.visuals_config?.particleGood || theme.particles?.good || 'particle_leaf';

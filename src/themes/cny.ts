@@ -8,7 +8,6 @@ export const cnyTheme: GameTheme = {
   slug: 'cny-fortune',
   description: 'Festive Lunar New Year game catching red packets (Angpow) and avoiding firecrackers.',
   status: 'active',
-  is_active: false,
 
   branding: {
     gameTitle: 'LUNAR NEW YEAR FORTUNE',
