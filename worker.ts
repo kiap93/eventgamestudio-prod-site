@@ -44,6 +44,7 @@ import {
   updateSystemTheme,
   deleteSystemTheme,
   duplicateSystemTheme,
+  cloneSystemThemeToOrg,
 } from './server/db/index.js';
 
 import {
@@ -946,6 +947,44 @@ export default {
         return jsonResponse({ success: true }, 200, cors);
       }
 
+      if (pathname === '/api/themes/system' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const gameId = url.searchParams.get('gameId') || undefined;
+        let themes: any[] = [];
+        if (gameId) {
+          themes = await getSystemThemesByGameId(gameId, env);
+        } else {
+          themes = await getAllSystemThemes(env);
+        }
+        return jsonResponse({ themes }, 200, cors);
+      }
+
+      const cloneSystemThemeParams = parseRoute('/api/themes/clone-system/:systemThemeId', pathname);
+      if (cloneSystemThemeParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const organizationId = auth.jwtPayload?.organizationId;
+        const { systemThemeId } = cloneSystemThemeParams;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { name, game_id } = body;
+
+        if (!organizationId) {
+          return errorResponse('No active organization selected', 422, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Cannot create themes', 403, cors);
+        }
+
+        const cloned = await cloneSystemThemeToOrg(systemThemeId, organizationId, game_id, name, env);
+        return jsonResponse({ theme: cloned }, 201, cors);
+      }
+
       // ==========================================
       // 7. Game Config Routes
       // ==========================================
@@ -1359,7 +1398,7 @@ export default {
         }
 
         const { gameId } = devGameThemesParams;
-        const themes = await getSystemThemesByGameId(gameId, env);
+        const themes = await getSystemThemesByGameId(gameId, { status: 'all' }, env);
         return jsonResponse({ themes }, 200, cors);
       }
 
@@ -1435,7 +1474,7 @@ export default {
           return errorResponse('Game not found', 404, cors);
         }
 
-        const themes = await getSystemThemesByGameId(gameId, env);
+        const themes = await getSystemThemesByGameId(gameId, { status: 'all' }, env);
         return jsonResponse({ game, themes }, 200, cors);
       }
 

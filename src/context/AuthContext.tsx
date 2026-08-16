@@ -49,10 +49,12 @@ interface AuthContextType {
   refreshSession: () => Promise<void>;
   fetchActiveGame: () => Promise<void>;
   fetchThemes: () => Promise<GameTheme[]>;
+  fetchSystemThemes: (gameId?: string) => Promise<GameTheme[]>;
   createTheme: (themeData: Partial<GameTheme>) => Promise<GameTheme>;
   updateTheme: (themeId: string, themeData: Partial<GameTheme>) => Promise<GameTheme>;
   deleteTheme: (themeId: string) => Promise<void>;
   duplicateTheme: (themeId: string, newName?: string) => Promise<GameTheme>;
+  cloneSystemTheme: (systemThemeId: string, customName?: string, gameId?: string) => Promise<GameTheme>;
   updateGameCustomization: (data: {
     background_url?: string | null;
     basket_config?: any;
@@ -176,6 +178,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to duplicate theme');
+    }
+
+    const data = await res.json();
+    const normalized = normalizeGameTheme(data.theme);
+    setThemes((prev) => [...prev, normalized]);
+    return normalized;
+  };
+
+  const fetchSystemThemes = useCallback(
+    async (gameId?: string): Promise<GameTheme[]> => {
+      const currentToken = localStorage.getItem('app_token');
+      if (!currentToken) return [];
+
+      try {
+        const url = gameId ? `/api/themes/system?gameId=${encodeURIComponent(gameId)}` : '/api/themes/system';
+        const res = await authFetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.themes)) {
+            return data.themes.map((t: any) => ({
+              ...normalizeGameTheme(t),
+              is_system: true,
+              ownership_type: 'system',
+            }));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch system themes:', err);
+      }
+      return [];
+    },
+    [authFetch]
+  );
+
+  const cloneSystemTheme = async (systemThemeId: string, customName?: string, gameId?: string): Promise<GameTheme> => {
+    const res = await authFetch(`/api/themes/clone-system/${systemThemeId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: customName, game_id: gameId }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to clone theme');
     }
 
     const data = await res.json();
@@ -392,10 +438,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshSession,
         fetchActiveGame,
         fetchThemes,
+        fetchSystemThemes,
         createTheme,
         updateTheme,
         deleteTheme,
         duplicateTheme,
+        cloneSystemTheme,
         updateGameCustomization,
         uploadAsset,
       }}

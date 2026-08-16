@@ -804,46 +804,55 @@ export async function deleteTheme(themeId: string, env?: Record<string, any>): P
 // DEVELOPER ADMIN SYSTEM DEFAULT THEMES MANAGEMENT
 // ============================================================================
 
-export async function getSystemThemesByGameId(gameId: string, env?: Record<string, any>): Promise<GameThemeRecord[]> {
-  const supabase = getSupabaseServerClient(env);
+export async function getSystemThemesByGameId(
+  gameId: string,
+  optionsOrEnv?: { status?: 'active' | 'all' } | Record<string, any>,
+  maybeEnv?: Record<string, any>
+): Promise<GameThemeRecord[]> {
+  let options: { status?: 'active' | 'all' } = { status: 'active' };
+  let env: Record<string, any> | undefined = maybeEnv;
 
-  let { data, error } = await supabase
+  if (optionsOrEnv) {
+    if ('status' in optionsOrEnv && typeof (optionsOrEnv as any).status === 'string') {
+      options = optionsOrEnv as { status?: 'active' | 'all' };
+    } else {
+      env = optionsOrEnv as Record<string, any>;
+    }
+  }
+
+  const supabase = getSupabaseServerClient(env);
+  const { getGameById } = await import('./games.js');
+
+  const game = await getGameById(gameId, env);
+
+  let query = supabase
     .from('game_themes')
     .select('*, games(id, name, slug, game_type)')
     .eq('game_id', gameId)
-    .or('is_system.eq.true,organization_id.is.null')
-    .order('created_at', { ascending: true });
+    .or('is_system.eq.true,organization_id.is.null');
+
+  if (options.status !== 'all') {
+    query = query.eq('status', 'active');
+  }
+
+  query = query.order('created_at', { ascending: true });
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error in getSystemThemesByGameId:', error);
     throw new Error(`Failed to list system themes: ${error.message}`);
   }
 
-  let list = (data || []) as any[];
-
-  // If no system themes exist for this game, check if we should seed default preset themes
-  if (list.length === 0) {
-    const { getGameById } = await import('./games.js');
-    const game = await getGameById(gameId, env);
-    if (game && (game.game_type === 'catch-brand' || game.slug.includes('durian') || game.is_system)) {
-      await ensureSystemDefaultThemesForGame(gameId, game.game_type || 'catch-brand', env);
-      const res = await supabase
-        .from('game_themes')
-        .select('*, games(id, name, slug, game_type)')
-        .eq('game_id', gameId)
-        .or('is_system.eq.true,organization_id.is.null')
-        .order('created_at', { ascending: true });
-      list = (res.data || []) as any[];
-    }
-  }
+  const list = (data || []) as any[];
 
   return list.map((item) => ({
     ...item,
     is_system: true,
     ownership_type: 'system',
     game_id: item.game_id || item.games?.id || gameId,
-    game_name: item.games?.name || 'Durian Catcher',
-    game_slug: item.games?.slug || 'durian-catcher',
+    game_name: item.games?.name || game?.name || 'Platform Game',
+    game_slug: item.games?.slug || game?.slug || 'platform-game',
   })) as GameThemeRecord[];
 }
 

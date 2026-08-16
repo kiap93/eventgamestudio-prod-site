@@ -1419,7 +1419,7 @@ app.get('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (req: 
       return;
     }
 
-    const themes = await getSystemThemesByGameId(gameId);
+    const themes = await getSystemThemesByGameId(gameId, { status: 'all' });
     res.json({ game, themes });
   } catch (err: any) {
     console.error('Developer get game error:', err);
@@ -1470,7 +1470,7 @@ app.delete('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (re
 app.get('/api/developer/games/:gameId/themes', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { gameId } = req.params;
-    const themes = await getSystemThemesByGameId(gameId);
+    const themes = await getSystemThemesByGameId(gameId, { status: 'all' });
     res.json({ themes });
   } catch (err: any) {
     console.error('Developer get game themes error:', err);
