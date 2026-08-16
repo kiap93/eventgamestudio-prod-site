@@ -20,7 +20,6 @@ import {
   ensureDefaultGame,
   ensureDefaultGames,
   updateGameCustomization,
-  ensureDefaultThemes,
   getThemesByOrgId,
   getThemeById,
   createTheme,
@@ -750,8 +749,8 @@ export default {
           return errorResponse('Forbidden: You are not a member of this organization', 403, cors);
         }
 
-        const org = await getOrganizationById(organizationId, env);
-        const themes = await ensureDefaultThemes(organizationId, org?.name || 'Studio', env);
+        const gameId = url.searchParams.get('gameId') || undefined;
+        const themes = await getThemesByOrgId(organizationId, gameId, env);
 
         return jsonResponse({ themes }, 200, cors);
       }
@@ -813,26 +812,31 @@ export default {
           return errorResponse('Theme name is required', 422, cors);
         }
 
-        const theme = await createTheme(
-          {
-            organization_id: organizationId,
-            name,
-            slug,
-            description,
-            status,
-            branding,
-            background_url,
-            basket_config,
-            items_config,
-            physics_config,
-            visuals_config,
-            sounds_config,
-            layout,
-          },
-          env
-        );
+        try {
+          const theme = await createTheme(
+            {
+              organization_id: organizationId,
+              name,
+              slug,
+              description,
+              status,
+              branding,
+              background_url,
+              basket_config,
+              items_config,
+              physics_config,
+              visuals_config,
+              sounds_config,
+              layout,
+            },
+            env
+          );
 
-        return jsonResponse({ theme }, 201, cors);
+          return jsonResponse({ theme }, 201, cors);
+        } catch (err: any) {
+          console.error('Error in worker createTheme:', err);
+          return errorResponse(err.message || 'Failed to create theme', 500, cors);
+        }
       }
 
       const updateThemeParams = parseRoute('/api/themes/:themeId', pathname);
@@ -869,26 +873,31 @@ export default {
           layout,
         } = body;
 
-        const updatedTheme = await updateTheme(
-          themeId,
-          {
-            name,
-            slug,
-            description,
-            status,
-            branding,
-            background_url,
-            basket_config,
-            items_config,
-            physics_config,
-            visuals_config,
-            sounds_config,
-            layout,
-          },
-          env
-        );
+        try {
+          const updatedTheme = await updateTheme(
+            themeId,
+            {
+              name,
+              slug,
+              description,
+              status,
+              branding,
+              background_url,
+              basket_config,
+              items_config,
+              physics_config,
+              visuals_config,
+              sounds_config,
+              layout,
+            },
+            env
+          );
 
-        return jsonResponse({ theme: updatedTheme }, 200, cors);
+          return jsonResponse({ theme: updatedTheme }, 200, cors);
+        } catch (err: any) {
+          console.error('Error in worker updateTheme:', err);
+          return errorResponse(err.message || 'Failed to update theme', 500, cors);
+        }
       }
 
       const duplicateThemeParams = parseRoute('/api/themes/:themeId/duplicate', pathname);
@@ -1383,27 +1392,32 @@ export default {
           return errorResponse('Theme name is required', 422, cors);
         }
 
-        const theme = await createSystemTheme(
-          {
-            game_id: gameId,
-            name,
-            slug,
-            description,
-            status,
-            is_default,
-            branding,
-            background_url,
-            basket_config,
-            items_config,
-            physics_config,
-            visuals_config,
-            sounds_config,
-            layout,
-          },
-          env
-        );
+        try {
+          const theme = await createSystemTheme(
+            {
+              game_id: gameId,
+              name,
+              slug,
+              description,
+              status,
+              is_default,
+              branding,
+              background_url,
+              basket_config,
+              items_config,
+              physics_config,
+              visuals_config,
+              sounds_config,
+              layout,
+            },
+            env
+          );
 
-        return jsonResponse({ theme }, 201, cors);
+          return jsonResponse({ theme }, 201, cors);
+        } catch (err: any) {
+          console.error('Developer create theme error:', err);
+          return errorResponse(err.message || 'Failed to create system theme', 500, cors);
+        }
       }
 
       // Single Game Routes: /api/developer/games/:gameId
@@ -1453,8 +1467,13 @@ export default {
         }
 
         const { gameId } = devGameDetailParams;
-        await deletePlatformGame(gameId, env);
-        return jsonResponse({ success: true }, 200, cors);
+        try {
+          await deletePlatformGame(gameId, env);
+          return jsonResponse({ success: true }, 200, cors);
+        } catch (err: any) {
+          console.error('Developer delete game error:', err);
+          return errorResponse(err.message || 'Failed to delete game', 500, cors);
+        }
       }
 
       // Duplicate Theme: /api/developer/themes/:themeId/duplicate
@@ -1468,8 +1487,13 @@ export default {
 
         const { themeId } = devDuplicateThemeParams;
         const body = (await request.json().catch(() => ({}))) as any;
-        const duplicated = await duplicateSystemTheme(themeId, body.name, env);
-        return jsonResponse({ theme: duplicated }, 201, cors);
+        try {
+          const duplicated = await duplicateSystemTheme(themeId, body.name, env);
+          return jsonResponse({ theme: duplicated }, 201, cors);
+        } catch (err: any) {
+          console.error('Developer duplicate theme error:', err);
+          return errorResponse(err.message || 'Failed to duplicate theme', 500, cors);
+        }
       }
 
       // Set Default Theme: /api/developer/themes/:themeId/set-default
@@ -1487,10 +1511,14 @@ export default {
           return errorResponse('Theme not found or missing game link', 404, cors);
         }
 
-        // Mark this theme as default (updateSystemTheme unsets previous defaults for this game)
-        const updatedTheme = await updateSystemTheme(themeId, { is_default: true }, env);
-
-        return jsonResponse({ success: true, theme: updatedTheme }, 200, cors);
+        try {
+          // Mark this theme as default (updateSystemTheme unsets previous defaults for this game)
+          const updatedTheme = await updateSystemTheme(themeId, { is_default: true }, env);
+          return jsonResponse({ success: true, theme: updatedTheme }, 200, cors);
+        } catch (err: any) {
+          console.error('Developer set default theme error:', err);
+          return errorResponse(err.message || 'Failed to set default theme', 500, cors);
+        }
       }
 
       // Single Theme Routes: /api/developer/themes/:themeId
@@ -1519,8 +1547,13 @@ export default {
 
         const { themeId } = devThemeDetailParams;
         const body = (await request.json().catch(() => ({}))) as any;
-        const theme = await updateSystemTheme(themeId, body, env);
-        return jsonResponse({ theme }, 200, cors);
+        try {
+          const theme = await updateSystemTheme(themeId, body, env);
+          return jsonResponse({ theme }, 200, cors);
+        } catch (err: any) {
+          console.error('Developer update theme error:', err);
+          return errorResponse(err.message || 'Failed to update theme', 500, cors);
+        }
       }
 
       if (devThemeDetailParams && method === 'DELETE') {
@@ -1531,8 +1564,13 @@ export default {
         }
 
         const { themeId } = devThemeDetailParams;
-        await deleteSystemTheme(themeId, env);
-        return jsonResponse({ success: true }, 200, cors);
+        try {
+          await deleteSystemTheme(themeId, env);
+          return jsonResponse({ success: true }, 200, cors);
+        } catch (err: any) {
+          console.error('Developer delete theme error:', err);
+          return errorResponse(err.message || 'Failed to delete theme', 500, cors);
+        }
       }
 
       return errorResponse('Not found', 404, cors);

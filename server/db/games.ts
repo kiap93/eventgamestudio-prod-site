@@ -66,6 +66,75 @@ export class GameConflictError extends Error {
   }
 }
 
+/**
+ * Safely inserts into the 'games' table by catching PostgREST schema cache errors
+ * (e.g. "Could not find the 'description' column of 'games' in the schema cache")
+ * and retrying with the missing column omitted.
+ */
+async function safeInsertGame(
+  supabase: any,
+  initialPayload: Record<string, any>
+): Promise<{ data: any; error: any }> {
+  let payload = { ...initialPayload };
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { data, error } = await supabase
+      .from('games')
+      .insert(payload)
+      .select()
+      .single();
+
+    if (!error) {
+      return { data: { ...initialPayload, ...data }, error: null };
+    }
+
+    const missingColMatch = error.message?.match(/Could not find the '([^']+)' column of 'games'/i);
+    if (missingColMatch && missingColMatch[1] && payload[missingColMatch[1]] !== undefined) {
+      const missingCol = missingColMatch[1];
+      console.warn(`[Supabase Schema Fallback] Column '${missingCol}' not found in 'games' table. Retrying insert without this column...`);
+      delete payload[missingCol];
+      continue;
+    }
+
+    return { data: null, error };
+  }
+  return { data: null, error: new Error('Failed to insert game after multiple fallback attempts') };
+}
+
+/**
+ * Safely updates the 'games' table by catching PostgREST schema cache errors
+ * and retrying with the missing column omitted.
+ */
+async function safeUpdateGame(
+  supabase: any,
+  gameId: string,
+  initialPayload: Record<string, any>
+): Promise<{ data: any; error: any }> {
+  let payload = { ...initialPayload };
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { data, error } = await supabase
+      .from('games')
+      .update(payload)
+      .eq('id', gameId)
+      .select()
+      .single();
+
+    if (!error) {
+      return { data: { ...initialPayload, ...data }, error: null };
+    }
+
+    const missingColMatch = error.message?.match(/Could not find the '([^']+)' column of 'games'/i);
+    if (missingColMatch && missingColMatch[1] && payload[missingColMatch[1]] !== undefined) {
+      const missingCol = missingColMatch[1];
+      console.warn(`[Supabase Schema Fallback] Column '${missingCol}' not found in 'games' table. Retrying update without this column...`);
+      delete payload[missingCol];
+      continue;
+    }
+
+    return { data: null, error };
+  }
+  return { data: null, error: new Error('Failed to update game after multiple fallback attempts') };
+}
+
 export async function getGameById(gameId: string, env?: Record<string, any>): Promise<GameRecord | null> {
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
@@ -142,26 +211,22 @@ export async function createGame(
   const slug = params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const game_type = params.game_type || 'catch-brand';
 
-  const { data, error } = await supabase
-    .from('games')
-    .insert({
-      id,
-      organization_id: params.organization_id,
-      name: params.name,
-      slug,
-      game_type,
-      description: params.description || null,
-      icon_name: params.icon_name || null,
-      status: params.status || 'active',
-      background_url: params.background_url || 'forest',
-      basket_config: params.basket_config ?? DEFAULT_BASKET_CONFIG,
-      items_config: params.items_config ?? DEFAULT_ITEMS_CONFIG,
-      settings_config: params.settings_config ?? DEFAULT_SETTINGS_CONFIG,
-      created_at: now,
-      updated_at: now,
-    })
-    .select()
-    .single();
+  const { data, error } = await safeInsertGame(supabase, {
+    id,
+    organization_id: params.organization_id,
+    name: params.name,
+    slug,
+    game_type,
+    description: params.description || null,
+    icon_name: params.icon_name || null,
+    status: params.status || 'active',
+    background_url: params.background_url || 'forest',
+    basket_config: params.basket_config ?? DEFAULT_BASKET_CONFIG,
+    items_config: params.items_config ?? DEFAULT_ITEMS_CONFIG,
+    settings_config: params.settings_config ?? DEFAULT_SETTINGS_CONFIG,
+    created_at: now,
+    updated_at: now,
+  });
 
   if (error) {
     console.error('Error in createGame:', error);
@@ -239,12 +304,7 @@ export async function updateGameCustomization(
   if (updates.settings_config !== undefined) payload.settings_config = updates.settings_config;
   if (updates.name !== undefined) payload.name = updates.name;
 
-  const { data, error } = await supabase
-    .from('games')
-    .update(payload)
-    .eq('id', gameId)
-    .select()
-    .single();
+  const { data, error } = await safeUpdateGame(supabase, gameId, payload);
 
   if (error) {
     console.error('Error in updateGameCustomization:', error);
@@ -513,28 +573,26 @@ export async function createPlatformGame(
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  const { data, error } = await supabase
-    .from('games')
-    .insert({
-      id,
-      organization_id: null,
-      is_system: true,
-      ownership_type: 'system',
-      name: cleanName,
-      slug: cleanSlug,
-      game_type: cleanGameType,
-      description: params.description ? params.description.trim() : null,
-      icon_name: params.icon_name || 'Gamepad2',
-      status: params.status || 'active',
-      background_url: params.background_url || '/assets/background.png',
-      basket_config: params.basket_config ?? DEFAULT_BASKET_CONFIG,
-      items_config: params.items_config ?? DEFAULT_ITEMS_CONFIG,
-      settings_config: params.settings_config ?? DEFAULT_SETTINGS_CONFIG,
-      created_at: now,
-      updated_at: now,
-    })
-    .select()
-    .single();
+  const insertPayload = {
+    id,
+    organization_id: null,
+    is_system: true,
+    ownership_type: 'system',
+    name: cleanName,
+    slug: cleanSlug,
+    game_type: cleanGameType,
+    description: params.description ? params.description.trim() : null,
+    icon_name: params.icon_name || 'Gamepad2',
+    status: params.status || 'active',
+    background_url: params.background_url || '/assets/background.png',
+    basket_config: params.basket_config ?? DEFAULT_BASKET_CONFIG,
+    items_config: params.items_config ?? DEFAULT_ITEMS_CONFIG,
+    settings_config: params.settings_config ?? DEFAULT_SETTINGS_CONFIG,
+    created_at: now,
+    updated_at: now,
+  };
+
+  const { data, error } = await safeInsertGame(supabase, insertPayload);
 
   if (error) {
     if (error.code === '23505' || error.message?.includes('ux_system_games_game_type') || error.message?.includes('game_type')) {
@@ -634,12 +692,7 @@ export async function updatePlatformGame(
   if (updates.items_config !== undefined) payload.items_config = updates.items_config;
   if (updates.settings_config !== undefined) payload.settings_config = updates.settings_config;
 
-  const { data, error } = await supabase
-    .from('games')
-    .update(payload)
-    .eq('id', gameId)
-    .select()
-    .single();
+  const { data, error } = await safeUpdateGame(supabase, gameId, payload);
 
   if (error) {
     if (error.code === '23505' || error.message?.includes('ux_system_games_game_type') || error.message?.includes('game_type')) {

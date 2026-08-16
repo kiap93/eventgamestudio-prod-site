@@ -32,7 +32,6 @@ import {
   updateTheme,
   deleteTheme,
   duplicateTheme,
-  ensureDefaultThemes,
   getAllPlatformGames,
   createPlatformGame,
   updatePlatformGame,
@@ -666,12 +665,7 @@ app.get('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) =
       return;
     }
 
-    const org = await getOrganizationById(organizationId);
-    let themes = await ensureDefaultThemes(organizationId, org?.name || 'Studio');
-
-    if (gameId) {
-      themes = themes.filter((t) => t.game_id === gameId);
-    }
+    const themes = await getThemesByOrgId(organizationId, gameId);
 
     res.json({ themes });
   } catch (err: any) {

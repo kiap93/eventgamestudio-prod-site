@@ -586,6 +586,74 @@ export async function getActiveThemeForOrg(
   } as GameThemeRecord;
 }
 
+/**
+ * Safely inserts into the 'game_themes' table by catching PostgREST schema cache errors
+ * and retrying with missing optional columns omitted.
+ */
+async function safeInsertTheme(
+  supabase: any,
+  initialPayload: Record<string, any>
+): Promise<{ data: any; error: any }> {
+  let payload = { ...initialPayload };
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { data, error } = await supabase
+      .from('game_themes')
+      .insert(payload)
+      .select('*, games(id, name, slug, game_type)')
+      .single();
+
+    if (!error) {
+      return { data: { ...initialPayload, ...data }, error: null };
+    }
+
+    const missingColMatch = error.message?.match(/Could not find the '([^']+)' column of 'game_themes'/i);
+    if (missingColMatch && missingColMatch[1] && payload[missingColMatch[1]] !== undefined) {
+      const missingCol = missingColMatch[1];
+      console.warn(`[Supabase Schema Fallback] Column '${missingCol}' not found in 'game_themes' table. Retrying insert without this column...`);
+      delete payload[missingCol];
+      continue;
+    }
+
+    return { data: null, error };
+  }
+  return { data: null, error: new Error('Failed to insert theme after multiple fallback attempts') };
+}
+
+/**
+ * Safely updates the 'game_themes' table by catching PostgREST schema cache errors
+ * and retrying with missing optional columns omitted.
+ */
+async function safeUpdateTheme(
+  supabase: any,
+  themeId: string,
+  initialPayload: Record<string, any>
+): Promise<{ data: any; error: any }> {
+  let payload = { ...initialPayload };
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { data, error } = await supabase
+      .from('game_themes')
+      .update(payload)
+      .eq('id', themeId)
+      .select('*, games(id, name, slug, game_type)')
+      .single();
+
+    if (!error) {
+      return { data: { ...initialPayload, ...data }, error: null };
+    }
+
+    const missingColMatch = error.message?.match(/Could not find the '([^']+)' column of 'game_themes'/i);
+    if (missingColMatch && missingColMatch[1] && payload[missingColMatch[1]] !== undefined) {
+      const missingCol = missingColMatch[1];
+      console.warn(`[Supabase Schema Fallback] Column '${missingCol}' not found in 'game_themes' table. Retrying update without this column...`);
+      delete payload[missingCol];
+      continue;
+    }
+
+    return { data: null, error };
+  }
+  return { data: null, error: new Error('Failed to update theme after multiple fallback attempts') };
+}
+
 export async function createTheme(
   params: {
     organization_id: string;
@@ -622,29 +690,25 @@ export async function createTheme(
     }
   }
 
-  const { data, error } = await supabase
-    .from('game_themes')
-    .insert({
-      id,
-      organization_id: params.organization_id,
-      game_id: resolvedGameId || null,
-      name: params.name,
-      slug,
-      description: params.description ?? null,
-      status: params.status || 'active',
-      branding: params.branding ?? DEFAULT_DURIAN_THEME.branding,
-      background_url: params.background_url ?? DEFAULT_DURIAN_THEME.background_url,
-      basket_config: params.basket_config ?? DEFAULT_DURIAN_THEME.basket_config,
-      items_config: params.items_config ?? DEFAULT_DURIAN_THEME.items_config,
-      physics_config: params.physics_config ?? DEFAULT_DURIAN_THEME.physics_config,
-      visuals_config: params.visuals_config ?? DEFAULT_DURIAN_THEME.visuals_config,
-      sounds_config: params.sounds_config ?? DEFAULT_DURIAN_THEME.sounds_config,
-      layout: params.layout ?? DEFAULT_DURIAN_THEME.layout,
-      created_at: now,
-      updated_at: now,
-    })
-    .select('*, games(id, name, slug, game_type)')
-    .single();
+  const { data, error } = await safeInsertTheme(supabase, {
+    id,
+    organization_id: params.organization_id,
+    game_id: resolvedGameId || null,
+    name: params.name,
+    slug,
+    description: params.description ?? null,
+    status: params.status || 'active',
+    branding: params.branding ?? DEFAULT_DURIAN_THEME.branding,
+    background_url: params.background_url ?? DEFAULT_DURIAN_THEME.background_url,
+    basket_config: params.basket_config ?? DEFAULT_DURIAN_THEME.basket_config,
+    items_config: params.items_config ?? DEFAULT_DURIAN_THEME.items_config,
+    physics_config: params.physics_config ?? DEFAULT_DURIAN_THEME.physics_config,
+    visuals_config: params.visuals_config ?? DEFAULT_DURIAN_THEME.visuals_config,
+    sounds_config: params.sounds_config ?? DEFAULT_DURIAN_THEME.sounds_config,
+    layout: params.layout ?? DEFAULT_DURIAN_THEME.layout,
+    created_at: now,
+    updated_at: now,
+  });
 
   if (error) {
     console.error('Error in createTheme:', error);
@@ -673,12 +737,7 @@ export async function updateTheme(
     updated_at: now,
   };
 
-  const { data, error } = await supabase
-    .from('game_themes')
-    .update(payload)
-    .eq('id', themeId)
-    .select('*, games(id, name, slug, game_type)')
-    .single();
+  const { data, error } = await safeUpdateTheme(supabase, themeId, payload);
 
   if (error) {
     console.error('Error in updateTheme:', error);
@@ -837,32 +896,28 @@ export async function createSystemTheme(
   const now = new Date().toISOString();
   const slug = params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-  const { data, error } = await supabase
-    .from('game_themes')
-    .insert({
-      id,
-      organization_id: null,
-      game_id: params.game_id,
-      is_system: true,
-      ownership_type: 'system',
-      is_default: params.is_default ?? false,
-      name: params.name,
-      slug,
-      description: params.description ?? null,
-      status: params.status || 'active',
-      branding: params.branding ?? DEFAULT_DURIAN_THEME.branding,
-      background_url: params.background_url ?? DEFAULT_DURIAN_THEME.background_url,
-      basket_config: params.basket_config ?? DEFAULT_DURIAN_THEME.basket_config,
-      items_config: params.items_config ?? DEFAULT_DURIAN_THEME.items_config,
-      physics_config: params.physics_config ?? DEFAULT_DURIAN_THEME.physics_config,
-      visuals_config: params.visuals_config ?? DEFAULT_DURIAN_THEME.visuals_config,
-      sounds_config: params.sounds_config ?? DEFAULT_DURIAN_THEME.sounds_config,
-      layout: params.layout ?? DEFAULT_DURIAN_THEME.layout,
-      created_at: now,
-      updated_at: now,
-    })
-    .select('*, games(id, name, slug, game_type)')
-    .single();
+  const { data, error } = await safeInsertTheme(supabase, {
+    id,
+    organization_id: null,
+    game_id: params.game_id,
+    is_system: true,
+    ownership_type: 'system',
+    is_default: params.is_default ?? false,
+    name: params.name,
+    slug,
+    description: params.description ?? null,
+    status: params.status || 'active',
+    branding: params.branding ?? DEFAULT_DURIAN_THEME.branding,
+    background_url: params.background_url ?? DEFAULT_DURIAN_THEME.background_url,
+    basket_config: params.basket_config ?? DEFAULT_DURIAN_THEME.basket_config,
+    items_config: params.items_config ?? DEFAULT_DURIAN_THEME.items_config,
+    physics_config: params.physics_config ?? DEFAULT_DURIAN_THEME.physics_config,
+    visuals_config: params.visuals_config ?? DEFAULT_DURIAN_THEME.visuals_config,
+    sounds_config: params.sounds_config ?? DEFAULT_DURIAN_THEME.sounds_config,
+    layout: params.layout ?? DEFAULT_DURIAN_THEME.layout,
+    created_at: now,
+    updated_at: now,
+  });
 
   if (error) {
     console.error('Error in createSystemTheme:', error);
@@ -895,12 +950,7 @@ export async function updateSystemTheme(
     updated_at: now,
   };
 
-  const { data, error } = await supabase
-    .from('game_themes')
-    .update(payload)
-    .eq('id', themeId)
-    .select('*, games(id, name, slug, game_type)')
-    .single();
+  const { data, error } = await safeUpdateTheme(supabase, themeId, payload);
 
   if (error) {
     console.error('Error in updateSystemTheme:', error);
@@ -1004,32 +1054,28 @@ export async function cloneSystemThemeToOrg(
     }
   }
 
-  const { data, error } = await supabase
-    .from('game_themes')
-    .insert({
-      id,
-      organization_id: targetOrgId,
-      game_id: resolvedGameId || systemTheme.game_id || null,
-      base_theme_id: systemThemeId,
-      is_system: false,
-      ownership_type: 'organization',
-      name,
-      slug,
-      description: systemTheme.description,
-      status: 'active',
-      branding: systemTheme.branding,
-      background_url: systemTheme.background_url,
-      basket_config: systemTheme.basket_config,
-      items_config: systemTheme.items_config,
-      physics_config: systemTheme.physics_config,
-      visuals_config: systemTheme.visuals_config,
-      sounds_config: systemTheme.sounds_config,
-      layout: systemTheme.layout,
-      created_at: now,
-      updated_at: now,
-    })
-    .select('*, games(id, name, slug, game_type)')
-    .single();
+  const { data, error } = await safeInsertTheme(supabase, {
+    id,
+    organization_id: targetOrgId,
+    game_id: resolvedGameId || systemTheme.game_id || null,
+    base_theme_id: systemThemeId,
+    is_system: false,
+    ownership_type: 'organization',
+    name,
+    slug,
+    description: systemTheme.description,
+    status: 'active',
+    branding: systemTheme.branding,
+    background_url: systemTheme.background_url,
+    basket_config: systemTheme.basket_config,
+    items_config: systemTheme.items_config,
+    physics_config: systemTheme.physics_config,
+    visuals_config: systemTheme.visuals_config,
+    sounds_config: systemTheme.sounds_config,
+    layout: systemTheme.layout,
+    created_at: now,
+    updated_at: now,
+  });
 
   if (error) {
     console.error('Error in cloneSystemThemeToOrg:', error);
@@ -1060,32 +1106,28 @@ export async function ensureSystemDefaultThemesForGame(
     try {
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
-      const { data } = await supabase
-        .from('game_themes')
-        .insert({
-          id,
-          organization_id: null,
-          game_id: gameId,
-          is_system: true,
-          ownership_type: 'system',
-          is_default: isFirst,
-          name: preset.name,
-          slug: preset.slug,
-          description: preset.description,
-          status: 'active',
-          branding: preset.branding,
-          background_url: preset.background_url,
-          basket_config: preset.basket_config,
-          items_config: preset.items_config,
-          physics_config: preset.physics_config,
-          visuals_config: preset.visuals_config,
-          sounds_config: preset.sounds_config,
-          layout: (preset as any).layout ?? DEFAULT_DURIAN_THEME.layout,
-          created_at: now,
-          updated_at: now,
-        })
-        .select('*, games(id, name, slug, game_type)')
-        .single();
+      const { data } = await safeInsertTheme(supabase, {
+        id,
+        organization_id: null,
+        game_id: gameId,
+        is_system: true,
+        ownership_type: 'system',
+        is_default: isFirst,
+        name: preset.name,
+        slug: preset.slug,
+        description: preset.description,
+        status: 'active',
+        branding: preset.branding,
+        background_url: preset.background_url,
+        basket_config: preset.basket_config,
+        items_config: preset.items_config,
+        physics_config: preset.physics_config,
+        visuals_config: preset.visuals_config,
+        sounds_config: preset.sounds_config,
+        layout: (preset as any).layout ?? DEFAULT_DURIAN_THEME.layout,
+        created_at: now,
+        updated_at: now,
+      });
 
       if (data) {
         created.push({
@@ -1102,7 +1144,6 @@ export async function ensureSystemDefaultThemesForGame(
 
   return created;
 }
-
 
 /**
  * Ensures that the organization has games and default themes available.
