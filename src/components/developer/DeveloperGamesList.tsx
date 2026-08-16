@@ -180,6 +180,7 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredGames.map((game) => {
             const isActive = game.status === 'active';
+            const themeCount = game.system_theme_count ?? game.theme_count ?? 0;
             return (
               <div
                 key={game.id}
@@ -196,13 +197,7 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                         <h3 className="text-base font-bold text-white group-hover:text-emerald-400 transition-colors">
                           {game.name}
                         </h3>
-                        <div className="flex items-center space-x-2 mt-0.5">
-                          <span className="text-[11px] font-mono text-slate-400">/{game.slug}</span>
-                          <span className="text-slate-600">•</span>
-                          <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                            {game.game_type}
-                          </span>
-                        </div>
+                        <p className="text-[11px] font-mono text-slate-400">/{game.slug}</p>
                       </div>
                     </div>
 
@@ -219,21 +214,33 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                     </span>
                   </div>
 
+                  {/* Engine Specs Box */}
+                  <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800/80 mb-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 text-[11px]">Game Type:</span>
+                      <span className="text-[11px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        {game.game_type}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 text-[11px]">Slug:</span>
+                      <span className="text-[11px] font-mono text-slate-300">/{game.slug}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 text-[11px] flex items-center">
+                        <Sparkles className="w-3 h-3 mr-1 text-amber-400" />
+                        Themes:
+                      </span>
+                      <span className="font-bold text-white font-mono bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700">
+                        {themeCount} Default {themeCount === 1 ? 'Theme' : 'Themes'}
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Description */}
                   <p className="text-xs text-slate-400 line-clamp-2 min-h-[32px] mb-4">
                     {game.description || 'Interactive brand engagement game engine and mechanics.'}
                   </p>
-
-                  {/* Themes Badge Preview */}
-                  <div className="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 mb-4 text-xs">
-                    <span className="text-slate-400 flex items-center">
-                      <Sparkles className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
-                      Default Themes
-                    </span>
-                    <span className="font-bold text-white font-mono bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
-                      {game.theme_count ?? 'Themes Catalog'}
-                    </span>
-                  </div>
                 </div>
 
                 {/* Bottom Actions */}
@@ -279,6 +286,7 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
       {/* Modal */}
       <CreateGameModal
         initialGame={editingGame}
+        existingGames={games}
         isOpen={isCreateModalOpen}
         onClose={() => {
           setIsCreateModalOpen(false);

@@ -1404,6 +1404,10 @@ app.post('/api/developer/games', authenticateDeveloperAdmin, async (req: Authent
     res.status(201).json({ game });
   } catch (err: any) {
     console.error('Developer create game error:', err);
+    if (err.code === 'GAME_TYPE_ALREADY_REGISTERED' || err.code === 'GAME_SLUG_ALREADY_REGISTERED' || err.name === 'GameConflictError') {
+      res.status(409).json({ success: false, error: err.code || 'GAME_CONFLICT', message: err.message });
+      return;
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -1442,6 +1446,10 @@ app.put('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (req: 
     res.json({ game });
   } catch (err: any) {
     console.error('Developer update game error:', err);
+    if (err.code === 'GAME_TYPE_ALREADY_REGISTERED' || err.code === 'GAME_SLUG_ALREADY_REGISTERED' || err.name === 'GameConflictError') {
+      res.status(409).json({ success: false, error: err.code || 'GAME_CONFLICT', message: err.message });
+      return;
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -1609,8 +1617,7 @@ app.post('/api/developer/themes/:themeId/set-default', authenticateDeveloperAdmi
       return;
     }
 
-    // Set active_theme_id on the game
-    await updatePlatformGame(theme.game_id, { active_theme_id: themeId });
+    // Mark this theme as default (updateSystemTheme unsets previous defaults for this game)
     const updatedTheme = await updateSystemTheme(themeId, { is_default: true });
 
     res.json({ success: true, theme: updatedTheme });

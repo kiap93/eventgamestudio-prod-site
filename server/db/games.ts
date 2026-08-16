@@ -28,18 +28,18 @@ export const DEFAULT_SETTINGS_CONFIG: SettingsConfig = {
 
 export const CATALOG_GAMES = [
   {
-    name: 'Durian Catcher',
-    slug: 'durian-catcher',
+    name: 'Catch the Brand',
+    slug: 'catch-brand',
     game_type: 'catch-brand',
-    description: 'Catch falling branded collectibles with precision paddle/basket mechanics and dynamic hazard avoidance.',
+    description: 'Fast-paced arcade catcher! Catch good brand objects, dodge hazardous obstacles, and collect golden bonus items.',
     icon_name: 'Gamepad2',
   },
   {
-    name: 'Memory Match',
+    name: 'Brand Memory Match',
     slug: 'memory-match',
     game_type: 'memory-match',
     description: 'Grid-based card flip memory matching challenge featuring your custom product graphics and icons.',
-    icon_name: 'Layers',
+    icon_name: 'Grid3X3',
   },
   {
     name: 'Speed Reflex Tap',
@@ -48,7 +48,23 @@ export const CATALOG_GAMES = [
     description: 'High-speed reaction tap tester testing player agility and focus on appearing sponsor tokens.',
     icon_name: 'Zap',
   },
+  {
+    name: 'Event Trivia Speed Quiz',
+    slug: 'speed-quiz',
+    game_type: 'speed-quiz',
+    description: 'Interactive timed multiple-choice trivia challenge for live event booths and activations.',
+    icon_name: 'HelpCircle',
+  },
 ];
+
+export class GameConflictError extends Error {
+  code: 'GAME_TYPE_ALREADY_REGISTERED' | 'GAME_SLUG_ALREADY_REGISTERED';
+  constructor(code: 'GAME_TYPE_ALREADY_REGISTERED' | 'GAME_SLUG_ALREADY_REGISTERED', message: string) {
+    super(message);
+    this.name = 'GameConflictError';
+    this.code = code;
+  }
+}
 
 export async function getGameById(gameId: string, env?: Record<string, any>): Promise<GameRecord | null> {
   const supabase = getSupabaseServerClient(env);
@@ -242,8 +258,70 @@ export async function updateGameCustomization(
 // DEVELOPER ADMIN PLATFORM GAMES MANAGEMENT
 // ============================================================================
 
+export async function cleanupDuplicateSystemGames(env?: Record<string, any>): Promise<void> {
+  try {
+    const supabase = getSupabaseServerClient(env);
+    const { data: systemGames, error } = await supabase
+      .from('games')
+      .select('id, name, slug, game_type, created_at')
+      .or('is_system.eq.true,organization_id.is.null');
+
+    if (error || !systemGames || systemGames.length === 0) return;
+
+    // Group by game_type
+    const byType = new Map<string, typeof systemGames>();
+    for (const g of systemGames) {
+      const type = g.game_type || 'catch-brand';
+      const list = byType.get(type) || [];
+      list.push(g);
+      byType.set(type, list);
+    }
+
+    for (const [, gamesList] of byType.entries()) {
+      if (gamesList.length > 1) {
+        // Fetch theme counts to determine canonical game
+        const { data: themes } = await supabase
+          .from('game_themes')
+          .select('id, game_id')
+          .in('game_id', gamesList.map((g) => g.id));
+
+        const themeCounts = new Map<string, number>();
+        if (themes) {
+          for (const t of themes) {
+            if (t.game_id) themeCounts.set(t.game_id, (themeCounts.get(t.game_id) || 0) + 1);
+          }
+        }
+
+        // Sort descending by theme count, then ascending by created_at (oldest/most active first)
+        gamesList.sort((a, b) => {
+          const aThemes = themeCounts.get(a.id) || 0;
+          const bThemes = themeCounts.get(b.id) || 0;
+          if (bThemes !== aThemes) return bThemes - aThemes;
+          return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+        });
+
+        const canonical = gamesList[0];
+        const duplicates = gamesList.slice(1);
+
+        for (const dup of duplicates) {
+          console.warn(`[System Games] Merging duplicate game ${dup.name} (${dup.id}) into canonical game ${canonical.name} (${canonical.id})`);
+          // Reassign themes from duplicate to canonical game
+          await supabase.from('game_themes').update({ game_id: canonical.id }).eq('game_id', dup.id);
+          // Delete duplicate game record
+          await supabase.from('games').delete().eq('id', dup.id);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('Error in cleanupDuplicateSystemGames:', err);
+  }
+}
+
 export async function ensureSystemCatalogGames(env?: Record<string, any>): Promise<GameRecord[]> {
   const supabase = getSupabaseServerClient(env);
+
+  // First run cleanup to eliminate any existing duplicates
+  await cleanupDuplicateSystemGames(env);
 
   // Check if system games already exist
   const { data: existingGames, error } = await supabase
@@ -257,9 +335,10 @@ export async function ensureSystemCatalogGames(env?: Record<string, any>): Promi
 
   const list = (existingGames || []) as GameRecord[];
   const existingTypes = new Set(list.map((g) => g.game_type || g.slug));
+  const existingSlugs = new Set(list.map((g) => g.slug));
 
   for (const catalogGame of CATALOG_GAMES) {
-    if (!existingTypes.has(catalogGame.game_type) && !existingTypes.has(catalogGame.slug)) {
+    if (!existingTypes.has(catalogGame.game_type) && !existingSlugs.has(catalogGame.slug)) {
       try {
         const id = crypto.randomUUID();
         const now = new Date().toISOString();
@@ -293,10 +372,14 @@ export async function ensureSystemCatalogGames(env?: Record<string, any>): Promi
 export async function getAllPlatformGames(env?: Record<string, any>): Promise<GameRecord[]> {
   const supabase = getSupabaseServerClient(env);
 
-  // Fetch all games
+  // Perform deduplication check
+  await cleanupDuplicateSystemGames(env);
+
+  // Fetch all system games
   const { data: gamesData, error } = await supabase
     .from('games')
     .select('*')
+    .or('is_system.eq.true,organization_id.is.null')
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -307,7 +390,7 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
   let games = (gamesData || []) as GameRecord[];
 
   // If no system games exist yet, initialize them
-  if (games.length === 0 || !games.some((g) => g.is_system || !g.organization_id)) {
+  if (games.length === 0) {
     for (const catalogGame of CATALOG_GAMES) {
       if (!games.some((g) => g.slug === catalogGame.slug || g.game_type === catalogGame.game_type)) {
         try {
@@ -362,8 +445,8 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
 
   return games.map((game) => ({
     ...game,
-    is_system: game.is_system ?? (game.organization_id === null || game.ownership_type === 'system'),
-    ownership_type: game.ownership_type || (game.organization_id ? 'organization' : 'system'),
+    is_system: true,
+    ownership_type: 'system',
     game_type: game.game_type || 'catch-brand',
     theme_count: themeCountsByGame.get(game.id) || 0,
     system_theme_count: systemThemeCountsByGame.get(game.id) || 0,
@@ -386,9 +469,49 @@ export async function createPlatformGame(
   env?: Record<string, any>
 ): Promise<GameRecord> {
   const supabase = getSupabaseServerClient(env);
+  const cleanName = params.name.trim();
+  const cleanGameType = (params.game_type || '').trim();
+  const cleanSlug = (params.slug || cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')).trim();
+
+  if (!cleanName) {
+    throw new Error('Game title is required');
+  }
+  if (!cleanGameType) {
+    throw new Error('Game engine / type is required');
+  }
+
+  // 1. Explicit Check for Existing System Game with same game_type
+  const { data: existingTypeGame } = await supabase
+    .from('games')
+    .select('id, name, game_type, slug')
+    .or('is_system.eq.true,organization_id.is.null')
+    .eq('game_type', cleanGameType)
+    .maybeSingle();
+
+  if (existingTypeGame) {
+    throw new GameConflictError(
+      'GAME_TYPE_ALREADY_REGISTERED',
+      `This game type "${cleanGameType}" is already registered as a system game ("${existingTypeGame.name}"). Please manage themes under the existing game instead of creating a duplicate.`
+    );
+  }
+
+  // 2. Explicit Check for Existing System Game with same slug
+  const { data: existingSlugGame } = await supabase
+    .from('games')
+    .select('id, name, game_type, slug')
+    .or('is_system.eq.true,organization_id.is.null')
+    .eq('slug', cleanSlug)
+    .maybeSingle();
+
+  if (existingSlugGame) {
+    throw new GameConflictError(
+      'GAME_SLUG_ALREADY_REGISTERED',
+      `This system game slug "${cleanSlug}" is already in use by "${existingSlugGame.name}". Please choose another slug.`
+    );
+  }
+
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  const slug = params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
   const { data, error } = await supabase
     .from('games')
@@ -397,10 +520,10 @@ export async function createPlatformGame(
       organization_id: null,
       is_system: true,
       ownership_type: 'system',
-      name: params.name,
-      slug,
-      game_type: params.game_type,
-      description: params.description || null,
+      name: cleanName,
+      slug: cleanSlug,
+      game_type: cleanGameType,
+      description: params.description ? params.description.trim() : null,
       icon_name: params.icon_name || 'Gamepad2',
       status: params.status || 'active',
       background_url: params.background_url || '/assets/background.png',
@@ -414,6 +537,18 @@ export async function createPlatformGame(
     .single();
 
   if (error) {
+    if (error.code === '23505' || error.message?.includes('ux_system_games_game_type') || error.message?.includes('game_type')) {
+      throw new GameConflictError(
+        'GAME_TYPE_ALREADY_REGISTERED',
+        'This game type is already registered as a system game.'
+      );
+    }
+    if (error.code === '23505' || error.message?.includes('ux_system_games_slug') || error.message?.includes('slug')) {
+      throw new GameConflictError(
+        'GAME_SLUG_ALREADY_REGISTERED',
+        'This system game slug is already in use.'
+      );
+    }
     console.error('Error in createPlatformGame:', error);
     throw new Error(`Failed to create platform game: ${error.message}`);
   }
@@ -423,6 +558,7 @@ export async function createPlatformGame(
     is_system: true,
     ownership_type: 'system',
     theme_count: 0,
+    system_theme_count: 0,
   } as GameRecord;
 }
 
@@ -435,7 +571,6 @@ export async function updatePlatformGame(
     description?: string | null;
     icon_name?: string | null;
     status?: 'active' | 'archived' | 'draft';
-    active_theme_id?: string | null;
     background_url?: string | null;
     basket_config?: any;
     items_config?: any;
@@ -446,17 +581,54 @@ export async function updatePlatformGame(
   const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
 
+  // If game_type is being updated, verify no other system game has it
+  if (updates.game_type !== undefined) {
+    const cleanGameType = updates.game_type.trim();
+    const { data: conflictType } = await supabase
+      .from('games')
+      .select('id, name, game_type')
+      .or('is_system.eq.true,organization_id.is.null')
+      .eq('game_type', cleanGameType)
+      .neq('id', gameId)
+      .maybeSingle();
+
+    if (conflictType) {
+      throw new GameConflictError(
+        'GAME_TYPE_ALREADY_REGISTERED',
+        `This game type "${cleanGameType}" is already registered by "${conflictType.name}".`
+      );
+    }
+  }
+
+  // If slug is being updated, verify no other system game has it
+  if (updates.slug !== undefined) {
+    const cleanSlug = updates.slug.trim();
+    const { data: conflictSlug } = await supabase
+      .from('games')
+      .select('id, name, slug')
+      .or('is_system.eq.true,organization_id.is.null')
+      .eq('slug', cleanSlug)
+      .neq('id', gameId)
+      .maybeSingle();
+
+    if (conflictSlug) {
+      throw new GameConflictError(
+        'GAME_SLUG_ALREADY_REGISTERED',
+        `This system game slug "${cleanSlug}" is already in use by "${conflictSlug.name}".`
+      );
+    }
+  }
+
   const payload: any = {
     updated_at: now,
   };
 
-  if (updates.name !== undefined) payload.name = updates.name;
-  if (updates.slug !== undefined) payload.slug = updates.slug;
-  if (updates.game_type !== undefined) payload.game_type = updates.game_type;
-  if (updates.description !== undefined) payload.description = updates.description;
+  if (updates.name !== undefined) payload.name = updates.name.trim();
+  if (updates.slug !== undefined) payload.slug = updates.slug.trim();
+  if (updates.game_type !== undefined) payload.game_type = updates.game_type.trim();
+  if (updates.description !== undefined) payload.description = updates.description?.trim() || null;
   if (updates.icon_name !== undefined) payload.icon_name = updates.icon_name;
   if (updates.status !== undefined) payload.status = updates.status;
-  if (updates.active_theme_id !== undefined) payload.active_theme_id = updates.active_theme_id;
   if (updates.background_url !== undefined) payload.background_url = updates.background_url;
   if (updates.basket_config !== undefined) payload.basket_config = updates.basket_config;
   if (updates.items_config !== undefined) payload.items_config = updates.items_config;
@@ -470,6 +642,18 @@ export async function updatePlatformGame(
     .single();
 
   if (error) {
+    if (error.code === '23505' || error.message?.includes('ux_system_games_game_type') || error.message?.includes('game_type')) {
+      throw new GameConflictError(
+        'GAME_TYPE_ALREADY_REGISTERED',
+        'This game type is already registered as a system game.'
+      );
+    }
+    if (error.code === '23505' || error.message?.includes('ux_system_games_slug') || error.message?.includes('slug')) {
+      throw new GameConflictError(
+        'GAME_SLUG_ALREADY_REGISTERED',
+        'This system game slug is already in use.'
+      );
+    }
     console.error('Error in updatePlatformGame:', error);
     throw new Error(`Failed to update platform game: ${error.message}`);
   }

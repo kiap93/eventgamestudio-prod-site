@@ -1,5 +1,5 @@
 -- ==============================================================================
--- DURAN CATCHER ARCADE & STUDIO - SUPABASE POSTGRESQL SCHEMA MIGRATION
+-- EVENT GAME STUDIO - SUPABASE POSTGRESQL CANONICAL SCHEMA
 -- ==============================================================================
 
 -- Enable UUID extension if not already enabled
@@ -15,13 +15,14 @@ CREATE TABLE IF NOT EXISTS public.users (
   email TEXT NOT NULL,
   name TEXT NOT NULL,
   avatar_url TEXT,
+  is_developer BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- Index on email for quick lookup
 CREATE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
 CREATE INDEX IF NOT EXISTS idx_users_google_id ON public.users (google_id);
+CREATE INDEX IF NOT EXISTS idx_users_is_developer ON public.users (is_developer);
 
 -- ------------------------------------------------------------------------------
 -- 2. ORGANIZATIONS TABLE
@@ -75,17 +76,20 @@ CREATE INDEX IF NOT EXISTS idx_org_invitations_email ON public.organization_invi
 
 -- ------------------------------------------------------------------------------
 -- 5. GAMES TABLE
+-- System Game: organization_id = NULL, is_system = true, ownership_type = 'system'
+-- Client Game: organization_id = tenant_id, is_system = false, ownership_type = 'organization'
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.games (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES public.organizations (id) ON DELETE CASCADE,
+  organization_id UUID REFERENCES public.organizations (id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   slug TEXT NOT NULL,
   game_type TEXT NOT NULL DEFAULT 'catch-brand',
   description TEXT,
   icon_name TEXT,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'draft')),
-  active_theme_id UUID,
+  is_system BOOLEAN NOT NULL DEFAULT false,
+  ownership_type TEXT NOT NULL DEFAULT 'organization' CHECK (ownership_type IN ('system', 'organization')),
   background_url TEXT,
   basket_config JSONB,
   items_config JSONB,
@@ -97,18 +101,29 @@ CREATE TABLE IF NOT EXISTS public.games (
 CREATE INDEX IF NOT EXISTS idx_games_org_id ON public.games (organization_id);
 CREATE INDEX IF NOT EXISTS idx_games_slug ON public.games (slug);
 CREATE INDEX IF NOT EXISTS idx_games_game_type ON public.games (game_type);
+CREATE INDEX IF NOT EXISTS idx_games_is_system ON public.games (is_system);
+CREATE INDEX IF NOT EXISTS idx_games_ownership_type ON public.games (ownership_type);
+-- Exactly ONE system game per game_type and unique system game slugs
+CREATE UNIQUE INDEX IF NOT EXISTS ux_system_games_game_type ON public.games (game_type) WHERE is_system = true;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_system_games_slug ON public.games (slug) WHERE is_system = true;
 
 -- ------------------------------------------------------------------------------
--- 6. GAME THEMES TABLE (A THEME BELONGS TO A GAME & AN ORGANIZATION)
+-- 6. GAME THEMES TABLE
+-- System Theme: organization_id = NULL, game_id = system_game.id, is_system = true, ownership_type = 'system'
+-- Client Theme: organization_id = tenant_id, game_id = client_game.id, is_system = false, ownership_type = 'organization'
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.game_themes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES public.organizations (id) ON DELETE CASCADE,
+  organization_id UUID REFERENCES public.organizations (id) ON DELETE CASCADE,
   game_id UUID REFERENCES public.games (id) ON DELETE CASCADE,
+  base_theme_id UUID REFERENCES public.game_themes (id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   slug TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'draft')),
+  is_system BOOLEAN NOT NULL DEFAULT false,
+  is_default BOOLEAN NOT NULL DEFAULT false,
+  ownership_type TEXT NOT NULL DEFAULT 'organization' CHECK (ownership_type IN ('system', 'organization')),
   branding JSONB NOT NULL DEFAULT '{}'::jsonb,
   background_url TEXT,
   basket_config JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -123,23 +138,15 @@ CREATE TABLE IF NOT EXISTS public.game_themes (
 
 CREATE INDEX IF NOT EXISTS idx_game_themes_org_id ON public.game_themes (organization_id);
 CREATE INDEX IF NOT EXISTS idx_game_themes_game_id ON public.game_themes (game_id);
+CREATE INDEX IF NOT EXISTS idx_game_themes_base_theme_id ON public.game_themes (base_theme_id);
 CREATE INDEX IF NOT EXISTS idx_game_themes_slug ON public.game_themes (slug);
-
--- Foreign key link for games.active_theme_id
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.table_constraints 
-    WHERE constraint_name = 'fk_games_active_theme' AND table_name = 'games'
-  ) THEN
-    ALTER TABLE public.games 
-    ADD CONSTRAINT fk_games_active_theme 
-    FOREIGN KEY (active_theme_id) REFERENCES public.game_themes (id) ON DELETE SET NULL;
-  END IF;
-END $$;
+CREATE INDEX IF NOT EXISTS idx_game_themes_is_system ON public.game_themes (is_system);
+CREATE INDEX IF NOT EXISTS idx_game_themes_is_default ON public.game_themes (is_default);
+CREATE INDEX IF NOT EXISTS idx_game_themes_ownership_type ON public.game_themes (ownership_type);
 
 -- ------------------------------------------------------------------------------
 -- 7. EVENTS TABLE (DEPLOYMENT INSTANCE LINKING A GAME THEME)
+-- Events explicitly select and bind to specific themes via game_theme_id.
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -160,50 +167,11 @@ CREATE INDEX IF NOT EXISTS idx_events_org_id ON public.events (organization_id);
 CREATE INDEX IF NOT EXISTS idx_events_game_theme_id ON public.events (game_theme_id);
 CREATE INDEX IF NOT EXISTS idx_events_public_token ON public.events (public_token);
 CREATE INDEX IF NOT EXISTS idx_events_status ON public.events (status);
-CREATE INDEX IF NOT EXISTS idx_events_starts_at ON public.events (starts_at);
-CREATE INDEX IF NOT EXISTS idx_events_expires_at ON public.events (expires_at);
+CREATE INDEX IF NOT EXISTS idx_events_starts_expires ON public.events (starts_at, expires_at);
 
 -- ------------------------------------------------------------------------------
--- 8. AUTOMATIC UPDATED_AT TRIGGER FUNCTION
+-- 8. ROW LEVEL SECURITY & HELPER FUNCTIONS
 -- ------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = timezone('utc'::text, now());
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS set_users_updated_at ON public.users;
-CREATE TRIGGER set_users_updated_at
-  BEFORE UPDATE ON public.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-
-DROP TRIGGER IF EXISTS set_orgs_updated_at ON public.organizations;
-CREATE TRIGGER set_orgs_updated_at
-  BEFORE UPDATE ON public.organizations
-  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-
-DROP TRIGGER IF EXISTS set_games_updated_at ON public.games;
-CREATE TRIGGER set_games_updated_at
-  BEFORE UPDATE ON public.games
-  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-
-DROP TRIGGER IF EXISTS set_game_themes_updated_at ON public.game_themes;
-CREATE TRIGGER set_game_themes_updated_at
-  BEFORE UPDATE ON public.game_themes
-  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-
-DROP TRIGGER IF EXISTS set_events_updated_at ON public.events;
-CREATE TRIGGER set_events_updated_at
-  BEFORE UPDATE ON public.events
-  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-
--- ------------------------------------------------------------------------------
--- 9. ROW LEVEL SECURITY (RLS) POLICIES
--- ------------------------------------------------------------------------------
-
--- Enable RLS on all tables
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.organization_members ENABLE ROW LEVEL SECURITY;
@@ -212,7 +180,6 @@ ALTER TABLE public.games ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.game_themes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 
--- Helper security function to check if current auth.uid() is a member of an organization
 CREATE OR REPLACE FUNCTION public.is_org_member(org_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -223,171 +190,187 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Helper security function to check if current auth.uid() has specific role
 CREATE OR REPLACE FUNCTION public.get_org_role(org_id UUID)
 RETURNS TEXT AS $$
 DECLARE
   v_role TEXT;
 BEGIN
-  SELECT role INTO v_role FROM public.organization_members
+  SELECT role INTO v_role
+  FROM public.organization_members
   WHERE organization_id = org_id AND user_id = auth.uid();
   RETURN v_role;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- GAME THEMES POLICIES
-DROP POLICY IF EXISTS "Members can view organization game themes" ON public.game_themes;
-CREATE POLICY "Members can view organization game themes"
-  ON public.game_themes FOR SELECT
-  USING (public.is_org_member(organization_id));
-
-DROP POLICY IF EXISTS "Owners, admins, designers can insert game themes" ON public.game_themes;
-CREATE POLICY "Owners, admins, designers can insert game themes"
-  ON public.game_themes FOR INSERT
-  WITH CHECK (public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
-
-DROP POLICY IF EXISTS "Owners, admins, designers can update game themes" ON public.game_themes;
-CREATE POLICY "Owners, admins, designers can update game themes"
-  ON public.game_themes FOR UPDATE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
-
-DROP POLICY IF EXISTS "Owners and admins can delete game themes" ON public.game_themes;
-CREATE POLICY "Owners and admins can delete game themes"
-  ON public.game_themes FOR DELETE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin'));
+CREATE OR REPLACE FUNCTION public.is_developer_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = auth.uid() AND is_developer = true
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- USERS POLICIES
-DROP POLICY IF EXISTS "Users can view own profile" ON public.users;
-CREATE POLICY "Users can view own profile"
+DROP POLICY IF EXISTS "Users can view own user record" ON public.users;
+CREATE POLICY "Users can view own user record"
   ON public.users FOR SELECT
-  USING (auth.uid() = id OR id IN (
-    SELECT om.user_id FROM public.organization_members om
-    WHERE om.organization_id IN (
-      SELECT organization_id FROM public.organization_members WHERE user_id = auth.uid()
-    )
-  ));
+  USING (id = auth.uid() OR public.is_developer_admin());
 
-DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
-CREATE POLICY "Users can update own profile"
+DROP POLICY IF EXISTS "Users can update own user record" ON public.users;
+CREATE POLICY "Users can update own user record"
   ON public.users FOR UPDATE
-  USING (auth.uid() = id);
+  USING (id = auth.uid());
 
 -- ORGANIZATIONS POLICIES
 DROP POLICY IF EXISTS "Members can view their organizations" ON public.organizations;
 CREATE POLICY "Members can view their organizations"
   ON public.organizations FOR SELECT
-  USING (public.is_org_member(id) OR owner_id = auth.uid());
+  USING (public.is_org_member(id) OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Authenticated users can create organizations" ON public.organizations;
 CREATE POLICY "Authenticated users can create organizations"
   ON public.organizations FOR INSERT
-  WITH CHECK (auth.uid() = owner_id);
+  WITH CHECK (auth.uid() IS NOT NULL);
 
-DROP POLICY IF EXISTS "Owners and admins can update organizations" ON public.organizations;
-CREATE POLICY "Owners and admins can update organizations"
+DROP POLICY IF EXISTS "Owners and admins can update organization" ON public.organizations;
+CREATE POLICY "Owners and admins can update organization"
   ON public.organizations FOR UPDATE
-  USING (public.get_org_role(id) IN ('owner', 'admin') OR owner_id = auth.uid());
+  USING (public.get_org_role(id) IN ('owner', 'admin') OR public.is_developer_admin());
 
-DROP POLICY IF EXISTS "Owners can delete organizations" ON public.organizations;
-CREATE POLICY "Owners can delete organizations"
-  ON public.organizations FOR DELETE
-  USING (owner_id = auth.uid());
-
--- ORGANIZATION MEMBERS POLICIES
-DROP POLICY IF EXISTS "Members can view organization member list" ON public.organization_members;
-CREATE POLICY "Members can view organization member list"
+-- MEMBERS POLICIES
+DROP POLICY IF EXISTS "Members can view organization members" ON public.organization_members;
+CREATE POLICY "Members can view organization members"
   ON public.organization_members FOR SELECT
-  USING (public.is_org_member(organization_id));
+  USING (public.is_org_member(organization_id) OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Owners and admins can manage members" ON public.organization_members;
 CREATE POLICY "Owners and admins can manage members"
   ON public.organization_members FOR INSERT
-  WITH CHECK (public.get_org_role(organization_id) IN ('owner', 'admin'));
+  WITH CHECK (public.get_org_role(organization_id) IN ('owner', 'admin') OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Owners and admins can update member roles" ON public.organization_members;
 CREATE POLICY "Owners and admins can update member roles"
   ON public.organization_members FOR UPDATE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin'));
+  USING (public.get_org_role(organization_id) IN ('owner', 'admin') OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Owners and admins can remove members" ON public.organization_members;
 CREATE POLICY "Owners and admins can remove members"
   ON public.organization_members FOR DELETE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin') OR user_id = auth.uid());
+  USING (public.get_org_role(organization_id) IN ('owner', 'admin') OR user_id = auth.uid() OR public.is_developer_admin());
 
 -- INVITATIONS POLICIES
 DROP POLICY IF EXISTS "Members can view invitations" ON public.organization_invitations;
 CREATE POLICY "Members can view invitations"
   ON public.organization_invitations FOR SELECT
-  USING (public.is_org_member(organization_id));
+  USING (public.is_org_member(organization_id) OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Owners and admins can create invitations" ON public.organization_invitations;
 CREATE POLICY "Owners and admins can create invitations"
   ON public.organization_invitations FOR INSERT
-  WITH CHECK (public.get_org_role(organization_id) IN ('owner', 'admin'));
+  WITH CHECK (public.get_org_role(organization_id) IN ('owner', 'admin') OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Owners and admins can delete invitations" ON public.organization_invitations;
 CREATE POLICY "Owners and admins can delete invitations"
   ON public.organization_invitations FOR DELETE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin'));
+  USING (public.get_org_role(organization_id) IN ('owner', 'admin') OR public.is_developer_admin());
 
 -- GAMES POLICIES
+DROP POLICY IF EXISTS "Developer admins can manage all games" ON public.games;
+CREATE POLICY "Developer admins can manage all games"
+  ON public.games FOR ALL
+  USING (public.is_developer_admin());
+
+DROP POLICY IF EXISTS "Anyone can view system games" ON public.games;
+CREATE POLICY "Anyone can view system games"
+  ON public.games FOR SELECT
+  USING (is_system = true OR organization_id IS NULL);
+
 DROP POLICY IF EXISTS "Members can view organization games" ON public.games;
 CREATE POLICY "Members can view organization games"
   ON public.games FOR SELECT
-  USING (public.is_org_member(organization_id));
+  USING (organization_id IS NOT NULL AND public.is_org_member(organization_id));
 
 DROP POLICY IF EXISTS "Owners, admins, designers can insert games" ON public.games;
 CREATE POLICY "Owners, admins, designers can insert games"
   ON public.games FOR INSERT
-  WITH CHECK (public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
+  WITH CHECK (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
 
 DROP POLICY IF EXISTS "Owners, admins, designers can update games" ON public.games;
 CREATE POLICY "Owners, admins, designers can update games"
   ON public.games FOR UPDATE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
+  USING (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
 
 DROP POLICY IF EXISTS "Owners and admins can delete games" ON public.games;
 CREATE POLICY "Owners and admins can delete games"
   ON public.games FOR DELETE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin'));
+  USING (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin'));
+
+-- GAME THEMES POLICIES
+DROP POLICY IF EXISTS "Developer admins can manage all themes" ON public.game_themes;
+CREATE POLICY "Developer admins can manage all themes"
+  ON public.game_themes FOR ALL
+  USING (public.is_developer_admin());
+
+DROP POLICY IF EXISTS "Anyone can view system themes" ON public.game_themes;
+CREATE POLICY "Anyone can view system themes"
+  ON public.game_themes FOR SELECT
+  USING (is_system = true OR organization_id IS NULL);
+
+DROP POLICY IF EXISTS "Members can view organization themes" ON public.game_themes;
+CREATE POLICY "Members can view organization themes"
+  ON public.game_themes FOR SELECT
+  USING (organization_id IS NOT NULL AND public.is_org_member(organization_id));
+
+DROP POLICY IF EXISTS "Owners, admins, designers can insert themes" ON public.game_themes;
+CREATE POLICY "Owners, admins, designers can insert themes"
+  ON public.game_themes FOR INSERT
+  WITH CHECK (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
+
+DROP POLICY IF EXISTS "Owners, admins, designers can update themes" ON public.game_themes;
+CREATE POLICY "Owners, admins, designers can update themes"
+  ON public.game_themes FOR UPDATE
+  USING (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
+
+DROP POLICY IF EXISTS "Owners and admins can delete themes" ON public.game_themes;
+CREATE POLICY "Owners and admins can delete themes"
+  ON public.game_themes FOR DELETE
+  USING (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin'));
 
 -- EVENTS POLICIES
 DROP POLICY IF EXISTS "Members can view organization events" ON public.events;
 CREATE POLICY "Members can view organization events"
   ON public.events FOR SELECT
-  USING (public.is_org_member(organization_id));
+  USING (public.is_org_member(organization_id) OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Owners, admins, designers can insert events" ON public.events;
 CREATE POLICY "Owners, admins, designers can insert events"
   ON public.events FOR INSERT
-  WITH CHECK (public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
+  WITH CHECK (public.get_org_role(organization_id) IN ('owner', 'admin', 'designer') OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Owners, admins, designers can update events" ON public.events;
 CREATE POLICY "Owners, admins, designers can update events"
   ON public.events FOR UPDATE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
+  USING (public.get_org_role(organization_id) IN ('owner', 'admin', 'designer') OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Owners and admins can delete events" ON public.events;
 CREATE POLICY "Owners and admins can delete events"
   ON public.events FOR DELETE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin'));
+  USING (public.get_org_role(organization_id) IN ('owner', 'admin') OR public.is_developer_admin());
 
 -- ------------------------------------------------------------------------------
--- 8. SUPABASE STORAGE SETUP (game-assets bucket)
+-- 9. SUPABASE STORAGE SETUP (game-assets bucket)
 -- ------------------------------------------------------------------------------
--- Insert bucket if not exists into storage.buckets
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('game-assets', 'game-assets', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Storage policies for game-assets bucket:
--- Allow public access to view assets
 DROP POLICY IF EXISTS "Public read access for game-assets" ON storage.objects;
 CREATE POLICY "Public read access for game-assets"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'game-assets');
 
--- Allow authenticated uploads to game-assets
 DROP POLICY IF EXISTS "Authenticated users can upload game-assets" ON storage.objects;
 CREATE POLICY "Authenticated users can upload game-assets"
   ON storage.objects FOR INSERT

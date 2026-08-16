@@ -219,7 +219,6 @@ export interface GameThemeRecord {
 export interface GameRecord {
   id: string;
   organization_id?: string | null;
-  active_theme_id?: string | null;
   name: string;
   slug: string;
   game_type: string;

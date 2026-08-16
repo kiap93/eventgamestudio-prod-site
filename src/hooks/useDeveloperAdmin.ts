@@ -77,7 +77,7 @@ export function useDeveloperAdmin() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to create platform game');
+        throw new Error(err.message || err.error || 'Failed to create platform game');
       }
 
       const data = await res.json();
@@ -97,7 +97,7 @@ export function useDeveloperAdmin() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to update game');
+        throw new Error(err.message || err.error || 'Failed to update game');
       }
 
       const data = await res.json();

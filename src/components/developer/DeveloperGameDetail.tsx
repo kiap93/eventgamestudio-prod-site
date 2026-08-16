@@ -217,7 +217,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {themes.map((theme) => {
-                const isDefault = theme.is_default || game.active_theme_id === theme.id;
+                const isDefault = Boolean(theme.is_default);
                 const itemsCount = theme.items_config?.length || 0;
                 const positiveItems = theme.items_config?.filter((i) => i.points > 0).length || 0;
                 const hazardsCount = theme.items_config?.filter((i) => i.points < 0 || i.is_bomb).length || 0;
@@ -413,7 +413,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
             <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
               <label className="text-xs font-semibold text-slate-400 uppercase block mb-1">Active Default Theme</label>
               <p className="text-sm font-mono font-bold text-amber-400">
-                {themes.find((t) => t.id === game.active_theme_id)?.name || 'Default Durian Classic'}
+                {themes.find((t) => t.is_default)?.name || themes[0]?.name || 'Default Durian Classic'}
               </p>
               <p className="text-[11px] text-slate-500 mt-1">Theme provided to new tenants</p>
             </div>

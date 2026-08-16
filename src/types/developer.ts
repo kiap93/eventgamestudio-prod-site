@@ -11,7 +11,6 @@ export interface PlatformGame {
   status: 'active' | 'draft' | 'archived';
   is_system: boolean;
   ownership_type: 'system' | 'organization';
-  active_theme_id: string | null;
   background_url: string | null;
   basket_config: any;
   items_config: any;

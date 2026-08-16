@@ -67,6 +67,9 @@ export interface Env {
   VITE_GOOGLE_CLIENT_ID?: string;
   VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_ANON_KEY?: string;
+  ASSETS?: {
+    fetch: (request: Request | string) => Promise<Response>;
+  };
   [key: string]: any;
 }
 
@@ -208,6 +211,18 @@ export default {
     }
 
     try {
+      // If the request is not an API route and env.ASSETS is available, delegate to Cloudflare Assets with SPA fallback
+      if (!pathname.startsWith('/api') && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
+        const assetResponse = await env.ASSETS.fetch(request);
+        if (assetResponse.status !== 404) {
+          return assetResponse;
+        }
+        // Fallback for client-side SPA routing (e.g. /developer, /events, /studio, /e/:token)
+        const spaUrl = new URL(request.url);
+        spaUrl.pathname = '/index.html';
+        return await env.ASSETS.fetch(new Request(spaUrl.toString(), request));
+      }
+
       // ==========================================
       // 1. Config Route
       // ==========================================
@@ -1299,23 +1314,30 @@ export default {
           return errorResponse('Game Type is required (e.g. catch-brand)', 422, cors);
         }
 
-        const game = await createPlatformGame(
-          {
-            name,
-            slug,
-            game_type,
-            description,
-            icon_name,
-            status,
-            background_url,
-            basket_config,
-            items_config,
-            settings_config,
-          },
-          env
-        );
+        try {
+          const game = await createPlatformGame(
+            {
+              name,
+              slug,
+              game_type,
+              description,
+              icon_name,
+              status,
+              background_url,
+              basket_config,
+              items_config,
+              settings_config,
+            },
+            env
+          );
 
-        return jsonResponse({ game }, 201, cors);
+          return jsonResponse({ game }, 201, cors);
+        } catch (err: any) {
+          if (err.code === 'GAME_TYPE_ALREADY_REGISTERED' || err.code === 'GAME_SLUG_ALREADY_REGISTERED' || err.name === 'GameConflictError') {
+            return jsonResponse({ success: false, error: err.code || 'GAME_CONFLICT', message: err.message }, 409, cors);
+          }
+          return errorResponse(err.message, 500, cors);
+        }
       }
 
       // Game Themes routes: /api/developer/games/:gameId/themes
@@ -1412,8 +1434,15 @@ export default {
 
         const { gameId } = devGameDetailParams;
         const body = (await request.json().catch(() => ({}))) as any;
-        const game = await updatePlatformGame(gameId, body, env);
-        return jsonResponse({ game }, 200, cors);
+        try {
+          const game = await updatePlatformGame(gameId, body, env);
+          return jsonResponse({ game }, 200, cors);
+        } catch (err: any) {
+          if (err.code === 'GAME_TYPE_ALREADY_REGISTERED' || err.code === 'GAME_SLUG_ALREADY_REGISTERED' || err.name === 'GameConflictError') {
+            return jsonResponse({ success: false, error: err.code || 'GAME_CONFLICT', message: err.message }, 409, cors);
+          }
+          return errorResponse(err.message, 500, cors);
+        }
       }
 
       if (devGameDetailParams && method === 'DELETE') {
@@ -1458,7 +1487,7 @@ export default {
           return errorResponse('Theme not found or missing game link', 404, cors);
         }
 
-        await updatePlatformGame(theme.game_id, { active_theme_id: themeId }, env);
+        // Mark this theme as default (updateSystemTheme unsets previous defaults for this game)
         const updatedTheme = await updateSystemTheme(themeId, { is_default: true }, env);
 
         return jsonResponse({ success: true, theme: updatedTheme }, 200, cors);
