@@ -658,7 +658,52 @@ export async function getThemesByOrgId(
   })) as GameThemeRecord[];
 }
 
-export async function getThemeById(themeId: string, env?: Record<string, any>): Promise<GameThemeRecord | null> {
+export function isUUID(str: string | null | undefined): boolean {
+  if (!str || typeof str !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim());
+}
+
+export async function getThemeById(
+  themeId: string,
+  env?: Record<string, any>,
+  options?: { gameId?: string }
+): Promise<GameThemeRecord | null> {
+  if (!themeId || typeof themeId !== 'string') {
+    return null;
+  }
+
+  // Handle special 'system' identifier
+  if (themeId === 'system') {
+    console.log(`[Theme Lookup] Resolving special identifier "system" (gameId: ${options?.gameId || 'all'})`);
+    if (options?.gameId) {
+      const systemThemes = await getSystemThemesByGameId(options.gameId, { status: 'active' }, env);
+      const primaryDefaultTheme = systemThemes.find((t) => t.is_default) || systemThemes[0] || null;
+      if (primaryDefaultTheme) {
+        console.log(
+          `[Theme Lookup] Resolved primary/default system theme: "${primaryDefaultTheme.name}" (${primaryDefaultTheme.id}, is_default=${Boolean(primaryDefaultTheme.is_default)})`
+        );
+        return primaryDefaultTheme;
+      }
+    }
+    const allSystemThemes = await getAllSystemThemes(env);
+    const primaryDefaultTheme = allSystemThemes.find((t) => t.is_default) || allSystemThemes[0] || null;
+    if (primaryDefaultTheme) {
+      console.log(
+        `[Theme Lookup] Resolved primary/default system theme: "${primaryDefaultTheme.name}" (${primaryDefaultTheme.id}, is_default=${Boolean(primaryDefaultTheme.is_default)})`
+      );
+      return primaryDefaultTheme;
+    }
+    console.log(`[Theme Lookup] No system theme found.`);
+    return null;
+  }
+
+  // Validate that themeId is a valid UUID before querying PostgreSQL
+  if (!isUUID(themeId)) {
+    console.warn(`[Theme Lookup] getThemeById received non-UUID string: "${themeId}". Skipping UUID query to prevent PostgreSQL syntax error.`);
+    return null;
+  }
+
+  console.log(`[Theme Lookup] Querying game theme by UUID: ${themeId}`);
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('game_themes')
@@ -671,7 +716,10 @@ export async function getThemeById(themeId: string, env?: Record<string, any>): 
     throw new Error(`Failed to get theme: ${error.message}`);
   }
 
-  if (!data) return null;
+  if (!data) {
+    console.log(`[Theme Lookup] No theme found with UUID: ${themeId}`);
+    return null;
+  }
 
   const item = data as any;
   return {
@@ -757,6 +805,9 @@ async function safeUpdateTheme(
   themeId: string,
   initialPayload: Record<string, any>
 ): Promise<{ data: any; error: any }> {
+  if (!isUUID(themeId)) {
+    return { data: null, error: new Error(`Invalid UUID format for theme update: ${themeId}`) };
+  }
   let payload = { ...initialPayload };
   for (let attempt = 0; attempt < 8; attempt++) {
     const { data, error } = await supabase
@@ -917,6 +968,9 @@ export async function duplicateTheme(
 }
 
 export async function deleteTheme(themeId: string, env?: Record<string, any>): Promise<void> {
+  if (!isUUID(themeId)) {
+    throw new Error(`Invalid theme ID format: ${themeId}`);
+  }
   const supabase = getSupabaseServerClient(env);
   const { error } = await supabase
     .from('game_themes')
@@ -1400,6 +1454,9 @@ export async function updateSystemTheme(
 }
 
 export async function deleteSystemTheme(themeId: string, env?: Record<string, any>): Promise<void> {
+  if (!isUUID(themeId)) {
+    throw new Error(`Invalid theme ID format: ${themeId}`);
+  }
   const supabase = getSupabaseServerClient(env);
 
   // Check if any events reference this theme

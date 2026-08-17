@@ -22,6 +22,7 @@ import {
   updateGameCustomization,
   getThemesByOrgId,
   getThemeById,
+  isUUID,
   createTheme,
   updateTheme,
   duplicateTheme,
@@ -759,6 +760,86 @@ export default {
         return jsonResponse({ themes }, 200, cors);
       }
 
+      if (pathname === '/api/themes/system' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const gameId = url.searchParams.get('gameId') || undefined;
+        const status = url.searchParams.get('status') || 'active';
+        console.log(`[Worker Theme API] GET /api/themes/system requested (gameId: ${gameId || 'all'}, status: ${status})`);
+
+        let themes: any[] = [];
+        if (gameId) {
+          themes = await getSystemThemesByGameId(gameId, { status: status as any }, env);
+        } else {
+          themes = await getAllSystemThemes(env);
+        }
+
+        const primaryDefaultTheme = themes.find((t) => t.is_default) || themes[0] || null;
+        console.log(
+          `[Worker Theme API] GET /api/themes/system resolved ${themes.length} system themes (primary/default: ${
+            primaryDefaultTheme ? `"${primaryDefaultTheme.name}" (${primaryDefaultTheme.id})` : 'none'
+          })`
+        );
+
+        return jsonResponse({ themes, theme: primaryDefaultTheme }, 200, cors);
+      }
+
+      const cloneSystemThemeParams = parseRoute('/api/themes/clone-system/:systemThemeId', pathname);
+      if (cloneSystemThemeParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const organizationId = auth.jwtPayload?.organizationId;
+        const { systemThemeId } = cloneSystemThemeParams;
+
+        if (!systemThemeId || !isUUID(systemThemeId)) {
+          return errorResponse(`Invalid system theme ID format: ${systemThemeId}`, 400, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { name, game_id } = body;
+
+        if (!organizationId) {
+          return errorResponse('No active organization selected', 422, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Cannot create themes', 403, cors);
+        }
+
+        const cloned = await cloneSystemThemeToOrg(systemThemeId, organizationId, game_id, name, env);
+        return jsonResponse({ theme: cloned }, 201, cors);
+      }
+
+      if (pathname === '/api/themes/clone-all-system' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const organizationId = auth.jwtPayload?.organizationId;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { game_id } = body;
+
+        if (!organizationId) {
+          return errorResponse('No active organization selected', 422, cors);
+        }
+
+        if (!game_id) {
+          return errorResponse('Game ID is required', 422, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Cannot create themes', 403, cors);
+        }
+
+        const cloned = await cloneAllSystemThemesToOrg(organizationId, game_id, env);
+        return jsonResponse({ themes: cloned }, 201, cors);
+      }
+
       const getThemeParams = parseRoute('/api/themes/:themeId', pathname);
       if (getThemeParams && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
@@ -766,17 +847,55 @@ export default {
 
         const user = auth.user!;
         const { themeId } = getThemeParams;
+        const gameId = url.searchParams.get('gameId') || undefined;
 
+        // Handle special 'system' identifier
+        if (themeId === 'system') {
+          console.log(`[Worker Theme API] Resolving special identifier "system" (gameId: ${gameId || 'all'})`);
+          let systemThemes: any[] = [];
+          if (gameId) {
+            systemThemes = await getSystemThemesByGameId(gameId, { status: 'active' }, env);
+          } else {
+            systemThemes = await getAllSystemThemes(env);
+          }
+
+          const primaryTheme = systemThemes.find((t) => t.is_default) || systemThemes[0] || null;
+          if (!primaryTheme) {
+            console.log(`[Worker Theme API] No system theme found for gameId: ${gameId || 'all'}`);
+            return errorResponse('No system theme found for this game', 404, cors);
+          }
+
+          console.log(
+            `[Worker Theme API] Resolved system theme: "${primaryTheme.name}" (${primaryTheme.id}, is_default: ${Boolean(
+              primaryTheme.is_default
+            )})`
+          );
+          return jsonResponse({ theme: primaryTheme, themes: systemThemes }, 200, cors);
+        }
+
+        // Validate UUID format for normal theme lookup
+        if (!isUUID(themeId)) {
+          console.log(`[Worker Theme API] Invalid UUID format requested: "${themeId}". Returning 404.`);
+          return errorResponse(`Invalid theme ID format: ${themeId}`, 404, cors);
+        }
+
+        console.log(`[Worker Theme API] Resolving game theme by UUID: ${themeId}`);
         const theme = await getThemeById(themeId, env);
         if (!theme) {
+          console.log(`[Worker Theme API] Theme with UUID ${themeId} not found`);
           return errorResponse('Theme not found', 404, cors);
         }
 
-        const { isMember } = await verifyOrgMembershipAndPermission(user.id, theme.organization_id, 'game.view', env);
-        if (!isMember) {
-          return errorResponse('Access denied to this theme', 403, cors);
+        // Verify access permission if it belongs to an organization
+        const isSystemTheme = Boolean(theme.is_system) || !theme.organization_id;
+        if (!isSystemTheme && theme.organization_id) {
+          const { isMember } = await verifyOrgMembershipAndPermission(user.id, theme.organization_id, 'game.view', env);
+          if (!isMember) {
+            return errorResponse('Access denied to this theme', 403, cors);
+          }
         }
 
+        console.log(`[Worker Theme API] Successfully resolved theme "${theme.name}" (id: ${theme.id}, is_system: ${isSystemTheme})`);
         return jsonResponse({ theme }, 200, cors);
       }
 
@@ -851,6 +970,10 @@ export default {
         const user = auth.user!;
         const { themeId } = updateThemeParams;
 
+        if (!isUUID(themeId)) {
+          return errorResponse(`Invalid theme ID format: ${themeId}`, 400, cors);
+        }
+
         const theme = await getThemeById(themeId, env);
         if (!theme) {
           return errorResponse('Theme not found', 404, cors);
@@ -911,6 +1034,11 @@ export default {
 
         const user = auth.user!;
         const { themeId } = duplicateThemeParams;
+
+        if (!isUUID(themeId)) {
+          return errorResponse(`Invalid theme ID format: ${themeId}`, 400, cors);
+        }
+
         const body = (await request.json().catch(() => ({}))) as any;
         const { name } = body;
 
@@ -936,6 +1064,10 @@ export default {
         const user = auth.user!;
         const { themeId } = deleteThemeParams;
 
+        if (!isUUID(themeId)) {
+          return errorResponse(`Invalid theme ID format: ${themeId}`, 400, cors);
+        }
+
         const theme = await getThemeById(themeId, env);
         if (!theme) {
           return errorResponse('Theme not found', 404, cors);
@@ -948,71 +1080,6 @@ export default {
 
         await deleteTheme(themeId, env);
         return jsonResponse({ success: true }, 200, cors);
-      }
-
-      if (pathname === '/api/themes/system' && method === 'GET') {
-        const auth = await authenticateWorkerRequest(request, env, cors);
-        if (!auth.authenticated) return auth.errorResponse!;
-
-        const gameId = url.searchParams.get('gameId') || undefined;
-        const status = url.searchParams.get('status') || 'active';
-        let themes: any[] = [];
-        if (gameId) {
-          themes = await getSystemThemesByGameId(gameId, { status: status as any }, env);
-        } else {
-          themes = await getAllSystemThemes(env);
-        }
-        return jsonResponse({ themes }, 200, cors);
-      }
-
-      const cloneSystemThemeParams = parseRoute('/api/themes/clone-system/:systemThemeId', pathname);
-      if (cloneSystemThemeParams && method === 'POST') {
-        const auth = await authenticateWorkerRequest(request, env, cors);
-        if (!auth.authenticated) return auth.errorResponse!;
-
-        const user = auth.user!;
-        const organizationId = auth.jwtPayload?.organizationId;
-        const { systemThemeId } = cloneSystemThemeParams;
-        const body = (await request.json().catch(() => ({}))) as any;
-        const { name, game_id } = body;
-
-        if (!organizationId) {
-          return errorResponse('No active organization selected', 422, cors);
-        }
-
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Cannot create themes', 403, cors);
-        }
-
-        const cloned = await cloneSystemThemeToOrg(systemThemeId, organizationId, game_id, name, env);
-        return jsonResponse({ theme: cloned }, 201, cors);
-      }
-
-      if (pathname === '/api/themes/clone-all-system' && method === 'POST') {
-        const auth = await authenticateWorkerRequest(request, env, cors);
-        if (!auth.authenticated) return auth.errorResponse!;
-
-        const user = auth.user!;
-        const organizationId = auth.jwtPayload?.organizationId;
-        const body = (await request.json().catch(() => ({}))) as any;
-        const { game_id } = body;
-
-        if (!organizationId) {
-          return errorResponse('No active organization selected', 422, cors);
-        }
-
-        if (!game_id) {
-          return errorResponse('Game ID is required', 422, cors);
-        }
-
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Cannot create themes', 403, cors);
-        }
-
-        const cloned = await cloneAllSystemThemesToOrg(organizationId, game_id, env);
-        return jsonResponse({ themes: cloned }, 201, cors);
       }
 
       // ==========================================
@@ -1564,6 +1631,10 @@ export default {
         }
 
         const { themeId } = devDuplicateThemeParams;
+        if (!isUUID(themeId)) {
+          return errorResponse(`Invalid theme ID format: ${themeId}`, 400, cors);
+        }
+
         const body = (await request.json().catch(() => ({}))) as any;
         try {
           const duplicated = await duplicateSystemTheme(themeId, body.name, env);
@@ -1584,6 +1655,10 @@ export default {
         }
 
         const { themeId } = devSetDefaultThemeParams;
+        if (!isUUID(themeId)) {
+          return errorResponse(`Invalid theme ID format: ${themeId}`, 400, cors);
+        }
+
         try {
           const updatedTheme = await setPrimaryDefaultSystemTheme(themeId, env);
           return jsonResponse({ success: true, theme: updatedTheme }, 200, cors);
@@ -1603,6 +1678,10 @@ export default {
         }
 
         const { themeId } = devUnsetDefaultThemeParams;
+        if (!isUUID(themeId)) {
+          return errorResponse(`Invalid theme ID format: ${themeId}`, 400, cors);
+        }
+
         try {
           const updatedTheme = await unsetPrimaryDefaultSystemTheme(themeId, env);
           return jsonResponse({ success: true, theme: updatedTheme }, 200, cors);
@@ -1622,6 +1701,10 @@ export default {
         }
 
         const { themeId } = devThemeDetailParams;
+        if (!isUUID(themeId)) {
+          return errorResponse(`Invalid theme ID format: ${themeId}`, 400, cors);
+        }
+
         const theme = await getThemeById(themeId, env);
         if (!theme) {
           return errorResponse('System theme not found', 404, cors);
@@ -1637,6 +1720,10 @@ export default {
         }
 
         const { themeId } = devThemeDetailParams;
+        if (!isUUID(themeId)) {
+          return errorResponse(`Invalid theme ID format: ${themeId}`, 400, cors);
+        }
+
         const body = (await request.json().catch(() => ({}))) as any;
         try {
           const theme = await updateSystemTheme(themeId, body, env);
@@ -1655,6 +1742,10 @@ export default {
         }
 
         const { themeId } = devThemeDetailParams;
+        if (!isUUID(themeId)) {
+          return errorResponse(`Invalid theme ID format: ${themeId}`, 400, cors);
+        }
+
         try {
           await deleteSystemTheme(themeId, env);
           return jsonResponse({ success: true }, 200, cors);
