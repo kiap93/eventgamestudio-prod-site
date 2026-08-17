@@ -952,70 +952,116 @@ export async function getSystemThemesByGameId(
   const supabase = getSupabaseServerClient(env);
   const { getGameById } = await import('./games.js');
 
-  // 1. Load the supplied game
+  // Step A: Load the supplied game
   const game = await getGameById(gameId, env);
 
   let targetSystemGameId = gameId;
   let resolvedSystemGameName = game?.name || 'Platform Game';
   let resolvedSystemGameSlug = game?.slug || 'platform-game';
+  let resolvedSystemGameType = game?.game_type || 'catch-brand';
+  let candidateGames: any[] = [];
 
-  // 2. Resolve system game ID
+  // Step B & Step C: Resolve canonical system game
   if (game) {
-    const isSystemGame = Boolean(game.is_system) || !game.organization_id;
-    if (isSystemGame) {
+    const isSuppliedGameSystem = Boolean(game.is_system) || !game.organization_id;
+    if (isSuppliedGameSystem) {
       targetSystemGameId = game.id;
       resolvedSystemGameName = game.name;
       resolvedSystemGameSlug = game.slug;
+      resolvedSystemGameType = game.game_type || 'catch-brand';
     } else {
-      // It's an organization game: find corresponding system game by game_type
+      // Supplied game is an organization game: find canonical system game by game_type
       const gameType = game.game_type || 'catch-brand';
-      const { data: systemGameData } = await supabase
+      resolvedSystemGameType = gameType;
+
+      // Query all matching system games for this game_type
+      const { data: matchedGames } = await supabase
         .from('games')
-        .select('id, name, slug, game_type')
+        .select('id, name, slug, game_type, is_system, ownership_type, status, created_at, organization_id')
         .or('is_system.eq.true,organization_id.is.null')
-        .eq('game_type', gameType)
-        .limit(1)
-        .maybeSingle();
+        .eq('game_type', gameType);
 
-      if (systemGameData) {
-        targetSystemGameId = systemGameData.id;
-        resolvedSystemGameName = systemGameData.name;
-        resolvedSystemGameSlug = systemGameData.slug;
-      } else {
-        // Fallback: try by slug if game_type had no direct match
-        const { data: fallbackBySlug } = await supabase
+      candidateGames = matchedGames || [];
+
+      // Fallback: if no candidates found by game_type, try by slug
+      if (candidateGames.length === 0 && game.slug) {
+        const { data: matchedBySlug } = await supabase
           .from('games')
-          .select('id, name, slug, game_type')
+          .select('id, name, slug, game_type, is_system, ownership_type, status, created_at, organization_id')
           .or('is_system.eq.true,organization_id.is.null')
-          .eq('slug', game.slug)
-          .limit(1)
-          .maybeSingle();
+          .eq('slug', game.slug);
+        candidateGames = matchedBySlug || [];
+      }
 
-        if (fallbackBySlug) {
-          targetSystemGameId = fallbackBySlug.id;
-          resolvedSystemGameName = fallbackBySlug.name;
-          resolvedSystemGameSlug = fallbackBySlug.slug;
-        }
+      if (candidateGames.length > 0) {
+        // Priority selection:
+        // 1. is_system = true
+        // 2. ownership_type = 'system'
+        // 3. exact game_type
+        // 4. active status
+        // 5. if multiple remain, greatest number of system themes
+        // 6. oldest system game (earliest created_at)
+        const scoredCandidates = await Promise.all(
+          candidateGames.map(async (cand) => {
+            let score = 0;
+            if (cand.is_system === true) score += 1000;
+            if (cand.ownership_type === 'system') score += 500;
+            if (cand.game_type === gameType) score += 250;
+            if (cand.status === 'active') score += 100;
+
+            // Count system themes attached to this candidate game
+            const { count } = await supabase
+              .from('game_themes')
+              .select('id', { count: 'exact', head: true })
+              .eq('game_id', cand.id)
+              .or('is_system.eq.true,organization_id.is.null');
+
+            const themeCount = count || 0;
+            score += Math.min(themeCount * 10, 90);
+
+            const createdAtTime = cand.created_at ? new Date(cand.created_at).getTime() : 0;
+
+            return {
+              candidate: cand,
+              score,
+              themeCount,
+              createdAtTime,
+            };
+          })
+        );
+
+        scoredCandidates.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          if (b.themeCount !== a.themeCount) return b.themeCount - a.themeCount;
+          return a.createdAtTime - b.createdAtTime; // oldest first
+        });
+
+        const canonical = scoredCandidates[0].candidate;
+        targetSystemGameId = canonical.id;
+        resolvedSystemGameName = canonical.name;
+        resolvedSystemGameSlug = canonical.slug;
+        resolvedSystemGameType = canonical.game_type || gameType;
       }
     }
   } else {
     // If not found directly by ID, check if gameId is a slug or game_type
-    const { data: systemGameBySlug } = await supabase
+    const { data: systemGamesBySlugOrType } = await supabase
       .from('games')
-      .select('id, name, slug, game_type')
+      .select('id, name, slug, game_type, is_system, ownership_type, status, created_at, organization_id')
       .or('is_system.eq.true,organization_id.is.null')
-      .or(`game_type.eq.${gameId},slug.eq.${gameId}`)
-      .limit(1)
-      .maybeSingle();
+      .or(`game_type.eq.${gameId},slug.eq.${gameId}`);
 
-    if (systemGameBySlug) {
-      targetSystemGameId = systemGameBySlug.id;
-      resolvedSystemGameName = systemGameBySlug.name;
-      resolvedSystemGameSlug = systemGameBySlug.slug;
+    candidateGames = systemGamesBySlugOrType || [];
+    if (candidateGames.length > 0) {
+      const canonical = candidateGames[0];
+      targetSystemGameId = canonical.id;
+      resolvedSystemGameName = canonical.name;
+      resolvedSystemGameSlug = canonical.slug;
+      resolvedSystemGameType = canonical.game_type || gameId;
     }
   }
 
-  // 3. Query system themes for the resolved system game
+  // Step 3: Query system themes for the resolved canonical system game
   let query = supabase
     .from('game_themes')
     .select('*, games(id, name, slug, game_type)')
@@ -1035,7 +1081,54 @@ export async function getSystemThemesByGameId(
     throw new Error(`Failed to list system themes: ${error.message}`);
   }
 
-  const list = (data || []) as any[];
+  let list = (data || []) as any[];
+
+  // Step 4: Diagnostic Fallback using game_type if 0 themes found
+  if (list.length === 0 && candidateGames.length > 1) {
+    const alternateGameIds = candidateGames
+      .map((c) => c.id)
+      .filter((id) => id !== targetSystemGameId);
+
+    if (alternateGameIds.length > 0) {
+      let fallbackQuery = supabase
+        .from('game_themes')
+        .select('*, games(id, name, slug, game_type)')
+        .in('game_id', alternateGameIds)
+        .or('is_system.eq.true,organization_id.is.null');
+
+      if (options.status !== 'all') {
+        fallbackQuery = fallbackQuery.eq('status', 'active');
+      }
+
+      fallbackQuery = fallbackQuery.order('created_at', { ascending: true });
+
+      const { data: fallbackData } = await fallbackQuery;
+      if (fallbackData && fallbackData.length > 0) {
+        console.warn(
+          `[System Themes] Found ${fallbackData.length} themes under legacy system game(s): ${alternateGameIds.join(', ')}`
+        );
+        list = fallbackData;
+      }
+    }
+  }
+
+  // Step 5: Diagnostic Logging
+  console.log('[System Themes]');
+  console.log(`  requested gameId = ${gameId}`);
+  console.log(`  organization game id = ${game ? (!game.is_system && game.organization_id ? game.id : 'N/A') : 'N/A'}`);
+  console.log(`  organization game_type = ${game?.game_type || 'N/A'}`);
+  console.log(`  resolved system game id = ${targetSystemGameId}`);
+  console.log(`  resolved system game name = ${resolvedSystemGameName}`);
+  console.log(`  resolved system game_type = ${resolvedSystemGameType}`);
+  console.log(`  system theme count = ${list.length}`);
+
+  if (list.length === 0) {
+    console.log('[System Themes] No system themes found');
+    console.log(
+      `  available system games for game_type = ${resolvedSystemGameType}:`,
+      candidateGames.map((g) => ({ id: g.id, name: g.name, slug: g.slug, is_system: g.is_system }))
+    );
+  }
 
   return list.map((item) => ({
     ...item,
@@ -1092,6 +1185,18 @@ export async function createSystemTheme(
   env?: Record<string, any>
 ): Promise<GameThemeRecord> {
   const supabase = getSupabaseServerClient(env);
+  const { getGameById } = await import('./games.js');
+
+  // Verify the target game is a system game
+  if (params.game_id) {
+    const targetGame = await getGameById(params.game_id, env);
+    if (targetGame && !targetGame.is_system && targetGame.organization_id) {
+      throw new Error(
+        'Cannot create a system theme for an organization game. Use the corresponding system game.'
+      );
+    }
+  }
+
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const slug = params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');

@@ -1462,6 +1462,15 @@ export default {
         }
 
         try {
+          const targetGame = await getGameById(gameId, env);
+          if (targetGame && !targetGame.is_system && targetGame.organization_id) {
+            return errorResponse(
+              'Cannot create a system theme for an organization game. Use the corresponding system game.',
+              400,
+              cors
+            );
+          }
+
           const theme = await createSystemTheme(
             {
               game_id: gameId,

@@ -14,6 +14,7 @@ import {
   Layers,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   FolderOpen,
   Filter,
   Gamepad2,
@@ -25,6 +26,7 @@ import {
   Edit3,
   Copy,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
 
 interface ThemeListProps {
@@ -59,16 +61,20 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
   // System Themes state (Developer Admin templates)
   const [systemThemes, setSystemThemes] = useState<GameTheme[]>([]);
   const [isLoadingSystem, setIsLoadingSystem] = useState<boolean>(false);
+  const [systemThemeError, setSystemThemeError] = useState<string | null>(null);
 
   // Load system themes for active game
   const loadSystemThemes = useCallback(async () => {
     if (!activeGame?.id) return;
     setIsLoadingSystem(true);
+    setSystemThemeError(null);
     try {
       const list = await fetchSystemThemes(activeGame.id);
       setSystemThemes(list);
-    } catch (err) {
+      setSystemThemeError(null);
+    } catch (err: any) {
       console.error('Failed to load system themes:', err);
+      setSystemThemeError(err.message || 'Failed to load system themes');
     } finally {
       setIsLoadingSystem(false);
     }
@@ -441,7 +447,23 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
           </div>
         </div>
 
-        {filteredSystemThemes.length > 0 ? (
+        {systemThemeError ? (
+          <div className="bg-rose-950/25 border border-rose-800/50 rounded-2xl p-6 text-center space-y-3">
+            <div className="flex items-center justify-center gap-2 text-rose-400 text-sm font-semibold">
+              <AlertTriangle className="w-4 h-4" />
+              <span>Unable to load system themes.</span>
+            </div>
+            <p className="text-xs text-rose-300/70 max-w-md mx-auto">{systemThemeError}</p>
+            <button
+              type="button"
+              onClick={loadSystemThemes}
+              className="px-4 py-1.5 bg-rose-900/80 hover:bg-rose-800 text-rose-200 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry</span>
+            </button>
+          </div>
+        ) : filteredSystemThemes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredSystemThemes.map((sysTheme) => (
               <ThemeCard
@@ -455,12 +477,27 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
             ))}
           </div>
         ) : (
-          <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-6 text-center text-slate-500 text-xs">
-            {isLoadingSystem
-              ? 'Loading system themes...'
-              : searchQuery
-              ? 'No system themes match your search query.'
-              : 'No active system themes available for this game.'}
+          <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-6 text-center text-slate-500 text-xs space-y-2">
+            {isLoadingSystem ? (
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                <span>Loading system themes...</span>
+              </div>
+            ) : searchQuery ? (
+              'No system themes match your search query.'
+            ) : (
+              <div className="space-y-2">
+                <p>No active system themes available for this game.</p>
+                <button
+                  type="button"
+                  onClick={loadSystemThemes}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Refresh</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

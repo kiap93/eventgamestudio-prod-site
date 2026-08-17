@@ -1544,6 +1544,14 @@ app.post('/api/developer/games/:gameId/themes', authenticateDeveloperAdmin, asyn
       return;
     }
 
+    const targetGame = await getGameById(gameId);
+    if (targetGame && !targetGame.is_system && targetGame.organization_id) {
+      res.status(400).json({
+        error: 'Cannot create a system theme for an organization game. Use the corresponding system game.',
+      });
+      return;
+    }
+
     const theme = await createSystemTheme({
       game_id: gameId,
       name,

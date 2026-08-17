@@ -192,21 +192,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const currentToken = localStorage.getItem('app_token');
       if (!currentToken) return [];
 
-      try {
-        const url = gameId ? `/api/themes/system?gameId=${encodeURIComponent(gameId)}` : '/api/themes/system';
-        const res = await authFetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data.themes)) {
-            return data.themes.map((t: any) => ({
-              ...normalizeGameTheme(t),
-              is_system: true,
-              ownership_type: 'system',
-            }));
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch system themes:', err);
+      const url = gameId ? `/api/themes/system?gameId=${encodeURIComponent(gameId)}` : '/api/themes/system';
+      const res = await authFetch(url);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to load system themes (${res.status})`);
+      }
+
+      const data = await res.json();
+      if (Array.isArray(data.themes)) {
+        return data.themes.map((t: any) => ({
+          ...normalizeGameTheme(t),
+          is_system: true,
+          ownership_type: 'system',
+        }));
       }
       return [];
     },
