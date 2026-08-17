@@ -44,6 +44,7 @@ import {
   deleteSystemTheme,
   duplicateSystemTheme,
   cloneSystemThemeToOrg,
+  cloneAllSystemThemesToOrg,
   ensureSystemDefaultThemesForGame,
   getEventsByOrgId,
   getEventById,
@@ -901,6 +902,40 @@ app.post('/api/themes/clone-system/:systemThemeId', authenticateJWT, async (req:
     res.status(201).json({ theme: cloned });
   } catch (err: any) {
     console.error('Clone system theme error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/themes/clone-all-system
+ * Clone ALL active developer system default themes for the given game into current organization
+ */
+app.post('/api/themes/clone-all-system', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const organizationId = req.jwtPayload?.organizationId;
+    const { game_id } = req.body;
+
+    if (!organizationId) {
+      res.status(422).json({ error: 'No active organization selected' });
+      return;
+    }
+
+    if (!game_id) {
+      res.status(422).json({ error: 'Game ID is required' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Cannot create themes' });
+      return;
+    }
+
+    const cloned = await cloneAllSystemThemesToOrg(organizationId, game_id);
+    res.status(201).json({ themes: cloned });
+  } catch (err: any) {
+    console.error('Clone all system themes error:', err);
     res.status(500).json({ error: err.message });
   }
 });

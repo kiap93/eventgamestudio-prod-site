@@ -45,6 +45,7 @@ import {
   deleteSystemTheme,
   duplicateSystemTheme,
   cloneSystemThemeToOrg,
+  cloneAllSystemThemesToOrg,
 } from './server/db/index.js';
 
 import {
@@ -983,6 +984,32 @@ export default {
 
         const cloned = await cloneSystemThemeToOrg(systemThemeId, organizationId, game_id, name, env);
         return jsonResponse({ theme: cloned }, 201, cors);
+      }
+
+      if (pathname === '/api/themes/clone-all-system' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const organizationId = auth.jwtPayload?.organizationId;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { game_id } = body;
+
+        if (!organizationId) {
+          return errorResponse('No active organization selected', 422, cors);
+        }
+
+        if (!game_id) {
+          return errorResponse('Game ID is required', 422, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Cannot create themes', 403, cors);
+        }
+
+        const cloned = await cloneAllSystemThemesToOrg(organizationId, game_id, env);
+        return jsonResponse({ themes: cloned }, 201, cors);
       }
 
       // ==========================================

@@ -55,6 +55,7 @@ interface AuthContextType {
   deleteTheme: (themeId: string) => Promise<void>;
   duplicateTheme: (themeId: string, newName?: string) => Promise<GameTheme>;
   cloneSystemTheme: (systemThemeId: string, customName?: string, gameId?: string) => Promise<GameTheme>;
+  cloneAllSystemThemes: (gameId: string) => Promise<GameTheme[]>;
   updateGameCustomization: (data: {
     background_url?: string | null;
     basket_config?: any;
@@ -228,6 +229,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const normalized = normalizeGameTheme(data.theme);
     setThemes((prev) => [...prev, normalized]);
     return normalized;
+  };
+
+  const cloneAllSystemThemes = async (gameId: string): Promise<GameTheme[]> => {
+    const res = await authFetch('/api/themes/clone-all-system', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ game_id: gameId }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to clone all system themes');
+    }
+
+    const data = await res.json();
+    const normalizedList: GameTheme[] = Array.isArray(data.themes)
+      ? data.themes.map((t: any) => normalizeGameTheme(t))
+      : [];
+    setThemes((prev) => [...prev, ...normalizedList]);
+    return normalizedList;
   };
 
   const fetchActiveGame = useCallback(async () => {
@@ -444,6 +465,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteTheme,
         duplicateTheme,
         cloneSystemTheme,
+        cloneAllSystemThemes,
         updateGameCustomization,
         uploadAsset,
       }}

@@ -1031,6 +1031,17 @@ export async function duplicateSystemTheme(
   );
 }
 
+function generateCloneThemeName(baseName: string, existingNames: string[]): string {
+  if (!existingNames.includes(baseName)) {
+    return baseName;
+  }
+  let copyNum = 2;
+  while (existingNames.includes(`${baseName} (Copy ${copyNum})`)) {
+    copyNum++;
+  }
+  return `${baseName} (Copy ${copyNum})`;
+}
+
 export async function cloneSystemThemeToOrg(
   systemThemeId: string,
   targetOrgId: string,
@@ -1043,12 +1054,7 @@ export async function cloneSystemThemeToOrg(
     throw new Error('System default theme not found to customize');
   }
 
-  const name = customName || `${systemTheme.name}`;
-  const slug = `${systemTheme.slug}-${Date.now().toString().slice(-4)}`;
-
   const supabase = getSupabaseServerClient(env);
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
 
   let resolvedGameId = targetGameId;
   if (!resolvedGameId) {
@@ -1063,6 +1069,21 @@ export async function cloneSystemThemeToOrg(
     }
   }
 
+  let finalName = customName;
+  if (!finalName) {
+    const { data: existingThemes } = await supabase
+      .from('game_themes')
+      .select('name')
+      .eq('organization_id', targetOrgId);
+
+    const existingNames = (existingThemes || []).map((t: any) => t.name);
+    finalName = generateCloneThemeName(systemTheme.name, existingNames);
+  }
+
+  const slug = `${systemTheme.slug}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`;
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+
   const { data, error } = await safeInsertTheme(supabase, {
     id,
     organization_id: targetOrgId,
@@ -1070,7 +1091,7 @@ export async function cloneSystemThemeToOrg(
     base_theme_id: systemThemeId,
     is_system: false,
     ownership_type: 'organization',
-    name,
+    name: finalName,
     slug,
     description: systemTheme.description,
     status: 'active',
@@ -1098,6 +1119,76 @@ export async function cloneSystemThemeToOrg(
     game_name: item.games?.name || 'Durian Catcher',
     game_slug: item.games?.slug || 'durian-catcher',
   } as GameThemeRecord;
+}
+
+export async function cloneAllSystemThemesToOrg(
+  targetOrgId: string,
+  targetGameId: string,
+  env?: Record<string, any>
+): Promise<GameThemeRecord[]> {
+  const supabase = getSupabaseServerClient(env);
+
+  // 1. Retrieve active system themes for the given game only
+  const systemThemes = await getSystemThemesByGameId(targetGameId, { status: 'active' }, env);
+  if (!systemThemes || systemThemes.length === 0) {
+    return [];
+  }
+
+  // 2. Retrieve existing theme names in org to calculate non-colliding copy numbers
+  const { data: existingThemes } = await supabase
+    .from('game_themes')
+    .select('name')
+    .eq('organization_id', targetOrgId);
+
+  const existingNames: string[] = (existingThemes || []).map((t: any) => t.name);
+  const clonedThemes: GameThemeRecord[] = [];
+
+  for (const sysTheme of systemThemes) {
+    const finalName = generateCloneThemeName(sysTheme.name, existingNames);
+    existingNames.push(finalName);
+
+    const slug = `${sysTheme.slug}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`;
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const { data, error } = await safeInsertTheme(supabase, {
+      id,
+      organization_id: targetOrgId,
+      game_id: targetGameId,
+      base_theme_id: sysTheme.id,
+      is_system: false,
+      ownership_type: 'organization',
+      name: finalName,
+      slug,
+      description: sysTheme.description,
+      status: 'active',
+      branding: sysTheme.branding,
+      background_url: sysTheme.background_url,
+      basket_config: sysTheme.basket_config,
+      items_config: sysTheme.items_config,
+      physics_config: sysTheme.physics_config,
+      visuals_config: sysTheme.visuals_config,
+      sounds_config: sysTheme.sounds_config,
+      layout: sysTheme.layout,
+      created_at: now,
+      updated_at: now,
+    });
+
+    if (error) {
+      console.error(`Error cloning system theme ${sysTheme.id}:`, error);
+      throw new Error(`Failed to clone theme "${sysTheme.name}": ${error.message}`);
+    }
+
+    const item = data as any;
+    clonedThemes.push({
+      ...item,
+      game_id: item.game_id || targetGameId,
+      game_name: item.games?.name || sysTheme.game_name || 'Platform Game',
+      game_slug: item.games?.slug || sysTheme.game_slug || 'platform-game',
+    } as GameThemeRecord);
+  }
+
+  return clonedThemes;
 }
 
 export async function ensureSystemDefaultThemesForGame(

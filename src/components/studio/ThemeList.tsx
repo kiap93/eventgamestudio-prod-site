@@ -23,6 +23,8 @@ import {
   Maximize2,
   Minimize2,
   Edit3,
+  Copy,
+  Loader2,
 } from 'lucide-react';
 
 interface ThemeListProps {
@@ -40,6 +42,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
     fetchThemes,
     fetchSystemThemes,
     cloneSystemTheme,
+    cloneAllSystemThemes,
   } = useAuth();
 
   const role = currentOrganization?.role || 'viewer';
@@ -49,6 +52,8 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'archived'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [showCloneAllModal, setShowCloneAllModal] = useState(false);
+  const [isCloningAll, setIsCloningAll] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // System Themes state (Developer Admin templates)
@@ -169,6 +174,27 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
       fetchThemes();
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to clone system theme');
+    }
+  };
+
+  const handleConfirmCloneAll = async () => {
+    if (!activeGame?.id) {
+      showNotification('error', 'No active game selected');
+      return;
+    }
+    setIsCloningAll(true);
+    try {
+      const clonedList = await cloneAllSystemThemes(activeGame.id);
+      setShowCloneAllModal(false);
+      showNotification(
+        'success',
+        `Successfully cloned ${clonedList.length} default themes for ${activeGame.name || 'this game'}!`
+      );
+      fetchThemes();
+    } catch (err: any) {
+      showNotification('error', err.message || 'Failed to clone default themes');
+    } finally {
+      setIsCloningAll(false);
     }
   };
 
@@ -382,7 +408,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
 
       {/* 3. SYSTEM / DEFAULT THEMES SECTION */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-sm">
               <Sparkles className="w-4 h-4" />
@@ -396,9 +422,23 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
               </p>
             </div>
           </div>
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 shadow-sm">
-            {filteredSystemThemes.length} available
-          </span>
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 shadow-sm">
+              {filteredSystemThemes.length} available
+            </span>
+            {filteredSystemThemes.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowCloneAllModal(true)}
+                disabled={isViewer || isCloningAll}
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                title="Clone all active system themes to your organization"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Clone All Default Themes</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {filteredSystemThemes.length > 0 ? (
@@ -526,6 +566,70 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
         onClose={() => setShowCatalogModal(false)}
         selectedGameType="catch-brand"
       />
+
+      {/* CLONE ALL DEFAULT THEMES CONFIRMATION DIALOG */}
+      {showCloneAllModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                <Copy className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-slate-100">
+                  Clone All Default Themes?
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  This will create a new copy of every active default theme for your organization.
+                </p>
+                <p className="text-xs font-bold text-indigo-400 pt-1">
+                  Duplicate copies are allowed.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3 text-xs text-slate-300 space-y-1.5">
+              <div className="font-bold text-slate-400 flex items-center justify-between">
+                <span>Selected Game:</span>
+                <span className="text-slate-200">{activeGame?.name || 'Current Game'}</span>
+              </div>
+              <div className="font-bold text-slate-400 flex items-center justify-between">
+                <span>Themes to Clone:</span>
+                <span className="text-indigo-400 font-black">{filteredSystemThemes.length} active themes</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowCloneAllModal(false)}
+                disabled={isCloningAll}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCloneAll}
+                disabled={isCloningAll || isViewer}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black text-xs rounded-xl transition-all shadow-lg shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-50"
+              >
+                {isCloningAll ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Cloning All...</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    <span>Clone All</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
