@@ -22,6 +22,8 @@ import {
   Image as ImageIcon,
   Check,
   AlertCircle,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 
 interface DeveloperGameDetailProps {
@@ -33,6 +35,7 @@ interface DeveloperGameDetailProps {
   onDuplicateSystemTheme: (themeId: string, name?: string) => Promise<GameTheme>;
   onDeleteSystemTheme: (themeId: string) => Promise<void>;
   onSetPrimaryDefaultTheme: (themeId: string) => Promise<void>;
+  onUnsetPrimaryDefaultTheme: (themeId: string) => Promise<void>;
 }
 
 export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
@@ -44,12 +47,15 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
   onDuplicateSystemTheme,
   onDeleteSystemTheme,
   onSetPrimaryDefaultTheme,
+  onUnsetPrimaryDefaultTheme,
 }) => {
   const [game, setGame] = useState<PlatformGame | null>(null);
   const [themes, setThemes] = useState<GameTheme[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState<boolean>(false);
   const [isGameModalOpen, setIsGameModalOpen] = useState<boolean>(false);
+  const [themeToUnsetDefault, setThemeToUnsetDefault] = useState<GameTheme | null>(null);
+  const [unsettingDefault, setUnsettingDefault] = useState<boolean>(false);
   const [playtestingTheme, setPlaytestingTheme] = useState<GameTheme | null>(null);
   const [activeTab, setActiveTab] = useState<'themes' | 'engine'>('themes');
   const [notification, setNotification] = useState<string | null>(null);
@@ -317,14 +323,28 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                     {/* Bottom Actions Bar */}
                     <div className="p-4 pt-0 flex items-center justify-between border-t border-slate-800/80 mt-2 gap-2">
                       <div className="flex items-center space-x-1">
-                        {!isDefault && (
+                        {isDefault ? (
                           <button
+                            type="button"
+                            onClick={() => setThemeToUnsetDefault(theme)}
+                            className="p-2 text-amber-400 bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 hover:border-amber-500/50 hover:text-amber-300 rounded-lg transition-colors cursor-pointer shadow-sm"
+                            title="Unset Primary Default"
+                          >
+                            <Star className="w-4 h-4 fill-current" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
                             onClick={async () => {
-                              await onSetPrimaryDefaultTheme(theme.id);
-                              showNotification(`"${theme.name}" is now the primary default theme.`);
-                              loadData();
+                              try {
+                                await onSetPrimaryDefaultTheme(theme.id);
+                                showNotification(`"${theme.name}" is now the primary default theme.`);
+                                await loadData();
+                              } catch (err: any) {
+                                showNotification(err.message || 'Failed to set primary default theme.');
+                              }
                             }}
-                            className="p-2 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
+                            className="p-2 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors cursor-pointer"
                             title="Set as Primary Default"
                           >
                             <Star className="w-4 h-4" />
@@ -334,7 +354,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                           onClick={async () => {
                             await onDuplicateSystemTheme(theme.id);
                             showNotification(`Theme duplicated successfully.`);
-                            loadData();
+                            await loadData();
                           }}
                           className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
                           title="Duplicate Theme"
@@ -346,7 +366,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                             if (confirm(`Delete default theme "${theme.name}"?`)) {
                               await onDeleteSystemTheme(theme.id);
                               showNotification('Theme deleted.');
-                              loadData();
+                              await loadData();
                             }
                           }}
                           className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
@@ -413,7 +433,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
             <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
               <label className="text-xs font-semibold text-slate-400 uppercase block mb-1">Active Default Theme</label>
               <p className="text-sm font-mono font-bold text-amber-400">
-                {themes.find((t) => t.is_default)?.name || themes[0]?.name || 'Default Durian Classic'}
+                {themes.find((t) => t.is_default)?.name || 'None (No Primary Default)'}
               </p>
               <p className="text-[11px] text-slate-500 mt-1">Theme provided to new tenants</p>
             </div>
@@ -422,6 +442,89 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
       )}
 
       {/* Modals */}
+      {/* Unset Primary Default Confirmation Modal */}
+      {themeToUnsetDefault && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-slate-800/80 border-b border-slate-700">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <Star className="w-5 h-5 fill-current" />
+                </div>
+                <h3 className="text-base font-bold text-white">Unset Primary Default?</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setThemeToUnsetDefault(null)}
+                disabled={unsettingDefault}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5">
+              <p className="text-sm text-slate-300 leading-relaxed">
+                This will remove the Primary Default status from this theme. No theme will be selected as the Primary Default for this game.
+              </p>
+
+              <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden flex items-center justify-center shrink-0">
+                  {themeToUnsetDefault.background_url ? (
+                    <img
+                      src={themeToUnsetDefault.background_url}
+                      alt={themeToUnsetDefault.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <ImageIcon className="w-5 h-5 text-slate-500" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-sm font-semibold text-white truncate">{themeToUnsetDefault.name}</h4>
+                  <p className="text-xs text-amber-400/80">Current Primary Default</p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setThemeToUnsetDefault(null)}
+                  disabled={unsettingDefault}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!themeToUnsetDefault) return;
+                    setUnsettingDefault(true);
+                    try {
+                      await onUnsetPrimaryDefaultTheme(themeToUnsetDefault.id);
+                      showNotification(`Primary default status removed from "${themeToUnsetDefault.name}".`);
+                      setThemeToUnsetDefault(null);
+                      await loadData();
+                    } catch (err: any) {
+                      showNotification(err.message || 'Failed to unset primary default theme.');
+                    } finally {
+                      setUnsettingDefault(false);
+                    }
+                  }}
+                  disabled={unsettingDefault}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-lg"
+                >
+                  {unsettingDefault ? 'Unsetting...' : 'Unset Primary Default'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <CreateDefaultThemeModal
         gameId={game.id}
         gameName={game.name}

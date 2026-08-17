@@ -255,6 +255,7 @@ export function normalizeGameTheme(raw: any): GameTheme {
     base_theme_id,
     description,
     status,
+    is_default: Boolean(raw.is_default),
     branding,
     background_url,
     basket_config,

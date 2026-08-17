@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { GameTheme } from '../../themes/types';
-import { THEME_REGISTRY, durianTheme } from '../../themes';
-import { X, Sparkles, CheckCircle2, AlertCircle, Palette } from 'lucide-react';
+import { X, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface CreateDefaultThemeModalProps {
   gameId: string;
@@ -19,18 +18,14 @@ export const CreateDefaultThemeModal: React.FC<CreateDefaultThemeModalProps> = (
   onSave,
 }) => {
   const [name, setName] = useState<string>('');
-  const [slug, setSlug] = useState<string>('');
   const [description, setDescription] = useState<string>('');
-  const [templateSource, setTemplateSource] = useState<string>('blank');
   const [status, setStatus] = useState<'active' | 'draft'>('active');
   const [isDefault, setIsDefault] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setName(val);
-    setSlug(val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
+    setName(e.target.value);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,30 +38,22 @@ export const CreateDefaultThemeModal: React.FC<CreateDefaultThemeModalProps> = (
     setSaving(true);
     setError(null);
     try {
-      // Find template data
-      let baseTheme: any = durianTheme;
-      if (templateSource !== 'blank') {
-        const found = Object.values(THEME_REGISTRY).find((p) => p.slug === templateSource || p.id === templateSource);
-        if (found) baseTheme = found;
-      }
+      const generatedSlug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
       await onSave({
         game_id: gameId,
         name: name.trim(),
-        slug: slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        slug: generatedSlug,
         description: description.trim() || null,
         status,
         is_default: isDefault,
-        branding: baseTheme.branding,
-        background_url: baseTheme.background_url,
-        basket_config: baseTheme.basket_config,
-        items_config: baseTheme.items_config,
-        physics_config: baseTheme.physics_config,
-        visuals_config: baseTheme.visuals_config,
-        sounds_config: baseTheme.sounds_config,
-        layout: baseTheme.layout,
       });
 
+      // Reset form
+      setName('');
+      setDescription('');
+      setStatus('active');
+      setIsDefault(false);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to create system theme');
@@ -79,7 +66,7 @@ export const CreateDefaultThemeModal: React.FC<CreateDefaultThemeModalProps> = (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 bg-slate-800/80 border-b border-slate-700">
           <div className="flex items-center space-x-3">
@@ -112,24 +99,6 @@ export const CreateDefaultThemeModal: React.FC<CreateDefaultThemeModalProps> = (
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-              Template Baseline
-            </label>
-            <select
-              value={templateSource}
-              onChange={(e) => setTemplateSource(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-amber-500"
-            >
-              <option value="blank">Durian Classic Default (Standard Template)</option>
-              {Object.values(THEME_REGISTRY).map((preset) => (
-                <option key={preset.id || preset.slug} value={preset.slug || preset.id}>
-                  Preset: {preset.name} ({preset.description?.slice(0, 40)}...)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
               Theme Name <span className="text-rose-400">*</span>
             </label>
             <input
@@ -137,22 +106,8 @@ export const CreateDefaultThemeModal: React.FC<CreateDefaultThemeModalProps> = (
               required
               value={name}
               onChange={handleNameChange}
-              placeholder="e.g. Summer Beach Harvest, Neon Cyber Rush"
+              placeholder="e.g. Christmas Catch, Neon Cyber Rush"
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-              Slug <span className="text-rose-400">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              placeholder="summer-beach-harvest"
-              className="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-500"
             />
           </div>
 
@@ -169,32 +124,30 @@ export const CreateDefaultThemeModal: React.FC<CreateDefaultThemeModalProps> = (
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                Theme Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as any)}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-amber-500"
-              >
-                <option value="active">Active (Available to Orgs)</option>
-                <option value="draft">Draft (Developer Staging)</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+              Theme Status
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as any)}
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+            >
+              <option value="active">Active (Available to Orgs)</option>
+              <option value="draft">Draft (Developer Staging)</option>
+            </select>
+          </div>
 
-            <div className="flex items-center pt-5">
-              <label className="flex items-center space-x-2.5 cursor-pointer text-xs font-medium text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={isDefault}
-                  onChange={(e) => setIsDefault(e.target.checked)}
-                  className="w-4 h-4 rounded text-amber-500 bg-slate-950 border-slate-700 focus:ring-amber-500"
-                />
-                <span>Set as primary default theme</span>
-              </label>
-            </div>
+          <div className="pt-1">
+            <label className="flex items-center space-x-2.5 cursor-pointer text-xs font-medium text-slate-300">
+              <input
+                type="checkbox"
+                checked={isDefault}
+                onChange={(e) => setIsDefault(e.target.checked)}
+                className="w-4 h-4 rounded text-amber-500 bg-slate-950 border-slate-700 focus:ring-amber-500"
+              />
+              <span>Set as primary default theme</span>
+            </label>
           </div>
 
           {/* Footer */}

@@ -44,6 +44,8 @@ import {
   updateSystemTheme,
   deleteSystemTheme,
   duplicateSystemTheme,
+  setPrimaryDefaultSystemTheme,
+  unsetPrimaryDefaultSystemTheme,
   cloneSystemThemeToOrg,
   cloneAllSystemThemesToOrg,
 } from './server/db/index.js';
@@ -953,9 +955,10 @@ export default {
         if (!auth.authenticated) return auth.errorResponse!;
 
         const gameId = url.searchParams.get('gameId') || undefined;
+        const status = url.searchParams.get('status') || 'active';
         let themes: any[] = [];
         if (gameId) {
-          themes = await getSystemThemesByGameId(gameId, env);
+          themes = await getSystemThemesByGameId(gameId, { status: status as any }, env);
         } else {
           themes = await getAllSystemThemes(env);
         }
@@ -1572,18 +1575,31 @@ export default {
         }
 
         const { themeId } = devSetDefaultThemeParams;
-        const theme = await getThemeById(themeId, env);
-        if (!theme || !theme.game_id) {
-          return errorResponse('Theme not found or missing game link', 404, cors);
-        }
-
         try {
-          // Mark this theme as default (updateSystemTheme unsets previous defaults for this game)
-          const updatedTheme = await updateSystemTheme(themeId, { is_default: true }, env);
+          const updatedTheme = await setPrimaryDefaultSystemTheme(themeId, env);
           return jsonResponse({ success: true, theme: updatedTheme }, 200, cors);
         } catch (err: any) {
           console.error('Developer set default theme error:', err);
           return errorResponse(err.message || 'Failed to set default theme', 500, cors);
+        }
+      }
+
+      // Unset Default Theme: /api/developer/themes/:themeId/unset-default
+      const devUnsetDefaultThemeParams = parseRoute('/api/developer/themes/:themeId/unset-default', pathname);
+      if (devUnsetDefaultThemeParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { themeId } = devUnsetDefaultThemeParams;
+        try {
+          const updatedTheme = await unsetPrimaryDefaultSystemTheme(themeId, env);
+          return jsonResponse({ success: true, theme: updatedTheme }, 200, cors);
+        } catch (err: any) {
+          console.error('Developer unset default theme error:', err);
+          return errorResponse(err.message || 'Failed to unset default theme', 500, cors);
         }
       }
 

@@ -14,6 +14,135 @@ import crypto from 'node:crypto';
 // DEFAULT REFERENCE THEME TEMPLATES
 // ============================================================================
 
+export const NEUTRAL_GAME_THEME_DEFAULTS = {
+  branding: {
+    gameTitle: 'NEW ARCADE GAME',
+    subtitle: 'Catch the falling items, avoid the hazards!',
+    logoUrl: null,
+    clientLogoUrl: null,
+    primaryColor: '#f59e0b',
+    secondaryColor: '#6366f1',
+    fontFamily: 'Inter, sans-serif',
+  },
+  background_url: null,
+  basket_config: {
+    name: 'Catcher Basket',
+    imageUrl: null,
+    width: 140,
+    height: 70,
+    catchAreaRatio: 0.72,
+    speed: 550,
+    collisionWidthRatio: 0.72,
+    collisionHeightRatio: 0.13,
+    collisionOffsetYRatio: 0.34,
+  },
+  items_config: [
+    {
+      id: 'item_standard',
+      name: 'Standard Item',
+      imageUrl: null,
+      points: 10,
+      speedMultiplier: 1.0,
+      spawnWeight: 75,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+      collisionRadiusRatio: 0.3,
+      collisionCenterXRatio: 0.5,
+      collisionCenterYRatio: 0.54,
+    },
+    {
+      id: 'item_hazard',
+      name: 'Hazard Item',
+      imageUrl: null,
+      points: -10,
+      speedMultiplier: 1.15,
+      spawnWeight: 20,
+      enabled: true,
+      isHazard: true,
+      isBonus: false,
+      collisionRadiusRatio: 0.3,
+      collisionCenterXRatio: 0.5,
+      collisionCenterYRatio: 0.54,
+    },
+    {
+      id: 'item_bonus',
+      name: 'Bonus Item',
+      imageUrl: null,
+      points: 50,
+      speedMultiplier: 1.3,
+      spawnWeight: 5,
+      enabled: true,
+      isHazard: false,
+      isBonus: true,
+      collisionRadiusRatio: 0.3,
+      collisionCenterXRatio: 0.5,
+      collisionCenterYRatio: 0.54,
+    },
+  ],
+  physics_config: {
+    gameDurationSeconds: 20,
+    baseFallSpeed: 500,
+    fallSpeedMultiplier: 0.7,
+    spawnIntervalMin: 550,
+    spawnIntervalMax: 1000,
+    difficultyStages: [
+      {
+        timeThreshold: 0,
+        spawnInterval: 1000,
+        speedMin: 350,
+        speedMax: 500,
+        hazardRatio: 0.2,
+        bonusRatio: 0.05,
+        stageName: 'Stage 1: Beginning',
+      },
+      {
+        timeThreshold: 7,
+        spawnInterval: 750,
+        speedMin: 400,
+        speedMax: 600,
+        hazardRatio: 0.3,
+        bonusRatio: 0.08,
+        stageName: 'Stage 2: Accelerated',
+      },
+      {
+        timeThreshold: 14,
+        spawnInterval: 550,
+        speedMin: 500,
+        speedMax: 700,
+        hazardRatio: 0.4,
+        bonusRatio: 0.12,
+        stageName: 'Stage 3: Finale Rush',
+      },
+    ],
+  },
+  visuals_config: {
+    primaryColor: '#f59e0b',
+    secondaryColor: '#6366f1',
+    backgroundColor: '#0f172a',
+    accentColor: '#10b981',
+    fontFamily: 'Inter, sans-serif',
+    hudStyle: 'arcade',
+    particleEffect: 'confetti',
+  },
+  sounds_config: {
+    bgmUrl: null,
+    catchSoundUrl: null,
+    hazardSoundUrl: null,
+    bonusSoundUrl: null,
+    gameOverSoundUrl: null,
+    bgmVolume: 0.7,
+    sfxVolume: 0.8,
+  },
+  layout: {
+    orientation: 'portrait',
+    basketPosition: 'bottom',
+    score: { visible: true, x: 4, y: 4, width: 24 },
+    timer: { visible: true, x: 78, y: 4, width: 18 },
+    gameTitle: { visible: true, x: 38, y: 4, width: 24 },
+  },
+};
+
 export const DEFAULT_DURIAN_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
   name: 'Durian Catcher',
   slug: 'durian-catcher',
@@ -823,12 +952,74 @@ export async function getSystemThemesByGameId(
   const supabase = getSupabaseServerClient(env);
   const { getGameById } = await import('./games.js');
 
+  // 1. Load the supplied game
   const game = await getGameById(gameId, env);
 
+  let targetSystemGameId = gameId;
+  let resolvedSystemGameName = game?.name || 'Platform Game';
+  let resolvedSystemGameSlug = game?.slug || 'platform-game';
+
+  // 2. Resolve system game ID
+  if (game) {
+    const isSystemGame = Boolean(game.is_system) || !game.organization_id;
+    if (isSystemGame) {
+      targetSystemGameId = game.id;
+      resolvedSystemGameName = game.name;
+      resolvedSystemGameSlug = game.slug;
+    } else {
+      // It's an organization game: find corresponding system game by game_type
+      const gameType = game.game_type || 'catch-brand';
+      const { data: systemGameData } = await supabase
+        .from('games')
+        .select('id, name, slug, game_type')
+        .or('is_system.eq.true,organization_id.is.null')
+        .eq('game_type', gameType)
+        .limit(1)
+        .maybeSingle();
+
+      if (systemGameData) {
+        targetSystemGameId = systemGameData.id;
+        resolvedSystemGameName = systemGameData.name;
+        resolvedSystemGameSlug = systemGameData.slug;
+      } else {
+        // Fallback: try by slug if game_type had no direct match
+        const { data: fallbackBySlug } = await supabase
+          .from('games')
+          .select('id, name, slug, game_type')
+          .or('is_system.eq.true,organization_id.is.null')
+          .eq('slug', game.slug)
+          .limit(1)
+          .maybeSingle();
+
+        if (fallbackBySlug) {
+          targetSystemGameId = fallbackBySlug.id;
+          resolvedSystemGameName = fallbackBySlug.name;
+          resolvedSystemGameSlug = fallbackBySlug.slug;
+        }
+      }
+    }
+  } else {
+    // If not found directly by ID, check if gameId is a slug or game_type
+    const { data: systemGameBySlug } = await supabase
+      .from('games')
+      .select('id, name, slug, game_type')
+      .or('is_system.eq.true,organization_id.is.null')
+      .or(`game_type.eq.${gameId},slug.eq.${gameId}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (systemGameBySlug) {
+      targetSystemGameId = systemGameBySlug.id;
+      resolvedSystemGameName = systemGameBySlug.name;
+      resolvedSystemGameSlug = systemGameBySlug.slug;
+    }
+  }
+
+  // 3. Query system themes for the resolved system game
   let query = supabase
     .from('game_themes')
     .select('*, games(id, name, slug, game_type)')
-    .eq('game_id', gameId)
+    .eq('game_id', targetSystemGameId)
     .or('is_system.eq.true,organization_id.is.null');
 
   if (options.status !== 'all') {
@@ -850,9 +1041,9 @@ export async function getSystemThemesByGameId(
     ...item,
     is_system: true,
     ownership_type: 'system',
-    game_id: item.game_id || item.games?.id || gameId,
-    game_name: item.games?.name || game?.name || 'Platform Game',
-    game_slug: item.games?.slug || game?.slug || 'platform-game',
+    game_id: item.game_id || item.games?.id || targetSystemGameId,
+    game_name: item.games?.name || resolvedSystemGameName,
+    game_slug: item.games?.slug || resolvedSystemGameSlug,
   })) as GameThemeRecord[];
 }
 
@@ -903,11 +1094,19 @@ export async function createSystemTheme(
   const supabase = getSupabaseServerClient(env);
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  const slug = params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const slug = params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+  const defaultBranding: ThemeBrandingConfig = {
+    gameTitle: params.name.toUpperCase(),
+    subtitle: params.description || 'Catch the falling items, avoid the hazards!',
+    logoUrl: null,
+    clientLogoUrl: null,
+  };
 
   const { data, error } = await safeInsertTheme(supabase, {
     id,
     organization_id: null,
+    base_theme_id: null,
     game_id: params.game_id,
     is_system: true,
     ownership_type: 'system',
@@ -916,14 +1115,14 @@ export async function createSystemTheme(
     slug,
     description: params.description ?? null,
     status: params.status || 'active',
-    branding: params.branding ?? DEFAULT_DURIAN_THEME.branding,
-    background_url: params.background_url ?? DEFAULT_DURIAN_THEME.background_url,
-    basket_config: params.basket_config ?? DEFAULT_DURIAN_THEME.basket_config,
-    items_config: params.items_config ?? DEFAULT_DURIAN_THEME.items_config,
-    physics_config: params.physics_config ?? DEFAULT_DURIAN_THEME.physics_config,
-    visuals_config: params.visuals_config ?? DEFAULT_DURIAN_THEME.visuals_config,
-    sounds_config: params.sounds_config ?? DEFAULT_DURIAN_THEME.sounds_config,
-    layout: params.layout ?? DEFAULT_DURIAN_THEME.layout,
+    branding: params.branding ?? defaultBranding,
+    background_url: params.background_url ?? NEUTRAL_GAME_THEME_DEFAULTS.background_url,
+    basket_config: params.basket_config ?? NEUTRAL_GAME_THEME_DEFAULTS.basket_config,
+    items_config: params.items_config ?? NEUTRAL_GAME_THEME_DEFAULTS.items_config,
+    physics_config: params.physics_config ?? NEUTRAL_GAME_THEME_DEFAULTS.physics_config,
+    visuals_config: params.visuals_config ?? NEUTRAL_GAME_THEME_DEFAULTS.visuals_config,
+    sounds_config: params.sounds_config ?? NEUTRAL_GAME_THEME_DEFAULTS.sounds_config,
+    layout: params.layout ?? NEUTRAL_GAME_THEME_DEFAULTS.layout,
     created_at: now,
     updated_at: now,
   });
@@ -933,14 +1132,132 @@ export async function createSystemTheme(
     throw new Error(`Failed to create system theme: ${error.message}`);
   }
 
+  if (params.is_default && params.game_id) {
+    // Unset any other defaults for this game
+    await supabase
+      .from('game_themes')
+      .update({ is_default: false, updated_at: now })
+      .eq('game_id', params.game_id)
+      .or('is_system.eq.true,organization_id.is.null')
+      .neq('id', id);
+  }
+
   const item = data as any;
   return {
     ...item,
+    base_theme_id: null,
     is_system: true,
     ownership_type: 'system',
     game_id: item.game_id || item.games?.id || params.game_id,
-    game_name: item.games?.name || 'Durian Catcher',
-    game_slug: item.games?.slug || 'durian-catcher',
+    game_name: item.games?.name || 'Platform Game',
+    game_slug: item.games?.slug || 'platform-game',
+  } as GameThemeRecord;
+}
+
+export async function setPrimaryDefaultSystemTheme(
+  themeId: string,
+  env?: Record<string, any>
+): Promise<GameThemeRecord> {
+  const supabase = getSupabaseServerClient(env);
+  const now = new Date().toISOString();
+
+  // 1. Load the selected theme
+  const existing = await getThemeById(themeId, env);
+  if (!existing) {
+    throw new Error('Theme not found');
+  }
+
+  // 2. Verify it exists and has a game_id
+  if (!existing.game_id) {
+    throw new Error('Theme has no associated game_id');
+  }
+
+  // 3. Verify it is a system theme
+  if (!existing.is_system && existing.organization_id) {
+    throw new Error('Theme is not a system theme');
+  }
+
+  const gameId = existing.game_id;
+
+  // 4. Set is_default = false for every other system theme belonging to the same game_id
+  const { error: unsetError } = await supabase
+    .from('game_themes')
+    .update({ is_default: false, updated_at: now })
+    .eq('game_id', gameId)
+    .or('is_system.eq.true,organization_id.is.null')
+    .neq('id', themeId);
+
+  if (unsetError) {
+    console.error('Error unsetting previous default themes:', unsetError);
+  }
+
+  // 5. Set is_default = true for the selected theme
+  const { data: updatedData, error: updateError } = await safeUpdateTheme(supabase, themeId, {
+    is_default: true,
+    is_system: true,
+    ownership_type: 'system',
+    updated_at: now,
+  });
+
+  if (updateError) {
+    console.error('Error in setPrimaryDefaultSystemTheme:', updateError);
+    throw new Error(`Failed to set primary default theme: ${updateError.message}`);
+  }
+
+  // 6. Return the updated selected theme
+  const item = updatedData as any;
+  return {
+    ...item,
+    is_default: true,
+    is_system: true,
+    ownership_type: 'system',
+    game_id: item.game_id || item.games?.id || gameId,
+    game_name: item.games?.name || existing.game_name || 'Platform Game',
+    game_slug: item.games?.slug || existing.game_slug || 'platform-game',
+  } as GameThemeRecord;
+}
+
+export async function unsetPrimaryDefaultSystemTheme(
+  themeId: string,
+  env?: Record<string, any>
+): Promise<GameThemeRecord> {
+  const supabase = getSupabaseServerClient(env);
+  const now = new Date().toISOString();
+
+  // 1. Load the selected theme
+  const existing = await getThemeById(themeId, env);
+  if (!existing) {
+    throw new Error('Theme not found');
+  }
+
+  // 2. Verify it is a system theme
+  if (!existing.is_system && existing.organization_id) {
+    throw new Error('Theme is not a system theme');
+  }
+
+  // 3. Set is_default = false for the selected theme
+  const { data: updatedData, error: updateError } = await safeUpdateTheme(supabase, themeId, {
+    is_default: false,
+    is_system: true,
+    ownership_type: 'system',
+    updated_at: now,
+  });
+
+  if (updateError) {
+    console.error('Error in unsetPrimaryDefaultSystemTheme:', updateError);
+    throw new Error(`Failed to unset primary default theme: ${updateError.message}`);
+  }
+
+  // 4. Return the updated selected theme
+  const item = updatedData as any;
+  return {
+    ...item,
+    is_default: false,
+    is_system: true,
+    ownership_type: 'system',
+    game_id: item.game_id || item.games?.id || existing.game_id,
+    game_name: item.games?.name || existing.game_name || 'Platform Game',
+    game_slug: item.games?.slug || existing.game_slug || 'platform-game',
   } as GameThemeRecord;
 }
 

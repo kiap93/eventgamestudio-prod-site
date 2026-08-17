@@ -226,6 +226,21 @@ export function useDeveloperAdmin() {
     [getHeaders]
   );
 
+  const unsetPrimaryDefaultTheme = useCallback(
+    async (themeId: string): Promise<void> => {
+      const res = await apiFetch(`/api/developer/themes/${themeId}/unset-default`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to unset primary default theme');
+      }
+    },
+    [getHeaders]
+  );
+
   useEffect(() => {
     fetchGames();
     fetchStats();
@@ -248,5 +263,6 @@ export function useDeveloperAdmin() {
     deleteSystemTheme,
     duplicateSystemTheme,
     setPrimaryDefaultTheme,
+    unsetPrimaryDefaultTheme,
   };
 }

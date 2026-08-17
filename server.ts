@@ -43,6 +43,8 @@ import {
   updateSystemTheme,
   deleteSystemTheme,
   duplicateSystemTheme,
+  setPrimaryDefaultSystemTheme,
+  unsetPrimaryDefaultSystemTheme,
   cloneSystemThemeToOrg,
   cloneAllSystemThemesToOrg,
   ensureSystemDefaultThemesForGame,
@@ -863,9 +865,10 @@ app.post('/api/themes/:themeId/duplicate', authenticateJWT, async (req: Authenti
 app.get('/api/themes/system', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const gameId = req.query.gameId as string | undefined;
+    const status = (req.query.status as string) || 'active';
     let themes: any[] = [];
     if (gameId) {
-      themes = await getSystemThemesByGameId(gameId);
+      themes = await getSystemThemesByGameId(gameId, { status: status as any });
     } else {
       themes = await getAllSystemThemes();
     }
@@ -1640,18 +1643,25 @@ app.post('/api/developer/themes/:themeId/duplicate', authenticateDeveloperAdmin,
 app.post('/api/developer/themes/:themeId/set-default', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { themeId } = req.params;
-    const theme = await getThemeById(themeId);
-    if (!theme || !theme.game_id) {
-      res.status(404).json({ error: 'Theme not found or missing game link' });
-      return;
-    }
-
-    // Mark this theme as default (updateSystemTheme unsets previous defaults for this game)
-    const updatedTheme = await updateSystemTheme(themeId, { is_default: true });
-
+    const updatedTheme = await setPrimaryDefaultSystemTheme(themeId);
     res.json({ success: true, theme: updatedTheme });
   } catch (err: any) {
     console.error('Developer set default theme error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/developer/themes/:themeId/unset-default
+ * Remove primary default status from a system theme
+ */
+app.post('/api/developer/themes/:themeId/unset-default', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { themeId } = req.params;
+    const updatedTheme = await unsetPrimaryDefaultSystemTheme(themeId);
+    res.json({ success: true, theme: updatedTheme });
+  } catch (err: any) {
+    console.error('Developer unset default theme error:', err);
     res.status(500).json({ error: err.message });
   }
 });

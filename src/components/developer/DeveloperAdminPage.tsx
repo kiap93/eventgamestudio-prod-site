@@ -22,6 +22,7 @@ export const DeveloperAdminPage: React.FC = () => {
     deleteSystemTheme,
     duplicateSystemTheme,
     setPrimaryDefaultTheme,
+    unsetPrimaryDefaultTheme,
   } = useDeveloperAdmin();
 
   // 1. If viewing a specific theme editor: /developer/games/:gameId/themes/:themeId/edit or /developer/themes/:themeId/edit
@@ -56,6 +57,7 @@ export const DeveloperAdminPage: React.FC = () => {
           onDuplicateSystemTheme={duplicateSystemTheme}
           onDeleteSystemTheme={deleteSystemTheme}
           onSetPrimaryDefaultTheme={setPrimaryDefaultTheme}
+          onUnsetPrimaryDefaultTheme={unsetPrimaryDefaultTheme}
         />
       </DeveloperAdminLayout>
     );
