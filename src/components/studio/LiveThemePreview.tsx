@@ -590,35 +590,37 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           );
         case 'scoreHud':
           return (
-            <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between text-xs font-mono font-black pointer-events-none select-none">
-              <span className="text-slate-200 flex items-center gap-1.5 font-sans font-bold text-xs tracking-wider">
-                <Trophy className="w-4 h-4 text-[#ffd700]" /> SCORE
+            <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
+              <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+                <Trophy className="w-3.5 h-3.5 text-amber-400" /> SCORE
               </span>
-              <span style={{ color: theme.branding?.hudColor || '#c8e038' }} className="ml-2 text-base font-black">
+              <span
+                style={{ color: theme.branding?.hudColor || '#c8e038' }}
+                className="text-base sm:text-lg font-mono font-black ml-2"
+              >
                 {score}
               </span>
             </div>
           );
         case 'timer':
           return (
-            <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between text-xs font-mono font-black pointer-events-none select-none">
-              <span className="text-slate-200 flex items-center gap-1.5 font-sans font-bold text-xs tracking-wider">
-                <TimerIcon className="w-4 h-4 text-teal-400" /> TIME
+            <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
+              <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+                <TimerIcon className="w-3.5 h-3.5 text-teal-400" /> TIME
               </span>
-              <span className="ml-2 text-base font-black text-amber-400">{timeRemaining}s</span>
+              <span className="text-base sm:text-lg font-mono font-black text-amber-400 ml-2">
+                {timeRemaining}s
+              </span>
             </div>
           );
         case 'gameTitle':
           return (
             <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-xl px-3 py-1 shadow-md text-center pointer-events-none select-none">
               <div
-                style={{ color: theme.visuals_config?.accentColor || '#10b981' }}
-                className="font-black text-xs uppercase tracking-wider truncate"
+                style={{ color: theme.branding?.accentColor || theme.visuals_config?.accentColor || '#10b981' }}
+                className="font-black text-xs sm:text-sm uppercase tracking-wider truncate"
               >
                 {theme.branding?.gameTitle || theme.gameTitle || theme.name}
-              </div>
-              <div className="text-[10px] text-slate-400 font-sans truncate">
-                {currentStageName}
               </div>
             </div>
           );
@@ -626,7 +628,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           return (
             <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-full px-3 py-1 shadow-md text-center flex items-center justify-center gap-1.5 pointer-events-none select-none">
               <Megaphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="text-xs text-slate-300 font-sans truncate">
+              <span className="text-[10px] sm:text-xs text-slate-300 font-sans truncate">
                 {theme.branding?.subtitle || theme.subtitle || 'Official Event Arcade Challenge'}
               </span>
             </div>
@@ -773,16 +775,19 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
         {/* RESPONSIVE SCALED LOGICAL LAYOUT OVERLAYS (1024x576) */}
         <div
-          className="game-ui-layer pointer-events-none select-none absolute inset-0"
+          className="game-ui-layer pointer-events-none select-none overflow-hidden"
           style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
             width: `${DESIGN_WIDTH}px`,
             height: `${DESIGN_HEIGHT}px`,
             minWidth: `${DESIGN_WIDTH}px`,
             minHeight: `${DESIGN_HEIGHT}px`,
             maxWidth: `${DESIGN_WIDTH}px`,
             maxHeight: `${DESIGN_HEIGHT}px`,
-            transform: `scale(${uiScale})`,
-            transformOrigin: 'top left',
+            transform: `translate(-50%, -50%) scale(${uiScale})`,
+            transformOrigin: 'center center',
           }}
         >
           {LAYOUT_ELEMENT_KEYS.map((k) => renderLayoutElementOverlay(k))}
