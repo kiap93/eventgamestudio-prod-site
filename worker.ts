@@ -917,6 +917,7 @@ export default {
 
         const body = (await request.json().catch(() => ({}))) as any;
         const {
+          game_id,
           name,
           slug,
           description,
@@ -939,6 +940,7 @@ export default {
           const theme = await createTheme(
             {
               organization_id: organizationId,
+              game_id,
               name,
               slug,
               description,

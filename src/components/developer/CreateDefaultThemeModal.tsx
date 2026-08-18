@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { GameTheme } from '../../themes/types';
+import { getDefaultUILayout } from '../../themes/layout';
 import { X, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface CreateDefaultThemeModalProps {
@@ -47,6 +48,7 @@ export const CreateDefaultThemeModal: React.FC<CreateDefaultThemeModalProps> = (
         description: description.trim() || null,
         status,
         is_default: isDefault,
+        layout: getDefaultUILayout(),
       });
 
       // Reset form

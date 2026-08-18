@@ -119,6 +119,14 @@ export const DEFAULT_GAME_LAYOUT: GameLayoutConfig = {
   },
 };
 
+/**
+ * Returns a fresh, deep-copied default GameLayoutConfig instance.
+ * Shared across Admin developer theme creation and User studio theme creation flows.
+ */
+export function getDefaultUILayout(): GameLayoutConfig {
+  return JSON.parse(JSON.stringify(DEFAULT_GAME_LAYOUT));
+}
+
 export type LayoutElementKey = 'clientLogo' | 'scoreHud' | 'timer' | 'gameTitle' | 'footerSponsor';
 
 export interface LayoutElementMeta {

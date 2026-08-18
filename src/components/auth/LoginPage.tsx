@@ -124,7 +124,7 @@ export const LoginPage: React.FC = () => {
             <Gamepad2 className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-amber-400">
-            Durian Catcher Studio
+            Event Game Studio
           </h1>
           <p className="text-slate-400 text-sm mt-1">
             Multi-Tenant Custom Game Platform for Enterprise & Brands

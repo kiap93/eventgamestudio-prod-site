@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { GameTheme, durianTheme } from '../../themes';
+import { getDefaultUILayout } from '../../themes/layout';
 import { Sparkles, Copy, Plus, AlertCircle, Check, X, Layers } from 'lucide-react';
 
 interface CreateThemeDialogProps {
@@ -120,6 +121,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
                 bgmEnabled: true,
                 soundVolume: 0.8,
               },
+          layout: getDefaultUILayout(),
         });
         onCreated(newTheme.id);
       }

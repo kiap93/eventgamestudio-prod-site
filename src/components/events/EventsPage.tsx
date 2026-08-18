@@ -4,8 +4,10 @@ import { apiFetch } from '../../lib/api';
 import { EventCard } from './EventCard';
 import { CreateEventDialog } from './CreateEventDialog';
 import { EditEventDialog } from './EditEventDialog';
+import { EventCalendarView } from './EventCalendarView';
 import {
-  Calendar,
+  Calendar as CalendarIcon,
+  LayoutList,
   Plus,
   Search,
   Filter,
@@ -17,8 +19,9 @@ import {
 } from 'lucide-react';
 
 export const EventsPage: React.FC = () => {
-  const { currentOrganization } = useAuth();
+  const { currentOrganization, organizations, switchOrganization } = useAuth();
 
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +110,7 @@ export const EventsPage: React.FC = () => {
     }
   };
 
-  // Filtered Events
+  // Filtered Events for List View
   const filteredEvents = events.filter((ev) => {
     const matchesSearch =
       ev.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -132,7 +135,7 @@ export const EventsPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans">
-      {/* Top Banner & Header */}
+      {/* Top Banner & Header with View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -148,20 +151,39 @@ export const EventsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchEvents}
-            disabled={loading}
-            className="p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-2xl text-xs transition-colors"
-            title="Refresh events list"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+        <div className="flex items-center flex-wrap gap-2.5">
+          {/* View Switcher: [ List ] [ Calendar ] */}
+          <div className="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-2xl shadow-inner">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                viewMode === 'list'
+                  ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+              title="List View"
+            >
+              <LayoutList className="w-3.5 h-3.5" />
+              <span>List</span>
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                viewMode === 'calendar'
+                  ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+              title="Calendar View"
+            >
+              <CalendarIcon className="w-3.5 h-3.5" />
+              <span>Calendar</span>
+            </button>
+          </div>
 
           {!isViewer && (
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-lg shadow-amber-500/20"
+              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Create Event</span>
@@ -170,7 +192,7 @@ export const EventsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Metrics Row */}
+      {/* Metrics Row (Visible across views) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Deployments</span>
@@ -199,97 +221,113 @@ export const EventsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Filters and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/60 border border-slate-800 p-3 rounded-2xl">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by event name, game, theme, or token..."
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-600 outline-none focus:border-amber-500"
-          />
-        </div>
-
-        {/* Status Filter Pills */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-          {(['all', 'live', 'scheduled', 'expired', 'cancelled', 'draft'] as const).map((st) => {
-            const isSelected = statusFilter === st;
-            return (
-              <button
-                key={st}
-                onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition-all ${
-                  isSelected
-                    ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                }`}
-              >
-                {st}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Events List Grid */}
-      {loading && events.length === 0 ? (
-        <div className="py-20 text-center space-y-3">
-          <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-slate-400 font-medium">Loading event deployments...</p>
-        </div>
-      ) : error ? (
-        <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-3xl text-center space-y-3">
-          <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
-          <p className="text-sm font-semibold text-red-300">{error}</p>
-          <button
-            onClick={fetchEvents}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold"
-          >
-            Retry
-          </button>
-        </div>
-      ) : filteredEvents.length === 0 ? (
-        <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-3xl p-12 text-center space-y-4">
-          <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
-            <Calendar className="w-8 h-8" />
-          </div>
-          <div className="space-y-1 max-w-sm mx-auto">
-            <h3 className="text-base font-bold text-slate-200">
-              {searchQuery || statusFilter !== 'all'
-                ? 'No matching events found'
-                : 'No event deployments yet'}
-            </h3>
-            <p className="text-xs text-slate-400">
-              {searchQuery || statusFilter !== 'all'
-                ? 'Try clearing your search query or status filter.'
-                : 'Create your first event deployment to assign a Game Theme to a public URL.'}
-            </p>
-          </div>
-          {!isViewer && !searchQuery && statusFilter === 'all' && (
-            <button
-              onClick={() => setIsCreateOpen(true)}
-              className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-2xl text-xs transition-all shadow-md shadow-amber-500/20"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create Event</span>
-            </button>
-          )}
-        </div>
+      {/* View Mode Switching */}
+      {viewMode === 'calendar' ? (
+        <EventCalendarView
+          events={events}
+          userRole={currentOrganization?.role}
+          organizations={organizations}
+          currentOrganizationId={currentOrganization?.id}
+          onSelectOrganization={(orgId) => switchOrganization(orgId)}
+          onEditEvent={(eventToEdit) => setEditingEvent(eventToEdit)}
+          onCreateEvent={() => setIsCreateOpen(true)}
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((ev) => (
-            <EventCard
-              key={ev.id}
-              event={ev}
-              userRole={currentOrganization?.role}
-              onEdit={(eventToEdit) => setEditingEvent(eventToEdit)}
-              onDelete={handleDeleteEvent}
-              onCancel={handleCancelEvent}
-            />
-          ))}
+        /* List View */
+        <div className="space-y-6">
+          {/* Filters and Search Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/60 border border-slate-800 p-3 rounded-2xl">
+            {/* Search */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by event name, game, theme, or token..."
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-600 outline-none focus:border-amber-500"
+              />
+            </div>
+
+            {/* Status Filter Pills */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+              {(['all', 'live', 'scheduled', 'expired', 'cancelled', 'draft'] as const).map((st) => {
+                const isSelected = statusFilter === st;
+                return (
+                  <button
+                    key={st}
+                    onClick={() => setStatusFilter(st)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition-all ${
+                      isSelected
+                        ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    {st}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Events List Grid */}
+          {loading && events.length === 0 ? (
+            <div className="py-20 text-center space-y-3">
+              <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-xs text-slate-400 font-medium">Loading event deployments...</p>
+            </div>
+          ) : error ? (
+            <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-3xl text-center space-y-3">
+              <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
+              <p className="text-sm font-semibold text-red-300">{error}</p>
+              <button
+                onClick={fetchEvents}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold"
+              >
+                Retry
+              </button>
+            </div>
+          ) : filteredEvents.length === 0 ? (
+            <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-3xl p-12 text-center space-y-4">
+              <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
+                <CalendarIcon className="w-8 h-8" />
+              </div>
+              <div className="space-y-1 max-w-sm mx-auto">
+                <h3 className="text-base font-bold text-slate-200">
+                  {searchQuery || statusFilter !== 'all'
+                    ? 'No matching events found'
+                    : 'No event deployments yet'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {searchQuery || statusFilter !== 'all'
+                    ? 'Try clearing your search query or status filter.'
+                    : 'Create your first event deployment to assign a Game Theme to a public URL.'}
+                </p>
+              </div>
+              {!isViewer && !searchQuery && statusFilter === 'all' && (
+                <button
+                  onClick={() => setIsCreateOpen(true)}
+                  className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-2xl text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Event</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredEvents.map((ev) => (
+                <EventCard
+                  key={ev.id}
+                  event={ev}
+                  userRole={currentOrganization?.role}
+                  onEdit={(eventToEdit) => setEditingEvent(eventToEdit)}
+                  onDelete={handleDeleteEvent}
+                  onCancel={handleCancelEvent}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 

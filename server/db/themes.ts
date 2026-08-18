@@ -135,11 +135,11 @@ export const NEUTRAL_GAME_THEME_DEFAULTS = {
     sfxVolume: 0.8,
   },
   layout: {
-    orientation: 'portrait',
-    basketPosition: 'bottom',
-    score: { visible: true, x: 4, y: 4, width: 24 },
+    clientLogo: { visible: true, x: 4, y: 4, width: 14 },
+    scoreHud: { visible: true, x: 4, y: 15, width: 18 },
     timer: { visible: true, x: 78, y: 4, width: 18 },
-    gameTitle: { visible: true, x: 38, y: 4, width: 24 },
+    gameTitle: { visible: true, x: 36, y: 4, width: 28 },
+    footerSponsor: { visible: true, x: 32, y: 92, width: 36 },
   },
 };
 
@@ -275,10 +275,10 @@ export const DEFAULT_DURIAN_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
   },
   layout: {
     clientLogo: { visible: true, x: 4, y: 4, width: 14 },
-    scoreHud: { visible: true, x: 4, y: 14, width: 18 },
+    scoreHud: { visible: true, x: 4, y: 15, width: 18 },
     timer: { visible: true, x: 78, y: 4, width: 18 },
-    gameTitle: { visible: true, x: 38, y: 4, width: 24 },
-    footerSponsor: { visible: true, x: 35, y: 92, width: 30 },
+    gameTitle: { visible: true, x: 36, y: 4, width: 28 },
+    footerSponsor: { visible: true, x: 32, y: 92, width: 36 },
   },
 };
 
