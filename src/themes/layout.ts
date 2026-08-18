@@ -102,7 +102,7 @@ export const DEFAULT_GAME_LAYOUT: GameLayoutConfig = {
   timer: {
     visible: true,
     x: 78,
-    y: 15,
+    y: 4,
     width: 18,
   },
   gameTitle: {
