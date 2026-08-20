@@ -428,7 +428,7 @@ export async function approveShowcaseReview(
   }
 
   // Verify review status
-  if (showcase.review_status === 'APPROVED' && (showcase.reward_status === 'GRANTED' || showcase.reward_status === 'REWARDED')) {
+  if (showcase.review_status === 'APPROVED' && showcase.reward_status === 'REWARDED') {
     return {
       showcase,
       reward: null,
@@ -470,7 +470,7 @@ export async function approveShowcaseReview(
       rejection_reason: null,
       reward_transaction_id: rewardResult.transaction?.id || null,
       reward_granted_at: showcase.reward_granted_at || now,
-      reward_status: 'GRANTED',
+      reward_status: 'REWARDED',
       publication_status: 'PUBLISHED',
       status: 'PUBLISHED',
     },

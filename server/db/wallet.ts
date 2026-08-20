@@ -1,4 +1,4 @@
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
 import {
   OrganizationWalletRecord,
   WalletTransactionRecord,
@@ -135,26 +135,26 @@ export async function recalculateWalletBalances(
   organizationId: string,
   env?: Record<string, any>
 ): Promise<WalletBalanceSummary> {
+  const isProdDb = isSupabaseConfigured(env);
   const supabase = getSupabaseServerClient(env);
 
   let transactions: WalletTransactionRecord[] = [];
 
-  try {
+  if (isProdDb) {
     const { data, error } = await supabase
       .from('wallet_transactions')
       .select('*')
       .eq('organization_id', organizationId)
       .eq('status', 'COMPLETED');
 
-    if (!error && data && data.length > 0) {
-      transactions = data as WalletTransactionRecord[];
-    } else {
-      // Local fallback
-      transactions = Array.from(localTransactionsCache.values()).filter(
-        (t) => t.organization_id === organizationId && t.status === 'COMPLETED'
-      );
+    if (error) {
+      console.error('Fatal: Supabase query wallet_transactions failed:', error);
+      throw new Error(`Failed to fetch wallet transactions from database: ${error.message}`);
     }
-  } catch {
+
+    transactions = (data || []) as WalletTransactionRecord[];
+  } else {
+    // Development / test fallback when Supabase is not configured
     transactions = Array.from(localTransactionsCache.values()).filter(
       (t) => t.organization_id === organizationId && t.status === 'COMPLETED'
     );
@@ -207,28 +207,33 @@ export async function recalculateWalletBalances(
     updated_at: now,
   };
 
-  // Persist locally
-  localWalletsCache.set(organizationId, walletRecord);
-  saveLocalStores();
-
-  // Persist to Supabase if available
-  try {
-    await supabase.from('organization_wallets').upsert(
-      {
-        organization_id: organizationId,
-        paid_balance: paidBalance,
-        welcome_credit: welcomeCredit,
-        showcase_credit: showcaseCredit,
-        topup_credit: topupCredit,
-        currency: 'MYR',
-        welcome_credit_granted: welcomeCreditGranted,
-        showcase_credit_granted: showcaseCreditGranted,
-        updated_at: now,
-      },
-      { onConflict: 'organization_id' }
-    );
-  } catch (err: any) {
-    console.warn('Notice: could not upsert organization_wallets cache table:', err.message);
+  if (isProdDb) {
+    try {
+      const { error: upsertError } = await supabase.from('organization_wallets').upsert(
+        {
+          organization_id: organizationId,
+          paid_balance: paidBalance,
+          welcome_credit: welcomeCredit,
+          showcase_credit: showcaseCredit,
+          topup_credit: topupCredit,
+          currency: 'MYR',
+          welcome_credit_granted: welcomeCreditGranted,
+          showcase_credit_granted: showcaseCreditGranted,
+          updated_at: now,
+        },
+        { onConflict: 'organization_id' }
+      );
+      if (upsertError) {
+        console.warn('Notice: could not upsert organization_wallets cache table:', upsertError.message);
+      }
+    } catch (err: any) {
+      console.warn('Notice writing organization_wallets cache to Supabase:', err.message);
+    }
+    localWalletsCache.set(organizationId, walletRecord);
+  } else {
+    // Persist locally in dev/test
+    localWalletsCache.set(organizationId, walletRecord);
+    saveLocalStores();
   }
 
   const totalBalanceCents = paidBalanceCents + welcomeCreditCents + showcaseCreditCents + topupCreditCents;
@@ -286,11 +291,18 @@ export async function getTopupCredit(organizationId: string, env?: Record<string
 
 /**
  * Append an immutable transaction record to the ledger.
+ *
+ * PRODUCTION FINANCIAL SAFETY RULE:
+ * When Supabase is configured in production, transactions MUST succeed in the primary
+ * database. If Supabase fails, DO NOT pretend the transaction succeeded by writing to a local
+ * fallback cache. Return/throw an explicit error so the client is informed and can retry.
+ * Local storage is strictly a development/test fallback when Supabase is unconfigured.
  */
 async function appendLedgerTransaction(
   txn: Omit<WalletTransactionRecord, 'id' | 'created_at'>,
   env?: Record<string, any>
 ): Promise<WalletTransactionRecord> {
+  const isProdDb = isSupabaseConfigured(env);
   const supabase = getSupabaseServerClient(env);
   const id = crypto.randomUUID();
   const created_at = new Date().toISOString();
@@ -311,11 +323,8 @@ async function appendLedgerTransaction(
     created_at,
   };
 
-  // Cache locally
-  localTransactionsCache.set(id, record);
-  saveLocalStores();
-
-  try {
+  if (isProdDb) {
+    // Production rule: Write directly to Supabase. If Supabase fails, THROW FATAL ERROR.
     const { data, error } = await supabase
       .from('wallet_transactions')
       .insert(record)
@@ -323,16 +332,21 @@ async function appendLedgerTransaction(
       .single();
 
     if (error) {
-      console.warn('Notice from Supabase insert wallet_transactions:', error.message);
-      return record;
+      console.error('Fatal: Supabase insert wallet_transactions failed in production:', error);
+      throw new Error(`Financial ledger transaction failed: ${error.message}`);
     }
-    if (data) {
-      return data as WalletTransactionRecord;
+    if (!data) {
+      throw new Error('Financial ledger transaction failed: No confirmation received from database');
     }
-  } catch (err: any) {
-    console.warn('Notice writing wallet_transactions to Supabase:', err.message);
+
+    const savedRecord = data as WalletTransactionRecord;
+    localTransactionsCache.set(savedRecord.id, savedRecord);
+    return savedRecord;
   }
 
+  // Development/Test mock fallback only when Supabase is not configured
+  localTransactionsCache.set(id, record);
+  saveLocalStores();
   return record;
 }
 
@@ -1261,18 +1275,21 @@ export async function getLedgerTransactions(
   organizationId: string,
   env?: Record<string, any>
 ): Promise<WalletTransactionRecord[]> {
+  const isProdDb = isSupabaseConfigured(env);
   const supabase = getSupabaseServerClient(env);
-  try {
+
+  if (isProdDb) {
     const { data, error } = await supabase
       .from('wallet_transactions')
       .select('*')
       .eq('organization_id', organizationId);
 
-    if (!error && data && data.length > 0) {
-      return data as WalletTransactionRecord[];
+    if (error) {
+      console.error('Fatal: Supabase query wallet_transactions failed:', error);
+      throw new Error(`Database error fetching ledger transactions: ${error.message}`);
     }
-  } catch {
-    // Fallback to local
+
+    return (data || []) as WalletTransactionRecord[];
   }
 
   return Array.from(localTransactionsCache.values()).filter(
@@ -1491,9 +1508,10 @@ export async function getWalletTransactions(
   const limit = options?.limit || 50;
   const offset = options?.offset || 0;
 
+  const isProdDb = isSupabaseConfigured(env);
   const supabase = getSupabaseServerClient(env);
 
-  try {
+  if (isProdDb) {
     let query = supabase
       .from('wallet_transactions')
       .select('*', { count: 'exact' })
@@ -1509,17 +1527,18 @@ export async function getWalletTransactions(
 
     const { data, count, error } = await query.range(offset, offset + limit - 1);
 
-    if (!error && data) {
-      return {
-        transactions: data as WalletTransactionRecord[],
-        total: count || data.length,
-      };
+    if (error) {
+      console.error('Fatal: Supabase query wallet_transactions failed:', error);
+      throw new Error(`Database error querying wallet transactions: ${error.message}`);
     }
-  } catch (err) {
-    console.warn('Notice from Supabase query wallet_transactions:', err);
+
+    return {
+      transactions: (data || []) as WalletTransactionRecord[],
+      total: count !== null && count !== undefined ? count : (data?.length || 0),
+    };
   }
 
-  // Fallback to local memory / file
+  // Fallback to local memory / file in dev/test only
   let all = Array.from(localTransactionsCache.values()).filter(
     (t) => t.organization_id === organizationId
   );

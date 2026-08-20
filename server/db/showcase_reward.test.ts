@@ -140,7 +140,7 @@ async function runTests() {
   assertEqual(approvalResult1.showcase.review_status, 'APPROVED', 'Showcase review_status is APPROVED');
   assertEqual(approvalResult1.showcase.status, 'PUBLISHED', 'Showcase status is PUBLISHED');
   assertEqual(approvalResult1.showcase.publication_status, 'PUBLISHED', 'Publication status is PUBLISHED');
-  assertEqual(approvalResult1.showcase.reward_status, 'GRANTED', 'Showcase reward_status is GRANTED');
+  assertEqual(approvalResult1.showcase.reward_status, 'REWARDED', 'Showcase reward_status is REWARDED');
   assertTrue(!!approvalResult1.showcase.reward_granted_at, 'reward_granted_at timestamp is populated');
   assertTrue(!!approvalResult1.showcase.reward_transaction_id, 'reward_transaction_id is populated');
   assertEqual(approvalResult1.showcase.reviewed_by, adminUserId, 'reviewed_by is recorded');
@@ -168,7 +168,7 @@ async function runTests() {
   const approvalResult2 = await approveShowcaseReview(showcase1.id, adminUserId);
   assertEqual(approvalResult2.alreadyRewarded, true, 'Subsequent approval returns alreadyRewarded = true');
   assertEqual(approvalResult2.showcase.review_status, 'APPROVED', 'Showcase remains APPROVED');
-  assertEqual(approvalResult2.showcase.reward_status, 'GRANTED', 'Showcase reward_status remains GRANTED');
+  assertEqual(approvalResult2.showcase.reward_status, 'REWARDED', 'Showcase reward_status remains REWARDED');
   assertEqual(approvalResult2.showcase.reward_transaction_id, approvalResult1.showcase.reward_transaction_id, 'reward_transaction_id remains unchanged');
 
   // Wallet balance must NOT increase
@@ -225,7 +225,7 @@ async function runTests() {
   const approvalResultOrg1Sc2 = await approveShowcaseReview(showcase2.id, adminUserId);
   assertEqual(approvalResultOrg1Sc2.showcase.review_status, 'APPROVED', 'Second showcase review_status is APPROVED');
   assertEqual(approvalResultOrg1Sc2.showcase.status, 'PUBLISHED', 'Second showcase is PUBLISHED');
-  assertEqual(approvalResultOrg1Sc2.showcase.reward_status, 'GRANTED', 'Second showcase reward_status is marked GRANTED');
+  assertEqual(approvalResultOrg1Sc2.showcase.reward_status, 'REWARDED', 'Second showcase reward_status is marked REWARDED');
   assertEqual(approvalResultOrg1Sc2.alreadyRewarded, true, 'One-time rule: alreadyRewarded is true for org that already received reward');
 
   // Wallet must still only have RM300.00 from the one-time grant

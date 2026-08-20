@@ -62,6 +62,26 @@ export function getSupabaseServerClient(env?: Record<string, any>): SupabaseClie
   return client;
 }
 
+export function isSupabaseConfigured(env?: Record<string, any>): boolean {
+  const procEnv = typeof process !== 'undefined' ? process.env : {};
+  const supabaseUrl =
+    env?.SUPABASE_URL ||
+    env?.VITE_SUPABASE_URL ||
+    procEnv.SUPABASE_URL ||
+    procEnv.VITE_SUPABASE_URL ||
+    '';
+  const serviceRoleKey =
+    env?.SUPABASE_SERVICE_ROLE_KEY ||
+    env?.SUPABASE_KEY ||
+    procEnv.SUPABASE_SERVICE_ROLE_KEY ||
+    procEnv.SUPABASE_KEY ||
+    '';
+
+  if (!supabaseUrl || !serviceRoleKey) return false;
+  if (supabaseUrl.includes('placeholder') || serviceRoleKey.includes('placeholder')) return false;
+  return true;
+}
+
 export const supabase = {
   get client(): SupabaseClient {
     return getSupabaseServerClient();

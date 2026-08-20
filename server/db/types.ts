@@ -271,7 +271,7 @@ export interface EventWithDetails extends EventRecord {
 export type ShowcaseStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED';
 export type ReviewStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
 export type PublicationStatus = 'UNPUBLISHED' | 'PUBLISHED';
-export type RewardStatus = 'NOT_ELIGIBLE' | 'PENDING' | 'GRANTED' | 'REWARDED';
+export type RewardStatus = 'PENDING' | 'REWARDED' | 'NOT_ELIGIBLE';
 
 export interface EventShowcaseRecord {
   id: string;
