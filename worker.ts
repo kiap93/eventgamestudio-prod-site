@@ -49,6 +49,26 @@ import {
   unsetPrimaryDefaultSystemTheme,
   cloneSystemThemeToOrg,
   cloneAllSystemThemesToOrg,
+  getWalletBalance,
+  getPaidBalance,
+  getWelcomeCredit,
+  getShowcaseCredit,
+  getTopupCredit,
+  calculateTopupCredit,
+  createTopup,
+  grantWelcomeCredit,
+  canUseWelcomeCredit,
+  consumeWelcomeCredit,
+  grantShowcaseCredit,
+  canUseShowcaseCredit,
+  consumeShowcaseCredit,
+  calculateEventPayment,
+  calculateEventPaymentQuote,
+  processEventPayment,
+  getWalletTransactions,
+  reverseTransaction,
+  recalculateWalletBalances,
+  STANDARD_EVENT_PRICE,
 } from './server/db/index.js';
 
 import {
@@ -1754,6 +1774,424 @@ export default {
         } catch (err: any) {
           console.error('Developer delete theme error:', err);
           return errorResponse(err.message || 'Failed to delete theme', 500, cors);
+        }
+      }
+
+      // ----------------------------------------------------
+      // WALLET ENGINE & TRANSACTION LEDGER ENDPOINTS
+      // ----------------------------------------------------
+
+      // GET /api/organizations/:orgId/wallet
+      const orgWalletMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet$/);
+      if (orgWalletMatch && method === 'GET') {
+        const orgId = orgWalletMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if (!isMember && !isDev) {
+          return errorResponse('Forbidden: Access denied to organization wallet', 403, cors);
+        }
+
+        try {
+          const wallet = await getWalletBalance(orgId, env);
+          return jsonResponse({ wallet, standard_event_price: STANDARD_EVENT_PRICE }, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to get wallet', 500, cors);
+        }
+      }
+
+      // GET /api/organizations/:orgId/wallet/transactions
+      const orgWalletTxnsMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/transactions$/);
+      if (orgWalletTxnsMatch && method === 'GET') {
+        const orgId = orgWalletTxnsMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if (!isMember && !isDev) {
+          return errorResponse('Forbidden: Access denied to wallet transactions', 403, cors);
+        }
+
+        const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50') || 50));
+        const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0') || 0);
+        const balanceType = url.searchParams.get('balance_type') as any;
+        const transactionType = url.searchParams.get('transaction_type') as any;
+
+        try {
+          const result = await getWalletTransactions(orgId, { limit, offset, balanceType, transactionType }, env);
+          return jsonResponse(result, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to get transactions', 500, cors);
+        }
+      }
+
+      // POST /api/organizations/:orgId/wallet/topup
+      const orgWalletTopupMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup$/);
+      if (orgWalletTopupMatch && method === 'POST') {
+        const orgId = orgWalletTopupMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+          return errorResponse('Forbidden: Only organization owners and admins can top-up the wallet', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const amount = Number(body.amount);
+        if (isNaN(amount) || amount <= 0) {
+          return errorResponse('Amount must be a positive number', 400, cors);
+        }
+
+        try {
+          const result = await createTopup(
+            {
+              organizationId: orgId,
+              amount,
+              currency: body.currency || 'MYR',
+              referenceId: body.reference_id,
+              description: body.description,
+              metadata: body.metadata,
+              createdBy: auth.user.id,
+            },
+            env
+          );
+          return jsonResponse(
+            {
+              success: true,
+              topup_transaction: result.topupTransaction,
+              promo_credit_transaction: result.promoCreditTransaction,
+              wallet: result.wallet,
+            },
+            201,
+            cors
+          );
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to top-up wallet', 500, cors);
+        }
+      }
+
+      // POST /api/organizations/:orgId/wallet/grant-welcome
+      const orgWelcomeMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/grant-welcome$/);
+      if (orgWelcomeMatch && method === 'POST') {
+        const orgId = orgWelcomeMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+          return errorResponse('Forbidden: Only organization owners and admins can claim welcome credit', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        try {
+          const result = await grantWelcomeCredit(
+            {
+              organizationId: orgId,
+              createdBy: auth.user.id,
+              referenceId: body.reference_id,
+              metadata: body.metadata,
+            },
+            env
+          );
+          return jsonResponse(
+            {
+              success: true,
+              transaction: result.transaction,
+              wallet: result.wallet,
+              already_granted: result.alreadyGranted,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to grant welcome credit', 500, cors);
+        }
+      }
+
+      // GET /api/organizations/:orgId/wallet/can-use-welcome
+      const orgCanUseWelcomeMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/can-use-welcome$/);
+      if (orgCanUseWelcomeMatch && method === 'GET') {
+        const orgId = orgCanUseWelcomeMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if (!isMember && !isDev) {
+          return errorResponse('Forbidden: Access denied', 403, cors);
+        }
+
+        try {
+          const eventId = url.searchParams.get('eventId') || undefined;
+          const eligibility = await canUseWelcomeCredit(orgId, eventId, env);
+          return jsonResponse(eligibility, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to check welcome credit eligibility', 500, cors);
+        }
+      }
+
+      // POST /api/organizations/:orgId/wallet/consume-welcome
+      const orgConsumeWelcomeMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/consume-welcome$/);
+      if (orgConsumeWelcomeMatch && method === 'POST') {
+        const orgId = orgConsumeWelcomeMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+          return errorResponse('Forbidden: Only organization owners and admins can consume welcome credit', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        if (!body.event_id) {
+          return errorResponse('Event ID is required', 400, cors);
+        }
+
+        try {
+          const result = await consumeWelcomeCredit(
+            {
+              organizationId: orgId,
+              eventId: body.event_id,
+              referenceId: body.reference_id,
+              createdBy: auth.user.id,
+              description: body.description,
+              metadata: body.metadata,
+            },
+            env
+          );
+          return jsonResponse(result, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to consume welcome credit', 400, cors);
+        }
+      }
+
+      // POST /api/organizations/:orgId/wallet/grant-showcase
+      const orgShowcaseMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/grant-showcase$/);
+      if (orgShowcaseMatch && method === 'POST') {
+        const orgId = orgShowcaseMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+          return errorResponse('Forbidden: Only organization owners and admins can claim showcase credit', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        try {
+          const result = await grantShowcaseCredit(
+            {
+              organizationId: orgId,
+              eventId: body.event_id,
+              createdBy: auth.user.id,
+              referenceId: body.reference_id,
+              metadata: body.metadata,
+            },
+            env
+          );
+          return jsonResponse(
+            {
+              success: true,
+              transaction: result.transaction,
+              wallet: result.wallet,
+              already_granted: result.alreadyGranted,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to grant showcase credit', 500, cors);
+        }
+      }
+
+      // GET /api/organizations/:orgId/wallet/can-use-showcase
+      const orgCanUseShowcaseMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/can-use-showcase$/);
+      if (orgCanUseShowcaseMatch && method === 'GET') {
+        const orgId = orgCanUseShowcaseMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if (!isMember && !isDev) {
+          return errorResponse('Forbidden: Access denied', 403, cors);
+        }
+
+        try {
+          const eventId = url.searchParams.get('eventId') || undefined;
+          const eligibility = await canUseShowcaseCredit(orgId, eventId, env);
+          return jsonResponse(eligibility, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to check showcase credit eligibility', 500, cors);
+        }
+      }
+
+      // POST /api/organizations/:orgId/wallet/consume-showcase
+      const orgConsumeShowcaseMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/consume-showcase$/);
+      if (orgConsumeShowcaseMatch && method === 'POST') {
+        const orgId = orgConsumeShowcaseMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+          return errorResponse('Forbidden: Only organization owners and admins can consume showcase credit', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        if (!body.event_id) {
+          return errorResponse('Event ID is required', 400, cors);
+        }
+
+        try {
+          const result = await consumeShowcaseCredit(
+            {
+              organizationId: orgId,
+              eventId: body.event_id,
+              referenceId: body.reference_id,
+              createdBy: auth.user.id,
+              description: body.description,
+              metadata: body.metadata,
+            },
+            env
+          );
+          return jsonResponse(result, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to consume showcase credit', 400, cors);
+        }
+      }
+
+      // POST /api/organizations/:orgId/wallet/calculate-event-payment
+      const orgCalcPaymentMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/calculate-event-payment$/);
+      if (orgCalcPaymentMatch && method === 'POST') {
+        const orgId = orgCalcPaymentMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if (!isMember && !isDev) {
+          return errorResponse('Forbidden: Access denied', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const price = body.event_price ? Number(body.event_price) : STANDARD_EVENT_PRICE;
+        const mode = (body.payment_mode || 'FULL_PAID') as any;
+
+        try {
+          const calculation = await calculateEventPayment(
+            price,
+            mode,
+            orgId,
+            {
+              topupCreditRequested: body.topup_credit_requested !== undefined ? Number(body.topup_credit_requested) : undefined,
+            },
+            env
+          );
+          return jsonResponse({
+            calculation,
+            eventPrice: calculation.eventPrice,
+            paymentMode: calculation.paymentMode,
+            paidAmount: calculation.paidAmount,
+            welcomeCreditUsed: calculation.welcomeCreditUsed,
+            showcaseCreditUsed: calculation.showcaseCreditUsed,
+            topupCreditUsed: calculation.topupCreditUsed,
+            totalDiscount: calculation.totalDiscount,
+            remainingPaidBalance: calculation.remainingPaidBalance,
+            remainingCreditBalance: calculation.remainingCreditBalance,
+            isPayable: calculation.isPayable,
+            reasons: calculation.reasons,
+          }, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to calculate event payment', 500, cors);
+        }
+      }
+
+      // POST /api/organizations/:orgId/wallet/quote-payment
+      const orgQuoteMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/quote-payment$/);
+      if (orgQuoteMatch && method === 'POST') {
+        const orgId = orgQuoteMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if (!isMember && !isDev) {
+          return errorResponse('Forbidden: Access denied', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        try {
+          const quote = await calculateEventPaymentQuote(
+            {
+              organizationId: orgId,
+              eventId: body.event_id,
+              creditChoice: body.credit_choice || 'NONE',
+              topupCreditAmountToUse: body.topup_credit_amount ? Number(body.topup_credit_amount) : undefined,
+            },
+            env
+          );
+          return jsonResponse({ quote }, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to calculate quote', 500, cors);
+        }
+      }
+
+      // POST /api/organizations/:orgId/wallet/pay-event
+      const orgPayEventMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/pay-event$/);
+      if (orgPayEventMatch && method === 'POST') {
+        const orgId = orgPayEventMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if ((!isMember || (role !== 'owner' && role !== 'admin' && role !== 'designer')) && !isDev) {
+          return errorResponse('Forbidden: Insufficient permissions to pay for event', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        if (!body.event_id) {
+          return errorResponse('event_id is required', 400, cors);
+        }
+
+        try {
+          const result = await processEventPayment(
+            {
+              organizationId: orgId,
+              eventId: body.event_id,
+              eventName: body.event_name,
+              paymentMode: body.payment_mode || (body.credit_choice ? (body.credit_choice === 'NONE' ? 'FULL_PAID' : body.credit_choice) : undefined),
+              creditChoice: body.credit_choice || 'NONE',
+              eventPrice: body.event_price ? Number(body.event_price) : undefined,
+              topupCreditRequested: body.topup_credit_requested !== undefined ? Number(body.topup_credit_requested) : (body.topup_credit_amount ? Number(body.topup_credit_amount) : undefined),
+              referenceId: body.reference_id,
+              createdBy: auth.user.id,
+            },
+            env
+          );
+          return jsonResponse(
+            {
+              success: true,
+              calculation: result.paymentCalculation,
+              transactions: result.transactions,
+              wallet: result.wallet,
+              quote: result.quote,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to process event payment', 400, cors);
         }
       }
 

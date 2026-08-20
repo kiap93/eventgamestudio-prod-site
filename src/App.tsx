@@ -27,7 +27,7 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans space-y-3">
         <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-slate-400 font-medium">Loading Durian Catcher Studio...</p>
+        <p className="text-xs text-slate-400 font-medium">Loading Event Game Studio...</p>
       </div>
     );
   }

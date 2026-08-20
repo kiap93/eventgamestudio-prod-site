@@ -3,7 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { GameCustomizerPage } from '../studio/GameCustomizerPage';
 import { TeamMembersPage } from '../org/TeamMembersPage';
 import { EventsPage } from '../events/EventsPage';
-import { navigateTo } from '../../hooks/useRouteContext';
+import { EventShowcasePage } from '../events/EventShowcasePage';
+import { navigateTo, useRouteContext } from '../../hooks/useRouteContext';
 import {
   Gamepad2,
   Building2,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
+  const routeContext = useRouteContext();
   const {
     currentUser,
     currentOrganization,
@@ -23,6 +25,7 @@ export const DashboardLayout: React.FC = () => {
     switchOrganization,
     logout,
   } = useAuth();
+
 
   const getInitialTab = (): 'events' | 'customizer' | 'team' => {
     const path = window.location.pathname;
@@ -216,9 +219,15 @@ export const DashboardLayout: React.FC = () => {
 
       {/* Main Content Body */}
       <main className="flex-1 py-6">
-        {activeTab === 'events' && <EventsPage />}
-        {activeTab === 'customizer' && <GameCustomizerPage />}
-        {activeTab === 'team' && <TeamMembersPage />}
+        {routeContext.isShowcaseRoute && routeContext.eventId ? (
+          <EventShowcasePage eventId={routeContext.eventId} />
+        ) : (
+          <>
+            {activeTab === 'events' && <EventsPage />}
+            {activeTab === 'customizer' && <GameCustomizerPage />}
+            {activeTab === 'team' && <TeamMembersPage />}
+          </>
+        )}
       </main>
     </div>
   );

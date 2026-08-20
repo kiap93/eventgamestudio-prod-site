@@ -90,3 +90,68 @@ export async function uploadGameAsset(
     path: storagePath,
   };
 }
+
+/**
+ * Generate a signed upload URL from Supabase Storage (or fallback metadata)
+ * for direct, non-JSON binary uploads of photos and large video files.
+ */
+export async function createSignedUploadUrlForShowcase(
+  params: {
+    organizationId: string;
+    showcaseId: string;
+    fileName: string;
+    mimeType: string;
+    mediaType: 'IMAGE' | 'VIDEO';
+  },
+  env?: Record<string, any>
+): Promise<{
+  signedUrl: string | null;
+  token?: string | null;
+  path: string;
+  publicUrl: string;
+  directUploadUrl: string;
+}> {
+  const supabase = getSupabaseServerClient(env);
+  await ensureStorageBucket(env);
+
+  const dotIndex = params.fileName.lastIndexOf('.');
+  const ext = dotIndex !== -1 ? params.fileName.slice(dotIndex) : params.mediaType === 'VIDEO' ? '.mp4' : '.png';
+
+  const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  const uniqueName = `${Date.now()}-${randomHex}${ext}`;
+  const storagePath = `organizations/${params.organizationId}/showcases/${params.showcaseId}/${uniqueName}`;
+
+  let signedUrl: string | null = null;
+  let token: string | null = null;
+
+  try {
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from(ASSET_BUCKET)
+      .createSignedUploadUrl(storagePath);
+
+    if (!signedError && signedData) {
+      signedUrl = signedData.signedUrl;
+      token = signedData.token;
+    }
+  } catch (err: any) {
+    console.warn('Could not generate Supabase signed upload URL:', err.message);
+  }
+
+  const { data: publicData } = supabase.storage
+    .from(ASSET_BUCKET)
+    .getPublicUrl(storagePath);
+
+  const publicUrl = publicData?.publicUrl || `/uploads/${uniqueName}`;
+  const directUploadUrl = `/api/events/showcase-media/direct-upload?path=${encodeURIComponent(storagePath)}&filename=${encodeURIComponent(uniqueName)}`;
+
+  return {
+    signedUrl,
+    token,
+    path: storagePath,
+    publicUrl,
+    directUploadUrl,
+  };
+}
+

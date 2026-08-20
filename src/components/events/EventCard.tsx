@@ -16,7 +16,7 @@ import { navigateTo } from '../../hooks/useRouteContext';
 interface EventCardProps {
   event: any;
   userRole?: string;
-  onEdit: (event: any) => void;
+  onEdit: (event: any, initialTab?: 'details' | 'showcase') => void;
   onDelete: (eventId: string) => void;
   onCancel: (eventId: string) => void;
 }
@@ -33,6 +33,8 @@ export const EventCard: React.FC<EventCardProps> = ({
   const publicUrl = `${window.location.origin}/e/${event.public_token}`;
   const isViewer = userRole === 'viewer';
   const isOwnerOrAdmin = ['owner', 'admin'].includes(userRole || '');
+
+  const showcaseStatus = event.showcase?.status || event.showcase_status;
 
   const copyLink = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -147,6 +149,31 @@ export const EventCard: React.FC<EventCardProps> = ({
           </span>
           <span className="text-slate-200 font-mono">{expireDateFormatted}</span>
         </div>
+      </div>
+
+      {/* Showcase Status Button */}
+      <div className="flex items-center justify-between gap-2 bg-slate-950/60 border border-slate-800/60 rounded-xl px-3 py-2 text-xs">
+        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <span>Showcase:</span>
+          {showcaseStatus === 'PUBLISHED' ? (
+            <span className="font-bold text-emerald-400">Published</span>
+          ) : showcaseStatus === 'DRAFT' ? (
+            <span className="font-bold text-amber-400">Draft</span>
+          ) : showcaseStatus === 'UNPUBLISHED' ? (
+            <span className="font-bold text-slate-400">Unpublished</span>
+          ) : (
+            <span className="text-slate-500">Not Created</span>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => navigateTo(`/events/${event.id}/showcase`)}
+          className="text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline transition-colors flex items-center gap-1 cursor-pointer"
+        >
+          <span>{showcaseStatus && showcaseStatus !== 'NOT_CREATED' ? 'Showcase →' : '+ Create Showcase'}</span>
+        </button>
       </div>
 
       {/* Public URL Box */}

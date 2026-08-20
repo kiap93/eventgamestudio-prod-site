@@ -321,7 +321,9 @@ export const EventsPage: React.FC = () => {
                   key={ev.id}
                   event={ev}
                   userRole={currentOrganization?.role}
-                  onEdit={(eventToEdit) => setEditingEvent(eventToEdit)}
+                  onEdit={(eventToEdit) => {
+                    setEditingEvent(eventToEdit);
+                  }}
                   onDelete={handleDeleteEvent}
                   onCancel={handleCancelEvent}
                 />
@@ -343,6 +345,7 @@ export const EventsPage: React.FC = () => {
         <EditEventDialog
           isOpen={true}
           event={editingEvent}
+          userRole={currentOrganization?.role}
           onClose={() => setEditingEvent(null)}
           onEventUpdated={handleEventUpdated}
         />

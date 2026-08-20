@@ -6,4 +6,7 @@ export * from './invitations.js';
 export * from './games.js';
 export * from './themes.js';
 export * from './events.js';
+export * from './showcases.js';
+export * from './showcaseMedia.js';
+export * from './wallet.js';
 export * from './storage.js';

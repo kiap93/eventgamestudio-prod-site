@@ -56,6 +56,38 @@ import {
   updateEvent,
   deleteEvent,
   cancelEvent,
+  getShowcaseByEventId,
+  createShowcase,
+  updateShowcase,
+  publishShowcase,
+  unpublishShowcase,
+  getShowcaseMedia,
+  getShowcaseMediaById,
+  createShowcaseMedia,
+  updateShowcaseMedia,
+  reorderShowcaseMedia,
+  deleteShowcaseMedia,
+  createSignedUploadUrlForShowcase,
+  getWalletBalance,
+  getPaidBalance,
+  getWelcomeCredit,
+  getShowcaseCredit,
+  getTopupCredit,
+  calculateTopupCredit,
+  createTopup,
+  grantWelcomeCredit,
+  canUseWelcomeCredit,
+  consumeWelcomeCredit,
+  grantShowcaseCredit,
+  canUseShowcaseCredit,
+  consumeShowcaseCredit,
+  calculateEventPayment,
+  calculateEventPaymentQuote,
+  processEventPayment,
+  getWalletTransactions,
+  reverseTransaction,
+  recalculateWalletBalances,
+  STANDARD_EVENT_PRICE,
 } from './server/db/index.js';
 
 import {
@@ -63,11 +95,15 @@ import {
   authenticateDeveloperAdmin,
   isUserDeveloperAdmin,
   signAppToken,
+  verifyAppToken,
   verifyGoogleIdToken,
   verifyOrgMembershipAndPermission,
   hashToken,
   AuthenticatedRequest,
 } from './server/auth.js';
+
+import { getSupabaseServerClient } from './server/supabase.js';
+
 
 const app = express();
 const PORT = 3000;
@@ -85,7 +121,13 @@ app.use('/uploads', express.static(uploadDir));
 // Multer memory storage for direct streaming to Supabase Storage
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit for general theme assets
+});
+
+// Dedicated multer instance for showcase photos and large video files (up to 200MB)
+const mediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 * 1024 },
 });
 
 // ----------------------------------------------------
@@ -1425,6 +1467,618 @@ app.get('/api/public/events/:publicToken', async (req, res) => {
 });
 
 // ----------------------------------------------------
+// EVENT SHOWCASE API ENDPOINTS
+// ----------------------------------------------------
+
+/**
+ * GET /api/events/:eventId/showcase
+ * Get the showcase for an event
+ */
+app.get('/api/events/:eventId/showcase', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { eventId } = req.params;
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const showcase = await getShowcaseByEventId(eventId);
+
+    // Check optional auth
+    const authHeader = req.headers.authorization;
+    let isOrgMember = false;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const payload = await verifyAppToken(token);
+        const { isMember } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'game.view');
+        isOrgMember = isMember;
+      } catch {
+        // Ignored, proceed as unauthenticated
+      }
+    }
+
+    if (!showcase) {
+      if (isOrgMember) {
+        res.json({ showcase: null });
+        return;
+      }
+      res.status(404).json({ error: 'Showcase not found' });
+      return;
+    }
+
+    // If org member, return showcase regardless of status
+    if (isOrgMember) {
+      res.json({ showcase });
+      return;
+    }
+
+    // If public/guest, only return if PUBLISHED
+    if (showcase.status === 'PUBLISHED') {
+      res.json({ showcase });
+      return;
+    }
+
+    res.status(404).json({ error: 'Showcase is not published' });
+  } catch (err: any) {
+    console.error('Get showcase error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:eventId/showcase
+ * Create showcase for an event (1:1 constraint)
+ */
+app.post('/api/events/:eventId/showcase', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot create event showcases' });
+      return;
+    }
+
+    const existing = await getShowcaseByEventId(eventId);
+    if (existing) {
+      res.status(409).json({ error: 'An Event Showcase already exists for this event', showcase: existing });
+      return;
+    }
+
+    const { title, description, client_name, client_logo_url, cover_image_url, status } = req.body;
+
+    const showcase = await createShowcase({
+      event_id: eventId,
+      organization_id: event.organization_id,
+      title: title || event.name,
+      description,
+      client_name,
+      client_logo_url,
+      cover_image_url,
+      status: status || 'DRAFT',
+    });
+
+    res.status(201).json({ showcase });
+  } catch (err: any) {
+    console.error('Create showcase error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/events/:eventId/showcase
+ * Update showcase details
+ */
+app.patch('/api/events/:eventId/showcase', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot edit event showcases' });
+      return;
+    }
+
+    const existing = await getShowcaseByEventId(eventId);
+    if (!existing) {
+      res.status(404).json({ error: 'Event Showcase not found' });
+      return;
+    }
+
+    const { title, description, client_name, client_logo_url, cover_image_url, status } = req.body;
+
+    const showcase = await updateShowcase(eventId, {
+      title,
+      description,
+      client_name,
+      client_logo_url,
+      cover_image_url,
+      status,
+    });
+
+    res.json({ showcase });
+  } catch (err: any) {
+    console.error('Update showcase error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:eventId/showcase/publish
+ * Publish showcase
+ */
+app.post('/api/events/:eventId/showcase/publish', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot publish event showcases' });
+      return;
+    }
+
+    const existing = await getShowcaseByEventId(eventId);
+    if (!existing) {
+      res.status(404).json({ error: 'Event Showcase not found' });
+      return;
+    }
+
+    const showcase = await publishShowcase(eventId);
+    res.json({ showcase });
+  } catch (err: any) {
+    console.error('Publish showcase error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:eventId/showcase/unpublish
+ * Unpublish showcase (does not delete)
+ */
+app.post('/api/events/:eventId/showcase/unpublish', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot unpublish event showcases' });
+      return;
+    }
+
+    const existing = await getShowcaseByEventId(eventId);
+    if (!existing) {
+      res.status(404).json({ error: 'Event Showcase not found' });
+      return;
+    }
+
+    const showcase = await unpublishShowcase(eventId);
+    res.json({ showcase });
+  } catch (err: any) {
+    console.error('Unpublish showcase error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// EVENT SHOWCASE MEDIA API ENDPOINTS
+// ----------------------------------------------------
+
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+]);
+
+const ALLOWED_VIDEO_MIME_TYPES = new Set([
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-matroska',
+  'video/ogg',
+  'video/3gpp',
+]);
+
+const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
+const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
+
+/**
+ * GET /api/events/:eventId/showcase/media
+ * Get all media items for an event's showcase (ordered by sort_order)
+ */
+app.get('/api/events/:eventId/showcase/media', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { eventId } = req.params;
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const showcase = await getShowcaseByEventId(eventId);
+    if (!showcase) {
+      res.status(404).json({ error: 'Showcase not found for this event' });
+      return;
+    }
+
+    // Check auth
+    const authHeader = req.headers.authorization;
+    let isOrgMember = false;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const payload = await verifyAppToken(token);
+        const { isMember } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'game.view');
+        isOrgMember = isMember;
+      } catch {
+        // Ignored
+      }
+    }
+
+    // If not org member, only allow if showcase is PUBLISHED
+    if (!isOrgMember && showcase.status !== 'PUBLISHED') {
+      res.status(403).json({ error: 'Showcase is not publicly accessible' });
+      return;
+    }
+
+    const media = await getShowcaseMedia(showcase.id, event.organization_id);
+    res.json({ media });
+  } catch (err: any) {
+    console.error('Get showcase media error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:eventId/showcase/media/upload-url
+ * Generate signed upload URL or direct stream endpoint for photo/video uploads
+ */
+app.post('/api/events/:eventId/showcase/media/upload-url', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot upload showcase media' });
+      return;
+    }
+
+    const showcase = await getShowcaseByEventId(eventId);
+    if (!showcase) {
+      res.status(404).json({ error: 'Event Showcase not found. Please create the showcase first.' });
+      return;
+    }
+
+    const { fileName, fileType, fileSize, mediaType } = req.body;
+
+    if (!fileName || typeof fileName !== 'string') {
+      res.status(422).json({ error: 'fileName is required' });
+      return;
+    }
+
+    if (!fileType || typeof fileType !== 'string') {
+      res.status(422).json({ error: 'fileType is required' });
+      return;
+    }
+
+    if (!fileSize || typeof fileSize !== 'number' || fileSize <= 0) {
+      res.status(422).json({ error: 'Valid fileSize in bytes is required' });
+      return;
+    }
+
+    const normalizedMediaType = (mediaType || '').toUpperCase();
+    if (normalizedMediaType !== 'IMAGE' && normalizedMediaType !== 'VIDEO') {
+      res.status(422).json({ error: 'mediaType must be IMAGE or VIDEO' });
+      return;
+    }
+
+    const lowerMime = fileType.toLowerCase();
+
+    // Validate type and size
+    if (normalizedMediaType === 'IMAGE') {
+      if (!ALLOWED_IMAGE_MIME_TYPES.has(lowerMime)) {
+        res.status(422).json({
+          error: `Unsupported image format (${fileType}). Supported formats: JPG, JPEG, PNG, WEBP.`,
+        });
+        return;
+      }
+      if (fileSize > MAX_IMAGE_SIZE) {
+        res.status(422).json({
+          error: `Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+        });
+        return;
+      }
+    } else {
+      if (!ALLOWED_VIDEO_MIME_TYPES.has(lowerMime) && !lowerMime.startsWith('video/')) {
+        res.status(422).json({
+          error: `Unsupported video format (${fileType}). Supported formats: MP4, WEBM, MOV.`,
+        });
+        return;
+      }
+      if (fileSize > MAX_VIDEO_SIZE) {
+        res.status(422).json({
+          error: `Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+        });
+        return;
+      }
+    }
+
+    const uploadInfo = await createSignedUploadUrlForShowcase({
+      organizationId: event.organization_id,
+      showcaseId: showcase.id,
+      fileName,
+      mimeType: lowerMime,
+      mediaType: normalizedMediaType as 'IMAGE' | 'VIDEO',
+    });
+
+    res.json({
+      uploadInfo: {
+        ...uploadInfo,
+        mediaType: normalizedMediaType,
+        fileName,
+        fileSize,
+        mimeType: lowerMime,
+      },
+    });
+  } catch (err: any) {
+    console.error('Create showcase upload URL error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/showcase-media/direct-upload
+ * Direct binary streaming upload for media files (bypasses Supabase signed constraints if needed)
+ */
+app.post('/api/events/showcase-media/direct-upload', authenticateJWT, mediaUpload.single('file'), async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.file) {
+      res.status(422).json({ error: 'No media file provided' });
+      return;
+    }
+
+    const targetPath = (req.query.path as string) || (req.body.path as string);
+    const originalName = req.file.originalname || (req.query.filename as string) || 'media-file';
+
+    try {
+      const supabase = getSupabaseServerClient();
+      const storagePath = targetPath || `showcases/general/${Date.now()}-${originalName}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from('game-assets')
+        .upload(storagePath, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: true,
+        });
+
+      if (!uploadErr) {
+        const { data: publicData } = supabase.storage
+          .from('game-assets')
+          .getPublicUrl(storagePath);
+
+        res.json({
+          url: publicData?.publicUrl || `/uploads/${path.basename(storagePath)}`,
+          path: storagePath,
+        });
+        return;
+      }
+    } catch (sErr) {
+      console.warn('Direct upload to Supabase storage fallback:', sErr);
+    }
+
+    // Fallback to local /uploads/ directory
+    const ext = path.extname(originalName) || '.dat';
+    const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+    const localFilePath = path.join(uploadDir, filename);
+    fs.writeFileSync(localFilePath, req.file.buffer);
+
+    const publicUrl = `/uploads/${filename}`;
+    res.json({ url: publicUrl, path: publicUrl });
+  } catch (err: any) {
+    console.error('Direct media upload error:', err);
+    res.status(500).json({ error: err.message || 'Direct upload failed' });
+  }
+});
+
+/**
+ * POST /api/events/:eventId/showcase/media
+ * Add a new media item record to showcase after successful upload
+ */
+app.post('/api/events/:eventId/showcase/media', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot add showcase media' });
+      return;
+    }
+
+    const showcase = await getShowcaseByEventId(eventId);
+    if (!showcase) {
+      res.status(404).json({ error: 'Showcase not found' });
+      return;
+    }
+
+    const {
+      media_type,
+      media_url,
+      thumbnail_url,
+      file_name,
+      file_size,
+      mime_type,
+      sort_order,
+    } = req.body;
+
+    if (!media_type || (media_type !== 'IMAGE' && media_type !== 'VIDEO')) {
+      res.status(422).json({ error: 'media_type must be IMAGE or VIDEO' });
+      return;
+    }
+
+    if (!media_url || typeof media_url !== 'string') {
+      res.status(422).json({ error: 'media_url is required' });
+      return;
+    }
+
+    if (!file_name || typeof file_name !== 'string') {
+      res.status(422).json({ error: 'file_name is required' });
+      return;
+    }
+
+    const media = await createShowcaseMedia({
+      showcase_id: showcase.id,
+      organization_id: event.organization_id,
+      media_type,
+      media_url,
+      thumbnail_url: thumbnail_url || null,
+      file_name: file_name.trim(),
+      file_size: Number(file_size) || 0,
+      mime_type: (mime_type || '').toLowerCase(),
+      sort_order: sort_order !== undefined ? Number(sort_order) : undefined,
+    });
+
+    res.status(201).json({ media });
+  } catch (err: any) {
+    console.error('Create showcase media record error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/events/:eventId/showcase/media/reorder
+ * Reorder showcase media items
+ */
+app.patch('/api/events/:eventId/showcase/media/reorder', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot reorder showcase media' });
+      return;
+    }
+
+    const showcase = await getShowcaseByEventId(eventId);
+    if (!showcase) {
+      res.status(404).json({ error: 'Showcase not found' });
+      return;
+    }
+
+    const { media_ids } = req.body;
+    if (!Array.isArray(media_ids)) {
+      res.status(422).json({ error: 'media_ids array is required' });
+      return;
+    }
+
+    const updatedMedia = await reorderShowcaseMedia(showcase.id, media_ids, event.organization_id);
+    res.json({ success: true, media: updatedMedia });
+  } catch (err: any) {
+    console.error('Reorder showcase media error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/events/:eventId/showcase/media/:mediaId
+ * Delete a media item from showcase
+ */
+app.delete('/api/events/:eventId/showcase/media/:mediaId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId, mediaId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot delete showcase media' });
+      return;
+    }
+
+    const showcase = await getShowcaseByEventId(eventId);
+    if (!showcase) {
+      res.status(404).json({ error: 'Showcase not found' });
+      return;
+    }
+
+    const media = await getShowcaseMediaById(mediaId);
+    if (!media) {
+      res.status(404).json({ error: 'Showcase media item not found' });
+      return;
+    }
+
+    // Verify ownership hierarchy: organization -> event -> showcase -> media
+    if (media.showcase_id !== showcase.id || media.organization_id !== event.organization_id) {
+      res.status(403).json({ error: 'Media does not belong to this event showcase' });
+      return;
+    }
+
+    await deleteShowcaseMedia(mediaId, showcase.id, event.organization_id);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Delete showcase media error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
 // DEVELOPER ADMIN API ENDPOINTS
 // ----------------------------------------------------
 
@@ -1767,6 +2421,535 @@ app.post('/api/developer/themes/:themeId/unset-default', authenticateDeveloperAd
     res.json({ success: true, theme: updatedTheme });
   } catch (err: any) {
     console.error('Developer unset default theme error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// WALLET ENGINE & TRANSACTION LEDGER ENDPOINTS
+// ----------------------------------------------------
+
+/**
+ * GET /api/organizations/:orgId/wallet
+ * Retrieve full wallet balance breakdown (paid balance, welcome credit, showcase credit, top-up credit)
+ */
+app.get('/api/organizations/:orgId/wallet', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied to organization wallet' });
+      return;
+    }
+
+    const wallet = await getWalletBalance(orgId);
+    res.json({
+      wallet,
+      standard_event_price: STANDARD_EVENT_PRICE,
+    });
+  } catch (err: any) {
+    console.error('Get wallet error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/organizations/:orgId/wallet/transactions
+ * Retrieve immutable transaction ledger history
+ */
+app.get('/api/organizations/:orgId/wallet/transactions', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied to wallet transactions' });
+      return;
+    }
+
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
+    const balanceType = req.query.balance_type as any;
+    const transactionType = req.query.transaction_type as any;
+
+    const result = await getWalletTransactions(orgId, {
+      limit,
+      offset,
+      balanceType,
+      transactionType,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error('Get wallet transactions error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/organizations/:orgId/wallet/topup
+ * Process deposit / top-up and automatically calculate promotional credit
+ */
+app.post('/api/organizations/:orgId/wallet/topup', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+      res.status(403).json({ error: 'Only organization owners and admins can top-up the wallet' });
+      return;
+    }
+
+    const { amount, currency, reference_id, description, metadata } = req.body;
+    const numericAmount = Number(amount);
+
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      res.status(400).json({ error: 'Amount must be a positive number' });
+      return;
+    }
+
+    const result = await createTopup({
+      organizationId: orgId,
+      amount: numericAmount,
+      currency: currency || 'MYR',
+      referenceId: reference_id,
+      description,
+      metadata,
+      createdBy: req.user!.id,
+    });
+
+    res.status(201).json({
+      success: true,
+      topup_transaction: result.topupTransaction,
+      promo_credit_transaction: result.promoCreditTransaction,
+      wallet: result.wallet,
+    });
+  } catch (err: any) {
+    console.error('Wallet top-up error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/organizations/:orgId/wallet/grant-welcome
+ * Grant one-time Welcome Credit (RM800.00)
+ */
+app.post('/api/organizations/:orgId/wallet/grant-welcome', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+      res.status(403).json({ error: 'Only organization owners and admins can claim welcome credit' });
+      return;
+    }
+
+    const result = await grantWelcomeCredit({
+      organizationId: orgId,
+      createdBy: req.user!.id,
+      referenceId: req.body?.reference_id,
+      metadata: req.body?.metadata,
+    });
+
+    res.json({
+      success: true,
+      transaction: result.transaction,
+      wallet: result.wallet,
+      already_granted: result.alreadyGranted,
+    });
+  } catch (err: any) {
+    console.error('Grant welcome credit error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/organizations/:orgId/wallet/can-use-welcome
+ * Check if the organization has sufficient Welcome Credit + Paid Balance for an event
+ */
+app.get('/api/organizations/:orgId/wallet/can-use-welcome', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    const eventId = req.query.eventId as string | undefined;
+    const eligibility = await canUseWelcomeCredit(orgId, eventId);
+    res.json(eligibility);
+  } catch (err: any) {
+    console.error('Can use welcome credit error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/organizations/:orgId/wallet/consume-welcome
+ * Consume Welcome Credit (RM800) and Paid Balance (RM600) for an Event
+ */
+app.post('/api/organizations/:orgId/wallet/consume-welcome', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+      res.status(403).json({ error: 'Only organization owners and admins can consume welcome credit' });
+      return;
+    }
+
+    const { event_id, reference_id, description, metadata } = req.body;
+    if (!event_id) {
+      res.status(400).json({ error: 'Event ID is required' });
+      return;
+    }
+
+    const result = await consumeWelcomeCredit({
+      organizationId: orgId,
+      eventId: event_id,
+      referenceId: reference_id,
+      createdBy: req.user!.id,
+      description,
+      metadata,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error('Consume welcome credit error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/organizations/:orgId/wallet/grant-showcase
+ * Grant one-time Showcase Credit (RM300.00)
+ */
+app.post('/api/organizations/:orgId/wallet/grant-showcase', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+      res.status(403).json({ error: 'Only organization owners and admins can claim showcase credit' });
+      return;
+    }
+
+    const { event_id, reference_id, metadata } = req.body;
+
+    const result = await grantShowcaseCredit({
+      organizationId: orgId,
+      eventId: event_id,
+      createdBy: req.user!.id,
+      referenceId: reference_id,
+      metadata,
+    });
+
+    res.json({
+      success: true,
+      transaction: result.transaction,
+      wallet: result.wallet,
+      already_granted: result.alreadyGranted,
+    });
+  } catch (err: any) {
+    console.error('Grant showcase credit error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/organizations/:orgId/wallet/can-use-showcase
+ * Check if the organization has sufficient Showcase Credit + Paid Balance for an event
+ */
+app.get('/api/organizations/:orgId/wallet/can-use-showcase', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    const eventId = req.query.eventId as string | undefined;
+    const eligibility = await canUseShowcaseCredit(orgId, eventId);
+    res.json(eligibility);
+  } catch (err: any) {
+    console.error('Can use showcase credit error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/organizations/:orgId/wallet/consume-showcase
+ * Consume Showcase Credit (RM300) and Paid Balance (RM1,100) for an Event
+ */
+app.post('/api/organizations/:orgId/wallet/consume-showcase', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+      res.status(403).json({ error: 'Only organization owners and admins can consume showcase credit' });
+      return;
+    }
+
+    const { event_id, reference_id, description, metadata } = req.body;
+    if (!event_id) {
+      res.status(400).json({ error: 'Event ID is required' });
+      return;
+    }
+
+    const result = await consumeShowcaseCredit({
+      organizationId: orgId,
+      eventId: event_id,
+      referenceId: reference_id,
+      createdBy: req.user!.id,
+      description,
+      metadata,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error('Consume showcase credit error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/organizations/:orgId/wallet/calculate-event-payment
+ * Server-side calculation and strict business rule validation for event payment
+ */
+app.post('/api/organizations/:orgId/wallet/calculate-event-payment', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    const { event_price, payment_mode, topup_credit_requested } = req.body;
+    const price = event_price ? Number(event_price) : STANDARD_EVENT_PRICE;
+    const mode = (payment_mode || 'FULL_PAID') as any;
+
+    const calculation = await calculateEventPayment(
+      price,
+      mode,
+      orgId,
+      {
+        topupCreditRequested: topup_credit_requested !== undefined ? Number(topup_credit_requested) : undefined,
+      }
+    );
+
+    res.json({
+      calculation,
+      eventPrice: calculation.eventPrice,
+      paymentMode: calculation.paymentMode,
+      paidAmount: calculation.paidAmount,
+      welcomeCreditUsed: calculation.welcomeCreditUsed,
+      showcaseCreditUsed: calculation.showcaseCreditUsed,
+      topupCreditUsed: calculation.topupCreditUsed,
+      totalDiscount: calculation.totalDiscount,
+      remainingPaidBalance: calculation.remainingPaidBalance,
+      remainingCreditBalance: calculation.remainingCreditBalance,
+      isPayable: calculation.isPayable,
+      reasons: calculation.reasons,
+    });
+  } catch (err: any) {
+    console.error('Calculate event payment error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/organizations/:orgId/wallet/quote-payment
+ * Calculate payment quote and validate credit rules server-side (legacy & backward-compatible)
+ */
+app.post('/api/organizations/:orgId/wallet/quote-payment', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    const { event_id, credit_choice, topup_credit_amount } = req.body;
+
+    const quote = await calculateEventPaymentQuote({
+      organizationId: orgId,
+      eventId: event_id,
+      creditChoice: credit_choice || 'NONE',
+      topupCreditAmountToUse: topup_credit_amount ? Number(topup_credit_amount) : undefined,
+    });
+
+    res.json({ quote });
+  } catch (err: any) {
+    console.error('Quote payment error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/organizations/:orgId/wallet/pay-event
+ * Atomically pay for an Event using credit + paid balance
+ */
+app.post('/api/organizations/:orgId/wallet/pay-event', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if ((!isMember || (role !== 'owner' && role !== 'admin' && role !== 'designer')) && !isDev) {
+      res.status(403).json({ error: 'Insufficient permissions to pay for event' });
+      return;
+    }
+
+    const {
+      event_id,
+      event_name,
+      payment_mode,
+      credit_choice,
+      event_price,
+      topup_credit_amount,
+      topup_credit_requested,
+      reference_id,
+    } = req.body;
+
+    if (!event_id) {
+      res.status(400).json({ error: 'event_id is required' });
+      return;
+    }
+
+    const result = await processEventPayment({
+      organizationId: orgId,
+      eventId: event_id,
+      eventName: event_name,
+      paymentMode: payment_mode || (credit_choice ? (credit_choice === 'NONE' ? 'FULL_PAID' : credit_choice) : undefined),
+      creditChoice: credit_choice || 'NONE',
+      eventPrice: event_price ? Number(event_price) : undefined,
+      topupCreditRequested: topup_credit_requested !== undefined ? Number(topup_credit_requested) : (topup_credit_amount ? Number(topup_credit_amount) : undefined),
+      referenceId: reference_id,
+      createdBy: req.user!.id,
+    });
+
+    res.json({
+      success: true,
+      calculation: result.paymentCalculation,
+      transactions: result.transactions,
+      wallet: result.wallet,
+      quote: result.quote,
+    });
+  } catch (err: any) {
+    console.error('Process event payment error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/developer/organizations/:orgId/wallet/recalculate
+ * Recompute wallet ledger cache (developer admin tool)
+ */
+app.post('/api/developer/organizations/:orgId/wallet/recalculate', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    const wallet = await recalculateWalletBalances(orgId);
+    res.json({ success: true, wallet });
+  } catch (err: any) {
+    console.error('Recalculate wallet error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/developer/wallet/reverse
+ * Perform financial ledger transaction reversal (developer admin tool)
+ */
+app.post('/api/developer/wallet/reverse', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { transaction_id, reason } = req.body;
+    if (!transaction_id || !reason) {
+      res.status(400).json({ error: 'transaction_id and reason are required' });
+      return;
+    }
+
+    const result = await reverseTransaction({
+      transactionId: transaction_id,
+      reason,
+      createdBy: req.user?.id,
+    });
+
+    res.json({
+      success: true,
+      reversal_transaction: result.reversalTransaction,
+      wallet: result.wallet,
+    });
+  } catch (err: any) {
+    console.error('Reverse transaction error:', err);
     res.status(500).json({ error: err.message });
   }
 });

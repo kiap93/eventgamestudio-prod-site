@@ -2,6 +2,7 @@ import { getSupabaseServerClient } from '../supabase.js';
 import { EventRecord, EventStatus, EventWithDetails, GameThemeRecord, GameRecord } from './types.js';
 import { getThemeById } from './themes.js';
 import { getGameById } from './games.js';
+import { getShowcaseByEventId, getShowcasesByOrgId } from './showcases.js';
 import crypto from 'node:crypto';
 
 /**
@@ -78,10 +79,18 @@ export async function getEventsByOrgId(
     }
   }
 
+  // Fetch showcases for all events in this organization
+  const showcases = await getShowcasesByOrgId(organizationId, env);
+  const showcaseMap = new Map<string, any>();
+  for (const sc of showcases) {
+    showcaseMap.set(sc.event_id, sc);
+  }
+
   return events.map((event) => {
     const theme = themesMap.get(event.game_theme_id) || null;
     const game = theme?.games || null;
     const calculated = calculateEventStatus(event);
+    const showcase = showcaseMap.get(event.id) || null;
 
     return {
       ...event,
@@ -95,6 +104,8 @@ export async function getEventsByOrgId(
             game_type: game.game_type || 'catch-brand',
           }
         : null,
+      showcase: showcase,
+      showcase_status: showcase ? showcase.status : 'NOT_CREATED',
     };
   });
 }
@@ -132,6 +143,8 @@ export async function getEventById(
     }
   }
 
+  const showcase = await getShowcaseByEventId(eventId, env);
+
   return {
     ...eventRecord,
     calculated_status: calculateEventStatus(eventRecord),
@@ -144,6 +157,8 @@ export async function getEventById(
           game_type: game.game_type || 'catch-brand',
         }
       : null,
+    showcase: showcase,
+    showcase_status: showcase ? showcase.status : 'NOT_CREATED',
   };
 }
 

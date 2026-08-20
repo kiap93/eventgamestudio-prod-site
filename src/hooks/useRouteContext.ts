@@ -18,6 +18,8 @@ export interface RouteContext {
   isStudioRoute: boolean;
   isPreviewRoute: boolean;
   isDeveloperAdminRoute: boolean;
+  isShowcaseRoute?: boolean;
+  eventId?: string;
   publicToken?: string;
   organizationSlug?: string;
   gameSlug?: string;
@@ -150,7 +152,17 @@ export function parseRoute(pathname: string): RouteContext {
     };
   }
 
-  // 5. Default: Studio Route (e.g. /, /studio, /events, /game-themes, /team)
+  // 5. Default: Studio Route (e.g. /, /studio, /events, /events/:eventId/showcase, /game-themes, /team)
+  let eventId: string | undefined = undefined;
+  let isShowcaseRoute = false;
+
+  if (parts.length >= 2 && parts[0].toLowerCase() === 'events') {
+    eventId = parts[1];
+    if (parts.length >= 3 && parts[2].toLowerCase() === 'showcase') {
+      isShowcaseRoute = true;
+    }
+  }
+
   return {
     mode: 'studio',
     isPublicGameRoute: false,
@@ -158,6 +170,8 @@ export function parseRoute(pathname: string): RouteContext {
     isStudioRoute: true,
     isPreviewRoute: false,
     isDeveloperAdminRoute: false,
+    isShowcaseRoute,
+    eventId,
     gameType: queryGameType,
     pathname: cleanPath,
   };
