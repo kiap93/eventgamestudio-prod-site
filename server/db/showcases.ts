@@ -350,3 +350,26 @@ export async function unpublishShowcase(
     env
   );
 }
+
+/**
+ * Delete an Event Showcase and its associated local cache
+ */
+export async function deleteShowcase(
+  eventId: string,
+  env?: Record<string, any>
+): Promise<boolean> {
+  const existing = await getShowcaseByEventId(eventId, env);
+  if (!existing) return true;
+
+  try {
+    const supabase = getSupabaseServerClient(env);
+    await supabase.from('event_showcases').delete().eq('event_id', eventId);
+  } catch (err: any) {
+    console.warn('Error deleting showcase from Supabase:', err.message);
+  }
+
+  localShowcasesCache.delete(eventId);
+  saveLocalShowcases();
+  return true;
+}
+

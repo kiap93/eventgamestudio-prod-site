@@ -69,6 +69,18 @@ import {
   reverseTransaction,
   recalculateWalletBalances,
   STANDARD_EVENT_PRICE,
+  getShowcaseByEventId,
+  createShowcase,
+  updateShowcase,
+  publishShowcase,
+  unpublishShowcase,
+  deleteShowcase,
+  getShowcaseMedia,
+  getShowcaseMediaById,
+  createSignedUploadUrlForShowcase,
+  createShowcaseMedia,
+  reorderShowcaseMedia,
+  deleteShowcaseMedia,
 } from './server/db/index.js';
 
 import {
@@ -97,12 +109,31 @@ export interface Env {
   [key: string]: any;
 }
 
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+]);
+
+const ALLOWED_VIDEO_MIME_TYPES = new Set([
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-matroska',
+  'video/ogg',
+  'video/3gpp',
+]);
+
+const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
+const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
+
 function corsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get('Origin');
   const reqHeaders = request.headers.get('Access-Control-Request-Headers');
 
   const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': reqHeaders || 'Content-Type, Authorization, X-Organization-ID, Accept',
     'Access-Control-Max-Age': '86400',
   };
@@ -1413,6 +1444,540 @@ export default {
       }
 
       // ==========================================
+      // 9. Event Showcase and Showcase Media Routes
+      // ==========================================
+
+      const showcaseRouteParams = parseRoute('/api/events/:eventId/showcase', pathname);
+
+      // GET /api/events/:eventId/showcase
+      if (showcaseRouteParams && method === 'GET') {
+        const { eventId } = showcaseRouteParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const showcase = await getShowcaseByEventId(eventId, env);
+
+        // Check optional auth for org membership
+        let isOrgMember = false;
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          try {
+            const token = authHeader.substring(7);
+            const payload = await verifyAppToken(token, undefined, env);
+            if (payload && payload.sub) {
+              const { isMember } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'game.view', env);
+              isOrgMember = isMember;
+            }
+          } catch {
+            // Ignore optional auth error
+          }
+        }
+
+        if (!showcase) {
+          if (isOrgMember) {
+            return jsonResponse({ showcase: null }, 200, cors);
+          }
+          return errorResponse('Showcase not found', 404, cors);
+        }
+
+        if (isOrgMember || showcase.status === 'PUBLISHED') {
+          return jsonResponse({ showcase }, 200, cors);
+        }
+
+        return errorResponse('Showcase is not published', 404, cors);
+      }
+
+      // POST /api/events/:eventId/showcase
+      if (showcaseRouteParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { eventId } = showcaseRouteParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot create event showcases', 403, cors);
+        }
+
+        const existing = await getShowcaseByEventId(eventId, env);
+        if (existing) {
+          return jsonResponse({ error: 'An Event Showcase already exists for this event', showcase: existing }, 409, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { title, description, client_name, client_logo_url, cover_image_url, status } = body;
+
+        try {
+          const showcase = await createShowcase(
+            {
+              event_id: eventId,
+              organization_id: event.organization_id,
+              title: title || event.name,
+              description,
+              client_name,
+              client_logo_url,
+              cover_image_url,
+              status: status || 'DRAFT',
+            },
+            env
+          );
+          return jsonResponse({ showcase }, 201, cors);
+        } catch (err: any) {
+          console.error('Create showcase error:', err);
+          return errorResponse(err.message || 'Failed to create showcase', 500, cors);
+        }
+      }
+
+      // PATCH /api/events/:eventId/showcase
+      if (showcaseRouteParams && method === 'PATCH') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { eventId } = showcaseRouteParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot edit event showcases', 403, cors);
+        }
+
+        const existing = await getShowcaseByEventId(eventId, env);
+        if (!existing) {
+          return errorResponse('Event Showcase not found', 404, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { title, description, client_name, client_logo_url, cover_image_url, status } = body;
+
+        try {
+          const showcase = await updateShowcase(
+            eventId,
+            {
+              title,
+              description,
+              client_name,
+              client_logo_url,
+              cover_image_url,
+              status,
+            },
+            env
+          );
+          return jsonResponse({ showcase }, 200, cors);
+        } catch (err: any) {
+          console.error('Update showcase error:', err);
+          return errorResponse(err.message || 'Failed to update showcase', 500, cors);
+        }
+      }
+
+      // POST /api/events/:eventId/showcase/publish
+      const publishShowcaseParams = parseRoute('/api/events/:eventId/showcase/publish', pathname);
+      if (publishShowcaseParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { eventId } = publishShowcaseParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot publish event showcases', 403, cors);
+        }
+
+        const existing = await getShowcaseByEventId(eventId, env);
+        if (!existing) {
+          return errorResponse('Event Showcase not found', 404, cors);
+        }
+
+        try {
+          const showcase = await publishShowcase(eventId, env);
+          return jsonResponse({ showcase }, 200, cors);
+        } catch (err: any) {
+          console.error('Publish showcase error:', err);
+          return errorResponse(err.message || 'Failed to publish showcase', 500, cors);
+        }
+      }
+
+      // POST /api/events/:eventId/showcase/unpublish
+      const unpublishShowcaseParams = parseRoute('/api/events/:eventId/showcase/unpublish', pathname);
+      if (unpublishShowcaseParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { eventId } = unpublishShowcaseParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot unpublish event showcases', 403, cors);
+        }
+
+        const existing = await getShowcaseByEventId(eventId, env);
+        if (!existing) {
+          return errorResponse('Event Showcase not found', 404, cors);
+        }
+
+        try {
+          const showcase = await unpublishShowcase(eventId, env);
+          return jsonResponse({ showcase }, 200, cors);
+        } catch (err: any) {
+          console.error('Unpublish showcase error:', err);
+          return errorResponse(err.message || 'Failed to unpublish showcase', 500, cors);
+        }
+      }
+
+      const showcaseMediaParams = parseRoute('/api/events/:eventId/showcase/media', pathname);
+
+      // GET /api/events/:eventId/showcase/media
+      if (showcaseMediaParams && method === 'GET') {
+        const { eventId } = showcaseMediaParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const showcase = await getShowcaseByEventId(eventId, env);
+        if (!showcase) {
+          return errorResponse('Showcase not found for this event', 404, cors);
+        }
+
+        let isOrgMember = false;
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          try {
+            const token = authHeader.substring(7);
+            const payload = await verifyAppToken(token, undefined, env);
+            if (payload && payload.sub) {
+              const { isMember } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'game.view', env);
+              isOrgMember = isMember;
+            }
+          } catch {
+            // Ignore optional auth error
+          }
+        }
+
+        if (!isOrgMember && showcase.status !== 'PUBLISHED') {
+          return errorResponse('Showcase is not publicly accessible', 403, cors);
+        }
+
+        try {
+          const media = await getShowcaseMedia(showcase.id, event.organization_id, env);
+          return jsonResponse({ media }, 200, cors);
+        } catch (err: any) {
+          console.error('Get showcase media error:', err);
+          return errorResponse(err.message || 'Failed to load showcase media', 500, cors);
+        }
+      }
+
+      // POST /api/events/:eventId/showcase/media/upload-url
+      const uploadUrlParams = parseRoute('/api/events/:eventId/showcase/media/upload-url', pathname);
+      if (uploadUrlParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { eventId } = uploadUrlParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot upload showcase media', 403, cors);
+        }
+
+        const showcase = await getShowcaseByEventId(eventId, env);
+        if (!showcase) {
+          return errorResponse('Event Showcase not found. Please create the showcase first.', 404, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { fileName, fileType, fileSize, mediaType } = body;
+
+        if (!fileName || typeof fileName !== 'string') {
+          return errorResponse('fileName is required', 422, cors);
+        }
+        if (!fileType || typeof fileType !== 'string') {
+          return errorResponse('fileType is required', 422, cors);
+        }
+        if (!fileSize || typeof fileSize !== 'number' || fileSize <= 0) {
+          return errorResponse('Valid fileSize in bytes is required', 422, cors);
+        }
+
+        const normalizedMediaType = (mediaType || '').toUpperCase();
+        if (normalizedMediaType !== 'IMAGE' && normalizedMediaType !== 'VIDEO') {
+          return errorResponse('mediaType must be IMAGE or VIDEO', 422, cors);
+        }
+
+        const lowerMime = fileType.toLowerCase();
+        if (normalizedMediaType === 'IMAGE') {
+          if (!ALLOWED_IMAGE_MIME_TYPES.has(lowerMime)) {
+            return errorResponse(`Unsupported image format (${fileType}). Supported formats: JPG, JPEG, PNG, WEBP.`, 422, cors);
+          }
+          if (fileSize > MAX_IMAGE_SIZE) {
+            return errorResponse(`Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`, 422, cors);
+          }
+        } else {
+          if (!ALLOWED_VIDEO_MIME_TYPES.has(lowerMime) && !lowerMime.startsWith('video/')) {
+            return errorResponse(`Unsupported video format (${fileType}). Supported formats: MP4, WEBM, MOV.`, 422, cors);
+          }
+          if (fileSize > MAX_VIDEO_SIZE) {
+            return errorResponse(`Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`, 422, cors);
+          }
+        }
+
+        try {
+          const uploadInfo = await createSignedUploadUrlForShowcase(
+            {
+              organizationId: event.organization_id,
+              showcaseId: showcase.id,
+              fileName,
+              mimeType: lowerMime,
+              mediaType: normalizedMediaType as 'IMAGE' | 'VIDEO',
+            },
+            env
+          );
+
+          return jsonResponse(
+            {
+              uploadInfo: {
+                ...uploadInfo,
+                mediaType: normalizedMediaType,
+                fileName,
+                fileSize,
+                mimeType: lowerMime,
+              },
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          console.error('Create showcase upload URL error:', err);
+          return errorResponse(err.message || 'Failed to create upload URL', 500, cors);
+        }
+      }
+
+      // POST /api/events/showcase-media/direct-upload
+      if (pathname === '/api/events/showcase-media/direct-upload' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const formData = await request.formData().catch(() => null);
+          const targetPath = url.searchParams.get('path') || (formData?.get('path') as string) || undefined;
+          const queryFilename = url.searchParams.get('filename') || undefined;
+
+          let fileBuffer: ArrayBuffer | null = null;
+          let mimeType = 'application/octet-stream';
+          let originalName = queryFilename || 'media-file';
+
+          if (formData) {
+            const file = formData.get('file');
+            if (file && typeof file !== 'string') {
+              fileBuffer = await file.arrayBuffer();
+              mimeType = file.type || mimeType;
+              originalName = file.name || originalName;
+            }
+          }
+
+          if (!fileBuffer) {
+            fileBuffer = await request.arrayBuffer();
+            mimeType = request.headers.get('content-type') || mimeType;
+          }
+
+          if (!fileBuffer || fileBuffer.byteLength === 0) {
+            return errorResponse('No media file provided', 422, cors);
+          }
+
+          const supabase = getSupabaseServerClient(env);
+          const storagePath = targetPath || `showcases/general/${Date.now()}-${originalName}`;
+
+          const { error: uploadErr } = await supabase.storage
+            .from('game-assets')
+            .upload(storagePath, fileBuffer, {
+              contentType: mimeType,
+              upsert: true,
+            });
+
+          if (uploadErr) {
+            console.warn('Supabase storage upload error:', uploadErr);
+            return errorResponse(uploadErr.message || 'Storage upload failed', 500, cors);
+          }
+
+          const { data: publicData } = supabase.storage
+            .from('game-assets')
+            .getPublicUrl(storagePath);
+
+          return jsonResponse(
+            {
+              url: publicData?.publicUrl || `/uploads/${storagePath.split('/').pop()}`,
+              path: storagePath,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          console.error('Direct media upload error:', err);
+          return errorResponse(err.message || 'Direct upload failed', 500, cors);
+        }
+      }
+
+      // POST /api/events/:eventId/showcase/media
+      if (showcaseMediaParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { eventId } = showcaseMediaParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot add showcase media', 403, cors);
+        }
+
+        const showcase = await getShowcaseByEventId(eventId, env);
+        if (!showcase) {
+          return errorResponse('Showcase not found', 404, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const {
+          media_type,
+          media_url,
+          thumbnail_url,
+          file_name,
+          file_size,
+          mime_type,
+          sort_order,
+        } = body;
+
+        if (!media_type || (media_type !== 'IMAGE' && media_type !== 'VIDEO')) {
+          return errorResponse('media_type must be IMAGE or VIDEO', 422, cors);
+        }
+        if (!media_url || typeof media_url !== 'string') {
+          return errorResponse('media_url is required', 422, cors);
+        }
+        if (!file_name || typeof file_name !== 'string') {
+          return errorResponse('file_name is required', 422, cors);
+        }
+
+        try {
+          const media = await createShowcaseMedia(
+            {
+              showcase_id: showcase.id,
+              organization_id: event.organization_id,
+              media_type,
+              media_url,
+              thumbnail_url: thumbnail_url || null,
+              file_name: file_name.trim(),
+              file_size: Number(file_size) || 0,
+              mime_type: (mime_type || '').toLowerCase(),
+              sort_order: sort_order !== undefined ? Number(sort_order) : undefined,
+            },
+            env
+          );
+          return jsonResponse({ media }, 201, cors);
+        } catch (err: any) {
+          console.error('Create showcase media record error:', err);
+          return errorResponse(err.message || 'Failed to create showcase media', 500, cors);
+        }
+      }
+
+      // PATCH /api/events/:eventId/showcase/media/reorder
+      const reorderMediaParams = parseRoute('/api/events/:eventId/showcase/media/reorder', pathname);
+      if (reorderMediaParams && method === 'PATCH') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { eventId } = reorderMediaParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot reorder showcase media', 403, cors);
+        }
+
+        const showcase = await getShowcaseByEventId(eventId, env);
+        if (!showcase) {
+          return errorResponse('Showcase not found', 404, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { media_ids } = body;
+        if (!Array.isArray(media_ids)) {
+          return errorResponse('media_ids array is required', 422, cors);
+        }
+
+        try {
+          const updatedMedia = await reorderShowcaseMedia(showcase.id, media_ids, event.organization_id, env);
+          return jsonResponse({ success: true, media: updatedMedia }, 200, cors);
+        } catch (err: any) {
+          console.error('Reorder showcase media error:', err);
+          return errorResponse(err.message || 'Failed to reorder media', 500, cors);
+        }
+      }
+
+      // DELETE /api/events/:eventId/showcase/media/:mediaId
+      const deleteMediaParams = parseRoute('/api/events/:eventId/showcase/media/:mediaId', pathname);
+      if (deleteMediaParams && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { eventId, mediaId } = deleteMediaParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot delete showcase media', 403, cors);
+        }
+
+        const showcase = await getShowcaseByEventId(eventId, env);
+        if (!showcase) {
+          return errorResponse('Showcase not found', 404, cors);
+        }
+
+        const media = await getShowcaseMediaById(mediaId, env);
+        if (!media) {
+          return errorResponse('Showcase media item not found', 404, cors);
+        }
+
+        if (media.showcase_id !== showcase.id || media.organization_id !== event.organization_id) {
+          return errorResponse('Media does not belong to this event showcase', 403, cors);
+        }
+
+        try {
+          await deleteShowcaseMedia(mediaId, showcase.id, event.organization_id, env);
+          return jsonResponse({ success: true }, 200, cors);
+        } catch (err: any) {
+          console.error('Delete showcase media error:', err);
+          return errorResponse(err.message || 'Failed to delete showcase media', 500, cors);
+        }
+      }
+
+      // ==========================================
       // 10. Developer Admin Routes
       // ==========================================
 
@@ -2192,6 +2757,63 @@ export default {
           );
         } catch (err: any) {
           return errorResponse(err.message || 'Failed to process event payment', 400, cors);
+        }
+      }
+
+      // POST /api/developer/organizations/:orgId/wallet/recalculate
+      const devRecalculateMatch = pathname.match(/^\/api\/developer\/organizations\/([^\/]+)\/wallet\/recalculate$/);
+      if (devRecalculateMatch && method === 'POST') {
+        const orgId = devRecalculateMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const wallet = await recalculateWalletBalances(orgId, env);
+          return jsonResponse({ success: true, wallet }, 200, cors);
+        } catch (err: any) {
+          console.error('Recalculate wallet error:', err);
+          return errorResponse(err.message || 'Failed to recalculate wallet', 500, cors);
+        }
+      }
+
+      // POST /api/developer/wallet/reverse
+      if (pathname === '/api/developer/wallet/reverse' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { transaction_id, reason } = body;
+        if (!transaction_id || !reason) {
+          return errorResponse('transaction_id and reason are required', 400, cors);
+        }
+
+        try {
+          const result = await reverseTransaction(
+            {
+              transactionId: transaction_id,
+              reason,
+              createdBy: auth.user.id,
+            },
+            env
+          );
+          return jsonResponse(
+            {
+              success: true,
+              reversal_transaction: result.reversalTransaction,
+              wallet: result.wallet,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          console.error('Reverse transaction error:', err);
+          return errorResponse(err.message || 'Failed to reverse transaction', 500, cors);
         }
       }
 

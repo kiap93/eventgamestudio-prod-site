@@ -1255,6 +1255,32 @@ export async function calculateEventPaymentQuote(
 }
 
 /**
+ * Retrieve all ledger transactions for an organization.
+ */
+export async function getLedgerTransactions(
+  organizationId: string,
+  env?: Record<string, any>
+): Promise<WalletTransactionRecord[]> {
+  const supabase = getSupabaseServerClient(env);
+  try {
+    const { data, error } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('organization_id', organizationId);
+
+    if (!error && data && data.length > 0) {
+      return data as WalletTransactionRecord[];
+    }
+  } catch {
+    // Fallback to local
+  }
+
+  return Array.from(localTransactionsCache.values()).filter(
+    (t) => t.organization_id === organizationId
+  );
+}
+
+/**
  * Process event payment securely through the immutable transaction ledger.
  */
 export async function processEventPayment(
