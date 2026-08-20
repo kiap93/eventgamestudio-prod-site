@@ -1,4 +1,7 @@
 export type ShowcaseStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED';
+export type ReviewStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+export type PublicationStatus = 'UNPUBLISHED' | 'PUBLISHED';
+export type RewardStatus = 'NOT_ELIGIBLE' | 'PENDING' | 'GRANTED' | 'REWARDED';
 
 export interface EventShowcase {
   id: string;
@@ -10,9 +13,27 @@ export interface EventShowcase {
   client_logo_url: string | null;
   cover_image_url: string | null;
   status: ShowcaseStatus;
+  review_status?: ReviewStatus;
+  publication_status?: PublicationStatus;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  rejection_reason?: string | null;
+  reward_transaction_id?: string | null;
+  reward_granted_at?: string | null;
+  reward_status?: RewardStatus | null;
   published_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface AdminShowcaseListItem extends EventShowcase {
+  event_name?: string;
+  organization_name?: string;
+  organization_slug?: string;
+  media_count?: number;
+  image_count?: number;
+  video_count?: number;
 }
 
 export interface ShowcaseFormData {

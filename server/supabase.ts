@@ -31,11 +31,31 @@ export function getSupabaseServerClient(env?: Record<string, any>): SupabaseClie
     return clientCache.get(cacheKey)!;
   }
 
+  const isPlaceholder = supabaseUrl.includes('placeholder') || serviceRoleKey.includes('placeholder');
+
   const client = createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
     },
+    ...(isPlaceholder
+      ? {
+          global: {
+            fetch: async () => {
+              return new Response(
+                JSON.stringify({
+                  code: 'PGRST000',
+                  message: 'Placeholder Supabase credentials - fast fallback to local store',
+                }),
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json' },
+                }
+              );
+            },
+          },
+        }
+      : {}),
   });
 
   clientCache.set(cacheKey, client);

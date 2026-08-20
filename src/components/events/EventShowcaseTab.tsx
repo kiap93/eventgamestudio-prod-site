@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../lib/api';
-import { EventShowcase, ShowcaseFormData } from '../../types/showcase';
+import { EventShowcase, ReviewStatus, PublicationStatus } from '../../types/showcase';
 import { ShowcaseMediaManager } from './showcase/ShowcaseMediaManager';
 import {
   Sparkles,
@@ -18,6 +18,10 @@ import {
   CheckCircle2,
   Film,
   Layers,
+  Send,
+  Gift,
+  XCircle,
+  Lock,
 } from 'lucide-react';
 
 interface EventShowcaseTabProps {
@@ -35,6 +39,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [subSection, setSubSection] = useState<'details' | 'media'>('details');
@@ -47,7 +52,11 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
   const [coverImageUrl, setCoverImageUrl] = useState('');
 
   const isViewer = userRole === 'viewer';
-
+  const isSubmitted = showcase?.review_status === 'SUBMITTED';
+  const isApproved = showcase?.review_status === 'APPROVED';
+  const isRejected = showcase?.review_status === 'REJECTED';
+  const isDraft = !showcase?.review_status || showcase?.review_status === 'DRAFT';
+  const isLocked = isViewer || isSubmitted || isApproved;
 
   const fetchShowcase = async () => {
     try {
@@ -176,6 +185,32 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
     }
   };
 
+  const handleSubmitForReview = async () => {
+    try {
+      setSubmitting(true);
+      setError(null);
+      setSuccessMsg(null);
+
+      const res = await apiFetch(`/api/events/${event.id}/showcase/submit`, {
+        method: 'POST',
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to submit showcase for review');
+      }
+
+      setShowcase(data.showcase);
+      setSuccessMsg('Showcase submitted for review! Our developers will review your submission to grant the RM300 showcase reward.');
+      if (onShowcaseChanged) onShowcaseChanged(data.showcase);
+    } catch (err: any) {
+      console.error('Submit showcase error:', err);
+      setError(err.message || 'Failed to submit showcase for review');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handlePublish = async () => {
     try {
       setPublishing(true);
@@ -237,32 +272,56 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
     );
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PUBLISHED':
+  const getReviewStatusBadge = (reviewStatus?: ReviewStatus) => {
+    switch (reviewStatus) {
+      case 'APPROVED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-            <Globe className="w-3.5 h-3.5" />
-            PUBLISHED
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            APPROVED
           </span>
         );
-      case 'UNPUBLISHED':
+      case 'SUBMITTED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-800 border border-slate-700 text-slate-300">
-            <EyeOff className="w-3.5 h-3.5 text-slate-400" />
-            UNPUBLISHED
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-500/15 border border-blue-500/30 text-blue-400 animate-pulse">
+            <Clock className="w-3.5 h-3.5" />
+            UNDER REVIEW
+          </span>
+        );
+      case 'REJECTED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/15 border border-rose-500/30 text-rose-400">
+            <XCircle className="w-3.5 h-3.5" />
+            CHANGES REQUESTED
           </span>
         );
       case 'DRAFT':
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400">
-            <Clock className="w-3.5 h-3.5" />
+            <FileText className="w-3.5 h-3.5" />
             DRAFT
           </span>
         );
     }
+  };
+
+  const getPublicationBadge = (pubStatus?: PublicationStatus, status?: string) => {
+    const isPub = pubStatus === 'PUBLISHED' || status === 'PUBLISHED';
+    if (isPub) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-950/60 border border-emerald-500/30 text-emerald-300">
+          <Globe className="w-3 h-3 text-emerald-400" />
+          Published
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-900 border border-slate-700 text-slate-400">
+        <EyeOff className="w-3 h-3 text-slate-500" />
+        Unpublished
+      </span>
+    );
   };
 
   return (
@@ -282,6 +341,53 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
         </div>
       )}
 
+      {/* Review Status Info Banners */}
+      {showcase && isSubmitted && (
+        <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-2xl flex items-start gap-3">
+          <Clock className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <div className="text-xs font-bold text-blue-300">Showcase is Under Review</div>
+            <p className="text-xs text-blue-200/80 leading-relaxed">
+              Your submission was received on {showcase.submitted_at ? new Date(showcase.submitted_at).toLocaleDateString() : 'recently'}. Showcase modifications are locked while developers review your materials. Upon approval, RM300 will be credited directly into your organization wallet.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showcase && isApproved && (
+        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-start gap-3">
+          <Gift className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <div className="text-xs font-bold text-emerald-300 flex items-center gap-2">
+              <span>Showcase Approved & RM300 Reward Granted!</span>
+              {showcase.reward_granted_at && (
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full">
+                  {new Date(showcase.reward_granted_at).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-emerald-200/80 leading-relaxed">
+              This showcase has been approved and published. The RM300 reward has been granted to your organization wallet.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showcase && isRejected && (
+        <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-3">
+          <XCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+          <div className="space-y-1.5 flex-1">
+            <div className="text-xs font-bold text-rose-300">Action Required: Review Feedback</div>
+            <p className="text-xs text-rose-200/90 leading-relaxed bg-rose-950/40 p-2.5 rounded-xl border border-rose-500/20">
+              <span className="font-semibold text-rose-300">Reviewer Note:</span> {showcase.rejection_reason || 'Please ensure high quality event photos and branding details are provided.'}
+            </p>
+            <p className="text-[11px] text-rose-300/80">
+              Please update your showcase details or gallery media below, then click &quot;Submit for Review&quot; when ready.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* If Showcase does not exist yet */}
       {!showcase ? (
         <div className="space-y-6">
@@ -292,7 +398,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
             <div className="space-y-1">
               <h3 className="text-base font-bold text-slate-200">No Showcase Created Yet</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Create a dedicated Event Showcase for this event to highlight the client branding, campaign description, cover visuals, and results.
+                Create a dedicated Event Showcase for this event to highlight client branding, photos, and activation performance. Submit your completed showcase to earn a <strong className="text-amber-400">RM300 Showcase Reward</strong>!
               </p>
             </div>
           </div>
@@ -393,19 +499,36 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
       ) : (
         /* Showcase Exists - Management & Edit Form */
         <div className="space-y-6">
-          {/* Status & Quick Action Bar */}
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div>{getStatusBadge(showcase.status)}</div>
-              {showcase.published_at && (
-                <span className="text-[11px] text-slate-400">
-                  Published on {new Date(showcase.published_at).toLocaleDateString()}
-                </span>
-              )}
+          {/* Status & Review Action Bar */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Review:</span>
+                {getReviewStatusBadge(showcase.review_status)}
+              </div>
+              <div className="h-4 w-px bg-slate-800" />
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Visibility:</span>
+                {getPublicationBadge(showcase.publication_status, showcase.status)}
+              </div>
             </div>
 
             {!isViewer && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Submit for Review Button (Available for Draft / Rejected) */}
+                {(isDraft || isRejected) && (
+                  <button
+                    type="button"
+                    onClick={handleSubmitForReview}
+                    disabled={submitting}
+                    className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer disabled:opacity-50"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{submitting ? 'Submitting...' : 'Submit for Review (Earn RM300)'}</span>
+                  </button>
+                )}
+
+                {/* Publish / Unpublish Toggle */}
                 {showcase.status === 'PUBLISHED' ? (
                   <button
                     type="button"
@@ -414,17 +537,17 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
                   >
                     <EyeOff className="w-3.5 h-3.5" />
-                    <span>{publishing ? 'Unpublishing...' : 'Unpublish Showcase'}</span>
+                    <span>{publishing ? 'Unpublishing...' : 'Unpublish'}</span>
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={handlePublish}
                     disabled={publishing}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
                   >
                     <Globe className="w-3.5 h-3.5" />
-                    <span>{publishing ? 'Publishing...' : 'Publish Showcase'}</span>
+                    <span>{publishing ? 'Publishing...' : 'Publish'}</span>
                   </button>
                 )}
               </div>
@@ -464,11 +587,24 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
             <ShowcaseMediaManager
               eventId={event.id}
               showcase={showcase}
-              userRole={userRole}
+              userRole={isLocked ? 'viewer' : userRole}
             />
           ) : (
             /* Form */
             <form onSubmit={handleSaveShowcase} className="space-y-4">
+              {isLocked && (
+                <div className="p-2.5 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center gap-2 text-[11px] text-slate-400">
+                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                  <span>
+                    {isApproved
+                      ? 'Showcase is approved. Details are locked.'
+                      : isSubmitted
+                      ? 'Showcase is currently under review. Details are locked.'
+                      : 'You have read-only access to this showcase.'}
+                  </span>
+                </div>
+              )}
+
               {/* Title */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -479,8 +615,8 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Showcase title"
-                  disabled={isViewer}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none disabled:opacity-60"
+                  disabled={isLocked}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                   required
                 />
               </div>
@@ -496,8 +632,8 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
                     placeholder="e.g. Acme Corporation"
-                    disabled={isViewer}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none disabled:opacity-60"
+                    disabled={isLocked}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
 
@@ -510,8 +646,8 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                     value={clientLogoUrl}
                     onChange={(e) => setClientLogoUrl(e.target.value)}
                     placeholder="https://.../logo.png"
-                    disabled={isViewer}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none disabled:opacity-60"
+                    disabled={isLocked}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -539,8 +675,8 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                   value={coverImageUrl}
                   onChange={(e) => setCoverImageUrl(e.target.value)}
                   placeholder="https://.../cover.jpg"
-                  disabled={isViewer}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none disabled:opacity-60"
+                  disabled={isLocked}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -569,12 +705,12 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
                   placeholder="Campaign background, goals, highlights..."
-                  disabled={isViewer}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none resize-none disabled:opacity-60"
+                  disabled={isLocked}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none resize-none disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
-              {!isViewer && (
+              {!isLocked && (
                 <div className="flex justify-end pt-2">
                   <button
                     type="submit"
@@ -589,7 +725,6 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
             </form>
           )}
         </div>
-
       )}
     </div>
   );

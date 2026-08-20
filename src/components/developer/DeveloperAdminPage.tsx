@@ -5,6 +5,7 @@ import { DeveloperAdminLayout } from './DeveloperAdminLayout';
 import { DeveloperGamesList } from './DeveloperGamesList';
 import { DeveloperGameDetail } from './DeveloperGameDetail';
 import { DeveloperThemeEditor } from './DeveloperThemeEditor';
+import { DeveloperShowcaseReviews } from './DeveloperShowcaseReviews';
 
 export const DeveloperAdminPage: React.FC = () => {
   const route = useRouteContext();
@@ -25,7 +26,16 @@ export const DeveloperAdminPage: React.FC = () => {
     unsetPrimaryDefaultTheme,
   } = useDeveloperAdmin();
 
-  // 1. If viewing a specific theme editor: /developer/games/:gameId/themes/:themeId/edit or /developer/themes/:themeId/edit
+  // 1. If viewing Showcase Submissions & Review: /developer/showcases
+  if (route.developerSection === 'showcases') {
+    return (
+      <DeveloperAdminLayout activeSection="showcases">
+        <DeveloperShowcaseReviews />
+      </DeveloperAdminLayout>
+    );
+  }
+
+  // 2. If viewing a specific theme editor: /developer/games/:gameId/themes/:themeId/edit or /developer/themes/:themeId/edit
   if (route.developerThemeId && route.developerAction === 'edit-theme') {
     return (
       <DeveloperAdminLayout activeSection="themes">
@@ -44,7 +54,7 @@ export const DeveloperAdminPage: React.FC = () => {
     );
   }
 
-  // 2. If viewing a specific game: /developer/games/:gameId
+  // 3. If viewing a specific game: /developer/games/:gameId
   if (route.developerGameId) {
     return (
       <DeveloperAdminLayout activeSection="games">
@@ -63,7 +73,7 @@ export const DeveloperAdminPage: React.FC = () => {
     );
   }
 
-  // 3. Default: Games Catalog & System Themes Overview
+  // 4. Default: Games Catalog & System Themes Overview
   return (
     <DeveloperAdminLayout activeSection="games">
       <DeveloperGamesList

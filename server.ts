@@ -57,10 +57,15 @@ import {
   deleteEvent,
   cancelEvent,
   getShowcaseByEventId,
+  getShowcaseById,
   createShowcase,
   updateShowcase,
   publishShowcase,
   unpublishShowcase,
+  submitShowcaseForReview,
+  approveShowcaseReview,
+  rejectShowcaseReview,
+  getAllShowcasesForAdmin,
   getShowcaseMedia,
   getShowcaseMediaById,
   createShowcaseMedia,
@@ -1557,15 +1562,23 @@ app.post('/api/events/:eventId/showcase', authenticateJWT, async (req: Authentic
 
     const { title, description, client_name, client_logo_url, cover_image_url, status } = req.body;
 
+    if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
+      res.status(422).json({ error: 'Valid showcase title is required' });
+      return;
+    }
+
+    // Normal users can only initialize showcase with DRAFT status
+    const initialStatus = status === 'DRAFT' ? 'DRAFT' : 'DRAFT';
+
     const showcase = await createShowcase({
       event_id: eventId,
       organization_id: event.organization_id,
-      title: title || event.name,
+      title: title ? title.trim() : event.name,
       description,
       client_name,
       client_logo_url,
       cover_image_url,
-      status: status || 'DRAFT',
+      status: initialStatus,
     });
 
     res.status(201).json({ showcase });
@@ -1602,7 +1615,38 @@ app.patch('/api/events/:eventId/showcase', authenticateJWT, async (req: Authenti
       return;
     }
 
+    // Enforce Review Editing Rules:
+    // SUBMITTED: Normal user cannot silently change the submitted version
+    if (existing.review_status === 'SUBMITTED') {
+      res.status(403).json({ error: 'Showcase is currently SUBMITTED and undergoing review. Edits cannot be made while under review.' });
+      return;
+    }
+
+    // APPROVED: Do not allow changes that invalidate the approved review
+    if (existing.review_status === 'APPROVED') {
+      res.status(403).json({ error: 'Showcase is APPROVED. Approved showcases are locked from modifications.' });
+      return;
+    }
+
     const { title, description, client_name, client_logo_url, cover_image_url, status } = req.body;
+
+    if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
+      res.status(422).json({ error: 'Showcase title cannot be empty' });
+      return;
+    }
+
+    // Protect server-controlled status transitions:
+    // Normal users cannot directly set APPROVED or REJECTED or arbitrary statuses
+    let safeStatus: any = undefined;
+    if (status !== undefined) {
+      if (status === 'APPROVED' || status === 'REJECTED') {
+        res.status(403).json({ error: 'Cannot set review status directly. Showcase approval is managed by developer review.' });
+        return;
+      }
+      if (status === 'DRAFT' || status === 'UNPUBLISHED' || status === 'PUBLISHED') {
+        safeStatus = status;
+      }
+    }
 
     const showcase = await updateShowcase(eventId, {
       title,
@@ -1610,12 +1654,56 @@ app.patch('/api/events/:eventId/showcase', authenticateJWT, async (req: Authenti
       client_name,
       client_logo_url,
       cover_image_url,
-      status,
+      status: safeStatus,
     });
 
     res.json({ showcase });
   } catch (err: any) {
     console.error('Update showcase error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:eventId/showcase/submit
+ * Submit showcase for developer review
+ */
+app.post('/api/events/:eventId/showcase/submit', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot submit showcases for review' });
+      return;
+    }
+
+    const existing = await getShowcaseByEventId(eventId);
+    if (!existing) {
+      res.status(404).json({ error: 'Showcase does not exist. Please create your showcase before submitting.' });
+      return;
+    }
+
+    if (existing.review_status === 'APPROVED') {
+      res.status(400).json({ error: 'Showcase has already been APPROVED and rewarded.' });
+      return;
+    }
+
+    const showcase = await submitShowcaseForReview(eventId);
+    res.json({ showcase, message: 'Showcase submitted for review successfully' });
+  } catch (err: any) {
+    console.error('Submit showcase error:', err);
+    if (err.code === 'MEDIA_REQUIREMENT_NOT_MET' || err.code === 'VALIDATION_ERROR') {
+      res.status(422).json({ error: err.message, code: err.code });
+      return;
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -2424,6 +2512,102 @@ app.post('/api/developer/themes/:themeId/unset-default', authenticateDeveloperAd
     res.status(500).json({ error: err.message });
   }
 });
+
+// ----------------------------------------------------
+// DEVELOPER & ADMIN SHOWCASE REVIEW ENDPOINTS
+// ----------------------------------------------------
+
+/**
+ * GET /api/developer/showcases (or /api/admin/showcases)
+ * List all showcases with event, organization, media stats, and review status
+ */
+const handleGetAdminShowcases = async (_req: AuthenticatedRequest, res: any) => {
+  try {
+    const showcases = await getAllShowcasesForAdmin();
+    res.json({ showcases });
+  } catch (err: any) {
+    console.error('Admin get showcases error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.get('/api/developer/showcases', authenticateDeveloperAdmin, handleGetAdminShowcases);
+app.get('/api/admin/showcases', authenticateDeveloperAdmin, handleGetAdminShowcases);
+
+/**
+ * POST /api/developer/showcases/:showcaseId/approve (or /api/admin/showcases/:showcaseId/approve)
+ * Approve showcase review, publish it, and idempotently grant RM300 showcase credit
+ */
+const handleApproveShowcase = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { showcaseId } = req.params;
+    const reviewerId = req.user?.id || 'admin';
+
+    const result = await approveShowcaseReview(showcaseId, reviewerId);
+    res.json({
+      success: true,
+      showcase: result.showcase,
+      reward: result.reward,
+      alreadyRewarded: result.alreadyRewarded,
+      message: result.alreadyRewarded
+        ? 'Showcase is approved (reward was already previously granted)'
+        : 'Showcase approved successfully and RM300 credit granted to organization',
+    });
+  } catch (err: any) {
+    console.error('Approve showcase error:', err);
+    if (err.code === 'SHOWCASE_NOT_FOUND') {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    if (err.code === 'INVALID_STATUS_TRANSITION') {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.post('/api/developer/showcases/:showcaseId/approve', authenticateDeveloperAdmin, handleApproveShowcase);
+app.post('/api/admin/showcases/:showcaseId/approve', authenticateDeveloperAdmin, handleApproveShowcase);
+
+/**
+ * POST /api/developer/showcases/:showcaseId/reject (or /api/admin/showcases/:showcaseId/reject)
+ * Reject showcase review with required explanation reason
+ */
+const handleRejectShowcase = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { showcaseId } = req.params;
+    const reviewerId = req.user?.id || 'admin';
+    const { reason, rejection_reason } = req.body;
+    const finalReason = rejection_reason || reason;
+
+    if (!finalReason || typeof finalReason !== 'string' || !finalReason.trim()) {
+      res.status(422).json({ error: 'Rejection reason is required' });
+      return;
+    }
+
+    const updatedShowcase = await rejectShowcaseReview(showcaseId, reviewerId, finalReason.trim());
+    res.json({
+      success: true,
+      showcase: updatedShowcase,
+      message: 'Showcase rejected with feedback for the organization',
+    });
+  } catch (err: any) {
+    console.error('Reject showcase error:', err);
+    if (err.code === 'SHOWCASE_NOT_FOUND') {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    if (err.code === 'REJECTION_REASON_REQUIRED') {
+      res.status(422).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.post('/api/developer/showcases/:showcaseId/reject', authenticateDeveloperAdmin, handleRejectShowcase);
+app.post('/api/admin/showcases/:showcaseId/reject', authenticateDeveloperAdmin, handleRejectShowcase);
 
 // ----------------------------------------------------
 // WALLET ENGINE & TRANSACTION LEDGER ENDPOINTS

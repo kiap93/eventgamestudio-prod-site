@@ -70,10 +70,15 @@ import {
   recalculateWalletBalances,
   STANDARD_EVENT_PRICE,
   getShowcaseByEventId,
+  getShowcaseById,
   createShowcase,
   updateShowcase,
   publishShowcase,
   unpublishShowcase,
+  submitShowcaseForReview,
+  approveShowcaseReview,
+  rejectShowcaseReview,
+  getAllShowcasesForAdmin,
   deleteShowcase,
   getShowcaseMedia,
   getShowcaseMediaById,
@@ -1513,17 +1518,24 @@ export default {
         const body = (await request.json().catch(() => ({}))) as any;
         const { title, description, client_name, client_logo_url, cover_image_url, status } = body;
 
+        if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
+          return errorResponse('Valid showcase title is required', 422, cors);
+        }
+
+        // Normal users can only initialize showcase with DRAFT status
+        const initialStatus = status === 'DRAFT' ? 'DRAFT' : 'DRAFT';
+
         try {
           const showcase = await createShowcase(
             {
               event_id: eventId,
               organization_id: event.organization_id,
-              title: title || event.name,
+              title: title ? title.trim() : event.name,
               description,
               client_name,
               client_logo_url,
               cover_image_url,
-              status: status || 'DRAFT',
+              status: initialStatus,
             },
             env
           );
@@ -1555,8 +1567,35 @@ export default {
           return errorResponse('Event Showcase not found', 404, cors);
         }
 
+        // Enforce Review Editing Rules:
+        // SUBMITTED: Normal user cannot silently change the submitted version
+        if (existing.review_status === 'SUBMITTED') {
+          return errorResponse('Showcase is currently SUBMITTED and undergoing review. Edits cannot be made while under review.', 403, cors);
+        }
+
+        // APPROVED: Do not allow changes that invalidate the approved review
+        if (existing.review_status === 'APPROVED') {
+          return errorResponse('Showcase is APPROVED. Approved showcases are locked from modifications.', 403, cors);
+        }
+
         const body = (await request.json().catch(() => ({}))) as any;
         const { title, description, client_name, client_logo_url, cover_image_url, status } = body;
+
+        if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
+          return errorResponse('Showcase title cannot be empty', 422, cors);
+        }
+
+        // Protect server-controlled status transitions:
+        // Normal users cannot directly set APPROVED or REJECTED or arbitrary statuses
+        let safeStatus: any = undefined;
+        if (status !== undefined) {
+          if (status === 'APPROVED' || status === 'REJECTED') {
+            return errorResponse('Cannot set review status directly. Showcase approval is managed by developer review.', 403, cors);
+          }
+          if (status === 'DRAFT' || status === 'UNPUBLISHED' || status === 'PUBLISHED') {
+            safeStatus = status;
+          }
+        }
 
         try {
           const showcase = await updateShowcase(
@@ -1567,7 +1606,7 @@ export default {
               client_name,
               client_logo_url,
               cover_image_url,
-              status,
+              status: safeStatus,
             },
             env
           );
@@ -1575,6 +1614,44 @@ export default {
         } catch (err: any) {
           console.error('Update showcase error:', err);
           return errorResponse(err.message || 'Failed to update showcase', 500, cors);
+        }
+      }
+
+      // POST /api/events/:eventId/showcase/submit
+      const submitShowcaseParams = parseRoute('/api/events/:eventId/showcase/submit', pathname);
+      if (submitShowcaseParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { eventId } = submitShowcaseParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot submit showcases for review', 403, cors);
+        }
+
+        const existing = await getShowcaseByEventId(eventId, env);
+        if (!existing) {
+          return errorResponse('Showcase does not exist. Please create your showcase before submitting.', 404, cors);
+        }
+
+        if (existing.review_status === 'APPROVED') {
+          return errorResponse('Showcase has already been APPROVED and rewarded.', 400, cors);
+        }
+
+        try {
+          const showcase = await submitShowcaseForReview(eventId, env);
+          return jsonResponse({ showcase, message: 'Showcase submitted for review successfully' }, 200, cors);
+        } catch (err: any) {
+          console.error('Submit showcase error:', err);
+          if (err.code === 'MEDIA_REQUIREMENT_NOT_MET' || err.code === 'VALIDATION_ERROR') {
+            return jsonResponse({ error: err.message, code: err.code }, 422, cors);
+          }
+          return errorResponse(err.message || 'Failed to submit showcase', 500, cors);
         }
       }
 
@@ -2339,6 +2416,99 @@ export default {
         } catch (err: any) {
           console.error('Developer delete theme error:', err);
           return errorResponse(err.message || 'Failed to delete theme', 500, cors);
+        }
+      }
+
+      // ----------------------------------------------------
+      // DEVELOPER & ADMIN SHOWCASE REVIEW ENDPOINTS
+      // ----------------------------------------------------
+
+      // GET /api/developer/showcases & /api/admin/showcases
+      if ((pathname === '/api/developer/showcases' || pathname === '/api/admin/showcases') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const showcases = await getAllShowcasesForAdmin(env);
+          return jsonResponse({ showcases }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get showcases error:', err);
+          return errorResponse(err.message || 'Failed to list showcases', 500, cors);
+        }
+      }
+
+      // POST /api/developer/showcases/:showcaseId/approve & /api/admin/showcases/:showcaseId/approve
+      const devApproveShowcase = parseRoute('/api/developer/showcases/:showcaseId/approve', pathname) ||
+                                parseRoute('/api/admin/showcases/:showcaseId/approve', pathname);
+      if (devApproveShowcase && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { showcaseId } = devApproveShowcase;
+        try {
+          const result = await approveShowcaseReview(showcaseId, auth.user.id, env);
+          return jsonResponse({
+            success: true,
+            showcase: result.showcase,
+            reward: result.reward,
+            alreadyRewarded: result.alreadyRewarded,
+            message: result.alreadyRewarded
+              ? 'Showcase is approved (reward was already previously granted)'
+              : 'Showcase approved successfully and RM300 credit granted to organization',
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Approve showcase error:', err);
+          if (err.code === 'SHOWCASE_NOT_FOUND') {
+            return errorResponse(err.message, 404, cors);
+          }
+          if (err.code === 'INVALID_STATUS_TRANSITION') {
+            return errorResponse(err.message, 400, cors);
+          }
+          return errorResponse(err.message || 'Failed to approve showcase', 500, cors);
+        }
+      }
+
+      // POST /api/developer/showcases/:showcaseId/reject & /api/admin/showcases/:showcaseId/reject
+      const devRejectShowcase = parseRoute('/api/developer/showcases/:showcaseId/reject', pathname) ||
+                               parseRoute('/api/admin/showcases/:showcaseId/reject', pathname);
+      if (devRejectShowcase && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { showcaseId } = devRejectShowcase;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { reason, rejection_reason } = body;
+        const finalReason = rejection_reason || reason;
+
+        if (!finalReason || typeof finalReason !== 'string' || !finalReason.trim()) {
+          return errorResponse('Rejection reason is required', 422, cors);
+        }
+
+        try {
+          const updatedShowcase = await rejectShowcaseReview(showcaseId, auth.user.id, finalReason.trim(), env);
+          return jsonResponse({
+            success: true,
+            showcase: updatedShowcase,
+            message: 'Showcase rejected with feedback for the organization',
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Reject showcase error:', err);
+          if (err.code === 'SHOWCASE_NOT_FOUND') {
+            return errorResponse(err.message, 404, cors);
+          }
+          if (err.code === 'REJECTION_REASON_REQUIRED') {
+            return errorResponse(err.message, 422, cors);
+          }
+          return errorResponse(err.message || 'Failed to reject showcase', 500, cors);
         }
       }
 

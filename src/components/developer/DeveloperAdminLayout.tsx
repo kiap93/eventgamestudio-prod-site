@@ -15,11 +15,12 @@ import {
   Code2,
   Activity,
   ChevronRight,
+  Gift,
 } from 'lucide-react';
 
 interface DeveloperAdminLayoutProps {
   children: React.ReactNode;
-  activeSection?: 'games' | 'stats' | 'themes';
+  activeSection?: 'games' | 'stats' | 'themes' | 'showcases';
 }
 
 export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
@@ -43,14 +44,14 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
           </span>
           <span className="hidden sm:inline text-slate-500">|</span>
           <span className="hidden sm:inline text-slate-400 text-[11px]">
-            Game Catalog & System Default Themes Engineering
+            Game Catalog, Themes & Showcase Reviews
           </span>
         </div>
 
         <div className="flex items-center space-x-3">
           <button
             onClick={() => navigateTo('/studio')}
-            className="flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 font-semibold text-[11px] hover:underline"
+            className="flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 font-semibold text-[11px] hover:underline cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Return to Studio Workspace</span>
@@ -75,16 +76,16 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                   DevAdmin <span className="text-emerald-400 ml-1">Platform</span>
                 </span>
                 <span className="text-[10px] font-mono text-slate-400 block -mt-0.5">
-                  GAMES & THEMES ENGINE
+                  GAMES, THEMES & REVIEWS
                 </span>
               </div>
             </div>
 
             {/* Desktop Navigation Links */}
-            <nav className="hidden md:flex items-center space-x-1 border-l border-slate-800 pl-6">
+            <nav className="hidden md:flex items-center space-x-2 border-l border-slate-800 pl-6">
               <button
                 onClick={() => navigateTo('/developer')}
-                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
                   activeSection === 'games'
                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -92,6 +93,18 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
               >
                 <Gamepad2 className="w-4 h-4" />
                 <span>Games & System Themes</span>
+              </button>
+
+              <button
+                onClick={() => navigateTo('/developer/showcases')}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  activeSection === 'showcases'
+                    ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Gift className="w-4 h-4 text-amber-400" />
+                <span>Showcase Reviews (RM300)</span>
               </button>
             </nav>
           </div>
@@ -120,7 +133,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             {/* Logout / Exit */}
             <button
               onClick={logout}
-              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors"
+              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
               title="Sign Out"
             >
               <LogOut className="w-4 h-4" />
@@ -148,6 +161,17 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             >
               <Gamepad2 className="w-4 h-4" />
               <span>Games & Themes</span>
+            </button>
+
+            <button
+              onClick={() => {
+                navigateTo('/developer/showcases');
+                setMobileMenuOpen(false);
+              }}
+              className="w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"
+            >
+              <Gift className="w-4 h-4" />
+              <span>Showcase Reviews</span>
             </button>
 
             <button
