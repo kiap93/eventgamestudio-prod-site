@@ -4,9 +4,9 @@ import { DEFAULT_GAME_LAYOUT } from './layout';
 export const christmasTheme: GameTheme = {
   id: 'christmas',
   base_theme_id: 'christmas',
-  name: 'Christmas Gift Catch',
+  name: 'Christmas',
   slug: 'christmas-rush',
-  description: 'Holiday festive arcade game catching Christmas presents and avoiding lumps of coal.',
+  description: 'Holiday festive arcade theme catching Christmas presents and avoiding lumps of coal.',
   status: 'active',
 
   branding: {

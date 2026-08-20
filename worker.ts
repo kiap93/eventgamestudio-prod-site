@@ -32,9 +32,13 @@ import {
   getEventById,
   getEventByPublicToken,
   createEvent,
+  createEventWithAtomicPayment,
   updateEvent,
   deleteEvent,
   cancelEvent,
+  canCancelEvent,
+  determineEventRefund,
+  PaymentMode,
   getAllPlatformGames,
   createPlatformGame,
   updatePlatformGame,
@@ -1301,6 +1305,117 @@ export default {
         return jsonResponse({ event }, 200, cors);
       }
 
+      // Quote Event Payment
+      if (pathname === '/api/events/quote' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const organizationId = auth.jwtPayload?.organizationId;
+
+        if (!organizationId) {
+          return errorResponse('No active organization selected', 422, cors);
+        }
+
+        const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.view', env);
+        if (!isMember) {
+          return errorResponse('Permission denied: Not a member of this organization', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { game_theme_id, payment_mode, topup_credit_requested, event_price } = body;
+        const price = typeof event_price === 'number' && event_price > 0 ? event_price : STANDARD_EVENT_PRICE;
+
+        let themeInfo: any = null;
+        if (game_theme_id) {
+          const theme = await getThemeById(game_theme_id, env);
+          if (theme) {
+            themeInfo = {
+              id: theme.id,
+              name: theme.name,
+              game_id: theme.game_id,
+            };
+          }
+        }
+
+        const walletSummary = await getWalletBalance(organizationId, env);
+        const selectedMode = (payment_mode as PaymentMode) || 'FULL_PAID';
+
+        // Calculate quote for selected payment mode
+        const selectedCalculation = await calculateEventPayment(
+          price,
+          selectedMode,
+          organizationId,
+          { topupCreditRequested: topup_credit_requested },
+          env
+        );
+
+        // Calculate options for all payment modes
+        const fullPaidCalc = await calculateEventPayment(price, 'FULL_PAID', organizationId, {}, env);
+        const welcomeCalc = await calculateEventPayment(price, 'WELCOME_CREDIT', organizationId, {}, env);
+        const showcaseCalc = await calculateEventPayment(price, 'SHOWCASE_CREDIT', organizationId, {}, env);
+        const topupCalc = await calculateEventPayment(price, 'TOPUP_CREDIT', organizationId, { topupCreditRequested: topup_credit_requested }, env);
+
+        const options = [
+          {
+            mode: 'FULL_PAID',
+            title: 'Paid Balance',
+            badge: '100% Paid Balance',
+            isEligible: fullPaidCalc.isPayable,
+            creditApplied: 0,
+            paidAmount: fullPaidCalc.paidAmount,
+            remainingPaidBalance: fullPaidCalc.remainingPaidBalance,
+            remainingCreditBalance: 0,
+            reasons: fullPaidCalc.reasons,
+          },
+          {
+            mode: 'WELCOME_CREDIT',
+            title: 'Welcome Credit',
+            badge: 'Save RM800.00',
+            isEligible: welcomeCalc.isPayable,
+            creditApplied: welcomeCalc.welcomeCreditUsed,
+            paidAmount: welcomeCalc.paidAmount,
+            remainingPaidBalance: welcomeCalc.remainingPaidBalance,
+            remainingCreditBalance: welcomeCalc.remainingCreditBalance,
+            reasons: welcomeCalc.reasons,
+          },
+          {
+            mode: 'SHOWCASE_CREDIT',
+            title: 'Showcase Credit',
+            badge: 'Save RM300.00',
+            isEligible: showcaseCalc.isPayable,
+            creditApplied: showcaseCalc.showcaseCreditUsed,
+            paidAmount: showcaseCalc.paidAmount,
+            remainingPaidBalance: showcaseCalc.remainingPaidBalance,
+            remainingCreditBalance: showcaseCalc.remainingCreditBalance,
+            reasons: showcaseCalc.reasons,
+          },
+          {
+            mode: 'TOPUP_CREDIT',
+            title: 'Top-up Bonus Credit',
+            badge: 'Save up to 20% (RM280.00)',
+            isEligible: topupCalc.isPayable,
+            creditApplied: topupCalc.topupCreditUsed,
+            paidAmount: topupCalc.paidAmount,
+            remainingPaidBalance: topupCalc.remainingPaidBalance,
+            remainingCreditBalance: topupCalc.remainingCreditBalance,
+            reasons: topupCalc.reasons,
+          },
+        ];
+
+        return jsonResponse({
+          standard_price: price,
+          currency: 'MYR',
+          theme: themeInfo,
+          selected_mode: selectedMode,
+          calculation: selectedCalculation,
+          wallet: walletSummary,
+          options,
+          is_payable: selectedCalculation.isPayable,
+          reasons: selectedCalculation.reasons,
+        }, 200, cors);
+      }
+
       if (pathname === '/api/events' && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
@@ -1318,7 +1433,18 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const { name, game_theme_id, event_date, starts_at, expires_at, status } = body;
+        const {
+          name,
+          game_theme_id,
+          event_date,
+          starts_at,
+          expires_at,
+          status,
+          payment_mode = 'FULL_PAID',
+          topup_credit_requested,
+          event_price,
+          reference_id,
+        } = body;
 
         if (!name || typeof name !== 'string' || !name.trim()) {
           return errorResponse('Event name is required', 422, cors);
@@ -1332,22 +1458,41 @@ export default {
           return errorResponse('Start time and Expiry time are required', 422, cors);
         }
 
-        const event = await createEvent(
-          {
-            organization_id: organizationId,
-            game_theme_id,
-            name,
-            event_date,
-            starts_at,
-            expires_at,
-            status,
-            created_by: user.id,
-          },
-          env
-        );
+        try {
+          // Execute atomic creation + financial ledger payment
+          const result = await createEventWithAtomicPayment(
+            {
+              organization_id: organizationId,
+              game_theme_id,
+              name,
+              event_date,
+              starts_at,
+              expires_at,
+              status,
+              created_by: user.id,
+              payment_mode,
+              topup_credit_requested,
+              event_price,
+              reference_id,
+            },
+            env
+          );
 
-        const enrichedEvent = await getEventById(event.id, env);
-        return jsonResponse({ event: enrichedEvent }, 201, cors);
+          return jsonResponse({
+            success: true,
+            event: result.event,
+            payment: result.payment,
+          }, 201, cors);
+        } catch (err: any) {
+          console.error('Create event error in worker:', err);
+          if (err.message && err.message.toLowerCase().includes('insufficient')) {
+            return jsonResponse({
+              error: err.message,
+              code: 'INSUFFICIENT_FUNDS',
+            }, 402, cors);
+          }
+          return errorResponse(err.message || 'Failed to create event', err.status || 500, cors);
+        }
       }
 
       const updateEventParams = parseRoute('/api/events/:eventId', pathname);
@@ -1410,6 +1555,29 @@ export default {
         return jsonResponse({ success: true }, 200, cors);
       }
 
+      const cancelEligibilityParams = parseRoute('/api/events/:eventId/cancellation-eligibility', pathname);
+      if (cancelEligibilityParams && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = cancelEligibilityParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.view', env);
+        if (!isMember) {
+          return errorResponse('Permission denied', 403, cors);
+        }
+
+        const eligibility = canCancelEvent(event);
+        const refund = determineEventRefund(event);
+        return jsonResponse({ eligibility, refund }, 200, cors);
+      }
+
       const cancelEventParams = parseRoute('/api/events/:eventId/cancel', pathname);
       if (cancelEventParams && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
@@ -1428,9 +1596,32 @@ export default {
           return errorResponse('Permission denied: Viewers cannot cancel events', 403, cors);
         }
 
-        const cancelled = await cancelEvent(eventId, env);
+        const eligibility = canCancelEvent(event);
+        if (!eligibility.canCancel) {
+          return jsonResponse({
+            error: eligibility.reason,
+            code: eligibility.code,
+            eligibility,
+          }, 422, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const cancelled = await cancelEvent(
+          eventId,
+          {
+            cancelledBy: user.id,
+            reason: body?.reason || 'User cancelled event before Setup Day',
+          },
+          env
+        );
+
         const enriched = await getEventById(cancelled.id, env);
-        return jsonResponse({ event: enriched }, 200, cors);
+        return jsonResponse({
+          success: true,
+          event: enriched,
+          eligibility: cancelled.eligibility,
+          refundResult: cancelled.refundResult,
+        }, 200, cors);
       }
 
       const publicEventParams = parseRoute('/api/public/events/:publicToken', pathname);

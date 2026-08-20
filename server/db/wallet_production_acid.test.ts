@@ -50,11 +50,15 @@ async function runProductionAcidTests() {
 
   // Test 1: Placeholder environment detection
   console.log('--- Test Group 1: Environment Detection ---');
-  const defaultIsProd = isSupabaseConfigured();
-  assertEqual(defaultIsProd, false, 'Default mock environment correctly identified as non-production (false)');
+  const mockDevEnv = {
+    SUPABASE_URL: 'https://placeholder-project.supabase.co',
+    SUPABASE_SERVICE_ROLE_KEY: 'placeholder-service-key',
+  };
+  const devIsProd = isSupabaseConfigured(mockDevEnv);
+  assertEqual(devIsProd, false, 'Placeholder mock environment correctly identified as non-production (false)');
 
   const mockProdEnv = {
-    SUPABASE_URL: 'https://real-project.supabase.co',
+    SUPABASE_URL: 'https://test-error-database.supabase.co',
     SUPABASE_SERVICE_ROLE_KEY: 'real-service-role-key-abc123xyz',
   };
   const prodDetected = isSupabaseConfigured(mockProdEnv);
@@ -134,6 +138,7 @@ async function runProductionAcidTests() {
   if (failed > 0) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 runProductionAcidTests().catch((err) => {

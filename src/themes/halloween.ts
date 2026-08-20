@@ -4,9 +4,9 @@ import { DEFAULT_GAME_LAYOUT } from './layout';
 export const halloweenTheme: GameTheme = {
   id: 'halloween',
   base_theme_id: 'halloween',
-  name: 'Spooky Halloween Catch',
+  name: 'Halloween',
   slug: 'spooky-halloween',
-  description: 'Haunted night arcade game catching spooky candies and avoiding poisonous spiders.',
+  description: 'Haunted night arcade theme catching spooky candies and avoiding poisonous spiders.',
   status: 'active',
 
   branding: {

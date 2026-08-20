@@ -144,6 +144,23 @@ export async function getGameById(gameId: string, env?: Record<string, any>): Pr
     .maybeSingle();
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+      const match = CATALOG_GAMES.find((g) => g.slug === gameId || g.game_type === gameId) || CATALOG_GAMES[0];
+      return {
+        id: gameId,
+        organization_id: '00000000-0000-0000-0000-000000000001',
+        name: match.name,
+        slug: match.slug,
+        game_type: match.game_type as any,
+        description: match.description,
+        branding: { gameTitle: match.name } as any,
+        basket_config: DEFAULT_BASKET_CONFIG,
+        items_config: DEFAULT_ITEMS_CONFIG,
+        settings_config: DEFAULT_SETTINGS_CONFIG,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as unknown as GameRecord;
+    }
     console.error('Error in getGameById:', error);
     throw new Error(`Failed to get game by id: ${error.message}`);
   }

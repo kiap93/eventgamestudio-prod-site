@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { DEFAULT_GAME_TYPE } from '../games/registry';
 
 export type PresentationMode =
+  | 'landing'
   | 'public_game'
   | 'public_event'
   | 'studio'
@@ -158,7 +159,20 @@ export function parseRoute(pathname: string): RouteContext {
     };
   }
 
-  // 5. Default: Studio Route (e.g. /, /studio, /events, /events/:eventId/showcase, /game-themes, /team)
+  // 5. Check for Public Landing Page: /
+  if (cleanPath === '' || cleanPath === '/') {
+    return {
+      mode: 'landing',
+      isPublicGameRoute: false,
+      isPublicEventRoute: false,
+      isStudioRoute: false,
+      isPreviewRoute: false,
+      isDeveloperAdminRoute: false,
+      pathname: cleanPath,
+    };
+  }
+
+  // 6. Default: Studio Route (e.g. /studio, /events, /events/:eventId/showcase, /game-themes, /team, /dashboard)
   let eventId: string | undefined = undefined;
   let isShowcaseRoute = false;
 

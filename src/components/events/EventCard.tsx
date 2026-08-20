@@ -10,6 +10,8 @@ import {
   Ban,
   Gamepad2,
   Sparkles,
+  ShieldCheck,
+  CreditCard,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 
@@ -91,7 +93,7 @@ export const EventCard: React.FC<EventCardProps> = ({
     }
   };
 
-  const gameName = event.game?.name || 'Durian Catcher';
+  const gameName = event.game?.name || 'Catch The Brand';
   const themeName = event.game_theme?.name || 'Theme';
 
   const startDateFormatted = new Date(event.starts_at).toLocaleString([], {
@@ -149,6 +151,32 @@ export const EventCard: React.FC<EventCardProps> = ({
           </span>
           <span className="text-slate-200 font-mono">{expireDateFormatted}</span>
         </div>
+
+        {event.payment_status && (
+          <div className="flex items-center justify-between pt-1.5 border-t border-slate-900 text-slate-400">
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-emerald-400" />
+              Payment:
+            </span>
+            <span className={`text-[10px] font-mono font-semibold ${
+              event.payment_status === 'REFUNDED'
+                ? 'text-amber-400'
+                : 'text-emerald-400'
+            }`}>
+              {event.payment_status === 'REFUNDED'
+                ? 'REFUNDED'
+                : event.payment_mode === 'WELCOME_CREDIT'
+                ? 'Welcome Credit (RM600 Paid)'
+                : event.payment_mode === 'SHOWCASE_CREDIT'
+                ? 'Showcase Credit (RM1,100 Paid)'
+                : event.payment_mode === 'TOPUP_CREDIT'
+                ? 'Top-up Promo (RM1,120 Paid)'
+                : event.paid_amount !== undefined
+                ? `RM ${Number(event.paid_amount).toFixed(2)} Paid`
+                : 'PAID'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Showcase Status Button */}

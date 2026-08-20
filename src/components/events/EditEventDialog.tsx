@@ -244,7 +244,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                 <div className="space-y-4 max-h-52 overflow-y-auto pr-1">
                   {Array.from(
                     themes.reduce((groups, theme) => {
-                      const gameKey = theme.game_name || 'Durian Catcher';
+                      const gameKey = theme.game_name || 'Catch The Brand';
                       if (!groups.has(gameKey)) groups.set(gameKey, []);
                       groups.get(gameKey)!.push(theme);
                       return groups;

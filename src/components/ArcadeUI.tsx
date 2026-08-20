@@ -78,7 +78,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     activeTheme?.branding?.gameTitle ||
     activeTheme?.gameTitle ||
     activeTheme?.name ||
-    'DURIAN CATCHER';
+    'CATCH THE BRAND';
 
   const gameSubtitle =
     activeTheme?.branding?.subtitle ||

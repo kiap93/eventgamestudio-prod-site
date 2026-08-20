@@ -4,9 +4,9 @@ import { DEFAULT_GAME_LAYOUT } from './layout';
 export const cnyTheme: GameTheme = {
   id: 'chinese-new-year',
   base_theme_id: 'chinese-new-year',
-  name: 'Lunar New Year Fortune Catch',
+  name: 'Lunar New Year',
   slug: 'cny-fortune',
-  description: 'Festive Lunar New Year game catching red packets (Angpow) and avoiding firecrackers.',
+  description: 'Festive Lunar New Year theme catching red packets (Angpow) and avoiding firecrackers.',
   status: 'active',
 
   branding: {

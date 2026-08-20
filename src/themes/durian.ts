@@ -4,13 +4,13 @@ import { DEFAULT_GAME_LAYOUT } from './layout';
 export const durianTheme: GameTheme = {
   id: 'durian',
   base_theme_id: 'durian',
-  name: 'Durian Catcher',
-  slug: 'durian-catcher',
-  description: 'Classic retro arcade game: Catch delicious green durians in a lush tropical forest.',
+  name: 'Durian',
+  slug: 'durian',
+  description: 'Classic retro arcade theme: Catch delicious green durians in a lush tropical forest.',
   status: 'active',
 
   branding: {
-    gameTitle: 'DURIAN CATCHER',
+    gameTitle: 'CATCH THE BRAND',
     subtitle: 'Catch falling green durians, avoid spiky orange ones!',
     logoUrl: null,
     clientLogoUrl: null,
@@ -149,7 +149,7 @@ export const durianTheme: GameTheme = {
   fallingObject: '/assets/durian_green.png',
   badFallingObject: '/assets/durian_brown.png',
   bonusFallingObject: '/assets/durian_green.png',
-  gameTitle: 'DURIAN CATCHER',
+  gameTitle: 'CATCH THE BRAND',
   subtitle: 'Catch falling green durians, avoid spiky orange ones!',
   fallingObjectName: 'GREEN DURIAN',
   badFallingObjectName: 'ORANGE DURIAN',

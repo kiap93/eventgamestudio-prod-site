@@ -40,7 +40,7 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
   onBack,
 }) => {
   const [theme, setTheme] = useState<GameTheme | null>(null);
-  const [gameName, setGameName] = useState<string>('Durian Catcher');
+  const [gameName, setGameName] = useState<string>('Catch The Brand');
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);

@@ -55,6 +55,23 @@ export function getSupabaseServerClient(env?: Record<string, any>): SupabaseClie
             },
           },
         }
+      : supabaseUrl.includes('test-error')
+      ? {
+          global: {
+            fetch: async () => {
+              return new Response(
+                JSON.stringify({
+                  code: 'PGRST500',
+                  message: 'Database connection failed during test',
+                }),
+                {
+                  status: 500,
+                  headers: { 'Content-Type': 'application/json' },
+                }
+              );
+            },
+          },
+        }
       : {}),
   });
 

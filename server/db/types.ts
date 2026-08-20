@@ -247,6 +247,10 @@ export interface EventRecord {
   starts_at: string;
   expires_at: string;
   status: EventStatus;
+  payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED';
+  payment_mode?: PaymentMode;
+  paid_amount?: number;
+  discount_amount?: number;
   public_token: string;
   created_by?: string | null;
   created_at: string;
@@ -255,6 +259,8 @@ export interface EventRecord {
 
 export interface EventWithDetails extends EventRecord {
   calculated_status?: EventStatus;
+  setup_starts_at?: string;
+  cancellation_eligibility?: EventCancellationEligibility;
   game_theme?: GameThemeRecord | null;
   game?: {
     id: string;
@@ -441,6 +447,41 @@ export interface CreditEligibilityResult {
   paid_balance_required: number;
   event_price: number;
   reason?: string;
+}
+
+export type CancellationErrorCode =
+  | 'ELIGIBLE_FOR_CANCELLATION'
+  | 'SETUP_DAY_STARTED'
+  | 'EVENT_ACTIVE'
+  | 'EVENT_COMPLETED'
+  | 'EVENT_EXPIRED'
+  | 'ALREADY_CANCELLED'
+  | 'STATUS_NOT_CANCELLABLE';
+
+export interface EventCancellationEligibility {
+  canCancel: boolean;
+  canRefund: boolean;
+  rawStatus: string;
+  calculatedStatus: string;
+  setupDayStarted: boolean;
+  setupStartsAt: string;
+  startsAt: string;
+  expiresAt: string;
+  paymentStatus: string;
+  refundPaidAmount: number;
+  creditReversalAmount: number;
+  creditType: PaymentMode | null;
+  reason: string;
+  code: CancellationErrorCode;
+}
+
+export interface EventRefundDetermination {
+  canRefund: boolean;
+  refundPaidAmount: number;
+  creditReversalAmount: number;
+  creditType: PaymentMode | null;
+  paymentStatus: string;
+  reason: string;
 }
 
 

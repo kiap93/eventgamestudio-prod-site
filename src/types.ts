@@ -151,14 +151,77 @@ export interface EventPaymentQuote {
   reasons: string[];
 }
 
-export interface CreditEligibilityResult {
-  eligible: boolean;
-  credit_type: 'WELCOME_CREDIT' | 'SHOWCASE_CREDIT';
-  credit_available: number;
-  credit_amount: number;
-  paid_balance_available: number;
-  paid_balance_required: number;
-  event_price: number;
-  reason?: string;
+export interface EventQuoteOption {
+  mode: PaymentMode;
+  title: string;
+  badge: string;
+  isEligible: boolean;
+  creditApplied: number;
+  paidAmount: number;
+  remainingPaidBalance: number;
+  remainingCreditBalance: number;
+  reasons: string[];
+}
+
+export interface EventRecord {
+  id: string;
+  organization_id: string;
+  game_theme_id: string;
+  name: string;
+  event_date?: string | null;
+  starts_at: string;
+  expires_at: string;
+  status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled';
+  payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED';
+  payment_mode?: PaymentMode;
+  paid_amount?: number;
+  discount_amount?: number;
+  public_token: string;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CancellationErrorCode =
+  | 'ELIGIBLE_FOR_CANCELLATION'
+  | 'SETUP_DAY_STARTED'
+  | 'EVENT_ACTIVE'
+  | 'EVENT_COMPLETED'
+  | 'EVENT_EXPIRED'
+  | 'ALREADY_CANCELLED'
+  | 'STATUS_NOT_CANCELLABLE';
+
+export interface EventCancellationEligibility {
+  canCancel: boolean;
+  canRefund: boolean;
+  rawStatus: string;
+  calculatedStatus: string;
+  setupDayStarted: boolean;
+  setupStartsAt: string;
+  startsAt: string;
+  expiresAt: string;
+  paymentStatus: string;
+  refundPaidAmount: number;
+  creditReversalAmount: number;
+  creditType: PaymentMode | null;
+  reason: string;
+  code: CancellationErrorCode;
+}
+
+export interface EventWithDetails extends EventRecord {
+  calculated_status?: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled';
+  setup_starts_at?: string;
+  cancellation_eligibility?: EventCancellationEligibility;
+  game_theme?: any;
+  game?: {
+    id: string;
+    name: string;
+    slug: string;
+    game_type: string;
+  } | null;
+  organization_name?: string;
+  organization_slug?: string;
+  showcase?: any;
+  showcase_status?: string;
 }
 

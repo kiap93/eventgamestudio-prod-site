@@ -23,6 +23,7 @@
  */
 
 import crypto from 'node:crypto';
+import { getSupabaseServerClient } from '../supabase.js';
 import {
   calculateTopupCredit,
   toCents,
@@ -34,6 +35,22 @@ import {
 
 let passed = 0;
 let failed = 0;
+
+async function ensureTestOrg(orgId: string) {
+  const supabase = getSupabaseServerClient();
+  try {
+    await supabase.from('organizations').upsert({
+      id: orgId,
+      name: `Test Org ${orgId.slice(0, 8)}`,
+      slug: `test-org-${orgId.slice(0, 8)}`,
+      owner_id: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  } catch {
+    // Ignore in local mode
+  }
+}
 
 function assertEqual(actual: any, expected: any, testName: string) {
   if (actual === expected) {
@@ -127,6 +144,7 @@ async function runTests() {
   console.log('\n--- Test Group 4: Non-Aggregation & Independence Test ---');
 
   const testOrgId = crypto.randomUUID();
+  await ensureTestOrg(testOrgId);
 
   // Top up 1: RM3,000
   const topup1 = await createTopup({
@@ -159,6 +177,7 @@ async function runTests() {
   console.log('\n--- Test Group 5: Tier-2 Top-up & Webhook Idempotency ---');
 
   const testOrgTier2 = crypto.randomUUID();
+  await ensureTestOrg(testOrgTier2);
   const webhookRef = `wh_stripe_charge_${Date.now()}`;
 
   // Process RM10,000 topup
@@ -207,6 +226,7 @@ async function runTests() {
   if (failed > 0) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 runTests().catch((err) => {

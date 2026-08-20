@@ -4,9 +4,9 @@ import { DEFAULT_GAME_LAYOUT } from './layout';
 export const mangoTheme: GameTheme = {
   id: 'mango',
   base_theme_id: 'mango',
-  name: 'Sweet Mango Catcher',
+  name: 'Mango Orchard',
   slug: 'mango-harvest',
-  description: 'Tropical orchard arcade game catching ripe golden mangoes and avoiding sour green ones.',
+  description: 'Tropical orchard arcade theme catching ripe golden mangoes and avoiding sour green ones.',
   status: 'active',
 
   branding: {

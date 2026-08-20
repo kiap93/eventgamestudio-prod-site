@@ -1,6 +1,6 @@
 {
-  "name": "Remix Copy of Remix Durian Catcher",
-  "description": "Event Game Studio platform with branded custom game creation, event showcases with high-resolution media management, and immutable credit wallet engine.",
+  "name": "eventstudio2",
+  "description": "Interactive branded games platform for corporate events, launches, roadshows, exhibitions, and activations.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

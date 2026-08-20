@@ -53,9 +53,12 @@ import {
   getEventById,
   getEventByPublicToken,
   createEvent,
+  createEventWithAtomicPayment,
   updateEvent,
   deleteEvent,
   cancelEvent,
+  canCancelEvent,
+  determineEventRefund,
   getShowcaseByEventId,
   getShowcaseById,
   createShowcase,
@@ -106,6 +109,8 @@ import {
   hashToken,
   AuthenticatedRequest,
 } from './server/auth.js';
+
+import { PaymentMode } from './server/db/types.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
 
@@ -1292,8 +1297,125 @@ app.get('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
 });
 
 /**
+ * POST /api/events/quote
+ * Calculate real-time pricing, credit eligibility and wallet deductions for creating an event
+ */
+app.post('/api/events/quote', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const organizationId = req.jwtPayload?.organizationId;
+
+    if (!organizationId) {
+      res.status(422).json({ error: 'No active organization selected' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.view');
+    if (!isMember) {
+      res.status(403).json({ error: 'Permission denied: Not a member of this organization' });
+      return;
+    }
+
+    const { game_theme_id, payment_mode, topup_credit_requested, event_price } = req.body;
+    const price = typeof event_price === 'number' && event_price > 0 ? event_price : STANDARD_EVENT_PRICE;
+
+    let themeInfo: any = null;
+    if (game_theme_id) {
+      const theme = await getThemeById(game_theme_id);
+      if (theme) {
+        themeInfo = {
+          id: theme.id,
+          name: theme.name,
+          game_id: theme.game_id,
+        };
+      }
+    }
+
+    const walletSummary = await getWalletBalance(organizationId);
+    const selectedMode = (payment_mode as PaymentMode) || 'FULL_PAID';
+
+    // Calculate quote for selected payment mode
+    const selectedCalculation = await calculateEventPayment(
+      price,
+      selectedMode,
+      organizationId,
+      { topupCreditRequested: topup_credit_requested }
+    );
+
+    // Calculate options for all payment modes
+    const fullPaidCalc = await calculateEventPayment(price, 'FULL_PAID', organizationId);
+    const welcomeCalc = await calculateEventPayment(price, 'WELCOME_CREDIT', organizationId);
+    const showcaseCalc = await calculateEventPayment(price, 'SHOWCASE_CREDIT', organizationId);
+    const topupCalc = await calculateEventPayment(price, 'TOPUP_CREDIT', organizationId, { topupCreditRequested: topup_credit_requested });
+
+    const options = [
+      {
+        mode: 'FULL_PAID',
+        title: 'Paid Balance',
+        badge: '100% Paid Balance',
+        isEligible: fullPaidCalc.isPayable,
+        creditApplied: 0,
+        paidAmount: fullPaidCalc.paidAmount,
+        remainingPaidBalance: fullPaidCalc.remainingPaidBalance,
+        remainingCreditBalance: 0,
+        reasons: fullPaidCalc.reasons,
+      },
+      {
+        mode: 'WELCOME_CREDIT',
+        title: 'Welcome Credit',
+        badge: 'Save RM800.00',
+        isEligible: welcomeCalc.isPayable,
+        creditApplied: welcomeCalc.welcomeCreditUsed,
+        paidAmount: welcomeCalc.paidAmount,
+        remainingPaidBalance: welcomeCalc.remainingPaidBalance,
+        remainingCreditBalance: welcomeCalc.remainingCreditBalance,
+        reasons: welcomeCalc.reasons,
+      },
+      {
+        mode: 'SHOWCASE_CREDIT',
+        title: 'Showcase Credit',
+        badge: 'Save RM300.00',
+        isEligible: showcaseCalc.isPayable,
+        creditApplied: showcaseCalc.showcaseCreditUsed,
+        paidAmount: showcaseCalc.paidAmount,
+        remainingPaidBalance: showcaseCalc.remainingPaidBalance,
+        remainingCreditBalance: showcaseCalc.remainingCreditBalance,
+        reasons: showcaseCalc.reasons,
+      },
+      {
+        mode: 'TOPUP_CREDIT',
+        title: 'Top-up Bonus Credit',
+        badge: 'Save up to 20% (RM280.00)',
+        isEligible: topupCalc.isPayable,
+        creditApplied: topupCalc.topupCreditUsed,
+        paidAmount: topupCalc.paidAmount,
+        remainingPaidBalance: topupCalc.remainingPaidBalance,
+        remainingCreditBalance: topupCalc.remainingCreditBalance,
+        reasons: topupCalc.reasons,
+      },
+    ];
+
+    res.json({
+      standard_price: price,
+      currency: 'MYR',
+      theme: themeInfo,
+      selected_mode: selectedMode,
+      calculation: selectedCalculation,
+      wallet: walletSummary,
+      options,
+      is_payable: selectedCalculation.isPayable,
+      reasons: selectedCalculation.reasons,
+    });
+  } catch (err: any) {
+    console.error('Event quote error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /api/events
- * Create a new event deployment linking a Game Theme
+ * Atomically create and process financial ledger payment for a new event deployment.
+ * Enforces that payment succeeds BEFORE the event is permanently activated.
  */
 app.post('/api/events', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -1311,7 +1433,18 @@ app.post('/api/events', authenticateJWT, async (req: AuthenticatedRequest, res) 
       return;
     }
 
-    const { name, game_theme_id, event_date, starts_at, expires_at, status } = req.body;
+    const {
+      name,
+      game_theme_id,
+      event_date,
+      starts_at,
+      expires_at,
+      status,
+      payment_mode = 'FULL_PAID',
+      topup_credit_requested,
+      event_price,
+      reference_id,
+    } = req.body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
       res.status(422).json({ error: 'Event name is required' });
@@ -1328,7 +1461,8 @@ app.post('/api/events', authenticateJWT, async (req: AuthenticatedRequest, res) 
       return;
     }
 
-    const event = await createEvent({
+    // Execute atomic creation + financial ledger payment
+    const result = await createEventWithAtomicPayment({
       organization_id: organizationId,
       game_theme_id,
       name,
@@ -1337,13 +1471,27 @@ app.post('/api/events', authenticateJWT, async (req: AuthenticatedRequest, res) 
       expires_at,
       status,
       created_by: user.id,
+      payment_mode,
+      topup_credit_requested,
+      event_price,
+      reference_id,
     });
 
-    const enrichedEvent = await getEventById(event.id);
-    res.status(201).json({ event: enrichedEvent });
+    res.status(201).json({
+      success: true,
+      event: result.event,
+      payment: result.payment,
+    });
   } catch (err: any) {
     console.error('Create event error:', err);
-    res.status(500).json({ error: err.message });
+    if (err.message && err.message.toLowerCase().includes('insufficient')) {
+      res.status(402).json({
+        error: err.message,
+        code: 'INSUFFICIENT_FUNDS',
+      });
+      return;
+    }
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -1417,8 +1565,38 @@ app.delete('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReq
 });
 
 /**
+ * GET /api/events/:eventId/cancellation-eligibility
+ * Check if event can be cancelled and calculate any eligible refund
+ */
+app.get('/api/events/:eventId/cancellation-eligibility', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.view');
+    if (!isMember) {
+      res.status(403).json({ error: 'Permission denied' });
+      return;
+    }
+
+    const eligibility = canCancelEvent(event);
+    const refund = determineEventRefund(event);
+    res.json({ eligibility, refund });
+  } catch (err: any) {
+    console.error('Cancellation eligibility error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /api/events/:eventId/cancel
- * Cancel an active or scheduled event
+ * Cancel an active or scheduled event enforcing Setup Day cancellation rules & ledger refunds
  */
 app.post('/api/events/:eventId/cancel', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -1437,12 +1615,35 @@ app.post('/api/events/:eventId/cancel', authenticateJWT, async (req: Authenticat
       return;
     }
 
-    const cancelled = await cancelEvent(eventId);
+    const eligibility = canCancelEvent(event);
+    if (!eligibility.canCancel) {
+      res.status(422).json({
+        error: eligibility.reason,
+        code: eligibility.code,
+        eligibility,
+      });
+      return;
+    }
+
+    const cancelled = await cancelEvent(eventId, {
+      cancelledBy: user.id,
+      reason: req.body?.reason || 'User cancelled event before Setup Day',
+    });
+
     const enriched = await getEventById(cancelled.id);
-    res.json({ event: enriched });
+    res.json({
+      success: true,
+      event: enriched,
+      eligibility: cancelled.eligibility,
+      refundResult: cancelled.refundResult,
+    });
   } catch (err: any) {
     console.error('Cancel event error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 422).json({
+      error: err.message,
+      code: err.code || 'CANCELLATION_FAILED',
+      eligibility: err.eligibility,
+    });
   }
 });
 

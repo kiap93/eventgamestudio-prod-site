@@ -4,6 +4,7 @@ import { apiFetch } from '../../lib/api';
 import { EventCard } from './EventCard';
 import { CreateEventDialog } from './CreateEventDialog';
 import { EditEventDialog } from './EditEventDialog';
+import { CancelEventModal } from './CancelEventModal';
 import { EventCalendarView } from './EventCalendarView';
 import {
   Calendar as CalendarIcon,
@@ -31,6 +32,7 @@ export const EventsPage: React.FC = () => {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any | null>(null);
+  const [cancellingEvent, setCancellingEvent] = useState<any | null>(null);
 
   const fetchEvents = async () => {
     try {
@@ -88,25 +90,10 @@ export const EventsPage: React.FC = () => {
     }
   };
 
-  const handleCancelEvent = async (eventId: string) => {
-    if (!window.confirm('Cancel this event deployment? Public visitors will be notified that the event has ended/been cancelled.')) {
-      return;
-    }
-
-    try {
-      const res = await apiFetch(`/api/events/${eventId}/cancel`, {
-        method: 'POST',
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to cancel event');
-      }
-
-      const data = await res.json();
-      handleEventUpdated(data.event);
-    } catch (err: any) {
-      alert(err.message || 'Failed to cancel event');
+  const handleCancelEvent = (eventId: string) => {
+    const eventToCancel = events.find((e) => e.id === eventId);
+    if (eventToCancel) {
+      setCancellingEvent(eventToCancel);
     }
   };
 
@@ -348,6 +335,19 @@ export const EventsPage: React.FC = () => {
           userRole={currentOrganization?.role}
           onClose={() => setEditingEvent(null)}
           onEventUpdated={handleEventUpdated}
+        />
+      )}
+
+      {/* Cancel Event Modal with Policy & Refund Evaluation */}
+      {cancellingEvent && (
+        <CancelEventModal
+          isOpen={true}
+          event={cancellingEvent}
+          onClose={() => setCancellingEvent(null)}
+          onSuccess={(updatedEvent) => {
+            handleEventUpdated(updatedEvent);
+            fetchEvents();
+          }}
         />
       )}
     </div>

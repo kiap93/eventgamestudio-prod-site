@@ -7,6 +7,7 @@ import { AcceptInvitePage } from './components/auth/AcceptInvitePage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { PublicEventGameView } from './components/events/PublicEventGameView';
 import { DeveloperAdminPage } from './components/developer/DeveloperAdminPage';
+import { LandingPage } from './components/landing/LandingPage';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, currentOrganization } = useAuth();
@@ -20,6 +21,11 @@ const AppContent: React.FC = () => {
   // 2. ACCEPT INVITE ROUTE
   if (routeContext.mode === 'accept_invite') {
     return <AcceptInvitePage />;
+  }
+
+  // 3. PUBLIC MARKETING LANDING PAGE: / (Accessible with or without authentication)
+  if (routeContext.mode === 'landing') {
+    return <LandingPage />;
   }
 
   // 4. STUDIO / ADMIN / DEVELOPER ROUTES (Require Authentication)

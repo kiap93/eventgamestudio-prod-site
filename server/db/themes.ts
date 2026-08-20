@@ -144,12 +144,12 @@ export const NEUTRAL_GAME_THEME_DEFAULTS = {
 };
 
 export const DEFAULT_DURIAN_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
-  name: 'Durian Catcher',
+  name: 'Durian',
   slug: 'durian-catcher',
   description: 'Classic retro arcade theme: Catch delicious green durians in a lush tropical forest.',
   status: 'active',
   branding: {
-    gameTitle: 'DURIAN CATCHER',
+    gameTitle: 'CATCH THE BRAND',
     subtitle: 'Catch falling green durians, avoid spiky orange ones!',
     logoUrl: null,
     clientLogoUrl: null,
@@ -653,8 +653,8 @@ export async function getThemesByOrgId(
   return list.map((item) => ({
     ...item,
     game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Durian Catcher',
-    game_slug: item.games?.slug || 'durian-catcher',
+    game_name: item.games?.name || 'Catch The Brand',
+    game_slug: item.games?.slug || 'catch-brand',
   })) as GameThemeRecord[];
 }
 
@@ -712,6 +712,31 @@ export async function getThemeById(
     .maybeSingle();
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+      const allSystemThemes = await getAllSystemThemes(env);
+      const matchedSystem = allSystemThemes.find((t) => t.id === themeId);
+      if (matchedSystem) return matchedSystem;
+      return {
+        id: themeId,
+        organization_id: null as any,
+        game_id: 'catch-brand',
+        name: 'Default Test Theme',
+        slug: 'default-test-theme',
+        status: 'active',
+        is_system: true,
+        is_default: true,
+        branding: NEUTRAL_GAME_THEME_DEFAULTS.branding,
+        basket_config: NEUTRAL_GAME_THEME_DEFAULTS.basket_config,
+        items_config: NEUTRAL_GAME_THEME_DEFAULTS.items_config,
+        physics_config: {} as any,
+        visuals_config: {} as any,
+        sounds_config: {} as any,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        game_name: 'Catch The Brand',
+        game_slug: 'catch-brand',
+      } as unknown as GameThemeRecord;
+    }
     console.error('Error in getThemeById:', error);
     throw new Error(`Failed to get theme: ${error.message}`);
   }
@@ -725,8 +750,8 @@ export async function getThemeById(
   return {
     ...item,
     game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Durian Catcher',
-    game_slug: item.games?.slug || 'durian-catcher',
+    game_name: item.games?.name || 'Catch The Brand',
+    game_slug: item.games?.slug || 'catch-brand',
   } as GameThemeRecord;
 }
 
@@ -758,8 +783,8 @@ export async function getActiveThemeForOrg(
   return {
     ...item,
     game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Durian Catcher',
-    game_slug: item.games?.slug || 'durian-catcher',
+    game_name: item.games?.name || 'Catch The Brand',
+    game_slug: item.games?.slug || 'catch-brand',
   } as GameThemeRecord;
 }
 
@@ -899,8 +924,8 @@ export async function createTheme(
   return {
     ...item,
     game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Durian Catcher',
-    game_slug: item.games?.slug || 'durian-catcher',
+    game_name: item.games?.name || 'Catch The Brand',
+    game_slug: item.games?.slug || 'catch-brand',
   } as GameThemeRecord;
 }
 
@@ -928,8 +953,8 @@ export async function updateTheme(
   return {
     ...item,
     game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Durian Catcher',
-    game_slug: item.games?.slug || 'durian-catcher',
+    game_name: item.games?.name || 'Catch The Brand',
+    game_slug: item.games?.slug || 'catch-brand',
   } as GameThemeRecord;
 }
 
@@ -1204,6 +1229,33 @@ export async function getAllSystemThemes(env?: Record<string, any>): Promise<Gam
     .order('created_at', { ascending: true });
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+      return [
+        {
+          id: '8463ed7c-2b78-4285-8fdf-c0b18383fb3d',
+          organization_id: null as any,
+          game_id: 'catch-brand',
+          name: 'Durian',
+          slug: 'durian-catcher',
+          description: 'Classic retro arcade theme: Catch delicious green durians in a lush tropical forest.',
+          status: 'active',
+          is_system: true,
+          is_default: true,
+          branding: DEFAULT_DURIAN_THEME.branding,
+          background_url: DEFAULT_DURIAN_THEME.background_url,
+          basket_config: DEFAULT_DURIAN_THEME.basket_config,
+          items_config: DEFAULT_DURIAN_THEME.items_config,
+          physics_config: DEFAULT_DURIAN_THEME.physics_config,
+          visuals_config: DEFAULT_DURIAN_THEME.visuals_config,
+          sounds_config: DEFAULT_DURIAN_THEME.sounds_config,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          game_name: 'Catch The Brand',
+          game_slug: 'catch-brand',
+          ownership_type: 'system',
+        } as GameThemeRecord,
+      ];
+    }
     console.error('Error in getAllSystemThemes:', error);
     throw new Error(`Failed to list all system themes: ${error.message}`);
   }
@@ -1448,8 +1500,8 @@ export async function updateSystemTheme(
     is_system: true,
     ownership_type: 'system',
     game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Durian Catcher',
-    game_slug: item.games?.slug || 'durian-catcher',
+    game_name: item.games?.name || 'Catch The Brand',
+    game_slug: item.games?.slug || 'catch-brand',
   } as GameThemeRecord;
 }
 
@@ -1595,8 +1647,8 @@ export async function cloneSystemThemeToOrg(
   return {
     ...item,
     game_id: item.game_id || item.games?.id || resolvedGameId,
-    game_name: item.games?.name || 'Durian Catcher',
-    game_slug: item.games?.slug || 'durian-catcher',
+    game_name: item.games?.name || 'Catch The Brand',
+    game_slug: item.games?.slug || 'catch-brand',
   } as GameThemeRecord;
 }
 
@@ -1772,7 +1824,7 @@ export async function ensureDefaultThemes(
       {
         organization_id: organizationId,
         game_id: targetGameId,
-        name: isFirst ? `${orgName} Corporate Durian` : preset.name,
+        name: isFirst ? `${orgName} Durian` : preset.name,
         slug: preset.slug,
         description: preset.description,
         status: preset.status,

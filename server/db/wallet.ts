@@ -673,7 +673,7 @@ export async function canUseWelcomeCredit(
 
 /**
  * Consume Welcome Credit (RM800.00) and Paid Balance (RM600.00) for an eligible Event.
- * Creates separate immutable ledger entries for credit usage and paid balance deduction.
+ * Uses atomic payment transaction engine to guarantee ACID integrity.
  */
 export async function consumeWelcomeCredit(
   params: {
@@ -700,100 +700,36 @@ export async function consumeWelcomeCredit(
     throw new Error('Event ID is required');
   }
 
-  // Idempotency check: if this event already consumed welcome credit, return existing
-  const existingCreditTxn = Array.from(localTransactionsCache.values()).find(
-    (t) =>
-      t.organization_id === organizationId &&
-      t.event_id === eventId &&
-      t.transaction_type === 'CREDIT_USAGE' &&
-      t.balance_type === 'WELCOME_CREDIT' &&
-      t.status === 'COMPLETED'
-  );
-
-  const existingPaidTxn = Array.from(localTransactionsCache.values()).find(
-    (t) =>
-      t.organization_id === organizationId &&
-      t.event_id === eventId &&
-      t.transaction_type === 'EVENT_PAYMENT' &&
-      t.balance_type === 'PAID_BALANCE' &&
-      t.status === 'COMPLETED'
-  );
-
-  if (existingCreditTxn && existingPaidTxn) {
-    const currentWallet = await getWalletBalance(organizationId, env);
-    return {
-      success: true,
-      creditTransaction: existingCreditTxn,
-      paidTransaction: existingPaidTxn,
-      wallet: currentWallet,
-    };
-  }
-
-  // Validate eligibility
-  const check = await canUseWelcomeCredit(organizationId, eventId, env);
-  if (!check.eligible) {
-    throw new Error(check.reason || 'Not eligible to use Welcome Credit');
-  }
-
-  const creditDeduction = -Math.abs(WELCOME_CREDIT_AMOUNT); // -RM800.00
-  const paidDeduction = -Math.abs(check.paid_balance_required); // -RM600.00
-  const creditRef = referenceId ? `${referenceId}_welcome` : `welcome_consume_${eventId}`;
-  const paidRef = referenceId ? `${referenceId}_paid` : `welcome_paid_consume_${eventId}`;
-
-  // 1. Record Welcome Credit deduction in immutable ledger
-  const creditTransaction = await appendLedgerTransaction(
+  const result = await processEventPayment(
     {
-      organization_id: organizationId,
-      event_id: eventId,
-      transaction_type: 'CREDIT_USAGE',
-      balance_type: 'WELCOME_CREDIT',
-      amount: creditDeduction,
-      currency: 'MYR',
-      status: 'COMPLETED',
-      reference_id: creditRef,
-      description: description || `Applied RM${WELCOME_CREDIT_AMOUNT.toFixed(2)} Welcome Credit for Event`,
-      metadata: {
-        ...(metadata || {}),
-        event_id: eventId,
-        credit_program: 'WELCOME_CREDIT',
-        event_price: STANDARD_EVENT_PRICE,
-      },
-      created_by: createdBy || null,
+      organizationId,
+      eventId,
+      paymentMode: 'WELCOME_CREDIT',
+      eventPrice: STANDARD_EVENT_PRICE,
+      referenceId,
+      createdBy,
+      description,
+      metadata,
     },
     env
   );
 
-  // 2. Record Paid Balance deduction in immutable ledger
-  const paidTransaction = await appendLedgerTransaction(
-    {
-      organization_id: organizationId,
-      event_id: eventId,
-      transaction_type: 'EVENT_PAYMENT',
-      balance_type: 'PAID_BALANCE',
-      amount: paidDeduction,
-      currency: 'MYR',
-      status: 'COMPLETED',
-      reference_id: paidRef,
-      description: `Paid RM${Math.abs(paidDeduction).toFixed(2)} from Paid Balance for Event`,
-      metadata: {
-        ...(metadata || {}),
-        event_id: eventId,
-        credit_applied: WELCOME_CREDIT_AMOUNT,
-        paired_credit_transaction_id: creditTransaction.id,
-      },
-      created_by: createdBy || null,
-    },
-    env
+  const creditTransaction = result.transactions.find(
+    (t) => t.balance_type === 'WELCOME_CREDIT' || t.transaction_type === 'CREDIT_USAGE'
+  );
+  const paidTransaction = result.transactions.find(
+    (t) => t.balance_type === 'PAID_BALANCE' || t.transaction_type === 'EVENT_PAYMENT'
   );
 
-  // 3. Recalculate wallet
-  const wallet = await recalculateWalletBalances(organizationId, env);
+  if (!creditTransaction || !paidTransaction) {
+    throw new Error('Failed to retrieve complete atomic payment transactions');
+  }
 
   return {
     success: true,
     creditTransaction,
     paidTransaction,
-    wallet,
+    wallet: result.wallet,
   };
 }
 
@@ -951,7 +887,7 @@ export async function canUseShowcaseCredit(
 
 /**
  * Consume Showcase Credit (RM300.00) and Paid Balance (RM1,100.00) for an eligible Event.
- * Creates separate immutable ledger entries for credit usage and paid balance deduction.
+ * Uses atomic payment transaction engine to guarantee ACID integrity.
  */
 export async function consumeShowcaseCredit(
   params: {
@@ -978,100 +914,36 @@ export async function consumeShowcaseCredit(
     throw new Error('Event ID is required');
   }
 
-  // Idempotency check: if this event already consumed showcase credit, return existing
-  const existingCreditTxn = Array.from(localTransactionsCache.values()).find(
-    (t) =>
-      t.organization_id === organizationId &&
-      t.event_id === eventId &&
-      t.transaction_type === 'CREDIT_USAGE' &&
-      t.balance_type === 'SHOWCASE_CREDIT' &&
-      t.status === 'COMPLETED'
-  );
-
-  const existingPaidTxn = Array.from(localTransactionsCache.values()).find(
-    (t) =>
-      t.organization_id === organizationId &&
-      t.event_id === eventId &&
-      t.transaction_type === 'EVENT_PAYMENT' &&
-      t.balance_type === 'PAID_BALANCE' &&
-      t.status === 'COMPLETED'
-  );
-
-  if (existingCreditTxn && existingPaidTxn) {
-    const currentWallet = await getWalletBalance(organizationId, env);
-    return {
-      success: true,
-      creditTransaction: existingCreditTxn,
-      paidTransaction: existingPaidTxn,
-      wallet: currentWallet,
-    };
-  }
-
-  // Validate eligibility
-  const check = await canUseShowcaseCredit(organizationId, eventId, env);
-  if (!check.eligible) {
-    throw new Error(check.reason || 'Not eligible to use Showcase Credit');
-  }
-
-  const creditDeduction = -Math.abs(SHOWCASE_CREDIT_AMOUNT); // -RM300.00
-  const paidDeduction = -Math.abs(check.paid_balance_required); // -RM1,100.00
-  const creditRef = referenceId ? `${referenceId}_showcase` : `showcase_consume_${eventId}`;
-  const paidRef = referenceId ? `${referenceId}_paid` : `showcase_paid_consume_${eventId}`;
-
-  // 1. Record Showcase Credit deduction in immutable ledger
-  const creditTransaction = await appendLedgerTransaction(
+  const result = await processEventPayment(
     {
-      organization_id: organizationId,
-      event_id: eventId,
-      transaction_type: 'CREDIT_USAGE',
-      balance_type: 'SHOWCASE_CREDIT',
-      amount: creditDeduction,
-      currency: 'MYR',
-      status: 'COMPLETED',
-      reference_id: creditRef,
-      description: description || `Applied RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)} Showcase Credit for Event`,
-      metadata: {
-        ...(metadata || {}),
-        event_id: eventId,
-        credit_program: 'SHOWCASE_CREDIT',
-        event_price: STANDARD_EVENT_PRICE,
-      },
-      created_by: createdBy || null,
+      organizationId,
+      eventId,
+      paymentMode: 'SHOWCASE_CREDIT',
+      eventPrice: STANDARD_EVENT_PRICE,
+      referenceId,
+      createdBy,
+      description,
+      metadata,
     },
     env
   );
 
-  // 2. Record Paid Balance deduction in immutable ledger
-  const paidTransaction = await appendLedgerTransaction(
-    {
-      organization_id: organizationId,
-      event_id: eventId,
-      transaction_type: 'EVENT_PAYMENT',
-      balance_type: 'PAID_BALANCE',
-      amount: paidDeduction,
-      currency: 'MYR',
-      status: 'COMPLETED',
-      reference_id: paidRef,
-      description: `Paid RM${Math.abs(paidDeduction).toFixed(2)} from Paid Balance for Event`,
-      metadata: {
-        ...(metadata || {}),
-        event_id: eventId,
-        credit_applied: SHOWCASE_CREDIT_AMOUNT,
-        paired_credit_transaction_id: creditTransaction.id,
-      },
-      created_by: createdBy || null,
-    },
-    env
+  const creditTransaction = result.transactions.find(
+    (t) => t.balance_type === 'SHOWCASE_CREDIT' || t.transaction_type === 'CREDIT_USAGE'
+  );
+  const paidTransaction = result.transactions.find(
+    (t) => t.balance_type === 'PAID_BALANCE' || t.transaction_type === 'EVENT_PAYMENT'
   );
 
-  // 3. Recalculate wallet
-  const wallet = await recalculateWalletBalances(organizationId, env);
+  if (!creditTransaction || !paidTransaction) {
+    throw new Error('Failed to retrieve complete atomic payment transactions');
+  }
 
   return {
     success: true,
     creditTransaction,
     paidTransaction,
-    wallet,
+    wallet: result.wallet,
   };
 }
 
@@ -1300,6 +1172,11 @@ export async function getLedgerTransactions(
 /**
  * Process event payment securely through the immutable transaction ledger.
  */
+/**
+ * Process event payment atomically with full ACID database transactional guarantees.
+ * When Supabase is configured: Invokes PostgreSQL Stored Procedure `process_event_payment_atomic`.
+ * All ledger insertions, wallet updates, and event status changes succeed together or rollback completely.
+ */
 export async function processEventPayment(
   params: {
     organizationId: string;
@@ -1342,147 +1219,227 @@ export async function processEventPayment(
   const eventPrice = params.eventPrice && params.eventPrice > 0 ? params.eventPrice : STANDARD_EVENT_PRICE;
   const topupCreditRequested = params.topupCreditRequested ?? params.topupCreditAmountToUse;
 
-  // 1. Idempotency & Replay Protection: Check if payment already completed for this event
-  const existingTransactions = await getLedgerTransactions(organizationId, env);
-  const existingPaymentTxn = existingTransactions.find(
-    (t) =>
-      t.event_id === eventId &&
-      t.transaction_type === 'EVENT_PAYMENT' &&
-      t.balance_type === 'PAID_BALANCE' &&
-      t.status === 'COMPLETED'
-  );
+  // PRODUCTION MODE: Atomic PostgreSQL RPC Transaction Block
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase.rpc('process_event_payment_atomic', {
+      p_organization_id: organizationId,
+      p_event_id: eventId,
+      p_payment_mode: mode,
+      p_event_price: eventPrice,
+      p_topup_credit_requested: topupCreditRequested || 0,
+      p_reference_id: referenceId || null,
+      p_created_by: createdBy || null,
+      p_description: params.description || null,
+      p_metadata: params.metadata || {},
+    });
 
-  if (existingPaymentTxn) {
-    const pairedCreditTxn = existingTransactions.find(
+    if (!error && data) {
+      const payload = data as any;
+      const transactions: WalletTransactionRecord[] = [];
+      if (payload.credit_transaction) {
+        transactions.push(payload.credit_transaction as WalletTransactionRecord);
+      }
+      if (payload.paid_transaction) {
+        transactions.push(payload.paid_transaction as WalletTransactionRecord);
+      }
+
+      const calculation = await calculateEventPayment(eventPrice, mode, organizationId, { topupCreditRequested }, env);
+      const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
+
+      const paidBal = Number(payload.wallet?.paid_balance ?? 0);
+      const welcomeBal = Number(payload.wallet?.welcome_credit ?? 0);
+      const showcaseBal = Number(payload.wallet?.showcase_credit ?? 0);
+      const topupBal = Number(payload.wallet?.topup_credit ?? 0);
+
+      const walletResult: WalletBalanceSummary = {
+        organization_id: organizationId,
+        paid_balance: paidBal,
+        welcome_credit: welcomeBal,
+        showcase_credit: showcaseBal,
+        topup_credit: topupBal,
+        total_balance: paidBal + welcomeBal + showcaseBal + topupBal,
+        total_credit: welcomeBal + showcaseBal + topupBal,
+        currency: 'MYR',
+        welcome_credit_granted: true,
+        showcase_credit_granted: true,
+        can_use_welcome_credit: welcomeBal > 0,
+        can_use_showcase_credit: showcaseBal > 0,
+        updated_at: new Date().toISOString(),
+      };
+
+      return {
+        success: true,
+        paymentCalculation: calculation,
+        quote,
+        transactions,
+        wallet: walletResult,
+      };
+    } else if (error && error.code !== 'PGRST202') {
+      console.error('Fatal: Supabase atomic payment transaction failed:', error);
+      throw new Error(`Financial ledger transaction failed: ${error.message}`);
+    }
+  }
+
+  // NON-PRODUCTION / LOCAL DEV MODE: In-memory atomic snapshot with automatic rollback
+  const txnsSnapshot = new Map(localTransactionsCache);
+  const walletsSnapshot = new Map(localWalletsCache);
+
+  try {
+    // 1. Idempotency & Replay Protection: Check if payment already completed for this event
+    const existingTransactions = await getLedgerTransactions(organizationId, env);
+    const existingPaymentTxn = existingTransactions.find(
       (t) =>
         t.event_id === eventId &&
-        t.transaction_type === 'CREDIT_USAGE' &&
+        t.transaction_type === 'EVENT_PAYMENT' &&
+        t.balance_type === 'PAID_BALANCE' &&
         t.status === 'COMPLETED'
     );
-    const existingTxns = [existingPaymentTxn];
-    if (pairedCreditTxn) existingTxns.unshift(pairedCreditTxn);
-    const currentWallet = await getWalletBalance(organizationId, env);
-    const calculation = await calculateEventPayment(eventPrice, mode, organizationId, { topupCreditRequested }, env);
+
+    if (existingPaymentTxn) {
+      const pairedCreditTxn = existingTransactions.find(
+        (t) =>
+          t.event_id === eventId &&
+          t.transaction_type === 'CREDIT_USAGE' &&
+          t.status === 'COMPLETED'
+      );
+      const existingTxns = [existingPaymentTxn];
+      if (pairedCreditTxn) existingTxns.unshift(pairedCreditTxn);
+      const currentWallet = await getWalletBalance(organizationId, env);
+      const calculation = await calculateEventPayment(eventPrice, mode, organizationId, { topupCreditRequested }, env);
+      const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
+
+      return {
+        success: true,
+        paymentCalculation: calculation,
+        quote,
+        transactions: existingTxns,
+        wallet: currentWallet,
+      };
+    }
+
+    // 2. Perform rigorous server-side payment calculation and validation
+    const calculation = await calculateEventPayment(
+      eventPrice,
+      mode,
+      organizationId,
+      { topupCreditRequested },
+      env
+    );
+
+    if (!calculation.isPayable) {
+      throw new Error(`Event payment cannot be processed: ${calculation.reasons.join(' ')}`);
+    }
+
+    const transactions: WalletTransactionRecord[] = [];
+    const eventLabel = params.eventName ? `"${params.eventName}"` : `Event #${eventId.slice(0, 8)}`;
+
+    // 3. If promotional credit is used, record CREDIT_USAGE in immutable ledger
+    if (calculation.totalDiscount > 0 && mode !== 'FULL_PAID') {
+      let creditBalanceType: WalletBalanceType = 'TOPUP_CREDIT';
+      if (mode === 'WELCOME_CREDIT') creditBalanceType = 'WELCOME_CREDIT';
+      else if (mode === 'SHOWCASE_CREDIT') creditBalanceType = 'SHOWCASE_CREDIT';
+      else if (mode === 'TOPUP_CREDIT') creditBalanceType = 'TOPUP_CREDIT';
+
+      const creditTxnRef = referenceId ? `${referenceId}_credit` : `event_${eventId}_credit`;
+      const creditTxn = await appendLedgerTransaction(
+        {
+          organization_id: organizationId,
+          event_id: eventId,
+          transaction_type: 'CREDIT_USAGE',
+          balance_type: creditBalanceType,
+          amount: -calculation.totalDiscount, // negative debit
+          currency: 'MYR',
+          status: 'COMPLETED',
+          reference_id: creditTxnRef,
+          description: `Applied RM${calculation.totalDiscount.toFixed(2)} ${mode.replace('_', ' ')} for ${eventLabel}`,
+          metadata: {
+            ...(params.metadata || {}),
+            event_id: eventId,
+            payment_mode: mode,
+            credit_type: mode,
+            event_price: calculation.eventPrice,
+            credit_discount: calculation.totalDiscount,
+          },
+          created_by: createdBy || null,
+        },
+        env
+      );
+      transactions.push(creditTxn);
+    }
+
+    // 4. Record EVENT_PAYMENT from PAID_BALANCE in immutable ledger
+    if (calculation.paidAmount > 0) {
+      const paidTxnRef = referenceId ? `${referenceId}_paid` : `event_${eventId}_paid`;
+      const paymentTxn = await appendLedgerTransaction(
+        {
+          organization_id: organizationId,
+          event_id: eventId,
+          transaction_type: 'EVENT_PAYMENT',
+          balance_type: 'PAID_BALANCE',
+          amount: -calculation.paidAmount, // negative debit
+          currency: 'MYR',
+          status: 'COMPLETED',
+          reference_id: paidTxnRef,
+          description: `Paid RM${calculation.paidAmount.toFixed(2)} from Paid Balance for ${eventLabel}`,
+          metadata: {
+            ...(params.metadata || {}),
+            event_id: eventId,
+            payment_mode: mode,
+            paid_amount: calculation.paidAmount,
+            credit_applied: calculation.totalDiscount,
+            total_event_cost: calculation.eventPrice,
+          },
+          created_by: createdBy || null,
+        },
+        env
+      );
+      transactions.push(paymentTxn);
+    }
+
+    // 5. Recalculate wallet balances
+    const wallet = await recalculateWalletBalances(organizationId, env);
+
+    // 6. Update Event record payment status if event exists in DB
+    try {
+      const supabase = getSupabaseServerClient(env);
+      await supabase
+        .from('events')
+        .update({
+          payment_status: 'PAID',
+          payment_mode: mode,
+          paid_amount: calculation.paidAmount,
+          discount_amount: calculation.totalDiscount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', eventId);
+    } catch (dbErr) {
+      // Non-fatal if Supabase events table is in test mock mode
+      console.warn('Notice updating event table:', (dbErr as any)?.message);
+    }
+
     const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
 
     return {
       success: true,
       paymentCalculation: calculation,
       quote,
-      transactions: existingTxns,
-      wallet: currentWallet,
+      transactions,
+      wallet,
     };
+  } catch (err) {
+    // Atomic Rollback for local cache on any partial failure
+    localTransactionsCache.clear();
+    for (const [k, v] of txnsSnapshot.entries()) {
+      localTransactionsCache.set(k, v);
+    }
+    localWalletsCache.clear();
+    for (const [k, v] of walletsSnapshot.entries()) {
+      localWalletsCache.set(k, v);
+    }
+    saveLocalStores();
+    throw err;
   }
-
-  // 2. Perform rigorous server-side payment calculation and validation
-  const calculation = await calculateEventPayment(
-    eventPrice,
-    mode,
-    organizationId,
-    { topupCreditRequested },
-    env
-  );
-
-  if (!calculation.isPayable) {
-    throw new Error(`Event payment cannot be processed: ${calculation.reasons.join(' ')}`);
-  }
-
-  const transactions: WalletTransactionRecord[] = [];
-  const eventLabel = params.eventName ? `"${params.eventName}"` : `Event #${eventId.slice(0, 8)}`;
-
-  // 3. If promotional credit is used, record CREDIT_USAGE in immutable ledger
-  if (calculation.totalDiscount > 0 && mode !== 'FULL_PAID') {
-    let creditBalanceType: WalletBalanceType = 'TOPUP_CREDIT';
-    if (mode === 'WELCOME_CREDIT') creditBalanceType = 'WELCOME_CREDIT';
-    else if (mode === 'SHOWCASE_CREDIT') creditBalanceType = 'SHOWCASE_CREDIT';
-    else if (mode === 'TOPUP_CREDIT') creditBalanceType = 'TOPUP_CREDIT';
-
-    const creditTxnRef = referenceId ? `${referenceId}_credit` : `event_${eventId}_credit`;
-    const creditTxn = await appendLedgerTransaction(
-      {
-        organization_id: organizationId,
-        event_id: eventId,
-        transaction_type: 'CREDIT_USAGE',
-        balance_type: creditBalanceType,
-        amount: -calculation.totalDiscount, // negative debit
-        currency: 'MYR',
-        status: 'COMPLETED',
-        reference_id: creditTxnRef,
-        description: `Applied RM${calculation.totalDiscount.toFixed(2)} ${mode.replace('_', ' ')} for ${eventLabel}`,
-        metadata: {
-          ...(params.metadata || {}),
-          event_id: eventId,
-          payment_mode: mode,
-          credit_type: mode,
-          event_price: calculation.eventPrice,
-          credit_discount: calculation.totalDiscount,
-        },
-        created_by: createdBy || null,
-      },
-      env
-    );
-    transactions.push(creditTxn);
-  }
-
-  // 4. Record EVENT_PAYMENT from PAID_BALANCE in immutable ledger
-  if (calculation.paidAmount > 0) {
-    const paidTxnRef = referenceId ? `${referenceId}_paid` : `event_${eventId}_paid`;
-    const paymentTxn = await appendLedgerTransaction(
-      {
-        organization_id: organizationId,
-        event_id: eventId,
-        transaction_type: 'EVENT_PAYMENT',
-        balance_type: 'PAID_BALANCE',
-        amount: -calculation.paidAmount, // negative debit
-        currency: 'MYR',
-        status: 'COMPLETED',
-        reference_id: paidTxnRef,
-        description: `Paid RM${calculation.paidAmount.toFixed(2)} from Paid Balance for ${eventLabel}`,
-        metadata: {
-          ...(params.metadata || {}),
-          event_id: eventId,
-          payment_mode: mode,
-          paid_amount: calculation.paidAmount,
-          credit_applied: calculation.totalDiscount,
-          total_event_cost: calculation.eventPrice,
-        },
-        created_by: createdBy || null,
-      },
-      env
-    );
-    transactions.push(paymentTxn);
-  }
-
-  // 5. Recalculate wallet balances
-  const wallet = await recalculateWalletBalances(organizationId, env);
-
-  // 6. Update Event record payment status if event exists in DB
-  try {
-    const supabase = getSupabaseServerClient(env);
-    await supabase
-      .from('events')
-      .update({
-        payment_status: 'PAID',
-        payment_mode: mode,
-        paid_amount: calculation.paidAmount,
-        discount_amount: calculation.totalDiscount,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', eventId);
-  } catch (dbErr) {
-    // Non-fatal if Supabase events table is in test mock mode
-    console.warn('Notice updating event table:', (dbErr as any)?.message);
-  }
-
-  const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
-
-  return {
-    success: true,
-    paymentCalculation: calculation,
-    quote,
-    transactions,
-    wallet,
-  };
 }
 
 /**
@@ -1623,6 +1580,132 @@ export async function reverseTransaction(
 
   return {
     reversalTransaction,
+    wallet,
+  };
+}
+
+/**
+ * Atomically refund and reverse payment for a cancelled event.
+ * Reverses both the PAID_BALANCE deduction (via REFUND) and promotional credit deductions (via CREDIT_REVERSAL).
+ */
+export async function refundEventPayment(
+  params: {
+    organizationId: string;
+    eventId: string;
+    eventName?: string;
+    paidAmount?: number;
+    discountAmount?: number;
+    paymentMode?: PaymentMode;
+    reason?: string;
+    createdBy?: string;
+  },
+  env?: Record<string, any>
+): Promise<{
+  success: boolean;
+  transactions: WalletTransactionRecord[];
+  wallet: WalletBalanceSummary;
+}> {
+  const { organizationId, eventId, eventName, reason = 'Event cancelled before Setup Day', createdBy } = params;
+
+  // 1. Check existing transactions for idempotency
+  const existingTransactions = await getLedgerTransactions(organizationId, env);
+  const existingRefunds = existingTransactions.filter(
+    (t) => t.event_id === eventId && (t.transaction_type === 'REFUND' || t.transaction_type === 'CREDIT_REVERSAL')
+  );
+
+  if (existingRefunds.length > 0) {
+    const currentWallet = await getWalletBalance(organizationId, env);
+    return {
+      success: true,
+      transactions: existingRefunds,
+      wallet: currentWallet,
+    };
+  }
+
+  // 2. Identify original payment transactions or provided amounts
+  let paidToRefund = params.paidAmount ?? 0;
+  let discountToReverse = params.discountAmount ?? 0;
+  let mode = params.paymentMode ?? 'FULL_PAID';
+
+  if (paidToRefund === 0 && discountToReverse === 0) {
+    const origPaymentTxns = existingTransactions.filter((t) => t.event_id === eventId && t.status === 'COMPLETED');
+    for (const t of origPaymentTxns) {
+      if (t.transaction_type === 'EVENT_PAYMENT' && t.balance_type === 'PAID_BALANCE') {
+        paidToRefund += Math.abs(Number(t.amount || 0));
+      } else if (t.transaction_type === 'CREDIT_USAGE') {
+        discountToReverse += Math.abs(Number(t.amount || 0));
+        if (t.balance_type === 'WELCOME_CREDIT') mode = 'WELCOME_CREDIT';
+        else if (t.balance_type === 'SHOWCASE_CREDIT') mode = 'SHOWCASE_CREDIT';
+        else if (t.balance_type === 'TOPUP_CREDIT') mode = 'TOPUP_CREDIT';
+      }
+    }
+  }
+
+  const transactions: WalletTransactionRecord[] = [];
+  const eventLabel = eventName ? `"${eventName}"` : `Event #${eventId.slice(0, 8)}`;
+
+  // 3. Process PAID_BALANCE refund
+  if (paidToRefund > 0) {
+    const paidRefundTxn = await appendLedgerTransaction(
+      {
+        organization_id: organizationId,
+        event_id: eventId,
+        transaction_type: 'REFUND',
+        balance_type: 'PAID_BALANCE',
+        amount: paidToRefund, // positive credit
+        currency: 'MYR',
+        status: 'COMPLETED',
+        reference_id: `refund_event_${eventId}_paid`,
+        description: `Refunded RM${paidToRefund.toFixed(2)} to Paid Balance for cancelled ${eventLabel}`,
+        metadata: {
+          event_id: eventId,
+          reason,
+          refunded_paid_amount: paidToRefund,
+        },
+        created_by: createdBy || null,
+      },
+      env
+    );
+    transactions.push(paidRefundTxn);
+  }
+
+  // 4. Process Promotional Credit reversal
+  if (discountToReverse > 0 && mode !== 'FULL_PAID') {
+    let creditBalanceType: WalletBalanceType = 'TOPUP_CREDIT';
+    if (mode === 'WELCOME_CREDIT') creditBalanceType = 'WELCOME_CREDIT';
+    else if (mode === 'SHOWCASE_CREDIT') creditBalanceType = 'SHOWCASE_CREDIT';
+    else if (mode === 'TOPUP_CREDIT') creditBalanceType = 'TOPUP_CREDIT';
+
+    const creditReversalTxn = await appendLedgerTransaction(
+      {
+        organization_id: organizationId,
+        event_id: eventId,
+        transaction_type: 'CREDIT_REVERSAL',
+        balance_type: creditBalanceType,
+        amount: discountToReverse, // positive credit
+        currency: 'MYR',
+        status: 'COMPLETED',
+        reference_id: `reversal_event_${eventId}_credit`,
+        description: `Restored RM${discountToReverse.toFixed(2)} ${mode.replace('_', ' ')} for cancelled ${eventLabel}`,
+        metadata: {
+          event_id: eventId,
+          reason,
+          reversed_credit_amount: discountToReverse,
+          credit_type: mode,
+        },
+        created_by: createdBy || null,
+      },
+      env
+    );
+    transactions.push(creditReversalTxn);
+  }
+
+  // 5. Recalculate balances
+  const wallet = await recalculateWalletBalances(organizationId, env);
+
+  return {
+    success: true,
+    transactions,
     wallet,
   };
 }

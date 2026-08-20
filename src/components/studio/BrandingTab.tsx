@@ -125,7 +125,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                   branding: { ...branding, gameTitle: e.target.value },
                 });
               }}
-              placeholder="e.g. DURIAN CATCHER, HOLIDAY SLEIGH RUSH"
+              placeholder="e.g. CATCH THE BRAND, BRAND CAMPAIGN"
               className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 focus:outline-none focus:border-amber-500"
             />
           </div>

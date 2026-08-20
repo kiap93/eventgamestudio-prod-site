@@ -33,6 +33,7 @@
  */
 
 import crypto from 'node:crypto';
+import { getSupabaseServerClient } from '../supabase.js';
 import {
   grantWelcomeCredit,
   canUseWelcomeCredit,
@@ -51,6 +52,47 @@ import {
 let passed = 0;
 let failed = 0;
 
+async function ensureTestOrg(orgId: string) {
+  const supabase = getSupabaseServerClient();
+  try {
+    await supabase.from('organizations').upsert({
+      id: orgId,
+      name: `Test Org ${orgId.slice(0, 8)}`,
+      slug: `test-org-${orgId.slice(0, 8)}`,
+      owner_id: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  } catch {
+    // Ignore in local mode
+  }
+}
+
+async function ensureTestEvent(eventId: string, orgId: string) {
+  const supabase = getSupabaseServerClient();
+  try {
+    const themeId = '8463ed7c-2b78-4285-8fdf-c0b18383fb3d';
+    const now = new Date().toISOString();
+    const token = crypto.randomBytes(4).toString('hex').toUpperCase();
+    await supabase.from('events').upsert({
+      id: eventId,
+      organization_id: orgId,
+      game_theme_id: themeId,
+      name: `Test Event ${eventId.slice(0, 8)}`,
+      event_date: now.split('T')[0],
+      starts_at: now,
+      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      status: 'scheduled',
+      public_token: token,
+      created_by: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+      created_at: now,
+      updated_at: now,
+    });
+  } catch {
+    // Ignore in local mode
+  }
+}
+
 function assertEqual(actual: any, expected: any, testName: string) {
   if (actual === expected) {
     console.log(`  ✓ PASS: ${testName} (expected ${expected}, got ${actual})`);
@@ -66,15 +108,18 @@ async function runTests() {
   console.log(' RUNNING WELCOME & SHOWCASE CREDIT ENGINES TEST SUITE');
   console.log('======================================================\n');
 
+  const testAdminId = '6de8515d-cd56-4ef8-80f0-3d5f34fa291e';
+
   // ----------------------------------------------------
   // TEST GROUP 1: WELCOME CREDIT GRANT & ONE-TIME RULE
   // ----------------------------------------------------
   console.log('--- Test Group 1: Welcome Credit Grant & One-Time Rule ---');
   const org1Id = crypto.randomUUID();
+  await ensureTestOrg(org1Id);
 
   const grant1 = await grantWelcomeCredit({
     organizationId: org1Id,
-    createdBy: 'test-admin',
+    createdBy: testAdminId,
   });
 
   assertEqual(grant1.alreadyGranted, false, 'First Welcome Credit grant succeeds');
@@ -88,7 +133,7 @@ async function runTests() {
   // Attempt duplicate grant to the same organization
   const grant1Duplicate = await grantWelcomeCredit({
     organizationId: org1Id,
-    createdBy: 'test-admin',
+    createdBy: testAdminId,
   });
   assertEqual(grant1Duplicate.alreadyGranted, true, 'Duplicate Welcome Credit grant is rejected/marked already granted');
   assertEqual(grant1Duplicate.wallet.welcome_credit, 800.00, 'Wallet welcome_credit remains exactly RM800.00 (not doubled)');
@@ -129,6 +174,7 @@ async function runTests() {
   // ----------------------------------------------------
   console.log('\n--- Test Group 3: Welcome Credit Consumption ---');
   const event1Id = crypto.randomUUID();
+  await ensureTestEvent(event1Id, org1Id);
 
   const consume1 = await consumeWelcomeCredit({
     organizationId: org1Id,
@@ -164,10 +210,11 @@ async function runTests() {
   // ----------------------------------------------------
   console.log('\n--- Test Group 4: Showcase Credit Grant & One-Time Rule ---');
   const org2Id = crypto.randomUUID();
+  await ensureTestOrg(org2Id);
 
   const grant2 = await grantShowcaseCredit({
     organizationId: org2Id,
-    createdBy: 'test-admin',
+    createdBy: testAdminId,
   });
 
   assertEqual(grant2.alreadyGranted, false, 'First Showcase Credit grant succeeds');
@@ -181,7 +228,7 @@ async function runTests() {
   // Attempt duplicate showcase credit grant
   const grant2Duplicate = await grantShowcaseCredit({
     organizationId: org2Id,
-    createdBy: 'test-admin',
+    createdBy: testAdminId,
   });
   assertEqual(grant2Duplicate.alreadyGranted, true, 'Duplicate Showcase Credit grant is rejected');
   assertEqual(grant2Duplicate.wallet.showcase_credit, 300.00, 'Wallet showcase_credit remains exactly RM300.00');
@@ -220,6 +267,7 @@ async function runTests() {
   // ----------------------------------------------------
   console.log('\n--- Test Group 6: Showcase Credit Consumption ---');
   const event2Id = crypto.randomUUID();
+  await ensureTestEvent(event2Id, org2Id);
 
   const scConsume1 = await consumeShowcaseCredit({
     organizationId: org2Id,
@@ -247,6 +295,7 @@ async function runTests() {
   if (failed > 0) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 runTests().catch((err) => {

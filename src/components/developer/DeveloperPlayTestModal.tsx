@@ -11,7 +11,7 @@ interface DeveloperPlayTestModalProps {
 
 export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
   theme,
-  gameName = 'Durian Catcher',
+  gameName = 'Catch The Brand',
   onClose,
 }) => {
   const [key, setKey] = useState<number>(Date.now());

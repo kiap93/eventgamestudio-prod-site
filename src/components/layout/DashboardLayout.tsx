@@ -79,14 +79,18 @@ export const DashboardLayout: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           {/* Brand & Organization Selector */}
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400">
-                <Gamepad2 className="w-5 h-5" />
+            <button
+              onClick={() => navigateTo('/')}
+              title="View Public Landing Page"
+              className="flex items-center gap-2 group text-left transition-transform focus:outline-none"
+            >
+              <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 group-hover:border-amber-400/60 group-hover:bg-amber-500/20 transition-all">
+                <Gamepad2 className="w-5 h-5 group-hover:scale-105 transition-transform" />
               </div>
-              <span className="font-bold text-sm tracking-tight text-amber-400 hidden sm:inline">
+              <span className="font-bold text-sm tracking-tight text-amber-400 hidden sm:inline group-hover:text-amber-300 transition-colors">
                 Event Game Studio
               </span>
-            </div>
+            </button>
 
             {/* Organization Switcher Dropdown */}
             <div className="relative">
