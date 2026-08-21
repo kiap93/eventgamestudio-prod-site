@@ -171,8 +171,8 @@ export const EventCard: React.FC<EventCardProps> = ({
                 ? 'Showcase Credit (RM1,100 Paid)'
                 : event.payment_mode === 'TOPUP_CREDIT'
                 ? 'Top-up Promo (RM1,120 Paid)'
-                : event.paid_amount !== undefined
-                ? `RM ${Number(event.paid_amount).toFixed(2)} Paid`
+                : event.paid_amount !== undefined && event.paid_amount !== null && !isNaN(Number(event.paid_amount))
+                ? `RM ${(Number(event.paid_amount) || 0).toFixed(2)} Paid`
                 : 'PAID'}
             </span>
           </div>

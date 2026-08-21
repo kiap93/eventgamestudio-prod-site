@@ -57,9 +57,9 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (file?.size && file.size > 10 * 1024 * 1024) {
       setUploadError(
-        `File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed size is 10MB.`
+        `File is too large (${((file.size || 0) / (1024 * 1024)).toFixed(1)}MB). Maximum allowed size is 10MB.`
       );
       return;
     }
@@ -344,7 +344,9 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
           {items
             .filter((i) => i.enabled)
             .map((item, idx) => {
-              const pct = ((item.spawnWeight || 10) / totalWeight) * 100;
+              const weight = Number(item.spawnWeight) || 10;
+              const safeTotal = Number(totalWeight) || 1;
+              const pct = (weight / safeTotal) * 100;
               const bgClass =
                 item.points < 0
                   ? 'bg-rose-500'
@@ -356,7 +358,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                   key={item.id || idx}
                   style={{ width: `${Math.max(4, pct)}%` }}
                   className={`h-full rounded-sm ${bgClass} transition-all duration-300`}
-                  title={`${item.name}: ${pct.toFixed(1)}% chance`}
+                  title={`${item.name}: ${(Number(pct) || 0).toFixed(1)}% chance`}
                 />
               );
             })}
@@ -381,7 +383,9 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
       {/* Items Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {items.map((item, index) => {
-          const spawnPct = (((item.spawnWeight || 10) / totalWeight) * 100).toFixed(1);
+          const itemWeight = Number(item.spawnWeight) || 10;
+          const safeTotal = Number(totalWeight) || 1;
+          const spawnPct = (((itemWeight) / safeTotal) * 100).toFixed(1);
           const isHazard = item.points < 0;
           const isBonus = item.points >= 50;
           const itemId = item.id || `item_${index}`;
@@ -476,7 +480,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                   <div className="flex justify-between text-[11px] font-semibold text-slate-300">
                     <span>Speed</span>
                     <span className="text-amber-400 font-mono">
-                      {(item.speedMultiplier || 1.0).toFixed(1)}x
+                      {(Number(item.speedMultiplier) || 1.0).toFixed(1)}x
                     </span>
                   </div>
                   <input

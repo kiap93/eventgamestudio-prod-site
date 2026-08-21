@@ -108,7 +108,7 @@ export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => 
                 Fall Velocity
               </span>
               <span className="text-emerald-400 font-bold font-mono text-sm">
-                {(physics.fallSpeedMultiplier || 0.7).toFixed(2)}x
+                {(Number(physics?.fallSpeedMultiplier) || 0.7).toFixed(2)}x
               </span>
             </div>
             <input

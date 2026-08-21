@@ -82,6 +82,13 @@ import {
   getShowcaseCredit,
   getTopupCredit,
   calculateTopupCredit,
+  getTopupQuote,
+  preparePendingTopupOrder,
+  getPendingTopupOrder,
+  createTopupOrder,
+  getTopupOrderById,
+  listTopupOrdersByOrganization,
+  processTopupOrderStatus,
   createTopup,
   grantWelcomeCredit,
   canUseWelcomeCredit,
@@ -114,12 +121,127 @@ import { PaymentMode } from './server/db/types.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
 
+import {
+  authRateLimiter,
+  invitationRateLimiter,
+  organizationRateLimiter,
+  eventRateLimiter,
+  walletRateLimiter,
+  showcaseRateLimiter,
+  uploadRateLimiter,
+  generalApiRateLimiter,
+} from './server/rateLimiter.js';
+
 
 const app = express();
 const PORT = 3000;
 
+// Production security checks: fail-fast on insecure configuration
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET) {
+    console.error('[FATAL] JWT_SECRET environment variable is required in production. Server startup aborted.');
+    process.exit(1);
+  }
+  if (process.env.ALLOW_MOCK_AUTH === 'true') {
+    console.error('[FATAL] ALLOW_MOCK_AUTH is strictly forbidden in production. Server startup aborted.');
+    process.exit(1);
+  }
+}
+
+// ==========================================
+// CORS Whitelist Security Policy
+// ==========================================
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://eventgamestudio.com',
+  'https://www.eventgamestudio.com',
+];
+
+function isOriginAllowed(origin: string | undefined, reqHost?: string): boolean {
+  if (!origin || origin === 'null') return false;
+  const isProduction = process.env.NODE_ENV === 'production';
+  const customOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean);
+  const allowedSet = new Set([...DEFAULT_ALLOWED_ORIGINS, ...customOrigins]);
+
+  try {
+    const originUrl = new URL(origin);
+    if (reqHost && originUrl.host === reqHost) return true;
+    if (allowedSet.has(originUrl.origin)) return true;
+
+    for (const allowed of allowedSet) {
+      try {
+        const allowedUrl = new URL(allowed);
+        if (
+          originUrl.protocol === allowedUrl.protocol &&
+          (originUrl.hostname === allowedUrl.hostname || originUrl.hostname.endsWith(`.${allowedUrl.hostname}`))
+        ) {
+          return true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!isProduction) {
+      const hostname = originUrl.hostname;
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.endsWith('.localhost') ||
+        hostname.endsWith('.run.app') ||
+        hostname.endsWith('.pages.dev') ||
+        hostname.endsWith('.workers.dev')
+      ) {
+        return true;
+      }
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin as string | undefined;
+  if (origin && isOriginAllowed(origin, req.headers.host)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    (req.headers['access-control-request-headers'] as string) || 'Content-Type, Authorization, X-Organization-ID, Accept'
+  );
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  if (req.method === 'OPTIONS') {
+    if (origin && !isOriginAllowed(origin, req.headers.host)) {
+      return res.status(403).send('CORS origin forbidden');
+    }
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Global API rate limiter on all mutating endpoints to prevent volumetric request flood
+app.use('/api', (req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    return generalApiRateLimiter(req, res, next);
+  }
+  next();
+});
+
+// Serve public static assets (logo.png, favicon.ico, images, fonts, styles) without authentication
+const publicDir = path.join(process.cwd(), 'public');
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
+}
 
 // Ensure local upload fallback directory exists
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -164,7 +286,7 @@ app.get('/api/config', (_req, res) => {
  * POST /api/auth/google
  * Verify Google ID Token, find/create user in Supabase, load organizations, sign JWT
  */
-app.post('/api/auth/google', async (req, res) => {
+app.post('/api/auth/google', authRateLimiter, async (req, res) => {
   try {
     const { idToken } = req.body;
     if (!idToken) {
@@ -265,7 +387,7 @@ app.get('/api/auth/me', authenticateJWT, async (req: AuthenticatedRequest, res) 
  * POST /api/auth/switch-org
  * Switch active organization and reissue JWT
  */
-app.post('/api/auth/switch-org', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/auth/switch-org', authRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { organizationId } = req.body;
@@ -327,7 +449,7 @@ app.get('/api/organizations', authenticateJWT, async (req: AuthenticatedRequest,
  * POST /api/organizations
  * Create a new organization and default game in Supabase
  */
-app.post('/api/organizations', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { name, logo_url } = req.body;
@@ -407,7 +529,7 @@ app.get('/api/organizations/:organizationId/members', authenticateJWT, async (re
  * POST /api/organizations/:organizationId/invitations
  * Create staff invitation
  */
-app.post('/api/organizations/:organizationId/invitations', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/organizations/:organizationId/invitations', invitationRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { organizationId } = req.params;
@@ -571,7 +693,7 @@ app.get('/api/invitations/verify', async (req, res) => {
  * POST /api/invitations/accept
  * Accept invitation with Google ID Token
  */
-app.post('/api/invitations/accept', async (req, res) => {
+app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
   try {
     const { token, idToken } = req.body;
     if (!token || !idToken) {
@@ -657,7 +779,7 @@ app.post('/api/invitations/accept', async (req, res) => {
  * POST /api/upload
  * Upload game asset (backgrounds, baskets, items, logos) to Supabase Storage
  */
-app.post('/api/upload', authenticateJWT, upload.single('file'), async (req: AuthenticatedRequest, res) => {
+app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'), async (req: AuthenticatedRequest, res) => {
   try {
     if (!req.file) {
       res.status(422).json({ error: 'No file uploaded' });
@@ -1300,7 +1422,7 @@ app.get('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
  * POST /api/events/quote
  * Calculate real-time pricing, credit eligibility and wallet deductions for creating an event
  */
-app.post('/api/events/quote', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const organizationId = req.jwtPayload?.organizationId;
@@ -1417,7 +1539,7 @@ app.post('/api/events/quote', authenticateJWT, async (req: AuthenticatedRequest,
  * Atomically create and process financial ledger payment for a new event deployment.
  * Enforces that payment succeeds BEFORE the event is permanently activated.
  */
-app.post('/api/events', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/events', eventRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const organizationId = req.jwtPayload?.organizationId;
@@ -1598,7 +1720,7 @@ app.get('/api/events/:eventId/cancellation-eligibility', authenticateJWT, async 
  * POST /api/events/:eventId/cancel
  * Cancel an active or scheduled event enforcing Setup Day cancellation rules & ledger refunds
  */
-app.post('/api/events/:eventId/cancel', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/events/:eventId/cancel', eventRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -1738,7 +1860,7 @@ app.get('/api/events/:eventId/showcase', async (req: AuthenticatedRequest, res) 
  * POST /api/events/:eventId/showcase
  * Create showcase for an event (1:1 constraint)
  */
-app.post('/api/events/:eventId/showcase', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -1793,7 +1915,7 @@ app.post('/api/events/:eventId/showcase', authenticateJWT, async (req: Authentic
  * PATCH /api/events/:eventId/showcase
  * Update showcase details
  */
-app.patch('/api/events/:eventId/showcase', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.patch('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -1869,7 +1991,7 @@ app.patch('/api/events/:eventId/showcase', authenticateJWT, async (req: Authenti
  * POST /api/events/:eventId/showcase/submit
  * Submit showcase for developer review
  */
-app.post('/api/events/:eventId/showcase/submit', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/events/:eventId/showcase/submit', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -1913,7 +2035,7 @@ app.post('/api/events/:eventId/showcase/submit', authenticateJWT, async (req: Au
  * POST /api/events/:eventId/showcase/publish
  * Publish showcase
  */
-app.post('/api/events/:eventId/showcase/publish', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/events/:eventId/showcase/publish', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -1948,7 +2070,7 @@ app.post('/api/events/:eventId/showcase/publish', authenticateJWT, async (req: A
  * POST /api/events/:eventId/showcase/unpublish
  * Unpublish showcase (does not delete)
  */
-app.post('/api/events/:eventId/showcase/unpublish', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/events/:eventId/showcase/unpublish', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -2054,7 +2176,7 @@ app.get('/api/events/:eventId/showcase/media', async (req: AuthenticatedRequest,
  * POST /api/events/:eventId/showcase/media/upload-url
  * Generate signed upload URL or direct stream endpoint for photo/video uploads
  */
-app.post('/api/events/:eventId/showcase/media/upload-url', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/events/:eventId/showcase/media/upload-url', uploadRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -2158,7 +2280,7 @@ app.post('/api/events/:eventId/showcase/media/upload-url', authenticateJWT, asyn
  * POST /api/events/showcase-media/direct-upload
  * Direct binary streaming upload for media files (bypasses Supabase signed constraints if needed)
  */
-app.post('/api/events/showcase-media/direct-upload', authenticateJWT, mediaUpload.single('file'), async (req: AuthenticatedRequest, res) => {
+app.post('/api/events/showcase-media/direct-upload', uploadRateLimiter, authenticateJWT, mediaUpload.single('file'), async (req: AuthenticatedRequest, res) => {
   try {
     if (!req.file) {
       res.status(422).json({ error: 'No media file provided' });
@@ -2212,7 +2334,7 @@ app.post('/api/events/showcase-media/direct-upload', authenticateJWT, mediaUploa
  * POST /api/events/:eventId/showcase/media
  * Add a new media item record to showcase after successful upload
  */
-app.post('/api/events/:eventId/showcase/media', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/events/:eventId/showcase/media', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -2283,7 +2405,7 @@ app.post('/api/events/:eventId/showcase/media', authenticateJWT, async (req: Aut
  * PATCH /api/events/:eventId/showcase/media/reorder
  * Reorder showcase media items
  */
-app.patch('/api/events/:eventId/showcase/media/reorder', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.patch('/api/events/:eventId/showcase/media/reorder', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -2324,7 +2446,7 @@ app.patch('/api/events/:eventId/showcase/media/reorder', authenticateJWT, async 
  * DELETE /api/events/:eventId/showcase/media/:mediaId
  * Delete a media item from showcase
  */
-app.delete('/api/events/:eventId/showcase/media/:mediaId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.delete('/api/events/:eventId/showcase/media/:mediaId', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId, mediaId } = req.params;
@@ -2886,7 +3008,7 @@ app.get('/api/organizations/:orgId/wallet/transactions', authenticateJWT, async 
  * POST /api/organizations/:orgId/wallet/topup
  * Process deposit / top-up and automatically calculate promotional credit
  */
-app.post('/api/organizations/:orgId/wallet/topup', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/organizations/:orgId/wallet/topup', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const { orgId } = req.params;
     if (!isUUID(orgId)) {
@@ -2932,10 +3054,309 @@ app.post('/api/organizations/:orgId/wallet/topup', authenticateJWT, async (req: 
 });
 
 /**
+ * GET /api/organizations/:orgId/wallet/topup/quote
+ * Dynamically calculate promotional top-up bonus and order preview using Wallet Engine rules
+ */
+app.get('/api/organizations/:orgId/wallet/topup/quote', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied to organization wallet' });
+      return;
+    }
+
+    const amount = Number(req.query.amount) || 0;
+    const currency = (req.query.currency as string) || 'MYR';
+
+    const quote = await getTopupQuote({
+      organizationId: orgId,
+      amount,
+      currency,
+    });
+
+    res.json(quote);
+  } catch (err: any) {
+    console.error('Get top-up quote error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/wallet/topups
+ * POST /api/organizations/:orgId/wallet/topup-orders
+ * Create a new Top Up Order in PENDING status.
+ *
+ * PHASE 3 FINANCIAL RULE:
+ * Creating a Top Up Order ALWAYS sets status to PENDING and NEVER credits the wallet.
+ */
+const handleCreateTopupOrder = async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const orgId = req.params.orgId || req.body.organization_id || req.body.organizationId;
+    if (!orgId || !isUUID(orgId)) {
+      res.status(400).json({ error: `Valid organization ID (UUID) is required` });
+      return;
+    }
+
+    // STRICT ORGANIZATION ISOLATION: Verify requester is owner/admin of target organization
+    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+      res.status(403).json({ error: 'Only organization owners and admins can create top-up orders' });
+      return;
+    }
+
+    const { amount, currency, notes, payment_reference, paymentReference, payment_method, paymentMethod, metadata } = req.body;
+    const numericAmount = Number(amount);
+
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      res.status(400).json({ error: 'Top-up amount must be a positive number greater than 0' });
+      return;
+    }
+
+    const order = await createTopupOrder({
+      organizationId: orgId,
+      userId: req.user!.id,
+      amount: numericAmount,
+      currency: currency || 'MYR',
+      paymentReference: payment_reference || paymentReference,
+      paymentMethod: payment_method || paymentMethod,
+      notes,
+      metadata,
+    });
+
+    res.status(201).json({
+      order,
+      message: 'Top-up order created successfully in PENDING status. No wallet balance credited.',
+    });
+  } catch (err: any) {
+    console.error('Create top-up order error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.post('/api/wallet/topups', walletRateLimiter, authenticateJWT, handleCreateTopupOrder);
+app.post('/api/organizations/:orgId/wallet/topup-orders', walletRateLimiter, authenticateJWT, handleCreateTopupOrder);
+
+/**
+ * GET /api/wallet/topups/:id
+ * GET /api/organizations/:orgId/wallet/topup-orders/:id
+ * Retrieve a Top Up Order by ID with organization access validation.
+ */
+const handleGetTopupOrder = async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const orderId = req.params.id || req.params.orderId;
+    if (!orderId) {
+      res.status(400).json({ error: 'Order ID is required' });
+      return;
+    }
+
+    const order = await getTopupOrderById(orderId);
+    if (!order) {
+      res.status(404).json({ error: 'Top-up order not found' });
+      return;
+    }
+
+    // STRICT ORGANIZATION ISOLATION: User must belong to the order's organization
+    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, order.organization_id);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied to this top-up order' });
+      return;
+    }
+
+    res.json({ order });
+  } catch (err: any) {
+    console.error('Get top-up order error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.get('/api/wallet/topups/:id', authenticateJWT, handleGetTopupOrder);
+app.get('/api/organizations/:orgId/wallet/topup-orders/:id', authenticateJWT, handleGetTopupOrder);
+
+/**
+ * GET /api/wallet/topups
+ * GET /api/organizations/:orgId/wallet/topup-orders
+ * List all top-up orders for an organization.
+ */
+const handleListTopupOrders = async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const orgId = req.params.orgId || (req.query.organization_id as string) || (req.query.orgId as string);
+    if (!orgId || !isUUID(orgId)) {
+      res.status(400).json({ error: 'Valid organization ID (UUID) is required' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied to organization top-up orders' });
+      return;
+    }
+
+    const orders = await listTopupOrdersByOrganization(orgId);
+    res.json({ orders });
+  } catch (err: any) {
+    console.error('List top-up orders error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.get('/api/wallet/topups', authenticateJWT, handleListTopupOrders);
+app.get('/api/organizations/:orgId/wallet/topup-orders', authenticateJWT, handleListTopupOrders);
+
+/**
+ * POST /api/wallet/topups/:id/process-status
+ * POST /api/organizations/:orgId/wallet/topup-orders/:id/process-status
+ * POST /api/wallet/topups/:id/status
+ *
+ * Process a top-up order status transition.
+ *
+ * LIFECYCLE & FINANCIAL RULES:
+ * 1. ONLY status === 'PAID' credits the wallet.
+ * 2. 'PENDING', 'FAILED', 'EXPIRED', 'CANCELLED' NEVER credit the wallet.
+ * 3. When PAID, separate ledger entries are created for Paid Balance (+ RM X) and Top-up Credit (+ RM Y).
+ * 4. IDEMPOTENT: If an order is already PAID, reprocessing does nothing and never double-credits.
+ */
+const handleProcessTopupStatus = async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const orderId = req.params.id || req.params.orderId;
+    if (!orderId) {
+      res.status(400).json({ error: 'Order ID is required' });
+      return;
+    }
+
+    const order = await getTopupOrderById(orderId);
+    if (!order) {
+      res.status(404).json({ error: 'Top-up order not found' });
+      return;
+    }
+
+    // STRICT ORGANIZATION ISOLATION: Requester must be owner/admin of the order's organization
+    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, order.organization_id);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+      res.status(403).json({ error: 'Only organization owners and admins can update top-up order status' });
+      return;
+    }
+
+    const { status, payment_reference, paymentReference, payment_method, paymentMethod, reason, metadata } = req.body;
+    const allowedStatuses = ['PENDING', 'PAID', 'FAILED', 'EXPIRED', 'CANCELLED'];
+
+    if (!status || !allowedStatuses.includes(status)) {
+      res.status(400).json({
+        error: `Invalid status: ${status}. Must be one of: ${allowedStatuses.join(', ')}`,
+      });
+      return;
+    }
+
+    const result = await processTopupOrderStatus({
+      orderId,
+      newStatus: status,
+      paymentReference: payment_reference || paymentReference,
+      paymentMethod: payment_method || paymentMethod,
+      processedBy: req.user!.id,
+      reason,
+      metadata,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error('Process top-up order status error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.post('/api/wallet/topups/:id/process-status', walletRateLimiter, authenticateJWT, handleProcessTopupStatus);
+app.post('/api/wallet/topups/:id/status', walletRateLimiter, authenticateJWT, handleProcessTopupStatus);
+app.post('/api/organizations/:orgId/wallet/topup-orders/:id/process-status', walletRateLimiter, authenticateJWT, handleProcessTopupStatus);
+
+/**
+ * POST /api/organizations/:orgId/wallet/topup/prepare-order
+ * Legacy & Phase 2 preview endpoint (creates persistent PENDING order).
+ */
+app.post('/api/organizations/:orgId/wallet/topup/prepare-order', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+      res.status(403).json({ error: 'Only organization owners and admins can prepare top-up orders' });
+      return;
+    }
+
+    const { amount, currency, notes } = req.body;
+    const numericAmount = Number(amount);
+
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      res.status(400).json({ error: 'Top-up amount must be a positive number greater than 0' });
+      return;
+    }
+
+    const result = await preparePendingTopupOrder({
+      organizationId: orgId,
+      amount: numericAmount,
+      currency: currency || 'MYR',
+      createdBy: req.user!.id,
+      notes,
+    });
+
+    res.status(201).json(result);
+  } catch (err: any) {
+    console.error('Prepare top-up order error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/organizations/:orgId/wallet/topup/orders/:orderId
+ * Retrieve order details
+ */
+app.get('/api/organizations/:orgId/wallet/topup/orders/:orderId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId, orderId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    const order = await getTopupOrderById(orderId);
+    if (!order || order.organization_id !== orgId) {
+      res.status(404).json({ error: 'Top-up order not found' });
+      return;
+    }
+
+    res.json({ order });
+  } catch (err: any) {
+    console.error('Get top-up order error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /api/organizations/:orgId/wallet/grant-welcome
  * Grant one-time Welcome Credit (RM800.00)
  */
-app.post('/api/organizations/:orgId/wallet/grant-welcome', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/organizations/:orgId/wallet/grant-welcome', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const { orgId } = req.params;
     if (!isUUID(orgId)) {
@@ -3001,7 +3422,7 @@ app.get('/api/organizations/:orgId/wallet/can-use-welcome', authenticateJWT, asy
  * POST /api/organizations/:orgId/wallet/consume-welcome
  * Consume Welcome Credit (RM800) and Paid Balance (RM600) for an Event
  */
-app.post('/api/organizations/:orgId/wallet/consume-welcome', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/organizations/:orgId/wallet/consume-welcome', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const { orgId } = req.params;
     if (!isUUID(orgId)) {
@@ -3042,7 +3463,7 @@ app.post('/api/organizations/:orgId/wallet/consume-welcome', authenticateJWT, as
  * POST /api/organizations/:orgId/wallet/grant-showcase
  * Grant one-time Showcase Credit (RM300.00)
  */
-app.post('/api/organizations/:orgId/wallet/grant-showcase', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/organizations/:orgId/wallet/grant-showcase', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const { orgId } = req.params;
     if (!isUUID(orgId)) {
@@ -3111,7 +3532,7 @@ app.get('/api/organizations/:orgId/wallet/can-use-showcase', authenticateJWT, as
  * POST /api/organizations/:orgId/wallet/consume-showcase
  * Consume Showcase Credit (RM300) and Paid Balance (RM1,100) for an Event
  */
-app.post('/api/organizations/:orgId/wallet/consume-showcase', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/organizations/:orgId/wallet/consume-showcase', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const { orgId } = req.params;
     if (!isUUID(orgId)) {
@@ -3152,7 +3573,7 @@ app.post('/api/organizations/:orgId/wallet/consume-showcase', authenticateJWT, a
  * POST /api/organizations/:orgId/wallet/calculate-event-payment
  * Server-side calculation and strict business rule validation for event payment
  */
-app.post('/api/organizations/:orgId/wallet/calculate-event-payment', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/organizations/:orgId/wallet/calculate-event-payment', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const { orgId } = req.params;
     if (!isUUID(orgId)) {
@@ -3204,7 +3625,7 @@ app.post('/api/organizations/:orgId/wallet/calculate-event-payment', authenticat
  * POST /api/organizations/:orgId/wallet/quote-payment
  * Calculate payment quote and validate credit rules server-side (legacy & backward-compatible)
  */
-app.post('/api/organizations/:orgId/wallet/quote-payment', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/organizations/:orgId/wallet/quote-payment', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const { orgId } = req.params;
     if (!isUUID(orgId)) {
@@ -3239,7 +3660,7 @@ app.post('/api/organizations/:orgId/wallet/quote-payment', authenticateJWT, asyn
  * POST /api/organizations/:orgId/wallet/pay-event
  * Atomically pay for an Event using credit + paid balance
  */
-app.post('/api/organizations/:orgId/wallet/pay-event', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/organizations/:orgId/wallet/pay-event', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const { orgId } = req.params;
     if (!isUUID(orgId)) {

@@ -103,11 +103,13 @@ import {
 } from './server/auth.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
+import { checkWorkerRateLimit } from './server/rateLimiter.js';
 
 export interface Env {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   JWT_SECRET?: string;
+  ALLOWED_ORIGINS?: string;
   GOOGLE_CLIENT_ID?: string;
   VITE_GOOGLE_CLIENT_ID?: string;
   VITE_SUPABASE_URL?: string;
@@ -116,6 +118,86 @@ export interface Env {
     fetch: (request: Request | string) => Promise<Response>;
   };
   [key: string]: any;
+}
+
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://eventgamestudio.com',
+  'https://www.eventgamestudio.com',
+];
+
+export function isAllowedOrigin(origin: string | null | undefined, requestUrl: string, env?: Env): boolean {
+  if (!origin || origin === 'null') {
+    return false;
+  }
+
+  const isProduction =
+    env?.NODE_ENV === 'production' ||
+    (typeof process !== 'undefined' && process.env.NODE_ENV === 'production');
+
+  const customOriginsStr =
+    env?.ALLOWED_ORIGINS ||
+    (typeof process !== 'undefined' ? process.env.ALLOWED_ORIGINS : '');
+
+  const customOrigins = customOriginsStr
+    ? customOriginsStr
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+    : [];
+
+  const allowedList = new Set([
+    ...DEFAULT_ALLOWED_ORIGINS,
+    ...customOrigins,
+  ]);
+
+  try {
+    const originUrl = new URL(origin);
+    const reqUrl = new URL(requestUrl);
+
+    // 1. Same-origin is always allowed
+    if (originUrl.origin === reqUrl.origin) {
+      return true;
+    }
+
+    // 2. Exact match in whitelist
+    if (allowedList.has(originUrl.origin)) {
+      return true;
+    }
+
+    // 3. Match subdomains of whitelisted domains (e.g. app.eventgamestudio.com)
+    for (const allowed of allowedList) {
+      try {
+        const allowedUrl = new URL(allowed);
+        if (
+          originUrl.protocol === allowedUrl.protocol &&
+          (originUrl.hostname === allowedUrl.hostname || originUrl.hostname.endsWith(`.${allowedUrl.hostname}`))
+        ) {
+          return true;
+        }
+      } catch {
+        // ignore malformed entry
+      }
+    }
+
+    // 4. In development mode only, permit localhost and preview sandbox domains
+    if (!isProduction) {
+      const hostname = originUrl.hostname;
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.endsWith('.localhost') ||
+        hostname.endsWith('.run.app') ||
+        hostname.endsWith('.pages.dev') ||
+        hostname.endsWith('.workers.dev')
+      ) {
+        return true;
+      }
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
 }
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
@@ -137,7 +219,7 @@ const ALLOWED_VIDEO_MIME_TYPES = new Set([
 const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
 const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
 
-function corsHeaders(request: Request): Record<string, string> {
+function corsHeaders(request: Request, env?: Env): Record<string, string> {
   const origin = request.headers.get('Origin');
   const reqHeaders = request.headers.get('Access-Control-Request-Headers');
 
@@ -147,12 +229,10 @@ function corsHeaders(request: Request): Record<string, string> {
     'Access-Control-Max-Age': '86400',
   };
 
-  if (origin && origin !== 'null') {
+  if (origin && isAllowedOrigin(origin, request.url, env)) {
     headers['Access-Control-Allow-Origin'] = origin;
     headers['Access-Control-Allow-Credentials'] = 'true';
     headers['Vary'] = 'Origin';
-  } else {
-    headers['Access-Control-Allow-Origin'] = '*';
   }
 
   return headers;
@@ -264,14 +344,26 @@ export default {
     const url = new URL(request.url);
     const pathname = url.pathname;
     const method = request.method.toUpperCase();
-    const cors = corsHeaders(request);
+    const cors = corsHeaders(request, env);
 
     // Handle CORS preflight OPTIONS requests
     if (method === 'OPTIONS') {
+      const reqOrigin = request.headers.get('Origin');
+      if (reqOrigin && !isAllowedOrigin(reqOrigin, request.url, env)) {
+        return new Response('CORS origin forbidden', {
+          status: 403,
+          headers: { 'Content-Type': 'text/plain' },
+        });
+      }
       return new Response(null, {
         status: 204,
         headers: cors,
       });
+    }
+
+    // Production security guard
+    if (env.NODE_ENV === 'production' && env.ALLOW_MOCK_AUTH === 'true') {
+      return errorResponse('Production security violation: ALLOW_MOCK_AUTH is strictly forbidden in production', 500, cors);
     }
 
     try {
@@ -285,6 +377,115 @@ export default {
         const spaUrl = new URL(request.url);
         spaUrl.pathname = '/index.html';
         return await env.ASSETS.fetch(new Request(spaUrl.toString(), request));
+      }
+
+      // ==========================================
+      // Rate Limiting Enforcement on API Routes
+      // ==========================================
+      if (pathname.startsWith('/api') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        // 1. Auth Rate Limiting (POST /api/auth/google, POST /api/auth/*)
+        if (pathname.startsWith('/api/auth/')) {
+          const authLimit = checkWorkerRateLimit(request, {
+            windowMs: 60 * 1000,
+            max: 10,
+            keyPrefix: 'worker_auth',
+            message: 'Too many authentication attempts. Please wait 1 minute before trying again.',
+          });
+          if (!authLimit.allowed) {
+            return jsonResponse(authLimit.errorResponse, 429, { ...cors, ...authLimit.headers });
+          }
+        }
+
+        // 2. Invitation Rate Limiting (POST /api/invitations/*, POST /api/organizations/:id/invitations)
+        else if (pathname.startsWith('/api/invitations') || pathname.includes('/invitations')) {
+          const inviteLimit = checkWorkerRateLimit(request, {
+            windowMs: 60 * 1000,
+            max: 15,
+            keyPrefix: 'worker_invitations',
+            message: 'Too many invitations sent in a short period. Please wait a moment before sending more.',
+          });
+          if (!inviteLimit.allowed) {
+            return jsonResponse(inviteLimit.errorResponse, 429, { ...cors, ...inviteLimit.headers });
+          }
+        }
+
+        // 3. Organization Creation Rate Limiting (POST /api/organizations)
+        else if (pathname === '/api/organizations' && method === 'POST') {
+          const orgLimit = checkWorkerRateLimit(request, {
+            windowMs: 60 * 1000,
+            max: 10,
+            keyPrefix: 'worker_org_creation',
+            message: 'Organization creation rate limit exceeded. Please wait a minute before creating another organization.',
+          });
+          if (!orgLimit.allowed) {
+            return jsonResponse(orgLimit.errorResponse, 429, { ...cors, ...orgLimit.headers });
+          }
+        }
+
+        // 4. Wallet & Financial Rate Limiting (POST /api/organizations/:id/wallet/*)
+        else if (pathname.includes('/wallet/')) {
+          const walletLimit = checkWorkerRateLimit(request, {
+            windowMs: 60 * 1000,
+            max: 15,
+            keyPrefix: 'worker_wallet',
+            message: 'Wallet transaction rate limit exceeded. Please wait a moment before processing another payment or top-up.',
+          });
+          if (!walletLimit.allowed) {
+            return jsonResponse(walletLimit.errorResponse, 429, { ...cors, ...walletLimit.headers });
+          }
+        }
+
+        // 5. Showcase Rate Limiting (POST/PATCH/DELETE /api/events/:id/showcase/*)
+        else if (pathname.includes('/showcase')) {
+          const showcaseLimit = checkWorkerRateLimit(request, {
+            windowMs: 60 * 1000,
+            max: 30,
+            keyPrefix: 'worker_showcase',
+            message: 'Showcase action rate limit reached. Please slow down and try again shortly.',
+          });
+          if (!showcaseLimit.allowed) {
+            return jsonResponse(showcaseLimit.errorResponse, 429, { ...cors, ...showcaseLimit.headers });
+          }
+        }
+
+        // 6. Upload Rate Limiting (POST /api/upload/*, direct-upload, upload-url)
+        else if (pathname.startsWith('/api/upload') || pathname.includes('upload')) {
+          const uploadLimit = checkWorkerRateLimit(request, {
+            windowMs: 60 * 1000,
+            max: 20,
+            keyPrefix: 'worker_uploads',
+            message: 'File upload rate limit reached. Please wait a moment before uploading more files.',
+          });
+          if (!uploadLimit.allowed) {
+            return jsonResponse(uploadLimit.errorResponse, 429, { ...cors, ...uploadLimit.headers });
+          }
+        }
+
+        // 7. Event Mutation Rate Limiting (POST /api/events, POST /api/events/quote, /cancel)
+        else if (pathname.startsWith('/api/events')) {
+          const eventLimit = checkWorkerRateLimit(request, {
+            windowMs: 60 * 1000,
+            max: 20,
+            keyPrefix: 'worker_events',
+            message: 'Event creation and modification rate limit exceeded. Please slow down.',
+          });
+          if (!eventLimit.allowed) {
+            return jsonResponse(eventLimit.errorResponse, 429, { ...cors, ...eventLimit.headers });
+          }
+        }
+
+        // 8. General API fallback rate limiting for any other mutating route
+        else {
+          const generalLimit = checkWorkerRateLimit(request, {
+            windowMs: 60 * 1000,
+            max: 120,
+            keyPrefix: 'worker_general_api',
+            message: 'API request rate limit exceeded. Please try again in a few seconds.',
+          });
+          if (!generalLimit.allowed) {
+            return jsonResponse(generalLimit.errorResponse, 429, { ...cors, ...generalLimit.headers });
+          }
+        }
       }
 
       // ==========================================

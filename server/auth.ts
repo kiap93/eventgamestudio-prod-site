@@ -5,14 +5,35 @@ import { getUserById, getUserByEmail, getMember } from './db/index.js';
 import { UserRecord, OrgMemberRecord, OrgRole } from './db/types.js';
 import { getSupabaseServerClient } from './supabase.js';
 
-export const DEFAULT_JWT_SECRET = 'durian-catcher-super-secret-jwt-key-2026';
+// Ephemeral in-memory dev secret if running in non-production mode without configured secret,
+// but NEVER a hardcoded static fallback string.
+let ephemeralDevSecret: string | null = null;
 
 export function getJwtSecret(customSecret?: string, env?: Record<string, any>): Uint8Array {
   const secretStr =
     customSecret ||
     env?.JWT_SECRET ||
-    (typeof process !== 'undefined' ? process.env.JWT_SECRET : undefined) ||
-    DEFAULT_JWT_SECRET;
+    (typeof process !== 'undefined' ? process.env.JWT_SECRET : undefined);
+
+  if (!secretStr) {
+    const isProduction =
+      env?.NODE_ENV === 'production' ||
+      (typeof process !== 'undefined' && process.env.NODE_ENV === 'production');
+
+    if (isProduction) {
+      throw new Error('JWT_SECRET is required in production');
+    }
+
+    // In local non-production/dev environments without a configured JWT_SECRET,
+    // generate an ephemeral 256-bit secret rather than using a static fallback string.
+    if (!ephemeralDevSecret) {
+      ephemeralDevSecret = crypto.randomBytes(32).toString('hex');
+      console.warn(
+        '[AUTH] WARNING: JWT_SECRET environment variable is not set. Generated an ephemeral in-memory 256-bit secret for this session.'
+      );
+    }
+    return new TextEncoder().encode(ephemeralDevSecret);
+  }
 
   return new TextEncoder().encode(secretStr);
 }
@@ -74,16 +95,19 @@ export async function verifyGoogleIdToken(
   email_verified?: boolean;
 }> {
   const procEnv = typeof process !== 'undefined' ? process.env : {};
-  const isDev =
-    env?.NODE_ENV === 'development' ||
-    env?.ALLOW_MOCK_AUTH === 'true' ||
-    procEnv.NODE_ENV === 'development' ||
-    procEnv.ALLOW_MOCK_AUTH === 'true';
+  const isProduction =
+    env?.NODE_ENV === 'production' ||
+    procEnv.NODE_ENV === 'production';
 
-  // Handle mock tokens in dev mode
+  const allowMock =
+    !isProduction &&
+    (env?.ALLOW_MOCK_AUTH === 'true' ||
+      (procEnv.NODE_ENV === 'development' && procEnv.ALLOW_MOCK_AUTH === 'true'));
+
+  // Handle mock tokens only in development mode when explicitly enabled
   if (idToken.startsWith('mock_google_id_token_') || idToken.startsWith('dev_token_')) {
-    if (!isDev) {
-      throw new Error('Mock tokens are strictly disallowed in production');
+    if (isProduction || !allowMock) {
+      throw new Error('Mock authentication tokens are strictly disallowed in production');
     }
     const parts = idToken.split('_');
     const emailName = parts[parts.length - 1] || 'user';
@@ -289,15 +313,27 @@ export function isUserDeveloperAdmin(user?: UserRecord | null, env?: Record<stri
     }
   }
 
-  // In development mode or mock environments, allow default developer admin access for convenience
-  const isDev =
-    env?.NODE_ENV === 'development' ||
-    env?.ALLOW_MOCK_AUTH === 'true' ||
-    (typeof process !== 'undefined' && (process.env.NODE_ENV === 'development' || process.env.ALLOW_MOCK_AUTH === 'true')) ||
-    user.email.endsWith('@example.com') ||
-    user.email === 'developer@example.com';
+  const isProduction =
+    env?.NODE_ENV === 'production' ||
+    (typeof process !== 'undefined' && process.env.NODE_ENV === 'production');
 
-  return isDev;
+  // In production, heuristic email patterns (@example.com) are strictly forbidden
+  if (isProduction) {
+    return false;
+  }
+
+  const allowMock =
+    env?.ALLOW_MOCK_AUTH === 'true' ||
+    (typeof process !== 'undefined' &&
+      process.env.NODE_ENV === 'development' &&
+      process.env.ALLOW_MOCK_AUTH === 'true');
+
+  // Only in local development mock mode, allow test dev accounts
+  if (allowMock && (user.email.endsWith('@example.com') || user.email === 'developer@example.com')) {
+    return true;
+  }
+
+  return false;
 }
 
 export async function authenticateDeveloperAdmin(

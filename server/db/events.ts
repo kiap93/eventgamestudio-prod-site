@@ -127,14 +127,16 @@ export function determineEventRefund(
   }
 
   // Prior to Setup Day: 100% full refund of paid balance & credit reversal
+  const safePaid = Number(paidAmount) || 0;
+  const safeDiscount = Number(discountAmount) || 0;
   return {
     canRefund: true,
-    refundPaidAmount: paidAmount,
-    creditReversalAmount: discountAmount,
+    refundPaidAmount: safePaid,
+    creditReversalAmount: safeDiscount,
     creditType: paymentMode,
     paymentStatus,
-    reason: `Eligible for full refund: RM${paidAmount.toFixed(2)} to Paid Balance${
-      discountAmount > 0 ? ` and RM${discountAmount.toFixed(2)} Credit Reversal` : ''
+    reason: `Eligible for full refund: RM${safePaid.toFixed(2)} to Paid Balance${
+      safeDiscount > 0 ? ` and RM${safeDiscount.toFixed(2)} Credit Reversal` : ''
     }.`,
   };
 }

@@ -10,6 +10,11 @@ import {
   CreditEligibilityResult,
   PaymentMode,
   EventPaymentCalculation,
+  TopupQuoteResponse,
+  PendingTopupOrder,
+  TopupOrderRecord,
+  TopupOrderStatus,
+  TopupTiersInfo,
 } from './types.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -42,10 +47,12 @@ export function fromCents(cents: number): number {
 // Local storage fallback paths
 const LOCAL_WALLETS_FILE = path.join(process.cwd(), 'uploads', 'wallets.json');
 const LOCAL_TRANSACTIONS_FILE = path.join(process.cwd(), 'uploads', 'wallet_transactions.json');
+const LOCAL_TOPUP_ORDERS_FILE = path.join(process.cwd(), 'uploads', 'topup_orders.json');
 
 // In-memory fallback caches
 const localWalletsCache = new Map<string, OrganizationWalletRecord>();
 const localTransactionsCache = new Map<string, WalletTransactionRecord>();
+const localTopupOrdersCache = new Map<string, TopupOrderRecord>();
 
 function loadLocalStores(): void {
   try {
@@ -63,6 +70,14 @@ function loadLocalStores(): void {
       localTransactionsCache.clear();
       for (const t of list) {
         localTransactionsCache.set(t.id, t);
+      }
+    }
+    if (fs.existsSync(LOCAL_TOPUP_ORDERS_FILE)) {
+      const raw = fs.readFileSync(LOCAL_TOPUP_ORDERS_FILE, 'utf-8');
+      const list = JSON.parse(raw) as TopupOrderRecord[];
+      localTopupOrdersCache.clear();
+      for (const o of list) {
+        localTopupOrdersCache.set(o.id, o);
       }
     }
   } catch (err) {
@@ -84,6 +99,11 @@ function saveLocalStores(): void {
     fs.writeFileSync(
       LOCAL_TRANSACTIONS_FILE,
       JSON.stringify(Array.from(localTransactionsCache.values()), null, 2),
+      'utf-8'
+    );
+    fs.writeFileSync(
+      LOCAL_TOPUP_ORDERS_FILE,
+      JSON.stringify(Array.from(localTopupOrdersCache.values()), null, 2),
       'utf-8'
     );
   } catch (err) {
@@ -1708,4 +1728,520 @@ export async function refundEventPayment(
     transactions,
     wallet,
   };
+}
+
+/**
+ * Top-up Quote and Dynamic Bonus Calculations
+ * Computes promotional top-up bonus strictly based on existing business rules:
+ * - Below RM6,000: 0% Top-up Credit
+ * - RM6,000 to RM9,999.99: 5% Top-up Credit
+ * - RM10,000+: 7% Top-up Credit
+ */
+export async function getTopupQuote(
+  params: {
+    organizationId: string;
+    amount: number;
+    currency?: string;
+  },
+  env?: Record<string, any>
+): Promise<TopupQuoteResponse> {
+  const { organizationId, amount, currency = 'MYR' } = params;
+  const sanitizedAmount = Math.max(0, Number(amount) || 0);
+  const currentWallet = await getWalletBalance(organizationId, env);
+
+  const promoCredit = calculateTopupCredit(sanitizedAmount);
+  const bonusPercentage = sanitizedAmount > 0 ? (promoCredit / sanitizedAmount) * 100 : 0;
+  const totalWalletValue = fromCents(toCents(sanitizedAmount) + toCents(promoCredit));
+
+  const newPaidBalance = fromCents(toCents(currentWallet.paid_balance) + toCents(sanitizedAmount));
+  const newTopupCredit = fromCents(toCents(currentWallet.topup_credit) + toCents(promoCredit));
+  const newTotalBalance = fromCents(
+    toCents(currentWallet.total_balance) + toCents(sanitizedAmount) + toCents(promoCredit)
+  );
+
+  return {
+    amount: sanitizedAmount,
+    currency,
+    promo_credit: promoCredit,
+    bonus_percentage: Math.round(bonusPercentage * 100) / 100,
+    total_wallet_value: totalWalletValue,
+    you_pay: sanitizedAmount,
+    current_wallet: currentWallet,
+    wallet_value_after_topup: {
+      paid_balance: newPaidBalance,
+      topup_credit: newTopupCredit,
+      welcome_credit: currentWallet.welcome_credit,
+      showcase_credit: currentWallet.showcase_credit,
+      total_balance: newTotalBalance,
+    },
+    tiers: {
+      tier1_min: TOPUP_TIER_1_MIN,
+      tier1_rate: TOPUP_TIER_1_RATE,
+      tier2_min: TOPUP_TIER_2_MIN,
+      tier2_rate: TOPUP_TIER_2_RATE,
+      preset_amounts: [1000, 3000, 6000, 10000],
+    },
+  };
+}
+
+// In-memory cache for pending / active top-up orders
+const localPendingOrdersCache = new Map<string, PendingTopupOrder>();
+
+/**
+ * Creates a new Top Up Order in PENDING status.
+ *
+ * CRITICAL FINANCIAL LIFECYCLE RULES (PHASE 3):
+ * 1. An order is ALWAYS created in PENDING status.
+ * 2. Creating an order MUST NEVER modify wallet balances or create ledger records.
+ * 3. Exact promotional bonus is computed from the central Wallet Engine (calculateTopupCredit).
+ */
+export async function createTopupOrder(
+  params: {
+    organizationId: string;
+    userId: string;
+    amount: number;
+    currency?: string;
+    paymentReference?: string;
+    paymentMethod?: string;
+    notes?: string;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<TopupOrderRecord> {
+  const { organizationId, userId, amount, currency = 'MYR', paymentReference, paymentMethod, notes, metadata } = params;
+
+  if (!organizationId) {
+    throw new Error('Organization ID is required to create a top-up order');
+  }
+  if (!userId) {
+    throw new Error('User ID is required to create a top-up order');
+  }
+
+  const numericAmount = Number(amount);
+  if (isNaN(numericAmount) || numericAmount <= 0) {
+    throw new Error('Top-up amount must be a positive number greater than 0');
+  }
+
+  const sanitizedAmount = fromCents(toCents(numericAmount));
+  if (sanitizedAmount <= 0) {
+    throw new Error('Top-up amount must be greater than zero');
+  }
+
+  // Calculate promotional credit using the central Wallet Engine
+  const expectedCreditAmount = calculateTopupCredit(sanitizedAmount);
+  const bonusPercentage = sanitizedAmount > 0 ? (expectedCreditAmount / sanitizedAmount) * 100 : 0;
+  const totalWalletValue = fromCents(toCents(sanitizedAmount) + toCents(expectedCreditAmount));
+
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24-hour expiration window
+
+  const orderRecord: TopupOrderRecord = {
+    id,
+    organization_id: organizationId,
+    user_id: userId,
+    currency,
+    top_up_amount: sanitizedAmount,
+    expected_credit_amount: expectedCreditAmount,
+    bonus_percentage: Math.round(bonusPercentage * 100) / 100,
+    total_wallet_value: totalWalletValue,
+    status: 'PENDING',
+    payment_reference: paymentReference || null,
+    payment_method: paymentMethod || null,
+    notes: notes || null,
+    metadata: metadata || {},
+    created_at: now,
+    updated_at: now,
+    expired_at: expiresAt,
+    paid_at: null,
+    failed_at: null,
+    cancelled_at: null,
+    created_by: userId,
+  };
+
+  // 1. Production Supabase write attempt if available
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase
+        .from('wallet_topup_orders')
+        .insert(orderRecord)
+        .select()
+        .maybeSingle();
+
+      if (!error && data) {
+        const saved = data as TopupOrderRecord;
+        localTopupOrdersCache.set(saved.id, saved);
+        saveLocalStores();
+        return saved;
+      }
+    } catch {
+      // Fall through to local cache for test/dev environments
+    }
+  }
+
+  // 2. Local cache persistence
+  localTopupOrdersCache.set(orderRecord.id, orderRecord);
+  saveLocalStores();
+
+  return orderRecord;
+}
+
+/**
+ * Retrieve a top-up order by its UUID.
+ */
+export async function getTopupOrderById(
+  orderId: string,
+  env?: Record<string, any>
+): Promise<TopupOrderRecord | null> {
+  if (!orderId) return null;
+
+  // Check local cache first
+  const cached = localTopupOrdersCache.get(orderId);
+  if (cached) return cached;
+
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase
+        .from('wallet_topup_orders')
+        .select('*')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (!error && data) {
+        const order = data as TopupOrderRecord;
+        localTopupOrdersCache.set(order.id, order);
+        return order;
+      }
+    } catch {
+      // Return null or cached
+    }
+  }
+
+  return null;
+}
+
+/**
+ * List all top-up orders for an organization.
+ */
+export async function listTopupOrdersByOrganization(
+  organizationId: string,
+  env?: Record<string, any>
+): Promise<TopupOrderRecord[]> {
+  if (!organizationId) return [];
+
+  let orders: TopupOrderRecord[] = [];
+
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase
+        .from('wallet_topup_orders')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        orders = data as TopupOrderRecord[];
+        for (const o of orders) {
+          localTopupOrdersCache.set(o.id, o);
+        }
+        return orders;
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  orders = Array.from(localTopupOrdersCache.values())
+    .filter((o) => o.organization_id === organizationId)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  return orders;
+}
+
+/**
+ * Process a top-up order status transition.
+ *
+ * CRITICAL FINANCIAL RULES (PHASE 3):
+ * 1. ONLY status transition to 'PAID' can create wallet ledger entries.
+ * 2. 'PENDING', 'FAILED', 'EXPIRED', 'CANCELLED' NEVER create ledger entries.
+ * 3. Separate ledger entries are created for Paid Balance (+ RM X) and Top-up Credit (+ RM Y).
+ * 4. IDEMPOTENCY: Reprocessing an already PAID order returns the existing state and NEVER duplicates credit.
+ */
+export async function processTopupOrderStatus(
+  params: {
+    orderId: string;
+    newStatus: TopupOrderStatus;
+    paymentReference?: string;
+    paymentMethod?: string;
+    processedBy?: string;
+    reason?: string;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<{
+  order: TopupOrderRecord;
+  alreadyProcessed: boolean;
+  ledgerResult?: {
+    topupTransaction?: WalletTransactionRecord;
+    promoCreditTransaction?: WalletTransactionRecord | null;
+    wallet: WalletBalanceSummary;
+  };
+  message?: string;
+}> {
+  const { orderId, newStatus, paymentReference, paymentMethod, processedBy, reason, metadata } = params;
+
+  const order = await getTopupOrderById(orderId, env);
+  if (!order) {
+    throw new Error(`Top-up order not found: ${orderId}`);
+  }
+
+  const now = new Date().toISOString();
+
+  // 1. IDEMPOTENCY CHECK: If order is ALREADY 'PAID'
+  if (order.status === 'PAID') {
+    if (newStatus === 'PAID') {
+      const currentWallet = await getWalletBalance(order.organization_id, env);
+      return {
+        order,
+        alreadyProcessed: true,
+        ledgerResult: {
+          wallet: currentWallet,
+        },
+        message: 'Top-up order is already marked as PAID and credited (idempotent no-op).',
+      };
+    }
+    throw new Error(`Cannot change status of an already PAID top-up order (${orderId}) to ${newStatus}`);
+  }
+
+  // 2. Terminal state idempotent handling for non-PAID states
+  if (order.status === newStatus) {
+    return {
+      order,
+      alreadyProcessed: true,
+      message: `Top-up order is already in status ${newStatus}.`,
+    };
+  }
+
+  // 3. Process Status Transitions
+  if (newStatus === 'PAID') {
+    // A. Update Order State to PAID
+    order.status = 'PAID';
+    order.paid_at = now;
+    order.updated_at = now;
+    if (paymentReference) order.payment_reference = paymentReference;
+    if (paymentMethod) order.payment_method = paymentMethod;
+    if (reason) order.notes = reason;
+    if (metadata) {
+      order.metadata = { ...(order.metadata || {}), ...metadata };
+    }
+
+    // Save updated order
+    localTopupOrdersCache.set(order.id, order);
+    saveLocalStores();
+
+    if (isSupabaseConfigured(env)) {
+      try {
+        const supabase = getSupabaseServerClient(env);
+        await supabase
+          .from('wallet_topup_orders')
+          .update({
+            status: 'PAID',
+            paid_at: order.paid_at,
+            updated_at: order.updated_at,
+            payment_reference: order.payment_reference,
+            payment_method: order.payment_method,
+            notes: order.notes,
+            metadata: order.metadata,
+          })
+          .eq('id', order.id);
+      } catch {
+        // ignore
+      }
+    }
+
+    // B. Create SEPARATE ledger entries via Wallet Engine
+    // 1) PAID_BALANCE (+ RM top_up_amount)
+    // 2) TOPUP_CREDIT (+ RM expected_credit_amount)
+    const ledgerResult = await createTopup(
+      {
+        organizationId: order.organization_id,
+        amount: order.top_up_amount,
+        currency: order.currency,
+        referenceId: `topup_order_${order.id}`,
+        description: `Top-up Order ${order.id.slice(0, 8).toUpperCase()}`,
+        metadata: {
+          topup_order_id: order.id,
+          payment_reference: order.payment_reference,
+          payment_method: order.payment_method,
+          reason,
+          ...(order.metadata || {}),
+        },
+        createdBy: processedBy || order.user_id,
+      },
+      env
+    );
+
+    return {
+      order,
+      alreadyProcessed: false,
+      ledgerResult,
+      message: `Top-up order successfully marked as PAID. Wallet credited with RM${order.top_up_amount.toFixed(2)} cash balance and RM${order.expected_credit_amount.toFixed(2)} promotional credits.`,
+    };
+  }
+
+  if (newStatus === 'FAILED') {
+    order.status = 'FAILED';
+    order.failed_at = now;
+    order.updated_at = now;
+    if (reason) order.notes = reason;
+    if (paymentReference) order.payment_reference = paymentReference;
+
+    localTopupOrdersCache.set(order.id, order);
+    saveLocalStores();
+
+    if (isSupabaseConfigured(env)) {
+      try {
+        const supabase = getSupabaseServerClient(env);
+        await supabase
+          .from('wallet_topup_orders')
+          .update({
+            status: 'FAILED',
+            failed_at: order.failed_at,
+            updated_at: order.updated_at,
+            notes: order.notes,
+          })
+          .eq('id', order.id);
+      } catch {
+        // ignore
+      }
+    }
+
+    return {
+      order,
+      alreadyProcessed: false,
+      message: 'Top-up order marked as FAILED. No funds or credits were added to the wallet.',
+    };
+  }
+
+  if (newStatus === 'CANCELLED') {
+    order.status = 'CANCELLED';
+    order.cancelled_at = now;
+    order.updated_at = now;
+    if (reason) order.notes = reason;
+
+    localTopupOrdersCache.set(order.id, order);
+    saveLocalStores();
+
+    if (isSupabaseConfigured(env)) {
+      try {
+        const supabase = getSupabaseServerClient(env);
+        await supabase
+          .from('wallet_topup_orders')
+          .update({
+            status: 'CANCELLED',
+            cancelled_at: order.cancelled_at,
+            updated_at: order.updated_at,
+            notes: order.notes,
+          })
+          .eq('id', order.id);
+      } catch {
+        // ignore
+      }
+    }
+
+    return {
+      order,
+      alreadyProcessed: false,
+      message: 'Top-up order marked as CANCELLED. No funds or credits were added to the wallet.',
+    };
+  }
+
+  if (newStatus === 'EXPIRED') {
+    order.status = 'EXPIRED';
+    order.expired_at = now;
+    order.updated_at = now;
+    if (reason) order.notes = reason;
+
+    localTopupOrdersCache.set(order.id, order);
+    saveLocalStores();
+
+    if (isSupabaseConfigured(env)) {
+      try {
+        const supabase = getSupabaseServerClient(env);
+        await supabase
+          .from('wallet_topup_orders')
+          .update({
+            status: 'EXPIRED',
+            expired_at: order.expired_at,
+            updated_at: order.updated_at,
+            notes: order.notes,
+          })
+          .eq('id', order.id);
+      } catch {
+        // ignore
+      }
+    }
+
+    return {
+      order,
+      alreadyProcessed: false,
+      message: 'Top-up order marked as EXPIRED. No funds or credits were added to the wallet.',
+    };
+  }
+
+  throw new Error(`Unsupported top-up order status transition: ${newStatus}`);
+}
+
+/**
+ * Prepare a pending top-up order (Phase 2 & Phase 3 compatible).
+ * Prepares the order in PENDING status without crediting any balance or calling payment providers.
+ */
+export async function preparePendingTopupOrder(
+  params: {
+    organizationId: string;
+    amount: number;
+    currency?: string;
+    createdBy?: string;
+    notes?: string;
+  },
+  env?: Record<string, any>
+): Promise<{
+  order: TopupOrderRecord;
+  quote: TopupQuoteResponse;
+  message: string;
+}> {
+  const { organizationId, amount, currency = 'MYR', createdBy = '00000000-0000-0000-0000-000000000000', notes } = params;
+  if (!organizationId) {
+    throw new Error('Organization ID is required');
+  }
+  const sanitizedAmount = Number(amount);
+  if (isNaN(sanitizedAmount) || sanitizedAmount <= 0) {
+    throw new Error('Top-up amount must be a positive number greater than 0');
+  }
+
+  const quote = await getTopupQuote({ organizationId, amount: sanitizedAmount, currency }, env);
+
+  const order = await createTopupOrder(
+    {
+      organizationId,
+      userId: createdBy,
+      amount: sanitizedAmount,
+      currency,
+      notes: notes || 'Top-up Order Created (Awaiting Payment)',
+    },
+    env
+  );
+
+  return {
+    order,
+    quote,
+    message: 'Pending top-up order created successfully in PENDING status. Wallet balance has not been credited.',
+  };
+}
+
+export async function getPendingTopupOrder(orderId: string, env?: Record<string, any>): Promise<TopupOrderRecord | null> {
+  return getTopupOrderById(orderId, env);
 }

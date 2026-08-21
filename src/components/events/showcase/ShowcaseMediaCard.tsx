@@ -39,11 +39,12 @@ export const ShowcaseMediaCard: React.FC<ShowcaseMediaCardProps> = ({
 
   const isVideo = media.media_type === 'VIDEO';
 
-  const formatFileSize = (bytes: number) => {
-    if (!bytes) return '0 B';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const formatFileSize = (bytes?: number | null) => {
+    const num = Number(bytes);
+    if (!num || isNaN(num) || num <= 0) return '0 B';
+    if (num < 1024) return `${num} B`;
+    if (num < 1024 * 1024) return `${(num / 1024).toFixed(1)} KB`;
+    return `${(num / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleDelete = async () => {

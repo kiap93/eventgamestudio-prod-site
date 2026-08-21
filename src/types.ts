@@ -225,3 +225,68 @@ export interface EventWithDetails extends EventRecord {
   showcase_status?: string;
 }
 
+export interface TopupTiersInfo {
+  tier1_min: number;
+  tier1_rate: number;
+  tier2_min: number;
+  tier2_rate: number;
+  preset_amounts: number[];
+}
+
+export interface TopupQuoteResponse {
+  amount: number;
+  currency: string;
+  promo_credit: number;
+  bonus_percentage: number;
+  total_wallet_value: number;
+  you_pay: number;
+  current_wallet: WalletBalanceSummary;
+  wallet_value_after_topup: {
+    paid_balance: number;
+    topup_credit: number;
+    welcome_credit: number;
+    showcase_credit: number;
+    total_balance: number;
+  };
+  tiers: TopupTiersInfo;
+}
+
+export type TopupOrderStatus = 'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+
+export interface TopupOrderRecord {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  currency: string;
+  top_up_amount: number;
+  expected_credit_amount: number;
+  bonus_percentage?: number;
+  total_wallet_value?: number;
+  status: TopupOrderStatus;
+  payment_reference: string | null;
+  payment_method?: string | null;
+  notes?: string | null;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  paid_at?: string | null;
+  expired_at?: string | null;
+  cancelled_at?: string | null;
+  failed_at?: string | null;
+  created_by?: string | null;
+}
+
+export interface PendingTopupOrder {
+  order_id: string;
+  organization_id: string;
+  amount: number;
+  currency: string;
+  promo_credit: number;
+  total_wallet_value: number;
+  status: TopupOrderStatus;
+  created_at: string;
+  expires_at: string;
+  created_by?: string;
+  notes?: string;
+}
+

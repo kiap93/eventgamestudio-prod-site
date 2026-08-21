@@ -72,9 +72,9 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
     }
 
     // 2. Validate file size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
+    if (file?.size && file.size > 10 * 1024 * 1024) {
       setUploadError(
-        `File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed size is 10MB.`
+        `File is too large (${((file.size || 0) / (1024 * 1024)).toFixed(1)}MB). Maximum allowed size is 10MB.`
       );
       return;
     }
@@ -96,7 +96,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
 
       if (Math.abs(ratio - targetRatio) > 0.15) {
         setDimensionNotice(
-          `Image is ${width}×${height}px (~${ratio.toFixed(2)}:1). Recommended aspect ratio is 16:9 (1024×576px). It will be scaled to fit the game canvas.`
+          `Image is ${width}×${height}px (~${(Number(ratio) || 1).toFixed(2)}:1). Recommended aspect ratio is 16:9 (1024×576px). It will be scaled to fit the game canvas.`
         );
       } else {
         setDimensionNotice(`Optimal 16:9 aspect ratio detected (${width}×${height}px).`);
@@ -174,9 +174,9 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
     }
 
     // 2. Validate file size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
+    if (file?.size && file.size > 10 * 1024 * 1024) {
       setCatcherUploadError(
-        `File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed size is 10MB.`
+        `File is too large (${((file.size || 0) / (1024 * 1024)).toFixed(1)}MB). Maximum allowed size is 10MB.`
       );
       return;
     }

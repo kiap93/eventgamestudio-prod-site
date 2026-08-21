@@ -229,6 +229,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       }
 
       const data = await res.json();
+      window.dispatchEvent(new CustomEvent('wallet_updated'));
       onEventCreated(data.event);
       onClose();
     } catch (err: any) {
@@ -430,25 +431,25 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 <div className="p-2 bg-slate-900 border border-slate-800 rounded-xl">
                   <div className="text-[10px] text-slate-500 font-medium">Paid Balance</div>
                   <div className="font-mono font-bold text-slate-200">
-                    RM {walletSummary.paid_balance.toFixed(2)}
+                    RM {(Number(walletSummary.paid_balance) || 0).toFixed(2)}
                   </div>
                 </div>
                 <div className="p-2 bg-slate-900 border border-slate-800 rounded-xl">
                   <div className="text-[10px] text-amber-400 font-medium">Welcome Credit</div>
                   <div className="font-mono font-bold text-amber-300">
-                    RM {walletSummary.welcome_credit.toFixed(2)}
+                    RM {(Number(walletSummary.welcome_credit) || 0).toFixed(2)}
                   </div>
                 </div>
                 <div className="p-2 bg-slate-900 border border-slate-800 rounded-xl">
                   <div className="text-[10px] text-emerald-400 font-medium">Showcase Credit</div>
                   <div className="font-mono font-bold text-emerald-300">
-                    RM {walletSummary.showcase_credit.toFixed(2)}
+                    RM {(Number(walletSummary.showcase_credit) || 0).toFixed(2)}
                   </div>
                 </div>
                 <div className="p-2 bg-slate-900 border border-slate-800 rounded-xl">
                   <div className="text-[10px] text-purple-400 font-medium">Top-up Credit</div>
                   <div className="font-mono font-bold text-purple-300">
-                    RM {walletSummary.topup_credit.toFixed(2)}
+                    RM {(Number(walletSummary.topup_credit) || 0).toFixed(2)}
                   </div>
                 </div>
               </div>
@@ -463,6 +464,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {quoteOptions.map((opt) => {
                   const isSelected = opt.mode === selectedPaymentMode;
+                  const creditAppliedNum = Number(opt.creditApplied) || 0;
+                  const paidAmountNum = Number(opt.paidAmount) || 0;
 
                   return (
                     <button
@@ -483,16 +486,16 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                             <span className="text-xs font-bold text-slate-200">{opt.title}</span>
                           </div>
                           <div className="text-[10px] font-mono text-slate-400">
-                            {opt.creditApplied > 0 ? (
+                            {creditAppliedNum > 0 ? (
                               <>
                                 <span className="text-emerald-400 font-semibold">
-                                  -RM {opt.creditApplied.toFixed(2)}
+                                  -RM {creditAppliedNum.toFixed(2)}
                                 </span>{' '}
                                 Credit +{' '}
                               </>
                             ) : null}
                             <span className="text-slate-200 font-bold">
-                              RM {opt.paidAmount.toFixed(2)}
+                              RM {paidAmountNum.toFixed(2)}
                             </span>{' '}
                             Paid
                           </div>
@@ -525,23 +528,23 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               <div className="p-3 bg-slate-900 border border-slate-800/80 rounded-xl space-y-2 text-xs">
                 <div className="flex items-center justify-between text-slate-300">
                   <span>Standard Event Price:</span>
-                  <span className="font-mono">RM {activeCalculation.standardPrice.toFixed(2)}</span>
+                  <span className="font-mono">RM {(Number(activeCalculation.standardPrice) || 0).toFixed(2)}</span>
                 </div>
 
-                {activeCalculation.totalDiscount > 0 && (
+                {(Number(activeCalculation.totalDiscount) || 0) > 0 && (
                   <div className="flex items-center justify-between text-emerald-400 font-semibold">
                     <span className="flex items-center gap-1">
                       <Tag className="w-3.5 h-3.5" />
                       Applied Credit Discount:
                     </span>
-                    <span className="font-mono">-RM {activeCalculation.totalDiscount.toFixed(2)}</span>
+                    <span className="font-mono">-RM {(Number(activeCalculation.totalDiscount) || 0).toFixed(2)}</span>
                   </div>
                 )}
 
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-slate-100 font-bold">
                   <span>Net Payable Amount:</span>
                   <span className="font-mono text-amber-400 text-sm">
-                    RM {activeCalculation.paidAmountRequired.toFixed(2)}
+                    RM {(Number(activeCalculation.paidAmountRequired) || 0).toFixed(2)}
                   </span>
                 </div>
 
@@ -597,7 +600,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   <span>
                     Pay{' '}
                     {activeCalculation
-                      ? `RM ${activeCalculation.paidAmountRequired.toFixed(2)}`
+                      ? `RM ${(Number(activeCalculation.paidAmountRequired) || 0).toFixed(2)}`
                       : 'RM 1,400.00'}{' '}
                     & Deploy Event
                   </span>

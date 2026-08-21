@@ -30,11 +30,12 @@ export const ShowcaseMediaUploadQueue: React.FC<ShowcaseMediaUploadQueueProps> =
   const errorCount = queue.filter((i) => i.status === 'error').length;
   const inProgressCount = queue.filter((i) => i.status === 'uploading' || i.status === 'saving' || i.status === 'pending').length;
 
-  const formatSize = (bytes: number) => {
-    if (!bytes) return '0 B';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const formatSize = (bytes?: number | null) => {
+    const num = Number(bytes);
+    if (!num || isNaN(num) || num <= 0) return '0 B';
+    if (num < 1024) return `${num} B`;
+    if (num < 1024 * 1024) return `${(num / 1024).toFixed(1)} KB`;
+    return `${(num / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   return (

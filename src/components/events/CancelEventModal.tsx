@@ -78,6 +78,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
         throw new Error(data.error || 'Failed to cancel event');
       }
 
+      window.dispatchEvent(new CustomEvent('wallet_updated'));
       onSuccess(data.event);
       onClose();
     } catch (err: any) {
@@ -205,7 +206,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                       <div className="flex items-center justify-between">
                         <span className="text-slate-400">Paid Balance Refund:</span>
                         <span className="font-mono font-bold text-emerald-400">
-                          + RM {Number(paidAmount).toFixed(2)}
+                          + RM {(Number(paidAmount) || 0).toFixed(2)}
                         </span>
                       </div>
 
@@ -213,7 +214,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">Promotional Credit Reversal:</span>
                           <span className="font-mono text-amber-400">
-                            - RM {Number(discountAmount).toFixed(2)} ({eligibility?.creditType || 'Promo Credit'})
+                            - RM {(Number(discountAmount) || 0).toFixed(2)} ({eligibility?.creditType || 'Promo Credit'})
                           </span>
                         </div>
                       )}

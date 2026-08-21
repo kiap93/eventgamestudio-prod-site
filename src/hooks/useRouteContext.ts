@@ -49,6 +49,7 @@ const RESERVED_PREFIXES = new Set([
   'play',
   'games',
   'developer',
+  'wallet',
 ]);
 
 export function parseRoute(pathname: string): RouteContext {
@@ -56,6 +57,26 @@ export function parseRoute(pathname: string): RouteContext {
   const parts = cleanPath.split('?')[0].split('/').filter(Boolean);
   const searchParams = new URLSearchParams(window.location.search);
   const queryGameType = searchParams.get('game') || searchParams.get('gameType') || DEFAULT_GAME_TYPE;
+
+  // Check for static asset files (e.g. /logo.png, /favicon.ico, /assets/*, /images/*, /uploads/*)
+  const isStaticFile =
+    /\.(png|jpe?g|gif|svg|ico|webp|css|js|woff2?|ttf|eot|json|mp4|webm|mp3|wav|ogg)$/i.test(cleanPath) ||
+    cleanPath.startsWith('/assets/') ||
+    cleanPath.startsWith('/images/') ||
+    cleanPath.startsWith('/public/') ||
+    cleanPath.startsWith('/uploads/');
+
+  if (isStaticFile) {
+    return {
+      mode: 'landing',
+      isPublicGameRoute: false,
+      isPublicEventRoute: false,
+      isStudioRoute: false,
+      isPreviewRoute: false,
+      isDeveloperAdminRoute: false,
+      pathname: cleanPath,
+    };
+  }
 
   // 0. Check for Developer Admin routes (/developer/...)
   if (parts.length >= 1 && parts[0].toLowerCase() === 'developer') {
