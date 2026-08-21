@@ -19,14 +19,8 @@ import {
   Palette,
   Calendar,
   Wallet,
-  Coins,
-  Sparkles,
-  Gift,
   Check,
   ShieldCheck,
-  User as UserIcon,
-  ChevronRight,
-  ArrowUpRight,
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
@@ -51,11 +45,11 @@ export const DashboardLayout: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'events' | 'customizer' | 'team' | 'wallet' | 'wallet-topup'>(() => getInitialTab());
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
-  const [showWalletDropdown, setShowWalletDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   const [wallet, setWallet] = useState<WalletBalanceSummary | null>(null);
-  const [loadingWallet, setLoadingWallet] = useState(false);
+  const [loadingWallet, setLoadingWallet] = useState<boolean>(true);
+  const [walletError, setWalletError] = useState<boolean>(false);
 
   const headerRef = useRef<HTMLElement | null>(null);
 
@@ -64,7 +58,6 @@ export const DashboardLayout: React.FC = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (headerRef.current && !headerRef.current.contains(event.target as Node)) {
         setShowOrgDropdown(false);
-        setShowWalletDropdown(false);
         setShowUserDropdown(false);
       }
     };
@@ -72,7 +65,6 @@ export const DashboardLayout: React.FC = () => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setShowOrgDropdown(false);
-        setShowWalletDropdown(false);
         setShowUserDropdown(false);
       }
     };
@@ -86,34 +78,46 @@ export const DashboardLayout: React.FC = () => {
   }, []);
 
   // Fetch current organization's wallet balance from existing Wallet Engine
-  const fetchWallet = useCallback(async () => {
+  const fetchWallet = useCallback(async (resetState: boolean = false) => {
     if (!currentOrganization?.id) {
       setWallet(null);
+      setLoadingWallet(false);
+      setWalletError(false);
       return;
     }
 
     try {
+      if (resetState) {
+        setWallet(null);
+      }
       setLoadingWallet(true);
+      setWalletError(false);
       const res = await apiFetch(`/api/organizations/${currentOrganization.id}/wallet`);
       if (res.ok) {
         const data = await res.json();
         setWallet(data.wallet || null);
+        setWalletError(false);
+      } else {
+        console.error('Failed to load organization wallet:', await res.text());
+        setWalletError(true);
       }
     } catch (err) {
       console.error('Failed to load organization wallet:', err);
+      setWalletError(true);
     } finally {
       setLoadingWallet(false);
     }
   }, [currentOrganization?.id]);
 
+  // When organization changes, trigger a fresh fetch and reset previous org balance
   useEffect(() => {
-    fetchWallet();
+    fetchWallet(true);
   }, [fetchWallet]);
 
-  // Listen for custom wallet_updated events from event mutations
+  // Listen for custom wallet_updated events from event mutations & payments
   useEffect(() => {
     const handleWalletUpdated = () => {
-      fetchWallet();
+      fetchWallet(false);
     };
     window.addEventListener('wallet_updated', handleWalletUpdated);
     return () => window.removeEventListener('wallet_updated', handleWalletUpdated);
@@ -258,7 +262,6 @@ export const DashboardLayout: React.FC = () => {
               <button
                 onClick={() => {
                   setShowOrgDropdown(!showOrgDropdown);
-                  setShowWalletDropdown(false);
                   setShowUserDropdown(false);
                 }}
                 title="Select Organization Workspace"
@@ -267,7 +270,7 @@ export const DashboardLayout: React.FC = () => {
                 } px-2 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-200 transition-colors cursor-pointer`}
               >
                 <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
-                <span className="max-w-[80px] sm:max-w-[120px] lg:max-w-[150px] truncate">
+                <span className="max-w-[75px] xs:max-w-[95px] sm:max-w-[120px] lg:max-w-[150px] truncate">
                   {currentOrganization?.name || 'Select Workspace'}
                 </span>
                 {currentOrganization?.role && (
@@ -321,151 +324,43 @@ export const DashboardLayout: React.FC = () => {
               )}
             </div>
 
-            {/* 2. Organization Available Wallet Balance */}
-            <div className="relative">
-              <div className="flex items-center">
-                <button
-                  onClick={() => {
-                    handleTabChange('wallet');
-                    setShowWalletDropdown(false);
-                  }}
-                  title="Organization Wallet - Click to view available balance details"
-                  className={`flex items-center gap-1.5 sm:gap-2 bg-slate-950 hover:bg-slate-800 border ${
-                    activeTab === 'wallet'
-                      ? 'border-amber-500 bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/40'
-                      : showWalletDropdown
-                      ? 'border-amber-500/50 bg-slate-850'
-                      : 'border-slate-800 hover:border-slate-700'
-                  } px-2 sm:px-3 py-1.5 rounded-l-xl rounded-r-none text-xs font-semibold text-slate-200 transition-all group cursor-pointer`}
-                >
-                  <Wallet className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${activeTab === 'wallet' ? 'text-amber-300' : 'text-amber-400'} group-hover:scale-110 transition-transform shrink-0`} />
-                  <span className="font-mono text-xs font-bold text-amber-400 whitespace-nowrap">
-                    {loadingWallet && !wallet ? '...' : availableBalanceText}
+            {/* 2. Organization Available Wallet Balance Button [ Wallet RM 6,300.00 ] */}
+            <button
+              onClick={() => handleTabChange('wallet')}
+              title={`Organization Wallet (${currentOrganization?.name || 'Workspace'}) - Click to view available balance details (/wallet)`}
+              className={`flex items-center gap-1.5 sm:gap-2 bg-slate-950 hover:bg-slate-800 border ${
+                activeTab === 'wallet' || activeTab === 'wallet-topup'
+                  ? 'border-amber-500 bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/40 shadow-sm'
+                  : 'border-slate-800 hover:border-slate-700 text-slate-200'
+              } px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold transition-all group cursor-pointer shrink-0`}
+            >
+              <Wallet className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${activeTab === 'wallet' ? 'text-amber-300' : 'text-amber-400'} group-hover:scale-105 transition-transform shrink-0`} />
+              
+              {loadingWallet && !wallet && !walletError ? (
+                <span className="flex items-center gap-1.5 text-xs text-amber-400/80">
+                  <span className="text-slate-300 font-sans font-medium hidden sm:inline">Wallet</span>
+                  <span className="inline-flex items-center gap-1 text-slate-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="text-[11px] font-mono">...</span>
                   </span>
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowWalletDropdown(!showWalletDropdown);
-                    setShowOrgDropdown(false);
-                    setShowUserDropdown(false);
-                  }}
-                  title="Toggle Quick Balance Summary"
-                  className={`px-1.5 py-1.5 bg-slate-950 hover:bg-slate-800 border-y border-r ${
-                    activeTab === 'wallet'
-                      ? 'border-amber-500 bg-amber-500/10 text-amber-300'
-                      : showWalletDropdown
-                      ? 'border-amber-500/50 bg-slate-850 text-slate-200'
-                      : 'border-slate-800 hover:border-slate-700 text-slate-400'
-                  } rounded-r-xl text-xs transition-all cursor-pointer`}
-                >
-                  <ChevronDown className={`w-3 h-3 transition-transform ${showWalletDropdown ? 'rotate-180' : ''}`} />
-                </button>
-              </div>
-
-              {showWalletDropdown && (
-                <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 space-y-3 animate-in fade-in zoom-in-95 duration-150">
-                  {/* Header */}
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 bg-amber-500/10 rounded-lg text-amber-400 border border-amber-500/20">
-                        <Wallet className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-100">Organization Wallet</div>
-                        <div className="text-[10px] text-slate-400 truncate max-w-[160px]">
-                          {currentOrganization?.name}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold border border-slate-700">
-                      {currencyCode}
-                    </span>
-                  </div>
-
-                  {/* Primary Metric: Available Balance */}
-                  <div className="p-3 bg-slate-950 rounded-xl border border-amber-500/30 text-center">
-                    <div className="text-[10px] uppercase tracking-wider font-semibold text-amber-400/80 mb-0.5">
-                      Available Balance
-                    </div>
-                    <div className="text-xl font-mono font-black text-amber-400">
-                      {availableBalanceText}
-                    </div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
-                      Total usable funds for event launches
-                    </div>
-                  </div>
-
-                  {/* Balance Sub-breakdown */}
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
-                      <span className="text-slate-400 flex items-center gap-1.5">
-                        <Coins className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Paid Balance</span>
-                      </span>
-                      <span className="font-mono font-semibold text-emerald-400">
-                        {formatCurrency(wallet?.paid_balance, currencyCode)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
-                      <span className="text-slate-400 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>Top-up Credit</span>
-                      </span>
-                      <span className="font-mono font-semibold text-cyan-400">
-                        {formatCurrency(wallet?.topup_credit, currencyCode)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
-                      <span className="text-slate-400 flex items-center gap-1.5">
-                        <Gift className="w-3.5 h-3.5 text-purple-400" />
-                        <span>Welcome Credit</span>
-                      </span>
-                      <span className="font-mono font-semibold text-purple-400">
-                        {formatCurrency(wallet?.welcome_credit, currencyCode)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-800/80">
-                      <span className="text-slate-400 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Showcase Credit</span>
-                      </span>
-                      <span className="font-mono font-semibold text-amber-400">
-                        {formatCurrency(wallet?.showcase_credit, currencyCode)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Navigation CTA to Full Wallet Page & Top Up */}
-                  <div className="border-t border-slate-800 pt-2 space-y-1.5">
-                    <button
-                      onClick={() => {
-                        handleTabChange('wallet-topup');
-                        setShowWalletDropdown(false);
-                      }}
-                      className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs shadow transition-colors cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Top Up Balance</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        handleTabChange('wallet');
-                        setShowWalletDropdown(false);
-                      }}
-                      className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-800 hover:bg-slate-750 text-slate-200 font-semibold rounded-xl text-xs transition-colors cursor-pointer border border-slate-700"
-                    >
-                      <span>Wallet Overview & History</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                    </button>
-                  </div>
-                </div>
+                </span>
+              ) : walletError && !wallet ? (
+                <span className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
+                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">Wallet</span>
+                  <span className="text-rose-400/90 font-medium">unavailable</span>
+                </span>
+              ) : wallet ? (
+                <span className="flex items-center gap-1 font-mono text-xs font-bold text-amber-400 whitespace-nowrap">
+                  <span className="text-slate-300 font-sans font-medium hidden sm:inline">Wallet</span>
+                  <span>{formatCurrency(wallet.total_balance, currencyCode)}</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
+                  <span className="text-slate-300 font-sans font-medium hidden sm:inline">Wallet</span>
+                  <span>unavailable</span>
+                </span>
               )}
-            </div>
+            </button>
 
             {/* 3. User Name Dropdown */}
             <div className="relative">
@@ -473,7 +368,6 @@ export const DashboardLayout: React.FC = () => {
                 onClick={() => {
                   setShowUserDropdown(!showUserDropdown);
                   setShowOrgDropdown(false);
-                  setShowWalletDropdown(false);
                 }}
                 title="Account profile and settings"
                 className={`flex items-center gap-1.5 sm:gap-2 bg-slate-950 hover:bg-slate-800 border ${

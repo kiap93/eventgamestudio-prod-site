@@ -100,6 +100,7 @@ import {
   calculateEventPaymentQuote,
   processEventPayment,
   getWalletTransactions,
+  getWalletAuditTrail,
   reverseTransaction,
   recalculateWalletBalances,
   STANDARD_EVENT_PRICE,
@@ -131,6 +132,13 @@ import {
   uploadRateLimiter,
   generalApiRateLimiter,
 } from './server/rateLimiter.js';
+
+import {
+  createPaymentSession,
+  verifyAndProcessPaymentWebhook,
+  generateWebhookSignature,
+  getPaymentWebhookSecret,
+} from './server/payment/index.js';
 
 
 const app = express();
@@ -226,7 +234,14 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '15mb' }));
+app.use(
+  express.json({
+    limit: '15mb',
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf.toString('utf8');
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // Global API rate limiter on all mutating endpoints to prevent volumetric request flood
@@ -2989,17 +3004,56 @@ app.get('/api/organizations/:orgId/wallet/transactions', authenticateJWT, async 
     const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
     const balanceType = req.query.balance_type as any;
     const transactionType = req.query.transaction_type as any;
+    const filterGroup = (req.query.filter || req.query.filter_group || req.query.type) as string;
+    const startDate = req.query.start_date as string;
+    const endDate = req.query.end_date as string;
+    const search = req.query.search as string;
 
     const result = await getWalletTransactions(orgId, {
       limit,
       offset,
       balanceType,
       transactionType,
+      filterGroup,
+      startDate,
+      endDate,
+      search,
     });
 
     res.json(result);
   } catch (err: any) {
     console.error('Get wallet transactions error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/organizations/:orgId/wallet/audit-trail
+ * Retrieve complete immutable audit event log for the organization
+ */
+app.get('/api/organizations/:orgId/wallet/audit-trail', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+      res.status(403).json({ error: 'Access denied: Only organization owners and admins can view the wallet audit trail' });
+      return;
+    }
+
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
+    const eventType = req.query.event_type as any;
+
+    const result = await getWalletAuditTrail(orgId, { limit, offset, eventType });
+    res.json(result);
+  } catch (err: any) {
+    console.error('Get wallet audit trail error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -3277,6 +3331,179 @@ const handleProcessTopupStatus = async (req: AuthenticatedRequest, res: express.
 app.post('/api/wallet/topups/:id/process-status', walletRateLimiter, authenticateJWT, handleProcessTopupStatus);
 app.post('/api/wallet/topups/:id/status', walletRateLimiter, authenticateJWT, handleProcessTopupStatus);
 app.post('/api/organizations/:orgId/wallet/topup-orders/:id/process-status', walletRateLimiter, authenticateJWT, handleProcessTopupStatus);
+
+/**
+ * POST /api/wallet/topups/:id/checkout
+ * POST /api/organizations/:orgId/wallet/topup-orders/:id/checkout
+ *
+ * PHASE 4 PAYMENT PROVIDER INTEGRATION:
+ * Create a secure payment session / checkout session for a PENDING Top Up Order.
+ */
+const handleCreateCheckoutSession = async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const orderId = req.params.id || req.params.orderId;
+    if (!orderId) {
+      res.status(400).json({ error: 'Order ID is required' });
+      return;
+    }
+
+    const order = await getTopupOrderById(orderId);
+    if (!order) {
+      res.status(404).json({ error: 'Top-up order not found' });
+      return;
+    }
+
+    // STRICT ORGANIZATION ISOLATION: Requester must be owner/admin of the order's organization
+    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, order.organization_id);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+      res.status(403).json({ error: 'Only organization owners and admins can checkout top-up orders' });
+      return;
+    }
+
+    if (order.status !== 'PENDING') {
+      res.status(400).json({
+        error: `Cannot create payment session for order with status ${order.status}. Only PENDING orders can be checked out.`,
+      });
+      return;
+    }
+
+    const origin = (req.headers.origin as string) || `http://${req.headers.host}`;
+    const session = await createPaymentSession({
+      order,
+      originUrl: origin,
+      customerEmail: req.user?.email,
+    });
+
+    res.json({
+      success: true,
+      session,
+      checkoutUrl: session.checkoutUrl,
+      sessionId: session.sessionId,
+    });
+  } catch (err: any) {
+    console.error('Create payment checkout session error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.post('/api/wallet/topups/:id/checkout', walletRateLimiter, authenticateJWT, handleCreateCheckoutSession);
+app.post('/api/organizations/:orgId/wallet/topup-orders/:id/checkout', walletRateLimiter, authenticateJWT, handleCreateCheckoutSession);
+
+/**
+ * POST /api/webhooks/payment
+ * POST /api/wallet/webhooks/payment
+ *
+ * SECURE PAYMENT PROVIDER WEBHOOK ENDPOINT
+ *
+ * CRITICAL LIFECYCLE & SECURITY RULES:
+ * 1. Verify the provider signature (HMAC-SHA256).
+ * 2. Find the corresponding Top Up Order in DB.
+ * 3. Verify amount, currency, and organization match server record.
+ * 4. Check current order status.
+ * 5. Process PAID only once (Atomic & Idempotent).
+ * 6. Create wallet ledger entries (Separate Paid Balance + Top-up Credit).
+ * 7. Mark the order as PAID.
+ * 8. Return HTTP 200 { received: true }.
+ */
+const handlePaymentWebhook = async (req: express.Request, res: express.Response) => {
+  try {
+    const rawBody = (req as any).rawBody || JSON.stringify(req.body);
+    const signature =
+      (req.headers['stripe-signature'] as string) ||
+      (req.headers['x-signature'] as string) ||
+      (req.headers['x-provider-signature'] as string) ||
+      (req.headers['x-hub-signature-256'] as string);
+
+    const result = await verifyAndProcessPaymentWebhook({
+      rawBody,
+      signature,
+      headers: req.headers as any,
+    });
+
+    res.status(200).json({
+      received: true,
+      success: result.success,
+      isDuplicate: result.isDuplicate,
+      status: result.status,
+      orderId: result.orderId,
+      message: result.message,
+    });
+  } catch (err: any) {
+    console.error('Payment webhook processing error:', err.message);
+    const statusCode = err.status || (err.code === 'INVALID_SIGNATURE' ? 400 : 422);
+    res.status(statusCode).json({
+      error: err.message || 'Payment webhook verification failed',
+      code: err.code || 'WEBHOOK_VERIFICATION_FAILED',
+    });
+  }
+};
+
+app.post('/api/webhooks/payment', handlePaymentWebhook);
+app.post('/api/wallet/webhooks/payment', handlePaymentWebhook);
+
+/**
+ * POST /api/developer/wallet/test-webhook
+ * Simulate payment provider webhook dispatch for developer/admin testing sandbox.
+ */
+app.post('/api/developer/wallet/test-webhook', authenticateJWT, async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const { orderId, eventType = 'payment.succeeded', failureReason } = req.body;
+    if (!orderId) {
+      res.status(400).json({ error: 'orderId is required' });
+      return;
+    }
+
+    const order = await getTopupOrderById(orderId);
+    if (!order) {
+      res.status(404).json({ error: 'Top-up order not found' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, order.organization_id);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied to this top-up order' });
+      return;
+    }
+
+    const secret = getPaymentWebhookSecret();
+    const webhookPayload = JSON.stringify({
+      id: `evt_sim_${Date.now()}`,
+      type: eventType,
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: `pay_${Date.now()}`,
+          amount: order.top_up_amount,
+          currency: order.currency,
+          metadata: {
+            order_id: order.id,
+            organization_id: order.organization_id,
+          },
+          status: eventType === 'payment.succeeded' ? 'succeeded' : 'failed',
+          failure_reason: failureReason,
+        },
+      },
+    });
+
+    const { signatureHeader } = generateWebhookSignature(webhookPayload, secret);
+
+    const result = await verifyAndProcessPaymentWebhook({
+      rawBody: webhookPayload,
+      signature: signatureHeader,
+    });
+
+    res.json({
+      success: true,
+      simulation: true,
+      result,
+    });
+  } catch (err: any) {
+    console.error('Test webhook error:', err);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
 
 /**
  * POST /api/organizations/:orgId/wallet/topup/prepare-order

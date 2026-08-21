@@ -116,6 +116,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
           reward_granted_at: new Date().toISOString(),
         });
       }
+      window.dispatchEvent(new CustomEvent('wallet_updated'));
       fetchShowcases();
       setTimeout(() => setActionSuccess(null), 5000);
     } catch (err: any) {

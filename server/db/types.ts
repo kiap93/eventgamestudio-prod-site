@@ -549,5 +549,27 @@ export interface PendingTopupOrder {
   notes?: string;
 }
 
+export type WalletAuditEventType =
+  | 'TOP_UP_CREATED'
+  | 'PAYMENT_CREATED'
+  | 'PAYMENT_COMPLETED'
+  | 'WALLET_CREDITED'
+  | 'WEBHOOK_RECEIVED'
+  | 'REFUND_PROCESSED';
+
+export interface WalletAuditRecord {
+  id: string;
+  organization_id: string;
+  event_type: WalletAuditEventType;
+  order_id?: string | null;
+  payment_reference?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  actor_id?: string | null;
+  metadata?: Record<string, any>;
+  timestamp: string;
+}
+
+
 
 

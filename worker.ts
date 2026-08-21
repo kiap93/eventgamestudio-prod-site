@@ -70,6 +70,7 @@ import {
   calculateEventPaymentQuote,
   processEventPayment,
   getWalletTransactions,
+  getWalletAuditTrail,
   reverseTransaction,
   recalculateWalletBalances,
   STANDARD_EVENT_PRICE,
@@ -90,7 +91,20 @@ import {
   createShowcaseMedia,
   reorderShowcaseMedia,
   deleteShowcaseMedia,
+  getTopupQuote,
+  createTopupOrder,
+  getTopupOrderById,
+  listTopupOrdersByOrganization,
+  processTopupOrderStatus,
+  preparePendingTopupOrder,
 } from './server/db/index.js';
+
+import {
+  createPaymentSession,
+  verifyAndProcessPaymentWebhook,
+  generateWebhookSignature,
+  getPaymentWebhookSecret,
+} from './server/payment/index.js';
 
 import {
   signAppToken,
@@ -2946,12 +2960,401 @@ export default {
         const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0') || 0);
         const balanceType = url.searchParams.get('balance_type') as any;
         const transactionType = url.searchParams.get('transaction_type') as any;
+        const filterGroup = (url.searchParams.get('filter') || url.searchParams.get('filter_group') || url.searchParams.get('type')) as string;
+        const startDate = url.searchParams.get('start_date') as string;
+        const endDate = url.searchParams.get('end_date') as string;
+        const search = url.searchParams.get('search') as string;
 
         try {
-          const result = await getWalletTransactions(orgId, { limit, offset, balanceType, transactionType }, env);
+          const result = await getWalletTransactions(
+            orgId,
+            {
+              limit,
+              offset,
+              balanceType,
+              transactionType,
+              filterGroup,
+              startDate,
+              endDate,
+              search,
+            },
+            env
+          );
           return jsonResponse(result, 200, cors);
         } catch (err: any) {
           return errorResponse(err.message || 'Failed to get transactions', 500, cors);
+        }
+      }
+
+      // GET /api/organizations/:orgId/wallet/audit-trail
+      const orgWalletAuditMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/audit-trail$/);
+      if (orgWalletAuditMatch && method === 'GET') {
+        const orgId = orgWalletAuditMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+          return errorResponse('Forbidden: Only organization owners and admins can view the wallet audit trail', 403, cors);
+        }
+
+        const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50') || 50));
+        const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0') || 0);
+        const eventType = url.searchParams.get('event_type') as any;
+
+        try {
+          const result = await getWalletAuditTrail(orgId, { limit, offset, eventType }, env);
+          return jsonResponse(result, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to get audit trail', 500, cors);
+        }
+      }
+
+      // ----------------------------------------------------
+      // PAYMENT PROVIDER WEBHOOK (PUBLIC CRYPTOGRAPHIC VERIFICATION)
+      // ----------------------------------------------------
+      if ((pathname === '/api/webhooks/payment' || pathname === '/api/wallet/webhooks/payment') && method === 'POST') {
+        const rawBody = await request.text();
+        const signature =
+          request.headers.get('stripe-signature') ||
+          request.headers.get('x-signature') ||
+          request.headers.get('x-provider-signature') ||
+          request.headers.get('x-hub-signature-256');
+
+        try {
+          const headersObj: Record<string, string> = {};
+          request.headers.forEach((val, key) => {
+            headersObj[key.toLowerCase()] = val;
+          });
+
+          const result = await verifyAndProcessPaymentWebhook({
+            rawBody,
+            signature,
+            headers: headersObj,
+            env,
+          });
+
+          return jsonResponse(
+            {
+              received: true,
+              success: result.success,
+              isDuplicate: result.isDuplicate,
+              status: result.status,
+              orderId: result.orderId,
+              message: result.message,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          console.error('Worker payment webhook error:', err.message);
+          const statusCode = err.status || (err.code === 'INVALID_SIGNATURE' ? 400 : 422);
+          return jsonResponse(
+            {
+              error: err.message || 'Payment webhook verification failed',
+              code: err.code || 'WEBHOOK_VERIFICATION_FAILED',
+            },
+            statusCode,
+            cors
+          );
+        }
+      }
+
+      // GET /api/organizations/:orgId/wallet/topup/quote
+      const orgQuoteTopupMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup\/quote$/);
+      if (orgQuoteTopupMatch && method === 'GET') {
+        const orgId = orgQuoteTopupMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if (!isMember && !isDev) {
+          return errorResponse('Forbidden: Access denied to organization wallet', 403, cors);
+        }
+
+        const amount = Number(url.searchParams.get('amount')) || 0;
+        const currency = url.searchParams.get('currency') || 'MYR';
+
+        try {
+          const quote = await getTopupQuote({ organizationId: orgId, amount, currency }, env);
+          return jsonResponse(quote, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to get top-up quote', 500, cors);
+        }
+      }
+
+      // POST /api/wallet/topups & POST /api/organizations/:orgId/wallet/topup-orders
+      const isCreateTopupOrderRoute =
+        (pathname === '/api/wallet/topups' && method === 'POST') ||
+        (pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup-orders$/) && method === 'POST');
+
+      if (isCreateTopupOrderRoute) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const orgMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup-orders$/);
+        const orgId = orgMatch ? orgMatch[1] : body.organization_id || body.organizationId;
+
+        if (!orgId || !isUUID(orgId)) {
+          return errorResponse('Valid organization ID (UUID) is required', 400, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+          return errorResponse('Forbidden: Only organization owners and admins can create top-up orders', 403, cors);
+        }
+
+        const amount = Number(body.amount);
+        if (isNaN(amount) || amount <= 0) {
+          return errorResponse('Top-up amount must be a positive number greater than 0', 400, cors);
+        }
+
+        try {
+          const order = await createTopupOrder(
+            {
+              organizationId: orgId,
+              userId: auth.user.id,
+              amount,
+              currency: body.currency || 'MYR',
+              paymentReference: body.payment_reference || body.paymentReference,
+              paymentMethod: body.payment_method || body.paymentMethod,
+              notes: body.notes,
+              metadata: body.metadata,
+            },
+            env
+          );
+          return jsonResponse(
+            {
+              order,
+              message: 'Top-up order created successfully in PENDING status. No wallet balance credited.',
+            },
+            201,
+            cors
+          );
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to create top-up order', 500, cors);
+        }
+      }
+
+      // POST /api/wallet/topups/:id/checkout & POST /api/organizations/:orgId/wallet/topup-orders/:id/checkout
+      const isCheckoutRoute =
+        (pathname.match(/^\/api\/wallet\/topups\/([^\/]+)\/checkout$/) && method === 'POST') ||
+        (pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup-orders\/([^\/]+)\/checkout$/) && method === 'POST');
+
+      if (isCheckoutRoute) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const orderIdMatch =
+          pathname.match(/^\/api\/wallet\/topups\/([^\/]+)\/checkout$/) ||
+          pathname.match(/^\/api\/organizations\/[^\/]+\/wallet\/topup-orders\/([^\/]+)\/checkout$/);
+        const orderId = orderIdMatch ? orderIdMatch[1] : null;
+
+        if (!orderId) {
+          return errorResponse('Order ID is required', 400, cors);
+        }
+
+        try {
+          const order = await getTopupOrderById(orderId, env);
+          if (!order) {
+            return errorResponse('Top-up order not found', 404, cors);
+          }
+
+          const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, order.organization_id, undefined, env);
+          const isDev = isUserDeveloperAdmin(auth.user, env);
+          if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+            return errorResponse('Forbidden: Only organization owners and admins can checkout top-up orders', 403, cors);
+          }
+
+          if (order.status !== 'PENDING') {
+            return errorResponse(`Cannot create payment session for order with status ${order.status}. Only PENDING orders can be checked out.`, 400, cors);
+          }
+
+          const origin = request.headers.get('origin') || `https://${url.host}`;
+          const session = await createPaymentSession({
+            order,
+            originUrl: origin,
+            customerEmail: auth.user.email,
+            env,
+          });
+
+          return jsonResponse(
+            {
+              success: true,
+              session,
+              checkoutUrl: session.checkoutUrl,
+              sessionId: session.sessionId,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to create checkout session', 500, cors);
+        }
+      }
+
+      // GET /api/wallet/topups/:id & GET /api/organizations/:orgId/wallet/topup-orders/:id
+      const getTopupOrderMatch =
+        (pathname.match(/^\/api\/wallet\/topups\/([^\/]+)$/) && method === 'GET') ||
+        (pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup-orders\/([^\/]+)$/) && method === 'GET');
+
+      if (getTopupOrderMatch) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const orderId = getTopupOrderMatch[2] || getTopupOrderMatch[1];
+        try {
+          const order = await getTopupOrderById(orderId, env);
+          if (!order) {
+            return errorResponse('Top-up order not found', 404, cors);
+          }
+
+          const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, order.organization_id, undefined, env);
+          const isDev = isUserDeveloperAdmin(auth.user, env);
+          if (!isMember && !isDev) {
+            return errorResponse('Forbidden: Access denied to this top-up order', 403, cors);
+          }
+
+          return jsonResponse({ order }, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to get top-up order', 500, cors);
+        }
+      }
+
+      // GET /api/wallet/topups & GET /api/organizations/:orgId/wallet/topup-orders
+      const listTopupOrdersMatch =
+        (pathname === '/api/wallet/topups' && method === 'GET') ||
+        (pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup-orders$/) && method === 'GET');
+
+      if (listTopupOrdersMatch) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const orgMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup-orders$/);
+        const orgId = orgMatch ? orgMatch[1] : url.searchParams.get('organization_id') || url.searchParams.get('orgId');
+
+        if (!orgId || !isUUID(orgId)) {
+          return errorResponse('Valid organization ID (UUID) is required', 400, cors);
+        }
+
+        const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if (!isMember && !isDev) {
+          return errorResponse('Forbidden: Access denied to organization top-up orders', 403, cors);
+        }
+
+        try {
+          const orders = await listTopupOrdersByOrganization(orgId, env);
+          return jsonResponse({ orders }, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to list top-up orders', 500, cors);
+        }
+      }
+
+      // POST /api/wallet/topups/:id/process-status & POST /api/wallet/topups/:id/status & POST /api/organizations/:orgId/wallet/topup-orders/:id/process-status
+      const processStatusMatch =
+        (pathname.match(/^\/api\/wallet\/topups\/([^\/]+)\/(?:process-status|status)$/) && method === 'POST') ||
+        (pathname.match(/^\/api\/organizations\/[^\/]+\/wallet\/topup-orders\/([^\/]+)\/process-status$/) && method === 'POST');
+
+      if (processStatusMatch) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const orderId = processStatusMatch[1];
+        try {
+          const order = await getTopupOrderById(orderId, env);
+          if (!order) {
+            return errorResponse('Top-up order not found', 404, cors);
+          }
+
+          const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, order.organization_id, undefined, env);
+          const isDev = isUserDeveloperAdmin(auth.user, env);
+          if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
+            return errorResponse('Forbidden: Only organization owners and admins can update top-up order status', 403, cors);
+          }
+
+          const body = (await request.json().catch(() => ({}))) as any;
+          const allowedStatuses = ['PENDING', 'PAID', 'FAILED', 'EXPIRED', 'CANCELLED'];
+          if (!body.status || !allowedStatuses.includes(body.status)) {
+            return errorResponse(`Invalid status: ${body.status}. Must be one of: ${allowedStatuses.join(', ')}`, 400, cors);
+          }
+
+          const result = await processTopupOrderStatus(
+            {
+              orderId,
+              newStatus: body.status,
+              paymentReference: body.payment_reference || body.paymentReference,
+              paymentMethod: body.payment_method || body.paymentMethod,
+              processedBy: auth.user.id,
+              reason: body.reason,
+              metadata: body.metadata,
+            },
+            env
+          );
+
+          return jsonResponse(result, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to process top-up status', 500, cors);
+        }
+      }
+
+      // POST /api/developer/wallet/test-webhook
+      if (pathname === '/api/developer/wallet/test-webhook' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { orderId, eventType = 'payment.succeeded', failureReason } = body;
+        if (!orderId) {
+          return errorResponse('orderId is required', 400, cors);
+        }
+
+        try {
+          const order = await getTopupOrderById(orderId, env);
+          if (!order) {
+            return errorResponse('Top-up order not found', 404, cors);
+          }
+
+          const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, order.organization_id, undefined, env);
+          const isDev = isUserDeveloperAdmin(auth.user, env);
+          if (!isMember && !isDev) {
+            return errorResponse('Forbidden: Access denied to this top-up order', 403, cors);
+          }
+
+          const secret = getPaymentWebhookSecret(env);
+          const webhookPayload = JSON.stringify({
+            id: `evt_sim_${Date.now()}`,
+            type: eventType,
+            created: Math.floor(Date.now() / 1000),
+            data: {
+              object: {
+                id: `pay_${Date.now()}`,
+                amount: order.top_up_amount,
+                currency: order.currency,
+                metadata: {
+                  order_id: order.id,
+                  organization_id: order.organization_id,
+                },
+                status: eventType === 'payment.succeeded' ? 'succeeded' : 'failed',
+                failure_reason: failureReason,
+              },
+            },
+          });
+
+          const { signatureHeader } = generateWebhookSignature(webhookPayload, secret);
+          const result = await verifyAndProcessPaymentWebhook({
+            rawBody: webhookPayload,
+            signature: signatureHeader,
+            env,
+          });
+
+          return jsonResponse({ success: true, simulation: true, result }, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Test webhook failed', err.status || 500, cors);
         }
       }
 

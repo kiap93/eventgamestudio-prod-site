@@ -290,3 +290,14 @@ export interface PendingTopupOrder {
   notes?: string;
 }
 
+export interface PaymentCheckoutSession {
+  sessionId: string;
+  checkoutUrl: string;
+  paymentReference: string;
+  paymentMethod: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+  expiresAt: string;
+}
+

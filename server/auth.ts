@@ -247,6 +247,9 @@ export const PERMISSIONS: Record<OrgRole, string[]> = {
     'organization.members.remove',
     'organization.settings.edit',
     'organization.delete',
+    'wallet.view',
+    'wallet.topup',
+    'wallet.transactions.view',
   ],
   admin: [
     'game.view',
@@ -258,6 +261,9 @@ export const PERMISSIONS: Record<OrgRole, string[]> = {
     'organization.members.invite',
     'organization.members.remove',
     'organization.settings.edit',
+    'wallet.view',
+    'wallet.topup',
+    'wallet.transactions.view',
   ],
   designer: [
     'game.view',
@@ -265,9 +271,13 @@ export const PERMISSIONS: Record<OrgRole, string[]> = {
     'game.items.edit',
     'game.basket.edit',
     'game.settings.edit',
+    'wallet.view',
+    'wallet.transactions.view',
   ],
   viewer: [
     'game.view',
+    'wallet.view',
+    'wallet.transactions.view',
   ],
 };
 

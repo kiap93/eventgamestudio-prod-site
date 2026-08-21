@@ -1,6 +1,6 @@
 {
-  "name": "Event Game Studio",
-  "description": "Event Game Studio SaaS platform powering interactive games such as Catch The Brand with customized themes, event showcases, and double-entry credit ledger.",
+  "name": "Remix Copy of Remix Durian Catcher",
+  "description": "Event Game Studio dashboard with interactive games, theme customizers, and organization wallet management.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

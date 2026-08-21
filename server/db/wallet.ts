@@ -15,6 +15,8 @@ import {
   TopupOrderRecord,
   TopupOrderStatus,
   TopupTiersInfo,
+  WalletAuditRecord,
+  WalletAuditEventType,
 } from './types.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -48,11 +50,13 @@ export function fromCents(cents: number): number {
 const LOCAL_WALLETS_FILE = path.join(process.cwd(), 'uploads', 'wallets.json');
 const LOCAL_TRANSACTIONS_FILE = path.join(process.cwd(), 'uploads', 'wallet_transactions.json');
 const LOCAL_TOPUP_ORDERS_FILE = path.join(process.cwd(), 'uploads', 'topup_orders.json');
+const LOCAL_AUDIT_LOGS_FILE = path.join(process.cwd(), 'uploads', 'wallet_audit_logs.json');
 
 // In-memory fallback caches
 const localWalletsCache = new Map<string, OrganizationWalletRecord>();
 const localTransactionsCache = new Map<string, WalletTransactionRecord>();
 const localTopupOrdersCache = new Map<string, TopupOrderRecord>();
+const localAuditLogCache = new Map<string, WalletAuditRecord>();
 
 function loadLocalStores(): void {
   try {
@@ -78,6 +82,14 @@ function loadLocalStores(): void {
       localTopupOrdersCache.clear();
       for (const o of list) {
         localTopupOrdersCache.set(o.id, o);
+      }
+    }
+    if (fs.existsSync(LOCAL_AUDIT_LOGS_FILE)) {
+      const raw = fs.readFileSync(LOCAL_AUDIT_LOGS_FILE, 'utf-8');
+      const list = JSON.parse(raw) as WalletAuditRecord[];
+      localAuditLogCache.clear();
+      for (const a of list) {
+        localAuditLogCache.set(a.id, a);
       }
     }
   } catch (err) {
@@ -106,6 +118,11 @@ function saveLocalStores(): void {
       JSON.stringify(Array.from(localTopupOrdersCache.values()), null, 2),
       'utf-8'
     );
+    fs.writeFileSync(
+      LOCAL_AUDIT_LOGS_FILE,
+      JSON.stringify(Array.from(localAuditLogCache.values()), null, 2),
+      'utf-8'
+    );
   } catch (err) {
     console.warn('Warning saving local wallet store:', err);
   }
@@ -113,6 +130,124 @@ function saveLocalStores(): void {
 
 // Initial load of local cache
 loadLocalStores();
+
+/**
+ * Record a traceable wallet audit event for compliance, reconciliation, and transaction auditing.
+ */
+export async function recordWalletAuditEvent(
+  event: {
+    organizationId: string;
+    eventType: WalletAuditEventType;
+    orderId?: string | null;
+    paymentReference?: string | null;
+    amount?: number | null;
+    currency?: string | null;
+    actorId?: string | null;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<WalletAuditRecord> {
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
+  const auditRecord: WalletAuditRecord = {
+    id,
+    organization_id: event.organizationId,
+    event_type: event.eventType,
+    order_id: event.orderId || null,
+    payment_reference: event.paymentReference || null,
+    amount: event.amount !== undefined && event.amount !== null ? Number(event.amount) : null,
+    currency: event.currency || 'MYR',
+    actor_id: event.actorId || null,
+    metadata: event.metadata || {},
+    timestamp: now,
+  };
+
+  // Structured log for real-time observability and audit compliance
+  console.log(
+    `[WALLET AUDIT] [${auditRecord.event_type}] Org: ${auditRecord.organization_id} | Order: ${auditRecord.order_id || 'N/A'} | Ref: ${auditRecord.payment_reference || 'N/A'} | Amount: ${auditRecord.amount !== null ? `${auditRecord.currency || 'MYR'} ${auditRecord.amount.toFixed(2)}` : 'N/A'}`
+  );
+
+  // In-memory cache
+  localAuditLogCache.set(id, auditRecord);
+  saveLocalStores();
+
+  // If Supabase is configured, write to audit table if available
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      await supabase.from('wallet_audit_logs').insert(auditRecord);
+    } catch {
+      // Non-blocking fallback
+    }
+  }
+
+  return auditRecord;
+}
+
+/**
+ * Retrieve the audit trail history for an organization.
+ */
+export async function getWalletAuditTrail(
+  organizationId: string,
+  options?: {
+    limit?: number;
+    offset?: number;
+    eventType?: string;
+  } | Record<string, any>,
+  env?: Record<string, any>
+): Promise<WalletAuditRecord[]> {
+  if (!organizationId) return [];
+
+  let queryLimit = 100;
+  let queryOffset = 0;
+  let filterEventType: string | undefined;
+  let effectiveEnv = env;
+
+  if (options) {
+    if ('SUPABASE_URL' in options || 'VITE_SUPABASE_URL' in options || 'JWT_SECRET' in options) {
+      effectiveEnv = options;
+    } else {
+      if (typeof options.limit === 'number') queryLimit = options.limit;
+      if (typeof options.offset === 'number') queryOffset = options.offset;
+      if (typeof options.eventType === 'string') filterEventType = options.eventType;
+    }
+  }
+
+  if (isSupabaseConfigured(effectiveEnv)) {
+    try {
+      const supabase = getSupabaseServerClient(effectiveEnv);
+      let query = supabase
+        .from('wallet_audit_logs')
+        .select('*')
+        .eq('organization_id', organizationId);
+
+      if (filterEventType) {
+        query = query.eq('event_type', filterEventType);
+      }
+
+      const { data, error } = await query
+        .order('timestamp', { ascending: false })
+        .range(queryOffset, queryOffset + queryLimit - 1);
+
+      if (!error && data && data.length > 0) {
+        return data as WalletAuditRecord[];
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  let list = Array.from(localAuditLogCache.values())
+    .filter((a) => a.organization_id === organizationId);
+
+  if (filterEventType) {
+    list = list.filter((a) => a.event_type === filterEventType);
+  }
+
+  return list
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(queryOffset, queryOffset + queryLimit);
+}
 
 /**
  * Pure calculation function for promotional Top-up Credit.
@@ -531,6 +666,27 @@ export async function createTopup(
 
   // 3. Recalculate balances
   const wallet = await recalculateWalletBalances(organizationId, env);
+
+  // Record audit trail event for WALLET_CREDITED
+  await recordWalletAuditEvent(
+    {
+      organizationId,
+      eventType: 'WALLET_CREDITED',
+      orderId: (params.metadata?.topup_order_id as string) || null,
+      paymentReference: referenceId || null,
+      amount: sanitizedAmount,
+      currency,
+      actorId: createdBy || null,
+      metadata: {
+        paid_amount: sanitizedAmount,
+        promo_credit: promoCreditAmount,
+        total_wallet_balance: wallet.total_balance,
+        paid_balance: wallet.paid_balance,
+        topup_credit: wallet.topup_credit,
+      },
+    },
+    env
+  );
 
   return {
     topupTransaction,
@@ -1472,6 +1628,10 @@ export async function getWalletTransactions(
     offset?: number;
     balanceType?: WalletBalanceType;
     transactionType?: WalletTransactionType;
+    filterGroup?: 'ALL' | 'TOPUP' | 'EVENT_USAGE' | 'CREDITS' | 'REFUNDS' | string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
   },
   env?: Record<string, any>
 ): Promise<{
@@ -1484,6 +1644,7 @@ export async function getWalletTransactions(
 
   const limit = options?.limit || 50;
   const offset = options?.offset || 0;
+  const filterGroup = (options?.filterGroup || 'ALL').toUpperCase();
 
   const isProdDb = isSupabaseConfigured(env);
   const supabase = getSupabaseServerClient(env);
@@ -1500,6 +1661,28 @@ export async function getWalletTransactions(
     }
     if (options?.transactionType) {
       query = query.eq('transaction_type', options.transactionType);
+    }
+
+    if (filterGroup === 'TOPUP' || filterGroup === 'TOPUPS') {
+      query = query.eq('transaction_type', 'TOPUP');
+    } else if (filterGroup === 'EVENT_USAGE' || filterGroup === 'EVENT_PAYMENT' || filterGroup === 'EVENTS') {
+      query = query.in('transaction_type', ['EVENT_PAYMENT', 'CREDIT_USAGE']);
+    } else if (filterGroup === 'CREDITS' || filterGroup === 'CREDIT') {
+      query = query.in('transaction_type', ['TOPUP_CREDIT', 'WELCOME_CREDIT', 'SHOWCASE_CREDIT']);
+    } else if (filterGroup === 'REFUNDS' || filterGroup === 'REFUND') {
+      query = query.in('transaction_type', ['REFUND', 'CREDIT_REVERSAL']);
+    }
+
+    if (options?.startDate) {
+      query = query.gte('created_at', options.startDate);
+    }
+    if (options?.endDate) {
+      query = query.lte('created_at', options.endDate);
+    }
+
+    if (options?.search && options.search.trim()) {
+      const s = `%${options.search.trim()}%`;
+      query = query.or(`description.ilike.${s},reference_id.ilike.${s}`);
     }
 
     const { data, count, error } = await query.range(offset, offset + limit - 1);
@@ -1525,6 +1708,44 @@ export async function getWalletTransactions(
   }
   if (options?.transactionType) {
     all = all.filter((t) => t.transaction_type === options.transactionType);
+  }
+
+  if (filterGroup === 'TOPUP' || filterGroup === 'TOPUPS') {
+    all = all.filter((t) => t.transaction_type === 'TOPUP');
+  } else if (filterGroup === 'EVENT_USAGE' || filterGroup === 'EVENT_PAYMENT' || filterGroup === 'EVENTS') {
+    all = all.filter((t) => t.transaction_type === 'EVENT_PAYMENT' || t.transaction_type === 'CREDIT_USAGE');
+  } else if (filterGroup === 'CREDITS' || filterGroup === 'CREDIT') {
+    all = all.filter((t) => ['TOPUP_CREDIT', 'WELCOME_CREDIT', 'SHOWCASE_CREDIT'].includes(t.transaction_type));
+  } else if (filterGroup === 'REFUNDS' || filterGroup === 'REFUND') {
+    all = all.filter((t) => ['REFUND', 'CREDIT_REVERSAL'].includes(t.transaction_type));
+  }
+
+  if (options?.startDate) {
+    const startMs = new Date(options.startDate).getTime();
+    if (!isNaN(startMs)) {
+      all = all.filter((t) => new Date(t.created_at).getTime() >= startMs);
+    }
+  }
+  if (options?.endDate) {
+    const endMs = new Date(options.endDate).getTime();
+    if (!isNaN(endMs)) {
+      all = all.filter((t) => new Date(t.created_at).getTime() <= endMs);
+    }
+  }
+
+  if (options?.search && options.search.trim()) {
+    const query = options.search.trim().toLowerCase();
+    all = all.filter((t) => {
+      return (
+        (t.description && t.description.toLowerCase().includes(query)) ||
+        (t.reference_id && t.reference_id.toLowerCase().includes(query)) ||
+        (t.id && t.id.toLowerCase().includes(query)) ||
+        (t.metadata?.payment_reference && String(t.metadata.payment_reference).toLowerCase().includes(query)) ||
+        (t.metadata?.topup_order_id && String(t.metadata.topup_order_id).toLowerCase().includes(query)) ||
+        (t.transaction_type && t.transaction_type.toLowerCase().includes(query)) ||
+        (t.balance_type && t.balance_type.toLowerCase().includes(query))
+      );
+    });
   }
 
   all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -1597,6 +1818,25 @@ export async function reverseTransaction(
   );
 
   const wallet = await recalculateWalletBalances(target.organization_id, env);
+
+  // Record audit trail event for REFUND_PROCESSED
+  await recordWalletAuditEvent(
+    {
+      organizationId: target.organization_id,
+      eventType: 'REFUND_PROCESSED',
+      orderId: null,
+      paymentReference: `reversal_${target.id}`,
+      amount: Math.abs(oppositeAmount),
+      currency: target.currency,
+      actorId: createdBy || null,
+      metadata: {
+        original_transaction_id: target.id,
+        reason,
+        reversal_type: reversalType,
+      },
+    },
+    env
+  );
 
   return {
     reversalTransaction,
@@ -1722,6 +1962,27 @@ export async function refundEventPayment(
 
   // 5. Recalculate balances
   const wallet = await recalculateWalletBalances(organizationId, env);
+
+  // Record audit trail event for REFUND_PROCESSED
+  await recordWalletAuditEvent(
+    {
+      organizationId,
+      eventType: 'REFUND_PROCESSED',
+      orderId: null,
+      paymentReference: `refund_event_${eventId}`,
+      amount: paidToRefund,
+      currency: 'MYR',
+      actorId: createdBy || null,
+      metadata: {
+        event_id: eventId,
+        paid_refunded: paidToRefund,
+        credit_reversed: discountToReverse,
+        payment_mode: mode,
+        reason,
+      },
+    },
+    env
+  );
 
   return {
     success: true,
@@ -1873,6 +2134,26 @@ export async function createTopupOrder(
         const saved = data as TopupOrderRecord;
         localTopupOrdersCache.set(saved.id, saved);
         saveLocalStores();
+
+        // Record TOP_UP_CREATED audit event
+        await recordWalletAuditEvent(
+          {
+            organizationId,
+            eventType: 'TOP_UP_CREATED',
+            orderId: saved.id,
+            paymentReference: paymentReference || null,
+            amount: sanitizedAmount,
+            currency,
+            actorId: userId,
+            metadata: {
+              expected_credit_amount: expectedCreditAmount,
+              bonus_percentage: saved.bonus_percentage,
+              total_wallet_value: totalWalletValue,
+            },
+          },
+          env
+        );
+
         return saved;
       }
     } catch {
@@ -1883,6 +2164,25 @@ export async function createTopupOrder(
   // 2. Local cache persistence
   localTopupOrdersCache.set(orderRecord.id, orderRecord);
   saveLocalStores();
+
+  // Record TOP_UP_CREATED audit event
+  await recordWalletAuditEvent(
+    {
+      organizationId,
+      eventType: 'TOP_UP_CREATED',
+      orderId: orderRecord.id,
+      paymentReference: paymentReference || null,
+      amount: sanitizedAmount,
+      currency,
+      actorId: userId,
+      metadata: {
+        expected_credit_amount: expectedCreditAmount,
+        bonus_percentage: orderRecord.bonus_percentage,
+        total_wallet_value: totalWalletValue,
+      },
+    },
+    env
+  );
 
   return orderRecord;
 }
@@ -1961,6 +2261,9 @@ export async function listTopupOrdersByOrganization(
   return orders;
 }
 
+// In-memory concurrency lock set for atomic order state changes
+const orderProcessingLocks = new Set<string>();
+
 /**
  * Process a top-up order status transition.
  *
@@ -1969,6 +2272,7 @@ export async function listTopupOrdersByOrganization(
  * 2. 'PENDING', 'FAILED', 'EXPIRED', 'CANCELLED' NEVER create ledger entries.
  * 3. Separate ledger entries are created for Paid Balance (+ RM X) and Top-up Credit (+ RM Y).
  * 4. IDEMPOTENCY: Reprocessing an already PAID order returns the existing state and NEVER duplicates credit.
+ * 5. TERMINAL STATES: Once in PAID, FAILED, EXPIRED, or CANCELLED, invalid transitions are strictly rejected.
  */
 export async function processTopupOrderStatus(
   params: {
@@ -1993,206 +2297,248 @@ export async function processTopupOrderStatus(
 }> {
   const { orderId, newStatus, paymentReference, paymentMethod, processedBy, reason, metadata } = params;
 
-  const order = await getTopupOrderById(orderId, env);
-  if (!order) {
-    throw new Error(`Top-up order not found: ${orderId}`);
-  }
-
-  const now = new Date().toISOString();
-
-  // 1. IDEMPOTENCY CHECK: If order is ALREADY 'PAID'
-  if (order.status === 'PAID') {
-    if (newStatus === 'PAID') {
-      const currentWallet = await getWalletBalance(order.organization_id, env);
-      return {
-        order,
-        alreadyProcessed: true,
-        ledgerResult: {
-          wallet: currentWallet,
-        },
-        message: 'Top-up order is already marked as PAID and credited (idempotent no-op).',
-      };
+  // Concurrency lock to prevent simultaneous duplicate status settlement race conditions
+  if (orderProcessingLocks.has(orderId)) {
+    let attempts = 0;
+    while (orderProcessingLocks.has(orderId) && attempts < 10) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      attempts++;
     }
-    throw new Error(`Cannot change status of an already PAID top-up order (${orderId}) to ${newStatus}`);
   }
+  orderProcessingLocks.add(orderId);
 
-  // 2. Terminal state idempotent handling for non-PAID states
-  if (order.status === newStatus) {
-    return {
-      order,
-      alreadyProcessed: true,
-      message: `Top-up order is already in status ${newStatus}.`,
-    };
-  }
-
-  // 3. Process Status Transitions
-  if (newStatus === 'PAID') {
-    // A. Update Order State to PAID
-    order.status = 'PAID';
-    order.paid_at = now;
-    order.updated_at = now;
-    if (paymentReference) order.payment_reference = paymentReference;
-    if (paymentMethod) order.payment_method = paymentMethod;
-    if (reason) order.notes = reason;
-    if (metadata) {
-      order.metadata = { ...(order.metadata || {}), ...metadata };
+  try {
+    const order = await getTopupOrderById(orderId, env);
+    if (!order) {
+      throw new Error(`Top-up order not found: ${orderId}`);
     }
 
-    // Save updated order
-    localTopupOrdersCache.set(order.id, order);
-    saveLocalStores();
+    const now = new Date().toISOString();
 
+    // 1. Production Supabase RPC attempt if available
     if (isSupabaseConfigured(env)) {
       try {
         const supabase = getSupabaseServerClient(env);
-        await supabase
-          .from('wallet_topup_orders')
-          .update({
-            status: 'PAID',
-            paid_at: order.paid_at,
-            updated_at: order.updated_at,
+        const { data, error } = await supabase.rpc('process_topup_order_atomic', {
+          p_order_id: orderId,
+          p_organization_id: order.organization_id,
+          p_status: newStatus,
+          p_payment_reference: paymentReference || null,
+          p_payment_method: paymentMethod || null,
+          p_processed_by: processedBy || null,
+          p_reason: reason || null,
+          p_metadata: metadata || {},
+        });
+
+        if (error) {
+          throw new Error(error.message || `Database error processing top-up order`);
+        }
+
+        if (data && data.success) {
+          if (data.order) {
+            localTopupOrdersCache.set(data.order.id, data.order);
+          }
+          if (data.wallet) {
+            localWalletsCache.set(order.organization_id, data.wallet);
+          }
+          if (data.topup_transaction) {
+            localTransactionsCache.set(data.topup_transaction.id, data.topup_transaction);
+          }
+          if (data.promo_credit_transaction) {
+            localTransactionsCache.set(data.promo_credit_transaction.id, data.promo_credit_transaction);
+          }
+          saveLocalStores();
+
+          if (newStatus === 'PAID' && !data.is_idempotent_replay) {
+            await recordWalletAuditEvent(
+              {
+                organizationId: order.organization_id,
+                eventType: 'PAYMENT_COMPLETED',
+                orderId: order.id,
+                paymentReference: paymentReference || order.payment_reference,
+                amount: order.top_up_amount,
+                currency: order.currency,
+                actorId: processedBy || order.user_id,
+                metadata: {
+                  payment_method: paymentMethod || order.payment_method,
+                  reason,
+                },
+              },
+              env
+            );
+          }
+
+          return {
+            order: data.order,
+            alreadyProcessed: Boolean(data.is_idempotent_replay),
+            ledgerResult: data.wallet ? {
+              topupTransaction: data.topup_transaction,
+              promoCreditTransaction: data.promo_credit_transaction,
+              wallet: data.wallet,
+            } : undefined,
+            message: data.message,
+          };
+        }
+      } catch (err: any) {
+        if (err.message && (
+          err.message.includes('Cannot change status') ||
+          err.message.includes('Security Error') ||
+          err.message.includes('Invalid status') ||
+          err.message.includes('Top-up order not found')
+        )) {
+          throw err;
+        }
+        // Continue to local execution for local test/dev environment
+      }
+    }
+
+    // 2. Local State Machine and Idempotency Enforcement
+    // If order is ALREADY 'PAID'
+    if (order.status === 'PAID') {
+      if (newStatus === 'PAID') {
+        const currentWallet = await getWalletBalance(order.organization_id, env);
+        return {
+          order,
+          alreadyProcessed: true,
+          ledgerResult: {
+            wallet: currentWallet,
+          },
+          message: 'Top-up order is already marked as PAID and credited (idempotent no-op).',
+        };
+      }
+      throw new Error(`Cannot change status of an already PAID top-up order (${orderId}) to ${newStatus}`);
+    }
+
+    // Terminal state protection for non-PAID terminal states
+    if (['FAILED', 'EXPIRED', 'CANCELLED'].includes(order.status)) {
+      if (order.status === newStatus) {
+        return {
+          order,
+          alreadyProcessed: true,
+          message: `Top-up order is already in status ${newStatus}.`,
+        };
+      }
+      throw new Error(`Cannot change status of a ${order.status} top-up order (${orderId}) to ${newStatus}`);
+    }
+
+    // 3. Process Status Transitions
+    if (newStatus === 'PAID') {
+      // A. Update Order State to PAID
+      order.status = 'PAID';
+      order.paid_at = now;
+      order.updated_at = now;
+      if (paymentReference) order.payment_reference = paymentReference;
+      if (paymentMethod) order.payment_method = paymentMethod;
+      if (reason) order.notes = reason;
+      if (metadata) {
+        order.metadata = { ...(order.metadata || {}), ...metadata };
+      }
+
+      // Save updated order
+      localTopupOrdersCache.set(order.id, order);
+      saveLocalStores();
+
+      // B. Create SEPARATE ledger entries via Wallet Engine
+      // 1) PAID_BALANCE (+ RM top_up_amount)
+      // 2) TOPUP_CREDIT (+ RM expected_credit_amount)
+      const ledgerResult = await createTopup(
+        {
+          organizationId: order.organization_id,
+          amount: order.top_up_amount,
+          currency: order.currency,
+          referenceId: `topup_order_${order.id}`,
+          description: `Top-up Order ${order.id.slice(0, 8).toUpperCase()}`,
+          metadata: {
+            topup_order_id: order.id,
             payment_reference: order.payment_reference,
             payment_method: order.payment_method,
-            notes: order.notes,
-            metadata: order.metadata,
-          })
-          .eq('id', order.id);
-      } catch {
-        // ignore
-      }
-    }
-
-    // B. Create SEPARATE ledger entries via Wallet Engine
-    // 1) PAID_BALANCE (+ RM top_up_amount)
-    // 2) TOPUP_CREDIT (+ RM expected_credit_amount)
-    const ledgerResult = await createTopup(
-      {
-        organizationId: order.organization_id,
-        amount: order.top_up_amount,
-        currency: order.currency,
-        referenceId: `topup_order_${order.id}`,
-        description: `Top-up Order ${order.id.slice(0, 8).toUpperCase()}`,
-        metadata: {
-          topup_order_id: order.id,
-          payment_reference: order.payment_reference,
-          payment_method: order.payment_method,
-          reason,
-          ...(order.metadata || {}),
+            reason,
+            ...(order.metadata || {}),
+          },
+          createdBy: processedBy || order.user_id,
         },
-        createdBy: processedBy || order.user_id,
-      },
-      env
-    );
+        env
+      );
 
-    return {
-      order,
-      alreadyProcessed: false,
-      ledgerResult,
-      message: `Top-up order successfully marked as PAID. Wallet credited with RM${order.top_up_amount.toFixed(2)} cash balance and RM${order.expected_credit_amount.toFixed(2)} promotional credits.`,
-    };
-  }
+      // Record PAYMENT_COMPLETED audit event
+      await recordWalletAuditEvent(
+        {
+          organizationId: order.organization_id,
+          eventType: 'PAYMENT_COMPLETED',
+          orderId: order.id,
+          paymentReference: order.payment_reference || paymentReference,
+          amount: order.top_up_amount,
+          currency: order.currency,
+          actorId: processedBy || order.user_id,
+          metadata: {
+            payment_method: order.payment_method,
+            reason,
+          },
+        },
+        env
+      );
 
-  if (newStatus === 'FAILED') {
-    order.status = 'FAILED';
-    order.failed_at = now;
-    order.updated_at = now;
-    if (reason) order.notes = reason;
-    if (paymentReference) order.payment_reference = paymentReference;
-
-    localTopupOrdersCache.set(order.id, order);
-    saveLocalStores();
-
-    if (isSupabaseConfigured(env)) {
-      try {
-        const supabase = getSupabaseServerClient(env);
-        await supabase
-          .from('wallet_topup_orders')
-          .update({
-            status: 'FAILED',
-            failed_at: order.failed_at,
-            updated_at: order.updated_at,
-            notes: order.notes,
-          })
-          .eq('id', order.id);
-      } catch {
-        // ignore
-      }
+      return {
+        order,
+        alreadyProcessed: false,
+        ledgerResult,
+        message: `Top-up order successfully marked as PAID. Wallet credited with RM${order.top_up_amount.toFixed(2)} cash balance and RM${order.expected_credit_amount.toFixed(2)} promotional credits.`,
+      };
     }
 
-    return {
-      order,
-      alreadyProcessed: false,
-      message: 'Top-up order marked as FAILED. No funds or credits were added to the wallet.',
-    };
-  }
+    if (newStatus === 'FAILED') {
+      order.status = 'FAILED';
+      order.failed_at = now;
+      order.updated_at = now;
+      if (reason) order.notes = reason;
+      if (paymentReference) order.payment_reference = paymentReference;
 
-  if (newStatus === 'CANCELLED') {
-    order.status = 'CANCELLED';
-    order.cancelled_at = now;
-    order.updated_at = now;
-    if (reason) order.notes = reason;
+      localTopupOrdersCache.set(order.id, order);
+      saveLocalStores();
 
-    localTopupOrdersCache.set(order.id, order);
-    saveLocalStores();
-
-    if (isSupabaseConfigured(env)) {
-      try {
-        const supabase = getSupabaseServerClient(env);
-        await supabase
-          .from('wallet_topup_orders')
-          .update({
-            status: 'CANCELLED',
-            cancelled_at: order.cancelled_at,
-            updated_at: order.updated_at,
-            notes: order.notes,
-          })
-          .eq('id', order.id);
-      } catch {
-        // ignore
-      }
+      return {
+        order,
+        alreadyProcessed: false,
+        message: 'Top-up order marked as FAILED. No funds or credits were added to the wallet.',
+      };
     }
 
-    return {
-      order,
-      alreadyProcessed: false,
-      message: 'Top-up order marked as CANCELLED. No funds or credits were added to the wallet.',
-    };
-  }
+    if (newStatus === 'CANCELLED') {
+      order.status = 'CANCELLED';
+      order.cancelled_at = now;
+      order.updated_at = now;
+      if (reason) order.notes = reason;
 
-  if (newStatus === 'EXPIRED') {
-    order.status = 'EXPIRED';
-    order.expired_at = now;
-    order.updated_at = now;
-    if (reason) order.notes = reason;
+      localTopupOrdersCache.set(order.id, order);
+      saveLocalStores();
 
-    localTopupOrdersCache.set(order.id, order);
-    saveLocalStores();
-
-    if (isSupabaseConfigured(env)) {
-      try {
-        const supabase = getSupabaseServerClient(env);
-        await supabase
-          .from('wallet_topup_orders')
-          .update({
-            status: 'EXPIRED',
-            expired_at: order.expired_at,
-            updated_at: order.updated_at,
-            notes: order.notes,
-          })
-          .eq('id', order.id);
-      } catch {
-        // ignore
-      }
+      return {
+        order,
+        alreadyProcessed: false,
+        message: 'Top-up order marked as CANCELLED. No funds or credits were added to the wallet.',
+      };
     }
 
-    return {
-      order,
-      alreadyProcessed: false,
-      message: 'Top-up order marked as EXPIRED. No funds or credits were added to the wallet.',
-    };
-  }
+    if (newStatus === 'EXPIRED') {
+      order.status = 'EXPIRED';
+      order.expired_at = now;
+      order.updated_at = now;
+      if (reason) order.notes = reason;
 
-  throw new Error(`Unsupported top-up order status transition: ${newStatus}`);
+      localTopupOrdersCache.set(order.id, order);
+      saveLocalStores();
+
+      return {
+        order,
+        alreadyProcessed: false,
+        message: 'Top-up order marked as EXPIRED. No funds or credits were added to the wallet.',
+      };
+    }
+
+    throw new Error(`Unsupported top-up order status transition: ${newStatus}`);
+  } finally {
+    orderProcessingLocks.delete(orderId);
+  }
 }
 
 /**

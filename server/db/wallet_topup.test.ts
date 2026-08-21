@@ -31,6 +31,13 @@ import {
   createTopup,
   getWalletBalance,
   recalculateWalletBalances,
+  createTopupOrder,
+  getTopupOrderById,
+  listTopupOrdersByOrganization,
+  processTopupOrderStatus,
+  preparePendingTopupOrder,
+  getPendingTopupOrder,
+  getWalletTransactions,
 } from './wallet.js';
 
 let passed = 0;
@@ -218,6 +225,207 @@ async function runTests() {
     700.00,
     'Idempotent: Promotional credit NOT duplicated (remains RM700)'
   );
+
+  // ----------------------------------------------------
+  // TEST GROUP 6: TOP-UP ORDER CREATION (PENDING) & ZERO PRE-CREDIT
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 6: Top-up Order Creation & Zero Pre-Credit ---');
+
+  const testOrgPhase3 = crypto.randomUUID();
+  await ensureTestOrg(testOrgPhase3);
+  const testUserId = '6de8515d-cd56-4ef8-80f0-3d5f34fa291e';
+
+  // 1. Create RM6,000 order (Qualifies for 5% = RM300 expected credit)
+  const order6k = await createTopupOrder({
+    organizationId: testOrgPhase3,
+    userId: testUserId,
+    amount: 6000.00,
+    currency: 'MYR',
+    notes: 'Order for 6k topup',
+  });
+
+  assertEqual(order6k.status, 'PENDING', 'Order 6k initial status is PENDING');
+  assertEqual(order6k.top_up_amount, 6000.00, 'Order 6k top_up_amount is RM6,000.00');
+  assertEqual(order6k.expected_credit_amount, 300.00, 'Order 6k expected_credit_amount is RM300.00');
+  assertEqual(order6k.bonus_percentage, 5.00, 'Order 6k bonus_percentage is 5%');
+  assertEqual(order6k.total_wallet_value, 6300.00, 'Order 6k total_wallet_value is RM6,300.00');
+
+  // Verify wallet is still 0 (No pre-credit on PENDING!)
+  const walletBeforePaid = await getWalletBalance(testOrgPhase3);
+  assertEqual(walletBeforePaid.paid_balance, 0.00, 'Wallet paid balance remains RM0.00 on PENDING creation');
+  assertEqual(walletBeforePaid.topup_credit, 0.00, 'Wallet topup credit remains RM0.00 on PENDING creation');
+
+  // ----------------------------------------------------
+  // TEST GROUP 7: TOP-UP ORDER ATOMIC SETTLEMENT (PENDING -> PAID)
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 7: Top-up Order Settlement (PENDING -> PAID) ---');
+
+  const settle6kResult = await processTopupOrderStatus({
+    orderId: order6k.id,
+    newStatus: 'PAID',
+    paymentReference: 'PAY_REF_6K_001',
+    paymentMethod: 'fpx',
+    reason: 'Payment gateway confirmation',
+  });
+
+  assertEqual(settle6kResult.order.status, 'PAID', 'Order status transitioned to PAID');
+  assertEqual(settle6kResult.alreadyProcessed, false, 'First-time settlement alreadyProcessed is false');
+  assertEqual(settle6kResult.ledgerResult?.wallet.paid_balance, 6000.00, 'Wallet paid balance credited with RM6,000.00');
+  assertEqual(settle6kResult.ledgerResult?.wallet.topup_credit, 300.00, 'Wallet topup credit credited with RM300.00');
+
+  // Verify ledger transactions
+  const txnsAfter6k = await getWalletTransactions(testOrgPhase3);
+  const paidTxn = txnsAfter6k.transactions.find((t) => t.balance_type === 'PAID_BALANCE' && t.transaction_type === 'TOPUP');
+  const promoTxn = txnsAfter6k.transactions.find((t) => t.balance_type === 'TOPUP_CREDIT' && t.transaction_type === 'TOPUP_CREDIT');
+
+  assertEqual(paidTxn !== undefined, true, 'Paid balance transaction recorded in ledger');
+  assertEqual(paidTxn?.amount, 6000.00, 'Paid balance transaction amount is RM6,000.00');
+  assertEqual(promoTxn !== undefined, true, 'Promotional credit transaction recorded in ledger');
+  assertEqual(promoTxn?.amount, 300.00, 'Promotional credit transaction amount is RM300.00');
+
+  // ----------------------------------------------------
+  // TEST GROUP 8: IDEMPOTENCY OF PAID ORDER REPROCESSING
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 8: Idempotency of Paid Order Reprocessing ---');
+
+  const replayResult = await processTopupOrderStatus({
+    orderId: order6k.id,
+    newStatus: 'PAID',
+    paymentReference: 'PAY_REF_6K_001_DUPLICATE',
+    reason: 'Duplicate webhook event',
+  });
+
+  assertEqual(replayResult.alreadyProcessed, true, 'Replay of PAID order returns alreadyProcessed = true');
+  assertEqual(replayResult.order.status, 'PAID', 'Replay keeps status as PAID');
+
+  const walletAfterReplay = await getWalletBalance(testOrgPhase3);
+  assertEqual(walletAfterReplay.paid_balance, 6000.00, 'Wallet paid balance NOT doubled (remains RM6,000.00)');
+  assertEqual(walletAfterReplay.topup_credit, 300.00, 'Wallet topup credit NOT doubled (remains RM300.00)');
+
+  // ----------------------------------------------------
+  // TEST GROUP 9: NON-PAID TRANSITIONS (FAILED, EXPIRED, CANCELLED)
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 9: Non-PAID Status Transitions ---');
+
+  // A. Failed Order
+  const orderFailed = await createTopupOrder({
+    organizationId: testOrgPhase3,
+    userId: testUserId,
+    amount: 1000.00,
+    currency: 'MYR',
+    notes: 'Will fail',
+  });
+  const failResult = await processTopupOrderStatus({
+    orderId: orderFailed.id,
+    newStatus: 'FAILED',
+    reason: 'Insufficient funds on user card',
+  });
+  assertEqual(failResult.order.status, 'FAILED', 'Order successfully marked as FAILED');
+  assertEqual(failResult.alreadyProcessed, false, 'Failed processing flag is false');
+
+  // B. Expired Order
+  const orderExpired = await createTopupOrder({
+    organizationId: testOrgPhase3,
+    userId: testUserId,
+    amount: 2000.00,
+    currency: 'MYR',
+    notes: 'Will expire',
+  });
+  const expireResult = await processTopupOrderStatus({
+    orderId: orderExpired.id,
+    newStatus: 'EXPIRED',
+    reason: '24-hour checkout window elapsed',
+  });
+  assertEqual(expireResult.order.status, 'EXPIRED', 'Order successfully marked as EXPIRED');
+
+  // C. Cancelled Order
+  const orderCancelled = await createTopupOrder({
+    organizationId: testOrgPhase3,
+    userId: testUserId,
+    amount: 3000.00,
+    currency: 'MYR',
+    notes: 'Will cancel',
+  });
+  const cancelResult = await processTopupOrderStatus({
+    orderId: orderCancelled.id,
+    newStatus: 'CANCELLED',
+    reason: 'User cancelled at checkout',
+  });
+  assertEqual(cancelResult.order.status, 'CANCELLED', 'Order successfully marked as CANCELLED');
+
+  // Verify wallet balances were untouched by FAILED, EXPIRED, CANCELLED
+  const walletAfterNonPaid = await getWalletBalance(testOrgPhase3);
+  assertEqual(walletAfterNonPaid.paid_balance, 6000.00, 'Wallet paid balance unchanged after failed/expired/cancelled orders');
+  assertEqual(walletAfterNonPaid.topup_credit, 300.00, 'Wallet topup credit unchanged after failed/expired/cancelled orders');
+
+  // ----------------------------------------------------
+  // TEST GROUP 10: STATE MACHINE TERMINAL STATE PROTECTION
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 10: State Machine Terminal State Protection ---');
+
+  // 1. Cannot transition PAID order to CANCELLED
+  let paidToCancelledError = false;
+  try {
+    await processTopupOrderStatus({
+      orderId: order6k.id,
+      newStatus: 'CANCELLED',
+    });
+  } catch (err: any) {
+    paidToCancelledError = true;
+    assertEqual(err.message.includes('Cannot change status of an already PAID'), true, 'Error message identifies invalid transition from PAID');
+  }
+  assertEqual(paidToCancelledError, true, 'PAID -> CANCELLED transition strictly rejected');
+
+  // 2. Cannot transition FAILED order to PAID
+  let failedToPaidError = false;
+  try {
+    await processTopupOrderStatus({
+      orderId: orderFailed.id,
+      newStatus: 'PAID',
+    });
+  } catch (err: any) {
+    failedToPaidError = true;
+    assertEqual(err.message.includes('Cannot change status of a FAILED'), true, 'Error message identifies invalid transition from FAILED');
+  }
+  assertEqual(failedToPaidError, true, 'FAILED -> PAID transition strictly rejected');
+
+  // 3. Cannot transition EXPIRED order to PAID
+  let expiredToPaidError = false;
+  try {
+    await processTopupOrderStatus({
+      orderId: orderExpired.id,
+      newStatus: 'PAID',
+    });
+  } catch (err: any) {
+    expiredToPaidError = true;
+    assertEqual(err.message.includes('Cannot change status of a EXPIRED'), true, 'Error message identifies invalid transition from EXPIRED');
+  }
+  assertEqual(expiredToPaidError, true, 'EXPIRED -> PAID transition strictly rejected');
+
+  // 4. Cannot transition CANCELLED order to PAID
+  let cancelledToPaidError = false;
+  try {
+    await processTopupOrderStatus({
+      orderId: orderCancelled.id,
+      newStatus: 'PAID',
+    });
+  } catch (err: any) {
+    cancelledToPaidError = true;
+    assertEqual(err.message.includes('Cannot change status of a CANCELLED'), true, 'Error message identifies invalid transition from CANCELLED');
+  }
+  assertEqual(cancelledToPaidError, true, 'CANCELLED -> PAID transition strictly rejected');
+
+  // ----------------------------------------------------
+  // TEST GROUP 11: LIST & RETRIEVE TOP-UP ORDERS
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 11: List and Retrieve Top-up Orders ---');
+
+  const fetchedOrder = await getTopupOrderById(order6k.id);
+  assertEqual(fetchedOrder?.id, order6k.id, 'getTopupOrderById retrieves correct order');
+  assertEqual(fetchedOrder?.status, 'PAID', 'Retrieved order has correct status');
+
+  const allOrgOrders = await listTopupOrdersByOrganization(testOrgPhase3);
+  assertEqual(allOrgOrders.length >= 4, true, 'listTopupOrdersByOrganization returns all created orders');
 
   console.log('\n======================================================');
   console.log(` RESULTS: ${passed} PASSED, ${failed} FAILED`);

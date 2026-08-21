@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
-import { WalletBalanceSummary, WalletTransactionRecord } from '../../types';
+import { WalletBalanceSummary, WalletTransactionRecord, TopupOrderRecord } from '../../types';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
   Wallet,
@@ -19,16 +19,40 @@ import {
   Clock,
   AlertCircle,
   Building2,
-  HelpCircle,
   ChevronRight,
   Info,
   Calendar,
   Plus,
+  Copy,
+  Check,
+  X,
+  CreditCard,
+  Lock,
+  ExternalLink,
+  SlidersHorizontal,
+  ChevronDown,
 } from 'lucide-react';
 
 interface OrganizationWalletPageProps {
   onNavigateTab?: (tab: 'events' | 'customizer' | 'team' | 'wallet' | 'wallet-topup') => void;
   onNavigateToTopUp?: () => void;
+}
+
+type FilterGroup = 'ALL' | 'TOPUP' | 'EVENT_USAGE' | 'CREDITS' | 'REFUNDS';
+type DatePreset = 'ALL_TIME' | 'TODAY' | 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'LAST_90_DAYS' | 'THIS_MONTH' | 'CUSTOM';
+
+interface TopUpDetailData {
+  topUpAmount: number;
+  topupCreditAmount: number;
+  totalWalletValue: number;
+  status: string;
+  paymentReference: string;
+  date: string;
+  topUpOrderId: string;
+  paymentMethod?: string;
+  notes?: string;
+  rawOrder?: TopupOrderRecord | null;
+  pairedTransactions?: WalletTransactionRecord[];
 }
 
 export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
@@ -44,10 +68,19 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
   const [isLoadingTxns, setIsLoadingTxns] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Filtering & Search
-  const [filterType, setFilterType] = useState<string>('ALL');
+  // Filtering & Search state
+  const [filterGroup, setFilterGroup] = useState<FilterGroup>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [datePreset, setDatePreset] = useState<DatePreset>('ALL_TIME');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Selected details modal state
   const [selectedTxn, setSelectedTxn] = useState<WalletTransactionRecord | null>(null);
+  const [topUpDetail, setTopUpDetail] = useState<TopUpDetailData | null>(null);
+  const [isLoadingTopUpDetail, setIsLoadingTopUpDetail] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Currency Formatter
   const currencyCode = wallet?.currency || 'MYR';
@@ -62,7 +95,16 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
     return `${prefix} ${formatted}`;
   };
 
-  // Fetch Wallet Balance
+  const handleCopy = (text: string, key: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => {
+      setCopiedKey(null);
+    }, 2000);
+  };
+
+  // 1. Fetch Wallet Balance for Current Organization
   const fetchWallet = useCallback(async () => {
     if (!currentOrganization?.id) {
       setWallet(null);
@@ -86,7 +128,39 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
     }
   }, [currentOrganization?.id]);
 
-  // Fetch Transaction History
+  // Compute active date boundaries based on datePreset
+  const calculatedDateRange = useMemo(() => {
+    const now = new Date();
+    if (datePreset === 'TODAY') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      return { start: start.toISOString(), end: end.toISOString() };
+    }
+    if (datePreset === 'LAST_7_DAYS') {
+      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return { start: start.toISOString(), end: now.toISOString() };
+    }
+    if (datePreset === 'LAST_30_DAYS') {
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return { start: start.toISOString(), end: now.toISOString() };
+    }
+    if (datePreset === 'LAST_90_DAYS') {
+      const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      return { start: start.toISOString(), end: now.toISOString() };
+    }
+    if (datePreset === 'THIS_MONTH') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      return { start: start.toISOString(), end: now.toISOString() };
+    }
+    if (datePreset === 'CUSTOM') {
+      const start = startDate ? new Date(`${startDate}T00:00:00.000Z`).toISOString() : undefined;
+      const end = endDate ? new Date(`${endDate}T23:59:59.999Z`).toISOString() : undefined;
+      return { start, end };
+    }
+    return { start: undefined, end: undefined };
+  }, [datePreset, startDate, endDate]);
+
+  // 2. Fetch Transaction History Ledger for Current Organization
   const fetchTransactions = useCallback(async () => {
     if (!currentOrganization?.id) {
       setTransactions([]);
@@ -97,22 +171,29 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
     try {
       setIsLoadingTxns(true);
-      let url = `/api/organizations/${currentOrganization.id}/wallet/transactions?limit=100`;
-      if (filterType !== 'ALL') {
-        if (filterType === 'TOPUP') {
-          url += '&transaction_type=TOPUP';
-        } else if (filterType === 'EVENT_PAYMENT') {
-          url += '&transaction_type=EVENT_PAYMENT';
-        } else if (filterType === 'CREDIT') {
-          url += '&balance_type=TOPUP_CREDIT';
-        }
+      const queryParams = new URLSearchParams({
+        limit: '100',
+        filter_group: filterGroup,
+      });
+
+      if (calculatedDateRange.start) {
+        queryParams.set('start_date', calculatedDateRange.start);
+      }
+      if (calculatedDateRange.end) {
+        queryParams.set('end_date', calculatedDateRange.end);
+      }
+      if (searchQuery.trim()) {
+        queryParams.set('search', searchQuery.trim());
       }
 
-      const res = await apiFetch(url);
+      const res = await apiFetch(
+        `/api/organizations/${currentOrganization.id}/wallet/transactions?${queryParams.toString()}`
+      );
+
       if (res.ok) {
         const data = await res.json();
         setTransactions(data.transactions || []);
-        setTotalTxns(data.total || (data.transactions ? data.transactions.length : 0));
+        setTotalTxns(data.total !== undefined ? data.total : (data.transactions ? data.transactions.length : 0));
       } else {
         console.error('Failed to fetch wallet transactions:', await res.text());
       }
@@ -121,7 +202,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
     } finally {
       setIsLoadingTxns(false);
     }
-  }, [currentOrganization?.id, filterType]);
+  }, [currentOrganization?.id, filterGroup, calculatedDateRange, searchQuery]);
 
   // Initial and reactive load
   useEffect(() => {
@@ -129,7 +210,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
     fetchTransactions();
   }, [fetchWallet, fetchTransactions]);
 
-  // Listen for wallet_updated event
+  // Listen for wallet_updated custom event
   useEffect(() => {
     const handleWalletUpdated = () => {
       fetchWallet();
@@ -145,177 +226,304 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
     setIsRefreshing(false);
   };
 
-  // Filtered transactions based on search
-  const filteredTransactions = transactions.filter((txn) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      (txn.description && txn.description.toLowerCase().includes(query)) ||
-      (txn.reference_id && txn.reference_id.toLowerCase().includes(query)) ||
-      (txn.transaction_type && txn.transaction_type.toLowerCase().includes(query)) ||
-      (txn.balance_type && txn.balance_type.toLowerCase().includes(query))
-    );
-  });
+  // Helper to open and populate the Top Up detail modal
+  const handleOpenTopUpDetail = async (txn: WalletTransactionRecord) => {
+    setIsLoadingTopUpDetail(true);
+    setSelectedTxn(txn);
 
-  // Helper for Transaction display labels and styling
+    try {
+      // Look for linked Top Up Order ID
+      const orderId =
+        txn.metadata?.topup_order_id ||
+        (txn.reference_id && txn.reference_id.startsWith('topup_order_')
+          ? txn.reference_id.replace('topup_order_', '').replace('_promo', '')
+          : null);
+
+      let orderRecord: TopupOrderRecord | null = null;
+
+      if (orderId && currentOrganization?.id) {
+        try {
+          const res = await apiFetch(`/api/organizations/${currentOrganization.id}/wallet/topup-orders/${orderId}`);
+          if (res.ok) {
+            const data = await res.json();
+            orderRecord = data.order || null;
+          }
+        } catch {
+          // ignore error and fallback to correlation
+        }
+      }
+
+      // Correlate paired ledger transactions
+      const pairedTxns = transactions.filter((t) => {
+        if (orderId && (t.metadata?.topup_order_id === orderId || t.reference_id?.includes(orderId))) {
+          return true;
+        }
+        if (t.id === txn.id) return true;
+        if (txn.reference_id && t.reference_id && t.reference_id.startsWith(txn.reference_id.split('_promo')[0])) {
+          return true;
+        }
+        return false;
+      });
+
+      const topupTxn = pairedTxns.find((t) => t.transaction_type === 'TOPUP') || (txn.transaction_type === 'TOPUP' ? txn : null);
+      const creditTxn = pairedTxns.find((t) => t.transaction_type === 'TOPUP_CREDIT') || (txn.transaction_type === 'TOPUP_CREDIT' ? txn : null);
+
+      let topUpAmt = 0;
+      let creditAmt = 0;
+      let totalValue = 0;
+      let paymentRef = '';
+      let dateStr = txn.created_at;
+      let orderIdStr = orderId || txn.reference_id || txn.id;
+      let statusStr = txn.status || 'Completed';
+
+      if (orderRecord) {
+        topUpAmt = Number(orderRecord.top_up_amount) || 0;
+        creditAmt = Number(orderRecord.expected_credit_amount) || 0;
+        totalValue = Number(orderRecord.total_wallet_value) || (topUpAmt + creditAmt);
+        paymentRef = orderRecord.payment_reference || txn.metadata?.payment_reference || txn.reference_id || 'Direct Top Up';
+        dateStr = orderRecord.paid_at || orderRecord.created_at || txn.created_at;
+        orderIdStr = orderRecord.id;
+        statusStr = orderRecord.status === 'PAID' ? 'Completed' : orderRecord.status;
+      } else {
+        topUpAmt = topupTxn ? Math.abs(Number(topupTxn.amount)) : (txn.transaction_type === 'TOPUP' ? Math.abs(Number(txn.amount)) : 0);
+        creditAmt = creditTxn ? Math.abs(Number(creditTxn.amount)) : (txn.transaction_type === 'TOPUP_CREDIT' ? Math.abs(Number(txn.amount)) : (topUpAmt >= 6000 ? topUpAmt * 0.05 : 0));
+        totalValue = topUpAmt + creditAmt;
+        paymentRef = txn.metadata?.payment_reference || txn.reference_id || 'pay_manual_settlement';
+        dateStr = txn.created_at;
+        orderIdStr = orderId || txn.reference_id || txn.id;
+        statusStr = txn.status === 'COMPLETED' ? 'Completed' : (txn.status || 'Completed');
+      }
+
+      setTopUpDetail({
+        topUpAmount: topUpAmt,
+        topupCreditAmount: creditAmt,
+        totalWalletValue: totalValue,
+        status: statusStr,
+        paymentReference: paymentRef,
+        date: dateStr,
+        topUpOrderId: orderIdStr,
+        paymentMethod: orderRecord?.payment_method || txn.metadata?.payment_method || 'Online Payment',
+        notes: orderRecord?.notes || txn.description,
+        rawOrder: orderRecord,
+        pairedTransactions: pairedTxns,
+      });
+    } catch (err) {
+      console.error('Error opening top up detail:', err);
+    } finally {
+      setIsLoadingTopUpDetail(false);
+    }
+  };
+
+  // Helper for Transaction display mapping according to user specifications
   const getTransactionInfo = (txn: WalletTransactionRecord) => {
     switch (txn.transaction_type) {
       case 'TOPUP':
         return {
-          label: 'Wallet Top Up',
-          description: txn.description || 'Organization Paid Balance Top-up',
+          displayTitle: 'Top Up',
+          displaySubtitle: txn.description || 'Paid Balance Cash Deposit',
+          typeLabel: 'Paid Balance',
           icon: ArrowUpRight,
-          color: 'text-emerald-400',
-          bg: 'bg-emerald-500/10 border-emerald-500/20',
+          badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+          impactColor: 'text-emerald-400',
           isCredit: true,
+          isTopUpRelated: true,
         };
       case 'TOPUP_CREDIT':
         return {
-          label: 'Top-up Promo Bonus',
-          description: txn.description || 'Promotional credit from eligible top-up',
+          displayTitle: 'Top-up Credit',
+          displaySubtitle: txn.description || 'Promotional bonus credit',
+          typeLabel: 'Credit',
           icon: Sparkles,
-          color: 'text-cyan-400',
-          bg: 'bg-cyan-500/10 border-cyan-500/20',
+          badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+          impactColor: 'text-emerald-400',
           isCredit: true,
+          isTopUpRelated: true,
         };
       case 'WELCOME_CREDIT':
         return {
-          label: 'Welcome Credit Grant',
-          description: txn.description || 'RM300 first-event promotional credit',
+          displayTitle: 'Welcome Credit',
+          displaySubtitle: txn.description || 'RM300 first-event promotional credit',
+          typeLabel: 'Credit',
           icon: Gift,
-          color: 'text-purple-400',
-          bg: 'bg-purple-500/10 border-purple-500/20',
+          badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+          impactColor: 'text-emerald-400',
           isCredit: true,
+          isTopUpRelated: false,
         };
       case 'SHOWCASE_CREDIT':
         return {
-          label: 'Showcase Reward Credit',
-          description: txn.description || 'RM300 reward for approved marketing showcase',
+          displayTitle: 'Showcase Credit',
+          displaySubtitle: txn.description || 'RM300 reward for approved marketing showcase',
+          typeLabel: 'Credit',
           icon: Award,
-          color: 'text-amber-400',
-          bg: 'bg-amber-500/10 border-amber-500/20',
+          badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+          impactColor: 'text-emerald-400',
           isCredit: true,
+          isTopUpRelated: false,
         };
       case 'EVENT_PAYMENT':
+        return {
+          displayTitle: 'Event Usage',
+          displaySubtitle: txn.description || 'Event launch paid balance deduction',
+          typeLabel: 'Event',
+          icon: ArrowDownLeft,
+          badgeColor: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+          impactColor: 'text-rose-400',
+          isCredit: false,
+          isTopUpRelated: false,
+        };
       case 'CREDIT_USAGE':
         return {
-          label: 'Event Deployment Payment',
-          description: txn.description || 'Event launch deduction',
+          displayTitle: 'Event Usage',
+          displaySubtitle: txn.description || 'Event promotional credit discount applied',
+          typeLabel: 'Credit',
           icon: ArrowDownLeft,
-          color: 'text-rose-400',
-          bg: 'bg-rose-500/10 border-rose-500/20',
+          badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+          impactColor: 'text-rose-400',
           isCredit: false,
+          isTopUpRelated: false,
         };
       case 'REFUND':
         return {
-          label: 'Event Cancellation Refund',
-          description: txn.description || '100% full refund of event paid balance',
+          displayTitle: 'Event Refund',
+          displaySubtitle: txn.description || '100% full refund of event paid balance',
+          typeLabel: 'Paid Balance',
           icon: RotateCcw,
-          color: 'text-emerald-400',
-          bg: 'bg-emerald-500/10 border-emerald-500/20',
+          badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+          impactColor: 'text-emerald-400',
           isCredit: true,
+          isTopUpRelated: false,
         };
       case 'CREDIT_REVERSAL':
         return {
-          label: 'Credit Reversal',
-          description: txn.description || 'Promotional credit reversed upon event cancellation',
+          displayTitle: 'Credit Reversal',
+          displaySubtitle: txn.description || 'Promotional credit reversed upon event cancellation',
+          typeLabel: 'Credit',
           icon: RotateCcw,
-          color: 'text-amber-400',
-          bg: 'bg-amber-500/10 border-amber-500/20',
-          isCredit: false,
-        };
-      case 'CREDIT_EXPIRY':
-        return {
-          label: 'Credit Expiry',
-          description: txn.description || 'Promotional credit expired',
-          icon: Clock,
-          color: 'text-slate-400',
-          bg: 'bg-slate-800 border-slate-700',
-          isCredit: false,
+          badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+          impactColor: 'text-emerald-400',
+          isCredit: true,
+          isTopUpRelated: false,
         };
       case 'WITHDRAWAL':
         return {
-          label: 'Wallet Withdrawal',
-          description: txn.description || 'Funds withdrawal',
+          displayTitle: 'Withdrawal',
+          displaySubtitle: txn.description || 'Funds withdrawal',
+          typeLabel: 'Paid Balance',
           icon: ArrowDownLeft,
-          color: 'text-rose-400',
-          bg: 'bg-rose-500/10 border-rose-500/20',
+          badgeColor: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+          impactColor: 'text-rose-400',
           isCredit: false,
+          isTopUpRelated: false,
         };
       case 'ADMIN_ADJUSTMENT':
       default:
         return {
-          label: 'Ledger Adjustment',
-          description: txn.description || 'Organization ledger audit adjustment',
+          displayTitle: txn.description || 'Ledger Adjustment',
+          displaySubtitle: 'Organization ledger audit adjustment',
+          typeLabel: txn.balance_type === 'PAID_BALANCE' ? 'Paid Balance' : 'Credit',
           icon: Coins,
-          color: txn.amount >= 0 ? 'text-emerald-400' : 'text-rose-400',
-          bg: 'bg-slate-800 border-slate-700',
-          isCredit: txn.amount >= 0,
+          badgeColor: 'bg-slate-800 text-slate-300 border-slate-700',
+          impactColor: Number(txn.amount) >= 0 ? 'text-emerald-400' : 'text-rose-400',
+          isCredit: Number(txn.amount) >= 0,
+          isTopUpRelated: false,
         };
     }
   };
 
-  const getBalanceTypeBadge = (balanceType: string) => {
-    switch (balanceType) {
-      case 'PAID_BALANCE':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-            <Coins className="w-3 h-3" /> Paid Balance
-          </span>
-        );
-      case 'TOPUP_CREDIT':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
-            <Sparkles className="w-3 h-3" /> Top-up Credit
-          </span>
-        );
-      case 'WELCOME_CREDIT':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20">
-            <Gift className="w-3 h-3" /> Welcome Credit
-          </span>
-        );
-      case 'SHOWCASE_CREDIT':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
-            <Award className="w-3 h-3" /> Showcase Credit
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-            {balanceType}
-          </span>
-        );
+  // Helper for Status Pills
+  const getStatusBadge = (status?: string) => {
+    const s = (status || 'COMPLETED').toUpperCase();
+    if (s === 'COMPLETED' || s === 'PAID') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Completed
+        </span>
+      );
     }
+    if (s === 'PENDING') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+          <Clock className="w-3 h-3 text-amber-400" /> Pending
+        </span>
+      );
+    }
+    if (s === 'REVERSED') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+          <RotateCcw className="w-3 h-3 text-slate-400" /> Reversed
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+        <AlertCircle className="w-3 h-3 text-rose-400" /> {status || 'Failed'}
+      </span>
+    );
+  };
+
+  // Client-side quick search filtering on currently loaded records
+  const displayTransactions = useMemo(() => {
+    if (!searchQuery.trim()) return transactions;
+    const q = searchQuery.toLowerCase().trim();
+    return transactions.filter((txn) => {
+      const info = getTransactionInfo(txn);
+      return (
+        info.displayTitle.toLowerCase().includes(q) ||
+        info.displaySubtitle.toLowerCase().includes(q) ||
+        info.typeLabel.toLowerCase().includes(q) ||
+        (txn.description && txn.description.toLowerCase().includes(q)) ||
+        (txn.reference_id && txn.reference_id.toLowerCase().includes(q)) ||
+        (txn.metadata?.payment_reference && String(txn.metadata.payment_reference).toLowerCase().includes(q)) ||
+        (txn.metadata?.topup_order_id && String(txn.metadata.topup_order_id).toLowerCase().includes(q)) ||
+        (txn.id && txn.id.toLowerCase().includes(q))
+      );
+    });
+  }, [transactions, searchQuery]);
+
+  const hasActiveFilters = filterGroup !== 'ALL' || datePreset !== 'ALL_TIME' || searchQuery.trim() !== '' || startDate !== '' || endDate !== '';
+
+  const handleClearAllFilters = () => {
+    setFilterGroup('ALL');
+    setDatePreset('ALL_TIME');
+    setStartDate('');
+    setEndDate('');
+    setSearchQuery('');
   };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 animate-in fade-in duration-300">
-      {/* 1. Header & Workspace Information */}
+      {/* 1. Header & Workspace Organization Isolation Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-2 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="p-2.5 bg-amber-500/10 rounded-2xl text-amber-400 border border-amber-500/20">
               <Wallet className="w-5 h-5" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-100">
-              Organization Wallet
-            </h1>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-100">
+                Organization Wallet
+              </h1>
+            </div>
           </div>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
+          <p className="text-xs sm:text-sm text-slate-400 max-w-2xl pt-1">
             Real-time balance breakdown and immutable audit ledger for{' '}
             <strong className="text-slate-200">{currentOrganization?.name || 'your workspace'}</strong>.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs">
-            <Building2 className="w-4 h-4 text-amber-400" />
-            <span className="font-semibold text-slate-300 truncate max-w-[140px]">
-              {currentOrganization?.name}
-            </span>
-            <span className="uppercase text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+            <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="flex flex-col">
+              <span className="font-bold text-slate-200 truncate max-w-[150px]">
+                {currentOrganization?.name}
+              </span>
+              <span className="text-[9px] font-mono text-slate-500 truncate max-w-[150px]">
+                Org: {currentOrganization?.id?.slice(0, 8)}...
+              </span>
+            </div>
+            <span className="uppercase text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 ml-1">
               {currentOrganization?.role || 'Member'}
             </span>
           </div>
@@ -323,10 +531,10 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
           <button
             onClick={handleRefreshAll}
             disabled={isRefreshing || isLoadingWallet}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors cursor-pointer disabled:opacity-50"
-            title="Refresh Wallet Balances"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors cursor-pointer disabled:opacity-50"
+            title="Refresh Wallet Balances and Ledger"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-amber-400' : 'text-slate-400'}`} />
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-400' : 'text-slate-400'}`} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
@@ -405,7 +613,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                   else if (onNavigateTab) onNavigateTab('wallet-topup');
                   else navigateTo('/wallet/top-up');
                 }}
-                className="text-[10px] uppercase font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2 py-0.5 rounded-full transition-colors cursor-pointer flex items-center gap-1"
+                className="text-[10px] uppercase font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-full transition-colors cursor-pointer flex items-center gap-1"
               >
                 <Plus className="w-3 h-3" /> Top Up
               </button>
@@ -428,7 +636,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
             <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
               <Sparkles className="w-4 h-4" />
             </div>
-            <span className="text-[10px] uppercase font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] uppercase font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-full">
               5%–7% Promo
             </span>
           </div>
@@ -514,125 +722,254 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
         </div>
       </div>
 
-      {/* 3. Transaction History Ledger */}
+      {/* 3. Transaction History Section */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Top Header & Search / Filters Row */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-slate-100 flex items-center gap-2">
+            <h2 className="text-lg sm:text-xl font-black text-slate-100 flex items-center gap-2">
               <Coins className="w-5 h-5 text-amber-400" />
               <span>Transaction History</span>
             </h2>
-            <p className="text-xs text-slate-400">
-              Immutable ledger of top-ups, event payments, refunds, and promo credit grants.
+            <p className="text-xs text-slate-400 mt-0.5">
+              Complete read-only transaction ledger scoped to <strong className="text-slate-300">{currentOrganization?.name}</strong>.
             </p>
           </div>
 
-          {/* Search & Filter Bar */}
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Search Input */}
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search transactions..."
+                placeholder="Search description, reference, ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 w-44 sm:w-56"
+                className="bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 w-full sm:w-64"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-1 bg-slate-950 p-1 border border-slate-800 rounded-xl text-xs">
+            {/* Date Filter Button */}
+            <div className="relative">
               <button
-                onClick={() => setFilterType('ALL')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                  filterType === 'ALL'
-                    ? 'bg-amber-500 text-slate-950 font-bold'
-                    : 'text-slate-400 hover:text-slate-200'
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
+                  datePreset !== 'ALL_TIME'
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                    : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border-slate-800'
                 }`}
               >
-                All
+                <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                <span>
+                  {datePreset === 'ALL_TIME'
+                    ? 'All Dates'
+                    : datePreset === 'TODAY'
+                    ? 'Today'
+                    : datePreset === 'LAST_7_DAYS'
+                    ? 'Last 7 Days'
+                    : datePreset === 'LAST_30_DAYS'
+                    ? 'Last 30 Days'
+                    : datePreset === 'LAST_90_DAYS'
+                    ? 'Last 90 Days'
+                    : datePreset === 'THIS_MONTH'
+                    ? 'This Month'
+                    : 'Custom Range'}
+                </span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDatePicker ? 'rotate-180' : ''}`} />
               </button>
-              <button
-                onClick={() => setFilterType('TOPUP')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                  filterType === 'TOPUP'
-                    ? 'bg-amber-500 text-slate-950 font-bold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Top-ups
-              </button>
-              <button
-                onClick={() => setFilterType('EVENT_PAYMENT')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                  filterType === 'EVENT_PAYMENT'
-                    ? 'bg-amber-500 text-slate-950 font-bold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Event Payments
-              </button>
-              <button
-                onClick={() => setFilterType('CREDIT')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                  filterType === 'CREDIT'
-                    ? 'bg-amber-500 text-slate-950 font-bold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Credits
-              </button>
+
+              {/* Date Filter Dropdown Panel */}
+              {showDatePicker && (
+                <div className="absolute right-0 top-full mt-2 w-72 p-4 bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl z-30 space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-300 border-b border-slate-800 pb-2">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> Filter by Date
+                    </span>
+                    <button
+                      onClick={() => setShowDatePicker(false)}
+                      className="text-slate-500 hover:text-slate-300 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Preset Pills */}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { id: 'ALL_TIME', label: 'All Time' },
+                      { id: 'TODAY', label: 'Today' },
+                      { id: 'LAST_7_DAYS', label: 'Last 7 Days' },
+                      { id: 'LAST_30_DAYS', label: 'Last 30 Days' },
+                      { id: 'LAST_90_DAYS', label: 'Last 90 Days' },
+                      { id: 'THIS_MONTH', label: 'This Month' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => {
+                          setDatePreset(preset.id as DatePreset);
+                          if (preset.id !== 'CUSTOM') {
+                            setStartDate('');
+                            setEndDate('');
+                            setShowDatePicker(false);
+                          }
+                        }}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-colors cursor-pointer ${
+                          datePreset === preset.id
+                            ? 'bg-amber-500 text-slate-950 font-bold'
+                            : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Custom Date Range Inputs */}
+                  <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                    <span className="text-[11px] font-semibold text-slate-400 block">Custom Range</span>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500 w-10">Start:</span>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => {
+                            setStartDate(e.target.value);
+                            setDatePreset('CUSTOM');
+                          }}
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 flex-1 focus:outline-none focus:border-amber-500/50"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500 w-10">End:</span>
+                        <input
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => {
+                            setEndDate(e.target.value);
+                            setDatePreset('CUSTOM');
+                          }}
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-200 flex-1 focus:outline-none focus:border-amber-500/50"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                    <button
+                      onClick={() => {
+                        setDatePreset('ALL_TIME');
+                        setStartDate('');
+                        setEndDate('');
+                        setShowDatePicker(false);
+                      }}
+                      className="text-[11px] text-slate-400 hover:text-slate-200 cursor-pointer"
+                    >
+                      Reset Date
+                    </button>
+                    <button
+                      onClick={() => setShowDatePicker(false)}
+                      className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg cursor-pointer"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Clear All Filters Button */}
+            {hasActiveFilters && (
+              <button
+                onClick={handleClearAllFilters}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                title="Clear all active filters"
+              >
+                <RotateCcw className="w-3 h-3 text-amber-400" />
+                <span>Clear Filters</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Transactions Table */}
+        {/* Filter Group Tabs Row (All, Top Ups, Event Usage, Credits, Refunds) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {[
+            { id: 'ALL', label: 'All' },
+            { id: 'TOPUP', label: 'Top Ups' },
+            { id: 'EVENT_USAGE', label: 'Event Usage' },
+            { id: 'CREDITS', label: 'Credits' },
+            { id: 'REFUNDS', label: 'Refunds' },
+          ].map((tab) => {
+            const isActive = filterGroup === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setFilterGroup(tab.id as FilterGroup)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                    : 'bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 4. Transactions Table (Date, Description, Type, Amount, Balance Impact, Status, Reference) */}
         <div className="overflow-x-auto">
           {isLoadingTxns ? (
-            <div className="py-16 text-center space-y-3">
-              <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+            <div className="py-20 text-center space-y-3">
+              <div className="w-9 h-9 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-xs text-slate-400 font-medium">Loading transaction ledger...</p>
             </div>
-          ) : filteredTransactions.length === 0 ? (
-            <div className="py-16 text-center space-y-3 bg-slate-950/40 rounded-xl border border-slate-800/80">
+          ) : displayTransactions.length === 0 ? (
+            <div className="py-20 text-center space-y-3 bg-slate-950/40 rounded-2xl border border-slate-800/80">
               <div className="w-12 h-12 rounded-full bg-slate-800/80 flex items-center justify-center mx-auto text-slate-500">
                 <Coins className="w-6 h-6" />
               </div>
               <div className="space-y-1">
-                <h4 className="text-sm font-semibold text-slate-300">No Transactions Found</h4>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  {searchQuery || filterType !== 'ALL'
-                    ? 'No transactions matched your search filters.'
+                <h4 className="text-sm font-bold text-slate-200">No Transactions Found</h4>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  {hasActiveFilters
+                    ? 'No transactions matched your active filters and date selections.'
                     : 'No ledger transactions have been recorded for this organization yet.'}
                 </p>
               </div>
-              {(searchQuery || filterType !== 'ALL') && (
+              {hasActiveFilters && (
                 <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setFilterType('ALL');
-                  }}
-                  className="text-xs text-amber-400 hover:underline font-medium cursor-pointer"
+                  onClick={handleClearAllFilters}
+                  className="text-xs text-amber-400 hover:underline font-bold cursor-pointer inline-flex items-center gap-1"
                 >
-                  Clear Filters
+                  <RotateCcw className="w-3 h-3" /> Clear All Filters
                 </button>
               )}
             </div>
           ) : (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-950/50">
-                  <th className="py-3 px-4 rounded-l-xl">Date & Time</th>
-                  <th className="py-3 px-4">Transaction / Type</th>
-                  <th className="py-3 px-4">Balance Pool</th>
+                <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-950/60">
+                  <th className="py-3 px-4 rounded-l-xl">Date</th>
+                  <th className="py-3 px-4">Description</th>
+                  <th className="py-3 px-4">Type</th>
                   <th className="py-3 px-4 text-right">Amount</th>
+                  <th className="py-3 px-4 text-right">Balance Impact</th>
                   <th className="py-3 px-4 text-center">Status</th>
                   <th className="py-3 px-4 rounded-r-xl text-right">Reference</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {filteredTransactions.map((txn) => {
+                {displayTransactions.map((txn) => {
                   const info = getTransactionInfo(txn);
                   const Icon = info.icon;
                   const formattedDate = txn.created_at
@@ -652,42 +989,63 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                   const amountNum = Number(txn.amount) || 0;
                   const isPositive = amountNum > 0;
                   const isNegative = amountNum < 0;
+                  const absAmount = Math.abs(amountNum);
 
                   return (
                     <tr
                       key={txn.id}
-                      onClick={() => setSelectedTxn(txn)}
+                      onClick={() => {
+                        if (info.isTopUpRelated) {
+                          handleOpenTopUpDetail(txn);
+                        } else {
+                          setSelectedTxn(txn);
+                        }
+                      }}
                       className="hover:bg-slate-800/40 transition-colors cursor-pointer group"
                     >
-                      {/* Date */}
+                      {/* 1. Date */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="font-semibold text-slate-200">{formattedDate}</div>
+                        <div className="font-bold text-slate-200">{formattedDate}</div>
                         <div className="text-[10px] text-slate-500">{formattedTime}</div>
                       </td>
 
-                      {/* Transaction Type */}
+                      {/* 2. Description */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-xl border ${info.bg} ${info.color} shrink-0`}>
+                          <div className={`p-2 rounded-xl border ${info.badgeColor} shrink-0`}>
                             <Icon className="w-4 h-4" />
                           </div>
                           <div className="truncate max-w-xs">
-                            <div className="font-bold text-slate-200 group-hover:text-amber-300 transition-colors">
-                              {info.label}
+                            <div className="font-bold text-slate-200 group-hover:text-amber-300 transition-colors flex items-center gap-1.5">
+                              <span>{info.displayTitle}</span>
+                              {info.isTopUpRelated && (
+                                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                  Details
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-slate-400 truncate">
-                              {txn.description}
+                              {info.displaySubtitle}
                             </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Balance Type */}
+                      {/* 3. Type */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        {getBalanceTypeBadge(txn.balance_type)}
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold border ${info.badgeColor}`}>
+                          {info.typeLabel}
+                        </span>
                       </td>
 
-                      {/* Amount */}
+                      {/* 4. Amount */}
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <span className="font-mono font-bold text-slate-300 text-xs">
+                          {formatCurrency(absAmount, txn.currency)}
+                        </span>
+                      </td>
+
+                      {/* 5. Balance Impact */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <span
                           className={`font-mono font-bold text-sm ${
@@ -698,33 +1056,40 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                               : 'text-slate-400'
                           }`}
                         >
-                          {isPositive ? '+' : ''}
-                          {formatCurrency(amountNum, txn.currency)}
+                          {isPositive ? '+' : isNegative ? '-' : ''}
+                          {formatCurrency(absAmount, txn.currency)}
                         </span>
                       </td>
 
-                      {/* Status */}
+                      {/* 6. Status */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            txn.status === 'COMPLETED'
-                              ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
-                              : txn.status === 'PENDING'
-                              ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
-                              : txn.status === 'REVERSED'
-                              ? 'bg-slate-800 text-slate-400 border border-slate-700'
-                              : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
-                          }`}
-                        >
-                          {txn.status === 'COMPLETED' && <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />}
-                          {txn.status === 'PENDING' && <Clock className="w-2.5 h-2.5 text-amber-400" />}
-                          {txn.status || 'COMPLETED'}
-                        </span>
+                        {getStatusBadge(txn.status)}
                       </td>
 
-                      {/* Reference */}
-                      <td className="py-3.5 px-4 text-right font-mono text-[10px] text-slate-500 truncate max-w-[120px]">
-                        {txn.reference_id || txn.id.slice(0, 8)}
+                      {/* 7. Reference */}
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="font-mono text-[10px] text-slate-400 truncate max-w-[140px]">
+                            {txn.metadata?.payment_reference || txn.reference_id || txn.id.slice(0, 8)}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopy(
+                                txn.metadata?.payment_reference || txn.reference_id || txn.id,
+                                txn.id
+                              );
+                            }}
+                            className="text-slate-500 hover:text-slate-300 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                            title="Copy Reference"
+                          >
+                            {copiedKey === txn.id ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -735,17 +1100,20 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
         </div>
 
         {/* Ledger Count Note */}
-        {!isLoadingTxns && filteredTransactions.length > 0 && (
-          <div className="flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-800 pt-3">
+        {!isLoadingTxns && displayTransactions.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 border-t border-slate-800 pt-3 gap-2">
             <span>
-              Showing {filteredTransactions.length} of {totalTxns} recorded transactions
+              Showing {displayTransactions.length} of {totalTxns} recorded transactions in organization ledger
             </span>
-            <span>Immutable Ledger Audit Protection</span>
+            <span className="flex items-center gap-1 text-slate-400">
+              <Lock className="w-3 h-3 text-emerald-400" />
+              <span>Immutable Ledger Protection</span>
+            </span>
           </div>
         )}
       </div>
 
-      {/* 4. Policy / Rules Reference Section */}
+      {/* 5. Policy & Credit Rules Reference Section */}
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-3">
         <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
           <Info className="w-4 h-4 text-amber-400" />
@@ -784,10 +1152,160 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
         </div>
       </div>
 
-      {/* Transaction Details Modal */}
-      {selectedTxn && (
+      {/* 6. TOP UP DETAIL MODAL (Strictly implementing requested specification) */}
+      {topUpDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <ArrowUpRight className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-100">Top Up Detail</h3>
+                  <p className="text-xs text-slate-400">Order breakdown and wallet credit summary</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setTopUpDetail(null);
+                  setSelectedTxn(null);
+                }}
+                className="text-slate-400 hover:text-slate-200 text-xs p-1.5 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Financial Breakdown Cards matching prompt specification */}
+            <div className="space-y-3 text-xs">
+              {/* Top Up Amount */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80">
+                <div className="space-y-0.5">
+                  <span className="text-slate-400 font-medium block">Top Up</span>
+                  <span className="text-[10px] text-slate-500">Deposited to Paid Balance</span>
+                </div>
+                <span className="font-mono font-bold text-base text-slate-100">
+                  {formatCurrency(topUpDetail.topUpAmount)}
+                </span>
+              </div>
+
+              {/* Top-up Credit */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-cyan-500/20">
+                <div className="space-y-0.5">
+                  <span className="text-cyan-300 font-medium flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> Top-up Credit
+                  </span>
+                  <span className="text-[10px] text-cyan-400/70">Promotional bonus value</span>
+                </div>
+                <span className="font-mono font-bold text-base text-cyan-400">
+                  {formatCurrency(topUpDetail.topupCreditAmount)}
+                </span>
+              </div>
+
+              {/* Total Wallet Value Highlight */}
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30">
+                <div className="space-y-0.5">
+                  <span className="text-amber-300 font-bold block text-sm">Total Wallet Value</span>
+                  <span className="text-[10px] text-amber-400/80">Total spending power added</span>
+                </div>
+                <span className="font-mono font-black text-xl text-amber-400">
+                  {formatCurrency(topUpDetail.totalWalletValue)}
+                </span>
+              </div>
+
+              {/* Status */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80">
+                <span className="text-slate-400 font-medium">Status</span>
+                <span className="font-bold text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{topUpDetail.status}</span>
+                </span>
+              </div>
+
+              {/* Payment Reference */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80">
+                <span className="text-slate-400 font-medium">Payment Reference</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-slate-200 text-[11px] truncate max-w-[200px]">
+                    {topUpDetail.paymentReference}
+                  </span>
+                  <button
+                    onClick={() => handleCopy(topUpDetail.paymentReference, 'modal_payment_ref')}
+                    className="text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Copy Payment Reference"
+                  >
+                    {copiedKey === 'modal_payment_ref' ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Date */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80">
+                <span className="text-slate-400 font-medium">Date</span>
+                <span className="font-mono text-slate-200">
+                  {topUpDetail.date
+                    ? new Date(topUpDetail.date).toLocaleDateString('en-US', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      }) +
+                      ', ' +
+                      new Date(topUpDetail.date).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : 'N/A'}
+                </span>
+              </div>
+
+              {/* Top Up Order ID */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80">
+                <span className="text-slate-400 font-medium">Top Up Order</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-slate-300 text-[10px] truncate max-w-[200px]">
+                    {topUpDetail.topUpOrderId}
+                  </span>
+                  <button
+                    onClick={() => handleCopy(topUpDetail.topUpOrderId, 'modal_order_id')}
+                    className="text-slate-400 hover:text-slate-200 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Copy Order ID"
+                  >
+                    {copiedKey === 'modal_order_id' ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+              <button
+                onClick={() => {
+                  setTopUpDetail(null);
+                  setSelectedTxn(null);
+                }}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Close Detail
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. STANDARD TRANSACTION AUDIT MODAL (For non-Top-Up items: Event Usage, Refunds, etc.) */}
+      {selectedTxn && !topUpDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -802,19 +1320,19 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 onClick={() => setSelectedTxn(null)}
                 className="text-slate-400 hover:text-slate-200 text-xs p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="space-y-3 text-xs">
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400">Transaction Type</span>
-                <span className="font-bold text-slate-200">{getTransactionInfo(selectedTxn).label}</span>
+                <span className="text-slate-400">Description</span>
+                <span className="font-bold text-slate-200">{getTransactionInfo(selectedTxn).displayTitle}</span>
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-400">Balance Pool</span>
-                {getBalanceTypeBadge(selectedTxn.balance_type)}
+                <span className="text-slate-400">Type</span>
+                <span className="font-semibold text-slate-200">{getTransactionInfo(selectedTxn).typeLabel}</span>
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
@@ -831,7 +1349,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
 
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
                 <span className="text-slate-400">Status</span>
-                <span className="font-bold text-emerald-400">{selectedTxn.status}</span>
+                {getStatusBadge(selectedTxn.status)}
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
@@ -846,13 +1364,27 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               {selectedTxn.reference_id && (
                 <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
                   <span className="text-slate-400">Reference ID</span>
-                  <span className="font-mono text-slate-300">{selectedTxn.reference_id}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-slate-300 text-[11px] truncate max-w-[200px]">
+                      {selectedTxn.reference_id}
+                    </span>
+                    <button
+                      onClick={() => handleCopy(selectedTxn.reference_id!, 'txn_ref_copy')}
+                      className="text-slate-500 hover:text-slate-300 cursor-pointer"
+                    >
+                      {copiedKey === 'txn_ref_copy' ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
 
               {selectedTxn.description && (
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                  <span className="text-slate-400 block">Description</span>
+                  <span className="text-slate-400 block">Ledger Description</span>
                   <span className="text-slate-200 block">{selectedTxn.description}</span>
                 </div>
               )}
