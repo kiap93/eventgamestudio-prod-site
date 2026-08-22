@@ -24,22 +24,28 @@ interface ClientRecord {
 // In-memory sliding window bucket store
 const rateLimitStores = new Map<string, Map<string, ClientRecord>>();
 
-// Garbage collect expired timestamp entries periodically (every 60s)
-if (typeof setInterval !== 'undefined') {
-  const cleanupTimer = setInterval(() => {
-    const now = Date.now();
-    for (const [, store] of rateLimitStores.entries()) {
-      for (const [key, record] of store.entries()) {
-        record.timestamps = record.timestamps.filter((ts) => now - ts < 15 * 60 * 1000);
-        if (record.timestamps.length === 0) {
-          store.delete(key);
-        }
+let lastGlobalCleanup = 0;
+const CLEANUP_INTERVAL_MS = 60 * 1000; // Lazy cleanup interval threshold (60s)
+const MAX_RECORD_AGE_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Performs a lazy, request-driven cleanup of expired timestamps and empty client records.
+ * Triggered periodically during request processing to prevent memory accumulation
+ * without relying on background global timers (disallowed in Cloudflare Workers / Edge runtimes).
+ */
+function lazyCleanup(now: number): void {
+  if (now - lastGlobalCleanup < CLEANUP_INTERVAL_MS) {
+    return;
+  }
+  lastGlobalCleanup = now;
+
+  for (const [, store] of rateLimitStores.entries()) {
+    for (const [key, record] of store.entries()) {
+      record.timestamps = record.timestamps.filter((ts) => now - ts < MAX_RECORD_AGE_MS);
+      if (record.timestamps.length === 0) {
+        store.delete(key);
       }
     }
-  }, 60 * 1000);
-
-  if (cleanupTimer && typeof cleanupTimer === 'object' && 'unref' in cleanupTimer) {
-    (cleanupTimer as any).unref();
   }
 }
 
@@ -62,6 +68,10 @@ export function checkRateLimit(
   const { windowMs, max, keyPrefix = 'general' } = options;
   const store = getStore(keyPrefix);
   const now = Date.now();
+
+  // Run lazy request-driven cleanup across stores periodically without background timers
+  lazyCleanup(now);
+
   const windowStart = now - windowMs;
 
   let record = store.get(clientKey);
