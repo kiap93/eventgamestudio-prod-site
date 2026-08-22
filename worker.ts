@@ -137,10 +137,11 @@ export interface Env {
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://eventgamestudio.com',
   'https://www.eventgamestudio.com',
+  'https://app.eventgamestudio.com',
 ];
 
 export function isAllowedOrigin(origin: string | null | undefined, requestUrl: string, env?: Env): boolean {
-  if (!origin || origin === 'null') {
+  if (!origin || origin === 'null' || origin === 'undefined') {
     return false;
   }
 
@@ -159,41 +160,44 @@ export function isAllowedOrigin(origin: string | null | undefined, requestUrl: s
         .filter(Boolean)
     : [];
 
-  const allowedList = new Set([
-    ...DEFAULT_ALLOWED_ORIGINS,
-    ...customOrigins,
-  ]);
+  const allowedList = new Set<string>();
+  for (const def of DEFAULT_ALLOWED_ORIGINS) {
+    try {
+      allowedList.add(new URL(def).origin);
+    } catch {
+      allowedList.add(def.trim().replace(/\/+$/, ''));
+    }
+  }
+  for (const custom of customOrigins) {
+    try {
+      allowedList.add(new URL(custom).origin);
+    } catch {
+      allowedList.add(custom.trim().replace(/\/+$/, ''));
+    }
+  }
 
   try {
     const originUrl = new URL(origin);
-    const reqUrl = new URL(requestUrl);
+    const normalizedOrigin = originUrl.origin;
 
     // 1. Same-origin is always allowed
-    if (originUrl.origin === reqUrl.origin) {
-      return true;
-    }
-
-    // 2. Exact match in whitelist
-    if (allowedList.has(originUrl.origin)) {
-      return true;
-    }
-
-    // 3. Match subdomains of whitelisted domains (e.g. app.eventgamestudio.com)
-    for (const allowed of allowedList) {
+    if (requestUrl) {
       try {
-        const allowedUrl = new URL(allowed);
-        if (
-          originUrl.protocol === allowedUrl.protocol &&
-          (originUrl.hostname === allowedUrl.hostname || originUrl.hostname.endsWith(`.${allowedUrl.hostname}`))
-        ) {
+        const reqUrl = new URL(requestUrl);
+        if (originUrl.origin === reqUrl.origin) {
           return true;
         }
       } catch {
-        // ignore malformed entry
+        // ignore malformed requestUrl
       }
     }
 
-    // 4. In development mode only, permit localhost and preview sandbox domains
+    // 2. Exact match in whitelist
+    if (allowedList.has(normalizedOrigin)) {
+      return true;
+    }
+
+    // 3. In development mode only, permit localhost and preview sandbox domains
     if (!isProduction) {
       const hostname = originUrl.hostname;
       if (

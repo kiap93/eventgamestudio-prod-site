@@ -11,7 +11,7 @@ declare global {
 }
 
 export const LoginPage: React.FC = () => {
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [gsiLoaded, setGsiLoaded] = useState(false);
@@ -19,6 +19,13 @@ export const LoginPage: React.FC = () => {
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
   const isDev = import.meta.env.DEV;
+
+  // If already authenticated, automatically navigate to /events
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigateTo('/events');
+    }
+  }, [isLoading, isAuthenticated]);
 
   // Fetch client ID from server if not set at build time
   useEffect(() => {
@@ -51,6 +58,7 @@ export const LoginPage: React.FC = () => {
                 setError(null);
                 try {
                   await login(response.credential);
+                  navigateTo('/events');
                 } catch (err: any) {
                   setError(err.message || 'Google authentication failed');
                 } finally {
@@ -100,6 +108,7 @@ export const LoginPage: React.FC = () => {
     try {
       const mockToken = `mock_google_id_token_${email.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
       await login(mockToken);
+      navigateTo('/events');
     } catch (err: any) {
       setError(err.message || 'Mock sign in failed');
     } finally {

@@ -123,26 +123,21 @@ export const DashboardLayout: React.FC = () => {
     return () => window.removeEventListener('wallet_updated', handleWalletUpdated);
   }, [fetchWallet]);
 
-  // Sync tab with browser URL history
+  // Sync tab with browser URL history and route changes
   useEffect(() => {
-    const handlePopState = () => {
-      const path = window.location.pathname;
-      if (path === '/wallet/top-up' || path.startsWith('/wallet/top-up')) {
-        setActiveTab('wallet-topup');
-      } else if (path === '/wallet' || path.startsWith('/wallet')) {
-        setActiveTab('wallet');
-      } else if (path === '/events' || path.startsWith('/events')) {
-        setActiveTab('events');
-      } else if (path === '/team') {
-        setActiveTab('team');
-      } else if (path.startsWith('/game-themes') || path === '/studio') {
-        setActiveTab('customizer');
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+    const path = routeContext.pathname || window.location.pathname;
+    if (path === '/wallet/top-up' || path.startsWith('/wallet/top-up')) {
+      setActiveTab('wallet-topup');
+    } else if (path === '/wallet' || path.startsWith('/wallet')) {
+      setActiveTab('wallet');
+    } else if (path === '/events' || path.startsWith('/events')) {
+      setActiveTab('events');
+    } else if (path === '/team') {
+      setActiveTab('team');
+    } else if (path.startsWith('/game-themes') || path === '/studio') {
+      setActiveTab('customizer');
+    }
+  }, [routeContext.pathname]);
 
   const handleTabChange = (tab: 'events' | 'customizer' | 'team' | 'wallet' | 'wallet-topup') => {
     setActiveTab(tab);
@@ -172,12 +167,14 @@ export const DashboardLayout: React.FC = () => {
   // Helper for formatting currency according to organization's currency
   const formatCurrency = (amount?: number | null, currencyCode: string = 'MYR') => {
     const num = Number(amount) || 0;
-    const formatted = num.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    const formatted = num % 1 === 0
+      ? num.toLocaleString('en-US')
+      : num.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
     const prefix = currencyCode === 'MYR' ? 'RM' : currencyCode === 'USD' ? '$' : currencyCode === 'SGD' ? 'S$' : currencyCode;
-    return `${prefix} ${formatted}`;
+    return `${prefix}${formatted}`;
   };
 
   const currencyCode = wallet?.currency || 'MYR';
@@ -324,10 +321,10 @@ export const DashboardLayout: React.FC = () => {
               )}
             </div>
 
-            {/* 2. Organization Available Wallet Balance Button [ Wallet RM 6,300.00 ] */}
+            {/* 2. Organization Available Balance Button [ Balance RM6,000 ] */}
             <button
               onClick={() => handleTabChange('wallet')}
-              title={`Organization Wallet (${currentOrganization?.name || 'Workspace'}) - Click to view available balance details (/wallet)`}
+              title={`Organization Balance (${currentOrganization?.name || 'Workspace'}) - Click to view wallet details`}
               className={`flex items-center gap-1.5 sm:gap-2 bg-slate-950 hover:bg-slate-800 border ${
                 activeTab === 'wallet' || activeTab === 'wallet-topup'
                   ? 'border-amber-500 bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/40 shadow-sm'
@@ -338,7 +335,7 @@ export const DashboardLayout: React.FC = () => {
               
               {loadingWallet && !wallet && !walletError ? (
                 <span className="flex items-center gap-1.5 text-xs text-amber-400/80">
-                  <span className="text-slate-300 font-sans font-medium hidden sm:inline">Wallet</span>
+                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">Balance</span>
                   <span className="inline-flex items-center gap-1 text-slate-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                     <span className="text-[11px] font-mono">...</span>
@@ -346,17 +343,17 @@ export const DashboardLayout: React.FC = () => {
                 </span>
               ) : walletError && !wallet ? (
                 <span className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
-                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">Wallet</span>
+                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">Balance</span>
                   <span className="text-rose-400/90 font-medium">unavailable</span>
                 </span>
               ) : wallet ? (
-                <span className="flex items-center gap-1 font-mono text-xs font-bold text-amber-400 whitespace-nowrap">
-                  <span className="text-slate-300 font-sans font-medium hidden sm:inline">Wallet</span>
-                  <span>{formatCurrency(wallet.total_balance, currencyCode)}</span>
+                <span className="flex items-center gap-1.5 text-xs font-bold whitespace-nowrap">
+                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">Balance</span>
+                  <span className="font-mono text-amber-400 font-bold">{formatCurrency(wallet.total_balance, currencyCode)}</span>
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
-                  <span className="text-slate-300 font-sans font-medium hidden sm:inline">Wallet</span>
+                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">Balance</span>
                   <span>unavailable</span>
                 </span>
               )}

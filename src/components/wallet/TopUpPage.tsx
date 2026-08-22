@@ -44,7 +44,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
   const [loadingWallet, setLoadingWallet] = useState(true);
 
   // Selection state
-  const presetAmounts = [1000, 3000, 6000, 10000];
+  const presetAmounts = [1400, 3000, 6000, 10000];
   const [selectedPreset, setSelectedPreset] = useState<number | 'custom'>(6000);
   const [customAmountInput, setCustomAmountInput] = useState<string>('6000');
   const [activeAmount, setActiveAmount] = useState<number>(6000);
@@ -615,11 +615,15 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               {presetAmounts.map((amt) => {
                 const isSelected = selectedPreset === amt;
-                let bonusTag = null;
-                if (amt >= 10000) {
-                  bonusTag = '+7% Bonus Credit';
+                let rewardText: string | null = null;
+                if (amt === 6000) {
+                  rewardText = '+ RM300 reward';
+                } else if (amt === 10000) {
+                  rewardText = '+ RM700 reward';
+                } else if (amt >= 10000) {
+                  rewardText = `+ RM${(amt * 0.07).toFixed(0)} reward`;
                 } else if (amt >= 6000) {
-                  bonusTag = '+5% Bonus Credit';
+                  rewardText = `+ RM${(amt * 0.05).toFixed(0)} reward`;
                 }
 
                 return (
@@ -633,15 +637,15 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
                         : 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-800/50 text-slate-300'
                     }`}
                   >
-                    {bonusTag && (
+                    {rewardText && (
                       <div className="absolute -top-2.5 right-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black text-[9px] uppercase px-2 py-0.5 rounded-full shadow">
-                        {bonusTag}
+                        {rewardText}
                       </div>
                     )}
 
                     <div className="space-y-1">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Package
+                        {amt === 1400 ? '1 Event' : 'Package'}
                       </div>
                       <div className="text-lg sm:text-2xl font-mono font-black tracking-tight group-hover:text-amber-400 transition-colors">
                         {formatCurrency(amt)}
@@ -650,12 +654,12 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
                     <div className="pt-3 border-t border-slate-800/80 mt-3 flex items-center justify-between text-[11px]">
                       <span className={isSelected ? 'text-amber-300 font-semibold' : 'text-slate-500'}>
-                        {amt >= 6000 ? (
+                        {rewardText ? (
                           <span className="flex items-center gap-1 text-cyan-400 font-semibold">
-                            <Sparkles className="w-3 h-3" /> Includes Bonus
+                            <Sparkles className="w-3 h-3" /> {rewardText}
                           </span>
                         ) : (
-                          'Standard Package'
+                          'Standard'
                         )}
                       </span>
                       <div

@@ -140,6 +140,13 @@ import {
   getPaymentWebhookSecret,
 } from './server/payment/index.js';
 
+import {
+  DEFAULT_ALLOWED_ORIGINS,
+  parseAllowedOrigins,
+  isOriginAllowed,
+  getCorsHeaders,
+} from './server/cors.js';
+
 
 const app = express();
 const PORT = 3000;
@@ -159,74 +166,24 @@ if (process.env.NODE_ENV === 'production') {
 // ==========================================
 // CORS Whitelist Security Policy
 // ==========================================
-const DEFAULT_ALLOWED_ORIGINS = [
-  'https://eventgamestudio.com',
-  'https://www.eventgamestudio.com',
-];
-
-function isOriginAllowed(origin: string | undefined, reqHost?: string): boolean {
-  if (!origin || origin === 'null') return false;
-  const isProduction = process.env.NODE_ENV === 'production';
-  const customOrigins = (process.env.ALLOWED_ORIGINS || '')
-    .split(',')
-    .map((s: string) => s.trim())
-    .filter(Boolean);
-  const allowedSet = new Set([...DEFAULT_ALLOWED_ORIGINS, ...customOrigins]);
-
-  try {
-    const originUrl = new URL(origin);
-    if (reqHost && originUrl.host === reqHost) return true;
-    if (allowedSet.has(originUrl.origin)) return true;
-
-    for (const allowed of allowedSet) {
-      try {
-        const allowedUrl = new URL(allowed);
-        if (
-          originUrl.protocol === allowedUrl.protocol &&
-          (originUrl.hostname === allowedUrl.hostname || originUrl.hostname.endsWith(`.${allowedUrl.hostname}`))
-        ) {
-          return true;
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    if (!isProduction) {
-      const hostname = originUrl.hostname;
-      if (
-        hostname === 'localhost' ||
-        hostname === '127.0.0.1' ||
-        hostname.endsWith('.localhost') ||
-        hostname.endsWith('.run.app') ||
-        hostname.endsWith('.pages.dev') ||
-        hostname.endsWith('.workers.dev')
-      ) {
-        return true;
-      }
-    }
-  } catch {
-    return false;
-  }
-  return false;
-}
-
 app.use((req, res, next) => {
   const origin = req.headers.origin as string | undefined;
-  if (origin && isOriginAllowed(origin, req.headers.host)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
+  const reqHost = req.headers.host;
+  const reqHeaders = req.headers['access-control-request-headers'] as string | undefined;
+
+  const cors = getCorsHeaders(origin, reqHeaders, { reqHost });
+
+  if (cors['Access-Control-Allow-Origin']) {
+    res.setHeader('Access-Control-Allow-Origin', cors['Access-Control-Allow-Origin']);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Vary', 'Origin');
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    (req.headers['access-control-request-headers'] as string) || 'Content-Type, Authorization, X-Organization-ID, Accept'
-  );
-  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Access-Control-Allow-Methods', cors['Access-Control-Allow-Methods']);
+  res.setHeader('Access-Control-Allow-Headers', cors['Access-Control-Allow-Headers']);
+  res.setHeader('Access-Control-Max-Age', cors['Access-Control-Max-Age']);
 
   if (req.method === 'OPTIONS') {
-    if (origin && !isOriginAllowed(origin, req.headers.host)) {
+    if (origin && !isOriginAllowed(origin, { reqHost })) {
       return res.status(403).send('CORS origin forbidden');
     }
     return res.sendStatus(204);

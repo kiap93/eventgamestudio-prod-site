@@ -241,7 +241,8 @@ export function useRouteContext(): RouteContext {
 }
 
 export function navigateTo(url: string) {
-  if (window.location.pathname !== url) {
+  const currentFull = window.location.pathname + window.location.search;
+  if (currentFull !== url) {
     window.history.pushState(null, '', url);
     window.dispatchEvent(new Event('popstate'));
   }
