@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import Stripe from 'stripe';
 import {
   getTopupOrderById,
   processTopupOrderStatus,
@@ -7,6 +8,22 @@ import {
   fromCents,
 } from '../db/wallet.js';
 import { TopupOrderRecord } from '../db/types.js';
+
+let stripeClientInstance: Stripe | null = null;
+
+/**
+ * Lazy initializer for Stripe client (server-side only)
+ */
+export function getStripeClient(env?: Record<string, any>): Stripe | null {
+  const secretKey =
+    env?.STRIPE_SECRET_KEY ||
+    (typeof process !== 'undefined' ? process.env.STRIPE_SECRET_KEY : undefined);
+  if (!secretKey) return null;
+  if (!stripeClientInstance) {
+    stripeClientInstance = new Stripe(secretKey);
+  }
+  return stripeClientInstance;
+}
 
 export interface PaymentSessionConfig {
   order: TopupOrderRecord;
@@ -179,12 +196,58 @@ export async function createPaymentSession(
     throw new Error(`Cannot create payment session for order in status ${order.status}. Only PENDING orders can be checked out.`);
   }
 
-  const sessionId = `cs_egs_${crypto.randomBytes(16).toString('hex')}`;
-  const paymentReference = `PAY_REF_${order.id.slice(0, 8).toUpperCase()}_${Date.now()}`;
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
   const baseUrl = originUrl || (typeof process !== 'undefined' ? process.env.APP_URL : '') || '';
-  const checkoutUrl = `${baseUrl}/wallet/top-up?order_id=${order.id}&session_id=${sessionId}&checkout=true`;
+  const stripe = getStripeClient(env);
+
+  let sessionId = `cs_egs_${crypto.randomBytes(16).toString('hex')}`;
+  let checkoutUrl = `${baseUrl}/wallet/top-up?order_id=${order.id}&session_id=${sessionId}&checkout=true`;
+  let paymentReference = `PAY_REF_${order.id.slice(0, 8).toUpperCase()}_${Date.now()}`;
+  let paymentMethod = 'card_or_fpx';
+  let expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  // If Stripe API secret key is configured, create live Stripe Checkout Session
+  if (stripe) {
+    try {
+      const formattedAmountCents = Math.round(order.top_up_amount * 100);
+      const stripeSession = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: order.currency.toLowerCase(),
+              product_data: {
+                name: `Wallet Top-Up: ${order.currency} ${order.top_up_amount.toFixed(2)}`,
+                description: `EventGameStudio Wallet Top-Up for organization ${order.organization_id}`,
+              },
+              unit_amount: formattedAmountCents,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        customer_email: customerEmail || undefined,
+        success_url: `${baseUrl}/wallet/top-up?order_id=${order.id}&session_id={CHECKOUT_SESSION_ID}&status=success`,
+        cancel_url: `${baseUrl}/wallet/top-up?order_id=${order.id}&status=cancelled`,
+        metadata: {
+          order_id: order.id,
+          organization_id: order.organization_id,
+          user_id: order.user_id || '',
+          purpose: 'wallet_top_up',
+        },
+      });
+
+      sessionId = stripeSession.id;
+      checkoutUrl = stripeSession.url || checkoutUrl;
+      paymentReference = (stripeSession.payment_intent as string) || `STRIPE_${stripeSession.id}`;
+      paymentMethod = 'card';
+      if (stripeSession.expires_at) {
+        expiresAt = new Date(stripeSession.expires_at * 1000).toISOString();
+      }
+    } catch (stripeErr: any) {
+      console.error('Stripe Checkout Session creation error:', stripeErr);
+      throw new Error(`Stripe Checkout Session initialization failed: ${stripeErr.message}`);
+    }
+  }
 
   // Record PAYMENT_CREATED audit event
   await recordWalletAuditEvent(
@@ -198,7 +261,8 @@ export async function createPaymentSession(
       metadata: {
         sessionId,
         expiresAt,
-        paymentMethod: 'card_or_fpx',
+        paymentMethod,
+        provider: stripe ? 'stripe' : 'payment_gateway',
       },
     },
     env
@@ -208,7 +272,7 @@ export async function createPaymentSession(
     sessionId,
     checkoutUrl,
     paymentReference,
-    paymentMethod: 'card_or_fpx',
+    paymentMethod,
     orderId: order.id,
     amount: order.top_up_amount,
     currency: order.currency,
@@ -290,11 +354,27 @@ export async function verifyAndProcessPaymentWebhook(
   }
 
   // 4. Verify Amount, Currency, and Organization
-  // Extract amount: handle either major units (e.g. 6000.00) or cents (e.g. 600000)
-  let receivedAmount = dataObject.amount !== undefined ? Number(dataObject.amount) : undefined;
-  if (receivedAmount !== undefined && receivedAmount > 100000 && order.top_up_amount < 100000) {
-    // If webhook sends cents (e.g., Stripe amount_received: 600000)
-    receivedAmount = fromCents(receivedAmount);
+  // Extract amount: handle Stripe amount_total, amount_received, or amount (cents vs major units)
+  let rawAmountValue =
+    dataObject.amount_total !== undefined
+      ? Number(dataObject.amount_total)
+      : dataObject.amount_received !== undefined
+      ? Number(dataObject.amount_received)
+      : dataObject.amount !== undefined
+      ? Number(dataObject.amount)
+      : undefined;
+
+  let receivedAmount: number | undefined = undefined;
+  if (rawAmountValue !== undefined) {
+    const expectedCents = toCents(order.top_up_amount);
+    // If sent as cents (standard for Stripe e.g. 60000 cents for RM 600.00)
+    if (Math.round(rawAmountValue) === expectedCents) {
+      receivedAmount = fromCents(rawAmountValue);
+    } else if (rawAmountValue > 100000 && order.top_up_amount < 100000) {
+      receivedAmount = fromCents(rawAmountValue);
+    } else {
+      receivedAmount = rawAmountValue;
+    }
   }
 
   if (receivedAmount !== undefined) {

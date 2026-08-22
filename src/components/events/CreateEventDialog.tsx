@@ -601,6 +601,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     setShowCheckoutModal(false);
     setActiveCheckoutOrder(null);
     setCheckoutSession(null);
+    setPaymentError('Top up cancelled. Your wallet balance has not changed.');
   };
 
   return (

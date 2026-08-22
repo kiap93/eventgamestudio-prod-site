@@ -256,6 +256,19 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
 
         {/* Payment CTAs */}
         <div className="space-y-2.5 pt-2">
+          {checkoutSession?.checkoutUrl && checkoutSession.checkoutUrl.startsWith('https://checkout.stripe.com') && (
+            <a
+              href={checkoutSession.checkoutUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => pollOrderStatus(order.id, 60)}
+              className="w-full py-3.5 px-4 rounded-xl bg-[#635BFF] hover:bg-[#5851DF] text-white font-bold text-sm shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Open Stripe Checkout ({formatCurrency(order.top_up_amount, order.currency)})</span>
+            </a>
+          )}
+
           <button
             type="button"
             disabled={isProcessingPayment || isPollingStatus}
