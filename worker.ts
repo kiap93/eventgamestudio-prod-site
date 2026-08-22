@@ -3416,10 +3416,9 @@ export default {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
-          return errorResponse('Forbidden: Only organization owners and admins can claim welcome credit', 403, cors);
+        if (!isDev) {
+          return errorResponse('Forbidden: Welcome credit is automatically granted upon organization creation. Manual invocation is restricted to system administrators.', 403, cors);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;

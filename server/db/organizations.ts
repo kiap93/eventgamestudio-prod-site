@@ -1,5 +1,6 @@
 import { getSupabaseServerClient } from '../supabase.js';
 import { OrganizationRecord, OrgRole } from './types.js';
+import { grantWelcomeCredit } from './wallet.js';
 import crypto from 'node:crypto';
 
 export interface UserOrganizationMembership {
@@ -122,7 +123,28 @@ export async function createOrganization(
     throw new Error(`Failed to create organization: ${error.message}`);
   }
 
-  return data as OrganizationRecord;
+  const organization = data as OrganizationRecord;
+
+  // Automatically grant the one-time Welcome Credit to the new Organization's wallet
+  try {
+    await grantWelcomeCredit(
+      {
+        organizationId: organization.id,
+        createdBy: params.owner_id,
+        referenceId: `welcome_${organization.id}`,
+        metadata: {
+          organization_name: organization.name,
+          source: 'AUTO_ORGANIZATION_CREATION',
+        },
+      },
+      env
+    );
+  } catch (grantErr) {
+    console.error('Failed to grant welcome credit upon organization creation:', grantErr);
+    // Non-fatal or idempotent; duplicate protection prevents double grants if retried
+  }
+
+  return organization;
 }
 
 export async function updateOrganization(

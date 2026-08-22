@@ -34,6 +34,7 @@
 
 import crypto from 'node:crypto';
 import { getSupabaseServerClient } from '../supabase.js';
+import { createOrganization } from './organizations.js';
 import {
   grantWelcomeCredit,
   canUseWelcomeCredit,
@@ -137,6 +138,29 @@ async function runTests() {
   });
   assertEqual(grant1Duplicate.alreadyGranted, true, 'Duplicate Welcome Credit grant is rejected/marked already granted');
   assertEqual(grant1Duplicate.wallet.welcome_credit, 800.00, 'Wallet welcome_credit remains exactly RM800.00 (not doubled)');
+
+  // ----------------------------------------------------
+  // TEST GROUP 1B: AUTOMATIC WELCOME CREDIT ON createOrganization
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 1B: Automatic Welcome Credit on createOrganization ---');
+  const autoOrg = await createOrganization({
+    name: 'Auto Welcome Org Test',
+    owner_id: testAdminId,
+  });
+
+  const autoOrgWallet = await getWalletBalance(autoOrg.id);
+  assertEqual(autoOrgWallet.welcome_credit, 800.00, 'createOrganization automatically grants RM800.00 Welcome Credit');
+  assertEqual(autoOrgWallet.total_balance, 800.00, 'Total available balance reflects Welcome Credit immediately');
+  assertEqual(autoOrgWallet.welcome_credit_granted, true, 'welcome_credit_granted flag is true');
+
+  // Calling grantWelcomeCredit again on this new org is safely idempotent
+  const secondGrant = await grantWelcomeCredit({
+    organizationId: autoOrg.id,
+    createdBy: testAdminId,
+  });
+  assertEqual(secondGrant.alreadyGranted, true, 'Subsequent grant to auto-created org is recognized as already granted');
+  const autoOrgWalletAfter = await getWalletBalance(autoOrg.id);
+  assertEqual(autoOrgWalletAfter.welcome_credit, 800.00, 'Wallet balance remains strictly RM800.00 (no duplicate credits)');
 
   // ----------------------------------------------------
   // TEST GROUP 2: WELCOME CREDIT EVENT ELIGIBILITY

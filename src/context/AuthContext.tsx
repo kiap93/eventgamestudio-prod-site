@@ -395,6 +395,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setOrganizations((prev) => [...prev, data.organization]);
     await fetchActiveGame();
     await fetchThemes();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('wallet_updated'));
+    }
     return data.organization.id;
   };
 

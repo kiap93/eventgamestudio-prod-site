@@ -1888,5 +1888,649 @@
       "topup_credit": 0
     },
     "timestamp": "2026-08-21T09:19:20.928Z"
+  },
+  {
+    "id": "c8e89e64-2638-42ae-a79b-b2a99b1556a3",
+    "organization_id": "d662230c-0b26-4e75-8829-1ca1f2033b0f",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "ref_sub_1_1787382150946",
+    "amount": 3000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 3000,
+      "promo_credit": 0,
+      "total_wallet_balance": 3000,
+      "paid_balance": 3000,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:02:32.030Z"
+  },
+  {
+    "id": "161b0c5a-a169-4a3b-b567-557d63ca3ec1",
+    "organization_id": "d662230c-0b26-4e75-8829-1ca1f2033b0f",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "ref_sub_2_1787382152419",
+    "amount": 3000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 3000,
+      "promo_credit": 0,
+      "total_wallet_balance": 6000,
+      "paid_balance": 6000,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:02:33.376Z"
+  },
+  {
+    "id": "6a152a2e-b7ae-4cdf-9714-e4fd2b9a9e96",
+    "organization_id": "1a1df182-5f47-4c0c-81bd-10d0b98feea9",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "wh_stripe_charge_1787382153909",
+    "amount": 10000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 10000,
+      "promo_credit": 700,
+      "total_wallet_balance": 10700,
+      "paid_balance": 10000,
+      "topup_credit": 700
+    },
+    "timestamp": "2026-08-22T07:02:34.588Z"
+  },
+  {
+    "id": "d527bbf7-1174-4ff9-a0ec-fb282ae968d9",
+    "organization_id": "2d8d2ace-b775-404d-aa58-bb2f9c7171b6",
+    "event_type": "TOP_UP_CREATED",
+    "order_id": "e01ef27c-34f7-4e61-8a89-dc64c7fb8837",
+    "payment_reference": null,
+    "amount": 6000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "expected_credit_amount": 300,
+      "bonus_percentage": 5,
+      "total_wallet_value": 6300
+    },
+    "timestamp": "2026-08-22T07:02:35.248Z"
+  },
+  {
+    "id": "fe70e406-f609-4666-b1f0-b0d3441b90c8",
+    "organization_id": "2d8d2ace-b775-404d-aa58-bb2f9c7171b6",
+    "event_type": "WALLET_CREDITED",
+    "order_id": "e01ef27c-34f7-4e61-8a89-dc64c7fb8837",
+    "payment_reference": "topup_order_e01ef27c-34f7-4e61-8a89-dc64c7fb8837",
+    "amount": 6000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "paid_amount": 6000,
+      "promo_credit": 300,
+      "total_wallet_balance": 6300,
+      "paid_balance": 6000,
+      "topup_credit": 300
+    },
+    "timestamp": "2026-08-22T07:02:36.453Z"
+  },
+  {
+    "id": "a6d5744d-cf4f-4a00-b3c3-91cc2857f9cf",
+    "organization_id": "2d8d2ace-b775-404d-aa58-bb2f9c7171b6",
+    "event_type": "PAYMENT_COMPLETED",
+    "order_id": "e01ef27c-34f7-4e61-8a89-dc64c7fb8837",
+    "payment_reference": "PAY_REF_6K_001",
+    "amount": 6000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "payment_method": "fpx",
+      "reason": "Payment gateway confirmation"
+    },
+    "timestamp": "2026-08-22T07:02:36.590Z"
+  },
+  {
+    "id": "9d278709-4388-4823-b2bd-0ceadeab3413",
+    "organization_id": "2d8d2ace-b775-404d-aa58-bb2f9c7171b6",
+    "event_type": "TOP_UP_CREATED",
+    "order_id": "d8d2eea0-a9b3-471f-8633-224d1f578858",
+    "payment_reference": null,
+    "amount": 1000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "expected_credit_amount": 0,
+      "bonus_percentage": 0,
+      "total_wallet_value": 1000
+    },
+    "timestamp": "2026-08-22T07:02:37.671Z"
+  },
+  {
+    "id": "3c1190a7-9d48-4d03-aec8-21a8a37858a0",
+    "organization_id": "2d8d2ace-b775-404d-aa58-bb2f9c7171b6",
+    "event_type": "TOP_UP_CREATED",
+    "order_id": "78130546-508c-415a-b167-2f3096d9f56a",
+    "payment_reference": null,
+    "amount": 2000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "expected_credit_amount": 0,
+      "bonus_percentage": 0,
+      "total_wallet_value": 2000
+    },
+    "timestamp": "2026-08-22T07:02:38.074Z"
+  },
+  {
+    "id": "fb1651e6-e5a9-411a-99dc-a325a1d7976e",
+    "organization_id": "2d8d2ace-b775-404d-aa58-bb2f9c7171b6",
+    "event_type": "TOP_UP_CREATED",
+    "order_id": "758f8ac4-0463-48c1-a5e1-d0baabc4b726",
+    "payment_reference": null,
+    "amount": 3000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "expected_credit_amount": 0,
+      "bonus_percentage": 0,
+      "total_wallet_value": 3000
+    },
+    "timestamp": "2026-08-22T07:02:38.848Z"
+  },
+  {
+    "id": "90cbe093-cadb-4dcd-a87a-72b61cd2b3d8",
+    "organization_id": "a1e5a122-b5f7-4c23-b7c4-6b355c6b7b15",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_300_a1e5a122-b5f7-4c23-b7c4-6b355c6b7b15",
+    "amount": 300,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 300,
+      "promo_credit": 0,
+      "total_wallet_balance": 1100,
+      "paid_balance": 300,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:02:42.616Z"
+  },
+  {
+    "id": "48534af9-6392-4a51-8a4f-d4fa2073ef86",
+    "organization_id": "a1e5a122-b5f7-4c23-b7c4-6b355c6b7b15",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_300b_a1e5a122-b5f7-4c23-b7c4-6b355c6b7b15",
+    "amount": 300,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 300,
+      "promo_credit": 0,
+      "total_wallet_balance": 1400,
+      "paid_balance": 600,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:02:43.546Z"
+  },
+  {
+    "id": "d86689b4-c070-4314-8501-03b654ff44a8",
+    "organization_id": "92ae621c-ab7c-40ce-b124-532be220ce79",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_1000_92ae621c-ab7c-40ce-b124-532be220ce79",
+    "amount": 1000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 1000,
+      "promo_credit": 0,
+      "total_wallet_balance": 1300,
+      "paid_balance": 1000,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:02:48.650Z"
+  },
+  {
+    "id": "a04cefcf-1169-463e-a39e-5aa797a8bd81",
+    "organization_id": "92ae621c-ab7c-40ce-b124-532be220ce79",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_100_92ae621c-ab7c-40ce-b124-532be220ce79",
+    "amount": 100,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 100,
+      "promo_credit": 0,
+      "total_wallet_balance": 1400,
+      "paid_balance": 1100,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:02:49.629Z"
+  },
+  {
+    "id": "fe977b02-7f56-401e-9c22-3d06970dfd50",
+    "organization_id": "9c4c4d87-8a06-45db-99ef-2b352ecf1dc0",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_org1_1787382189767",
+    "amount": 600,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 600,
+      "promo_credit": 0,
+      "total_wallet_balance": 1400,
+      "paid_balance": 600,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:03:10.322Z"
+  },
+  {
+    "id": "c99c8fd5-c104-453f-a748-3f93d1bb4d39",
+    "organization_id": "3469d4e0-2e8c-4a60-a7ce-543106f54adb",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_org2_1787382192987",
+    "amount": 1100,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 1100,
+      "promo_credit": 0,
+      "total_wallet_balance": 1400,
+      "paid_balance": 1100,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:03:13.549Z"
+  },
+  {
+    "id": "a1f022e9-23d3-4e63-9ee2-512a72bf337b",
+    "organization_id": "8d1f0823-9f7d-4e06-9f3b-e3051a66f773",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_org3_1787382195719",
+    "amount": 10000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 10000,
+      "promo_credit": 700,
+      "total_wallet_balance": 10700,
+      "paid_balance": 10000,
+      "topup_credit": 700
+    },
+    "timestamp": "2026-08-22T07:03:16.401Z"
+  },
+  {
+    "id": "f379d8f0-6a73-4b15-98ad-d92e0a24b8b6",
+    "organization_id": "2f7edf7b-4f93-4ca0-810c-025ee6611d7c",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_org4_1787382198609",
+    "amount": 2000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 2000,
+      "promo_credit": 0,
+      "total_wallet_balance": 2000,
+      "paid_balance": 2000,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:03:19.145Z"
+  },
+  {
+    "id": "b1682e74-32b7-41d3-834a-1bed1474231b",
+    "organization_id": "08ac64dd-b1d5-4ea8-b64b-2e37360833cb",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_org5_1787382202744",
+    "amount": 200,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 200,
+      "promo_credit": 0,
+      "total_wallet_balance": 1000,
+      "paid_balance": 200,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:03:23.262Z"
+  },
+  {
+    "id": "7be617c7-1b07-4be3-93cc-6c62ae5722bd",
+    "organization_id": "fdde619f-53df-4041-92be-3137dc372f49",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "ref_sub_1_1787384383200",
+    "amount": 3000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 3000,
+      "promo_credit": 0,
+      "total_wallet_balance": 3000,
+      "paid_balance": 3000,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:39:44.004Z"
+  },
+  {
+    "id": "bc1e5601-bebd-49da-9aa7-86b13841eb97",
+    "organization_id": "fdde619f-53df-4041-92be-3137dc372f49",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "ref_sub_2_1787384384388",
+    "amount": 3000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 3000,
+      "promo_credit": 0,
+      "total_wallet_balance": 6000,
+      "paid_balance": 6000,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:39:45.129Z"
+  },
+  {
+    "id": "fb2b1cf9-a763-4d09-b840-755d98e38fae",
+    "organization_id": "b7ac8deb-675a-43fa-a714-afd7b7b751cb",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "wh_stripe_charge_1787384385871",
+    "amount": 10000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 10000,
+      "promo_credit": 700,
+      "total_wallet_balance": 10700,
+      "paid_balance": 10000,
+      "topup_credit": 700
+    },
+    "timestamp": "2026-08-22T07:39:46.506Z"
+  },
+  {
+    "id": "7ae1e3b8-ec3d-43f6-9033-38f57d19f21a",
+    "organization_id": "68b52d9a-019c-4889-ad50-6d2e045f59ea",
+    "event_type": "TOP_UP_CREATED",
+    "order_id": "3084c5c2-5200-4bac-9201-086a34a8fa04",
+    "payment_reference": null,
+    "amount": 6000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "expected_credit_amount": 300,
+      "bonus_percentage": 5,
+      "total_wallet_value": 6300
+    },
+    "timestamp": "2026-08-22T07:39:47.593Z"
+  },
+  {
+    "id": "907473c5-9d05-46c8-a9fd-a93448fd6387",
+    "organization_id": "68b52d9a-019c-4889-ad50-6d2e045f59ea",
+    "event_type": "WALLET_CREDITED",
+    "order_id": "3084c5c2-5200-4bac-9201-086a34a8fa04",
+    "payment_reference": "topup_order_3084c5c2-5200-4bac-9201-086a34a8fa04",
+    "amount": 6000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "paid_amount": 6000,
+      "promo_credit": 300,
+      "total_wallet_balance": 6300,
+      "paid_balance": 6000,
+      "topup_credit": 300
+    },
+    "timestamp": "2026-08-22T07:39:48.790Z"
+  },
+  {
+    "id": "0ded062c-98ff-44e9-9300-af013ce170c9",
+    "organization_id": "68b52d9a-019c-4889-ad50-6d2e045f59ea",
+    "event_type": "PAYMENT_COMPLETED",
+    "order_id": "3084c5c2-5200-4bac-9201-086a34a8fa04",
+    "payment_reference": "PAY_REF_6K_001",
+    "amount": 6000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "payment_method": "fpx",
+      "reason": "Payment gateway confirmation"
+    },
+    "timestamp": "2026-08-22T07:39:48.929Z"
+  },
+  {
+    "id": "dfe7782d-4ada-4932-9798-d8d6c8a0a3b5",
+    "organization_id": "68b52d9a-019c-4889-ad50-6d2e045f59ea",
+    "event_type": "TOP_UP_CREATED",
+    "order_id": "28176f60-9db6-423b-a1fa-3bb6bf0b3bdf",
+    "payment_reference": null,
+    "amount": 1000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "expected_credit_amount": 0,
+      "bonus_percentage": 0,
+      "total_wallet_value": 1000
+    },
+    "timestamp": "2026-08-22T07:39:50.013Z"
+  },
+  {
+    "id": "54d9afce-8c08-4011-8c6b-995896748bba",
+    "organization_id": "68b52d9a-019c-4889-ad50-6d2e045f59ea",
+    "event_type": "TOP_UP_CREATED",
+    "order_id": "40bbf4fe-60b0-4b94-bc41-63c4ddf01e23",
+    "payment_reference": null,
+    "amount": 2000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "expected_credit_amount": 0,
+      "bonus_percentage": 0,
+      "total_wallet_value": 2000
+    },
+    "timestamp": "2026-08-22T07:39:50.396Z"
+  },
+  {
+    "id": "b435bb56-3ebf-480e-9e93-dff93be7de7e",
+    "organization_id": "68b52d9a-019c-4889-ad50-6d2e045f59ea",
+    "event_type": "TOP_UP_CREATED",
+    "order_id": "879fabae-4dcf-4b32-b9b6-3ac9874fd4d3",
+    "payment_reference": null,
+    "amount": 3000,
+    "currency": "MYR",
+    "actor_id": "6de8515d-cd56-4ef8-80f0-3d5f34fa291e",
+    "metadata": {
+      "expected_credit_amount": 0,
+      "bonus_percentage": 0,
+      "total_wallet_value": 3000
+    },
+    "timestamp": "2026-08-22T07:39:50.783Z"
+  },
+  {
+    "id": "2bb80e42-56c7-4d41-8a43-b27b8340aa35",
+    "organization_id": "29d49e78-6a40-4197-a657-f026ee7e822a",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_300_29d49e78-6a40-4197-a657-f026ee7e822a",
+    "amount": 300,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 300,
+      "promo_credit": 0,
+      "total_wallet_balance": 1100,
+      "paid_balance": 300,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:39:57.953Z"
+  },
+  {
+    "id": "33ef3c27-9363-4d52-86dd-a98cb1c0b29b",
+    "organization_id": "b79d77db-9f19-4893-ad18-b131984765a1",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_300_b79d77db-9f19-4893-ad18-b131984765a1",
+    "amount": 300,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 300,
+      "promo_credit": 0,
+      "total_wallet_balance": 1100,
+      "paid_balance": 300,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:40:02.628Z"
+  },
+  {
+    "id": "b2c3169f-8392-47fd-aeeb-292c48d385a0",
+    "organization_id": "b79d77db-9f19-4893-ad18-b131984765a1",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_300b_b79d77db-9f19-4893-ad18-b131984765a1",
+    "amount": 300,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 300,
+      "promo_credit": 0,
+      "total_wallet_balance": 1400,
+      "paid_balance": 600,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:40:03.527Z"
+  },
+  {
+    "id": "ac3bc29e-12b2-4d71-a56c-dde8dd8bca47",
+    "organization_id": "5fa1d7a0-2946-49d9-99e9-f79cad6d60ae",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_1000_5fa1d7a0-2946-49d9-99e9-f79cad6d60ae",
+    "amount": 1000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 1000,
+      "promo_credit": 0,
+      "total_wallet_balance": 1300,
+      "paid_balance": 1000,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:40:09.052Z"
+  },
+  {
+    "id": "f7f80f21-0f0d-4cd9-ba9f-a24342f976bc",
+    "organization_id": "5fa1d7a0-2946-49d9-99e9-f79cad6d60ae",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_100_5fa1d7a0-2946-49d9-99e9-f79cad6d60ae",
+    "amount": 100,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 100,
+      "promo_credit": 0,
+      "total_wallet_balance": 1400,
+      "paid_balance": 1100,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:40:09.945Z"
+  },
+  {
+    "id": "e462c06b-fe29-4158-ae8f-0e20bccf0a1e",
+    "organization_id": "828aaa08-28ad-4be4-bf95-da3221024d0d",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_org1_1787384423835",
+    "amount": 600,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 600,
+      "promo_credit": 0,
+      "total_wallet_balance": 1400,
+      "paid_balance": 600,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:40:24.596Z"
+  },
+  {
+    "id": "2507e151-466a-4942-813a-4839f7b8fb4a",
+    "organization_id": "043c7db0-4d71-445c-ab0b-a62583e367e4",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_org2_1787384427460",
+    "amount": 1100,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 1100,
+      "promo_credit": 0,
+      "total_wallet_balance": 1400,
+      "paid_balance": 1100,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:40:28.008Z"
+  },
+  {
+    "id": "7b92efbd-6249-4d06-b529-277d4256c5c7",
+    "organization_id": "dd3143b1-805a-42b5-bd8d-cc1df15eaf6f",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_org3_1787384430222",
+    "amount": 10000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 10000,
+      "promo_credit": 700,
+      "total_wallet_balance": 10700,
+      "paid_balance": 10000,
+      "topup_credit": 700
+    },
+    "timestamp": "2026-08-22T07:40:30.919Z"
+  },
+  {
+    "id": "90073d27-027c-4d29-8187-5933f60de4f5",
+    "organization_id": "e6bd1ff8-737e-4253-9af6-5d2fb9c23ef7",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_org4_1787384433143",
+    "amount": 2000,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 2000,
+      "promo_credit": 0,
+      "total_wallet_balance": 2000,
+      "paid_balance": 2000,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:40:33.719Z"
+  },
+  {
+    "id": "5d594499-3f82-461c-9211-ea444af5aa8d",
+    "organization_id": "5a480418-d759-46c0-9cfe-c1c6402c05be",
+    "event_type": "WALLET_CREDITED",
+    "order_id": null,
+    "payment_reference": "topup_org5_1787384437443",
+    "amount": 200,
+    "currency": "MYR",
+    "actor_id": null,
+    "metadata": {
+      "paid_amount": 200,
+      "promo_credit": 0,
+      "total_wallet_balance": 1000,
+      "paid_balance": 200,
+      "topup_credit": 0
+    },
+    "timestamp": "2026-08-22T07:40:37.965Z"
   }
 ]
