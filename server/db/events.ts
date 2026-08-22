@@ -396,6 +396,10 @@ export async function getEventById(
 
   return {
     ...eventRecord,
+    payment_status: eventRecord.payment_status || 'PAID',
+    payment_mode: eventRecord.payment_mode || 'FULL_PAID',
+    paid_amount: eventRecord.paid_amount !== undefined ? eventRecord.paid_amount : STANDARD_EVENT_PRICE,
+    discount_amount: eventRecord.discount_amount || 0,
     calculated_status: calculateEventStatus(eventRecord),
     setup_starts_at: setupStartTime.toISOString(),
     cancellation_eligibility: cancellationEligibility,
@@ -543,7 +547,7 @@ export async function createEvent(
   const now = new Date().toISOString();
   const initialStatus = params.status || 'scheduled';
 
-  const insertPayload: any = {
+  const dbPayload: any = {
     id,
     organization_id: params.organization_id,
     game_theme_id: params.game_theme_id,
@@ -554,31 +558,41 @@ export async function createEvent(
     status: initialStatus,
     public_token: token,
     created_by: params.created_by || null,
-    payment_status: params.payment_status || 'PAID',
-    payment_mode: params.payment_mode || 'FULL_PAID',
-    paid_amount: params.paid_amount !== undefined ? params.paid_amount : STANDARD_EVENT_PRICE,
-    discount_amount: params.discount_amount !== undefined ? params.discount_amount : 0.00,
     created_at: now,
     updated_at: now,
   };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('events')
-    .insert(insertPayload)
+    .insert(dbPayload)
     .select()
     .single();
 
   if (error) {
     if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
-      localEventsCache.set(insertPayload.id, insertPayload as EventRecord);
-      return insertPayload as EventRecord;
+      const fullRecord: EventRecord = {
+        ...dbPayload,
+        payment_status: params.payment_status || 'PAID',
+        payment_mode: params.payment_mode || 'FULL_PAID',
+        paid_amount: params.paid_amount !== undefined ? params.paid_amount : STANDARD_EVENT_PRICE,
+        discount_amount: params.discount_amount || 0,
+      };
+      localEventsCache.set(dbPayload.id, fullRecord);
+      return fullRecord;
     }
     console.error('Error in createEvent:', error);
     throw new Error(`Failed to create event: ${error.message}`);
   }
 
-  localEventsCache.set((data as EventRecord).id, data as EventRecord);
-  return data as EventRecord;
+  const fullRecord: EventRecord = {
+    ...(data as any),
+    payment_status: params.payment_status || 'PAID',
+    payment_mode: params.payment_mode || 'FULL_PAID',
+    paid_amount: params.paid_amount !== undefined ? params.paid_amount : STANDARD_EVENT_PRICE,
+    discount_amount: params.discount_amount || 0,
+  };
+  localEventsCache.set(fullRecord.id, fullRecord);
+  return fullRecord;
 }
 
 /**
@@ -666,7 +680,13 @@ export async function createEventWithAtomicPayment(
   );
 
   if (!calculation.isPayable) {
-    throw new Error(`Insufficient wallet balance: ${calculation.reasons.join(' ')}`);
+    const error: any = new Error(`Insufficient wallet balance: ${calculation.reasons.join(' ')}`);
+    error.code = 'INSUFFICIENT_BALANCE';
+    error.status = 402;
+    error.required = calculation.paidAmount;
+    error.available = calculation.availableBalances.paid_balance;
+    error.shortfall = Math.max(0, calculation.paidAmount - calculation.availableBalances.paid_balance);
+    throw error;
   }
 
   // 4. Create the Event Record with PAID status & payment details

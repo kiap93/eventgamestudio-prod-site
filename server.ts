@@ -1578,10 +1578,19 @@ app.post('/api/events', eventRateLimiter, authenticateJWT, async (req: Authentic
     });
   } catch (err: any) {
     console.error('Create event error:', err);
-    if (err.message && err.message.toLowerCase().includes('insufficient')) {
+    if (err.code === 'INSUFFICIENT_BALANCE' || (err.message && err.message.toLowerCase().includes('insufficient'))) {
+      const required = typeof err.required === 'number' ? err.required : undefined;
+      const available = typeof err.available === 'number' ? err.available : undefined;
+      const shortfall = typeof err.shortfall === 'number' ? err.shortfall : (
+        required !== undefined && available !== undefined ? Math.max(0, required - available) : undefined
+      );
+
       res.status(402).json({
-        error: err.message,
-        code: 'INSUFFICIENT_FUNDS',
+        code: 'INSUFFICIENT_BALANCE',
+        error: err.message || 'Insufficient balance',
+        required,
+        available,
+        shortfall,
       });
       return;
     }

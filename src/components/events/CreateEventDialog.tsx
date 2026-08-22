@@ -419,11 +419,15 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       setIsSubmittingTopUp(true);
       setPaymentError(null);
 
-      // 1. Create top up order
+      // 1. Create top up order in PENDING status
       const orderRes = await apiFetch(`/api/organizations/${currentOrganization.id}/wallet/topup-orders`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          amount: inlineTopUpAmount,
           top_up_amount: inlineTopUpAmount,
+          currency: 'MYR',
+          notes: `Top up for event: ${name.trim()}`,
         }),
       });
 
@@ -435,12 +439,14 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       const orderData = await orderRes.json();
       const orderId = orderData.order?.id;
 
-      // 2. Settle payment directly to credit wallet
+      // 2. Process payment to PAID status (Executing immutable ledger credit)
       const settleRes = await apiFetch(`/api/organizations/${currentOrganization.id}/wallet/topup-orders/${orderId}/process-status`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          target_status: 'PAID',
-          simulate_provider_event: true,
+          status: 'PAID',
+          payment_method: 'card',
+          payment_reference: `inline_${orderId}_${Date.now()}`,
         }),
       });
 
@@ -796,43 +802,32 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               {/* ------------------------------------------------------------- */}
               {!showInlineTopUp ? (
                 <div className="space-y-4">
-                  {isSufficient ? (
-                    /* Sufficient Balance State */
-                    <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2 text-slate-400">
-                        <Wallet className="w-4 h-4 text-amber-400" />
-                        <span>Available Balance</span>
-                      </div>
-                      <span className="font-mono font-bold text-slate-200">
-                        {formatCurrency(availableBalance)}
-                      </span>
+                  {/* Available Balance Card */}
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 text-slate-400">
+                      <Wallet className="w-4 h-4 text-amber-400" />
+                      <span>Available Balance</span>
                     </div>
-                  ) : (
-                    /* Insufficient Balance State */
-                    <div className="bg-amber-500/5 border border-amber-500/30 rounded-2xl p-5 space-y-3">
-                      <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
-                        <AlertCircle className="w-4 h-4" />
+                    <span className="font-mono font-bold text-slate-200">
+                      {formatCurrency(availableBalance)}
+                    </span>
+                  </div>
+
+                  {!isSufficient && (
+                    /* Insufficient Balance State Banner */
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 space-y-2">
+                      <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
                         <span>Insufficient Balance</span>
                       </div>
-                      <div className="space-y-1.5 text-xs">
-                        <div className="flex items-center justify-between text-slate-400">
-                          <span>Required</span>
-                          <span className="font-mono text-slate-200">{formatCurrency(paidAmount)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-400">
-                          <span>Available</span>
-                          <span className="font-mono text-slate-200">{formatCurrency(availableBalance)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-amber-400 font-bold border-t border-amber-500/20 pt-1.5">
-                          <span>Need</span>
-                          <span className="font-mono">{formatCurrency(needAmount)}</span>
-                        </div>
-                      </div>
+                      <p className="text-xs text-slate-300">
+                        You need <span className="font-mono font-bold text-amber-300">{formatCurrency(needAmount)}</span> more to continue.
+                      </p>
                     </div>
                   )}
 
                   {/* Payment CTAs */}
-                  <div className="space-y-2 pt-2">
+                  <div className="space-y-2.5 pt-2">
                     {isSufficient ? (
                       <button
                         type="button"
@@ -846,27 +841,37 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                             <span>Processing Payment...</span>
                           </>
                         ) : (
-                          <span>Pay {formatCurrency(paidAmount)}</span>
+                          <span>Continue to Payment</span>
                         )}
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInlineTopUpAmount(needAmount > 0 ? needAmount : 1400);
-                          setShowInlineTopUp(true);
-                        }}
-                        className="w-full py-3.5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
-                      >
-                        <PlusCircle className="w-4 h-4" />
-                        <span>Top Up {formatCurrency(needAmount)}</span>
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInlineTopUpAmount(needAmount > 0 ? needAmount : 1400);
+                            setShowInlineTopUp(true);
+                          }}
+                          className="w-full py-3.5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          <PlusCircle className="w-4 h-4" />
+                          <span>Top Up {formatCurrency(needAmount)}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={true}
+                          className="w-full py-3.5 px-6 rounded-2xl bg-slate-800 text-slate-500 font-bold text-sm cursor-not-allowed opacity-60 flex items-center justify-center gap-2"
+                        >
+                          <span>Continue to Payment</span>
+                        </button>
+                      </>
                     )}
 
                     <button
                       type="button"
                       onClick={handleClose}
-                      className="w-full py-2.5 px-4 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors cursor-pointer text-center"
+                      className="w-full py-2 px-4 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors cursor-pointer text-center"
                     >
                       Cancel
                     </button>
@@ -892,7 +897,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   </div>
 
                   <p className="text-xs text-slate-400">
-                    Select a top up amount to complete this event launch without restarting.
+                    Select or enter a top-up amount to complete this event launch without restarting.
                   </p>
 
                   {/* Preset Options */}
@@ -902,11 +907,6 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                       .slice(0, 4)
                       .map((amt) => {
                         const isSelected = inlineTopUpAmount === amt;
-                        let label = formatCurrency(amt);
-                        if (amt === needAmount) label += ' (Exact Need)';
-                        else if (amt === 6000) label += ' (+RM300 reward)';
-                        else if (amt === 10000) label += ' (+RM700 reward)';
-
                         return (
                           <button
                             key={amt}
@@ -920,11 +920,31 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                           >
                             <div>{formatCurrency(amt)}</div>
                             <div className="text-[10px] text-slate-500 font-normal">
-                              {amt === needAmount ? 'Exact Need' : amt >= 6000 ? 'Includes Reward' : 'Package'}
+                              {amt === needAmount ? 'Exact Need' : amt >= 6000 ? 'Includes Reward' : 'Preset'}
                             </div>
                           </button>
                         );
                       })}
+                  </div>
+
+                  {/* Custom Amount Input */}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-[11px] font-semibold text-slate-400">Custom Amount (RM)</label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">RM</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="any"
+                        value={inlineTopUpAmount || ''}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setInlineTopUpAmount(!isNaN(val) && val > 0 ? val : 0);
+                        }}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-11 pr-4 py-2.5 text-xs text-slate-100 font-mono focus:border-amber-500 focus:outline-none"
+                        placeholder="Enter amount"
+                      />
+                    </div>
                   </div>
 
                   {/* Submit Inline Top Up CTA */}
@@ -932,8 +952,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                     <button
                       type="button"
                       onClick={handleExecuteInlineTopUp}
-                      disabled={isSubmittingTopUp}
-                      className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
+                      disabled={isSubmittingTopUp || inlineTopUpAmount <= 0}
+                      className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       {isSubmittingTopUp ? (
                         <>
