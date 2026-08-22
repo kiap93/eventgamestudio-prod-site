@@ -12,7 +12,6 @@ async function runTests() {
   const org = await createOrganization({
     name: 'Shortfall Test Corp ' + Date.now(),
     owner_id: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
-    createdBy: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
   });
 
   const initialWallet = await getWalletBalance(org.id);

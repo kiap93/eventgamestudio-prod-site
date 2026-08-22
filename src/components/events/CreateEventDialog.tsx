@@ -198,7 +198,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     fetchThemes();
   }, [isOpen]);
 
-  // Fetch Wallet & Calculate Optimal Credit
+  // Fetch Wallet & Calculate Optimal Credit using Server Authority
   const fetchWalletAndQuote = async (targetThemeId?: string) => {
     if (!isOpen || !currentOrganization) return;
     const themeId = targetThemeId || selectedThemeId;
@@ -209,7 +209,10 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
       // 1. Fetch current wallet balance
       const walletRes = await apiFetch(`/api/organizations/${currentOrganization.id}/wallet`);
-      if (!walletRes.ok) throw new Error('Failed to fetch wallet summary');
+      if (!walletRes.ok) {
+        const errData = await walletRes.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to fetch wallet summary');
+      }
       const walletData = await walletRes.json();
       const currentWallet = walletData.wallet as WalletBalanceSummary;
       setWallet(currentWallet);
@@ -224,9 +227,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       const topupCredit = Number(currentWallet?.topup_credit) || 0;
 
       let optimalMode: PaymentMode = 'FULL_PAID';
-      if (welcome > 0) {
+      if (welcome > 0 && currentWallet?.can_use_welcome_credit !== false) {
         optimalMode = 'WELCOME_CREDIT';
-      } else if (showcase > 0) {
+      } else if (showcase > 0 && currentWallet?.can_use_showcase_credit !== false) {
         optimalMode = 'SHOWCASE_CREDIT';
       } else if (topupCredit > 0) {
         optimalMode = 'TOPUP_CREDIT';
@@ -235,7 +238,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       }
       setBestPaymentMode(optimalMode);
 
-      // 3. Request official server quote for this mode
+      // 3. Request official server quote for this mode (authoritative calculation)
       const quoteRes = await apiFetch('/api/events/quote', {
         method: 'POST',
         body: JSON.stringify({
@@ -259,12 +262,12 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     }
   };
 
-  // Trigger quote refresh when dialog opens or theme changes
+  // Trigger quote refresh when dialog opens or theme changes or organization changes
   useEffect(() => {
     if (isOpen) {
       fetchWalletAndQuote(selectedThemeId);
     }
-  }, [isOpen, selectedThemeId]);
+  }, [isOpen, selectedThemeId, currentOrganization?.id]);
 
   // Listen for global wallet updates
   useEffect(() => {
@@ -277,46 +280,72 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     return () => window.removeEventListener('wallet_updated', handleWalletUpdated);
   }, [isOpen, selectedThemeId]);
 
-  if (!isOpen) return null;
-
   // Selected Theme Details
   const selectedTheme = themes.find((t) => t.id === selectedThemeId) || themes[0];
   const gameDisplayName = selectedTheme?.game_name || 'Catch the Brand';
   const themeDisplayName = selectedTheme?.name || 'Standard Theme';
 
-  // Calculated Pricing Breakdown
-  const standardPrice = activeCalculation?.standardPrice ?? 1400;
+  // Authoritative Pricing Breakdown from Server
+  const standardPrice = activeCalculation?.eventPrice ?? 1400;
+  const activePaymentMode = activeCalculation?.paymentMode ?? bestPaymentMode;
   const paidAmount = activeCalculation?.paidAmount ?? (
-    bestPaymentMode === 'WELCOME_CREDIT' ? 600 :
-    bestPaymentMode === 'SHOWCASE_CREDIT' ? 1100 :
-    bestPaymentMode === 'TOPUP_CREDIT' ? 1120 : 1400
+    activePaymentMode === 'WELCOME_CREDIT' ? 600 :
+    activePaymentMode === 'SHOWCASE_CREDIT' ? 1100 :
+    activePaymentMode === 'TOPUP_CREDIT' ? 1120 : 1400
   );
   const totalDiscount = activeCalculation?.totalDiscount ?? (standardPrice - paidAmount);
+
+  // Available Paid Balance
+  const availableBalance = Number(
+    activeCalculation?.availableBalances?.paid_balance ?? wallet?.paid_balance ?? 0
+  );
+
+  // Primary Source of Truth: Server Payment Calculation & Sufficiency
+  // Handle loading and error states to prevent false positive warnings while fetching
+  const isServerPayable = activeCalculation ? activeCalculation.isPayable : (availableBalance >= paidAmount);
+  const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && (!isServerPayable || availableBalance < paidAmount);
+  const isSufficient = !isInsufficientBalance;
+  const needAmount = Math.max(0, paidAmount - availableBalance);
+
+  // Debug Information logging during development
+  useEffect(() => {
+    if (isOpen && activeCalculation && !loadingQuote) {
+      console.log('[CreateEvent] Payment Calculation (Server Truth):', {
+        eventPrice: activeCalculation.eventPrice,
+        appliedCredit: activeCalculation.totalDiscount,
+        paymentMode: activeCalculation.paymentMode,
+        requiredPaidBalance: activeCalculation.paidAmount,
+        availablePaidBalance: availableBalance,
+        isPayable: activeCalculation.isPayable,
+        isInsufficientBalance,
+        shortfall: needAmount,
+        reasons: activeCalculation.reasons,
+      });
+    }
+  }, [isOpen, activeCalculation, loadingQuote, availableBalance, isInsufficientBalance, needAmount]);
 
   // Credit Applied Label & Explanation
   let creditAppliedLabel = '';
   let creditAppliedExplanation = '';
-  if (bestPaymentMode === 'WELCOME_CREDIT' && totalDiscount > 0) {
+  if (activePaymentMode === 'WELCOME_CREDIT' && totalDiscount > 0) {
     creditAppliedLabel = 'Welcome Credit';
     creditAppliedExplanation = `RM${totalDiscount.toLocaleString()} Welcome Credit applied`;
-  } else if (bestPaymentMode === 'SHOWCASE_CREDIT' && totalDiscount > 0) {
+  } else if (activePaymentMode === 'SHOWCASE_CREDIT' && totalDiscount > 0) {
     creditAppliedLabel = 'Showcase Credit';
     creditAppliedExplanation = `RM${totalDiscount.toLocaleString()} Showcase Credit applied`;
-  } else if (bestPaymentMode === 'TOPUP_CREDIT' && totalDiscount > 0) {
+  } else if (activePaymentMode === 'TOPUP_CREDIT' && totalDiscount > 0) {
     creditAppliedLabel = 'Event Credit';
     creditAppliedExplanation = `RM${totalDiscount.toLocaleString()} Event Credit applied`;
   }
 
-  // Balance & Sufficiency
-  const availableBalance = Number(wallet?.paid_balance) || 0;
-  const isSufficient = availableBalance >= paidAmount;
-  const needAmount = Math.max(0, paidAmount - availableBalance);
+  if (!isOpen) return null;
 
   // Reset dialog state on close
   const handleClose = () => {
     setStep('configure');
     setName('');
     setPaymentError(null);
+    setQuoteError(null);
     setSuccessData(null);
     setShowInlineTopUp(false);
     onClose();
@@ -363,6 +392,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     setPaymentError(null);
 
     if (!isSufficient) {
+      setInlineTopUpAmount(needAmount > 0 ? needAmount : 1400);
       setShowInlineTopUp(true);
       return;
     }
@@ -379,8 +409,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
           starts_at: new Date(startsAt).toISOString(),
           expires_at: new Date(expiresAt).toISOString(),
           status: 'scheduled',
-          payment_mode: bestPaymentMode,
-          topup_credit_requested: activeCalculation?.topupCreditUsed || (bestPaymentMode === 'TOPUP_CREDIT' ? totalDiscount : undefined),
+          payment_mode: activePaymentMode,
+          topup_credit_requested: activeCalculation?.topupCreditUsed || (activePaymentMode === 'TOPUP_CREDIT' ? totalDiscount : undefined),
         }),
       });
 
@@ -427,7 +457,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
           amount: inlineTopUpAmount,
           top_up_amount: inlineTopUpAmount,
           currency: 'MYR',
-          notes: `Top up for event: ${name.trim()}`,
+          notes: `Top up for event: ${name.trim() || 'New Event'}`,
         }),
       });
 
@@ -455,7 +485,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         throw new Error(errData.error || 'Failed to process top-up payment');
       }
 
-      // 3. Trigger wallet update & re-fetch
+      // 3. Trigger wallet update & re-fetch quote
       window.dispatchEvent(new CustomEvent('wallet_updated'));
       await fetchWalletAndQuote(selectedThemeId);
 
@@ -641,6 +671,92 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* 4. Pricing & Wallet Balance Status Preview in Step 1 */}
+              <div className="pt-2 border-t border-slate-800/80">
+                {loadingQuote ? (
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 flex items-center justify-center gap-2.5 text-xs text-slate-400">
+                    <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                    <span>Calculating pricing and wallet balance...</span>
+                  </div>
+                ) : quoteError ? (
+                  <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs text-rose-400">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>Unable to calculate pricing: {quoteError}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fetchWalletAndQuote(selectedThemeId)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-semibold text-[11px] cursor-pointer"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-slate-950/60 border border-slate-800/90 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                        <Wallet className="w-4 h-4 text-amber-400" />
+                        <span>Pricing & Wallet Status</span>
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        Paid Balance: <span className="font-mono font-bold text-slate-200">{formatCurrency(availableBalance)}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between text-slate-400">
+                        <span>Event Total Price</span>
+                        <span className="font-mono font-bold text-slate-200">{formatCurrency(standardPrice)}</span>
+                      </div>
+
+                      {totalDiscount > 0 && (
+                        <div className="flex items-center justify-between text-emerald-400">
+                          <div className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>{creditAppliedLabel}</span>
+                          </div>
+                          <span className="font-mono font-bold">- {formatCurrency(totalDiscount)}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 font-semibold">
+                        <span className="text-slate-300">Amount to Pay</span>
+                        <span className="font-mono font-black text-amber-400 text-sm">{formatCurrency(paidAmount)}</span>
+                      </div>
+                    </div>
+
+                    {isInsufficientBalance && (
+                      <div className="pt-2 border-t border-slate-800/80">
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                              <span>Insufficient Balance</span>
+                            </div>
+                            <p className="text-[11px] text-slate-300">
+                              You need <span className="font-mono font-bold text-amber-300">{formatCurrency(needAmount)}</span> more in Paid Balance.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setInlineTopUpAmount(needAmount > 0 ? needAmount : 1400);
+                              setStep('payment');
+                              setShowInlineTopUp(true);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shrink-0 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                          >
+                            <PlusCircle className="w-3.5 h-3.5" />
+                            <span>Top Up {formatCurrency(needAmount)}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Footer Action */}
@@ -665,7 +781,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         )}
 
         {/* ================================================================= */}
-        {/* STEP 2: SIMPLIFIED PAYMENT SUMMARY (THE 3 CLEAN SECTIONS)         */}
+        {/* STEP 2: PAYMENT SUMMARY & AUTHORITATIVE SETTLEMENT                */}
         {/* ================================================================= */}
         {step === 'payment' && (
           <div className="flex flex-col flex-1 overflow-hidden">
@@ -808,13 +924,37 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                       <Wallet className="w-4 h-4 text-amber-400" />
                       <span>Available Balance</span>
                     </div>
-                    <span className="font-mono font-bold text-slate-200">
-                      {formatCurrency(availableBalance)}
-                    </span>
+                    {loadingQuote ? (
+                      <div className="flex items-center gap-1.5 text-slate-400">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                        <span>Loading...</span>
+                      </div>
+                    ) : (
+                      <span className="font-mono font-bold text-slate-200">
+                        {formatCurrency(availableBalance)}
+                      </span>
+                    )}
                   </div>
 
-                  {!isSufficient && (
-                    /* Insufficient Balance State Banner */
+                  {/* API Calculation Error (Separate from insufficient balance) */}
+                  {quoteError && (
+                    <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs text-rose-400">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>Payment calculation error: {quoteError}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => fetchWalletAndQuote(selectedThemeId)}
+                        className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-semibold text-[11px] cursor-pointer"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Insufficient Balance State Banner (Never shown during loading/errors) */}
+                  {isInsufficientBalance && (
                     <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 space-y-2">
                       <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
                         <AlertCircle className="w-4 h-4 shrink-0" />
@@ -823,12 +963,37 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                       <p className="text-xs text-slate-300">
                         You need <span className="font-mono font-bold text-amber-300">{formatCurrency(needAmount)}</span> more to continue.
                       </p>
+                      {activeCalculation?.reasons && activeCalculation.reasons.length > 0 && (
+                        <div className="pt-1 text-[11px] text-amber-400/80">
+                          {activeCalculation.reasons.map((r, i) => (
+                            <div key={i}>• {r}</div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Payment CTAs */}
                   <div className="space-y-2.5 pt-2">
-                    {isSufficient ? (
+                    {loadingQuote ? (
+                      <button
+                        type="button"
+                        disabled={true}
+                        className="w-full py-3.5 px-6 rounded-2xl bg-slate-800 text-slate-400 font-bold text-sm cursor-wait opacity-75 flex items-center justify-center gap-2"
+                      >
+                        <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                        <span>Calculating Pricing...</span>
+                      </button>
+                    ) : quoteError ? (
+                      <button
+                        type="button"
+                        onClick={() => fetchWalletAndQuote(selectedThemeId)}
+                        className="w-full py-3.5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        <span>Retry Calculation</span>
+                      </button>
+                    ) : isSufficient ? (
                       <button
                         type="button"
                         onClick={handleConfirmAndPay}
@@ -841,7 +1006,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                             <span>Processing Payment...</span>
                           </>
                         ) : (
-                          <span>Continue to Payment</span>
+                          <span>Confirm and Pay {formatCurrency(paidAmount)}</span>
                         )}
                       </button>
                     ) : (
