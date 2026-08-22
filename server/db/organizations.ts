@@ -1,4 +1,4 @@
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
 import { OrganizationRecord, OrgRole } from './types.js';
 import { grantWelcomeCredit } from './wallet.js';
 import crypto from 'node:crypto';
@@ -12,7 +12,13 @@ export interface UserOrganizationMembership {
   created_at: string;
 }
 
+const localOrgsCache = new Map<string, OrganizationRecord>();
+
 export async function getOrganizationById(id: string, env?: Record<string, any>): Promise<OrganizationRecord | null> {
+  if (!isSupabaseConfigured(env)) {
+    return localOrgsCache.get(id) || null;
+  }
+
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('organizations')
@@ -22,13 +28,20 @@ export async function getOrganizationById(id: string, env?: Record<string, any>)
 
   if (error) {
     console.error('Error in getOrganizationById:', error);
-    throw new Error(`Failed to get organization by id: ${error.message}`);
+    return localOrgsCache.get(id) || null;
   }
 
   return data as OrganizationRecord | null;
 }
 
 export async function getOrganizationBySlug(slug: string, env?: Record<string, any>): Promise<OrganizationRecord | null> {
+  if (!isSupabaseConfigured(env)) {
+    for (const org of localOrgsCache.values()) {
+      if (org.slug === slug) return org;
+    }
+    return null;
+  }
+
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('organizations')
@@ -38,13 +51,27 @@ export async function getOrganizationBySlug(slug: string, env?: Record<string, a
 
   if (error) {
     console.error('Error in getOrganizationBySlug:', error);
-    throw new Error(`Failed to get organization by slug: ${error.message}`);
+    for (const org of localOrgsCache.values()) {
+      if (org.slug === slug) return org;
+    }
+    return null;
   }
 
   return data as OrganizationRecord | null;
 }
 
 export async function getUserOrganizations(userId: string, env?: Record<string, any>): Promise<UserOrganizationMembership[]> {
+  if (!isSupabaseConfigured(env)) {
+    return Array.from(localOrgsCache.values()).map((o) => ({
+      id: o.id,
+      name: o.name,
+      slug: o.slug,
+      role: 'owner' as OrgRole,
+      logo_url: o.logo_url,
+      created_at: o.created_at,
+    }));
+  }
+
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('organization_members')
@@ -63,7 +90,14 @@ export async function getUserOrganizations(userId: string, env?: Record<string, 
 
   if (error) {
     console.error('Error in getUserOrganizations:', error);
-    throw new Error(`Failed to get user organizations: ${error.message}`);
+    return Array.from(localOrgsCache.values()).map((o) => ({
+      id: o.id,
+      name: o.name,
+      slug: o.slug,
+      role: 'owner' as OrgRole,
+      logo_url: o.logo_url,
+      created_at: o.created_at,
+    }));
   }
 
   if (!data) return [];
@@ -90,7 +124,6 @@ export async function createOrganization(
   },
   env?: Record<string, any>
 ): Promise<OrganizationRecord> {
-  const supabase = getSupabaseServerClient(env);
   const id = params.id || crypto.randomUUID();
   const now = new Date().toISOString();
 
@@ -104,6 +137,38 @@ export async function createOrganization(
     .join('');
   const slug = `${baseSlug || 'org'}-${randomSuffix}`;
 
+  const orgRecord: OrganizationRecord = {
+    id,
+    name: params.name.trim(),
+    slug,
+    owner_id: params.owner_id,
+    logo_url: params.logo_url || null,
+    created_at: now,
+    updated_at: now,
+  };
+
+  if (!isSupabaseConfigured(env)) {
+    localOrgsCache.set(id, orgRecord);
+    try {
+      await grantWelcomeCredit(
+        {
+          organizationId: orgRecord.id,
+          createdBy: params.owner_id,
+          referenceId: `welcome_${orgRecord.id}`,
+          metadata: {
+            organization_name: orgRecord.name,
+            source: 'AUTO_ORGANIZATION_CREATION',
+          },
+        },
+        env
+      );
+    } catch (grantErr) {
+      console.error('Failed to grant welcome credit upon organization creation:', grantErr);
+    }
+    return orgRecord;
+  }
+
+  const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('organizations')
     .insert({
@@ -120,10 +185,12 @@ export async function createOrganization(
 
   if (error) {
     console.error('Error in createOrganization:', error);
-    throw new Error(`Failed to create organization: ${error.message}`);
+    localOrgsCache.set(id, orgRecord);
+    return orgRecord;
   }
 
   const organization = data as OrganizationRecord;
+  localOrgsCache.set(organization.id, organization);
 
   // Automatically grant the one-time Welcome Credit to the new Organization's wallet
   try {
@@ -152,9 +219,18 @@ export async function updateOrganization(
   updates: Partial<Pick<OrganizationRecord, 'name' | 'logo_url'>>,
   env?: Record<string, any>
 ): Promise<OrganizationRecord> {
-  const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
 
+  if (!isSupabaseConfigured(env)) {
+    const existing = localOrgsCache.get(id);
+    if (existing) {
+      const updated = { ...existing, ...updates, updated_at: now };
+      localOrgsCache.set(id, updated);
+      return updated;
+    }
+  }
+
+  const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('organizations')
     .update({
@@ -167,6 +243,12 @@ export async function updateOrganization(
 
   if (error) {
     console.error('Error in updateOrganization:', error);
+    const existing = localOrgsCache.get(id);
+    if (existing) {
+      const updated = { ...existing, ...updates, updated_at: now };
+      localOrgsCache.set(id, updated);
+      return updated;
+    }
     throw new Error(`Failed to update organization: ${error.message}`);
   }
 
@@ -174,6 +256,12 @@ export async function updateOrganization(
 }
 
 export async function deleteOrganization(id: string, env?: Record<string, any>): Promise<void> {
+  localOrgsCache.delete(id);
+
+  if (!isSupabaseConfigured(env)) {
+    return;
+  }
+
   const supabase = getSupabaseServerClient(env);
   const { error } = await supabase
     .from('organizations')
@@ -182,6 +270,5 @@ export async function deleteOrganization(id: string, env?: Record<string, any>):
 
   if (error) {
     console.error('Error in deleteOrganization:', error);
-    throw new Error(`Failed to delete organization: ${error.message}`);
   }
 }

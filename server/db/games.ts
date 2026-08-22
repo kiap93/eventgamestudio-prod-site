@@ -1,6 +1,8 @@
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
 import { GameRecord, BasketConfig, ItemConfig, SettingsConfig } from './types.js';
 import crypto from 'node:crypto';
+
+const localGamesCache = new Map<string, GameRecord>();
 
 export const DEFAULT_BASKET_CONFIG: BasketConfig = {
   name: 'Standard Basket',
@@ -169,6 +171,11 @@ export async function getGameById(gameId: string, env?: Record<string, any>): Pr
 }
 
 export async function getGamesByOrgId(organizationId: string, env?: Record<string, any>): Promise<GameRecord[]> {
+  if (!isSupabaseConfigured(env)) {
+    const games = Array.from(localGamesCache.values()).filter((g) => g.organization_id === organizationId);
+    return games;
+  }
+
   const supabase = getSupabaseServerClient(env);
   const { data: gamesData, error } = await supabase
     .from('games')
@@ -177,6 +184,10 @@ export async function getGamesByOrgId(organizationId: string, env?: Record<strin
     .order('created_at', { ascending: true });
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+      const games = Array.from(localGamesCache.values()).filter((g) => g.organization_id === organizationId);
+      return games;
+    }
     console.error('Error in getGamesByOrgId:', error);
     throw new Error(`Failed to list games: ${error.message}`);
   }
@@ -222,12 +233,34 @@ export async function createGame(
   },
   env?: Record<string, any>
 ): Promise<GameRecord> {
-  const supabase = getSupabaseServerClient(env);
   const id = params.id || crypto.randomUUID();
   const now = new Date().toISOString();
   const slug = params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const game_type = params.game_type || 'catch-brand';
 
+  const newGame: GameRecord = {
+    id,
+    organization_id: params.organization_id,
+    name: params.name,
+    slug,
+    game_type,
+    description: params.description || null,
+    icon_name: params.icon_name || null,
+    status: params.status || 'active',
+    background_url: params.background_url || 'forest',
+    basket_config: params.basket_config ?? DEFAULT_BASKET_CONFIG,
+    items_config: params.items_config ?? DEFAULT_ITEMS_CONFIG,
+    settings_config: params.settings_config ?? DEFAULT_SETTINGS_CONFIG,
+    created_at: now,
+    updated_at: now,
+  } as GameRecord;
+
+  if (!isSupabaseConfigured(env)) {
+    localGamesCache.set(id, newGame);
+    return newGame;
+  }
+
+  const supabase = getSupabaseServerClient(env);
   const { data, error } = await safeInsertGame(supabase, {
     id,
     organization_id: params.organization_id,
@@ -246,6 +279,10 @@ export async function createGame(
   });
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+      localGamesCache.set(id, newGame);
+      return newGame;
+    }
     console.error('Error in createGame:', error);
     throw new Error(`Failed to create game: ${error.message}`);
   }

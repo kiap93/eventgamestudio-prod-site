@@ -21,6 +21,7 @@ import {
   calculateEventPayment,
   processEventPayment,
   refundEventPayment,
+  withOrganizationLock,
 } from './wallet.js';
 import crypto from 'node:crypto';
 
@@ -632,117 +633,120 @@ export async function createEventWithAtomicPayment(
     quote: any;
   };
 }> {
-  const {
-    organization_id,
-    game_theme_id,
-    name,
-    event_date,
-    starts_at,
-    expires_at,
-    status = 'scheduled',
-    created_by,
-    payment_mode = 'FULL_PAID',
-    topup_credit_requested,
-    reference_id,
-  } = params;
-
-  const eventPrice = params.event_price && params.event_price > 0 ? params.event_price : STANDARD_EVENT_PRICE;
-
-  // 1. Validate Theme & Organization Isolation
-  const theme = await getThemeById(game_theme_id, env);
-  if (!theme) {
-    throw new Error('Selected Game Theme not found');
-  }
-
-  if (theme.organization_id && theme.organization_id !== organization_id && !theme.is_system) {
-    throw new Error('Security Error: Game Theme does not belong to your organization');
-  }
-
-  // 2. Validate time boundaries
-  const startsAtTime = new Date(starts_at).getTime();
-  const expiresAtTime = new Date(expires_at).getTime();
-
-  if (isNaN(startsAtTime) || isNaN(expiresAtTime)) {
-    throw new Error('Invalid start or expiry date/time');
-  }
-
-  if (expiresAtTime <= startsAtTime) {
-    throw new Error('Expiry time must be later than start time');
-  }
-
-  // 3. Server-side payment calculation and validation
-  const calculation = await calculateEventPayment(
-    eventPrice,
-    payment_mode,
-    organization_id,
-    { topupCreditRequested: topup_credit_requested },
-    env
-  );
-
-  if (!calculation.isPayable) {
-    const error: any = new Error(`Insufficient wallet balance: ${calculation.reasons.join(' ')}`);
-    error.code = 'INSUFFICIENT_BALANCE';
-    error.status = 402;
-    error.required = calculation.paidAmount;
-    error.available = calculation.availableBalances.paid_balance;
-    error.shortfall = Math.max(0, calculation.paidAmount - calculation.availableBalances.paid_balance);
-    throw error;
-  }
-
-  // 4. Create the Event Record with PAID status & payment details
-  const createdEventRecord = await createEvent(
-    {
+  return withOrganizationLock(params.organization_id, async () => {
+    const {
       organization_id,
       game_theme_id,
       name,
       event_date,
       starts_at,
       expires_at,
-      status,
+      status = 'scheduled',
       created_by,
-      payment_status: 'PAID',
-      payment_mode,
-      paid_amount: calculation.paidAmount,
-      discount_amount: calculation.totalDiscount,
-    },
-    env
-  );
+      payment_mode = 'FULL_PAID',
+      topup_credit_requested,
+      reference_id,
+    } = params;
 
-  // 5. Execute Atomic Ledger Payment
-  try {
-    const paymentResult = await processEventPayment(
+    const eventPrice = params.event_price && params.event_price > 0 ? params.event_price : STANDARD_EVENT_PRICE;
+
+    // 1. Validate Theme & Organization Isolation
+    const theme = await getThemeById(game_theme_id, env);
+    if (!theme) {
+      throw new Error('Selected Game Theme not found');
+    }
+
+    if (theme.organization_id && theme.organization_id !== organization_id && !theme.is_system) {
+      throw new Error('Security Error: Game Theme does not belong to your organization');
+    }
+
+    // 2. Validate time boundaries
+    const startsAtTime = new Date(starts_at).getTime();
+    const expiresAtTime = new Date(expires_at).getTime();
+
+    if (isNaN(startsAtTime) || isNaN(expiresAtTime)) {
+      throw new Error('Invalid start or expiry date/time');
+    }
+
+    if (expiresAtTime <= startsAtTime) {
+      throw new Error('Expiry time must be later than start time');
+    }
+
+    // 3. Server-side payment calculation and validation (Authoritative Balance & Credit Check)
+    const calculation = await calculateEventPayment(
+      eventPrice,
+      payment_mode,
+      organization_id,
+      { topupCreditRequested: topup_credit_requested },
+      env
+    );
+
+    if (!calculation.isPayable) {
+      const error: any = new Error('Insufficient balance. Please top up your wallet to continue.');
+      error.code = 'INSUFFICIENT_BALANCE';
+      error.status = 402;
+      error.required = calculation.paidAmount;
+      error.available = calculation.availableBalances.paid_balance;
+      error.shortfall = Math.max(0, calculation.paidAmount - calculation.availableBalances.paid_balance);
+      error.reasons = calculation.reasons;
+      throw error;
+    }
+
+    // 4. Create the Event Record with PAID status & payment details (Only created AFTER balance check passes)
+    const createdEventRecord = await createEvent(
       {
-        organizationId: organization_id,
-        eventId: createdEventRecord.id,
-        eventName: name.trim(),
-        paymentMode: payment_mode,
-        eventPrice,
-        topupCreditRequested: topup_credit_requested,
-        referenceId: reference_id,
-        createdBy: created_by || undefined,
-        description: `Payment for Event "${name.trim()}" (${payment_mode.replace('_', ' ')})`,
+        organization_id,
+        game_theme_id,
+        name,
+        event_date,
+        starts_at,
+        expires_at,
+        status,
+        created_by,
+        payment_status: 'PAID',
+        payment_mode,
+        paid_amount: calculation.paidAmount,
+        discount_amount: calculation.totalDiscount,
       },
       env
     );
 
-    // 6. Fetch fully enriched event
-    const enrichedEvent = await getEventById(createdEventRecord.id, env);
-    if (!enrichedEvent) {
-      throw new Error('Failed to retrieve newly created event');
-    }
+    // 5. Execute Atomic Ledger Payment
+    try {
+      const paymentResult = await processEventPayment(
+        {
+          organizationId: organization_id,
+          eventId: createdEventRecord.id,
+          eventName: name.trim(),
+          paymentMode: payment_mode,
+          eventPrice,
+          topupCreditRequested: topup_credit_requested,
+          referenceId: reference_id,
+          createdBy: created_by || undefined,
+          description: `Payment for Event "${name.trim()}" (${payment_mode.replace('_', ' ')})`,
+        },
+        env
+      );
 
-    return {
-      event: enrichedEvent,
-      payment: paymentResult,
-    };
-  } catch (paymentError: any) {
-    console.error('Fatal: Event payment failed after record insertion. Initiating automatic ACID rollback:', paymentError);
-    // Automatic Rollback: Delete the orphan event record so user is never charged for an uncreated event
-    await deleteEvent(createdEventRecord.id, env).catch((rollbackErr) => {
-      console.error('CRITICAL: Failed to rollback event creation after payment error:', rollbackErr);
-    });
-    throw paymentError;
-  }
+      // 6. Fetch fully enriched event
+      const enrichedEvent = await getEventById(createdEventRecord.id, env);
+      if (!enrichedEvent) {
+        throw new Error('Failed to retrieve newly created event');
+      }
+
+      return {
+        event: enrichedEvent,
+        payment: paymentResult,
+      };
+    } catch (paymentError: any) {
+      console.error('Fatal: Event payment failed after record insertion. Initiating automatic ACID rollback:', paymentError);
+      // Automatic Rollback: Delete the orphan event record so user is never charged for an uncreated event
+      await deleteEvent(createdEventRecord.id, env).catch((rollbackErr) => {
+        console.error('CRITICAL: Failed to rollback event creation after payment error:', rollbackErr);
+      });
+      throw paymentError;
+    }
+  });
 }
 
 

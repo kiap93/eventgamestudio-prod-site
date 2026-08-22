@@ -131,6 +131,43 @@ function saveLocalStores(): void {
 // Initial load of local cache
 loadLocalStores();
 
+// In-memory organization mutex lock to prevent concurrent race conditions
+const orgLocks = new Map<string, Promise<void>>();
+
+export async function withOrganizationLock<T>(
+  organizationId: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  if (!organizationId) {
+    return await operation();
+  }
+
+  // Wait for any existing lock on this organization to finish
+  while (orgLocks.has(organizationId)) {
+    try {
+      await orgLocks.get(organizationId);
+    } catch {
+      // Ignore errors from previous operation
+    }
+  }
+
+  let releaseLock: () => void;
+  const lockPromise = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+
+  orgLocks.set(organizationId, lockPromise);
+
+  try {
+    return await operation();
+  } finally {
+    if (orgLocks.get(organizationId) === lockPromise) {
+      orgLocks.delete(organizationId);
+    }
+    releaseLock!();
+  }
+}
+
 /**
  * Record a traceable wallet audit event for compliance, reconciliation, and transaction auditing.
  */

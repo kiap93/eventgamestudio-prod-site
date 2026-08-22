@@ -1,4 +1,4 @@
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
 import {
   GameThemeRecord,
   ThemeBrandingConfig,
@@ -9,6 +9,8 @@ import {
   ThemeSoundsConfig,
 } from './types.js';
 import crypto from 'node:crypto';
+
+const localThemesCache = new Map<string, GameThemeRecord>();
 
 // ============================================================================
 // DEFAULT REFERENCE THEME TEMPLATES
@@ -697,6 +699,10 @@ export async function getThemeById(
     return null;
   }
 
+  if (localThemesCache.has(themeId)) {
+    return localThemesCache.get(themeId)!;
+  }
+
   // Validate that themeId is a valid UUID before querying PostgreSQL
   if (!isUUID(themeId)) {
     console.warn(`[Theme Lookup] getThemeById received non-UUID string: "${themeId}". Skipping UUID query to prevent PostgreSQL syntax error.`);
@@ -895,6 +901,33 @@ export async function createTheme(
     }
   }
 
+  const newTheme: GameThemeRecord = {
+    id,
+    organization_id: params.organization_id,
+    game_id: resolvedGameId || null,
+    name: params.name,
+    slug,
+    description: params.description ?? null,
+    status: params.status || 'active',
+    branding: params.branding ?? DEFAULT_DURIAN_THEME.branding,
+    background_url: params.background_url ?? DEFAULT_DURIAN_THEME.background_url,
+    basket_config: params.basket_config ?? DEFAULT_DURIAN_THEME.basket_config,
+    items_config: params.items_config ?? DEFAULT_DURIAN_THEME.items_config,
+    physics_config: params.physics_config ?? DEFAULT_DURIAN_THEME.physics_config,
+    visuals_config: params.visuals_config ?? DEFAULT_DURIAN_THEME.visuals_config,
+    sounds_config: params.sounds_config ?? DEFAULT_DURIAN_THEME.sounds_config,
+    layout: params.layout ?? DEFAULT_DURIAN_THEME.layout,
+    created_at: now,
+    updated_at: now,
+    game_name: 'Catch The Brand',
+    game_slug: 'catch-brand',
+  } as GameThemeRecord;
+
+  if (!isSupabaseConfigured(env)) {
+    localThemesCache.set(id, newTheme);
+    return newTheme;
+  }
+
   const { data, error } = await safeInsertTheme(supabase, {
     id,
     organization_id: params.organization_id,
@@ -916,6 +949,10 @@ export async function createTheme(
   });
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+      localThemesCache.set(id, newTheme);
+      return newTheme;
+    }
     console.error('Error in createTheme:', error);
     throw new Error(`Failed to create theme: ${error.message}`);
   }
