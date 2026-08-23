@@ -15,6 +15,8 @@ import { GameComponentProps, CatchBrandConfig } from '../types';
 export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
   activeTheme: initialActiveTheme,
   settings: initialSettings,
+  eventId,
+  publicToken,
   onStatsChange: externalOnStatsChange,
   onGameStateChange: externalOnGameStateChange,
   isMuted: initialIsMuted = false,
@@ -292,6 +294,8 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
           gameState={gameState}
           stats={stats}
           countdownText={countdownText}
+          eventId={eventId}
+          publicToken={publicToken}
           isMuted={isMuted}
           onToggleMute={handleToggleMute}
           cameraActive={cameraActive}

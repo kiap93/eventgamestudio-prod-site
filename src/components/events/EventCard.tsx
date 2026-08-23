@@ -12,8 +12,10 @@ import {
   Sparkles,
   ShieldCheck,
   CreditCard,
+  Trophy,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { EventLeaderboardModal } from './EventLeaderboardModal';
 
 interface EventCardProps {
   event: any;
@@ -31,6 +33,7 @@ export const EventCard: React.FC<EventCardProps> = ({
   onCancel,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const publicUrl = `${window.location.origin}/e/${event.public_token}`;
   const isViewer = userRole === 'viewer';
@@ -236,7 +239,19 @@ export const EventCard: React.FC<EventCardProps> = ({
             className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm shadow-amber-500/20"
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            <span>Open Event Link</span>
+            <span>Open Link</span>
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowLeaderboard(true);
+            }}
+            className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-slate-700 transition-colors"
+            title="View Event High Scores"
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span>Scores</span>
           </button>
         </div>
 
@@ -272,6 +287,17 @@ export const EventCard: React.FC<EventCardProps> = ({
           </div>
         )}
       </div>
+
+      {/* Admin / Organizer High Score Modal */}
+      {showLeaderboard && (
+        <EventLeaderboardModal
+          isOpen={showLeaderboard}
+          onClose={() => setShowLeaderboard(false)}
+          event={event}
+          userRole={userRole}
+        />
+      )}
     </div>
   );
 };
+

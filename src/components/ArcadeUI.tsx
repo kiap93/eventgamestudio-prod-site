@@ -1,14 +1,44 @@
-import React, { useState, useRef } from 'react';
-import { Volume2, VolumeX, Pause, Play, RotateCcw, HelpCircle, Trophy, Sparkles, Sliders, Square, Home, Settings, Timer, Zap, Palette, Check, Megaphone } from 'lucide-react';
-import { GameState, GameStats, GameSettings } from '../types';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Volume2,
+  VolumeX,
+  Pause,
+  Play,
+  RotateCcw,
+  HelpCircle,
+  Trophy,
+  Sparkles,
+  Sliders,
+  Square,
+  Home,
+  Settings,
+  Timer,
+  Zap,
+  Palette,
+  Check,
+  Megaphone,
+  Medal,
+  Crown,
+  Award,
+  User,
+  Send,
+  CheckCircle2,
+  ListOrdered,
+  X,
+  Clock,
+} from 'lucide-react';
+import { GameState, GameStats, GameSettings, EventLeaderboardEntry } from '../types';
 import { GAME_DURATION_SECONDS } from '../game/config';
 import { GameTheme, THEME_REGISTRY, getActiveTheme } from '../themes';
 import { normalizeGameLayout, GameLayoutConfig, DESIGN_WIDTH, DESIGN_HEIGHT, useGameUiScale } from '../themes/layout';
+import { apiFetch } from '../lib/api';
 
 interface ArcadeUIProps {
   gameState: GameState;
   stats: GameStats;
   countdownText: string | number;
+  eventId?: string;
+  publicToken?: string;
   isMuted: boolean;
   onToggleMute: () => void;
   cameraActive: boolean;
@@ -32,6 +62,8 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   gameState,
   stats,
   countdownText,
+  eventId,
+  publicToken,
   isMuted,
   onToggleMute,
   cameraActive,
@@ -56,6 +88,20 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
+
+  // High Score / Leaderboard State
+  const [playerName, setPlayerName] = useState<string>(() => {
+    return localStorage.getItem('event_player_name') || '';
+  });
+  const [isSubmittingScore, setIsSubmittingScore] = useState(false);
+  const [scoreSubmitted, setScoreSubmitted] = useState(false);
+  const [submittedRank, setSubmittedRank] = useState<number | null>(null);
+  const [submittedScoreId, setSubmittedScoreId] = useState<string | null>(null);
+  const [leaderboardScores, setLeaderboardScores] = useState<EventLeaderboardEntry[]>([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+  const [gameOverTab, setGameOverTab] = useState<'summary' | 'leaderboard'>('summary');
 
   const layout: GameLayoutConfig = normalizeGameLayout(activeTheme?.layout);
 
@@ -94,6 +140,95 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     activeTheme?.badFallingObject ||
     badItem?.imageUrl ||
     '/assets/durian_brown.png';
+
+  // Fetch Event Leaderboard
+  const fetchEventLeaderboard = async () => {
+    if (!publicToken && !eventId) return;
+    setLoadingLeaderboard(true);
+    setLeaderboardError(null);
+    try {
+      const url = publicToken
+        ? `/api/public/events/${publicToken}/high-scores?limit=50`
+        : `/api/events/${eventId}/high-scores?limit=50`;
+      const res = await apiFetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setLeaderboardScores(data.scores || []);
+      }
+    } catch (err: any) {
+      console.warn('Could not load leaderboard:', err);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  };
+
+  // When game finishes, load the leaderboard
+  useEffect(() => {
+    if (gameState === 'GAME_OVER') {
+      setScoreSubmitted(false);
+      setSubmittedRank(null);
+      setSubmittedScoreId(null);
+      setGameOverTab('summary');
+      fetchEventLeaderboard();
+    }
+  }, [gameState, eventId, publicToken]);
+
+  // Load leaderboard when modal opens
+  useEffect(() => {
+    if (showLeaderboardModal) {
+      fetchEventLeaderboard();
+    }
+  }, [showLeaderboardModal, eventId, publicToken]);
+
+  // Handle high score submission
+  const handleSubmitScore = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (isSubmittingScore || scoreSubmitted) return;
+
+    const trimmedName = playerName.trim() || 'Player';
+    localStorage.setItem('event_player_name', trimmedName);
+    setIsSubmittingScore(true);
+    setLeaderboardError(null);
+
+    try {
+      const url = publicToken
+        ? `/api/public/events/${publicToken}/high-scores`
+        : `/api/events/${eventId}/high-scores`;
+
+      const res = await apiFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          player_name: trimmedName,
+          score: stats.score,
+          metadata: {
+            greenCaught: stats.greenCaught,
+            orangeCaught: stats.orangeCaught,
+            duriansMissed: stats.duriansMissed,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to submit score');
+      }
+
+      const data = await res.json();
+      setScoreSubmitted(true);
+      setSubmittedRank(data.rank);
+      setSubmittedScoreId(data.score?.id || null);
+
+      // Refresh leaderboard list and switch to leaderboard tab
+      await fetchEventLeaderboard();
+      setGameOverTab('leaderboard');
+    } catch (err: any) {
+      console.error('Submit score error:', err);
+      setLeaderboardError(err.message || 'Failed to save score to leaderboard.');
+    } finally {
+      setIsSubmittingScore(false);
+    }
+  };
 
   const handleRequestStop = () => {
     if (gameState === 'PLAYING') {
@@ -405,6 +540,13 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
 
                   <div className="flex items-center gap-3">
                     <button
+                      onClick={() => setShowLeaderboardModal(true)}
+                      className="text-amber-400 hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <Trophy className="w-3.5 h-3.5" /> High Scores
+                    </button>
+
+                    <button
                       onClick={() => setShowSettingsModal(true)}
                       className="text-amber-400 hover:underline flex items-center gap-1 font-bold"
                     >
@@ -437,60 +579,236 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
 
         {/* ================= GAME OVER OVERLAY ================= */}
         {gameState === 'GAME_OVER' && (
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm pointer-events-auto flex flex-col items-center justify-center p-3 sm:p-6 text-center z-40 overflow-hidden">
-            <div className="game-over-container max-w-md w-full bg-slate-900 border-2 border-amber-500/80 rounded-2xl p-5 sm:p-6 shadow-2xl relative my-auto">
-              <h2 className="game-over-title text-2xl sm:text-3xl font-black text-rose-500 tracking-wider mb-1">
-                GAME OVER
-              </h2>
+          <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm pointer-events-auto flex flex-col items-center justify-center p-2 sm:p-4 text-center z-40 overflow-hidden">
+            <div className="game-over-container max-w-md w-full bg-slate-900 border-2 border-amber-500/80 rounded-2xl p-4 sm:p-5 shadow-2xl relative my-auto flex flex-col max-h-[92%] overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="game-over-title text-xl sm:text-2xl font-black text-rose-500 tracking-wider">
+                  GAME OVER
+                </h2>
 
-              {stats.score >= stats.highScore && stats.score > 0 ? (
-                <div className="inline-flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/60 text-amber-300 text-xs px-3 py-0.5 rounded-full font-extrabold mb-3 animate-bounce">
-                  <Trophy className="w-4 h-4 text-amber-400" /> NEW HIGH SCORE!
+                {/* Sub Tab Switcher */}
+                <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                  <button
+                    onClick={() => setGameOverTab('summary')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                      gameOverTab === 'summary'
+                        ? 'bg-amber-500 text-slate-950 shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Summary
+                  </button>
+                  <button
+                    onClick={() => setGameOverTab('leaderboard')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${
+                      gameOverTab === 'leaderboard'
+                        ? 'bg-amber-500 text-slate-950 shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Trophy className="w-3 h-3" /> Board
+                  </button>
                 </div>
-              ) : (
-                <p className="text-xs text-slate-400 mb-3">{settings.gameDurationSeconds ?? 20} Seconds Elapsed!</p>
+              </div>
+
+              {/* TAB 1: SCORE SUMMARY */}
+              {gameOverTab === 'summary' && (
+                <div className="flex-1 flex flex-col justify-between overflow-y-auto">
+                  <div>
+                    {stats.score >= stats.highScore && stats.score > 0 ? (
+                      <div className="inline-flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/60 text-amber-300 text-xs px-3 py-0.5 rounded-full font-extrabold mb-2 animate-bounce">
+                        <Trophy className="w-3.5 h-3.5 text-amber-400" /> NEW RECORD!
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 mb-2">{settings.gameDurationSeconds ?? 20} Seconds Elapsed!</p>
+                    )}
+
+                    <div className="game-over-score-box bg-slate-950 border border-slate-800 rounded-xl p-2.5 sm:p-3 mb-2.5">
+                      <span className="text-slate-400 text-[10px] font-bold block uppercase mb-0.5">FINAL SCORE</span>
+                      <span className="text-3xl sm:text-4xl font-black text-emerald-400 tracking-tight">
+                        {stats.score}
+                      </span>
+
+                      <div className="mt-2 pt-2 border-t border-slate-800/80 flex justify-around text-xs">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">{fallingItemName}</span>
+                          <span className="text-emerald-400 font-bold text-xs sm:text-sm">+{stats.greenCaught}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">{badFallingItemName}</span>
+                          <span className="text-rose-400 font-bold text-xs sm:text-sm">-{stats.orangeCaught}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">BEST</span>
+                          <span className="text-amber-400 font-bold text-xs sm:text-sm">{stats.highScore}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Nickname Submission Box */}
+                    {!scoreSubmitted ? (
+                      <form onSubmit={handleSubmitScore} className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 mb-3 text-left">
+                        <div className="flex items-center justify-between text-xs text-slate-300 font-bold mb-1.5">
+                          <span className="flex items-center gap-1.5 text-amber-400">
+                            <Trophy className="w-3.5 h-3.5" /> High Score Submission
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono">Leaderboard</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={playerName}
+                            onChange={(e) => setPlayerName(e.target.value)}
+                            placeholder="Enter your nickname..."
+                            maxLength={25}
+                            disabled={isSubmittingScore}
+                            className="flex-1 bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 outline-none font-mono"
+                          />
+                          <button
+                            type="submit"
+                            disabled={isSubmittingScore}
+                            className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 text-slate-950 font-black text-xs rounded-lg transition-all flex items-center gap-1 shrink-0 shadow"
+                          >
+                            {isSubmittingScore ? 'Saving...' : <><Send className="w-3 h-3" /> SUBMIT</>}
+                          </button>
+                        </div>
+                        {leaderboardError && (
+                          <p className="text-rose-400 text-[10px] mt-1 text-left">{leaderboardError}</p>
+                        )}
+                      </form>
+                    ) : (
+                      <div className="bg-emerald-950/60 border border-emerald-500/40 rounded-xl p-2 sm:p-2.5 mb-3 flex items-center justify-between text-left">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-400 flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          </div>
+                          <div>
+                            <span className="text-emerald-300 font-bold text-xs block">Score Recorded!</span>
+                            <span className="text-emerald-400 text-[10px]">Ranked #{submittedRank ?? 1} on this Event's Board</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setGameOverTab('leaderboard')}
+                          className="px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[11px] rounded-lg transition-all shrink-0"
+                        >
+                          View Board
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2.5 pt-1">
+                    <button
+                      onClick={onRestartGame}
+                      className="flex-1 py-2 sm:py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm sm:text-base rounded-xl border-2 border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5"
+                    >
+                      <RotateCcw className="w-4 h-4 stroke-[3]" /> PLAY AGAIN
+                    </button>
+                    <button
+                      onClick={handleRequestStop}
+                      className="py-2 sm:py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5"
+                      title="Return to Main Menu"
+                    >
+                      <Home className="w-3.5 h-3.5" /> MENU
+                    </button>
+                  </div>
+                </div>
               )}
 
-              <div className="game-over-score-box bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 mb-4">
-                <span className="text-slate-400 text-xs font-bold block uppercase mb-0.5">FINAL SCORE</span>
-                <span className="text-4xl sm:text-5xl font-black text-emerald-400 tracking-tight">
-                  {stats.score}
-                </span>
+              {/* TAB 2: EVENT HIGH SCORE BOARD */}
+              {gameOverTab === 'leaderboard' && (
+                <div className="flex-1 flex flex-col justify-between overflow-hidden">
+                  <div className="flex-1 overflow-y-auto max-h-52 sm:max-h-60 pr-1 space-y-1 my-1">
+                    {loadingLeaderboard ? (
+                      <div className="py-8 text-slate-400 text-xs flex flex-col items-center gap-2">
+                        <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                        <span>Loading Leaderboard...</span>
+                      </div>
+                    ) : leaderboardScores.length === 0 ? (
+                      <div className="py-8 text-center text-slate-400 text-xs">
+                        <Trophy className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
+                        <p className="font-bold text-slate-300">No Scores Yet!</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Be the first to submit a high score!</p>
+                      </div>
+                    ) : (
+                      leaderboardScores.map((entry) => {
+                        const isCurrentSubmission = submittedScoreId === entry.id;
+                        let rankBadge = (
+                          <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {entry.rank}
+                          </span>
+                        );
 
-                <div className="mt-2.5 pt-2.5 border-t border-slate-800 flex justify-around text-xs">
-                  <div>
-                    <span className="text-slate-400 block text-[10px] sm:text-xs">{fallingItemName} CAUGHT</span>
-                    <span className="text-emerald-400 font-bold text-sm sm:text-base">+{stats.greenCaught}</span>
+                        if (entry.rank === 1) {
+                          rankBadge = (
+                            <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 font-black text-[10px] flex items-center justify-center shrink-0 shadow-[0_0_8px_rgba(245,158,11,0.4)]">
+                              🥇
+                            </span>
+                          );
+                        } else if (entry.rank === 2) {
+                          rankBadge = (
+                            <span className="w-5 h-5 rounded-full bg-slate-300/20 border border-slate-300 text-slate-200 font-black text-[10px] flex items-center justify-center shrink-0">
+                              🥈
+                            </span>
+                          );
+                        } else if (entry.rank === 3) {
+                          rankBadge = (
+                            <span className="w-5 h-5 rounded-full bg-amber-700/20 border border-amber-600 text-amber-400 font-black text-[10px] flex items-center justify-center shrink-0">
+                              🥉
+                            </span>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={entry.id}
+                            className={`flex items-center justify-between p-2 rounded-lg text-xs font-mono transition-all ${
+                              isCurrentSubmission
+                                ? 'bg-amber-500/20 border border-amber-400/80 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                                : 'bg-slate-950/60 border border-slate-800/80'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              {rankBadge}
+                              <span className={`truncate font-bold ${isCurrentSubmission ? 'text-amber-300' : 'text-slate-200'}`}>
+                                {entry.player_name}
+                              </span>
+                              {isCurrentSubmission && (
+                                <span className="bg-amber-500 text-slate-950 text-[9px] px-1 py-0.2 rounded font-black">
+                                  YOU
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-emerald-400 font-black text-xs sm:text-sm shrink-0 ml-2">
+                              {entry.score.toLocaleString()}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] sm:text-xs">{badFallingItemName} CAUGHT</span>
-                    <span className="text-rose-400 font-bold text-sm sm:text-base">-{stats.orangeCaught}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] sm:text-xs">BEST RECORD</span>
-                    <span className="text-amber-400 font-bold text-sm sm:text-base">{stats.highScore}</span>
+
+                  <div className="flex items-center gap-2.5 pt-2 border-t border-slate-800">
+                    <button
+                      onClick={() => setGameOverTab('summary')}
+                      className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition-all"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      onClick={onRestartGame}
+                      className="flex-1 py-2 sm:py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl border-2 border-amber-300 shadow transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 stroke-[3]" /> PLAY AGAIN
+                    </button>
                   </div>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={onRestartGame}
-                  className="flex-1 py-2.5 sm:py-3.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-base sm:text-lg rounded-xl border-2 border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <RotateCcw className="w-5 h-5 stroke-[3]" /> PLAY AGAIN
-                </button>
-                <button
-                  onClick={handleRequestStop}
-                  className="py-2.5 sm:py-3.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5"
-                  title="Return to Main Menu"
-                >
-                  <Home className="w-4 h-4" /> MENU
-                </button>
-              </div>
+              )}
             </div>
           </div>
         )}
+
 
         {/* ================= PAUSE OVERLAY ================= */}
         {gameState === 'PAUSED' && (
@@ -770,6 +1088,109 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             </div>
           </div>
         )}
+
+        {/* ================= EVENT HIGH SCORE BOARD MODAL ================= */}
+        {showLeaderboardModal && (
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md pointer-events-auto flex items-center justify-center p-3 sm:p-4 z-50 overflow-hidden">
+            <div className="bg-slate-900 border-2 border-amber-500/80 rounded-2xl p-4 sm:p-5 max-w-md w-full shadow-2xl relative flex flex-col max-h-[85vh] animate-in fade-in zoom-in duration-150">
+              <div className="flex justify-between items-center pb-2.5 mb-2.5 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/80 flex items-center justify-center">
+                    <Trophy className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-emerald-400">
+                      EVENT HIGH SCORES
+                    </h3>
+                    <p className="text-[10px] text-slate-400">Official Leaderboard Rankings</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowLeaderboardModal(false)}
+                  className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Leaderboard List */}
+              <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 my-1 max-h-72">
+                {loadingLeaderboard ? (
+                  <div className="py-12 text-slate-400 text-xs flex flex-col items-center gap-2">
+                    <div className="w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                    <span>Loading Event Scores...</span>
+                  </div>
+                ) : leaderboardScores.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-xs">
+                    <Trophy className="w-10 h-10 text-slate-600 mx-auto mb-2 opacity-50" />
+                    <p className="font-bold text-slate-300">No High Scores Recorded Yet</p>
+                    <p className="text-[11px] text-slate-500 mt-1">Play a round to get your name on the board!</p>
+                  </div>
+                ) : (
+                  leaderboardScores.map((entry) => {
+                    let rankBadge = (
+                      <span className="w-6 h-6 rounded-full bg-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center shrink-0">
+                        {entry.rank}
+                      </span>
+                    );
+
+                    if (entry.rank === 1) {
+                      rankBadge = (
+                        <span className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 font-black text-xs flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(245,158,11,0.4)]">
+                          🥇
+                        </span>
+                      );
+                    } else if (entry.rank === 2) {
+                      rankBadge = (
+                        <span className="w-6 h-6 rounded-full bg-slate-300/20 border border-slate-300 text-slate-200 font-black text-xs flex items-center justify-center shrink-0">
+                          🥈
+                        </span>
+                      );
+                    } else if (entry.rank === 3) {
+                      rankBadge = (
+                        <span className="w-6 h-6 rounded-full bg-amber-700/20 border border-amber-600 text-amber-400 font-black text-xs flex items-center justify-center shrink-0">
+                          🥉
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={entry.id}
+                        className="flex items-center justify-between p-2 sm:p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/90 text-xs font-mono"
+                      >
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          {rankBadge}
+                          <span className="truncate font-bold text-slate-200">
+                            {entry.player_name}
+                          </span>
+                        </div>
+                        <span className="text-emerald-400 font-black text-sm sm:text-base shrink-0 ml-2">
+                          {entry.score.toLocaleString()}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {leaderboardScores.length} {leaderboardScores.length === 1 ? 'player' : 'players'} recorded
+                </span>
+                <button
+                  onClick={() => setShowLeaderboardModal(false)}
+                  className="py-1.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-lg transition-all shadow"
+                >
+                  CLOSE
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

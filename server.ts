@@ -104,6 +104,11 @@ import {
   reverseTransaction,
   recalculateWalletBalances,
   STANDARD_EVENT_PRICE,
+  submitEventScore,
+  getEventHighScores,
+  getEventScoreStats,
+  deleteEventScore,
+  clearEventHighScores,
 } from './server/db/index.js';
 
 import {
@@ -130,6 +135,7 @@ import {
   walletRateLimiter,
   showcaseRateLimiter,
   uploadRateLimiter,
+  highScoreRateLimiter,
   generalApiRateLimiter,
 } from './server/rateLimiter.js';
 
@@ -1771,6 +1777,233 @@ app.get('/api/public/events/:publicToken', async (req, res) => {
     res.json({ event });
   } catch (err: any) {
     console.error('Public event resolution error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// EVENT HIGH SCORE BOARD ENDPOINTS
+// ----------------------------------------------------
+
+/**
+ * GET /api/events/:eventId/high-scores
+ * Get high scores / leaderboard for a specific event
+ */
+app.get('/api/events/:eventId/high-scores', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const result = await getEventHighScores(eventId, { limit, page });
+    res.json({
+      event_id: eventId,
+      ...result,
+    });
+  } catch (err: any) {
+    console.error('Get event high scores error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:eventId/high-scores
+ * Submit a score to an event's high score board
+ */
+app.post('/api/events/:eventId/high-scores', highScoreRateLimiter, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { player_name, score, metadata } = req.body;
+
+    if (score === undefined || score === null) {
+      res.status(422).json({ error: 'Score is required' });
+      return;
+    }
+
+    const result = await submitEventScore({
+      event_id: eventId,
+      player_name,
+      score: Number(score),
+      metadata: typeof metadata === 'object' ? metadata : {},
+    });
+
+    res.status(201).json({
+      success: true,
+      ...result,
+    });
+  } catch (err: any) {
+    console.error('Submit event high score error:', err);
+    res.status(err.status || 422).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/public/events/:publicToken/high-scores
+ * Public endpoint to get high scores by public event token
+ */
+app.get('/api/public/events/:publicToken/high-scores', async (req, res) => {
+  try {
+    const { publicToken } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+
+    const event = await getEventByPublicToken(publicToken);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found or invalid link' });
+      return;
+    }
+
+    const result = await getEventHighScores(event.id, { limit, page });
+    res.json({
+      event_id: event.id,
+      event_name: event.name,
+      ...result,
+    });
+  } catch (err: any) {
+    console.error('Get public event high scores error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/public/events/:publicToken/high-scores
+ * Public endpoint to submit score by public event token
+ */
+app.post('/api/public/events/:publicToken/high-scores', highScoreRateLimiter, async (req, res) => {
+  try {
+    const { publicToken } = req.params;
+    const { player_name, score, metadata } = req.body;
+
+    if (score === undefined || score === null) {
+      res.status(422).json({ error: 'Score is required' });
+      return;
+    }
+
+    const event = await getEventByPublicToken(publicToken);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found or invalid link' });
+      return;
+    }
+
+    const result = await submitEventScore({
+      event_id: event.id,
+      player_name,
+      score: Number(score),
+      metadata: typeof metadata === 'object' ? metadata : {},
+    });
+
+    res.status(201).json({
+      success: true,
+      event_id: event.id,
+      ...result,
+    });
+  } catch (err: any) {
+    console.error('Submit public event high score error:', err);
+    res.status(err.status || 422).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/events/:eventId/admin/high-scores
+ * Admin endpoint: view all scores and summary stats for an event
+ */
+app.get('/api/events/:eventId/admin/high-scores', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view');
+    if (!isMember) {
+      res.status(403).json({ error: 'Permission denied: Cannot view event score details' });
+      return;
+    }
+
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+
+    const [leaderboard, stats] = await Promise.all([
+      getEventHighScores(eventId, { limit, page }),
+      getEventScoreStats(eventId),
+    ]);
+
+    res.json({
+      event_id: eventId,
+      event_name: event.name,
+      ...leaderboard,
+      stats,
+    });
+  } catch (err: any) {
+    console.error('Admin get high scores error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/events/:eventId/high-scores/:scoreId
+ * Admin endpoint: delete a single score entry
+ */
+app.delete('/api/events/:eventId/high-scores/:scoreId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId, scoreId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Only event editors and admins can delete scores' });
+      return;
+    }
+
+    await deleteEventScore(eventId, scoreId);
+    res.json({ success: true, message: 'Score deleted successfully' });
+  } catch (err: any) {
+    console.error('Delete score error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/events/:eventId/high-scores/clear
+ * Admin endpoint: clear/reset all scores for an event
+ */
+app.post('/api/events/:eventId/high-scores/clear', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || !['owner', 'admin'].includes(role || '')) {
+      res.status(403).json({ error: 'Permission denied: Only organization owners and admins can reset leaderboards' });
+      return;
+    }
+
+    await clearEventHighScores(eventId);
+    res.json({ success: true, message: 'Event leaderboard reset successfully' });
+  } catch (err: any) {
+    console.error('Clear high scores error:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -10,3 +10,4 @@ export * from './showcases.js';
 export * from './showcaseMedia.js';
 export * from './wallet.js';
 export * from './storage.js';
+export * from './highScores.js';

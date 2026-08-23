@@ -289,7 +289,19 @@ export const uploadRateLimiter = createRateLimiter({
 });
 
 /**
- * 8. General Mutating API Rate Limiter:
+ * 8. High Score Submission Rate Limiter:
+ * Protects POST /api/events/:id/high-scores and /api/public/events/:token/high-scores.
+ * 30 submissions per 60 seconds per IP.
+ */
+export const highScoreRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+  keyPrefix: 'high_scores',
+  message: 'High score submission limit reached. Please wait a few moments before submitting again.',
+});
+
+/**
+ * 9. General Mutating API Rate Limiter:
  * Broad baseline protection for state-modifying requests (POST/PUT/PATCH/DELETE).
  * 120 requests per 60 seconds per IP.
  */

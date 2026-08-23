@@ -329,6 +329,8 @@ export const PublicEventGameView: React.FC = () => {
           <GameContainer
             gameType={gameType}
             customTheme={theme}
+            eventId={eventData.id}
+            publicToken={eventData.public_token}
             showCabinetFooter={!isFullscreen}
             className="w-full h-full max-w-full max-h-full"
           />

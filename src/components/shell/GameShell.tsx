@@ -12,6 +12,8 @@ export interface GameShellProps {
   customSettings?: GameSettings;
   className?: string;
   showCabinetFooter?: boolean;
+  eventId?: string;
+  publicToken?: string;
 }
 
 export const GameShell: React.FC<GameShellProps> = ({
@@ -20,6 +22,8 @@ export const GameShell: React.FC<GameShellProps> = ({
   customSettings,
   className = '',
   showCabinetFooter = true,
+  eventId,
+  publicToken,
 }) => {
   const { activeGame, activeTheme: contextActiveTheme } = useAuth();
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -126,6 +130,8 @@ export const GameShell: React.FC<GameShellProps> = ({
             activeTheme={activeTheme}
             settings={settings}
             config={gameDef.defaultConfig}
+            eventId={eventId}
+            publicToken={publicToken}
             isMuted={isMuted}
             isFullscreen={isFullscreen}
             onToggleFullscreen={handleToggleFullscreen}

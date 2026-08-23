@@ -570,6 +570,27 @@ export interface WalletAuditRecord {
   timestamp: string;
 }
 
+// ----------------------------------------------------
+// EVENT HIGH SCORES TYPES
+// ----------------------------------------------------
 
+export interface EventHighScoreRecord {
+  id: string;
+  event_id: string;
+  player_name: string;
+  score: number;
+  metadata?: Record<string, any>;
+  created_at: string;
+}
 
+export interface EventLeaderboardEntry extends EventHighScoreRecord {
+  rank: number;
+}
 
+export interface EventScoreStats {
+  totalEntries: number;
+  uniquePlayers: number;
+  highScore: number;
+  averageScore: number;
+  latestScoreAt?: string | null;
+}
