@@ -956,10 +956,15 @@ CREATE POLICY "Owners and admins can create top-up orders"
   );
 
 DROP POLICY IF EXISTS "Owners and admins can update top-up orders" ON public.wallet_topup_orders;
-CREATE POLICY "Owners and admins can update top-up orders"
+DROP POLICY IF EXISTS "Owners and admins can cancel pending top-up orders" ON public.wallet_topup_orders;
+CREATE POLICY "Owners and admins can cancel pending top-up orders"
   ON public.wallet_topup_orders FOR UPDATE
   USING (
     public.get_org_role(organization_id) IN ('owner', 'admin') OR public.is_developer_admin()
+  )
+  WITH CHECK (
+    (public.is_developer_admin()) OR
+    (public.get_org_role(organization_id) IN ('owner', 'admin') AND status IN ('CANCELLED', 'PENDING'))
   );
 
 CREATE OR REPLACE FUNCTION public.process_topup_order_atomic(

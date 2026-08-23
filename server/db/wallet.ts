@@ -2427,6 +2427,7 @@ export async function processTopupOrderStatus(
     processedBy?: string;
     reason?: string;
     metadata?: Record<string, any>;
+    isTrustedSettlement?: boolean;
   },
   env?: Record<string, any>
 ): Promise<{
@@ -2439,7 +2440,12 @@ export async function processTopupOrderStatus(
   };
   message?: string;
 }> {
-  const { orderId, newStatus, paymentReference, paymentMethod, processedBy, reason, metadata } = params;
+  const { orderId, newStatus, paymentReference, paymentMethod, processedBy, reason, metadata, isTrustedSettlement } = params;
+
+  // STRICT DEFENSE-IN-DEPTH: Transitioning to PAID is ONLY permitted for trusted settlements (webhook or developer reconciliation)
+  if (newStatus === 'PAID' && !isTrustedSettlement) {
+    throw new Error('Unauthorized: Top-up order status transition to PAID requires trusted settlement verification. Direct manual settlement is strictly forbidden.');
+  }
 
   // Concurrency lock to prevent simultaneous duplicate status settlement race conditions
   if (orderProcessingLocks.has(orderId)) {
@@ -2683,6 +2689,116 @@ export async function processTopupOrderStatus(
   } finally {
     orderProcessingLocks.delete(orderId);
   }
+}
+
+/**
+ * Developer / Super Admin Manual Payment Reconciliation.
+ * Allows a privileged developer/super-admin to reconcile a payment for a Top-up Order.
+ *
+ * CRITICAL SECURITY & BUSINESS RULES:
+ * 1. Strictly requires explicit reconciliation reason and verified external payment reference.
+ * 2. Settles the order atomically with isTrustedSettlement = true.
+ * 3. Never allows arbitrary unrecorded balance creation; bounds credit strictly to order's top_up_amount and promotional tier.
+ * 4. Strictly idempotent (no duplicate credit if already PAID).
+ * 5. Logs an ADMIN_RECONCILIATION audit event.
+ */
+export async function reconcileTopupOrder(
+  params: {
+    orderId: string;
+    paymentReference: string;
+    paymentMethod?: string;
+    reconciledBy: string;
+    reason: string;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<{
+  order: TopupOrderRecord;
+  alreadyProcessed: boolean;
+  ledgerResult?: {
+    topupTransaction?: WalletTransactionRecord;
+    promoCreditTransaction?: WalletTransactionRecord | null;
+    wallet: WalletBalanceSummary;
+  };
+  message?: string;
+}> {
+  const { orderId, paymentReference, paymentMethod, reconciledBy, reason, metadata } = params;
+
+  if (!orderId) {
+    throw new Error('Order ID is required for reconciliation');
+  }
+  if (!paymentReference || typeof paymentReference !== 'string' || paymentReference.trim().length === 0) {
+    throw new Error('Valid external payment reference is required for reconciliation');
+  }
+  if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
+    throw new Error('Explicit reconciliation reason (minimum 5 characters) is required');
+  }
+  if (!reconciledBy) {
+    throw new Error('Reconciling developer user ID is required');
+  }
+
+  const order = await getTopupOrderById(orderId, env);
+  if (!order) {
+    throw new Error(`Top-up order not found: ${orderId}`);
+  }
+
+  // If already PAID, return idempotent result without double crediting
+  if (order.status === 'PAID') {
+    const currentWallet = await getWalletBalance(order.organization_id, env);
+    return {
+      order,
+      alreadyProcessed: true,
+      ledgerResult: { wallet: currentWallet },
+      message: 'Top-up order was already marked as PAID (idempotent reconciliation no-op).',
+    };
+  }
+
+  // If in terminal non-PAID state
+  if (['FAILED', 'EXPIRED', 'CANCELLED'].includes(order.status)) {
+    throw new Error(`Cannot reconcile top-up order in terminal status '${order.status}' without restoring order state`);
+  }
+
+  // Execute atomic settlement with isTrustedSettlement = true
+  const settlementResult = await processTopupOrderStatus(
+    {
+      orderId,
+      newStatus: 'PAID',
+      paymentReference: paymentReference.trim(),
+      paymentMethod: paymentMethod || 'MANUAL_RECONCILIATION',
+      processedBy: reconciledBy,
+      reason: `Manual Admin Reconciliation: ${reason.trim()}`,
+      metadata: {
+        reconciliation: true,
+        reconciled_by: reconciledBy,
+        reconciliation_reason: reason.trim(),
+        ...(metadata || {}),
+      },
+      isTrustedSettlement: true,
+    },
+    env
+  );
+
+  // Record ADMIN_RECONCILIATION audit event
+  await recordWalletAuditEvent(
+    {
+      organizationId: order.organization_id,
+      eventType: 'ADMIN_RECONCILIATION',
+      orderId: order.id,
+      paymentReference: paymentReference.trim(),
+      amount: order.top_up_amount,
+      currency: order.currency,
+      actorId: reconciledBy,
+      metadata: {
+        reason: reason.trim(),
+        previous_status: 'PENDING',
+        new_status: 'PAID',
+        is_idempotent: settlementResult.alreadyProcessed,
+      },
+    },
+    env
+  );
+
+  return settlementResult;
 }
 
 /**

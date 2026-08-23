@@ -17,11 +17,12 @@ import {
   ChevronRight,
   Gift,
   Coins,
+  Building2,
 } from 'lucide-react';
 
 interface DeveloperAdminLayoutProps {
   children: React.ReactNode;
-  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing';
+  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing' | 'organizations';
 }
 
 export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
@@ -97,6 +98,18 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
               </button>
 
               <button
+                onClick={() => navigateTo('/developer/organizations')}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  activeSection === 'organizations'
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Building2 className="w-4 h-4 text-emerald-400" />
+                <span>Organizations</span>
+              </button>
+
+              <button
                 onClick={() => navigateTo('/developer/showcases')}
                 className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
                   activeSection === 'showcases'
@@ -105,7 +118,7 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 }`}
               >
                 <Gift className="w-4 h-4 text-amber-400" />
-                <span>Showcase Reviews (RM300)</span>
+                <span>Showcase Reviews</span>
               </button>
 
               <button
@@ -170,10 +183,29 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 navigateTo('/developer');
                 setMobileMenuOpen(false);
               }}
-              className="w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+              className={`w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold ${
+                activeSection === 'games'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
             >
               <Gamepad2 className="w-4 h-4" />
-              <span>Games & Themes</span>
+              <span>Games & System Themes</span>
+            </button>
+
+            <button
+              onClick={() => {
+                navigateTo('/developer/organizations');
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold ${
+                activeSection === 'organizations'
+                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <Building2 className="w-4 h-4 text-emerald-400" />
+              <span>Organizations</span>
             </button>
 
             <button
@@ -181,9 +213,13 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 navigateTo('/developer/showcases');
                 setMobileMenuOpen(false);
               }}
-              className="w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"
+              className={`w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold ${
+                activeSection === 'showcases'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
             >
-              <Gift className="w-4 h-4" />
+              <Gift className="w-4 h-4 text-amber-400" />
               <span>Showcase Reviews</span>
             </button>
 
@@ -192,9 +228,13 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 navigateTo('/developer/pricing');
                 setMobileMenuOpen(false);
               }}
-              className="w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+              className={`w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold ${
+                activeSection === 'pricing'
+                  ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
             >
-              <Coins className="w-4 h-4" />
+              <Coins className="w-4 h-4 text-cyan-400" />
               <span>Event Pricing Control</span>
             </button>
 

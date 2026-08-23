@@ -1,6 +1,15 @@
 import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
-import { OrganizationRecord, OrgRole } from './types.js';
-import { grantWelcomeCredit } from './wallet.js';
+import {
+  OrganizationRecord,
+  OrgRole,
+  WalletBalanceSummary,
+  WalletTransactionRecord,
+  EventWithDetails,
+} from './types.js';
+import { grantWelcomeCredit, getWalletBalance, getWalletTransactions } from './wallet.js';
+import { getUserById } from './users.js';
+import { getOrgMembers, OrgMemberWithUserDetails } from './members.js';
+import { getEventsByOrgId } from './events.js';
 import crypto from 'node:crypto';
 
 export interface UserOrganizationMembership {
@@ -10,6 +19,36 @@ export interface UserOrganizationMembership {
   role: OrgRole;
   logo_url: string | null;
   created_at: string;
+}
+
+export interface DeveloperOrganizationListItem {
+  id: string;
+  name: string;
+  slug: string;
+  owner_id: string;
+  owner_name: string;
+  owner_email: string;
+  logo_url: string | null;
+  member_count: number;
+  event_count: number;
+  paid_balance: number;
+  event_credit_balance: number;
+  total_wallet_value: number;
+  created_at: string;
+}
+
+export interface DeveloperOrganizationDetailResponse {
+  organization: OrganizationRecord;
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url: string | null;
+  } | null;
+  members: OrgMemberWithUserDetails[];
+  wallet: WalletBalanceSummary;
+  events: EventWithDetails[];
+  recent_transactions: WalletTransactionRecord[];
 }
 
 const localOrgsCache = new Map<string, OrganizationRecord>();
@@ -271,4 +310,235 @@ export async function deleteOrganization(id: string, env?: Record<string, any>):
   if (error) {
     console.error('Error in deleteOrganization:', error);
   }
+}
+
+/**
+ * Retrieve all organizations with aggregated stats for Developer Admin.
+ */
+export async function getAllOrganizationsForDeveloper(
+  env?: Record<string, any>
+): Promise<DeveloperOrganizationListItem[]> {
+  const isProdDb = isSupabaseConfigured(env);
+  const supabase = getSupabaseServerClient(env);
+
+  let orgs: OrganizationRecord[] = [];
+
+  if (isProdDb) {
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching organizations in getAllOrganizationsForDeveloper:', error);
+      orgs = Array.from(localOrgsCache.values());
+    } else {
+      orgs = (data || []) as OrganizationRecord[];
+    }
+  } else {
+    orgs = Array.from(localOrgsCache.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }
+
+  if (orgs.length === 0) {
+    return [];
+  }
+
+  // Pre-fetch owner users
+  const ownerIds = Array.from(new Set(orgs.map((o) => o.owner_id).filter(Boolean)));
+  const usersMap = new Map<string, { id: string; name: string; email: string }>();
+
+  if (isProdDb && ownerIds.length > 0) {
+    try {
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, name, email')
+        .in('id', ownerIds);
+      if (usersData) {
+        for (const u of usersData) {
+          usersMap.set(u.id, u);
+        }
+      }
+    } catch (uErr) {
+      console.warn('Error fetching users in getAllOrganizationsForDeveloper:', uErr);
+    }
+  }
+
+  // Pre-fetch member counts
+  const memberCounts = new Map<string, number>();
+  if (isProdDb) {
+    try {
+      const { data: membersData } = await supabase
+        .from('organization_members')
+        .select('organization_id');
+      if (membersData) {
+        for (const m of membersData) {
+          memberCounts.set(m.organization_id, (memberCounts.get(m.organization_id) || 0) + 1);
+        }
+      }
+    } catch (mErr) {
+      console.warn('Error fetching member counts in getAllOrganizationsForDeveloper:', mErr);
+    }
+  }
+
+  // Pre-fetch event counts
+  const eventCounts = new Map<string, number>();
+  if (isProdDb) {
+    try {
+      const { data: eventsData } = await supabase
+        .from('events')
+        .select('organization_id');
+      if (eventsData) {
+        for (const e of eventsData) {
+          eventCounts.set(e.organization_id, (eventCounts.get(e.organization_id) || 0) + 1);
+        }
+      }
+    } catch (eErr) {
+      console.warn('Error fetching event counts in getAllOrganizationsForDeveloper:', eErr);
+    }
+  }
+
+  const result: DeveloperOrganizationListItem[] = [];
+
+  for (const org of orgs) {
+    let owner = usersMap.get(org.owner_id);
+    if (!owner && org.owner_id) {
+      try {
+        const u = await getUserById(org.owner_id, env);
+        if (u) {
+          owner = { id: u.id, name: u.name, email: u.email };
+          usersMap.set(u.id, owner);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    let wallet: WalletBalanceSummary;
+    try {
+      wallet = await getWalletBalance(org.id, env);
+    } catch (wErr) {
+      console.warn(`Could not calculate wallet balance for org ${org.id}:`, wErr);
+      wallet = {
+        organization_id: org.id,
+        currency: 'MYR',
+        paid_balance: 0,
+        welcome_credit: 0,
+        showcase_credit: 0,
+        topup_credit: 0,
+        total_balance: 0,
+        total_credit: 0,
+        welcome_credit_granted: false,
+        showcase_credit_granted: false,
+        can_use_welcome_credit: false,
+        can_use_showcase_credit: false,
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    const memberCount = memberCounts.get(org.id) ?? 1;
+    const eventCount = eventCounts.get(org.id) ?? 0;
+
+    result.push({
+      id: org.id,
+      name: org.name,
+      slug: org.slug,
+      owner_id: org.owner_id,
+      owner_name: owner?.name || 'Unknown Owner',
+      owner_email: owner?.email || '',
+      logo_url: org.logo_url,
+      member_count: memberCount,
+      event_count: eventCount,
+      paid_balance: wallet.paid_balance,
+      event_credit_balance: wallet.total_credit,
+      total_wallet_value: wallet.total_balance,
+      created_at: org.created_at,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Retrieve comprehensive organization details for Developer Admin.
+ */
+export async function getOrganizationDetailForDeveloper(
+  orgId: string,
+  env?: Record<string, any>
+): Promise<DeveloperOrganizationDetailResponse | null> {
+  const organization = await getOrganizationById(orgId, env);
+  if (!organization) {
+    return null;
+  }
+
+  let owner: { id: string; name: string; email: string; avatar_url: string | null } | null = null;
+  if (organization.owner_id) {
+    try {
+      const ownerUser = await getUserById(organization.owner_id, env);
+      if (ownerUser) {
+        owner = {
+          id: ownerUser.id,
+          name: ownerUser.name,
+          email: ownerUser.email,
+          avatar_url: ownerUser.avatar_url,
+        };
+      }
+    } catch (err) {
+      console.warn('Error fetching owner user for dev detail:', err);
+    }
+  }
+
+  let members: OrgMemberWithUserDetails[] = [];
+  try {
+    members = await getOrgMembers(orgId, env);
+  } catch (err) {
+    console.warn('Error fetching org members for dev detail:', err);
+  }
+
+  let wallet: WalletBalanceSummary;
+  try {
+    wallet = await getWalletBalance(orgId, env);
+  } catch (err) {
+    console.warn('Error fetching wallet balance for dev detail:', err);
+    wallet = {
+      organization_id: orgId,
+      currency: 'MYR',
+      paid_balance: 0,
+      welcome_credit: 0,
+      showcase_credit: 0,
+      topup_credit: 0,
+      total_balance: 0,
+      total_credit: 0,
+      welcome_credit_granted: false,
+      showcase_credit_granted: false,
+      can_use_welcome_credit: false,
+      can_use_showcase_credit: false,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  let events: EventWithDetails[] = [];
+  try {
+    events = await getEventsByOrgId(orgId, env);
+  } catch (err) {
+    console.warn('Error fetching events for dev detail:', err);
+  }
+
+  let recent_transactions: WalletTransactionRecord[] = [];
+  try {
+    const txData = await getWalletTransactions(orgId, { limit: 50 }, env);
+    recent_transactions = txData.transactions;
+  } catch (err) {
+    console.warn('Error fetching transactions for dev detail:', err);
+  }
+
+  return {
+    organization,
+    owner,
+    members,
+    wallet,
+    events,
+    recent_transactions,
+  };
 }

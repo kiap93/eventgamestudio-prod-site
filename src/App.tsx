@@ -8,9 +8,10 @@ import { DashboardLayout } from './components/layout/DashboardLayout';
 import { PublicEventGameView } from './components/events/PublicEventGameView';
 import { DeveloperAdminPage } from './components/developer/DeveloperAdminPage';
 import { LandingPage } from './components/landing/LandingPage';
+import { ShieldAlert } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, isLoading, currentOrganization } = useAuth();
+  const { isAuthenticated, isLoading, currentOrganization, currentUser } = useAuth();
   const routeContext = useRouteContext();
 
   const isPublicRoute =
@@ -21,7 +22,7 @@ const AppContent: React.FC = () => {
   const isLoginRoute = routeContext.mode === 'login';
   const isProtectedRoute = !isPublicRoute && !isLoginRoute;
 
-  // ROUTE GUARD: Enforce authentication constraints seamlessly across all routes
+  // ROUTE GUARD: Enforce authentication and role constraints across all routes
   useEffect(() => {
     // Wait until session restoration has finished
     if (isLoading) return;
@@ -30,14 +31,17 @@ const AppContent: React.FC = () => {
       // 1. Authenticated user visiting /login -> redirect automatically to /events
       if (isLoginRoute) {
         navigateTo('/events');
+      } else if (routeContext.mode === 'developer_admin' && !currentUser?.is_developer) {
+        // 2. Non-developer visiting /developer -> redirect to /events
+        navigateTo('/events');
       }
     } else {
-      // 2. Unauthenticated user visiting a protected route -> redirect automatically to /login
+      // 3. Unauthenticated user visiting a protected route -> redirect automatically to /login
       if (isProtectedRoute) {
         navigateTo('/login');
       }
     }
-  }, [isLoading, isAuthenticated, isLoginRoute, isProtectedRoute]);
+  }, [isLoading, isAuthenticated, isLoginRoute, isProtectedRoute, routeContext.mode, currentUser?.is_developer]);
 
   // 1. PUBLIC EVENT ROUTE: /e/:publicToken (Unauthenticated Public Player View)
   if (routeContext.mode === 'public_event') {
@@ -79,8 +83,31 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // 7. DEVELOPER ADMIN ROUTE
+  // 7. DEVELOPER ADMIN ROUTE GUARD
   if (routeContext.mode === 'developer_admin') {
+    if (!currentUser?.is_developer) {
+      return (
+        <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-4">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <h1 className="text-xl font-bold text-white">Access Denied</h1>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              You do not have developer permissions to access the Developer Admin portal.
+            </p>
+            <div className="pt-2">
+              <button
+                onClick={() => navigateTo('/events')}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Return to Events
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return <DeveloperAdminPage />;
   }
 

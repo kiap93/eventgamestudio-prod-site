@@ -201,7 +201,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
                 onClick={triggerBonusCatch}
                 className="relative h-[320px] sm:h-[440px] md:h-[500px] w-full cursor-crosshair overflow-hidden select-none"
                 style={{
-                  backgroundImage: `url('/public/assets/background.png')`,
+                  backgroundImage: `url('/assets/background.png')`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                 }}
@@ -244,7 +244,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
                 {/* Animated Falling Collectibles */}
                 <div className="absolute top-16 left-[25%] animate-bounce duration-1000 pointer-events-none">
                   <img
-                    src="/public/assets/durian_green.png"
+                    src="/assets/durian_green.png"
                     alt="Brand Object"
                     className="w-12 h-12 sm:w-16 sm:h-16 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] transform -rotate-12"
                     loading="eager"
@@ -256,7 +256,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
 
                 <div className="absolute top-28 right-[30%] animate-pulse pointer-events-none">
                   <img
-                    src="/public/assets/durian_brown.png"
+                    src="/assets/durian_brown.png"
                     alt="Obstacle Object"
                     className="w-10 h-10 sm:w-14 sm:h-14 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] transform rotate-12 opacity-90"
                     loading="eager"
@@ -281,7 +281,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
                   style={{ left: `${interactiveBasketX}%` }}
                 >
                   <img
-                    src="/public/assets/basket.png"
+                    src="/assets/basket.png"
                     alt="Player Catcher"
                     className="w-24 sm:w-32 h-auto drop-shadow-[0_15px_20px_rgba(0,0,0,0.6)]"
                     loading="eager"

@@ -43,6 +43,8 @@ import {
   createPlatformGame,
   updatePlatformGame,
   deletePlatformGame,
+  getAllOrganizationsForDeveloper,
+  getOrganizationDetailForDeveloper,
   getAllSystemThemes,
   getSystemThemesByGameId,
   createSystemTheme,
@@ -100,6 +102,8 @@ import {
   getTopupOrderById,
   listTopupOrdersByOrganization,
   processTopupOrderStatus,
+  reconcileTopupOrder,
+  recordWalletAuditEvent,
   preparePendingTopupOrder,
   getEventHighScores,
   submitEventScore,
@@ -396,10 +400,27 @@ export default {
     try {
       // If the request is not an API route and env.ASSETS is available, delegate to Cloudflare Assets with SPA fallback
       if (!pathname.startsWith('/api') && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
-        const assetResponse = await env.ASSETS.fetch(request);
+        let assetResponse = await env.ASSETS.fetch(request);
         if (assetResponse.status !== 404) {
           return assetResponse;
         }
+
+        // If the request was prefixed with /public (e.g. /public/assets/background.png), try stripping /public
+        if (pathname.startsWith('/public/')) {
+          const unaliasedUrl = new URL(request.url);
+          unaliasedUrl.pathname = pathname.replace(/^\/public/, '');
+          assetResponse = await env.ASSETS.fetch(new Request(unaliasedUrl.toString(), request));
+          if (assetResponse.status !== 404) {
+            return assetResponse;
+          }
+        }
+
+        // Do not return SPA index.html for static assets (images, stylesheets, fonts, audio)
+        const isStaticFile = /\.(png|jpe?g|gif|svg|ico|webp|avif|css|js|map|json|woff2?|ttf|otf|mp3|wav|ogg)$/i.test(pathname);
+        if (isStaticFile) {
+          return new Response('Asset not found', { status: 404, headers: cors });
+        }
+
         // Fallback for client-side SPA routing (e.g. /developer, /events, /studio, /e/:token)
         const spaUrl = new URL(request.url);
         spaUrl.pathname = '/index.html';
@@ -1282,6 +1303,10 @@ export default {
           return errorResponse('Theme not found', 404, cors);
         }
 
+        if (theme.is_system || !theme.organization_id) {
+          return errorResponse('System themes are read-only templates and cannot be edited directly. Clone this theme into your organization to make edits.', 403, cors);
+        }
+
         const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, theme.organization_id, 'game.items.edit', env);
         if (!isMember || role === 'viewer') {
           return errorResponse('Permission denied: Cannot update themes', 403, cors);
@@ -1374,6 +1399,10 @@ export default {
         const theme = await getThemeById(themeId, env);
         if (!theme) {
           return errorResponse('Theme not found', 404, cors);
+        }
+
+        if (theme.is_system || !theme.organization_id) {
+          return errorResponse('System themes are read-only templates and cannot be deleted.', 403, cors);
         }
 
         const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, theme.organization_id, 'game.items.edit', env);
@@ -3286,6 +3315,49 @@ export default {
       }
 
       // ----------------------------------------------------
+      // DEVELOPER ADMIN ORGANIZATIONS ENDPOINTS
+      // ----------------------------------------------------
+
+      // GET /api/developer/organizations
+      if (pathname === '/api/developer/organizations' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const organizations = await getAllOrganizationsForDeveloper(env);
+          return jsonResponse({ success: true, organizations }, 200, cors);
+        } catch (err: any) {
+          console.error('Developer get organizations error:', err);
+          return errorResponse(err.message || 'Failed to fetch developer organizations', 500, cors);
+        }
+      }
+
+      // GET /api/developer/organizations/:orgId
+      const devOrgDetailMatch = pathname.match(/^\/api\/developer\/organizations\/([^\/]+)$/);
+      if (devOrgDetailMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const orgId = devOrgDetailMatch[1];
+        try {
+          const detail = await getOrganizationDetailForDeveloper(orgId, env);
+          if (!detail) {
+            return errorResponse('Organization not found', 404, cors);
+          }
+          return jsonResponse({ success: true, ...detail }, 200, cors);
+        } catch (err: any) {
+          console.error('Developer get organization detail error:', err);
+          return errorResponse(err.message || 'Failed to fetch organization detail', 500, cors);
+        }
+      }
+
+      // ----------------------------------------------------
       // WALLET ENGINE & TRANSACTION LEDGER ENDPOINTS
       // ----------------------------------------------------
 
@@ -3645,19 +3717,45 @@ export default {
           }
 
           const body = (await request.json().catch(() => ({}))) as any;
-          const allowedStatuses = ['PENDING', 'PAID', 'FAILED', 'EXPIRED', 'CANCELLED'];
-          if (!body.status || !allowedStatuses.includes(body.status)) {
-            return errorResponse(`Invalid status: ${body.status}. Must be one of: ${allowedStatuses.join(', ')}`, 400, cors);
+
+          // CRITICAL SECURITY RULE: Block manual PAID status transitions for public/org routes
+          if (body.status === 'PAID') {
+            await recordWalletAuditEvent(
+              {
+                organizationId: order.organization_id,
+                eventType: 'UNAUTHORIZED_TOPUP_SETTLEMENT_ATTEMPT',
+                orderId: order.id,
+                actorId: auth.user.id,
+                metadata: {
+                  attempted_status: body.status,
+                  endpoint: pathname,
+                  result: 'FORBIDDEN',
+                },
+              },
+              env
+            );
+
+            return jsonResponse(
+              {
+                error: 'Manual status transition to PAID is forbidden. Top-up orders can only be marked as PAID via verified payment provider webhooks or developer reconciliation.',
+                code: 'TOPUP_SETTLEMENT_FORBIDDEN',
+              },
+              403,
+              cors
+            );
+          }
+
+          // Normal users may only cancel their own pending top-up orders
+          if (body.status !== 'CANCELLED') {
+            return errorResponse(`Invalid status transition: Only 'CANCELLED' is permitted for client-initiated order updates. Provided: ${body.status}`, 400, cors);
           }
 
           const result = await processTopupOrderStatus(
             {
               orderId,
-              newStatus: body.status,
-              paymentReference: body.payment_reference || body.paymentReference,
-              paymentMethod: body.payment_method || body.paymentMethod,
+              newStatus: 'CANCELLED',
               processedBy: auth.user.id,
-              reason: body.reason,
+              reason: body.reason || 'Cancelled by organization user',
               metadata: body.metadata,
             },
             env
@@ -3666,6 +3764,48 @@ export default {
           return jsonResponse(result, 200, cors);
         } catch (err: any) {
           return errorResponse(err.message || 'Failed to process top-up status', 500, cors);
+        }
+      }
+
+      // POST /api/developer/wallet/topups/:id/reconcile
+      const devReconcileMatch = pathname.match(/^\/api\/developer\/wallet\/topups\/([^\/]+)\/reconcile$/);
+      if (devReconcileMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if (!isDev) {
+          return errorResponse('Forbidden: Developer admin access required for manual payment reconciliation', 403, cors);
+        }
+
+        const orderId = devReconcileMatch[1];
+        const body = (await request.json().catch(() => ({}))) as any;
+        const ref = body.payment_reference || body.paymentReference;
+        const reason = body.reason;
+
+        if (!ref || typeof ref !== 'string' || ref.trim().length === 0) {
+          return errorResponse('External payment reference is required for manual reconciliation', 400, cors);
+        }
+        if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
+          return errorResponse('Explicit reconciliation reason (minimum 5 characters) is required', 400, cors);
+        }
+
+        try {
+          const result = await reconcileTopupOrder(
+            {
+              orderId,
+              paymentReference: ref.trim(),
+              paymentMethod: body.payment_method || body.paymentMethod || 'MANUAL_RECONCILIATION',
+              reconciledBy: auth.user.id,
+              reason: reason.trim(),
+              metadata: body.metadata,
+            },
+            env
+          );
+
+          return jsonResponse({ success: true, reconciled: true, ...result }, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to reconcile top-up order', 400, cors);
         }
       }
 
@@ -3726,50 +3866,17 @@ export default {
       }
 
       // POST /api/organizations/:orgId/wallet/topup
+      // DIRECT MUTATION DISABLED FOR PRODUCTION SECURITY
       const orgWalletTopupMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup$/);
       if (orgWalletTopupMatch && method === 'POST') {
-        const orgId = orgWalletTopupMatch[1];
-        const auth = await authenticateWorkerRequest(request, env, cors);
-        if (!auth.authenticated) return auth.errorResponse!;
-
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
-        const isDev = isUserDeveloperAdmin(auth.user, env);
-        if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
-          return errorResponse('Forbidden: Only organization owners and admins can top-up the wallet', 403, cors);
-        }
-
-        const body = (await request.json().catch(() => ({}))) as any;
-        const amount = Number(body.amount);
-        if (isNaN(amount) || amount <= 0) {
-          return errorResponse('Amount must be a positive number', 400, cors);
-        }
-
-        try {
-          const result = await createTopup(
-            {
-              organizationId: orgId,
-              amount,
-              currency: body.currency || 'MYR',
-              referenceId: body.reference_id,
-              description: body.description,
-              metadata: body.metadata,
-              createdBy: auth.user.id,
-            },
-            env
-          );
-          return jsonResponse(
-            {
-              success: true,
-              topup_transaction: result.topupTransaction,
-              promo_credit_transaction: result.promoCreditTransaction,
-              wallet: result.wallet,
-            },
-            201,
-            cors
-          );
-        } catch (err: any) {
-          return errorResponse(err.message || 'Failed to top-up wallet', 500, cors);
-        }
+        return jsonResponse(
+          {
+            error: 'Direct wallet top-up is disabled. All wallet top-ups must be created as Top-up Orders and settled through verified payment processing.',
+            code: 'TOPUP_SETTLEMENT_FORBIDDEN',
+          },
+          403,
+          cors
+        );
       }
 
       // POST /api/organizations/:orgId/wallet/grant-welcome

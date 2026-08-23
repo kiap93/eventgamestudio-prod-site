@@ -266,6 +266,7 @@ async function runTests() {
     paymentReference: 'PAY_REF_6K_001',
     paymentMethod: 'fpx',
     reason: 'Payment gateway confirmation',
+    isTrustedSettlement: true,
   });
 
   assertEqual(settle6kResult.order.status, 'PAID', 'Order status transitioned to PAID');
@@ -293,6 +294,7 @@ async function runTests() {
     newStatus: 'PAID',
     paymentReference: 'PAY_REF_6K_001_DUPLICATE',
     reason: 'Duplicate webhook event',
+    isTrustedSettlement: true,
   });
 
   assertEqual(replayResult.alreadyProcessed, true, 'Replay of PAID order returns alreadyProcessed = true');
@@ -382,6 +384,7 @@ async function runTests() {
     await processTopupOrderStatus({
       orderId: orderFailed.id,
       newStatus: 'PAID',
+      isTrustedSettlement: true,
     });
   } catch (err: any) {
     failedToPaidError = true;
@@ -395,6 +398,7 @@ async function runTests() {
     await processTopupOrderStatus({
       orderId: orderExpired.id,
       newStatus: 'PAID',
+      isTrustedSettlement: true,
     });
   } catch (err: any) {
     expiredToPaidError = true;
@@ -408,6 +412,7 @@ async function runTests() {
     await processTopupOrderStatus({
       orderId: orderCancelled.id,
       newStatus: 'PAID',
+      isTrustedSettlement: true,
     });
   } catch (err: any) {
     cancelledToPaidError = true;

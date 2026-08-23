@@ -971,6 +971,11 @@ export async function updateTheme(
   updates: Partial<Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at'>>,
   env?: Record<string, any>
 ): Promise<GameThemeRecord> {
+  const existing = await getThemeById(themeId, env);
+  if (existing && (existing.is_system || !existing.organization_id)) {
+    throw new Error('System themes are read-only templates and cannot be edited directly. Clone this theme into your organization instead.');
+  }
+
   const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
 
@@ -1033,6 +1038,12 @@ export async function deleteTheme(themeId: string, env?: Record<string, any>): P
   if (!isUUID(themeId)) {
     throw new Error(`Invalid theme ID format: ${themeId}`);
   }
+
+  const existing = await getThemeById(themeId, env);
+  if (existing && (existing.is_system || !existing.organization_id)) {
+    throw new Error('System themes are read-only templates and cannot be deleted.');
+  }
+
   const supabase = getSupabaseServerClient(env);
   const { error } = await supabase
     .from('game_themes')

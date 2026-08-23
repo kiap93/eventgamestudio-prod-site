@@ -50,6 +50,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
   const role = currentOrganization?.role || 'viewer';
   const isViewer = role === 'viewer';
 
+  const [activeTab, setActiveTab] = useState<'my-themes' | 'system-themes'>('my-themes');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'archived'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -176,8 +177,9 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
   const handleCloneSystemTheme = async (sysTheme: GameTheme) => {
     try {
       const cloned = await cloneSystemTheme(sysTheme.id, undefined, activeGame?.id);
-      showNotification('success', `Theme "${cloned.name}" cloned into your organization!`);
-      fetchThemes();
+      showNotification('success', `Theme "${cloned.name}" cloned to My Themes!`);
+      await fetchThemes();
+      setActiveTab('my-themes');
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to clone system theme');
     }
@@ -194,9 +196,10 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
       setShowCloneAllModal(false);
       showNotification(
         'success',
-        `Successfully cloned ${clonedList.length} default themes for ${activeGame.name || 'this game'}!`
+        `Successfully cloned ${clonedList.length} default themes into My Themes!`
       );
-      fetchThemes();
+      await fetchThemes();
+      setActiveTab('my-themes');
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to clone default themes');
     } finally {
@@ -242,6 +245,10 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
   // FULLSCREEN / DEDICATED LIVE GAME PLAY MODE
   // ============================================================
   if (playingTheme) {
+    const isSystemPlaying = Boolean(
+      playingTheme.is_system || (playingTheme as any).ownership_type === 'system' || !(playingTheme as any).organization_id
+    );
+
     return (
       <div
         className={
@@ -268,24 +275,44 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
               <div className="hidden sm:block">
                 <h2 className="text-sm font-black text-slate-100 flex items-center gap-2">
                   <span>{playingTheme.name}</span>
-                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                    Play Mode
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                    isSystemPlaying
+                      ? 'text-indigo-300 bg-indigo-500/10 border border-indigo-500/30'
+                      : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/30'
+                  }`}>
+                    {isSystemPlaying ? 'System Theme Preview' : 'Play Mode'}
                   </span>
                 </h2>
               </div>
             </div>
 
-            {/* Right: Actions: Edit Theme, Restart, Fullscreen */}
+            {/* Right: Actions: Edit Theme / Clone, Restart, Fullscreen */}
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onEditTheme(playingTheme.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
-                title="Edit theme in Theme Studio"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline">Edit Theme</span>
-              </button>
+              {!isSystemPlaying ? (
+                <button
+                  type="button"
+                  onClick={() => onEditTheme(playingTheme.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
+                  title="Edit theme in Theme Studio"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">Edit Theme</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCloneSystemTheme(playingTheme);
+                    setPlayingTheme(null);
+                  }}
+                  disabled={isViewer}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black rounded-xl text-xs transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+                  title="Clone this system theme into your organization"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Clone Theme</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -354,14 +381,76 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
         </div>
       )}
 
+      {/* TWO MAIN SEPARATED TABS: [ My Themes ] [ System Themes ] */}
+      <div className="flex items-center justify-between border-b border-slate-800 gap-2 overflow-x-auto">
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            id="tab-my-themes"
+            type="button"
+            onClick={() => setActiveTab('my-themes')}
+            className={`flex items-center gap-2.5 px-6 py-3.5 text-sm font-black border-b-2 transition-all cursor-pointer ${
+              activeTab === 'my-themes'
+                ? 'border-amber-400 text-amber-400 bg-amber-500/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>My Themes</span>
+            <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+              activeTab === 'my-themes'
+                ? 'bg-amber-400/20 text-amber-300'
+                : 'bg-slate-800 text-slate-400'
+            }`}>
+              {themes.length}
+            </span>
+          </button>
+
+          <button
+            id="tab-system-themes"
+            type="button"
+            onClick={() => setActiveTab('system-themes')}
+            className={`flex items-center gap-2.5 px-6 py-3.5 text-sm font-black border-b-2 transition-all cursor-pointer ${
+              activeTab === 'system-themes'
+                ? 'border-indigo-400 text-indigo-400 bg-indigo-500/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>System Themes</span>
+            <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+              activeTab === 'system-themes'
+                ? 'bg-indigo-400/20 text-indigo-300'
+                : 'bg-slate-800 text-slate-400'
+            }`}>
+              {systemThemes.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Global Action: + Create Theme Button */}
+        <div className="flex items-center gap-2 shrink-0 py-2">
+          <button
+            id="btn-create-theme-header"
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            disabled={isViewer}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>+ Create Theme</span>
+          </button>
+        </div>
+      </div>
+
       {/* SEARCH, FILTERS & ACTIONS TOOLBAR */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/60 border border-slate-800/80 p-3 rounded-2xl">
         {/* Search Input */}
         <div className="relative w-full sm:max-w-md">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
+            id="input-search-themes"
             type="text"
-            placeholder="Search themes..."
+            placeholder={activeTab === 'my-themes' ? 'Search My Themes...' : 'Search System Themes...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500 placeholder:text-slate-500"
@@ -380,6 +469,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
         <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
           <div className="relative w-full sm:w-40">
             <select
+              id="select-status-filter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
               className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold rounded-xl px-3.5 py-2 focus:outline-none focus:border-amber-500 cursor-pointer"
@@ -391,6 +481,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
           </div>
 
           <button
+            id="btn-engine-catalog"
             type="button"
             onClick={() => setShowCatalogModal(true)}
             className="px-3.5 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shrink-0"
@@ -399,193 +490,213 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
             <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden md:inline">Engines</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => setShowCreateModal(true)}
-            disabled={isViewer}
-            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-50"
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
-            <span>Create Theme</span>
-          </button>
         </div>
       </div>
 
-      {/* 3. SYSTEM / DEFAULT THEMES SECTION */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-sm">
-              <Sparkles className="w-4 h-4" />
-            </div>
+      {/* ============================================================ */}
+      {/* TAB 1: MY THEMES VIEW */}
+      {/* ============================================================ */}
+      {activeTab === 'my-themes' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
             <div>
-              <h2 className="text-sm font-black text-slate-100 tracking-wider">
-                SYSTEM / DEFAULT THEMES
+              <h2 className="text-sm font-black text-slate-100 tracking-wider flex items-center gap-2">
+                <span>MY THEMES</span>
+                <span className="text-[11px] font-normal text-slate-400">
+                  (Organization Custom Themes)
+                </span>
               </h2>
-              <p className="text-[11px] text-slate-400">
-                Official Developer Admin system templates for {activeGame?.name || 'this game'}. Preview or clone into your organization.
+              <p className="text-xs text-slate-400">
+                Themes belonging exclusively to your organization for events and marketing campaigns.
               </p>
             </div>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <span className="text-xs font-bold px-3 py-1 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 shadow-sm">
-              {filteredSystemThemes.length} available
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-950/80 text-amber-300 border border-amber-500/40 shadow-sm">
+              {filteredMyThemes.length} {filteredMyThemes.length === 1 ? 'theme' : 'themes'}
             </span>
-            {filteredSystemThemes.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowCloneAllModal(true)}
-                disabled={isViewer || isCloningAll}
-                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 shrink-0 disabled:opacity-50"
-                title="Clone all active system themes to your organization"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                <span>Clone All Default Themes</span>
-              </button>
-            )}
           </div>
-        </div>
 
-        {systemThemeError ? (
-          <div className="bg-rose-950/25 border border-rose-800/50 rounded-2xl p-6 text-center space-y-3">
-            <div className="flex items-center justify-center gap-2 text-rose-400 text-sm font-semibold">
-              <AlertTriangle className="w-4 h-4" />
-              <span>Unable to load system themes.</span>
+          {filteredMyThemes.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredMyThemes.map((theme) => (
+                <ThemeCard
+                  key={theme.id}
+                  theme={theme}
+                  isSystem={false}
+                  onPlay={(selectedTheme) => setPlayingTheme(selectedTheme)}
+                  onEdit={onEditTheme}
+                  onDuplicate={handleDuplicate}
+                  onDelete={handleDelete}
+                  isViewer={isViewer}
+                  isOnlyTheme={themes.length <= 1}
+                />
+              ))}
             </div>
-            <p className="text-xs text-rose-300/70 max-w-md mx-auto">{systemThemeError}</p>
-            <button
-              type="button"
-              onClick={loadSystemThemes}
-              className="px-4 py-1.5 bg-rose-900/80 hover:bg-rose-800 text-rose-200 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Retry</span>
-            </button>
-          </div>
-        ) : filteredSystemThemes.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredSystemThemes.map((sysTheme) => (
-              <ThemeCard
-                key={`sys-${sysTheme.id}`}
-                theme={sysTheme}
-                isSystem={true}
-                onPlay={(selectedTheme) => setPlayingTheme(selectedTheme)}
-                onClone={handleCloneSystemTheme}
-                isViewer={isViewer}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-6 text-center text-slate-500 text-xs space-y-2">
-            {isLoadingSystem ? (
-              <div className="flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                <span>Loading system themes...</span>
+          ) : themes.length === 0 ? (
+            /* EXACT REQUIRED EMPTY STATE: No custom themes yet */
+            <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-12 text-center max-w-lg mx-auto space-y-6 my-4 shadow-xl">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 mx-auto flex items-center justify-center shadow-inner">
+                <FolderOpen className="w-8 h-8" />
               </div>
-            ) : searchQuery ? (
-              'No system themes match your search query.'
-            ) : (
               <div className="space-y-2">
-                <p>No active system themes available for this game.</p>
+                <h3 className="text-lg font-black text-slate-100">No custom themes yet</h3>
+                <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+                  Create your first custom theme from scratch,<br />
+                  or start with one of our System Themes.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button
+                  id="btn-browse-system-themes"
                   type="button"
-                  onClick={loadSystemThemes}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 cursor-pointer"
+                  onClick={() => setActiveTab('system-themes')}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Refresh</span>
+                  <Sparkles className="w-4 h-4" />
+                  <span>Browse System Themes</span>
+                </button>
+                <button
+                  id="btn-create-theme-empty"
+                  type="button"
+                  onClick={() => setShowCreateModal(true)}
+                  disabled={isViewer}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition-all border border-slate-700 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Create Theme</span>
                 </button>
               </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* 4. MY THEMES SECTION */}
-      <div className="space-y-4 pt-6">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-sm">
-              <Layers className="w-4 h-4" />
             </div>
-            <div>
-              <h2 className="text-sm font-black text-slate-100 tracking-wider">
-                MY THEMES
-              </h2>
-              <p className="text-[11px] text-slate-400">
-                Customer-owned themes customized for your events and campaigns.
-              </p>
+          ) : (
+            /* Search / filter zero results */
+            <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-8 text-center max-w-lg mx-auto space-y-3 my-4">
+              <div className="w-10 h-10 rounded-xl bg-slate-800 text-slate-400 mx-auto flex items-center justify-center">
+                <Search className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <h3 className="text-xs font-bold text-slate-200">No matching custom themes</h3>
+                <p className="text-[11px] text-slate-400">
+                  No themes in My Themes match your current search or filter criteria.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('all');
+                }}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-all cursor-pointer"
+              >
+                Reset Filters
+              </button>
             </div>
-          </div>
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-950/80 text-amber-300 border border-amber-500/40 shadow-sm">
-            {filteredMyThemes.length} themes
-          </span>
+          )}
         </div>
+      )}
 
-        {filteredMyThemes.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredMyThemes.map((theme) => (
-              <ThemeCard
-                key={theme.id}
-                theme={theme}
-                isSystem={false}
-                onPlay={(selectedTheme) => setPlayingTheme(selectedTheme)}
-                onEdit={onEditTheme}
-                onDuplicate={handleDuplicate}
-                onDelete={handleDelete}
-                isViewer={isViewer}
-                isOnlyTheme={themes.length <= 1}
-              />
-            ))}
+      {/* ============================================================ */}
+      {/* TAB 2: SYSTEM THEMES VIEW */}
+      {/* ============================================================ */}
+      {activeTab === 'system-themes' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-sm shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-slate-100 tracking-wider">
+                  SYSTEM THEMES
+                </h2>
+                <p className="text-xs text-slate-400">
+                  EventGameStudio-provided system templates. Preview or clone any template into your organization.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 shadow-sm">
+                {filteredSystemThemes.length} available
+              </span>
+              {filteredSystemThemes.length > 0 && (
+                <button
+                  id="btn-clone-all-themes"
+                  type="button"
+                  onClick={() => setShowCloneAllModal(true)}
+                  disabled={isViewer || isCloningAll}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
+                  title="Clone all active system themes to your organization"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Clone All Default Themes</span>
+                </button>
+              )}
+            </div>
           </div>
-        ) : themes.length === 0 ? (
-          /* Empty State: Customer has no themes yet */
-          <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-10 text-center max-w-lg mx-auto space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 mx-auto flex items-center justify-center">
-              <FolderOpen className="w-7 h-7" />
+
+          {/* Informative notice explaining system templates are read-only */}
+          <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-2xl px-4 py-3 text-xs text-indigo-200/90 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span>
+                System themes are read-only templates. To customize images, items, scoring, and branding, click <strong>Clone</strong> to add a copy to <strong>My Themes</strong>.
+              </span>
             </div>
-            <div className="space-y-1">
-              <h3 className="text-base font-black text-slate-100">No organization themes yet</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Clone a System Theme from above or create a new custom theme from scratch.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowCreateModal(true)}
-              disabled={isViewer}
-              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all inline-flex items-center gap-2 shadow-lg disabled:opacity-50"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>+ Create New Theme</span>
-            </button>
           </div>
-        ) : (
-          /* Empty State: Search or filter returned 0 results for MY THEMES */
-          <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-8 text-center max-w-lg mx-auto space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-800 text-slate-400 mx-auto flex items-center justify-center">
-              <Search className="w-5 h-5" />
+
+          {systemThemeError ? (
+            <div className="bg-rose-950/25 border border-rose-800/50 rounded-2xl p-6 text-center space-y-3">
+              <div className="flex items-center justify-center gap-2 text-rose-400 text-sm font-semibold">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Unable to load system themes.</span>
+              </div>
+              <p className="text-xs text-rose-300/70 max-w-md mx-auto">{systemThemeError}</p>
+              <button
+                type="button"
+                onClick={loadSystemThemes}
+                className="px-4 py-1.5 bg-rose-900/80 hover:bg-rose-800 text-rose-200 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
             </div>
-            <div className="space-y-0.5">
-              <h3 className="text-xs font-bold text-slate-200">No matching customer themes</h3>
-              <p className="text-[11px] text-slate-400">
-                No organization themes match your current search or filter criteria.
-              </p>
+          ) : filteredSystemThemes.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredSystemThemes.map((sysTheme) => (
+                <ThemeCard
+                  key={`sys-${sysTheme.id}`}
+                  theme={sysTheme}
+                  isSystem={true}
+                  onPlay={(selectedTheme) => setPlayingTheme(selectedTheme)}
+                  onClone={handleCloneSystemTheme}
+                  isViewer={isViewer}
+                />
+              ))}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setStatusFilter('all');
-              }}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-all"
-            >
-              Reset Filters
-            </button>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-6 text-center text-slate-500 text-xs space-y-2">
+              {isLoadingSystem ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                  <span>Loading system themes...</span>
+                </div>
+              ) : searchQuery ? (
+                'No system themes match your search query.'
+              ) : (
+                <div className="space-y-2">
+                  <p>No active system themes available for this game engine.</p>
+                  <button
+                    type="button"
+                    onClick={loadSystemThemes}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* CREATE THEME DIALOG */}
       <CreateThemeDialog

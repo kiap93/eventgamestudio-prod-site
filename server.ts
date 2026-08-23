@@ -37,6 +37,8 @@ import {
   createPlatformGame,
   updatePlatformGame,
   deletePlatformGame,
+  getAllOrganizationsForDeveloper,
+  getOrganizationDetailForDeveloper,
   ensureSystemCatalogGames,
   getSystemThemesByGameId,
   getAllSystemThemes,
@@ -89,6 +91,8 @@ import {
   getTopupOrderById,
   listTopupOrdersByOrganization,
   processTopupOrderStatus,
+  reconcileTopupOrder,
+  recordWalletAuditEvent,
   createTopup,
   grantWelcomeCredit,
   canUseWelcomeCredit,
@@ -1089,6 +1093,11 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       return;
     }
 
+    if (theme.is_system || !theme.organization_id) {
+      res.status(403).json({ error: 'System themes are read-only templates and cannot be edited directly. Clone this theme into your organization to make edits.' });
+      return;
+    }
+
     const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, theme.organization_id, 'game.items.edit');
     if (!isMember || role === 'viewer') {
       res.status(403).json({ error: 'Permission denied: Cannot update themes' });
@@ -1184,6 +1193,11 @@ app.delete('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReq
     const theme = await getThemeById(themeId);
     if (!theme) {
       res.status(404).json({ error: 'Theme not found' });
+      return;
+    }
+
+    if (theme.is_system || !theme.organization_id) {
+      res.status(403).json({ error: 'System themes are read-only templates and cannot be deleted.' });
       return;
     }
 
@@ -3284,6 +3298,46 @@ app.put('/api/admin/events/:eventId/pricing', authenticateDeveloperAdmin, handle
 app.patch('/api/admin/events/:eventId/pricing', authenticateDeveloperAdmin, handleUpdateEventPricing);
 
 // ----------------------------------------------------
+// DEVELOPER ADMIN ORGANIZATIONS ENDPOINTS
+// ----------------------------------------------------
+
+/**
+ * GET /api/developer/organizations
+ * Retrieve all organizations with aggregated info (member count, event count, wallet balances)
+ */
+app.get('/api/developer/organizations', authenticateDeveloperAdmin, async (_req: AuthenticatedRequest, res: any) => {
+  try {
+    const organizations = await getAllOrganizationsForDeveloper();
+    res.json({ success: true, organizations });
+  } catch (err: any) {
+    console.error('Developer get organizations error:', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch developer organizations' });
+  }
+});
+
+/**
+ * GET /api/developer/organizations/:orgId
+ * Retrieve organization detail for developer admin (organization, owner, members, wallet, events, recent_transactions)
+ */
+app.get('/api/developer/organizations/:orgId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { orgId } = req.params;
+    const detail = await getOrganizationDetailForDeveloper(orgId);
+    if (!detail) {
+      res.status(404).json({ error: 'Organization not found' });
+      return;
+    }
+    res.json({
+      success: true,
+      ...detail,
+    });
+  } catch (err: any) {
+    console.error('Developer get organization detail error:', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch organization details' });
+  }
+});
+
+// ----------------------------------------------------
 // WALLET ENGINE & TRANSACTION LEDGER ENDPOINTS
 // ----------------------------------------------------
 
@@ -3396,51 +3450,15 @@ app.get('/api/organizations/:orgId/wallet/audit-trail', authenticateJWT, async (
 
 /**
  * POST /api/organizations/:orgId/wallet/topup
- * Process deposit / top-up and automatically calculate promotional credit
+ * DIRECT MUTATION DISABLED FOR PRODUCTION SECURITY:
+ * Direct wallet crediting is prohibited. All wallet top-ups must be initiated as Top-up Orders
+ * and settled through verified payment provider webhooks or privileged developer reconciliation.
  */
 app.post('/api/organizations/:orgId/wallet/topup', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    const { orgId } = req.params;
-    if (!isUUID(orgId)) {
-      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
-      return;
-    }
-
-    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
-    const isDev = isUserDeveloperAdmin(req.user);
-    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
-      res.status(403).json({ error: 'Only organization owners and admins can top-up the wallet' });
-      return;
-    }
-
-    const { amount, currency, reference_id, description, metadata } = req.body;
-    const numericAmount = Number(amount);
-
-    if (isNaN(numericAmount) || numericAmount <= 0) {
-      res.status(400).json({ error: 'Amount must be a positive number' });
-      return;
-    }
-
-    const result = await createTopup({
-      organizationId: orgId,
-      amount: numericAmount,
-      currency: currency || 'MYR',
-      referenceId: reference_id,
-      description,
-      metadata,
-      createdBy: req.user!.id,
-    });
-
-    res.status(201).json({
-      success: true,
-      topup_transaction: result.topupTransaction,
-      promo_credit_transaction: result.promoCreditTransaction,
-      wallet: result.wallet,
-    });
-  } catch (err: any) {
-    console.error('Wallet top-up error:', err);
-    res.status(500).json({ error: err.message });
-  }
+  res.status(403).json({
+    error: 'Direct wallet top-up is disabled. All wallet top-ups must be created as Top-up Orders and settled through verified payment processing.',
+    code: 'TOPUP_SETTLEMENT_FORBIDDEN',
+  });
 });
 
 /**
@@ -3609,11 +3627,10 @@ app.get('/api/organizations/:orgId/wallet/topup-orders', authenticateJWT, handle
  *
  * Process a top-up order status transition.
  *
- * LIFECYCLE & FINANCIAL RULES:
- * 1. ONLY status === 'PAID' credits the wallet.
- * 2. 'PENDING', 'FAILED', 'EXPIRED', 'CANCELLED' NEVER credit the wallet.
- * 3. When PAID, separate ledger entries are created for Paid Balance (+ RM X) and Top-up Credit (+ RM Y).
- * 4. IDEMPOTENT: If an order is already PAID, reprocessing does nothing and never double-credits.
+ * LIFECYCLE & SECURITY RULES:
+ * 1. Normal organization users (owner, admin, member) CANNOT manually transition an order to PAID.
+ * 2. Status 'PAID' can ONLY be set by verified payment provider webhooks or privileged developer manual reconciliation.
+ * 3. Normal organization owners/admins can only cancel ('CANCELLED') their own pending top-up orders.
  */
 const handleProcessTopupStatus = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
@@ -3629,7 +3646,7 @@ const handleProcessTopupStatus = async (req: AuthenticatedRequest, res: express.
       return;
     }
 
-    // STRICT ORGANIZATION ISOLATION: Requester must be owner/admin of the order's organization
+    // STRICT ORGANIZATION ISOLATION: Requester must be owner/admin of the order's organization or developer admin
     const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, order.organization_id);
     const isDev = isUserDeveloperAdmin(req.user);
     if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
@@ -3637,30 +3654,50 @@ const handleProcessTopupStatus = async (req: AuthenticatedRequest, res: express.
       return;
     }
 
-    const { status, payment_reference, paymentReference, payment_method, paymentMethod, reason, metadata } = req.body;
-    const allowedStatuses = ['PENDING', 'PAID', 'FAILED', 'EXPIRED', 'CANCELLED'];
+    const { status, reason, metadata } = req.body;
 
-    if (!status || !allowedStatuses.includes(status)) {
+    // CRITICAL SECURITY RULE: Block manual PAID status changes by public/org endpoints
+    if (status === 'PAID') {
+      await recordWalletAuditEvent({
+        organizationId: order.organization_id,
+        eventType: 'UNAUTHORIZED_TOPUP_SETTLEMENT_ATTEMPT',
+        orderId: order.id,
+        actorId: req.user!.id,
+        metadata: {
+          attempted_status: status,
+          endpoint: req.originalUrl || req.path,
+          result: 'FORBIDDEN',
+        },
+      });
+
+      res.status(403).json({
+        error: 'Manual status transition to PAID is forbidden. Top-up orders can only be marked as PAID via verified payment provider webhooks or developer reconciliation.',
+        code: 'TOPUP_SETTLEMENT_FORBIDDEN',
+      });
+      return;
+    }
+
+    // Organization users may only cancel their own pending top-up orders
+    if (status !== 'CANCELLED') {
       res.status(400).json({
-        error: `Invalid status: ${status}. Must be one of: ${allowedStatuses.join(', ')}`,
+        error: `Invalid status transition: Only 'CANCELLED' is permitted for client-initiated order updates. Provided: ${status}`,
+        code: 'INVALID_STATUS_TRANSITION',
       });
       return;
     }
 
     const result = await processTopupOrderStatus({
       orderId,
-      newStatus: status,
-      paymentReference: payment_reference || paymentReference,
-      paymentMethod: payment_method || paymentMethod,
+      newStatus: 'CANCELLED',
       processedBy: req.user!.id,
-      reason,
+      reason: reason || 'Cancelled by organization user',
       metadata,
     });
 
     res.json(result);
   } catch (err: any) {
     console.error('Process top-up order status error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 };
 
@@ -3838,6 +3875,58 @@ app.post('/api/developer/wallet/test-webhook', authenticateJWT, async (req: Auth
   } catch (err: any) {
     console.error('Test webhook error:', err);
     res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/developer/wallet/topups/:id/reconcile
+ * Developer Admin Manual Payment Reconciliation.
+ * Strictly requires reason, external payment reference, and developer admin privileges.
+ */
+app.post('/api/developer/wallet/topups/:id/reconcile', authenticateJWT, authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const orderId = req.params.id;
+    if (!orderId) {
+      res.status(400).json({ error: 'Order ID is required' });
+      return;
+    }
+
+    const { reason, payment_reference, paymentReference, payment_method, paymentMethod, metadata } = req.body;
+
+    const ref = payment_reference || paymentReference;
+    if (!ref || typeof ref !== 'string' || ref.trim().length === 0) {
+      res.status(400).json({
+        error: 'External payment reference is required for manual reconciliation',
+        code: 'PAYMENT_REFERENCE_REQUIRED',
+      });
+      return;
+    }
+
+    if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
+      res.status(400).json({
+        error: 'Explicit reconciliation reason (minimum 5 characters) is required',
+        code: 'RECONCILIATION_REASON_REQUIRED',
+      });
+      return;
+    }
+
+    const result = await reconcileTopupOrder({
+      orderId,
+      paymentReference: ref.trim(),
+      paymentMethod: payment_method || paymentMethod || 'MANUAL_RECONCILIATION',
+      reconciledBy: req.user!.id,
+      reason: reason.trim(),
+      metadata,
+    });
+
+    res.json({
+      success: true,
+      reconciled: true,
+      ...result,
+    });
+  } catch (err: any) {
+    console.error('Developer top-up reconciliation error:', err);
+    res.status(err.status || 400).json({ error: err.message });
   }
 });
 
@@ -4329,6 +4418,13 @@ app.post('/api/developer/wallet/reverse', authenticateDeveloperAdmin, async (req
 // ----------------------------------------------------
 
 async function startServer() {
+  const publicDir = path.join(process.cwd(), 'public');
+  const distPath = path.join(process.cwd(), 'dist');
+
+  // Serve static assets from public/ directory explicitly under /public as well as /assets
+  app.use('/public', express.static(publicDir));
+  app.use('/assets', express.static(path.join(publicDir, 'assets')));
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -4336,9 +4432,14 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
+    app.use('/public', express.static(distPath));
+    app.get('*', (req, res) => {
+      // Do not return SPA index.html for missing static files (images, fonts, scripts)
+      if (/\.(png|jpe?g|gif|svg|ico|webp|avif|css|js|map|json|woff2?|ttf|otf|mp3|wav|ogg)$/i.test(req.path)) {
+        res.status(404).send('Asset not found');
+        return;
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

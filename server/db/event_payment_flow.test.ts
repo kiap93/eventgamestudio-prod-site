@@ -67,13 +67,14 @@ async function runTests() {
   const walletWhilePending = await getWalletBalance(org.id);
   assert.strictEqual(walletWhilePending.paid_balance, 0, 'Pending order must not credit wallet');
 
-  // Test 4: Settle Top Up Order to PAID
+  // Test 4: Settle Top Up Order to PAID via trusted settlement
   const settleResult = await processTopupOrderStatus({
     orderId: topUpOrder.id,
     newStatus: 'PAID',
     paymentMethod: 'card',
     paymentReference: 'test_ref_shortfall_paid',
     processedBy: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+    isTrustedSettlement: true,
   });
 
   assert.strictEqual(settleResult.order.status, 'PAID');

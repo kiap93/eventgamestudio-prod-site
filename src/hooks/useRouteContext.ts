@@ -28,7 +28,8 @@ export interface RouteContext {
   gameType?: string;
   developerGameId?: string;
   developerThemeId?: string;
-  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing';
+  developerOrgId?: string;
+  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing' | 'organizations';
   developerAction?: 'new-theme' | 'edit-theme' | 'new-game' | 'edit-game' | 'test-play';
   pathname: string;
 }
@@ -88,10 +89,16 @@ export function parseRoute(pathname: string): RouteContext {
     // /developer/themes/:themeId/edit
     let developerGameId: string | undefined = undefined;
     let developerThemeId: string | undefined = undefined;
+    let developerOrgId: string | undefined = undefined;
     let developerAction: RouteContext['developerAction'] = undefined;
     let developerSection: RouteContext['developerSection'] = 'games';
 
-    if (parts[1] === 'showcases') {
+    if (parts[1] === 'organizations') {
+      developerSection = 'organizations';
+      if (parts[2]) {
+        developerOrgId = parts[2];
+      }
+    } else if (parts[1] === 'showcases') {
       developerSection = 'showcases';
     } else if (parts[1] === 'pricing' || parts[1] === 'events') {
       developerSection = 'pricing';
@@ -122,6 +129,7 @@ export function parseRoute(pathname: string): RouteContext {
       isDeveloperAdminRoute: true,
       developerGameId,
       developerThemeId,
+      developerOrgId,
       developerSection,
       developerAction,
       pathname: cleanPath,

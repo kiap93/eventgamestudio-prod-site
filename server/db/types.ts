@@ -565,7 +565,9 @@ export type WalletAuditEventType =
   | 'WALLET_CREDITED'
   | 'WEBHOOK_RECEIVED'
   | 'REFUND_PROCESSED'
-  | 'ADMIN_ADJUSTMENT';
+  | 'ADMIN_ADJUSTMENT'
+  | 'ADMIN_RECONCILIATION'
+  | 'UNAUTHORIZED_TOPUP_SETTLEMENT_ATTEMPT';
 
 export interface WalletAuditRecord {
   id: string;

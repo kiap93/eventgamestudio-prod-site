@@ -12,7 +12,8 @@
     "lint": "tsc --noEmit",
     "test:flow": "tsx server/db/event_payment_flow.test.ts",
     "test:cors": "tsx server/cors.test.ts",
-    "test:wallet": "tsx server/db/wallet_topup.test.ts && tsx server/db/wallet_credits.test.ts && tsx server/db/showcase_reward.test.ts && tsx server/db/wallet_production_acid.test.ts && tsx server/db/atomic_payment_acid.test.ts",
+    "test:wallet": "tsx server/db/wallet_security_lifecycle.test.ts && tsx server/db/wallet_topup.test.ts && tsx server/db/wallet_credits.test.ts && tsx server/db/showcase_reward.test.ts && tsx server/db/wallet_production_acid.test.ts && tsx server/db/atomic_payment_acid.test.ts",
+    "test:security": "tsx server/db/wallet_security_lifecycle.test.ts",
     "test:credits": "tsx server/db/wallet_credits.test.ts",
     "test:showcase": "tsx server/db/showcase_reward.test.ts"
   },

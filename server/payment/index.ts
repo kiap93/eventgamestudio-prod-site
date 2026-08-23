@@ -505,6 +505,7 @@ export async function verifyAndProcessPaymentWebhook(
         provider: 'payment_provider',
         processed_at: new Date().toISOString(),
       },
+      isTrustedSettlement: true,
     },
     env
   );

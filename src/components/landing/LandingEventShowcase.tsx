@@ -89,7 +89,7 @@ export const LandingEventShowcase: React.FC = () => {
                 {/* Stage Background with Lighting Rig */}
                 <div
                   className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover/screen:scale-105"
-                  style={{ backgroundImage: `url('/public/assets/background.png')` }}
+                  style={{ backgroundImage: `url('/assets/background.png')` }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-950/60" />
 
