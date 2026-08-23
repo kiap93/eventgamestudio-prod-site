@@ -97,6 +97,11 @@ import {
   listTopupOrdersByOrganization,
   processTopupOrderStatus,
   preparePendingTopupOrder,
+  getEventHighScores,
+  submitEventScore,
+  getEventScoreStats,
+  deleteEventScore,
+  clearEventHighScores,
 } from './server/db/index.js';
 
 import {
@@ -479,7 +484,20 @@ export default {
           }
         }
 
-        // 7. Event Mutation Rate Limiting (POST /api/events, POST /api/events/quote, /cancel)
+        // 7. High Scores Rate Limiting (POST /api/events/:id/high-scores, POST /api/public/events/:token/high-scores)
+        else if (pathname.includes('/high-scores') && method === 'POST') {
+          const scoreLimit = checkWorkerRateLimit(request, {
+            windowMs: 60 * 1000,
+            max: 30,
+            keyPrefix: 'worker_high_scores',
+            message: 'Too many score submissions. Please wait a moment before submitting another score.',
+          });
+          if (!scoreLimit.allowed) {
+            return jsonResponse(scoreLimit.errorResponse, 429, { ...cors, ...scoreLimit.headers });
+          }
+        }
+
+        // 8. Event Mutation Rate Limiting (POST /api/events, POST /api/events/quote, /cancel)
         else if (pathname.startsWith('/api/events')) {
           const eventLimit = checkWorkerRateLimit(request, {
             windowMs: 60 * 1000,
@@ -492,7 +510,7 @@ export default {
           }
         }
 
-        // 8. General API fallback rate limiting for any other mutating route
+        // 9. General API fallback rate limiting for any other mutating route
         else {
           const generalLimit = checkWorkerRateLimit(request, {
             windowMs: 60 * 1000,
@@ -1865,6 +1883,208 @@ export default {
         }
 
         return jsonResponse({ event }, 200, cors);
+      }
+
+      // ==========================================
+      // 8.5 Event High Score Board Endpoints
+      // ==========================================
+
+      // GET /api/public/events/:publicToken/high-scores
+      const publicScoresParams = parseRoute('/api/public/events/:publicToken/high-scores', pathname);
+      if (publicScoresParams && method === 'GET') {
+        const { publicToken } = publicScoresParams;
+        if (!publicToken) {
+          return errorResponse('Public token required', 422, cors);
+        }
+
+        const event = await getEventByPublicToken(publicToken, env);
+        if (!event) {
+          return errorResponse('Event not found or invalid link', 404, cors);
+        }
+
+        const limit = Number(url.searchParams.get('limit') || 20);
+        const page = Number(url.searchParams.get('page') || 1);
+
+        const result = await getEventHighScores(event.id, { limit, page }, env);
+        return jsonResponse({
+          event_id: event.id,
+          event_name: event.name,
+          ...result,
+        }, 200, cors);
+      }
+
+      // POST /api/public/events/:publicToken/high-scores
+      if (publicScoresParams && method === 'POST') {
+        const { publicToken } = publicScoresParams;
+        if (!publicToken) {
+          return errorResponse('Public token required', 422, cors);
+        }
+
+        const event = await getEventByPublicToken(publicToken, env);
+        if (!event) {
+          return errorResponse('Event not found or invalid link', 404, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { player_name, score, metadata } = body;
+
+        if (score === undefined || score === null || isNaN(Number(score))) {
+          return errorResponse('Valid numerical score is required', 422, cors);
+        }
+
+        const result = await submitEventScore(
+          {
+            event_id: event.id,
+            player_name,
+            score: Number(score),
+            metadata,
+          },
+          env
+        );
+
+        return jsonResponse({
+          success: true,
+          event_id: event.id,
+          event_name: event.name,
+          ...result,
+        }, 201, cors);
+      }
+
+      // GET /api/events/:eventId/admin/high-scores (Organizer High Scores & Stats)
+      const adminScoresParams = parseRoute('/api/events/:eventId/admin/high-scores', pathname);
+      if (adminScoresParams && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = adminScoresParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view', env);
+        if (!isMember) {
+          return errorResponse('Permission denied', 403, cors);
+        }
+
+        const limit = Number(url.searchParams.get('limit') || 100);
+        const page = Number(url.searchParams.get('page') || 1);
+
+        const leaderboard = await getEventHighScores(eventId, { limit, page }, env);
+        const stats = await getEventScoreStats(eventId, env);
+
+        return jsonResponse({
+          event_id: eventId,
+          event_name: event.name,
+          ...leaderboard,
+          stats,
+        }, 200, cors);
+      }
+
+      // POST /api/events/:eventId/high-scores/clear (Leaderboard Reset)
+      const clearScoresParams = parseRoute('/api/events/:eventId/high-scores/clear', pathname);
+      if (clearScoresParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = clearScoresParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || !['owner', 'admin'].includes(role || '')) {
+          return errorResponse('Permission denied: Only organization owners and admins can reset event leaderboards', 403, cors);
+        }
+
+        await clearEventHighScores(eventId, env);
+        return jsonResponse({
+          success: true,
+          message: 'Event leaderboard reset successfully',
+        }, 200, cors);
+      }
+
+      // DELETE /api/events/:eventId/high-scores/:scoreId (Delete specific score)
+      const deleteScoreParams = parseRoute('/api/events/:eventId/high-scores/:scoreId', pathname);
+      if (deleteScoreParams && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId, scoreId } = deleteScoreParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot delete scores', 403, cors);
+        }
+
+        await deleteEventScore(eventId, scoreId, env);
+        return jsonResponse({
+          success: true,
+          message: 'Score deleted successfully',
+        }, 200, cors);
+      }
+
+      // GET /api/events/:eventId/high-scores
+      const eventScoresParams = parseRoute('/api/events/:eventId/high-scores', pathname);
+      if (eventScoresParams && method === 'GET') {
+        const { eventId } = eventScoresParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const limit = Number(url.searchParams.get('limit') || 20);
+        const page = Number(url.searchParams.get('page') || 1);
+
+        const result = await getEventHighScores(eventId, { limit, page }, env);
+        return jsonResponse({
+          event_id: eventId,
+          event_name: event.name,
+          ...result,
+        }, 200, cors);
+      }
+
+      // POST /api/events/:eventId/high-scores
+      if (eventScoresParams && method === 'POST') {
+        const { eventId } = eventScoresParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { player_name, score, metadata } = body;
+
+        if (score === undefined || score === null || isNaN(Number(score))) {
+          return errorResponse('Valid numerical score is required', 422, cors);
+        }
+
+        const result = await submitEventScore(
+          {
+            event_id: eventId,
+            player_name,
+            score: Number(score),
+            metadata,
+          },
+          env
+        );
+
+        return jsonResponse({
+          success: true,
+          event_id: eventId,
+          ...result,
+        }, 201, cors);
       }
 
       // ==========================================
