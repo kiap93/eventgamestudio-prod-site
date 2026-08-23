@@ -251,10 +251,19 @@ export interface EventRecord {
   payment_mode?: PaymentMode;
   paid_amount?: number;
   discount_amount?: number;
+  event_price?: number;
+  event_currency?: string;
   public_token: string;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface PlatformPricingSettings {
+  default_price: number;
+  default_currency: string;
+  updated_at?: string;
+  updated_by?: string | null;
 }
 
 export interface EventWithDetails extends EventRecord {
@@ -555,7 +564,8 @@ export type WalletAuditEventType =
   | 'PAYMENT_COMPLETED'
   | 'WALLET_CREDITED'
   | 'WEBHOOK_RECEIVED'
-  | 'REFUND_PROCESSED';
+  | 'REFUND_PROCESSED'
+  | 'ADMIN_ADJUSTMENT';
 
 export interface WalletAuditRecord {
   id: string;

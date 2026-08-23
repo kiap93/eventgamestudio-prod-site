@@ -4,7 +4,8 @@ import {
   EventLeaderboardEntry,
   EventScoreStats,
 } from './types.js';
-import { getEventById } from './events.js';
+import { getEventById, getEventByPublicToken } from './events.js';
+import { isUUID } from './themes.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -80,28 +81,43 @@ export async function submitEventScore(
 }> {
   const { event_id, metadata = {} } = params;
 
-  if (!event_id || typeof event_id !== 'string') {
-    throw new Error('Valid event_id is required');
+  if (!event_id || typeof event_id !== 'string' || event_id === 'undefined' || event_id === 'null' || !event_id.trim()) {
+    const err: any = new Error('Valid event_id is required');
+    err.status = 400;
+    throw err;
   }
 
-  // Verify event existence
-  const event = await getEventById(event_id, env);
+  // Verify event existence (supports UUID, token, or local id)
+  let event = await getEventById(event_id, env);
   if (!event) {
-    throw new Error(`Event with ID "${event_id}" was not found`);
+    event = await getEventByPublicToken(event_id, env);
+  }
+  if (!event) {
+    const err: any = new Error(`Event with ID or token "${event_id}" was not found`);
+    err.status = 404;
+    throw err;
   }
 
   if (event.status === 'cancelled') {
-    throw new Error('Cannot submit scores to a cancelled event');
+    const err: any = new Error('Cannot submit scores to a cancelled event');
+    err.status = 400;
+    throw err;
   }
+
+  const resolvedEventId = event.id;
 
   // Validate score: must be a non-negative integer
   const scoreNum = Math.floor(Number(params.score));
   if (isNaN(scoreNum) || scoreNum < 0) {
-    throw new Error('Score must be a non-negative integer');
+    const err: any = new Error('Score must be a non-negative integer');
+    err.status = 422;
+    throw err;
   }
   // Sanity upper bound (e.g. 1,000,000 max achievable in game session)
   if (scoreNum > 1000000) {
-    throw new Error('Score exceeds maximum allowed session threshold');
+    const err: any = new Error('Score exceeds maximum allowed session threshold');
+    err.status = 422;
+    throw err;
   }
 
   const playerName = sanitizePlayerName(params.player_name);
@@ -110,7 +126,7 @@ export async function submitEventScore(
 
   const newRecord: EventHighScoreRecord = {
     id: recordId,
-    event_id,
+    event_id: resolvedEventId,
     player_name: playerName,
     score: scoreNum,
     metadata,
@@ -118,7 +134,7 @@ export async function submitEventScore(
   };
 
   // Check existing scores in cache/db to calculate rank and high score flag
-  let currentEventScores = localHighScoresCache.get(event_id) || [];
+  let currentEventScores = localHighScoresCache.get(resolvedEventId) || [];
   const currentHighest = currentEventScores.length > 0
     ? Math.max(...currentEventScores.map((s) => s.score))
     : 0;
@@ -132,30 +148,32 @@ export async function submitEventScore(
     if (b.score !== a.score) return b.score - a.score;
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
-  localHighScoresCache.set(event_id, currentEventScores);
+  localHighScoresCache.set(resolvedEventId, currentEventScores);
   saveLocalHighScores();
 
-  // Try saving into Supabase
-  try {
-    const supabase = getSupabaseServerClient(env);
-    const { data, error } = await supabase
-      .from('event_high_scores')
-      .insert({
-        id: recordId,
-        event_id,
-        player_name: playerName,
-        score: scoreNum,
-        metadata,
-        created_at: createdAt,
-      })
-      .select('*')
-      .single();
+  // Try saving into Supabase if it's a valid UUID
+  if (isUUID(resolvedEventId)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase
+        .from('event_high_scores')
+        .insert({
+          id: recordId,
+          event_id: resolvedEventId,
+          player_name: playerName,
+          score: scoreNum,
+          metadata,
+          created_at: createdAt,
+        })
+        .select('*')
+        .single();
 
-    if (error) {
-      console.warn(`Notice from Supabase high score insert (${error.message}). Saved to local fallback store.`);
+      if (error) {
+        console.warn(`Notice from Supabase high score insert (${error.message}). Saved to local fallback store.`);
+      }
+    } catch (err: any) {
+      console.warn('Supabase high score insert fallback notice:', err.message);
     }
-  } catch (err: any) {
-    console.warn('Supabase high score insert fallback notice:', err.message);
   }
 
   // Calculate player's 1-based rank
@@ -183,13 +201,25 @@ export async function getEventHighScores(
   page: number;
   limit: number;
 }> {
-  if (!eventId) {
+  if (!eventId || typeof eventId !== 'string' || eventId === 'undefined' || eventId === 'null' || !eventId.trim()) {
     return { scores: [], totalCount: 0, page: 1, limit: 20 };
   }
 
   const limit = Math.min(Math.max(1, options.limit || 20), 100);
   const page = Math.max(1, options.page || 1);
   const offset = (page - 1) * limit;
+
+  if (!isUUID(eventId)) {
+    try {
+      const ev = await getEventByPublicToken(eventId, env);
+      if (ev && isUUID(ev.id)) {
+        return getEventHighScores(ev.id, options, env);
+      }
+    } catch {
+      // ignore
+    }
+    return getLocalEventHighScores(eventId, limit, page);
+  }
 
   try {
     const supabase = getSupabaseServerClient(env);
@@ -316,7 +346,7 @@ export async function deleteEventScore(
   scoreId: string,
   env?: Record<string, any>
 ): Promise<boolean> {
-  if (!eventId || !scoreId) return false;
+  if (!eventId || !scoreId || eventId === 'undefined' || scoreId === 'undefined') return false;
 
   // Remove from local cache
   const list = localHighScoresCache.get(eventId) || [];
@@ -324,20 +354,22 @@ export async function deleteEventScore(
   localHighScoresCache.set(eventId, filtered);
   saveLocalHighScores();
 
-  // Remove from Supabase
-  try {
-    const supabase = getSupabaseServerClient(env);
-    const { error } = await supabase
-      .from('event_high_scores')
-      .delete()
-      .eq('id', scoreId)
-      .eq('event_id', eventId);
+  // Remove from Supabase if valid UUID
+  if (isUUID(eventId) && isUUID(scoreId)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { error } = await supabase
+        .from('event_high_scores')
+        .delete()
+        .eq('id', scoreId)
+        .eq('event_id', eventId);
 
-    if (error) {
-      console.warn(`Notice from Supabase delete high score (${error.message})`);
+      if (error) {
+        console.warn(`Notice from Supabase delete high score (${error.message})`);
+      }
+    } catch (err: any) {
+      console.warn('Supabase delete high score notice:', err.message);
     }
-  } catch (err: any) {
-    console.warn('Supabase delete high score notice:', err.message);
   }
 
   return true;
@@ -350,25 +382,27 @@ export async function clearEventHighScores(
   eventId: string,
   env?: Record<string, any>
 ): Promise<boolean> {
-  if (!eventId) return false;
+  if (!eventId || eventId === 'undefined') return false;
 
   // Clear in local cache
   localHighScoresCache.set(eventId, []);
   saveLocalHighScores();
 
-  // Clear in Supabase
-  try {
-    const supabase = getSupabaseServerClient(env);
-    const { error } = await supabase
-      .from('event_high_scores')
-      .delete()
-      .eq('event_id', eventId);
+  // Clear in Supabase if valid UUID
+  if (isUUID(eventId)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { error } = await supabase
+        .from('event_high_scores')
+        .delete()
+        .eq('event_id', eventId);
 
-    if (error) {
-      console.warn(`Notice from Supabase clear high scores (${error.message})`);
+      if (error) {
+        console.warn(`Notice from Supabase clear high scores (${error.message})`);
+      }
+    } catch (err: any) {
+      console.warn('Supabase clear high scores notice:', err.message);
     }
-  } catch (err: any) {
-    console.warn('Supabase clear high scores notice:', err.message);
   }
 
   return true;

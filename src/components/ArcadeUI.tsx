@@ -141,9 +141,25 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     badItem?.imageUrl ||
     '/assets/durian_brown.png';
 
-  // Fetch Event Leaderboard
+  const hasEventContext = Boolean(publicToken || (eventId && eventId !== 'undefined' && eventId !== 'null'));
+
+  // Fetch Event Leaderboard (or load local storage scores in preview mode)
   const fetchEventLeaderboard = async () => {
-    if (!publicToken && !eventId) return;
+    if (!hasEventContext) {
+      try {
+        const raw = localStorage.getItem('arcade_local_leaderboard');
+        if (raw) {
+          const parsed = JSON.parse(raw) as EventLeaderboardEntry[];
+          setLeaderboardScores(Array.isArray(parsed) ? parsed : []);
+        } else {
+          setLeaderboardScores([]);
+        }
+      } catch {
+        setLeaderboardScores([]);
+      }
+      return;
+    }
+
     setLoadingLeaderboard(true);
     setLeaderboardError(null);
     try {
@@ -189,6 +205,55 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     localStorage.setItem('event_player_name', trimmedName);
     setIsSubmittingScore(true);
     setLeaderboardError(null);
+
+    // If running in Studio Preview or without an active Event ID, save locally
+    if (!hasEventContext) {
+      try {
+        const localEntry: EventLeaderboardEntry = {
+          id: 'local_' + Date.now(),
+          event_id: 'studio-preview',
+          player_name: trimmedName,
+          score: stats.score,
+          metadata: {
+            greenCaught: stats.greenCaught,
+            orangeCaught: stats.orangeCaught,
+            duriansMissed: stats.duriansMissed,
+          },
+          created_at: new Date().toISOString(),
+          rank: 1,
+        };
+
+        const existingRaw = localStorage.getItem('arcade_local_leaderboard');
+        let list: EventLeaderboardEntry[] = [];
+        if (existingRaw) {
+          try {
+            list = JSON.parse(existingRaw);
+          } catch {
+            list = [];
+          }
+        }
+        list.push(localEntry);
+        list.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
+        const rankedList = list.map((item, idx) => ({ ...item, rank: idx + 1 }));
+        localStorage.setItem('arcade_local_leaderboard', JSON.stringify(rankedList.slice(0, 50)));
+
+        const myRank = rankedList.findIndex((item) => item.id === localEntry.id) + 1;
+        setScoreSubmitted(true);
+        setSubmittedRank(myRank > 0 ? myRank : 1);
+        setSubmittedScoreId(localEntry.id);
+        setLeaderboardScores(rankedList.slice(0, 50));
+        setGameOverTab('leaderboard');
+      } catch (err: any) {
+        console.error('Local score submission error:', err);
+        setLeaderboardError('Failed to save score.');
+      } finally {
+        setIsSubmittingScore(false);
+      }
+      return;
+    }
 
     try {
       const url = publicToken

@@ -834,18 +834,59 @@ export async function grantWelcomeCredit(
  */
 export async function canUseWelcomeCredit(
   organizationId: string,
-  eventId?: string,
-  env?: Record<string, any>
+  eventIdOrPrice?: string | number,
+  eventPriceOverrideOrEnv?: number | Record<string, any>,
+  envParam?: Record<string, any>
 ): Promise<CreditEligibilityResult> {
   if (!organizationId) {
     throw new Error('Organization ID is required');
+  }
+
+  let eventId: string | undefined = undefined;
+  let eventPriceOverride: number | undefined = undefined;
+  let env: Record<string, any> | undefined = envParam;
+
+  if (typeof eventIdOrPrice === 'string') {
+    eventId = eventIdOrPrice;
+  } else if (typeof eventIdOrPrice === 'number') {
+    eventPriceOverride = eventIdOrPrice;
+  }
+
+  if (typeof eventPriceOverrideOrEnv === 'number') {
+    eventPriceOverride = eventPriceOverrideOrEnv;
+  } else if (typeof eventPriceOverrideOrEnv === 'object' && eventPriceOverrideOrEnv !== null) {
+    env = eventPriceOverrideOrEnv;
+  }
+
+  let eventPrice = eventPriceOverride;
+  if (!eventPrice || eventPrice <= 0) {
+    if (eventId) {
+      try {
+        const { getEventById } = await import('./events.js');
+        const ev = await getEventById(eventId, env);
+        if (ev && ev.event_price) {
+          eventPrice = ev.event_price;
+        }
+      } catch (e) {
+        // ignore and fallback
+      }
+    }
+  }
+  if (!eventPrice || eventPrice <= 0) {
+    try {
+      const { getPlatformPricingSettings } = await import('./platformSettings.js');
+      const settings = await getPlatformPricingSettings(env);
+      eventPrice = settings.default_price;
+    } catch (e) {
+      eventPrice = STANDARD_EVENT_PRICE;
+    }
   }
 
   const wallet = await getWalletBalance(organizationId, env);
   const creditAvailable = wallet.welcome_credit;
   const creditAmount = Math.min(creditAvailable, WELCOME_CREDIT_AMOUNT);
   const paidBalanceAvailable = wallet.paid_balance;
-  const paidBalanceRequired = fromCents(toCents(STANDARD_EVENT_PRICE) - toCents(WELCOME_CREDIT_AMOUNT)); // RM600.00
+  const paidBalanceRequired = Math.max(0, fromCents(toCents(eventPrice) - toCents(WELCOME_CREDIT_AMOUNT)));
 
   if (creditAvailable < WELCOME_CREDIT_AMOUNT) {
     return {
@@ -855,7 +896,7 @@ export async function canUseWelcomeCredit(
       credit_amount: creditAmount,
       paid_balance_available: paidBalanceAvailable,
       paid_balance_required: paidBalanceRequired,
-      event_price: STANDARD_EVENT_PRICE,
+      event_price: eventPrice,
       reason: 'No Welcome Credit is available in your organization wallet.',
     };
   }
@@ -868,8 +909,8 @@ export async function canUseWelcomeCredit(
       credit_amount: creditAmount,
       paid_balance_available: paidBalanceAvailable,
       paid_balance_required: paidBalanceRequired,
-      event_price: STANDARD_EVENT_PRICE,
-      reason: `Insufficient Paid Balance. Event price is RM${STANDARD_EVENT_PRICE.toFixed(2)}. Welcome Credit covers RM${WELCOME_CREDIT_AMOUNT.toFixed(2)}, requiring at least RM${paidBalanceRequired.toFixed(2)} in Paid Balance, but your current Paid Balance is RM${paidBalanceAvailable.toFixed(2)}.`,
+      event_price: eventPrice,
+      reason: `Insufficient Paid Balance. Event price is RM${eventPrice.toFixed(2)}. Welcome Credit covers RM${WELCOME_CREDIT_AMOUNT.toFixed(2)}, requiring at least RM${paidBalanceRequired.toFixed(2)} in Paid Balance, but your current Paid Balance is RM${paidBalanceAvailable.toFixed(2)}.`,
     };
   }
 
@@ -880,7 +921,7 @@ export async function canUseWelcomeCredit(
     credit_amount: creditAmount,
     paid_balance_available: paidBalanceAvailable,
     paid_balance_required: paidBalanceRequired,
-    event_price: STANDARD_EVENT_PRICE,
+    event_price: eventPrice,
   };
 }
 
@@ -1048,18 +1089,59 @@ export async function grantShowcaseCredit(
  */
 export async function canUseShowcaseCredit(
   organizationId: string,
-  eventId?: string,
-  env?: Record<string, any>
+  eventIdOrPrice?: string | number,
+  eventPriceOverrideOrEnv?: number | Record<string, any>,
+  envParam?: Record<string, any>
 ): Promise<CreditEligibilityResult> {
   if (!organizationId) {
     throw new Error('Organization ID is required');
+  }
+
+  let eventId: string | undefined = undefined;
+  let eventPriceOverride: number | undefined = undefined;
+  let env: Record<string, any> | undefined = envParam;
+
+  if (typeof eventIdOrPrice === 'string') {
+    eventId = eventIdOrPrice;
+  } else if (typeof eventIdOrPrice === 'number') {
+    eventPriceOverride = eventIdOrPrice;
+  }
+
+  if (typeof eventPriceOverrideOrEnv === 'number') {
+    eventPriceOverride = eventPriceOverrideOrEnv;
+  } else if (typeof eventPriceOverrideOrEnv === 'object' && eventPriceOverrideOrEnv !== null) {
+    env = eventPriceOverrideOrEnv;
+  }
+
+  let eventPrice = eventPriceOverride;
+  if (!eventPrice || eventPrice <= 0) {
+    if (eventId) {
+      try {
+        const { getEventById } = await import('./events.js');
+        const ev = await getEventById(eventId, env);
+        if (ev && ev.event_price) {
+          eventPrice = ev.event_price;
+        }
+      } catch (e) {
+        // ignore and fallback
+      }
+    }
+  }
+  if (!eventPrice || eventPrice <= 0) {
+    try {
+      const { getPlatformPricingSettings } = await import('./platformSettings.js');
+      const settings = await getPlatformPricingSettings(env);
+      eventPrice = settings.default_price;
+    } catch (e) {
+      eventPrice = STANDARD_EVENT_PRICE;
+    }
   }
 
   const wallet = await getWalletBalance(organizationId, env);
   const creditAvailable = wallet.showcase_credit;
   const creditAmount = Math.min(creditAvailable, SHOWCASE_CREDIT_AMOUNT);
   const paidBalanceAvailable = wallet.paid_balance;
-  const paidBalanceRequired = fromCents(toCents(STANDARD_EVENT_PRICE) - toCents(SHOWCASE_CREDIT_AMOUNT)); // RM1,100.00
+  const paidBalanceRequired = Math.max(0, fromCents(toCents(eventPrice) - toCents(SHOWCASE_CREDIT_AMOUNT)));
 
   if (creditAvailable < SHOWCASE_CREDIT_AMOUNT) {
     return {
@@ -1069,7 +1151,7 @@ export async function canUseShowcaseCredit(
       credit_amount: creditAmount,
       paid_balance_available: paidBalanceAvailable,
       paid_balance_required: paidBalanceRequired,
-      event_price: STANDARD_EVENT_PRICE,
+      event_price: eventPrice,
       reason: 'No Showcase Credit is available in your organization wallet.',
     };
   }
@@ -1082,8 +1164,8 @@ export async function canUseShowcaseCredit(
       credit_amount: creditAmount,
       paid_balance_available: paidBalanceAvailable,
       paid_balance_required: paidBalanceRequired,
-      event_price: STANDARD_EVENT_PRICE,
-      reason: `Insufficient Paid Balance. Event price is RM${STANDARD_EVENT_PRICE.toFixed(2)}. Showcase Credit covers RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)}, requiring at least RM${paidBalanceRequired.toFixed(2)} in Paid Balance, but your current Paid Balance is RM${paidBalanceAvailable.toFixed(2)}.`,
+      event_price: eventPrice,
+      reason: `Insufficient Paid Balance. Event price is RM${eventPrice.toFixed(2)}. Showcase Credit covers RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)}, requiring at least RM${paidBalanceRequired.toFixed(2)} in Paid Balance, but your current Paid Balance is RM${paidBalanceAvailable.toFixed(2)}.`,
     };
   }
 
@@ -1094,7 +1176,7 @@ export async function canUseShowcaseCredit(
     credit_amount: creditAmount,
     paid_balance_available: paidBalanceAvailable,
     paid_balance_required: paidBalanceRequired,
-    event_price: STANDARD_EVENT_PRICE,
+    event_price: eventPrice,
   };
 }
 
@@ -1321,6 +1403,7 @@ export async function calculateEventPaymentQuote(
     eventId?: string;
     creditChoice?: EventCreditOption;
     topupCreditAmountToUse?: number;
+    eventPrice?: number;
   },
   env?: Record<string, any>
 ): Promise<EventPaymentQuote> {
@@ -1331,8 +1414,32 @@ export async function calculateEventPaymentQuote(
   else if (creditChoice === 'TOPUP_CREDIT') mode = 'TOPUP_CREDIT';
   else mode = 'FULL_PAID';
 
+  let eventPrice = params.eventPrice;
+  if (!eventPrice || eventPrice <= 0) {
+    if (eventId) {
+      try {
+        const { getEventById } = await import('./events.js');
+        const ev = await getEventById(eventId, env);
+        if (ev && ev.event_price) {
+          eventPrice = ev.event_price;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+  if (!eventPrice || eventPrice <= 0) {
+    try {
+      const { getPlatformPricingSettings } = await import('./platformSettings.js');
+      const settings = await getPlatformPricingSettings(env);
+      eventPrice = settings.default_price;
+    } catch (e) {
+      eventPrice = STANDARD_EVENT_PRICE;
+    }
+  }
+
   const calc = await calculateEventPayment(
-    STANDARD_EVENT_PRICE,
+    eventPrice,
     mode,
     organizationId,
     { topupCreditRequested: params.topupCreditAmountToUse },

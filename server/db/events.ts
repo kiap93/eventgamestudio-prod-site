@@ -13,7 +13,7 @@ import {
   EventRefundDetermination,
   CancellationErrorCode,
 } from './types.js';
-import { getThemeById } from './themes.js';
+import { getThemeById, isUUID } from './themes.js';
 import { getGameById } from './games.js';
 import { getShowcaseByEventId, getShowcasesByOrgId } from './showcases.js';
 import {
@@ -22,7 +22,9 @@ import {
   processEventPayment,
   refundEventPayment,
   withOrganizationLock,
+  recordWalletAuditEvent,
 } from './wallet.js';
+import { getPlatformPricingSettings } from './platformSettings.js';
 import crypto from 'node:crypto';
 
 // In-memory cache fallback for mock / test environments
@@ -332,9 +334,14 @@ export async function getEventsByOrgId(
     const showcase = showcaseMap.get(event.id) || null;
     const setupStartTime = getSetupDayStartTime(event);
     const cancellationEligibility = canCancelEvent(event);
+    const storedPrice = event.event_price !== undefined && event.event_price !== null
+      ? Number(event.event_price)
+      : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : 1400.00);
 
     return {
       ...event,
+      event_price: storedPrice,
+      event_currency: event.event_currency || 'MYR',
       calculated_status: calculated,
       setup_starts_at: setupStartTime.toISOString(),
       cancellation_eligibility: cancellationEligibility,
@@ -360,6 +367,16 @@ export async function getEventById(
   eventId: string,
   env?: Record<string, any>
 ): Promise<EventWithDetails | null> {
+  if (!eventId || typeof eventId !== 'string' || eventId === 'undefined' || eventId === 'null') {
+    return null;
+  }
+
+  // If not a valid UUID string, check local cache directly without querying Supabase to avoid 22P02 Postgres syntax error
+  if (!isUUID(eventId)) {
+    const localEvent = localEventsCache.get(eventId) || null;
+    if (!localEvent) return null;
+  }
+
   const supabase = getSupabaseServerClient(env);
 
   let eventRecord: EventRecord | null = null;
@@ -394,12 +411,17 @@ export async function getEventById(
   const showcase = await getShowcaseByEventId(eventId, env);
   const setupStartTime = getSetupDayStartTime(eventRecord);
   const cancellationEligibility = canCancelEvent(eventRecord);
+  const storedPrice = eventRecord.event_price !== undefined && eventRecord.event_price !== null
+    ? Number(eventRecord.event_price)
+    : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : 1400.00);
 
   return {
     ...eventRecord,
+    event_price: storedPrice,
+    event_currency: eventRecord.event_currency || 'MYR',
     payment_status: eventRecord.payment_status || 'PAID',
     payment_mode: eventRecord.payment_mode || 'FULL_PAID',
-    paid_amount: eventRecord.paid_amount !== undefined ? eventRecord.paid_amount : STANDARD_EVENT_PRICE,
+    paid_amount: eventRecord.paid_amount !== undefined ? eventRecord.paid_amount : storedPrice,
     discount_amount: eventRecord.discount_amount || 0,
     calculated_status: calculateEventStatus(eventRecord),
     setup_starts_at: setupStartTime.toISOString(),
@@ -425,6 +447,10 @@ export async function getEventByPublicToken(
   publicToken: string,
   env?: Record<string, any>
 ): Promise<EventWithDetails | null> {
+  if (!publicToken || typeof publicToken !== 'string' || publicToken === 'undefined' || publicToken === 'null' || !publicToken.trim()) {
+    return null;
+  }
+
   const supabase = getSupabaseServerClient(env);
 
   let eventRecord: EventRecord | null = null;
@@ -501,6 +527,8 @@ export async function createEvent(
     payment_mode?: PaymentMode;
     paid_amount?: number;
     discount_amount?: number;
+    event_price?: number;
+    event_currency?: string;
     created_by?: string | null;
   },
   env?: Record<string, any>
@@ -529,7 +557,16 @@ export async function createEvent(
     throw new Error('Expiry time must be later than start time');
   }
 
-  // 3. Generate collision-resistant unique token
+  // 3. Resolve server-authoritative event pricing if not supplied
+  let price = params.event_price;
+  let currency = params.event_currency || 'MYR';
+  if (!price || price <= 0) {
+    const defaultPricing = await getPlatformPricingSettings(env);
+    price = defaultPricing.default_price;
+    currency = defaultPricing.default_currency;
+  }
+
+  // 4. Generate collision-resistant unique token
   let token = generatePublicToken();
   let attempts = 0;
   while (attempts < 5) {
@@ -557,6 +594,8 @@ export async function createEvent(
     starts_at: new Date(params.starts_at).toISOString(),
     expires_at: new Date(params.expires_at).toISOString(),
     status: initialStatus,
+    event_price: price,
+    event_currency: currency,
     public_token: token,
     created_by: params.created_by || null,
     created_at: now,
@@ -575,8 +614,10 @@ export async function createEvent(
         ...dbPayload,
         payment_status: params.payment_status || 'PAID',
         payment_mode: params.payment_mode || 'FULL_PAID',
-        paid_amount: params.paid_amount !== undefined ? params.paid_amount : STANDARD_EVENT_PRICE,
+        paid_amount: params.paid_amount !== undefined ? params.paid_amount : price,
         discount_amount: params.discount_amount || 0,
+        event_price: price,
+        event_currency: currency,
       };
       localEventsCache.set(dbPayload.id, fullRecord);
       return fullRecord;
@@ -589,8 +630,10 @@ export async function createEvent(
     ...(data as any),
     payment_status: params.payment_status || 'PAID',
     payment_mode: params.payment_mode || 'FULL_PAID',
-    paid_amount: params.paid_amount !== undefined ? params.paid_amount : STANDARD_EVENT_PRICE,
+    paid_amount: params.paid_amount !== undefined ? params.paid_amount : price,
     discount_amount: params.discount_amount || 0,
+    event_price: price,
+    event_currency: currency,
   };
   localEventsCache.set(fullRecord.id, fullRecord);
   return fullRecord;
@@ -620,6 +663,7 @@ export async function createEventWithAtomicPayment(
     payment_mode?: PaymentMode;
     topup_credit_requested?: number;
     event_price?: number;
+    event_currency?: string;
     reference_id?: string;
   },
   env?: Record<string, any>
@@ -648,7 +692,14 @@ export async function createEventWithAtomicPayment(
       reference_id,
     } = params;
 
-    const eventPrice = params.event_price && params.event_price > 0 ? params.event_price : STANDARD_EVENT_PRICE;
+    // Resolve server-authoritative event pricing
+    let eventPrice = params.event_price;
+    let eventCurrency = params.event_currency || 'MYR';
+    if (!eventPrice || eventPrice <= 0) {
+      const platformPricing = await getPlatformPricingSettings(env);
+      eventPrice = platformPricing.default_price;
+      eventCurrency = platformPricing.default_currency;
+    }
 
     // 1. Validate Theme & Organization Isolation
     const theme = await getThemeById(game_theme_id, env);
@@ -707,6 +758,8 @@ export async function createEventWithAtomicPayment(
         payment_mode,
         paid_amount: calculation.paidAmount,
         discount_amount: calculation.totalDiscount,
+        event_price: eventPrice,
+        event_currency: eventCurrency,
       },
       env
     );
@@ -917,4 +970,191 @@ export async function deleteEvent(eventId: string, env?: Record<string, any>): P
     console.error('Error in deleteEvent:', error);
     throw new Error(`Failed to delete event: ${error.message}`);
   }
+}
+
+/**
+ * Developer Admin: Get all events across all organizations with enriched details.
+ */
+export async function getAllAdminEvents(
+  env?: Record<string, any>
+): Promise<EventWithDetails[]> {
+  const supabase = getSupabaseServerClient(env);
+
+  let events: EventRecord[] = [];
+  const { data: eventsData, error: eventsError } = await supabase
+    .from('events')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (eventsError) {
+    if (eventsError.message?.includes('Placeholder') || eventsError.code === 'PGRST000') {
+      events = Array.from(localEventsCache.values());
+    } else {
+      console.error('Error in getAllAdminEvents:', eventsError);
+      throw new Error(`Failed to list admin events: ${eventsError.message}`);
+    }
+  } else {
+    events = (eventsData || []) as EventRecord[];
+  }
+
+  // Fetch all organizations
+  const { data: orgsData } = await supabase
+    .from('organizations')
+    .select('id, name, slug');
+  const orgsMap = new Map<string, { id: string; name: string; slug: string }>();
+  if (orgsData) {
+    for (const org of orgsData) {
+      orgsMap.set(org.id, org);
+    }
+  }
+
+  // Fetch related game themes and games
+  const themeIds = Array.from(new Set(events.map((e) => e.game_theme_id).filter(Boolean)));
+  const { data: themesData } = await supabase
+    .from('game_themes')
+    .select('*, games(id, name, slug, game_type)')
+    .in('id', themeIds);
+
+  const themesMap = new Map<string, any>();
+  if (themesData) {
+    for (const t of themesData) {
+      themesMap.set(t.id, t);
+    }
+  }
+
+  return events.map((event) => {
+    const org = orgsMap.get(event.organization_id);
+    const theme = themesMap.get(event.game_theme_id) || null;
+    const game = theme?.games || null;
+    const calculated = calculateEventStatus(event);
+    const storedPrice = event.event_price !== undefined && event.event_price !== null
+      ? Number(event.event_price)
+      : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : 1400.00);
+
+    return {
+      ...event,
+      event_price: storedPrice,
+      event_currency: event.event_currency || 'MYR',
+      organization_name: org?.name || 'Unknown Organization',
+      organization_slug: org?.slug || 'unknown',
+      calculated_status: calculated,
+      game_theme: theme,
+      game: game
+        ? {
+            id: game.id,
+            name: game.name,
+            slug: game.slug,
+            game_type: game.game_type || 'catch-brand',
+          }
+        : null,
+      showcase_status: 'NOT_CREATED',
+    };
+  });
+}
+
+/**
+ * Developer Admin: Update price of an individual event.
+ * Server-authoritative price override.
+ */
+export async function updateEventPrice(
+  eventId: string,
+  priceOrObj: { event_price: number; event_currency?: string } | number,
+  currencyOrAdmin?: string,
+  adminUserIdOrEnv?: string | Record<string, any>,
+  envParam?: Record<string, any>
+): Promise<EventWithDetails> {
+  let price: number;
+  let cur: string = 'MYR';
+  let adminUserId: string | undefined = undefined;
+  let env: Record<string, any> | undefined = undefined;
+
+  if (typeof priceOrObj === 'object' && priceOrObj !== null) {
+    price = Number(priceOrObj.event_price);
+    cur = (priceOrObj.event_currency || 'MYR').trim().toUpperCase();
+    if (typeof currencyOrAdmin === 'string') {
+      adminUserId = currencyOrAdmin;
+    }
+    if (typeof adminUserIdOrEnv === 'object' && adminUserIdOrEnv !== null) {
+      env = adminUserIdOrEnv;
+    }
+  } else {
+    price = Number(priceOrObj);
+    if (typeof currencyOrAdmin === 'string') {
+      cur = currencyOrAdmin.trim().toUpperCase();
+    }
+    if (typeof adminUserIdOrEnv === 'string') {
+      adminUserId = adminUserIdOrEnv;
+    }
+    env = envParam;
+  }
+
+  const existing = await getEventById(eventId, env);
+  if (!existing) {
+    throw new Error('Event not found');
+  }
+
+  if (isNaN(price) || price <= 0) {
+    throw new Error('Event price must be a valid number greater than 0');
+  }
+
+  if (!cur || cur.length > 5) {
+    throw new Error('Invalid currency code');
+  }
+
+  const oldPrice = existing.event_price || 1400.00;
+  const oldCurrency = existing.event_currency || 'MYR';
+  const now = new Date().toISOString();
+
+  const supabase = getSupabaseServerClient(env);
+  const { error } = await supabase
+    .from('events')
+    .update({
+      event_price: price,
+      event_currency: cur,
+      updated_at: now,
+    })
+    .eq('id', eventId);
+
+  if (error && !error.message?.includes('Placeholder') && error.code !== 'PGRST000') {
+    console.error('Error in updateEventPrice:', error);
+    throw new Error(`Failed to update event price: ${error.message}`);
+  }
+
+  // Update local cache
+  const cached = localEventsCache.get(eventId);
+  if (cached) {
+    cached.event_price = price;
+    cached.event_currency = cur;
+    cached.updated_at = now;
+    localEventsCache.set(eventId, cached);
+  }
+
+  // Record traceable audit log
+  await recordWalletAuditEvent(
+    {
+      organizationId: existing.organization_id,
+      eventType: 'ADMIN_ADJUSTMENT',
+      amount: price,
+      currency: cur,
+      actorId: adminUserId || undefined,
+      metadata: {
+        action: 'EVENT_PRICE_UPDATED',
+        event_id: eventId,
+        event_name: existing.name,
+        old_price: oldPrice,
+        new_price: price,
+        old_currency: oldCurrency,
+        new_currency: cur,
+        changed_by_admin_id: adminUserId || null,
+        description: `Admin updated price for event "${existing.name}" from ${oldCurrency} ${Number(oldPrice).toFixed(2)} to ${cur} ${price.toFixed(2)}`,
+      },
+    },
+    env
+  );
+
+  const updated = await getEventById(eventId, env);
+  if (!updated) {
+    throw new Error('Failed to load updated event');
+  }
+  return updated;
 }

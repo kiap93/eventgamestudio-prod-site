@@ -104,6 +104,10 @@ import {
   reverseTransaction,
   recalculateWalletBalances,
   STANDARD_EVENT_PRICE,
+  getPlatformPricingSettings,
+  updatePlatformPricingSettings,
+  getAllAdminEvents,
+  updateEventPrice,
   submitEventScore,
   getEventHighScores,
   getEventScoreStats,
@@ -3145,6 +3149,139 @@ const handleRejectShowcase = async (req: AuthenticatedRequest, res: any) => {
 
 app.post('/api/developer/showcases/:showcaseId/reject', authenticateDeveloperAdmin, handleRejectShowcase);
 app.post('/api/admin/showcases/:showcaseId/reject', authenticateDeveloperAdmin, handleRejectShowcase);
+
+// ----------------------------------------------------
+// PLATFORM & EVENT PRICING (DEVELOPER ADMIN)
+// ----------------------------------------------------
+
+/**
+ * GET /api/platform/pricing
+ * Retrieve current platform default event pricing configuration (RM1,400 default)
+ */
+app.get('/api/platform/pricing', async (_req, res) => {
+  try {
+    const settings = await getPlatformPricingSettings();
+    res.json(settings);
+  } catch (err: any) {
+    console.error('Get platform pricing error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/developer/pricing/settings (and /api/admin/pricing/settings)
+ * Developer Admin: get platform pricing configuration
+ */
+const handleGetAdminPricingSettings = async (_req: AuthenticatedRequest, res: any) => {
+  try {
+    const settings = await getPlatformPricingSettings();
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    console.error('Admin get pricing settings error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.get('/api/developer/pricing/settings', authenticateDeveloperAdmin, handleGetAdminPricingSettings);
+app.get('/api/admin/pricing/settings', authenticateDeveloperAdmin, handleGetAdminPricingSettings);
+
+/**
+ * PUT /api/developer/pricing/settings (and /api/admin/pricing/settings)
+ * Developer Admin: update platform default event price and currency
+ */
+const handleUpdateAdminPricingSettings = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { default_price, default_currency } = req.body;
+    const priceNum = Number(default_price);
+
+    if (isNaN(priceNum) || priceNum <= 0) {
+      res.status(422).json({ error: 'default_price must be a positive number greater than 0' });
+      return;
+    }
+
+    const updatedSettings = await updatePlatformPricingSettings(
+      {
+        default_price: priceNum,
+        default_currency: default_currency ? String(default_currency).trim().toUpperCase() : 'MYR',
+      },
+      req.user?.id
+    );
+
+    res.json({
+      success: true,
+      settings: updatedSettings,
+      message: `Platform default event price updated to ${updatedSettings.default_currency} ${updatedSettings.default_price.toFixed(2)}`,
+    });
+  } catch (err: any) {
+    console.error('Admin update pricing settings error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.put('/api/developer/pricing/settings', authenticateDeveloperAdmin, handleUpdateAdminPricingSettings);
+app.put('/api/admin/pricing/settings', authenticateDeveloperAdmin, handleUpdateAdminPricingSettings);
+app.post('/api/developer/pricing/settings', authenticateDeveloperAdmin, handleUpdateAdminPricingSettings);
+
+/**
+ * GET /api/developer/events (and /api/admin/events)
+ * Developer Admin: list all events across the platform with pricing and payment details
+ */
+const handleGetAllAdminEvents = async (_req: AuthenticatedRequest, res: any) => {
+  try {
+    const events = await getAllAdminEvents();
+    res.json({ success: true, events });
+  } catch (err: any) {
+    console.error('Admin get all events error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.get('/api/developer/events', authenticateDeveloperAdmin, handleGetAllAdminEvents);
+app.get('/api/admin/events', authenticateDeveloperAdmin, handleGetAllAdminEvents);
+
+/**
+ * PUT /api/developer/events/:eventId/pricing (and /api/admin/events/:eventId/pricing)
+ * Developer Admin: update specific event's custom price and currency
+ */
+const handleUpdateEventPricing = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { eventId } = req.params;
+    const { event_price, event_currency } = req.body;
+
+    const priceNum = Number(event_price);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      res.status(422).json({ error: 'event_price must be a positive number greater than 0' });
+      return;
+    }
+
+    const updatedEvent = await updateEventPrice(
+      eventId,
+      {
+        event_price: priceNum,
+        event_currency: event_currency ? String(event_currency).trim().toUpperCase() : 'MYR',
+      },
+      req.user?.id
+    );
+
+    res.json({
+      success: true,
+      event: updatedEvent,
+      message: `Event price updated to ${updatedEvent.event_currency || 'MYR'} ${(updatedEvent.event_price || priceNum).toFixed(2)}`,
+    });
+  } catch (err: any) {
+    console.error('Admin update event price error:', err);
+    if (err.code === 'EVENT_NOT_FOUND' || err.message?.includes('not found')) {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.put('/api/developer/events/:eventId/pricing', authenticateDeveloperAdmin, handleUpdateEventPricing);
+app.patch('/api/developer/events/:eventId/pricing', authenticateDeveloperAdmin, handleUpdateEventPricing);
+app.put('/api/admin/events/:eventId/pricing', authenticateDeveloperAdmin, handleUpdateEventPricing);
+app.patch('/api/admin/events/:eventId/pricing', authenticateDeveloperAdmin, handleUpdateEventPricing);
 
 // ----------------------------------------------------
 // WALLET ENGINE & TRANSACTION LEDGER ENDPOINTS

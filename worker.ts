@@ -74,6 +74,10 @@ import {
   reverseTransaction,
   recalculateWalletBalances,
   STANDARD_EVENT_PRICE,
+  getPlatformPricingSettings,
+  updatePlatformPricingSettings,
+  getAllAdminEvents,
+  updateEventPrice,
   getShowcaseByEventId,
   getShowcaseById,
   createShowcase,
@@ -3148,6 +3152,136 @@ export default {
             return errorResponse(err.message, 422, cors);
           }
           return errorResponse(err.message || 'Failed to reject showcase', 500, cors);
+        }
+      }
+
+      // ----------------------------------------------------
+      // PLATFORM & EVENT PRICING (DEVELOPER ADMIN)
+      // ----------------------------------------------------
+
+      // GET /api/platform/pricing
+      if (pathname === '/api/platform/pricing' && method === 'GET') {
+        try {
+          const settings = await getPlatformPricingSettings(env);
+          return jsonResponse(settings, 200, cors);
+        } catch (err: any) {
+          console.error('Get platform pricing error:', err);
+          return errorResponse(err.message || 'Failed to get platform pricing', 500, cors);
+        }
+      }
+
+      // GET /api/developer/pricing/settings & /api/admin/pricing/settings
+      if ((pathname === '/api/developer/pricing/settings' || pathname === '/api/admin/pricing/settings') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const settings = await getPlatformPricingSettings(env);
+          return jsonResponse({ success: true, settings }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get pricing settings error:', err);
+          return errorResponse(err.message || 'Failed to get pricing settings', 500, cors);
+        }
+      }
+
+      // PUT/POST /api/developer/pricing/settings & /api/admin/pricing/settings
+      if ((pathname === '/api/developer/pricing/settings' || pathname === '/api/admin/pricing/settings') && (method === 'PUT' || method === 'POST')) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { default_price, default_currency } = body;
+        const priceNum = Number(default_price);
+
+        if (isNaN(priceNum) || priceNum <= 0) {
+          return errorResponse('default_price must be a positive number greater than 0', 422, cors);
+        }
+
+        try {
+          const updatedSettings = await updatePlatformPricingSettings(
+            {
+              default_price: priceNum,
+              default_currency: default_currency ? String(default_currency).trim().toUpperCase() : 'MYR',
+            },
+            auth.user?.id,
+            env
+          );
+
+          return jsonResponse({
+            success: true,
+            settings: updatedSettings,
+            message: `Platform default event price updated to ${updatedSettings.default_currency} ${updatedSettings.default_price.toFixed(2)}`,
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin update pricing settings error:', err);
+          return errorResponse(err.message || 'Failed to update pricing settings', 500, cors);
+        }
+      }
+
+      // GET /api/developer/events & /api/admin/events
+      if ((pathname === '/api/developer/events' || pathname === '/api/admin/events') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const events = await getAllAdminEvents(env);
+          return jsonResponse({ success: true, events }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get all events error:', err);
+          return errorResponse(err.message || 'Failed to fetch admin events', 500, cors);
+        }
+      }
+
+      // PUT/PATCH /api/developer/events/:eventId/pricing & /api/admin/events/:eventId/pricing
+      const devEventPricingMatch = parseRoute('/api/developer/events/:eventId/pricing', pathname) ||
+                                  parseRoute('/api/admin/events/:eventId/pricing', pathname);
+      if (devEventPricingMatch && (method === 'PUT' || method === 'PATCH')) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { eventId } = devEventPricingMatch;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { event_price, event_currency } = body;
+
+        const priceNum = Number(event_price);
+        if (isNaN(priceNum) || priceNum <= 0) {
+          return errorResponse('event_price must be a positive number greater than 0', 422, cors);
+        }
+
+        try {
+          const updatedEvent = await updateEventPrice(
+            eventId,
+            {
+              event_price: priceNum,
+              event_currency: event_currency ? String(event_currency).trim().toUpperCase() : 'MYR',
+            },
+            auth.user?.id,
+            env
+          );
+
+          return jsonResponse({
+            success: true,
+            event: updatedEvent,
+            message: `Event price updated to ${updatedEvent.event_currency || 'MYR'} ${(updatedEvent.event_price || priceNum).toFixed(2)}`,
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin update event price error:', err);
+          if (err.code === 'EVENT_NOT_FOUND' || err.message?.includes('not found')) {
+            return errorResponse(err.message, 404, cors);
+          }
+          return errorResponse(err.message || 'Failed to update event price', 500, cors);
         }
       }
 

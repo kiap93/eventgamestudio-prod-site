@@ -16,11 +16,12 @@ import {
   Activity,
   ChevronRight,
   Gift,
+  Coins,
 } from 'lucide-react';
 
 interface DeveloperAdminLayoutProps {
   children: React.ReactNode;
-  activeSection?: 'games' | 'stats' | 'themes' | 'showcases';
+  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing';
 }
 
 export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
@@ -106,6 +107,18 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 <Gift className="w-4 h-4 text-amber-400" />
                 <span>Showcase Reviews (RM300)</span>
               </button>
+
+              <button
+                onClick={() => navigateTo('/developer/pricing')}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  activeSection === 'pricing'
+                    ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Coins className="w-4 h-4 text-cyan-400" />
+                <span>Event Pricing Control</span>
+              </button>
             </nav>
           </div>
 
@@ -172,6 +185,17 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             >
               <Gift className="w-4 h-4" />
               <span>Showcase Reviews</span>
+            </button>
+
+            <button
+              onClick={() => {
+                navigateTo('/developer/pricing');
+                setMobileMenuOpen(false);
+              }}
+              className="w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+            >
+              <Coins className="w-4 h-4" />
+              <span>Event Pricing Control</span>
             </button>
 
             <button

@@ -6,6 +6,7 @@ import { DeveloperGamesList } from './DeveloperGamesList';
 import { DeveloperGameDetail } from './DeveloperGameDetail';
 import { DeveloperThemeEditor } from './DeveloperThemeEditor';
 import { DeveloperShowcaseReviews } from './DeveloperShowcaseReviews';
+import { DeveloperPricingManager } from './DeveloperPricingManager';
 
 export const DeveloperAdminPage: React.FC = () => {
   const route = useRouteContext();
@@ -31,6 +32,15 @@ export const DeveloperAdminPage: React.FC = () => {
     return (
       <DeveloperAdminLayout activeSection="showcases">
         <DeveloperShowcaseReviews />
+      </DeveloperAdminLayout>
+    );
+  }
+
+  // 1b. If viewing Event Pricing Control: /developer/pricing
+  if (route.developerSection === 'pricing') {
+    return (
+      <DeveloperAdminLayout activeSection="pricing">
+        <DeveloperPricingManager />
       </DeveloperAdminLayout>
     );
   }

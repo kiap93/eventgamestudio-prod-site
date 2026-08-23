@@ -26,3 +26,30 @@ export interface PlatformStats {
   totalDefaultThemes: number;
   activeThemes: number;
 }
+
+export interface PlatformPricingSettings {
+  default_price: number;
+  default_currency: string;
+  updated_at?: string;
+  updated_by?: string | null;
+}
+
+export interface AdminEventPricingItem {
+  id: string;
+  organization_id: string;
+  organization_name?: string;
+  organization_slug?: string;
+  name: string;
+  slug: string;
+  status: string;
+  payment_status?: string;
+  event_price?: number;
+  event_currency?: string;
+  effective_price: number;
+  is_custom_price: boolean;
+  game_type?: string;
+  theme_name?: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  created_at: string;
+}
