@@ -15,11 +15,13 @@ import {
 async function ensureTestOrg(orgId: string) {
   const supabase = getSupabaseServerClient();
   try {
+    const { data: users } = await supabase.from('users').select('id').limit(1);
+    const validOwnerId = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
     await supabase.from('organizations').upsert({
       id: orgId,
       name: `Test Org ${orgId.slice(0, 8)}`,
       slug: `test-org-${orgId.slice(0, 8)}`,
-      owner_id: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+      owner_id: validOwnerId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -31,7 +33,8 @@ async function ensureTestOrg(orgId: string) {
 async function ensureTestEvent(eventId: string, orgId: string) {
   const supabase = getSupabaseServerClient();
   try {
-    const themeId = '8463ed7c-2b78-4285-8fdf-c0b18383fb3d';
+    const { data: themes } = await supabase.from('game_themes').select('id').limit(1);
+    const themeId = themes?.[0]?.id || '1a480be3-5313-49ba-a9c2-f5b2293576cf';
     const now = new Date().toISOString();
     const token = crypto.randomBytes(4).toString('hex').toUpperCase();
     await supabase.from('events').upsert({
@@ -44,7 +47,7 @@ async function ensureTestEvent(eventId: string, orgId: string) {
       expires_at: new Date(Date.now() + 86400000).toISOString(),
       status: 'scheduled',
       public_token: token,
-      created_by: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+      created_by: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
       created_at: now,
       updated_at: now,
     });

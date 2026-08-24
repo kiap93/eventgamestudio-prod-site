@@ -11,12 +11,12 @@ async function testConcurrentEventCreation() {
   // Setup Org with RM600 paid balance + RM800 Welcome Credit = exactly 1 event (RM1400)
   const org = await createOrganization({
     name: 'Concurrency Test Corp ' + Date.now(),
-    owner_id: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+    owner_id: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
   });
 
   const order = await createTopupOrder({
     organizationId: org.id,
-    userId: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+    userId: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
     amount: 600,
     currency: 'MYR',
   });
@@ -26,7 +26,8 @@ async function testConcurrentEventCreation() {
     newStatus: 'PAID',
     paymentMethod: 'card',
     paymentReference: 'test_ref_concurrency_setup',
-    processedBy: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+    processedBy: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
+    isTrustedSettlement: true,
   });
 
   const walletBefore = await getWalletBalance(org.id);
