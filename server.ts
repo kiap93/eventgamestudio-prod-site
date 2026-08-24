@@ -1432,7 +1432,15 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
       return;
     }
 
-    const { game_theme_id, payment_mode, topup_credit_requested, event_price } = req.body;
+    const {
+      game_theme_id,
+      payment_mode,
+      topup_credit_requested,
+      event_price,
+      use_welcome_credit,
+      use_event_credit,
+      welcome_credit_requested,
+    } = req.body;
     const price = typeof event_price === 'number' && event_price > 0 ? event_price : STANDARD_EVENT_PRICE;
 
     let themeInfo: any = null;
@@ -1455,7 +1463,12 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
       price,
       selectedMode,
       organizationId,
-      { topupCreditRequested: topup_credit_requested }
+      {
+        topupCreditRequested: topup_credit_requested,
+        useWelcomeCredit: use_welcome_credit,
+        useEventCredit: use_event_credit,
+        welcomeCreditRequested: welcome_credit_requested,
+      }
     );
 
     // Calculate options for all payment modes
@@ -1628,13 +1641,25 @@ app.post('/api/events/:eventId/pay', walletRateLimiter, authenticateJWT, async (
       return;
     }
 
-    const { payment_mode = 'FULL_PAID', topup_credit_requested, reference_id } = req.body;
+    const {
+      payment_mode = 'FULL_PAID',
+      topup_credit_requested,
+      use_welcome_credit,
+      use_event_credit,
+      welcome_credit_requested,
+      event_price,
+      reference_id,
+    } = req.body;
 
     const result = await processEventPayment({
       organizationId: event.organization_id,
       eventId: event.id,
       paymentMode: payment_mode,
+      useWelcomeCredit: use_welcome_credit,
+      useEventCredit: use_event_credit,
+      welcomeCreditRequested: welcome_credit_requested,
       topupCreditRequested: topup_credit_requested,
+      eventPrice: event_price || event.event_price,
       referenceId: reference_id,
     });
 
@@ -2527,6 +2552,7 @@ app.post('/api/events/:eventId/showcase/media/upload-url', uploadRateLimiter, au
     const uploadInfo = await createSignedUploadUrlForShowcase({
       organizationId: event.organization_id,
       showcaseId: showcase.id,
+      eventId: event.id,
       fileName,
       mimeType: lowerMime,
       mediaType: normalizedMediaType as 'IMAGE' | 'VIDEO',
@@ -2549,57 +2575,173 @@ app.post('/api/events/:eventId/showcase/media/upload-url', uploadRateLimiter, au
 
 /**
  * POST /api/events/showcase-media/direct-upload
- * Direct binary streaming upload for media files (bypasses Supabase signed constraints if needed)
+ * POST /api/events/:eventId/showcase/media/direct-upload
+ * Direct binary streaming upload for showcase media files with strict multi-layer authorization and sandboxing
  */
-app.post('/api/events/showcase-media/direct-upload', uploadRateLimiter, authenticateJWT, mediaUpload.single('file'), async (req: AuthenticatedRequest, res) => {
-  try {
-    if (!req.file) {
-      res.status(422).json({ error: 'No media file provided' });
-      return;
-    }
-
-    const targetPath = (req.query.path as string) || (req.body.path as string);
-    const originalName = req.file.originalname || (req.query.filename as string) || 'media-file';
-
+app.post(
+  ['/api/events/showcase-media/direct-upload', '/api/events/:eventId/showcase/media/direct-upload'],
+  uploadRateLimiter,
+  authenticateJWT,
+  mediaUpload.single('file'),
+  async (req: AuthenticatedRequest, res) => {
     try {
-      const supabase = getSupabaseServerClient();
-      const storagePath = targetPath || `showcases/general/${Date.now()}-${originalName}`;
+      const user = req.user!;
+      if (!user) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
 
-      const { error: uploadErr } = await supabase.storage
-        .from('game-assets')
-        .upload(storagePath, req.file.buffer, {
-          contentType: req.file.mimetype,
-          upsert: true,
-        });
+      if (!req.file || !req.file.buffer || req.file.buffer.length === 0) {
+        res.status(422).json({ error: 'No media file provided' });
+        return;
+      }
 
-      if (!uploadErr) {
-        const { data: publicData } = supabase.storage
-          .from('game-assets')
-          .getPublicUrl(storagePath);
+      // 1. Identify & Validate Event and Showcase IDs
+      let eventId = req.params.eventId || (req.query.eventId as string) || (req.body.eventId as string);
+      let showcaseId = (req.query.showcaseId as string) || (req.body.showcaseId as string);
+      const requestedPath = (req.query.path as string) || (req.body.path as string);
+      const queryFilename = (req.query.filename as string) || (req.body.filename as string);
 
-        res.json({
-          url: publicData?.publicUrl || `/uploads/${path.basename(storagePath)}`,
-          path: storagePath,
+      if (!eventId && !showcaseId && requestedPath) {
+        const pathMatch = requestedPath.match(/^organizations\/([^/]+)\/showcases\/([^/]+)\/([^/]+)$/);
+        if (pathMatch) {
+          showcaseId = pathMatch[2];
+        }
+      }
+
+      if (!eventId && !showcaseId) {
+        res.status(422).json({ error: 'eventId or showcaseId is required for showcase media upload' });
+        return;
+      }
+
+      let event: any = null;
+      let showcase: any = null;
+
+      if (eventId) {
+        event = await getEventById(eventId);
+        if (!event) {
+          res.status(404).json({ error: 'Event not found' });
+          return;
+        }
+        showcase = await getShowcaseByEventId(eventId);
+        if (!showcase) {
+          res.status(404).json({ error: 'Event Showcase not found. Please create the showcase first.' });
+          return;
+        }
+        if (showcaseId && showcase.id !== showcaseId) {
+          res.status(403).json({ error: 'Showcase does not match event' });
+          return;
+        }
+      } else if (showcaseId) {
+        showcase = await getShowcaseById(showcaseId);
+        if (!showcase) {
+          res.status(404).json({ error: 'Event Showcase not found' });
+          return;
+        }
+        event = await getEventById(showcase.event_id);
+        if (!event) {
+          res.status(404).json({ error: 'Associated event not found' });
+          return;
+        }
+      }
+
+      // 2. Verify Organization Membership & Permissions
+      const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+      if (!isMember) {
+        res.status(403).json({ error: 'Permission denied: You are not a member of this organization' });
+        return;
+      }
+      if (role === 'viewer') {
+        res.status(403).json({ error: 'Permission denied: Viewers cannot upload showcase media' });
+        return;
+      }
+
+      // 3. Validate MIME Type and File Size
+      const mimeType = (req.file.mimetype || 'application/octet-stream').toLowerCase();
+      const fileSize = req.file.size || req.file.buffer.length;
+      const isImage = ALLOWED_IMAGE_MIME_TYPES.has(mimeType) || mimeType.startsWith('image/');
+      const isVideo = ALLOWED_VIDEO_MIME_TYPES.has(mimeType) || mimeType.startsWith('video/');
+
+      if (!isImage && !isVideo) {
+        res.status(422).json({
+          error: `Unsupported media format (${req.file.mimetype}). Supported formats: JPG, PNG, WEBP, MP4, WEBM, MOV.`,
         });
         return;
       }
-    } catch (sErr) {
-      console.warn('Direct upload to Supabase storage fallback:', sErr);
+
+      if (isImage && fileSize > MAX_IMAGE_SIZE) {
+        res.status(422).json({
+          error: `Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+        });
+        return;
+      }
+      if (isVideo && fileSize > MAX_VIDEO_SIZE) {
+        res.status(422).json({
+          error: `Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+        });
+        return;
+      }
+
+      // 4. Storage Path Validation & Sandboxing (Never Trust Client-Provided Arbitrary Path)
+      const expectedPrefix = `organizations/${event.organization_id}/showcases/${showcase.id}/`;
+      const originalName = queryFilename || req.file.originalname || (isImage ? 'image.png' : 'video.mp4');
+      const ext = path.extname(originalName) || (isImage ? '.png' : '.mp4');
+      const randomHex = crypto.randomBytes(8).toString('hex');
+      const safeUniqueName = `${Date.now()}-${randomHex}${ext}`;
+
+      let storagePath = `${expectedPrefix}${safeUniqueName}`;
+      if (requestedPath && requestedPath.startsWith(expectedPrefix)) {
+        const subPath = requestedPath.slice(expectedPrefix.length);
+        if (!subPath.includes('/') && !subPath.includes('\\') && !subPath.includes('..')) {
+          storagePath = requestedPath;
+        }
+      }
+
+      try {
+        const supabase = getSupabaseServerClient();
+        const { error: uploadErr } = await supabase.storage
+          .from('game-assets')
+          .upload(storagePath, req.file.buffer, {
+            contentType: mimeType,
+            upsert: true,
+          });
+
+        if (!uploadErr) {
+          const { data: publicData } = supabase.storage
+            .from('game-assets')
+            .getPublicUrl(storagePath);
+
+          res.json({
+            url: publicData?.publicUrl || `/uploads/${path.basename(storagePath)}`,
+            path: storagePath,
+            fileName: originalName,
+            mediaType: isImage ? 'IMAGE' : 'VIDEO',
+            fileSize,
+          });
+          return;
+        }
+      } catch (sErr) {
+        console.warn('Direct upload to Supabase storage fallback:', sErr);
+      }
+
+      // Fallback to local /uploads/ directory
+      const localFilePath = path.join(uploadDir, safeUniqueName);
+      fs.writeFileSync(localFilePath, req.file.buffer);
+
+      const publicUrl = `/uploads/${safeUniqueName}`;
+      res.json({
+        url: publicUrl,
+        path: storagePath,
+        fileName: originalName,
+        mediaType: isImage ? 'IMAGE' : 'VIDEO',
+        fileSize,
+      });
+    } catch (err: any) {
+      console.error('Direct media upload error:', err);
+      res.status(500).json({ error: err.message || 'Direct upload failed' });
     }
-
-    // Fallback to local /uploads/ directory
-    const ext = path.extname(originalName) || '.dat';
-    const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
-    const localFilePath = path.join(uploadDir, filename);
-    fs.writeFileSync(localFilePath, req.file.buffer);
-
-    const publicUrl = `/uploads/${filename}`;
-    res.json({ url: publicUrl, path: publicUrl });
-  } catch (err: any) {
-    console.error('Direct media upload error:', err);
-    res.status(500).json({ error: err.message || 'Direct upload failed' });
   }
-});
+);
 
 /**
  * POST /api/events/:eventId/showcase/media

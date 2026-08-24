@@ -1261,6 +1261,10 @@ export async function calculateEventPayment(
   organizationId: string,
   options?: {
     topupCreditRequested?: number;
+    useWelcomeCredit?: boolean;
+    useEventCredit?: boolean;
+    useTopupCredit?: boolean;
+    welcomeCreditRequested?: number;
   },
   env?: Record<string, any>
 ): Promise<EventPaymentCalculation> {
@@ -1275,12 +1279,49 @@ export async function calculateEventPayment(
   let remainingCreditBalance = 0;
   const reasons: string[] = [];
 
-  const allowedModes: PaymentMode[] = ['FULL_PAID', 'WELCOME_CREDIT', 'SHOWCASE_CREDIT', 'TOPUP_CREDIT'];
+  const allowedModes: PaymentMode[] = ['FULL_PAID', 'WELCOME_CREDIT', 'SHOWCASE_CREDIT', 'TOPUP_CREDIT', 'COMBINED_CREDIT'];
   if (!allowedModes.includes(paymentMode)) {
     reasons.push(`Invalid payment mode "${paymentMode}". Allowed modes: ${allowedModes.join(', ')}.`);
   }
 
-  if (paymentMode === 'FULL_PAID') {
+  const isExplicitCombined =
+    paymentMode === 'COMBINED_CREDIT' ||
+    (options && (options.useWelcomeCredit !== undefined || options.useEventCredit !== undefined || options.useTopupCredit !== undefined));
+
+  if (isExplicitCombined) {
+    const useWelcome = options?.useWelcomeCredit ?? (paymentMode === 'WELCOME_CREDIT' || paymentMode === 'COMBINED_CREDIT');
+    const useEvent = options?.useEventCredit ?? options?.useTopupCredit ?? (paymentMode === 'TOPUP_CREDIT' || paymentMode === 'COMBINED_CREDIT');
+
+    if (useWelcome && wallet.welcome_credit > 0) {
+      welcomeCreditUsed = Math.min(wallet.welcome_credit, normalizedPrice);
+      if (options?.welcomeCreditRequested !== undefined) {
+        welcomeCreditUsed = Math.min(welcomeCreditUsed, Math.max(0, options.welcomeCreditRequested));
+      }
+      welcomeCreditUsed = fromCents(toCents(welcomeCreditUsed));
+    }
+
+    const remainingPriceAfterWelcome = Math.max(0, fromCents(toCents(normalizedPrice) - toCents(welcomeCreditUsed)));
+    const maxAllowedEventCredit = fromCents(Math.round(toCents(normalizedPrice) * MAX_TOPUP_CREDIT_PER_EVENT_PERCENT));
+
+    if (useEvent && wallet.topup_credit > 0) {
+      const requested = options?.topupCreditRequested !== undefined ? Math.max(0, options.topupCreditRequested) : maxAllowedEventCredit;
+      topupCreditUsed = Math.min(wallet.topup_credit, maxAllowedEventCredit, requested, remainingPriceAfterWelcome);
+      topupCreditUsed = fromCents(toCents(topupCreditUsed));
+    }
+
+    totalDiscount = fromCents(toCents(welcomeCreditUsed) + toCents(topupCreditUsed));
+    paidAmount = fromCents(Math.max(0, toCents(normalizedPrice) - toCents(totalDiscount)));
+    remainingCreditBalance = fromCents(
+      Math.max(0, toCents(wallet.welcome_credit) - toCents(welcomeCreditUsed)) +
+      Math.max(0, toCents(wallet.topup_credit) - toCents(topupCreditUsed))
+    );
+
+    if (wallet.paid_balance < paidAmount) {
+      reasons.push(
+        `Insufficient Paid Balance. Required: RM${paidAmount.toFixed(2)}, Available: RM${wallet.paid_balance.toFixed(2)}.`
+      );
+    }
+  } else if (paymentMode === 'FULL_PAID') {
     paidAmount = normalizedPrice;
     welcomeCreditUsed = 0;
     showcaseCreditUsed = 0;
@@ -1503,6 +1544,10 @@ export async function processEventPayment(
     eventId: string;
     paymentMode?: PaymentMode;
     creditChoice?: EventCreditOption;
+    useWelcomeCredit?: boolean;
+    useEventCredit?: boolean;
+    useTopupCredit?: boolean;
+    welcomeCreditRequested?: number;
     eventPrice?: number;
     topupCreditRequested?: number;
     topupCreditAmountToUse?: number;
@@ -1532,6 +1577,8 @@ export async function processEventPayment(
     mode = 'SHOWCASE_CREDIT';
   } else if (params.creditChoice === 'TOPUP_CREDIT') {
     mode = 'TOPUP_CREDIT';
+  } else if (params.creditChoice === 'COMBINED_CREDIT') {
+    mode = 'COMBINED_CREDIT';
   } else {
     mode = 'FULL_PAID';
   }
@@ -1564,7 +1611,18 @@ export async function processEventPayment(
         transactions.push(payload.paid_transaction as WalletTransactionRecord);
       }
 
-      const calculation = await calculateEventPayment(eventPrice, mode, organizationId, { topupCreditRequested }, env);
+      const calculation = await calculateEventPayment(
+        eventPrice,
+        mode,
+        organizationId,
+        {
+          topupCreditRequested,
+          useWelcomeCredit: params.useWelcomeCredit,
+          useEventCredit: params.useEventCredit ?? params.useTopupCredit,
+          welcomeCreditRequested: params.welcomeCreditRequested,
+        },
+        env
+      );
       const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
 
       const paidBal = Number(payload.wallet?.paid_balance ?? 0);
@@ -1641,7 +1699,18 @@ export async function processEventPayment(
       const existingTxns = [existingPaymentTxn];
       if (pairedCreditTxn) existingTxns.unshift(pairedCreditTxn);
       const currentWallet = await getWalletBalance(organizationId, env);
-      const calculation = await calculateEventPayment(eventPrice, mode, organizationId, { topupCreditRequested }, env);
+      const calculation = await calculateEventPayment(
+        eventPrice,
+        mode,
+        organizationId,
+        {
+          topupCreditRequested,
+          useWelcomeCredit: params.useWelcomeCredit,
+          useEventCredit: params.useEventCredit ?? params.useTopupCredit,
+          welcomeCreditRequested: params.welcomeCreditRequested,
+        },
+        env
+      );
       const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
 
       return {
@@ -1658,7 +1727,12 @@ export async function processEventPayment(
       eventPrice,
       mode,
       organizationId,
-      { topupCreditRequested },
+      {
+        topupCreditRequested,
+        useWelcomeCredit: params.useWelcomeCredit,
+        useEventCredit: params.useEventCredit ?? params.useTopupCredit,
+        welcomeCreditRequested: params.welcomeCreditRequested,
+      },
       env
     );
 
@@ -1669,38 +1743,89 @@ export async function processEventPayment(
     const transactions: WalletTransactionRecord[] = [];
     const eventLabel = params.eventName ? `"${params.eventName}"` : `Event #${eventId.slice(0, 8)}`;
 
-    // 3. If promotional credit is used, record CREDIT_USAGE in immutable ledger
-    if (calculation.totalDiscount > 0 && mode !== 'FULL_PAID') {
-      let creditBalanceType: WalletBalanceType = 'TOPUP_CREDIT';
-      if (mode === 'WELCOME_CREDIT') creditBalanceType = 'WELCOME_CREDIT';
-      else if (mode === 'SHOWCASE_CREDIT') creditBalanceType = 'SHOWCASE_CREDIT';
-      else if (mode === 'TOPUP_CREDIT') creditBalanceType = 'TOPUP_CREDIT';
-
-      const creditTxnRef = referenceId ? `${referenceId}_credit` : `event_${eventId}_credit`;
-      const creditTxn = await appendLedgerTransaction(
+    // 3. Record individual CREDIT_USAGE transactions in immutable ledger
+    if (calculation.welcomeCreditUsed > 0) {
+      const welcomeTxnRef = referenceId ? `${referenceId}_welcome_credit` : (mode === 'WELCOME_CREDIT' && referenceId ? `${referenceId}_credit` : `event_${eventId}_welcome_credit`);
+      const welcomeTxn = await appendLedgerTransaction(
         {
           organization_id: organizationId,
           event_id: eventId,
           transaction_type: 'CREDIT_USAGE',
-          balance_type: creditBalanceType,
-          amount: -calculation.totalDiscount, // negative debit
+          balance_type: 'WELCOME_CREDIT',
+          amount: -calculation.welcomeCreditUsed, // negative debit
           currency: 'MYR',
           status: 'COMPLETED',
-          reference_id: creditTxnRef,
-          description: `Applied RM${calculation.totalDiscount.toFixed(2)} ${mode.replace('_', ' ')} for ${eventLabel}`,
+          reference_id: welcomeTxnRef,
+          description: `Applied RM${calculation.welcomeCreditUsed.toFixed(2)} Welcome Credit for ${eventLabel}`,
           metadata: {
             ...(params.metadata || {}),
             event_id: eventId,
             payment_mode: mode,
-            credit_type: mode,
+            credit_type: 'WELCOME_CREDIT',
             event_price: calculation.eventPrice,
-            credit_discount: calculation.totalDiscount,
+            credit_discount: calculation.welcomeCreditUsed,
           },
           created_by: createdBy || null,
         },
         env
       );
-      transactions.push(creditTxn);
+      transactions.push(welcomeTxn);
+    }
+
+    if (calculation.topupCreditUsed > 0) {
+      const topupTxnRef = referenceId ? `${referenceId}_topup_credit` : (mode === 'TOPUP_CREDIT' && referenceId ? `${referenceId}_credit` : `event_${eventId}_topup_credit`);
+      const topupTxn = await appendLedgerTransaction(
+        {
+          organization_id: organizationId,
+          event_id: eventId,
+          transaction_type: 'CREDIT_USAGE',
+          balance_type: 'TOPUP_CREDIT',
+          amount: -calculation.topupCreditUsed, // negative debit
+          currency: 'MYR',
+          status: 'COMPLETED',
+          reference_id: topupTxnRef,
+          description: `Applied RM${calculation.topupCreditUsed.toFixed(2)} Event Credit for ${eventLabel}`,
+          metadata: {
+            ...(params.metadata || {}),
+            event_id: eventId,
+            payment_mode: mode,
+            credit_type: 'TOPUP_CREDIT',
+            event_price: calculation.eventPrice,
+            credit_discount: calculation.topupCreditUsed,
+          },
+          created_by: createdBy || null,
+        },
+        env
+      );
+      transactions.push(topupTxn);
+    }
+
+    if (calculation.showcaseCreditUsed > 0) {
+      const showcaseTxnRef = referenceId ? `${referenceId}_showcase_credit` : (mode === 'SHOWCASE_CREDIT' && referenceId ? `${referenceId}_credit` : `event_${eventId}_showcase_credit`);
+      const showcaseTxn = await appendLedgerTransaction(
+        {
+          organization_id: organizationId,
+          event_id: eventId,
+          transaction_type: 'CREDIT_USAGE',
+          balance_type: 'SHOWCASE_CREDIT',
+          amount: -calculation.showcaseCreditUsed, // negative debit
+          currency: 'MYR',
+          status: 'COMPLETED',
+          reference_id: showcaseTxnRef,
+          description: `Applied RM${calculation.showcaseCreditUsed.toFixed(2)} Showcase Credit for ${eventLabel}`,
+          metadata: {
+            ...(params.metadata || {}),
+            event_id: eventId,
+            payment_mode: mode,
+            credit_type: 'SHOWCASE_CREDIT',
+            event_price: calculation.eventPrice,
+            credit_discount: calculation.showcaseCreditUsed,
+          },
+          created_by: createdBy || null,
+        },
+        env
+      );
+      transactions.push(showcaseTxn);
     }
 
     // 4. Record EVENT_PAYMENT from PAID_BALANCE in immutable ledger

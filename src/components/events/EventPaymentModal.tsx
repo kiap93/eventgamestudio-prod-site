@@ -20,8 +20,6 @@ import {
   CreditCard,
   Gamepad2,
   ArrowRight,
-  ShieldCheck,
-  Clock,
 } from 'lucide-react';
 
 interface EventPaymentModalProps {
@@ -37,21 +35,22 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
   event,
   onPaymentSuccess,
 }) => {
-  const { currentOrganization, user } = useAuth();
+  const { currentOrganization } = useAuth();
 
   const [wallet, setWallet] = useState<WalletBalanceSummary | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(true);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [activeCalculation, setActiveCalculation] = useState<EventPaymentCalculation | null>(null);
-  const [selectedPaymentMode, setSelectedPaymentMode] = useState<PaymentMode>('FULL_PAID');
+
+  // Credit checkboxes (both enabled by default)
+  const [useWelcomeCredit, setUseWelcomeCredit] = useState(true);
+  const [useEventCredit, setUseEventCredit] = useState(true);
 
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [successEvent, setSuccessEvent] = useState<any | null>(null);
 
   // Top-Up State for Insufficient Balance
-  const [showInlineTopUp, setShowInlineTopUp] = useState(false);
-  const [inlineTopUpAmount, setInlineTopUpAmount] = useState<number>(1400);
   const [isSubmittingTopUp, setIsSubmittingTopUp] = useState(false);
   const [activeCheckoutOrder, setActiveCheckoutOrder] = useState<TopupOrderRecord | null>(null);
   const [checkoutSession, setCheckoutSession] = useState<PaymentCheckoutSession | null>(null);
@@ -68,7 +67,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
     return `${prefix}${formatted}`;
   };
 
-  const fetchQuoteAndWallet = async (modeToUse?: PaymentMode) => {
+  const fetchWallet = async () => {
     if (!isOpen || !event) return;
     const orgId = event.organization_id || currentOrganization?.id;
     if (!orgId) return;
@@ -77,21 +76,22 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
       setLoadingQuote(true);
       setQuoteError(null);
 
-      // 1. Fetch wallet
+      // Fetch wallet balance
       const walletRes = await apiFetch(`/api/organizations/${orgId}/wallet`);
       if (walletRes.ok) {
         const wData = await walletRes.json();
         setWallet(wData.wallet);
       }
 
-      // 2. Fetch authoritative quote
-      const targetMode = modeToUse || selectedPaymentMode;
+      // Fetch quote for pricing validation
       const quoteRes = await apiFetch('/api/events/quote', {
         method: 'POST',
         body: JSON.stringify({
           game_theme_id: event.game_theme_id || event.game_theme?.id,
-          payment_mode: targetMode,
+          payment_mode: 'COMBINED_CREDIT',
           event_price: event.event_price || undefined,
+          use_welcome_credit: true,
+          use_event_credit: true,
         }),
       });
 
@@ -119,44 +119,61 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
     if (isOpen && event) {
       setSuccessEvent(null);
       setPaymentError(null);
-      setShowInlineTopUp(false);
-      fetchQuoteAndWallet();
+      setUseWelcomeCredit(true);
+      setUseEventCredit(true);
+      fetchWallet();
     }
   }, [isOpen, event?.id]);
 
   if (!isOpen || !event) return null;
 
-  const standardPrice = activeCalculation?.eventPrice ?? event.event_price ?? 1400;
-  const paidAmount = activeCalculation?.paidAmount ?? (
-    selectedPaymentMode === 'WELCOME_CREDIT' ? 600 :
-    selectedPaymentMode === 'SHOWCASE_CREDIT' ? 1100 :
-    selectedPaymentMode === 'TOPUP_CREDIT' ? 1120 : standardPrice
-  );
-  const totalDiscount = activeCalculation?.totalDiscount ?? (standardPrice - paidAmount);
-  const availableBalance = Number(
-    activeCalculation?.availableBalances?.paid_balance ?? wallet?.paid_balance ?? 0
-  );
+  // Pricing & Balances
+  const eventPrice = Number(activeCalculation?.eventPrice ?? event.event_price ?? 1400);
+  const availableWelcomeCredit = Number(wallet?.welcome_credit ?? 0);
+  const availableEventCredit = Number(wallet?.topup_credit ?? 0);
+  const availablePaidBalance = Number(wallet?.paid_balance ?? 0);
 
-  const isServerPayable = activeCalculation ? activeCalculation.isPayable : availableBalance >= paidAmount;
-  const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && (!isServerPayable || availableBalance < paidAmount);
-  const needAmount = Math.max(0, paidAmount - availableBalance);
+  // Maximum allowed event credit: 20% of event price
+  const maxEventCredit = Math.round(eventPrice * 0.20);
 
-  const handleModeChange = (newMode: PaymentMode) => {
-    setSelectedPaymentMode(newMode);
-    fetchQuoteAndWallet(newMode);
-  };
+  // Dynamic Credit Deductions based on checkboxes
+  const eligibleWelcomeCredit = Math.min(availableWelcomeCredit, eventPrice);
+  const eligibleEventCredit = Math.min(availableEventCredit, maxEventCredit);
+
+  const welcomeCreditUsed = useWelcomeCredit ? eligibleWelcomeCredit : 0;
+  const remainingPriceAfterWelcome = Math.max(0, eventPrice - welcomeCreditUsed);
+  const eventCreditUsed = useEventCredit ? Math.min(eligibleEventCredit, remainingPriceAfterWelcome) : 0;
+
+  const totalRequired = Math.max(0, eventPrice - welcomeCreditUsed - eventCreditUsed);
+  const remainingAmount = Math.max(0, totalRequired - availablePaidBalance);
+  const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && remainingAmount > 0;
 
   const handleConfirmPay = async () => {
     setPaymentError(null);
     try {
       setSubmittingPayment(true);
 
+      let resolvedPaymentMode: PaymentMode = 'FULL_PAID';
+      if (welcomeCreditUsed > 0 && eventCreditUsed > 0) {
+        resolvedPaymentMode = 'COMBINED_CREDIT';
+      } else if (welcomeCreditUsed > 0) {
+        resolvedPaymentMode = 'WELCOME_CREDIT';
+      } else if (eventCreditUsed > 0) {
+        resolvedPaymentMode = 'TOPUP_CREDIT';
+      } else {
+        resolvedPaymentMode = 'FULL_PAID';
+      }
+
       const res = await apiFetch(`/api/events/${event.id}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          payment_mode: selectedPaymentMode,
-          topup_credit_requested: activeCalculation?.topupCreditUsed,
+          payment_mode: resolvedPaymentMode,
+          use_welcome_credit: useWelcomeCredit,
+          use_event_credit: useEventCredit,
+          welcome_credit_requested: welcomeCreditUsed,
+          topup_credit_requested: eventCreditUsed,
+          event_price: eventPrice,
         }),
       });
 
@@ -164,7 +181,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
         const errData = await res.json().catch(() => ({}));
         if (res.status === 402 || errData.code === 'INSUFFICIENT_BALANCE') {
           setPaymentError(errData.error || 'Insufficient balance to activate event.');
-          fetchQuoteAndWallet();
+          fetchWallet();
           return;
         }
         throw new Error(errData.error || errData.message || 'Failed to process payment');
@@ -239,10 +256,9 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
     setShowCheckoutModal(false);
     setActiveCheckoutOrder(null);
     setCheckoutSession(null);
-    setShowInlineTopUp(false);
     setPaymentError(null);
 
-    await fetchQuoteAndWallet(selectedPaymentMode);
+    await fetchWallet();
 
     setTopUpSuccessNotice(
       `Successfully added ${formatCurrency(settledOrder.top_up_amount)} to your wallet! Balance updated.`
@@ -262,7 +278,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-100">Pay & Activate Event</h2>
-              <p className="text-xs text-slate-400">Complete payment to make this event live and active</p>
+              <p className="text-xs text-slate-400">Complete payment to make this event live</p>
             </div>
           </div>
           <button
@@ -286,7 +302,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
               <div className="space-y-1.5">
                 <h3 className="text-2xl font-black text-slate-100">Event Activated!</h3>
                 <p className="text-xs text-slate-400">
-                  Payment was confirmed and <strong className="text-slate-200">{event.name}</strong> is now officially active.
+                  Payment was confirmed and <strong className="text-slate-200">{event.name}</strong> is now officially live.
                 </p>
               </div>
 
@@ -298,9 +314,9 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-slate-400">
-                  <span>Payment:</span>
-                  <span className="font-bold text-slate-200">
-                    {formatCurrency(paidAmount)} Paid
+                  <span>Total Paid:</span>
+                  <span className="font-bold text-slate-200 font-mono">
+                    {formatCurrency(totalRequired)}
                   </span>
                 </div>
               </div>
@@ -341,133 +357,104 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                   <Gamepad2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   <span>{event.game?.name || 'Catch the Brand'}</span>
                   <span>•</span>
-                  <span>{event.game_theme?.name || 'Theme'}</span>
+                  <span>{event.game_theme?.name || event.name || 'Theme'}</span>
                 </div>
               </div>
 
-              {/* Pricing & Credit Options */}
+              {/* Pricing & Credit Summary Card */}
               {loadingQuote ? (
                 <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-6 flex items-center justify-center gap-2 text-xs text-slate-400">
                   <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                  <span>Calculating payment quote...</span>
+                  <span>Loading payment details...</span>
                 </div>
               ) : quoteError ? (
                 <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 text-xs text-rose-400 flex items-center justify-between">
                   <span>{quoteError}</span>
                   <button
                     type="button"
-                    onClick={() => fetchQuoteAndWallet(selectedPaymentMode)}
-                    className="underline text-rose-300 font-bold ml-2"
+                    onClick={() => fetchWallet()}
+                    className="underline text-rose-300 font-bold ml-2 cursor-pointer"
                   >
                     Retry
                   </button>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Payment Mode Selection */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-300">Payment Option</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleModeChange('FULL_PAID')}
-                        className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
-                          selectedPaymentMode === 'FULL_PAID'
-                            ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
-                            : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                        }`}
-                      >
-                        <div className="font-bold text-slate-200">Paid Balance</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">{formatCurrency(standardPrice)}</div>
-                      </button>
-
-                      {wallet && wallet.welcome_credit > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => handleModeChange('WELCOME_CREDIT')}
-                          className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
-                            selectedPaymentMode === 'WELCOME_CREDIT'
-                              ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
-                              : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                          }`}
-                        >
-                          <div className="font-bold text-emerald-400 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" />
-                            <span>Welcome Credit</span>
-                          </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">Save RM800.00 (Pay RM600)</div>
-                        </button>
-                      )}
-
-                      {wallet && wallet.showcase_credit > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => handleModeChange('SHOWCASE_CREDIT')}
-                          className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
-                            selectedPaymentMode === 'SHOWCASE_CREDIT'
-                              ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
-                              : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                          }`}
-                        >
-                          <div className="font-bold text-amber-400 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" />
-                            <span>Showcase Credit</span>
-                          </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">Save RM300.00 (Pay RM1,100)</div>
-                        </button>
-                      )}
-
-                      {wallet && wallet.topup_credit > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => handleModeChange('TOPUP_CREDIT')}
-                          className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
-                            selectedPaymentMode === 'TOPUP_CREDIT'
-                              ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
-                              : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                          }`}
-                        >
-                          <div className="font-bold text-blue-400 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" />
-                            <span>Top-up Credit</span>
-                          </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">Save up to 20% (RM280)</div>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Financial Breakdown */}
-                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
+                  {/* Financial Breakdown Card */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3.5 text-xs">
+                    {/* Event Price */}
                     <div className="flex items-center justify-between text-slate-300">
-                      <span>Event Price</span>
-                      <span className="font-mono font-bold">{formatCurrency(standardPrice)}</span>
+                      <span className="font-medium text-slate-300">Event Price</span>
+                      <span className="font-mono font-bold text-slate-100 text-sm">{formatCurrency(eventPrice)}</span>
                     </div>
 
-                    {totalDiscount > 0 && (
-                      <div className="flex items-center justify-between text-emerald-400">
-                        <span className="flex items-center gap-1">
-                          <Sparkles className="w-3.5 h-3.5" />
-                          Credit Applied
+                    {/* Welcome Credit Row */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={useWelcomeCredit}
+                            onChange={(e) => setUseWelcomeCredit(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500/30 focus:ring-offset-slate-950 accent-amber-500 cursor-pointer"
+                          />
+                          <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Welcome Credit</span>
+                          </span>
+                        </label>
+                        <span className={`font-mono font-bold ${useWelcomeCredit && welcomeCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                          {useWelcomeCredit && welcomeCreditUsed > 0 ? `-${formatCurrency(welcomeCreditUsed)}` : 'RM0'}
                         </span>
-                        <span className="font-mono font-bold">-{formatCurrency(totalDiscount)}</span>
                       </div>
-                    )}
+                      <div className="pl-6.5 text-[11px] text-slate-400">
+                        Available: {formatCurrency(availableWelcomeCredit)}
+                      </div>
+                    </div>
 
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-800 font-semibold text-slate-100">
-                      <span>Total Required</span>
-                      <span className="font-mono font-bold text-amber-400 text-sm">
-                        {formatCurrency(paidAmount)}
+                    {/* Event Credit Row */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={useEventCredit}
+                            onChange={(e) => setUseEventCredit(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500/30 focus:ring-offset-slate-950 accent-amber-500 cursor-pointer"
+                          />
+                          <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Event Credit</span>
+                          </span>
+                        </label>
+                        <span className={`font-mono font-bold ${useEventCredit && eventCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                          {useEventCredit && eventCreditUsed > 0 ? `-${formatCurrency(eventCreditUsed)}` : 'RM0'}
+                        </span>
+                      </div>
+                      <div className="pl-6.5 text-[11px] text-slate-400">
+                        Maximum: {formatCurrency(maxEventCredit)} (20%)
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="border-t border-slate-800/80 my-1 pt-1.5" />
+
+                    {/* Total Required */}
+                    <div className="flex items-center justify-between text-slate-100 font-semibold">
+                      <span className="text-xs font-bold text-slate-200">Total Required</span>
+                      <span className="font-mono font-bold text-amber-400 text-sm sm:text-base">
+                        {formatCurrency(totalRequired)}
                       </span>
                     </div>
 
+                    {/* Available Paid Balance */}
                     <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-slate-400">
-                      <span className="flex items-center gap-1.5">
-                        <Wallet className="w-3.5 h-3.5" />
-                        Available Paid Balance
+                      <span className="flex items-center gap-1.5 text-slate-400">
+                        <Wallet className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Available Paid Balance</span>
                       </span>
                       <span className="font-mono font-bold text-slate-200">
-                        {formatCurrency(availableBalance)}
+                        {formatCurrency(availablePaidBalance)}
                       </span>
                     </div>
                   </div>
@@ -480,12 +467,12 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                         <span>Insufficient Balance</span>
                       </div>
                       <p className="text-xs text-slate-300">
-                        You need <span className="font-mono font-bold text-amber-300">{formatCurrency(needAmount)}</span> more to activate this event.
+                        You need <span className="font-mono font-bold text-amber-300">{formatCurrency(remainingAmount)}</span> more to activate this event.
                       </p>
                       <button
                         type="button"
                         disabled={isSubmittingTopUp}
-                        onClick={() => handleStartTopUpFlow(needAmount > 0 ? needAmount : 1400)}
+                        onClick={() => handleStartTopUpFlow(remainingAmount)}
                         className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
                       >
                         {isSubmittingTopUp ? (
@@ -496,7 +483,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                         ) : (
                           <>
                             <PlusCircle className="w-3.5 h-3.5" />
-                            <span>Top Up {formatCurrency(needAmount)}</span>
+                            <span>Top Up {formatCurrency(remainingAmount)}</span>
                           </>
                         )}
                       </button>
@@ -532,7 +519,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                 </>
               ) : (
                 <>
-                  <span>Pay {formatCurrency(paidAmount)} & Activate</span>
+                  <span>{remainingAmount === 0 ? 'Activate Event' : `Pay ${formatCurrency(remainingAmount)} & Activate`}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

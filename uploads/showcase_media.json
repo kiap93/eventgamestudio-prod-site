@@ -1636,5 +1636,47 @@
     "sort_order": 0,
     "created_at": "2026-08-24T07:30:33.266+00:00",
     "updated_at": "2026-08-24T07:30:33.266+00:00"
+  },
+  {
+    "id": "b13e23a7-080b-46ca-a61b-645d404984ec",
+    "showcase_id": "91bbb765-92b1-4379-9270-9cf8bffa393b",
+    "organization_id": "009ae1f2-875f-4d96-950a-11df89a3b431",
+    "media_type": "IMAGE",
+    "media_url": "https://example.com/booth1.jpg",
+    "thumbnail_url": null,
+    "file_name": "booth1.jpg",
+    "file_size": 102400,
+    "mime_type": "image/jpeg",
+    "sort_order": 0,
+    "created_at": "2026-08-24T09:23:07.584Z",
+    "updated_at": "2026-08-24T09:23:07.584Z"
+  },
+  {
+    "id": "5f10da65-3dce-47b7-8683-6a77a4a2f50e",
+    "showcase_id": "bad14d5c-5935-4d71-8f01-cfbb7fc8c255",
+    "organization_id": "009ae1f2-875f-4d96-950a-11df89a3b431",
+    "media_type": "IMAGE",
+    "media_url": "https://example.com/gala1.jpg",
+    "thumbnail_url": null,
+    "file_name": "gala1.jpg",
+    "file_size": 204800,
+    "mime_type": "image/jpeg",
+    "sort_order": 0,
+    "created_at": "2026-08-24T09:23:07.680Z",
+    "updated_at": "2026-08-24T09:23:07.680Z"
+  },
+  {
+    "id": "9ace05b7-8b82-410c-bf4e-a411c2cc09c2",
+    "showcase_id": "63d915da-5845-4862-8ea9-076ad7843315",
+    "organization_id": "346ccfe0-474e-4dd4-9786-b84bf2efb0ce",
+    "media_type": "IMAGE",
+    "media_url": "https://example.com/beta1.jpg",
+    "thumbnail_url": null,
+    "file_name": "beta1.jpg",
+    "file_size": 150000,
+    "mime_type": "image/jpeg",
+    "sort_order": 0,
+    "created_at": "2026-08-24T09:23:07.701Z",
+    "updated_at": "2026-08-24T09:23:07.701Z"
   }
 ]

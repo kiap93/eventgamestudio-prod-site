@@ -99,6 +99,7 @@ export async function createSignedUploadUrlForShowcase(
   params: {
     organizationId: string;
     showcaseId: string;
+    eventId?: string;
     fileName: string;
     mimeType: string;
     mediaType: 'IMAGE' | 'VIDEO';
@@ -144,7 +145,10 @@ export async function createSignedUploadUrlForShowcase(
     .getPublicUrl(storagePath);
 
   const publicUrl = publicData?.publicUrl || `/uploads/${uniqueName}`;
-  const directUploadUrl = `/api/events/showcase-media/direct-upload?path=${encodeURIComponent(storagePath)}&filename=${encodeURIComponent(uniqueName)}`;
+  const eventIdQuery = params.eventId ? `eventId=${encodeURIComponent(params.eventId)}&` : '';
+  const directUploadUrl = params.eventId
+    ? `/api/events/${encodeURIComponent(params.eventId)}/showcase/media/direct-upload?showcaseId=${encodeURIComponent(params.showcaseId)}&filename=${encodeURIComponent(uniqueName)}&path=${encodeURIComponent(storagePath)}`
+    : `/api/events/showcase-media/direct-upload?${eventIdQuery}showcaseId=${encodeURIComponent(params.showcaseId)}&filename=${encodeURIComponent(uniqueName)}&path=${encodeURIComponent(storagePath)}`;
 
   return {
     signedUrl,

@@ -23123,5 +23123,753 @@
     },
     "created_by": null,
     "created_at": "2026-08-24T08:28:23.933+00:00"
+  },
+  {
+    "id": "990595ec-64e4-4184-ada7-b019158cc59c",
+    "organization_id": "7e707951-1c12-4d8a-a08e-a8d07a647c86",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 6000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_order_bad7ba98-b6fe-4234-b598-a79641c6f0c5",
+    "description": "Top-up Order BAD7BA98",
+    "metadata": {
+      "topup_order_id": "bad7ba98-b6fe-4234-b598-a79641c6f0c5",
+      "payment_reference": "PAY_GW_836B74EA",
+      "payment_method": "fpx",
+      "reason": "Verified payment.succeeded webhook",
+      "webhook_event_id": "evt_0ec5a11e-97c6-4090-95ec-1be0557a6ade",
+      "webhook_type": "payment.succeeded",
+      "provider": "payment_provider",
+      "processed_at": "2026-08-24T09:23:04.370Z",
+      "topup_amount": 6000
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-08-24T09:23:04.382Z"
+  },
+  {
+    "id": "8fa41f7c-a59b-4f53-844f-f26223e9160f",
+    "organization_id": "7e707951-1c12-4d8a-a08e-a8d07a647c86",
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_order_bad7ba98-b6fe-4234-b598-a79641c6f0c5_promo",
+    "description": "Promotional 5% Top-up Credit on RM6000.00 deposit",
+    "metadata": {
+      "parent_topup_id": "990595ec-64e4-4184-ada7-b019158cc59c",
+      "qualifying_amount": 6000,
+      "reward_rate": "5%"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-08-24T09:23:04.389Z"
+  },
+  {
+    "id": "c90df581-4af5-4cf2-be50-75c3a02768d2",
+    "organization_id": "d2316b18-2a60-406f-8256-ed462f512b0e",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 8000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_order_f5c46e29-96a5-44cd-91b6-23cb1a9636dd",
+    "description": "Top-up Order F5C46E29",
+    "metadata": {
+      "topup_order_id": "f5c46e29-96a5-44cd-91b6-23cb1a9636dd",
+      "payment_reference": "BANK_TXN_MAYBANK_888999",
+      "payment_method": "bank_transfer",
+      "reason": "Manual Admin Reconciliation: Verified Maybank business account deposit slip receipt #MB888999",
+      "reconciliation": true,
+      "reconciled_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+      "reconciliation_reason": "Verified Maybank business account deposit slip receipt #MB888999",
+      "topup_amount": 8000
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-08-24T09:23:04.546Z"
+  },
+  {
+    "id": "cfb15ac9-bc5a-4de7-8d9f-4a065848ce03",
+    "organization_id": "d2316b18-2a60-406f-8256-ed462f512b0e",
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 400,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_order_f5c46e29-96a5-44cd-91b6-23cb1a9636dd_promo",
+    "description": "Promotional 5% Top-up Credit on RM8000.00 deposit",
+    "metadata": {
+      "parent_topup_id": "c90df581-4af5-4cf2-be50-75c3a02768d2",
+      "qualifying_amount": 8000,
+      "reward_rate": "5%"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-08-24T09:23:04.554Z"
+  },
+  {
+    "id": "6361a97f-1b63-4f8d-bc6c-acd72237e9d2",
+    "organization_id": "df5f5bf2-054f-45b1-9f6d-550b34860bd3",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 3000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "ref_sub_1_1787563385440",
+    "description": "First split top-up of RM3,000",
+    "metadata": {
+      "topup_amount": 3000
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:05.441Z"
+  },
+  {
+    "id": "1ba04be6-b7c1-430f-8403-a61d1902404c",
+    "organization_id": "df5f5bf2-054f-45b1-9f6d-550b34860bd3",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 3000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "ref_sub_2_1787563385471",
+    "description": "Second split top-up of RM3,000",
+    "metadata": {
+      "topup_amount": 3000
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:05.472Z"
+  },
+  {
+    "id": "258f0bba-aee7-450e-855c-46134948eabc",
+    "organization_id": "af744a09-4011-468c-8e08-63a8cf5ca19c",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 10000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "wh_stripe_charge_1787563385505",
+    "description": "Stripe Checkout RM10,000",
+    "metadata": {
+      "topup_amount": 10000
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:05.506Z"
+  },
+  {
+    "id": "56ebae01-2df8-44f4-b076-54ff66c0f604",
+    "organization_id": "af744a09-4011-468c-8e08-63a8cf5ca19c",
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 700,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "wh_stripe_charge_1787563385505_promo",
+    "description": "Promotional 7% Top-up Credit on RM10000.00 deposit",
+    "metadata": {
+      "parent_topup_id": "258f0bba-aee7-450e-855c-46134948eabc",
+      "qualifying_amount": 10000,
+      "reward_rate": "7%"
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:05.514Z"
+  },
+  {
+    "id": "e602e168-0c44-4cf9-9b4d-cd1087821633",
+    "organization_id": "eccc59bc-6264-483a-8549-1ac101140dcb",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 6000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_order_2e1d835b-9c5c-4792-a10d-c666b6526551",
+    "description": "Top-up Order 2E1D835B",
+    "metadata": {
+      "topup_order_id": "2e1d835b-9c5c-4792-a10d-c666b6526551",
+      "payment_reference": "PAY_REF_6K_001",
+      "payment_method": "fpx",
+      "reason": "Payment gateway confirmation",
+      "topup_amount": 6000
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-08-24T09:23:05.583Z"
+  },
+  {
+    "id": "fab03e89-4e4c-4e42-b443-7d5babcb492a",
+    "organization_id": "eccc59bc-6264-483a-8549-1ac101140dcb",
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_order_2e1d835b-9c5c-4792-a10d-c666b6526551_promo",
+    "description": "Promotional 5% Top-up Credit on RM6000.00 deposit",
+    "metadata": {
+      "parent_topup_id": "e602e168-0c44-4cf9-9b4d-cd1087821633",
+      "qualifying_amount": 6000,
+      "reward_rate": "5%"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-08-24T09:23:05.591Z"
+  },
+  {
+    "id": "80c2282c-5913-4ee0-9964-b46d2d16c1ce",
+    "organization_id": "fa581ec6-fd68-4f4c-b854-8f845cfea633",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_fa581ec6-fd68-4f4c-b854-8f845cfea633",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-08-24T09:23:06.479Z"
+  },
+  {
+    "id": "bf44820e-b7c7-41b8-86d6-518121a43471",
+    "organization_id": "0dee1a8d-a4b4-4776-b5f4-4294fc5b7f88",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_0dee1a8d-a4b4-4776-b5f4-4294fc5b7f88",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Auto Welcome Org Test",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-08-24T09:23:06.507Z"
+  },
+  {
+    "id": "66b06586-8b94-434b-8e67-532530c8a5b7",
+    "organization_id": "fa581ec6-fd68-4f4c-b854-8f845cfea633",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_300_fa581ec6-fd68-4f4c-b854-8f845cfea633",
+    "description": "Wallet Top-up of RM300.00",
+    "metadata": {
+      "topup_amount": 300
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:06.549Z"
+  },
+  {
+    "id": "11a4deb6-a1f5-450d-b819-eb6e495d7aea",
+    "organization_id": "fa581ec6-fd68-4f4c-b854-8f845cfea633",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_300b_fa581ec6-fd68-4f4c-b854-8f845cfea633",
+    "description": "Wallet Top-up of RM300.00",
+    "metadata": {
+      "topup_amount": 300
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:06.581Z"
+  },
+  {
+    "id": "8185497a-d611-481c-81c7-f6e8a14348e9",
+    "organization_id": "fa581ec6-fd68-4f4c-b854-8f845cfea633",
+    "event_id": "b91a14c3-7f99-4c97-b064-90ee8d91c8e9",
+    "transaction_type": "CREDIT_USAGE",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": -800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "ref_event_b91a14c3-7f99-4c97-b064-90ee8d91c8e9_credit",
+    "description": "Applied RM800.00 WELCOME CREDIT for Event #b91a14c3",
+    "metadata": {
+      "event_id": "b91a14c3-7f99-4c97-b064-90ee8d91c8e9",
+      "payment_mode": "WELCOME_CREDIT",
+      "credit_type": "WELCOME_CREDIT",
+      "event_price": 1400,
+      "credit_discount": 800
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:06.621Z"
+  },
+  {
+    "id": "35c60c06-405d-4592-8b32-af750aa978c6",
+    "organization_id": "fa581ec6-fd68-4f4c-b854-8f845cfea633",
+    "event_id": "b91a14c3-7f99-4c97-b064-90ee8d91c8e9",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -600,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "ref_event_b91a14c3-7f99-4c97-b064-90ee8d91c8e9_paid",
+    "description": "Paid RM600.00 from Paid Balance for Event #b91a14c3",
+    "metadata": {
+      "event_id": "b91a14c3-7f99-4c97-b064-90ee8d91c8e9",
+      "payment_mode": "WELCOME_CREDIT",
+      "paid_amount": 600,
+      "credit_applied": 800,
+      "total_event_cost": 1400
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:06.628Z"
+  },
+  {
+    "id": "81f30193-6047-4be5-80e3-2745b3f85ca4",
+    "organization_id": "8be2775d-5839-43a2-9daa-fef5ee321386",
+    "event_id": null,
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_8be2775d-5839-43a2-9daa-fef5ee321386",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD",
+      "event_id": null
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-08-24T09:23:06.679Z"
+  },
+  {
+    "id": "c2cc696d-ae6a-4882-8557-474aadf9166a",
+    "organization_id": "8be2775d-5839-43a2-9daa-fef5ee321386",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 1000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_1000_8be2775d-5839-43a2-9daa-fef5ee321386",
+    "description": "Wallet Top-up of RM1000.00",
+    "metadata": {
+      "topup_amount": 1000
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:06.705Z"
+  },
+  {
+    "id": "c25d289c-c430-42ed-9fb9-213bb89f7b4b",
+    "organization_id": "8be2775d-5839-43a2-9daa-fef5ee321386",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 100,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_100_8be2775d-5839-43a2-9daa-fef5ee321386",
+    "description": "Wallet Top-up of RM100.00",
+    "metadata": {
+      "topup_amount": 100
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:06.733Z"
+  },
+  {
+    "id": "eb332177-bc64-4ac5-bd82-2e29300fa44a",
+    "organization_id": "8be2775d-5839-43a2-9daa-fef5ee321386",
+    "event_id": "d1cbe0ba-ea6d-4593-aed6-81ea590a3aa4",
+    "transaction_type": "CREDIT_USAGE",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": -300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "ref_event_d1cbe0ba-ea6d-4593-aed6-81ea590a3aa4_credit",
+    "description": "Applied RM300.00 SHOWCASE CREDIT for Event #d1cbe0ba",
+    "metadata": {
+      "event_id": "d1cbe0ba-ea6d-4593-aed6-81ea590a3aa4",
+      "payment_mode": "SHOWCASE_CREDIT",
+      "credit_type": "SHOWCASE_CREDIT",
+      "event_price": 1400,
+      "credit_discount": 300
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:06.767Z"
+  },
+  {
+    "id": "86ec15fc-bee9-4650-a98c-6e927be0b0d1",
+    "organization_id": "8be2775d-5839-43a2-9daa-fef5ee321386",
+    "event_id": "d1cbe0ba-ea6d-4593-aed6-81ea590a3aa4",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1100,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "ref_event_d1cbe0ba-ea6d-4593-aed6-81ea590a3aa4_paid",
+    "description": "Paid RM1100.00 from Paid Balance for Event #d1cbe0ba",
+    "metadata": {
+      "event_id": "d1cbe0ba-ea6d-4593-aed6-81ea590a3aa4",
+      "payment_mode": "SHOWCASE_CREDIT",
+      "paid_amount": 1100,
+      "credit_applied": 300,
+      "total_event_cost": 1400
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:06.774Z"
+  },
+  {
+    "id": "c590091e-3658-4f81-9590-f587fc8f7cae",
+    "organization_id": "009ae1f2-875f-4d96-950a-11df89a3b431",
+    "event_id": "5e0ca51f-5387-417e-a109-dfc3c07bfc24",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_91bbb765-92b1-4379-9270-9cf8bffa393b",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "showcase_id": "91bbb765-92b1-4379-9270-9cf8bffa393b",
+      "event_id": "5e0ca51f-5387-417e-a109-dfc3c07bfc24",
+      "reviewed_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+      "approved_at": "2026-08-24T09:23:07.632Z",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-08-24T09:23:07.633Z"
+  },
+  {
+    "id": "26ac49f6-b38c-496b-8394-1e1a71a4207d",
+    "organization_id": "346ccfe0-474e-4dd4-9786-b84bf2efb0ce",
+    "event_id": "b593f4f5-f8dd-4dc2-b095-38963d8cacbe",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_63d915da-5845-4862-8ea9-076ad7843315",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "showcase_id": "63d915da-5845-4862-8ea9-076ad7843315",
+      "event_id": "b593f4f5-f8dd-4dc2-b095-38963d8cacbe",
+      "reviewed_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+      "approved_at": "2026-08-24T09:23:07.704Z",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-08-24T09:23:07.704Z"
+  },
+  {
+    "id": "9f8d07d4-4918-4e90-8bcb-793e26f3768f",
+    "organization_id": "47318af9-1ca3-4dcb-8add-1403c9c76ba2",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_47318af9-1ca3-4dcb-8add-1403c9c76ba2",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.361Z"
+  },
+  {
+    "id": "f854051c-40bd-4ef2-859c-3e649315e769",
+    "organization_id": "47318af9-1ca3-4dcb-8add-1403c9c76ba2",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 600,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_org1_1787563389384",
+    "description": "Wallet Top-up of RM600.00",
+    "metadata": {
+      "topup_amount": 600
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.386Z"
+  },
+  {
+    "id": "6ce60422-1cf2-4782-84b3-c60b018808fb",
+    "organization_id": "47318af9-1ca3-4dcb-8add-1403c9c76ba2",
+    "event_id": "2def4f00-fcde-4d60-b0a7-d01caeb3f618",
+    "transaction_type": "CREDIT_USAGE",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": -800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_2def4f00-fcde-4d60-b0a7-d01caeb3f618_credit",
+    "description": "Applied RM800.00 WELCOME CREDIT for Event #2def4f00",
+    "metadata": {
+      "event_id": "2def4f00-fcde-4d60-b0a7-d01caeb3f618",
+      "payment_mode": "WELCOME_CREDIT",
+      "credit_type": "WELCOME_CREDIT",
+      "event_price": 1400,
+      "credit_discount": 800
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.431Z"
+  },
+  {
+    "id": "ba8c36dd-bd0d-49b0-84bf-9a47d2acb85c",
+    "organization_id": "47318af9-1ca3-4dcb-8add-1403c9c76ba2",
+    "event_id": "2def4f00-fcde-4d60-b0a7-d01caeb3f618",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -600,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_2def4f00-fcde-4d60-b0a7-d01caeb3f618_paid",
+    "description": "Paid RM600.00 from Paid Balance for Event #2def4f00",
+    "metadata": {
+      "event_id": "2def4f00-fcde-4d60-b0a7-d01caeb3f618",
+      "payment_mode": "WELCOME_CREDIT",
+      "paid_amount": 600,
+      "credit_applied": 800,
+      "total_event_cost": 1400
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.439Z"
+  },
+  {
+    "id": "5d76f372-93c7-4fd9-afca-da9bd9d8f504",
+    "organization_id": "13388049-85fb-4e43-b44a-c5a448977db0",
+    "event_id": null,
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_13388049-85fb-4e43-b44a-c5a448977db0",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD",
+      "event_id": null
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.502Z"
+  },
+  {
+    "id": "feb25962-f0c7-442c-8f07-3ff252ec042c",
+    "organization_id": "13388049-85fb-4e43-b44a-c5a448977db0",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 1100,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_org2_1787563389516",
+    "description": "Wallet Top-up of RM1100.00",
+    "metadata": {
+      "topup_amount": 1100
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.517Z"
+  },
+  {
+    "id": "75bcc124-a60f-408b-85e6-4b1a4ce91e65",
+    "organization_id": "13388049-85fb-4e43-b44a-c5a448977db0",
+    "event_id": "0e5e7d77-7fe9-4b88-b1ba-5e1a1f3bdcc3",
+    "transaction_type": "CREDIT_USAGE",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": -300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_0e5e7d77-7fe9-4b88-b1ba-5e1a1f3bdcc3_credit",
+    "description": "Applied RM300.00 SHOWCASE CREDIT for Event #0e5e7d77",
+    "metadata": {
+      "event_id": "0e5e7d77-7fe9-4b88-b1ba-5e1a1f3bdcc3",
+      "payment_mode": "SHOWCASE_CREDIT",
+      "credit_type": "SHOWCASE_CREDIT",
+      "event_price": 1400,
+      "credit_discount": 300
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.565Z"
+  },
+  {
+    "id": "e752c737-2f30-43ca-ab3f-7dd77e28d644",
+    "organization_id": "13388049-85fb-4e43-b44a-c5a448977db0",
+    "event_id": "0e5e7d77-7fe9-4b88-b1ba-5e1a1f3bdcc3",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1100,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_0e5e7d77-7fe9-4b88-b1ba-5e1a1f3bdcc3_paid",
+    "description": "Paid RM1100.00 from Paid Balance for Event #0e5e7d77",
+    "metadata": {
+      "event_id": "0e5e7d77-7fe9-4b88-b1ba-5e1a1f3bdcc3",
+      "payment_mode": "SHOWCASE_CREDIT",
+      "paid_amount": 1100,
+      "credit_applied": 300,
+      "total_event_cost": 1400
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.572Z"
+  },
+  {
+    "id": "068ee1fe-59ba-4773-a3ea-cb0b8ac62dac",
+    "organization_id": "f910a2da-c028-4361-9447-83e6979e0d69",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 10000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_org3_1787563389604",
+    "description": "Wallet Top-up of RM10000.00",
+    "metadata": {
+      "topup_amount": 10000
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.605Z"
+  },
+  {
+    "id": "1089cc02-c678-483c-9618-c8461606ad3a",
+    "organization_id": "f910a2da-c028-4361-9447-83e6979e0d69",
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 700,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_org3_1787563389604_promo",
+    "description": "Promotional 7% Top-up Credit on RM10000.00 deposit",
+    "metadata": {
+      "parent_topup_id": "068ee1fe-59ba-4773-a3ea-cb0b8ac62dac",
+      "qualifying_amount": 10000,
+      "reward_rate": "7%"
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.614Z"
+  },
+  {
+    "id": "8f270141-6c79-4262-83a1-b410a98b1ee6",
+    "organization_id": "f910a2da-c028-4361-9447-83e6979e0d69",
+    "event_id": "585009bb-5b64-420e-8a71-866a4571e1b1",
+    "transaction_type": "CREDIT_USAGE",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": -280,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_585009bb-5b64-420e-8a71-866a4571e1b1_credit",
+    "description": "Applied RM280.00 TOPUP CREDIT for Event #585009bb",
+    "metadata": {
+      "event_id": "585009bb-5b64-420e-8a71-866a4571e1b1",
+      "payment_mode": "TOPUP_CREDIT",
+      "credit_type": "TOPUP_CREDIT",
+      "event_price": 1400,
+      "credit_discount": 280
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.651Z"
+  },
+  {
+    "id": "72daa1eb-8720-4504-9e07-c49c75373d8f",
+    "organization_id": "f910a2da-c028-4361-9447-83e6979e0d69",
+    "event_id": "585009bb-5b64-420e-8a71-866a4571e1b1",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1120,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_585009bb-5b64-420e-8a71-866a4571e1b1_paid",
+    "description": "Paid RM1120.00 from Paid Balance for Event #585009bb",
+    "metadata": {
+      "event_id": "585009bb-5b64-420e-8a71-866a4571e1b1",
+      "payment_mode": "TOPUP_CREDIT",
+      "paid_amount": 1120,
+      "credit_applied": 280,
+      "total_event_cost": 1400
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.662Z"
+  },
+  {
+    "id": "454c58d7-8527-411d-a7ef-691be227641e",
+    "organization_id": "ac5020e0-d3e0-42b6-a0ee-c25ace220639",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 2000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_org4_1787563389692",
+    "description": "Wallet Top-up of RM2000.00",
+    "metadata": {
+      "topup_amount": 2000
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.692Z"
+  },
+  {
+    "id": "af2f615c-b1fa-4c2b-a782-3032313690c0",
+    "organization_id": "ac5020e0-d3e0-42b6-a0ee-c25ace220639",
+    "event_id": "2202a4c0-b5e0-4b11-88ab-d66be47415a6",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1400,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_2202a4c0-b5e0-4b11-88ab-d66be47415a6_paid",
+    "description": "Paid RM1400.00 from Paid Balance for Event #2202a4c0",
+    "metadata": {
+      "event_id": "2202a4c0-b5e0-4b11-88ab-d66be47415a6",
+      "payment_mode": "FULL_PAID",
+      "paid_amount": 1400,
+      "credit_applied": 0,
+      "total_event_cost": 1400
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.720Z"
+  },
+  {
+    "id": "53fe8007-ce6d-4e4b-8eb5-a161decbda0d",
+    "organization_id": "1eed6d00-075c-41b1-926b-b2596be656a8",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_1eed6d00-075c-41b1-926b-b2596be656a8",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.778Z"
+  },
+  {
+    "id": "0da480d1-2f1b-4573-9ef2-243eb144a5af",
+    "organization_id": "1eed6d00-075c-41b1-926b-b2596be656a8",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 200,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_org5_1787563389793",
+    "description": "Wallet Top-up of RM200.00",
+    "metadata": {
+      "topup_amount": 200
+    },
+    "created_by": null,
+    "created_at": "2026-08-24T09:23:09.794Z"
   }
 ]

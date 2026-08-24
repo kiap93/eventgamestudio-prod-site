@@ -1611,7 +1611,15 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const { game_theme_id, payment_mode, topup_credit_requested, event_price } = body;
+        const {
+          game_theme_id,
+          payment_mode,
+          topup_credit_requested,
+          event_price,
+          use_welcome_credit,
+          use_event_credit,
+          welcome_credit_requested,
+        } = body;
         const price = typeof event_price === 'number' && event_price > 0 ? event_price : STANDARD_EVENT_PRICE;
 
         let themeInfo: any = null;
@@ -1634,7 +1642,12 @@ export default {
           price,
           selectedMode,
           organizationId,
-          { topupCreditRequested: topup_credit_requested },
+          {
+            topupCreditRequested: topup_credit_requested,
+            useWelcomeCredit: use_welcome_credit,
+            useEventCredit: use_event_credit,
+            welcomeCreditRequested: welcome_credit_requested,
+          },
           env
         );
 
@@ -1797,7 +1810,15 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const { payment_mode = 'FULL_PAID', topup_credit_requested, reference_id } = body;
+        const {
+          payment_mode = 'FULL_PAID',
+          topup_credit_requested,
+          use_welcome_credit,
+          use_event_credit,
+          welcome_credit_requested,
+          event_price,
+          reference_id,
+        } = body;
 
         try {
           const result = await processEventPayment(
@@ -1805,7 +1826,11 @@ export default {
               organizationId: event.organization_id,
               eventId: event.id,
               paymentMode: payment_mode,
+              useWelcomeCredit: use_welcome_credit,
+              useEventCredit: use_event_credit,
+              welcomeCreditRequested: welcome_credit_requested,
               topupCreditRequested: topup_credit_requested,
+              eventPrice: event_price || event.event_price,
               referenceId: reference_id,
             },
             env
@@ -2552,6 +2577,7 @@ export default {
             {
               organizationId: event.organization_id,
               showcaseId: showcase.id,
+              eventId: event.id,
               fileName,
               mimeType: lowerMime,
               mediaType: normalizedMediaType as 'IMAGE' | 'VIDEO',
@@ -2578,19 +2604,23 @@ export default {
         }
       }
 
-      // POST /api/events/showcase-media/direct-upload
-      if (pathname === '/api/events/showcase-media/direct-upload' && method === 'POST') {
+      // POST /api/events/showcase-media/direct-upload & POST /api/events/:eventId/showcase/media/direct-upload
+      const directUploadEventRoute = parseRoute('/api/events/:eventId/showcase/media/direct-upload', pathname);
+      if ((pathname === '/api/events/showcase-media/direct-upload' || directUploadEventRoute) && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
         try {
           const formData = await request.formData().catch(() => null);
-          const targetPath = url.searchParams.get('path') || (formData?.get('path') as string) || undefined;
-          const queryFilename = url.searchParams.get('filename') || undefined;
+          let requestedPath = url.searchParams.get('path') || (formData?.get('path') as string) || undefined;
+          const queryFilename = url.searchParams.get('filename') || (formData?.get('filename') as string) || undefined;
+          let eventId = directUploadEventRoute?.eventId || url.searchParams.get('eventId') || (formData?.get('eventId') as string) || undefined;
+          let showcaseId = url.searchParams.get('showcaseId') || (formData?.get('showcaseId') as string) || undefined;
 
           let fileBuffer: ArrayBuffer | null = null;
           let mimeType = 'application/octet-stream';
           let originalName = queryFilename || 'media-file';
+          let fileSize = 0;
 
           if (formData) {
             const file = formData.get('file');
@@ -2598,25 +2628,105 @@ export default {
               fileBuffer = await file.arrayBuffer();
               mimeType = file.type || mimeType;
               originalName = file.name || originalName;
+              fileSize = fileBuffer.byteLength;
             }
           }
 
           if (!fileBuffer) {
             fileBuffer = await request.arrayBuffer();
             mimeType = request.headers.get('content-type') || mimeType;
+            fileSize = fileBuffer.byteLength;
           }
 
-          if (!fileBuffer || fileBuffer.byteLength === 0) {
+          if (!fileBuffer || fileSize === 0) {
             return errorResponse('No media file provided', 422, cors);
           }
 
-          const supabase = getSupabaseServerClient(env);
-          const storagePath = targetPath || `showcases/general/${Date.now()}-${originalName}`;
+          // 1. Identify & Validate Event and Showcase IDs
+          if (!eventId && !showcaseId && requestedPath) {
+            const pathMatch = requestedPath.match(/^organizations\/([^/]+)\/showcases\/([^/]+)\/([^/]+)$/);
+            if (pathMatch) {
+              showcaseId = pathMatch[2];
+            }
+          }
 
+          if (!eventId && !showcaseId) {
+            return errorResponse('eventId or showcaseId is required for showcase media upload', 422, cors);
+          }
+
+          let event: any = null;
+          let showcase: any = null;
+
+          if (eventId) {
+            event = await getEventById(eventId, env);
+            if (!event) {
+              return errorResponse('Event not found', 404, cors);
+            }
+            showcase = await getShowcaseByEventId(eventId, env);
+            if (!showcase) {
+              return errorResponse('Event Showcase not found. Please create the showcase first.', 404, cors);
+            }
+            if (showcaseId && showcase.id !== showcaseId) {
+              return errorResponse('Showcase does not match event', 403, cors);
+            }
+          } else if (showcaseId) {
+            showcase = await getShowcaseById(showcaseId, env);
+            if (!showcase) {
+              return errorResponse('Event Showcase not found', 404, cors);
+            }
+            event = await getEventById(showcase.event_id, env);
+            if (!event) {
+              return errorResponse('Associated event not found', 404, cors);
+            }
+          }
+
+          // 2. Verify Organization Membership & Permissions
+          const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user!.id, event.organization_id, 'game.items.edit', env);
+          if (!isMember) {
+            return errorResponse('Permission denied: You are not a member of this organization', 403, cors);
+          }
+          if (role === 'viewer') {
+            return errorResponse('Permission denied: Viewers cannot upload showcase media', 403, cors);
+          }
+
+          // 3. Validate MIME Type and File Size
+          const lowerMime = mimeType.toLowerCase();
+          const isImage = ALLOWED_IMAGE_MIME_TYPES.has(lowerMime) || lowerMime.startsWith('image/');
+          const isVideo = ALLOWED_VIDEO_MIME_TYPES.has(lowerMime) || lowerMime.startsWith('video/');
+
+          if (!isImage && !isVideo) {
+            return errorResponse(`Unsupported media format (${mimeType}). Supported formats: JPG, PNG, WEBP, MP4, WEBM, MOV.`, 422, cors);
+          }
+
+          if (isImage && fileSize > MAX_IMAGE_SIZE) {
+            return errorResponse(`Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`, 422, cors);
+          }
+          if (isVideo && fileSize > MAX_VIDEO_SIZE) {
+            return errorResponse(`Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`, 422, cors);
+          }
+
+          // 4. Storage Path Validation & Sandboxing (Never Trust Client-Provided Arbitrary Path)
+          const expectedPrefix = `organizations/${event.organization_id}/showcases/${showcase.id}/`;
+          const dotIndex = originalName.lastIndexOf('.');
+          const ext = dotIndex !== -1 ? originalName.slice(dotIndex) : isImage ? '.png' : '.mp4';
+          const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+          const safeUniqueName = `${Date.now()}-${randomHex}${ext}`;
+
+          let storagePath = `${expectedPrefix}${safeUniqueName}`;
+          if (requestedPath && requestedPath.startsWith(expectedPrefix)) {
+            const subPath = requestedPath.slice(expectedPrefix.length);
+            if (!subPath.includes('/') && !subPath.includes('\\') && !subPath.includes('..')) {
+              storagePath = requestedPath;
+            }
+          }
+
+          const supabase = getSupabaseServerClient(env);
           const { error: uploadErr } = await supabase.storage
             .from('game-assets')
             .upload(storagePath, fileBuffer, {
-              contentType: mimeType,
+              contentType: lowerMime,
               upsert: true,
             });
 
@@ -2633,6 +2743,9 @@ export default {
             {
               url: publicData?.publicUrl || `/uploads/${storagePath.split('/').pop()}`,
               path: storagePath,
+              fileName: originalName,
+              mediaType: isImage ? 'IMAGE' : 'VIDEO',
+              fileSize,
             },
             200,
             cors

@@ -405,9 +405,9 @@ export interface WalletBalanceSummary {
   updated_at: string;
 }
 
-export type PaymentMode = 'FULL_PAID' | 'WELCOME_CREDIT' | 'SHOWCASE_CREDIT' | 'TOPUP_CREDIT';
+export type PaymentMode = 'FULL_PAID' | 'WELCOME_CREDIT' | 'SHOWCASE_CREDIT' | 'TOPUP_CREDIT' | 'COMBINED_CREDIT';
 
-export type EventCreditOption = 'NONE' | 'FULL_PAID' | 'WELCOME_CREDIT' | 'SHOWCASE_CREDIT' | 'TOPUP_CREDIT';
+export type EventCreditOption = 'NONE' | 'FULL_PAID' | 'WELCOME_CREDIT' | 'SHOWCASE_CREDIT' | 'TOPUP_CREDIT' | 'COMBINED_CREDIT';
 
 export interface EventPaymentCalculation {
   eventPrice: number;
@@ -606,3 +606,27 @@ export interface EventScoreStats {
   averageScore: number;
   latestScoreAt?: string | null;
 }
+
+// ----------------------------------------------------
+// SHOWCASE MEDIA UPLOAD CONSTANTS
+// ----------------------------------------------------
+
+export const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+]);
+
+export const ALLOWED_VIDEO_MIME_TYPES = new Set([
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-matroska',
+  'video/ogg',
+  'video/3gpp',
+]);
+
+export const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
+export const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
+

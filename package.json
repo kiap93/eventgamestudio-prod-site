@@ -15,7 +15,8 @@
     "test:wallet": "tsx server/db/wallet_security_lifecycle.test.ts && tsx server/db/wallet_topup.test.ts && tsx server/db/wallet_credits.test.ts && tsx server/db/showcase_reward.test.ts && tsx server/db/wallet_production_acid.test.ts && tsx server/db/atomic_payment_acid.test.ts",
     "test:security": "tsx server/db/wallet_security_lifecycle.test.ts",
     "test:credits": "tsx server/db/wallet_credits.test.ts",
-    "test:showcase": "tsx server/db/showcase_reward.test.ts"
+    "test:showcase": "tsx server/db/showcase_reward.test.ts",
+    "test:upload-security": "tsx server/db/showcase_direct_upload_security.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
