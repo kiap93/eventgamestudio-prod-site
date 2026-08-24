@@ -1357,13 +1357,13 @@ app.put('/api/games/:gameId/customization', authenticateJWT, async (req: Authent
 // ----------------------------------------------------
 
 /**
- * GET /api/events
+ * GET /api/events & GET /api/organizations/:organizationId/events
  * List all events for the active organization
  */
-app.get('/api/events', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.get(['/api/events', '/api/organizations/:organizationId/events', '/api/organizations/:orgId/events'], authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
-    const organizationId = req.jwtPayload?.organizationId;
+    const organizationId = req.params.organizationId || req.params.orgId || req.jwtPayload?.organizationId;
 
     if (!organizationId) {
       res.status(422).json({ error: 'No active organization selected' });

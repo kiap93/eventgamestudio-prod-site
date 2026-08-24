@@ -1550,12 +1550,14 @@ export default {
       // ==========================================
       // 8. Events & Public Deployment Routes
       // ==========================================
-      if (pathname === '/api/events' && method === 'GET') {
+      const orgEventsRoute = parseRoute('/api/organizations/:organizationId/events', pathname) ||
+                             parseRoute('/api/organizations/:orgId/events', pathname);
+      if ((pathname === '/api/events' || orgEventsRoute) && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
         const user = auth.user!;
-        const organizationId = auth.jwtPayload?.organizationId;
+        const organizationId = orgEventsRoute?.organizationId || orgEventsRoute?.orgId || auth.jwtPayload?.organizationId;
 
         if (!organizationId) {
           return errorResponse('No active organization selected', 422, cors);

@@ -45,9 +45,13 @@ export const EventsPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await apiFetch(`/api/organizations/${currentOrganization.id}/events`);
+      let res = await apiFetch(`/api/organizations/${currentOrganization.id}/events`);
+      if (res.status === 404) {
+        res = await apiFetch('/api/events');
+      }
       if (!res.ok) {
-        throw new Error('Failed to fetch events');
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to fetch events');
       }
       const data = await res.json();
       setEvents(data.events || []);
