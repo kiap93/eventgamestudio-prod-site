@@ -7,48 +7,52 @@ import { EditEventDialog } from './EditEventDialog';
 import { CancelEventModal } from './CancelEventModal';
 import { EventCalendarView } from './EventCalendarView';
 import {
+  Plus,
   Calendar as CalendarIcon,
   LayoutList,
-  Plus,
   Search,
   Filter,
-  RefreshCw,
-  Clock,
   Sparkles,
-  Layers,
   AlertCircle,
+  Clock,
+  CheckCircle2,
+  Trophy,
 } from 'lucide-react';
 
 export const EventsPage: React.FC = () => {
   const { currentOrganization, organizations, switchOrganization } = useAuth();
 
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Filter & Search
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'live' | 'scheduled' | 'expired' | 'cancelled' | 'draft'>('all');
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'live' | 'scheduled' | 'pending_payment' | 'expired' | 'cancelled' | 'draft'
+  >('all');
 
+  // View Mode: 'list' | 'calendar'
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+
+  // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any | null>(null);
   const [cancellingEvent, setCancellingEvent] = useState<any | null>(null);
 
   const fetchEvents = async () => {
+    if (!currentOrganization) return;
     try {
       setLoading(true);
       setError(null);
-      const res = await apiFetch('/api/events');
-
+      const res = await apiFetch(`/api/organizations/${currentOrganization.id}/events`);
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to fetch events');
+        throw new Error('Failed to fetch events');
       }
-
       const data = await res.json();
       setEvents(data.events || []);
     } catch (err: any) {
-      console.error('Error loading events:', err);
+      console.error('Error fetching events:', err);
       setError(err.message || 'Unable to load events');
     } finally {
       setLoading(false);
@@ -60,40 +64,43 @@ export const EventsPage: React.FC = () => {
   }, [currentOrganization?.id]);
 
   const handleEventCreated = (newEvent: any) => {
-    setEvents((prev) => [newEvent, ...prev]);
+    setEvents((prev) => {
+      const idx = prev.findIndex((e) => e.id === newEvent.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = newEvent;
+        return next;
+      }
+      return [newEvent, ...prev];
+    });
   };
 
   const handleEventUpdated = (updatedEvent: any) => {
     setEvents((prev) =>
-      prev.map((ev) => (ev.id === updatedEvent.id ? updatedEvent : ev))
+      prev.map((e) => (e.id === updatedEvent.id ? { ...e, ...updatedEvent } : e))
     );
   };
 
   const handleDeleteEvent = async (eventId: string) => {
-    if (!window.confirm('Are you sure you want to delete this event deployment? This cannot be undone.')) {
-      return;
-    }
-
+    if (!confirm('Are you sure you want to delete this event deployment?')) return;
     try {
       const res = await apiFetch(`/api/events/${eventId}`, {
         method: 'DELETE',
       });
-
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to delete event');
       }
-
-      setEvents((prev) => prev.filter((ev) => ev.id !== eventId));
+      setEvents((prev) => prev.filter((e) => e.id !== eventId));
     } catch (err: any) {
-      alert(err.message || 'Failed to delete event');
+      alert(err.message || 'Error deleting event');
     }
   };
 
   const handleCancelEvent = (eventId: string) => {
-    const eventToCancel = events.find((e) => e.id === eventId);
-    if (eventToCancel) {
-      setCancellingEvent(eventToCancel);
+    const ev = events.find((e) => e.id === eventId);
+    if (ev) {
+      setCancellingEvent(ev);
     }
   };
 
@@ -106,16 +113,21 @@ export const EventsPage: React.FC = () => {
       ev.public_token?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const effectiveStatus = ev.calculated_status || ev.status;
-    const matchesStatus =
-      statusFilter === 'all' || effectiveStatus === statusFilter;
+    const isPending =
+      effectiveStatus === 'pending_payment' ||
+      ev.payment_status === 'PENDING_PAYMENT' ||
+      (ev.payment_status && ev.payment_status !== 'PAID');
 
-    return matchesSearch && matchesStatus;
+    if (statusFilter === 'all') return matchesSearch;
+    if (statusFilter === 'pending_payment') return matchesSearch && isPending;
+    return matchesSearch && !isPending && effectiveStatus === statusFilter;
   });
 
   // Metrics
   const totalCount = events.length;
-  const liveCount = events.filter((e) => (e.calculated_status || e.status) === 'live').length;
-  const scheduledCount = events.filter((e) => (e.calculated_status || e.status) === 'scheduled').length;
+  const liveCount = events.filter((e) => (e.calculated_status || e.status) === 'live' && e.payment_status !== 'PENDING_PAYMENT').length;
+  const scheduledCount = events.filter((e) => (e.calculated_status || e.status) === 'scheduled' && e.payment_status !== 'PENDING_PAYMENT').length;
+  const pendingCount = events.filter((e) => (e.calculated_status || e.status) === 'pending_payment' || e.payment_status === 'PENDING_PAYMENT').length;
   const expiredCount = events.filter((e) => (e.calculated_status || e.status) === 'expired').length;
 
   const isViewer = currentOrganization?.role === 'viewer';
@@ -143,7 +155,7 @@ export const EventsPage: React.FC = () => {
           <div className="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-2xl shadow-inner">
             <button
               onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 viewMode === 'list'
                   ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -155,7 +167,7 @@ export const EventsPage: React.FC = () => {
             </button>
             <button
               onClick={() => setViewMode('calendar')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 viewMode === 'calendar'
                   ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -179,27 +191,21 @@ export const EventsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Metrics Row (Visible across views) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      {/* Metrics Summary Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Deployments</span>
-          <div className="text-2xl font-black text-slate-100">{totalCount}</div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
-          <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-            Live Now
-          </span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Live Deployments</span>
           <div className="text-2xl font-black text-emerald-400">{liveCount}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
-          <span className="text-[11px] font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            Scheduled
-          </span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Scheduled</span>
           <div className="text-2xl font-black text-blue-400">{scheduledCount}</div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending Payment</span>
+          <div className="text-2xl font-black text-amber-400">{pendingCount}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
@@ -238,19 +244,28 @@ export const EventsPage: React.FC = () => {
 
             {/* Status Filter Pills */}
             <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-              {(['all', 'live', 'scheduled', 'expired', 'cancelled', 'draft'] as const).map((st) => {
-                const isSelected = statusFilter === st;
+              {(
+                [
+                  { key: 'all', label: 'All' },
+                  { key: 'live', label: 'Live' },
+                  { key: 'scheduled', label: 'Scheduled' },
+                  { key: 'pending_payment', label: 'Pending Payment' },
+                  { key: 'expired', label: 'Expired' },
+                  { key: 'cancelled', label: 'Cancelled' },
+                ] as const
+              ).map(({ key, label }) => {
+                const isSelected = statusFilter === key;
                 return (
                   <button
-                    key={st}
-                    onClick={() => setStatusFilter(st)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition-all ${
+                    key={key}
+                    onClick={() => setStatusFilter(key)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                     }`}
                   >
-                    {st}
+                    {label}
                   </button>
                 );
               })}
@@ -269,7 +284,7 @@ export const EventsPage: React.FC = () => {
               <p className="text-sm font-semibold text-red-300">{error}</p>
               <button
                 onClick={fetchEvents}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold cursor-pointer"
               >
                 Retry
               </button>
@@ -313,6 +328,7 @@ export const EventsPage: React.FC = () => {
                   }}
                   onDelete={handleDeleteEvent}
                   onCancel={handleCancelEvent}
+                  onRefresh={fetchEvents}
                 />
               ))}
             </div>

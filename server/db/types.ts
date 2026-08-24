@@ -236,7 +236,7 @@ export interface GameRecord {
   updated_at: string;
 }
 
-export type EventStatus = 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled';
+export type EventStatus = 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
 
 export interface EventRecord {
   id: string;
@@ -247,7 +247,7 @@ export interface EventRecord {
   starts_at: string;
   expires_at: string;
   status: EventStatus;
-  payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED';
+  payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED' | 'PENDING_PAYMENT';
   payment_mode?: PaymentMode;
   paid_amount?: number;
   discount_amount?: number;

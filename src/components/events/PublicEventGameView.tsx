@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouteContext } from '../../hooks/useRouteContext';
+import { useAuth } from '../../context/AuthContext';
 import { GameContainer } from '../GameContainer';
+import { EventPaymentModal } from './EventPaymentModal';
 import { apiFetch } from '../../lib/api';
 import {
   Calendar,
@@ -8,12 +10,13 @@ import {
   AlertTriangle,
   Sparkles,
   RefreshCw,
-  Trophy,
-  Volume2,
-  VolumeX,
   Maximize2,
   Minimize2,
-  CheckCircle2,
+  CreditCard,
+  AlertCircle,
+  LogIn,
+  Gamepad2,
+  X,
 } from 'lucide-react';
 
 interface PublicEventData {
@@ -23,10 +26,14 @@ interface PublicEventData {
   event_date: string | null;
   starts_at: string;
   expires_at: string;
-  status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled';
-  calculated_status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled';
+  status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
+  calculated_status?: string;
+  payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED' | 'PENDING_PAYMENT';
+  organization_id?: string;
   organization_name?: string;
   organization_slug?: string;
+  event_price?: number;
+  event_currency?: string;
   game?: {
     id: string;
     name: string;
@@ -39,12 +46,15 @@ interface PublicEventData {
 export const PublicEventGameView: React.FC = () => {
   const routeContext = useRouteContext();
   const publicToken = routeContext.publicToken;
+  const { user } = useAuth();
 
   const [eventData, setEventData] = useState<PublicEventData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   // Poll current time every second for live countdown
   useEffect(() => {
@@ -116,11 +126,19 @@ export const PublicEventGameView: React.FC = () => {
       if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
         if (document.exitFullscreen) {
           document.exitFullscreen().catch(() => {});
-        } else if ((document as any).webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
+        } else if ((document.exitFullscreen as any).webkitExitFullscreen) {
+          (document.exitFullscreen as any).webkitExitFullscreen();
         }
       }
       setIsFullscreen(false);
+    }
+  };
+
+  const handlePayAndActivateClick = () => {
+    if (user) {
+      setShowPaymentModal(true);
+    } else {
+      setShowLoginPrompt(true);
     }
   };
 
@@ -133,7 +151,7 @@ export const PublicEventGameView: React.FC = () => {
           <Sparkles className="w-5 h-5 text-amber-400 absolute inset-0 m-auto animate-pulse" />
         </div>
         <div className="text-center space-y-1">
-          <p className="text-sm font-semibold text-slate-200">Connecting to Live Event...</p>
+          <p className="text-sm font-semibold text-slate-200">Connecting to Event...</p>
           <p className="text-xs text-slate-500 font-mono">Token: {publicToken}</p>
         </div>
       </div>
@@ -156,7 +174,7 @@ export const PublicEventGameView: React.FC = () => {
           </div>
           <button
             onClick={fetchEvent}
-            className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all"
+            className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Try Again</span>
@@ -166,16 +184,14 @@ export const PublicEventGameView: React.FC = () => {
     );
   }
 
-  // Calculate realtime status
+  // Check if this event is unpaid / pending payment
+  const isPendingPayment =
+    eventData.status === 'pending_payment' ||
+    eventData.calculated_status === 'pending_payment' ||
+    (eventData.payment_status && eventData.payment_status !== 'PAID');
+
   const startTime = new Date(eventData.starts_at).getTime();
   const expiryTime = new Date(eventData.expires_at).getTime();
-
-  let effectiveStatus = eventData.status;
-  if (eventData.status !== 'cancelled' && eventData.status !== 'draft') {
-    if (now < startTime) effectiveStatus = 'scheduled';
-    else if (now >= expiryTime) effectiveStatus = 'expired';
-    else effectiveStatus = 'live';
-  }
 
   // Helper for format countdown
   const formatCountdown = (diffMs: number) => {
@@ -192,75 +208,76 @@ export const PublicEventGameView: React.FC = () => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // State 1: Scheduled (Waiting for start time)
-  if (effectiveStatus === 'scheduled') {
-    const timeUntilStart = Math.max(0, startTime - now);
-    return (
-      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-orange-500/5 pointer-events-none" />
+  // If the event is PAID but scheduled for the future:
+  if (!isPendingPayment && eventData.status !== 'cancelled' && eventData.status !== 'draft') {
+    if (now < startTime) {
+      const timeUntilStart = Math.max(0, startTime - now);
+      return (
+        <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-orange-500/5 pointer-events-none" />
 
-        <div className="max-w-md w-full bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold">
-            <Clock className="w-3.5 h-3.5" />
-            <span>Event Scheduled</span>
-          </div>
-
-          <div className="space-y-2">
-            <h1 className="text-2xl font-black text-slate-100 tracking-tight">{eventData.name}</h1>
-            <p className="text-xs text-slate-400">
-              Presented by <strong className="text-slate-200">{eventData.organization_name || 'Studio'}</strong>
-            </p>
-          </div>
-
-          {/* Countdown Clock Display */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-6 space-y-2 shadow-inner">
-            <p className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Game Opens In</p>
-            <div className="text-3xl sm:text-4xl font-mono font-black text-amber-400 tracking-wider">
-              {formatCountdown(timeUntilStart)}
+          <div className="max-w-md w-full bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl relative z-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Event Scheduled</span>
             </div>
-            <p className="text-[11px] text-slate-500">
-              Starts on {new Date(eventData.starts_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-            </p>
-          </div>
 
-          <div className="pt-2">
-            <button
-              onClick={fetchEvent}
-              className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Check If Live</span>
-            </button>
+            <div className="space-y-2">
+              <h1 className="text-2xl font-black text-slate-100 tracking-tight">{eventData.name}</h1>
+              <p className="text-xs text-slate-400">
+                Presented by <strong className="text-slate-200">{eventData.organization_name || 'Studio'}</strong>
+              </p>
+            </div>
+
+            {/* Countdown Clock Display */}
+            <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-6 space-y-2 shadow-inner">
+              <p className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Game Opens In</p>
+              <div className="text-3xl sm:text-4xl font-mono font-black text-amber-400 tracking-wider">
+                {formatCountdown(timeUntilStart)}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Starts on {new Date(eventData.starts_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={fetchEvent}
+                className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Check If Live</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  // State 2: Expired
-  if (effectiveStatus === 'expired') {
-    return (
-      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
-          <div className="w-16 h-16 bg-slate-800 border border-slate-700 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
-            <Calendar className="w-8 h-8" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-xl font-bold text-slate-100">{eventData.name}</h1>
-            <p className="text-xs text-slate-400">
-              This deployment has concluded on {new Date(eventData.expires_at).toLocaleDateString([], { dateStyle: 'medium' })}.
-            </p>
-          </div>
-          <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-2xl text-xs text-slate-400">
-            Thank you for participating! Stay tuned for future events.
+    if (now >= expiryTime || eventData.status === 'expired') {
+      return (
+        <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
+            <div className="w-16 h-16 bg-slate-800 border border-slate-700 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
+              <Calendar className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-xl font-bold text-slate-100">{eventData.name}</h1>
+              <p className="text-xs text-slate-400">
+                This deployment concluded on {new Date(eventData.expires_at).toLocaleDateString([], { dateStyle: 'medium' })}.
+              </p>
+            </div>
+            <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-2xl text-xs text-slate-400">
+              Thank you for participating! Stay tuned for future events.
+            </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
   }
 
-  // State 3: Cancelled
-  if (effectiveStatus === 'cancelled') {
+  // Cancelled State
+  if (eventData.status === 'cancelled') {
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
@@ -278,7 +295,7 @@ export const PublicEventGameView: React.FC = () => {
     );
   }
 
-  // State 4: LIVE Game Playable View!
+  // PLAYABLE GAME VIEW (Runs for both ACTIVE/LIVE events and UNPAID/PENDING_PAYMENT preview mode)
   const theme = eventData.game_theme;
   const gameType = eventData.game?.game_type || 'catch-brand';
   const remainingTime = Math.max(0, expiryTime - now);
@@ -289,34 +306,79 @@ export const PublicEventGameView: React.FC = () => {
         isFullscreen ? 'p-0 m-0' : ''
       }`}
     >
-      {/* Top Event Banner for Live Players (auto-collapses cleanly in fullscreen for immersion) */}
-      {!isFullscreen && (
-        <header className="h-12 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-2 flex items-center justify-between z-40 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-              <span>LIVE EVENT</span>
+      {/* ------------------------------------------------------------- */}
+      {/* PERSISTENT PAYMENT TOOLBAR FOR UNPAID / PENDING EVENTS        */}
+      {/* MUST REMAIN VISIBLE IN BOTH NORMAL AND FULLSCREEN MODES       */}
+      {/* ------------------------------------------------------------- */}
+      {isPendingPayment ? (
+        <header
+          className={`w-full bg-amber-950/95 backdrop-blur-md border-b border-amber-500/40 text-amber-100 z-50 shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 transition-all ${
+            isFullscreen ? 'h-10 sm:h-11 shadow-lg' : 'h-12 sm:h-13'
+          }`}
+        >
+          {/* Left: Organization & Event Title */}
+          <div className="flex items-center gap-2.5 min-w-0 truncate">
+            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[11px] font-bold shrink-0">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span>Payment Required</span>
             </div>
-            <span className="font-bold text-xs text-slate-200 truncate max-w-[200px] sm:max-w-md">
-              {eventData.name}
-            </span>
+            {!isFullscreen && (
+              <span className="font-bold text-xs text-slate-200 truncate hidden md:inline">
+                {eventData.organization_name || 'EventGameStudio'} • {eventData.name}
+              </span>
+            )}
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-mono">
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span>Ends in: {formatCountdown(remainingTime)}</span>
-            </div>
+          {/* Right: Actions */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={handlePayAndActivateClick}
+              className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <CreditCard className="w-3.5 h-3.5 text-slate-950" />
+              <span>Pay & Activate</span>
+            </button>
 
             <button
               onClick={toggleFullscreen}
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors"
+              className="p-1.5 bg-amber-900/60 hover:bg-amber-800/80 border border-amber-700/50 text-amber-200 rounded-lg text-xs transition-colors cursor-pointer"
               title="Toggle Fullscreen"
             >
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>
           </div>
         </header>
+      ) : (
+        /* Standard Live Event Banner for Paid Events (Hides in fullscreen for immersion) */
+        !isFullscreen && (
+          <header className="h-12 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-2 flex items-center justify-between z-40 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                <span>LIVE EVENT</span>
+              </div>
+              <span className="font-bold text-xs text-slate-200 truncate max-w-[200px] sm:max-w-md">
+                {eventData.name}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Ends in: {formatCountdown(remainingTime)}</span>
+              </div>
+
+              <button
+                onClick={toggleFullscreen}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
+                title="Toggle Fullscreen"
+              >
+                {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </header>
+        )
       )}
 
       {/* Main Play Area */}
@@ -336,6 +398,59 @@ export const PublicEventGameView: React.FC = () => {
           />
         </div>
       </main>
+
+      {/* Pay & Activate Modal */}
+      {showPaymentModal && eventData && (
+        <EventPaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          event={eventData}
+          onPaymentSuccess={(updated) => {
+            setEventData((prev) => (prev ? { ...prev, ...updated, status: 'scheduled', payment_status: 'PAID' } : updated));
+            setShowPaymentModal(false);
+            fetchEvent();
+          }}
+        />
+      )}
+
+      {/* Unauthenticated Login Prompt Dialog */}
+      {showLoginPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-5 shadow-2xl">
+            <div className="w-14 h-14 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
+              <LogIn className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-slate-100">Sign in to Activate</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                To complete payment and activate <strong className="text-slate-200">{eventData.name}</strong>, please sign in with your organization account.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = '/';
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Go to Studio Dashboard</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowLoginPrompt(false)}
+                className="w-full py-2 text-xs text-slate-400 hover:text-slate-200 font-semibold cursor-pointer"
+              >
+                Continue Previewing Game
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -522,7 +522,20 @@ export default {
           }
         }
 
-        // 8. Event Mutation Rate Limiting (POST /api/events, POST /api/events/quote, /cancel)
+        // 7B. Event Creation Rate Limiting (POST /api/events) - Max 3 attempts per 10 minutes per organization
+        else if (pathname === '/api/events' && method === 'POST') {
+          const creationLimit = checkWorkerRateLimit(request, {
+            windowMs: 10 * 60 * 1000,
+            max: 3,
+            keyPrefix: 'worker_event_creation',
+            message: 'Event creation rate limit exceeded: Maximum 3 event creation attempts per 10 minutes per organization.',
+          });
+          if (!creationLimit.allowed) {
+            return jsonResponse(creationLimit.errorResponse, 429, { ...cors, ...creationLimit.headers });
+          }
+        }
+
+        // 8. Event Mutation Rate Limiting (POST /api/events/quote, /cancel, etc.)
         else if (pathname.startsWith('/api/events')) {
           const eventLimit = checkWorkerRateLimit(request, {
             windowMs: 60 * 1000,
@@ -617,6 +630,7 @@ export default {
               email: user.email,
               name: user.name,
               avatar_url: user.avatar_url,
+              is_developer: user.is_developer === true,
             },
             organizations: memberships,
             activeOrganizationId: activeOrgId || null,
@@ -649,6 +663,7 @@ export default {
               email: user.email,
               name: user.name,
               avatar_url: user.avatar_url,
+              is_developer: user.is_developer === true,
             },
             organizations: memberships,
             activeOrganization: activeMember
@@ -1004,6 +1019,7 @@ export default {
               email: user.email,
               name: user.name,
               avatar_url: user.avatar_url,
+              is_developer: user.is_developer === true,
             },
             organization: {
               id: org?.id || invite.organization_id,
@@ -1709,11 +1725,7 @@ export default {
           event_date,
           starts_at,
           expires_at,
-          status,
-          payment_mode = 'FULL_PAID',
-          topup_credit_requested,
           event_price,
-          reference_id,
         } = body;
 
         if (!name || typeof name !== 'string' || !name.trim()) {
@@ -1729,8 +1741,8 @@ export default {
         }
 
         try {
-          // Execute atomic creation + financial ledger payment
-          const result = await createEventWithAtomicPayment(
+          // Create event with PENDING_PAYMENT status (no wallet balance deducted)
+          const created = await createEvent(
             {
               organization_id: organizationId,
               game_theme_id,
@@ -1738,39 +1750,83 @@ export default {
               event_date,
               starts_at,
               expires_at,
-              status,
+              status: 'pending_payment',
+              payment_status: 'PENDING_PAYMENT',
               created_by: user.id,
-              payment_mode,
-              topup_credit_requested,
               event_price,
-              reference_id,
             },
             env
           );
 
+          const enriched = await getEventById(created.id, env);
+
           return jsonResponse({
             success: true,
-            event: result.event,
-            payment: result.payment,
+            event: enriched || created,
           }, 201, cors);
         } catch (err: any) {
           console.error('Create event error in worker:', err);
-          if (err.code === 'INSUFFICIENT_BALANCE' || (err.message && err.message.toLowerCase().includes('insufficient'))) {
-            const required = typeof err.required === 'number' ? err.required : undefined;
-            const available = typeof err.available === 'number' ? err.available : undefined;
-            const shortfall = typeof err.shortfall === 'number' ? err.shortfall : (
-              required !== undefined && available !== undefined ? Math.max(0, required - available) : undefined
-            );
+          if (err.code === 'PENDING_EVENT_LIMIT_REACHED' || err.status === 422) {
+            return jsonResponse({
+              code: 'PENDING_EVENT_LIMIT_REACHED',
+              error: err.message || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.',
+            }, 422, cors);
+          }
+          return errorResponse(err.message || 'Failed to create event', err.status || 500, cors);
+        }
+      }
 
+      const payEventDirectParams = parseRoute('/api/events/:eventId/pay', pathname);
+      if (payEventDirectParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = payEventDirectParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Permission denied: Viewers cannot pay for events', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { payment_mode = 'FULL_PAID', topup_credit_requested, reference_id } = body;
+
+        try {
+          const result = await processEventPayment(
+            {
+              organizationId: event.organization_id,
+              eventId: event.id,
+              paymentMode: payment_mode,
+              topupCreditRequested: topup_credit_requested,
+              referenceId: reference_id,
+            },
+            env
+          );
+
+          const updatedEvent = await getEventById(event.id, env);
+          return jsonResponse({
+            success: true,
+            event: updatedEvent,
+            payment: result,
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Pay event error in worker:', err);
+          if (err.code === 'INSUFFICIENT_BALANCE' || (err.message && err.message.toLowerCase().includes('insufficient'))) {
             return jsonResponse({
               code: 'INSUFFICIENT_BALANCE',
               error: err.message || 'Insufficient balance',
-              required,
-              available,
-              shortfall,
+              required: err.required,
+              available: err.available,
+              shortfall: err.shortfall,
             }, 402, cors);
           }
-          return errorResponse(err.message || 'Failed to create event', err.status || 500, cors);
+          return errorResponse(err.message || 'Failed to process payment', err.status || 500, cors);
         }
       }
 
@@ -2734,7 +2790,14 @@ export default {
       if (pathname === '/api/developer/stats' && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
-        if (!isUserDeveloperAdmin(auth.user, env)) {
+        const allowed = isUserDeveloperAdmin(auth.user, env);
+        console.log('[DeveloperAuth]', {
+          userId: auth.user?.id,
+          email: auth.user?.email,
+          isDeveloper: auth.user?.is_developer,
+          allowed,
+        });
+        if (!allowed) {
           return errorResponse('Forbidden: Developer Admin access required', 403, cors);
         }
 
@@ -2758,7 +2821,14 @@ export default {
       if (pathname === '/api/developer/games' && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
-        if (!isUserDeveloperAdmin(auth.user, env)) {
+        const allowed = isUserDeveloperAdmin(auth.user, env);
+        console.log('[DeveloperAuth]', {
+          userId: auth.user?.id,
+          email: auth.user?.email,
+          isDeveloper: auth.user?.is_developer,
+          allowed,
+        });
+        if (!allowed) {
           return errorResponse('Forbidden: Developer Admin access required', 403, cors);
         }
 

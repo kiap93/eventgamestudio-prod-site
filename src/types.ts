@@ -1,5 +1,7 @@
 import { GameTheme, ThemeDropItem, ThemeDifficultyStage } from './themes/types';
 
+export const APP_VERSION = '1.0.0';
+
 export type GameState = 'START' | 'COUNTDOWN' | 'PLAYING' | 'PAUSED' | 'GAME_OVER';
 
 export type DurianType = 'GREEN' | 'ORANGE' | 'GOLDEN' | 'GOOD' | 'BAD' | 'BONUS';
@@ -171,8 +173,8 @@ export interface EventRecord {
   event_date?: string | null;
   starts_at: string;
   expires_at: string;
-  status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled';
-  payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED';
+  status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
+  payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED' | 'PENDING_PAYMENT';
   payment_mode?: PaymentMode;
   paid_amount?: number;
   discount_amount?: number;
@@ -209,7 +211,7 @@ export interface EventCancellationEligibility {
 }
 
 export interface EventWithDetails extends EventRecord {
-  calculated_status?: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled';
+  calculated_status?: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
   setup_starts_at?: string;
   cancellation_eligibility?: EventCancellationEligibility;
   game_theme?: any;

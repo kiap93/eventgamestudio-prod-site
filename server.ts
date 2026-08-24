@@ -140,6 +140,7 @@ import {
   invitationRateLimiter,
   organizationRateLimiter,
   eventRateLimiter,
+  eventCreationRateLimiter,
   walletRateLimiter,
   showcaseRateLimiter,
   uploadRateLimiter,
@@ -303,8 +304,6 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
 
     const token = signAppToken(user.id, activeOrgId, activeRole as any);
 
-    const isDev = isUserDeveloperAdmin(user);
-
     res.json({
       token,
       user: {
@@ -312,7 +311,7 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
         email: user.email,
         name: user.name,
         avatar_url: user.avatar_url,
-        is_developer: isDev,
+        is_developer: user.is_developer === true,
       },
       organizations: memberships,
       activeOrganizationId: activeOrgId || null,
@@ -342,15 +341,13 @@ app.get('/api/auth/me', authenticateJWT, async (req: AuthenticatedRequest, res) 
       activeMember = memberships[0];
     }
 
-    const isDev = isUserDeveloperAdmin(user);
-
     res.json({
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
         avatar_url: user.avatar_url,
-        is_developer: isDev,
+        is_developer: user.is_developer === true,
       },
       organizations: memberships,
       activeOrganization: activeMember
@@ -743,6 +740,7 @@ app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
         email: user.email,
         name: user.name,
         avatar_url: user.avatar_url,
+        is_developer: user.is_developer === true,
       },
       organization: {
         id: org?.id || invite.organization_id,
@@ -1532,10 +1530,12 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
 
 /**
  * POST /api/events
- * Atomically create and process financial ledger payment for a new event deployment.
- * Enforces that payment succeeds BEFORE the event is permanently activated.
+ * Create a new event in PENDING_PAYMENT status without requiring immediate payment.
+ * Enforces:
+ * 1. Server-side rate limit (max 3 creation attempts per 10 minutes per organization)
+ * 2. Hard limit of max 2 PENDING_PAYMENT events per organization.
  */
-app.post('/api/events', eventRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const organizationId = req.jwtPayload?.organizationId;
@@ -1557,11 +1557,7 @@ app.post('/api/events', eventRateLimiter, authenticateJWT, async (req: Authentic
       event_date,
       starts_at,
       expires_at,
-      status,
-      payment_mode = 'FULL_PAID',
-      topup_credit_requested,
       event_price,
-      reference_id,
     } = req.body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
@@ -1579,46 +1575,89 @@ app.post('/api/events', eventRateLimiter, authenticateJWT, async (req: Authentic
       return;
     }
 
-    // Execute atomic creation + financial ledger payment
-    const result = await createEventWithAtomicPayment({
+    // Create event with PENDING_PAYMENT status (no wallet balance deducted)
+    const created = await createEvent({
       organization_id: organizationId,
       game_theme_id,
       name,
       event_date,
       starts_at,
       expires_at,
-      status,
+      status: 'pending_payment',
+      payment_status: 'PENDING_PAYMENT',
       created_by: user.id,
-      payment_mode,
-      topup_credit_requested,
       event_price,
-      reference_id,
     });
+
+    const enriched = await getEventById(created.id);
 
     res.status(201).json({
       success: true,
-      event: result.event,
-      payment: result.payment,
+      event: enriched || created,
     });
   } catch (err: any) {
     console.error('Create event error:', err);
-    if (err.code === 'INSUFFICIENT_BALANCE' || (err.message && err.message.toLowerCase().includes('insufficient'))) {
-      const required = typeof err.required === 'number' ? err.required : undefined;
-      const available = typeof err.available === 'number' ? err.available : undefined;
-      const shortfall = typeof err.shortfall === 'number' ? err.shortfall : (
-        required !== undefined && available !== undefined ? Math.max(0, required - available) : undefined
-      );
-
-      res.status(402).json({
-        code: 'INSUFFICIENT_BALANCE',
-        error: err.message || 'Insufficient balance',
-        required,
-        available,
-        shortfall,
+    if (err.code === 'PENDING_EVENT_LIMIT_REACHED' || err.status === 422) {
+      res.status(422).json({
+        code: 'PENDING_EVENT_LIMIT_REACHED',
+        error: err.message || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.',
       });
       return;
     }
-    res.status(err.status || 500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message || 'Failed to create event' });
+  }
+});
+
+/**
+ * POST /api/events/:eventId/pay
+ * Pay and activate a PENDING_PAYMENT event.
+ */
+app.post('/api/events/:eventId/pay', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Viewers cannot pay for events' });
+      return;
+    }
+
+    const { payment_mode = 'FULL_PAID', topup_credit_requested, reference_id } = req.body;
+
+    const result = await processEventPayment({
+      organizationId: event.organization_id,
+      eventId: event.id,
+      paymentMode: payment_mode,
+      topupCreditRequested: topup_credit_requested,
+      referenceId: reference_id,
+    });
+
+    const updatedEvent = await getEventById(event.id);
+
+    res.status(200).json({
+      success: true,
+      event: updatedEvent,
+      payment: result,
+    });
+  } catch (err: any) {
+    console.error('Pay event error:', err);
+    if (err.code === 'INSUFFICIENT_BALANCE' || (err.message && err.message.toLowerCase().includes('insufficient'))) {
+      res.status(402).json({
+        code: 'INSUFFICIENT_BALANCE',
+        error: err.message || 'Insufficient balance',
+        required: err.required,
+        available: err.available,
+        shortfall: err.shortfall,
+      });
+      return;
+    }
+    res.status(err.status || 500).json({ error: err.message || 'Failed to process payment' });
   }
 });
 

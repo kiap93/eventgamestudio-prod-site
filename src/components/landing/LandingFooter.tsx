@@ -2,6 +2,7 @@ import React from 'react';
 import { Gamepad2, ArrowUpRight, ShieldCheck, Sparkles } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
+import { APP_VERSION } from '../../types';
 
 export const LandingFooter: React.FC = () => {
   const { isAuthenticated, currentUser } = useAuth();
@@ -115,7 +116,7 @@ export const LandingFooter: React.FC = () => {
         {/* Bottom Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
           <div>
-            © {new Date().getFullYear()} EventGameStudio. All rights reserved.
+            © {new Date().getFullYear()} EventGameStudio · v{APP_VERSION}
           </div>
           <div className="flex items-center gap-6">
             <span>Make Your Events Playable.</span>

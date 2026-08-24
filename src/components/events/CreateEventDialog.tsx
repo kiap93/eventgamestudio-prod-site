@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import {
   PaymentMode,
-  EventQuoteOption,
   EventPaymentCalculation,
   WalletBalanceSummary,
   TopupOrderRecord,
@@ -24,10 +23,11 @@ import {
   CheckCircle2,
   RefreshCw,
   PlusCircle,
-  ChevronRight,
   CreditCard,
-  Building2,
+  ExternalLink,
+  Copy,
   Layers,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface GameThemeOption {
@@ -46,7 +46,7 @@ interface CreateEventDialogProps {
   onEventCreated: (newEvent: any) => void;
 }
 
-type DialogStep = 'configure' | 'payment' | 'success';
+type DialogStep = 'configure' | 'created' | 'payment' | 'activated';
 type DurationPreset = '1day' | '2days' | '3days' | '7days' | 'custom';
 
 export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
@@ -91,80 +91,40 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const [startsAt, setStartsAt] = useState(() => getInitialDates().startsAt);
   const [expiresAt, setExpiresAt] = useState(() => getInitialDates().expiresAt);
 
+  // Creation State
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+  const [creationError, setCreationError] = useState<string | null>(null);
+  const [createdEvent, setCreatedEvent] = useState<any | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+
   // Quote & Payment State
   const [wallet, setWallet] = useState<WalletBalanceSummary | null>(null);
-  const [loadingQuote, setLoadingQuote] = useState(true);
+  const [loadingQuote, setLoadingQuote] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [activeCalculation, setActiveCalculation] = useState<EventPaymentCalculation | null>(null);
-  const [bestPaymentMode, setBestPaymentMode] = useState<PaymentMode>('FULL_PAID');
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<PaymentMode>('FULL_PAID');
 
   // Payment Execution & Success State
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [serverShortfall, setServerShortfall] = useState<{
-    shortfall: number;
-    required: number;
-    available: number;
-  } | null>(null);
-  const [successData, setSuccessData] = useState<{
-    event: any;
-    paidAmount: number;
-    remainingBalance: number;
-  } | null>(null);
+  const [activatedEvent, setActivatedEvent] = useState<any | null>(null);
 
   // Real Top-Up Checkout Session State
   const [activeCheckoutOrder, setActiveCheckoutOrder] = useState<TopupOrderRecord | null>(null);
   const [checkoutSession, setCheckoutSession] = useState<PaymentCheckoutSession | null>(null);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-
-  // Inline Top-Up State
-  const [showInlineTopUp, setShowInlineTopUp] = useState(false);
-  const [inlineTopUpAmount, setInlineTopUpAmount] = useState<number>(1400);
   const [isSubmittingTopUp, setIsSubmittingTopUp] = useState(false);
   const [topUpSuccessNotice, setTopUpSuccessNotice] = useState<string | null>(null);
 
   // Format currency
   const formatCurrency = (amount?: number | null, currency: string = 'MYR') => {
     const num = Number(amount) || 0;
-    const formatted = num % 1 === 0
-      ? num.toLocaleString('en-US')
-      : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formatted =
+      num % 1 === 0
+        ? num.toLocaleString('en-US')
+        : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const prefix = currency === 'MYR' ? 'RM' : currency === 'USD' ? '$' : currency === 'SGD' ? 'S$' : currency;
     return `${prefix}${formatted}`;
-  };
-
-  // Helper for human-readable Event Date
-  const formatEventDate = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      return d.toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  // Helper for human-readable Duration
-  const calculateDurationLabel = (startStr: string, endStr: string, preset: DurationPreset) => {
-    if (preset === '1day') return '1 Day';
-    if (preset === '2days') return '2 Days';
-    if (preset === '3days') return '3 Days';
-    if (preset === '7days') return '7 Days';
-
-    const s = new Date(startStr).getTime();
-    const e = new Date(endStr).getTime();
-    if (isNaN(s) || isNaN(e) || e <= s) return '1 Day';
-    const diffHours = (e - s) / (1000 * 60 * 60);
-    if (Math.abs(diffHours - 24) < 0.5) return '1 Day';
-    if (Math.abs(diffHours - 48) < 0.5) return '2 Days';
-    if (Math.abs(diffHours - 72) < 0.5) return '3 Days';
-    if (Math.abs(diffHours - 168) < 0.5) return '7 Days';
-    if (diffHours < 24) return `${Math.max(1, Math.round(diffHours))} Hours`;
-    return `${Math.round(diffHours / 24)} Days`;
   };
 
   // Handle Duration Preset selection
@@ -216,8 +176,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     fetchThemes();
   }, [isOpen]);
 
-  // Fetch Wallet & Calculate Optimal Credit using Server Authority
-  const fetchWalletAndQuote = async (targetThemeId?: string) => {
+  // Fetch Wallet & Calculate Quote
+  const fetchWalletAndQuote = async (targetThemeId?: string, modeToUse?: PaymentMode) => {
     if (!isOpen || !currentOrganization) return;
     const themeId = targetThemeId || selectedThemeId;
 
@@ -227,160 +187,62 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
       // 1. Fetch current wallet balance
       const walletRes = await apiFetch(`/api/organizations/${currentOrganization.id}/wallet`);
-      if (!walletRes.ok) {
-        const errData = await walletRes.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to fetch wallet summary');
+      if (walletRes.ok) {
+        const walletData = await walletRes.json();
+        setWallet(walletData.wallet as WalletBalanceSummary);
       }
-      const walletData = await walletRes.json();
-      const currentWallet = walletData.wallet as WalletBalanceSummary;
-      setWallet(currentWallet);
 
-      // 2. Determine best payment mode automatically based on priority:
-      // Priority 1: Welcome Credit (one-time, up to 800)
-      // Priority 2: Showcase Credit (up to 300)
-      // Priority 3: Event Credit (Top-up credit, up to 20% cap = 280)
-      // Priority 4: Wallet Balance (Full Paid)
-      const welcome = Number(currentWallet?.welcome_credit) || 0;
-      const showcase = Number(currentWallet?.showcase_credit) || 0;
-      const topupCredit = Number(currentWallet?.topup_credit) || 0;
-
-      let optimalMode: PaymentMode = 'FULL_PAID';
-      if (welcome > 0 && currentWallet?.can_use_welcome_credit !== false) {
-        optimalMode = 'WELCOME_CREDIT';
-      } else if (showcase > 0 && currentWallet?.can_use_showcase_credit !== false) {
-        optimalMode = 'SHOWCASE_CREDIT';
-      } else if (topupCredit > 0) {
-        optimalMode = 'TOPUP_CREDIT';
-      } else {
-        optimalMode = 'FULL_PAID';
-      }
-      setBestPaymentMode(optimalMode);
-
-      // 3. Request official server quote for this mode (authoritative calculation)
+      // 2. Fetch authoritative quote for selected mode
+      const mode = modeToUse || selectedPaymentMode;
       const quoteRes = await apiFetch('/api/events/quote', {
         method: 'POST',
         body: JSON.stringify({
           game_theme_id: themeId || undefined,
-          payment_mode: optimalMode,
+          payment_mode: mode,
         }),
       });
 
       if (!quoteRes.ok) {
         const errData = await quoteRes.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to calculate pricing');
+        throw new Error(errData.error || 'Failed to fetch event payment quote');
       }
 
       const quoteData = await quoteRes.json();
-      setActiveCalculation(quoteData.calculation || null);
+      if (quoteData.calculation) {
+        setActiveCalculation(quoteData.calculation);
+      }
+      if (quoteData.wallet) {
+        setWallet(quoteData.wallet);
+      }
     } catch (err: any) {
-      console.error('Error fetching event quote:', err);
-      setQuoteError(err.message || 'Unable to calculate event price');
+      console.error('Error fetching payment quote:', err);
+      setQuoteError(err.message || 'Unable to calculate quote');
     } finally {
       setLoadingQuote(false);
     }
   };
 
-  // Trigger quote refresh when dialog opens or theme changes or organization changes
-  useEffect(() => {
-    if (isOpen) {
-      fetchWalletAndQuote(selectedThemeId);
-    }
-  }, [isOpen, selectedThemeId, currentOrganization?.id]);
-
-  // Listen for global wallet updates
-  useEffect(() => {
-    const handleWalletUpdated = () => {
-      if (isOpen) {
-        fetchWalletAndQuote(selectedThemeId);
-      }
-    };
-    window.addEventListener('wallet_updated', handleWalletUpdated);
-    return () => window.removeEventListener('wallet_updated', handleWalletUpdated);
-  }, [isOpen, selectedThemeId]);
-
-  // Selected Theme Details
-  const selectedTheme = themes.find((t) => t.id === selectedThemeId) || themes[0];
-  const gameDisplayName = selectedTheme?.game_name || 'Catch the Brand';
-  const themeDisplayName = selectedTheme?.name || 'Standard Theme';
-
-  // Authoritative Pricing Breakdown from Server
-  const standardPrice = activeCalculation?.eventPrice ?? 1400;
-  const activePaymentMode = activeCalculation?.paymentMode ?? bestPaymentMode;
-  const paidAmount = activeCalculation?.paidAmount ?? (
-    activePaymentMode === 'WELCOME_CREDIT' ? 600 :
-    activePaymentMode === 'SHOWCASE_CREDIT' ? 1100 :
-    activePaymentMode === 'TOPUP_CREDIT' ? 1120 : 1400
-  );
-  const totalDiscount = activeCalculation?.totalDiscount ?? (standardPrice - paidAmount);
-
-  // Available Paid Balance
-  const availableBalance = Number(
-    activeCalculation?.availableBalances?.paid_balance ?? wallet?.paid_balance ?? 0
-  );
-
-  // Primary Source of Truth: Server Payment Calculation & Sufficiency
-  // Handle loading and error states to prevent false positive warnings while fetching
-  const isServerPayable = activeCalculation ? activeCalculation.isPayable : (availableBalance >= paidAmount);
-  const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && (!isServerPayable || availableBalance < paidAmount);
-  const isSufficient = !isInsufficientBalance;
-  const needAmount = Math.max(0, paidAmount - availableBalance);
-
-  // Debug Information logging during development
-  useEffect(() => {
-    if (isOpen && activeCalculation && !loadingQuote) {
-      console.log('[CreateEvent] Payment Calculation (Server Truth):', {
-        eventPrice: activeCalculation.eventPrice,
-        appliedCredit: activeCalculation.totalDiscount,
-        paymentMode: activeCalculation.paymentMode,
-        requiredPaidBalance: activeCalculation.paidAmount,
-        availablePaidBalance: availableBalance,
-        isPayable: activeCalculation.isPayable,
-        isInsufficientBalance,
-        shortfall: needAmount,
-        reasons: activeCalculation.reasons,
-      });
-    }
-  }, [isOpen, activeCalculation, loadingQuote, availableBalance, isInsufficientBalance, needAmount]);
-
-  // Credit Applied Label & Explanation
-  let creditAppliedLabel = 'Credit Applied';
-  let creditAppliedExplanation = '';
-  if (activePaymentMode === 'WELCOME_CREDIT' && totalDiscount > 0) {
-    creditAppliedLabel = 'Welcome Credit';
-    creditAppliedExplanation = `${formatCurrency(totalDiscount)} Welcome Credit applied`;
-  } else if (activePaymentMode === 'SHOWCASE_CREDIT' && totalDiscount > 0) {
-    creditAppliedLabel = 'Showcase Credit';
-    creditAppliedExplanation = `${formatCurrency(totalDiscount)} Showcase Credit applied`;
-  } else if (activePaymentMode === 'TOPUP_CREDIT' && totalDiscount > 0) {
-    creditAppliedLabel = 'Event Credit';
-    creditAppliedExplanation = `${formatCurrency(totalDiscount)} Event Credit applied`;
-  }
-
-  if (!isOpen) return null;
-
   // Reset dialog state on close
   const handleClose = () => {
     setStep('configure');
     setName('');
+    setCreationError(null);
     setPaymentError(null);
-    setServerShortfall(null);
     setQuoteError(null);
-    setSuccessData(null);
-    setShowInlineTopUp(false);
+    setCreatedEvent(null);
+    setActivatedEvent(null);
     setWallet(null);
     setActiveCalculation(null);
-    setLoadingQuote(true);
     onClose();
   };
 
-  // Step 1 -> Step 2 Validation
-  const handleProceedToPayment = (e: React.FormEvent) => {
+  // STEP 1: CREATE EVENT IN DATABASE (BEFORE PAYMENT)
+  const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPaymentError(null);
-    setServerShortfall(null);
+    setCreationError(null);
 
     if (!name.trim()) {
-      setPaymentError('Please enter an event name');
+      setCreationError('Please enter an event name');
       return;
     }
 
@@ -392,123 +254,94 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     const expiryTime = new Date(expiresAt).getTime();
 
     if (isNaN(startTime) || isNaN(expiryTime)) {
-      setPaymentError('Please provide valid start and expiry dates/times');
+      setCreationError('Please provide valid start and expiry dates/times');
       return;
     }
 
     if (expiryTime <= startTime) {
-      setPaymentError('Expiry date must be after Start date');
+      setCreationError('Expiry date must be after Start date');
       return;
     }
 
-    // Set default inline top up amount to the exact needed difference
-    if (!isSufficient && needAmount > 0) {
-      setInlineTopUpAmount(needAmount);
-    }
-
-    setStep('payment');
-  };
-
-  // Step 2 -> Pay & Launch Event (Server Authoritative)
-  const handleConfirmAndPay = async () => {
-    if (!currentOrganization) return;
-    setPaymentError(null);
-    setServerShortfall(null);
-
     try {
-      setSubmittingPayment(true);
+      setIsCreatingEvent(true);
 
-      // Requirement 1: Confirm latest payment calculation from server before creating event
-      try {
-        const quoteRes = await apiFetch('/api/events/quote', {
-          method: 'POST',
-          body: JSON.stringify({
-            game_theme_id: selectedThemeId || undefined,
-            payment_mode: activePaymentMode,
-          }),
-        });
-
-        if (quoteRes.ok) {
-          const quoteData = await quoteRes.json();
-          if (quoteData.wallet) {
-            setWallet(quoteData.wallet);
-          }
-          if (quoteData.calculation) {
-            setActiveCalculation(quoteData.calculation);
-          }
-
-          if (!quoteData.is_payable) {
-            const req = quoteData.calculation?.paidAmount ?? paidAmount;
-            const avail = quoteData.wallet?.paid_balance ?? availableBalance;
-            const short = Math.max(0, req - avail);
-
-            setServerShortfall({
-              shortfall: short,
-              required: req,
-              available: avail,
-            });
-            setPaymentError('Insufficient balance. Please top up your wallet to continue.');
-            setSubmittingPayment(false);
-            return;
-          }
-        }
-      } catch (quoteErr) {
-        console.warn('Pre-flight quote check warning:', quoteErr);
-      }
-
-      // Requirement 2 & 3: Authoritative backend event creation and atomic payment
       const res = await apiFetch('/api/events', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
           game_theme_id: selectedThemeId,
           event_date: startsAt.split('T')[0],
           starts_at: new Date(startsAt).toISOString(),
           expires_at: new Date(expiresAt).toISOString(),
-          status: 'scheduled',
-          payment_mode: activePaymentMode,
-          topup_credit_requested: activeCalculation?.topupCreditUsed || (activePaymentMode === 'TOPUP_CREDIT' ? totalDiscount : undefined),
+          status: 'pending_payment',
         }),
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        // Requirement 4 & 5: Catch insufficient balance response from backend
-        if (res.status === 402 || errData.code === 'INSUFFICIENT_BALANCE') {
-          const req = typeof errData.required === 'number' ? errData.required : paidAmount;
-          const avail = typeof errData.available === 'number' ? errData.available : availableBalance;
-          const short = typeof errData.shortfall === 'number' ? errData.shortfall : Math.max(0, req - avail);
-
-          setServerShortfall({
-            shortfall: short,
-            required: req,
-            available: avail,
-          });
-          setPaymentError(errData.error || errData.message || 'Insufficient balance. Please top up your wallet to continue.');
-
-          // Refresh quote in background to get latest server values
-          fetchWalletAndQuote(selectedThemeId);
-          return;
+        if (errData.code === 'PENDING_EVENT_LIMIT_REACHED' || res.status === 422) {
+          throw new Error(errData.error || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
         }
-
-        throw new Error(errData.error || errData.message || 'Payment failed. Please check your wallet balance and try again.');
+        throw new Error(errData.error || 'Failed to create event. Please try again.');
       }
 
       const data = await res.json();
+      const newEvent = data.event;
 
-      // Dispatch global balance refresh
-      window.dispatchEvent(new CustomEvent('wallet_updated'));
+      setCreatedEvent(newEvent);
+      onEventCreated(newEvent);
 
-      // Calculate remaining balance for confirmation screen
-      const newRemainingBalance = Math.max(0, availableBalance - paidAmount);
+      // Advance to "Event Created" success screen
+      setStep('created');
+    } catch (err: any) {
+      console.error('Create event error:', err);
+      setCreationError(err.message || 'Failed to create event');
+    } finally {
+      setIsCreatingEvent(false);
+    }
+  };
 
-      setSuccessData({
-        event: data.event,
-        paidAmount: paidAmount,
-        remainingBalance: newRemainingBalance,
+  // Proceed from Created state to Payment state
+  const handleProceedToPayment = () => {
+    setStep('payment');
+    fetchWalletAndQuote(createdEvent?.game_theme_id || selectedThemeId, selectedPaymentMode);
+  };
+
+  // STEP 2: CONFIRM PAYMENT & ACTIVATE EVENT (SERVER AUTHORITATIVE)
+  const handleConfirmPaymentAndActivate = async () => {
+    if (!createdEvent) return;
+    setPaymentError(null);
+
+    try {
+      setSubmittingPayment(true);
+
+      const res = await apiFetch(`/api/events/${createdEvent.id}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          payment_mode: selectedPaymentMode,
+          topup_credit_requested: activeCalculation?.topupCreditUsed,
+        }),
       });
 
-      setStep('success');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 402 || errData.code === 'INSUFFICIENT_BALANCE') {
+          setPaymentError(errData.error || 'Insufficient balance to activate event.');
+          fetchWalletAndQuote(createdEvent.game_theme_id, selectedPaymentMode);
+          return;
+        }
+        throw new Error(errData.error || 'Payment failed. Please try again.');
+      }
+
+      const data = await res.json();
+      window.dispatchEvent(new CustomEvent('wallet_updated'));
+
+      setActivatedEvent(data.event || createdEvent);
+      onEventCreated(data.event || createdEvent);
+      setStep('activated');
     } catch (err: any) {
       console.error('Payment error:', err);
       setPaymentError(err.message || 'Payment failed. Please try again.');
@@ -517,23 +350,21 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     }
   };
 
-  // Production Top-Up Checkout Handler (Initiates checkout session & real payment gateway)
+  // Top-Up flow for insufficient balance
   const handleStartTopUpFlow = async (amountToTopUp: number) => {
-    if (!currentOrganization?.id) return;
-    if (amountToTopUp <= 0) return;
+    if (!currentOrganization?.id || amountToTopUp <= 0) return;
 
     try {
       setIsSubmittingTopUp(true);
       setPaymentError(null);
 
-      // Step A: Create PENDING top-up order on server (NEVER credits wallet directly)
       const orderRes = await apiFetch(`/api/organizations/${currentOrganization.id}/wallet/topup-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: amountToTopUp,
           currency: 'MYR',
-          notes: `Top up for event: ${name.trim() || 'New Event'}`,
+          notes: `Top up for event activation: ${createdEvent?.name || name}`,
         }),
       });
 
@@ -546,7 +377,6 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       const newOrder: TopupOrderRecord = orderData.order;
       setActiveCheckoutOrder(newOrder);
 
-      // Step B: Create Payment Checkout Session on server
       const sessionRes = await apiFetch(
         `/api/organizations/${currentOrganization.id}/wallet/topup-orders/${newOrder.id}/checkout`,
         {
@@ -571,48 +401,61 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     }
   };
 
-  // Payment Confirmation callback from webhook-verified settlement
-  const handlePaymentSuccess = async (settledOrder: TopupOrderRecord) => {
+  const handlePaymentSuccessTopUp = async (settledOrder: TopupOrderRecord) => {
     setShowCheckoutModal(false);
     setActiveCheckoutOrder(null);
     setCheckoutSession(null);
-    setShowInlineTopUp(false);
     setPaymentError(null);
 
-    // Refresh wallet balance and re-calculate event payment quote
-    await fetchWalletAndQuote(selectedThemeId);
+    await fetchWalletAndQuote(createdEvent?.game_theme_id || selectedThemeId, selectedPaymentMode);
 
     setTopUpSuccessNotice(
-      `Successfully added ${formatCurrency(settledOrder.top_up_amount)} to your wallet! Your balance is now updated.`
+      `Successfully added ${formatCurrency(settledOrder.top_up_amount)} to your wallet! Balance updated.`
     );
     setTimeout(() => setTopUpSuccessNotice(null), 5000);
   };
 
-  // Payment Failure callback
-  const handlePaymentFailed = (failedOrder: TopupOrderRecord, reason?: string) => {
-    setShowCheckoutModal(false);
-    setActiveCheckoutOrder(null);
-    setCheckoutSession(null);
-    setPaymentError(reason || 'Payment was declined or failed. Your wallet balance remains unchanged.');
+  // Selected Theme Details
+  const selectedTheme = themes.find((t) => t.id === selectedThemeId) || themes[0];
+  const standardPrice = activeCalculation?.eventPrice ?? 1400;
+  const paidAmount = activeCalculation?.paidAmount ?? (
+    selectedPaymentMode === 'WELCOME_CREDIT' ? 600 :
+    selectedPaymentMode === 'SHOWCASE_CREDIT' ? 1100 :
+    selectedPaymentMode === 'TOPUP_CREDIT' ? 1120 : standardPrice
+  );
+  const totalDiscount = activeCalculation?.totalDiscount ?? (standardPrice - paidAmount);
+  const availableBalance = Number(
+    activeCalculation?.availableBalances?.paid_balance ?? wallet?.paid_balance ?? 0
+  );
+
+  const isServerPayable = activeCalculation ? activeCalculation.isPayable : availableBalance >= paidAmount;
+  const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && (!isServerPayable || availableBalance < paidAmount);
+  const needAmount = Math.max(0, paidAmount - availableBalance);
+
+  const publicUrl = createdEvent ? `${window.location.origin}/e/${createdEvent.public_token}` : '';
+
+  const handleCopyLink = async () => {
+    if (!publicUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) {
+      console.error('Copy link error', err);
+    }
   };
 
-  // Payment Cancellation callback
-  const handlePaymentCancelled = () => {
-    setShowCheckoutModal(false);
-    setActiveCheckoutOrder(null);
-    setCheckoutSession(null);
-    setPaymentError('Top up cancelled. Your wallet balance has not changed.');
-  };
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200 font-sans">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         
         {/* ================================================================= */}
-        {/* STEP 1: CONFIGURE EVENT                                           */}
+        {/* STEP 1: CONFIGURE & CREATE EVENT RECORD                           */}
         {/* ================================================================= */}
         {step === 'configure' && (
-          <form onSubmit={handleProceedToPayment} className="flex flex-col flex-1 overflow-hidden">
+          <form onSubmit={handleCreateEvent} className="flex flex-col flex-1 overflow-hidden">
             {/* Header */}
             <div className="p-6 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -621,7 +464,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-slate-100">Create Event</h2>
-                  <p className="text-xs text-slate-400">Set up your event name, game theme, and schedule</p>
+                  <p className="text-xs text-slate-400">Create and store your event deployment before payment</p>
                 </div>
               </div>
               <button
@@ -635,10 +478,10 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
             {/* Form Body */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
-              {paymentError && (
+              {creationError && (
                 <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3 text-xs text-rose-400">
                   <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{paymentError}</span>
+                  <span>{creationError}</span>
                 </div>
               )}
 
@@ -652,7 +495,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. ABC Company Roadshow"
+                  placeholder="e.g. ABC Company Annual Summit 2026"
                   className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-slate-100 text-sm focus:outline-none transition-all placeholder:text-slate-600"
                 />
               </div>
@@ -704,11 +547,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
               {/* 3. Event Schedule & Duration */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-300">
-                    Event Duration & Date <span className="text-amber-400">*</span>
-                  </label>
-                </div>
+                <label className="text-xs font-bold text-slate-300">
+                  Event Duration & Date <span className="text-amber-400">*</span>
+                </label>
 
                 {/* Duration Presets */}
                 <div className="grid grid-cols-5 gap-1.5">
@@ -738,7 +579,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   })}
                 </div>
 
-                {/* Starts At Input */}
+                {/* Starts & Expires Inputs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div className="space-y-1.5">
                     <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
@@ -776,105 +617,19 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 </div>
               </div>
 
-              {/* 4. Pricing & Wallet Balance Status Preview in Step 1 */}
-              <div className="pt-2 border-t border-slate-800/80">
-                {loadingQuote ? (
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 flex items-center justify-center gap-2.5 text-xs text-slate-400">
-                    <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                    <span>Calculating pricing and wallet balance...</span>
-                  </div>
-                ) : quoteError ? (
-                  <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs text-rose-400">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>Payment calculation error: {quoteError}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => fetchWalletAndQuote(selectedThemeId)}
-                      className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-semibold text-[11px] cursor-pointer"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                ) : (
-                  <div className="bg-slate-950/60 border border-slate-800/90 rounded-2xl p-4 space-y-3">
-                    <div className="space-y-2 text-xs">
-                      {/* Event Price */}
-                      <div className="flex items-center justify-between text-slate-300">
-                        <span>Event Price</span>
-                        <span className="font-mono font-bold text-slate-100">{formatCurrency(standardPrice)}</span>
-                      </div>
-
-                      {/* Automatically Applied Eligible Credit */}
-                      {totalDiscount > 0 && (
-                        <div className="flex items-center justify-between text-emerald-400">
-                          <div className="flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                            <span>{creditAppliedLabel}</span>
-                          </div>
-                          <span className="font-mono font-bold">-{formatCurrency(totalDiscount)}</span>
-                        </div>
-                      )}
-
-                      {/* Amount Required */}
-                      <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 font-semibold">
-                        <span className="text-slate-200">Amount Required</span>
-                        <span className="font-mono font-bold text-amber-400 text-sm">{formatCurrency(paidAmount)}</span>
-                      </div>
-
-                      {/* Wallet Balance */}
-                      <div className="flex items-center justify-between pt-1 text-slate-400">
-                        <div className="flex items-center gap-1.5">
-                          <Wallet className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Wallet Balance</span>
-                        </div>
-                        <span className="font-mono font-bold text-slate-200">{formatCurrency(availableBalance)}</span>
-                      </div>
-                    </div>
-
-                    {/* Insufficient Balance State in Step 1 */}
-                    {isInsufficientBalance && (
-                      <div className="pt-2 border-t border-slate-800/80">
-                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 space-y-2.5">
-                          <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-                            <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
-                            <span>Insufficient Balance</span>
-                          </div>
-                          <p className="text-xs text-slate-300">
-                            You need <span className="font-mono font-bold text-amber-300">{formatCurrency(needAmount)}</span> more to create this event.
-                          </p>
-                          <div className="pt-0.5">
-                            <button
-                              type="button"
-                              disabled={isSubmittingTopUp}
-                              onClick={() => {
-                                handleStartTopUpFlow(needAmount > 0 ? needAmount : 1400);
-                              }}
-                              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-                            >
-                              {isSubmittingTopUp ? (
-                                <>
-                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                  <span>Connecting to Gateway...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <PlusCircle className="w-3.5 h-3.5" />
-                                  <span>Top Up {formatCurrency(needAmount)}</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+              {/* Informative Note */}
+              <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-1.5 text-xs text-slate-400">
+                <div className="flex items-center gap-2 text-slate-200 font-semibold">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>Instant URL Creation</span>
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  Your event will be created and receive its permanent URL immediately. You can test and inspect the game before completing payment & activation.
+                </p>
               </div>
             </div>
 
-            {/* Footer Action */}
+            {/* Footer */}
             <div className="p-6 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between gap-3">
               <button
                 type="button"
@@ -885,18 +640,137 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={!name.trim()}
+                disabled={!name.trim() || isCreatingEvent}
                 className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
               >
-                <span>Continue to Payment</span>
-                <ArrowRight className="w-4 h-4" />
+                {isCreatingEvent ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Creating Event...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Create Event</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </div>
           </form>
         )}
 
         {/* ================================================================= */}
-        {/* STEP 2: PAYMENT SUMMARY & AUTHORITATIVE SETTLEMENT                */}
+        {/* STEP 2: EVENT CREATED SUCCESS STATE                               */}
+        {/* ================================================================= */}
+        {step === 'created' && createdEvent && (
+          <div className="p-6 sm:p-8 space-y-6 flex flex-col flex-1 overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200">
+            {/* Celebration Icon */}
+            <div className="text-center space-y-2">
+              <div className="inline-flex p-4 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 mx-auto">
+                <CheckCircle2 className="w-10 h-10 stroke-[2.5]" />
+              </div>
+              <h2 className="text-2xl font-black text-slate-100 tracking-tight">Event Created</h2>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Your event has been created and is ready for configuration and testing.
+              </p>
+            </div>
+
+            {/* Event Details Card */}
+            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3 text-xs">
+              <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
+                <span className="text-slate-400">Event Name:</span>
+                <span className="font-bold text-slate-100">{createdEvent.name}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
+                <span className="text-slate-400">Game / Theme:</span>
+                <span className="font-semibold text-amber-300">
+                  {selectedTheme?.game_name || 'Game'} / {selectedTheme?.name || 'Theme'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Status:</span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold text-[10px] uppercase">
+                  Pending Payment
+                </span>
+              </div>
+            </div>
+
+            {/* Public Link Box */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span>Dedicated Event URL</span>
+                <span className="text-[11px] text-amber-400 font-normal">Active & Ready to test</span>
+              </label>
+              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-2.5">
+                <span className="font-mono text-xs text-slate-300 truncate flex-1 pl-1">
+                  {publicUrl}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Clear Payment Required Notice */}
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-start gap-3 text-xs text-amber-200">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold text-amber-300">Payment is required before this event is activated</p>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  You can open and test the game right now. When you're ready, pay and activate the event to make it live for players.
+                </p>
+              </div>
+            </div>
+
+            {/* Primary Action Buttons */}
+            <div className="space-y-2.5 pt-2">
+              <button
+                type="button"
+                onClick={handleProceedToPayment}
+                className="w-full py-3.5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <CreditCard className="w-4 h-4" />
+                <span>Pay & Activate Event</span>
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.open(publicUrl, '_blank')}
+                  className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open Event URL</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="py-2.5 px-4 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors cursor-pointer text-center"
+                >
+                  Pay Later
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================================================================= */}
+        {/* STEP 3: PAYMENT & ACTIVATION (SERVER AUTHORITATIVE)               */}
         {/* ================================================================= */}
         {step === 'payment' && (
           <div className="flex flex-col flex-1 overflow-hidden">
@@ -905,15 +779,15 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setStep('configure')}
+                  onClick={() => setStep('created')}
                   className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
-                  title="Back to Event Configuration"
+                  title="Back to Event Summary"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-100">Payment</h2>
-                  <p className="text-xs text-slate-400">Review your event and complete payment</p>
+                  <h2 className="text-xl font-bold text-slate-100">Pay & Activate</h2>
+                  <p className="text-xs text-slate-400">Review quote and activate {createdEvent?.name || 'Event'}</p>
                 </div>
               </div>
               <button
@@ -941,380 +815,271 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 </div>
               )}
 
-              {/* ------------------------------------------------------------- */}
-              {/* SECTION A: EVENT SUMMARY                                      */}
-              {/* ------------------------------------------------------------- */}
-              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-5 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                  <h3 className="text-xs uppercase tracking-wider font-bold text-slate-400">
-                    Event Summary
-                  </h3>
+              {/* Event Info */}
+              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-200">{createdEvent?.name}</span>
+                  <span className="text-[10px] font-mono text-slate-400">Token: {createdEvent?.public_token}</span>
+                </div>
+                <div className="text-[11px] text-slate-400 flex items-center gap-2">
+                  <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{selectedTheme?.game_name || 'Catch the Brand'}</span>
+                  <span>•</span>
+                  <span>{selectedTheme?.name || 'Theme'}</span>
+                </div>
+              </div>
+
+              {/* Pricing & Quote */}
+              {loadingQuote ? (
+                <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-6 flex items-center justify-center gap-2 text-xs text-slate-400">
+                  <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                  <span>Calculating payment quote...</span>
+                </div>
+              ) : quoteError ? (
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 text-xs text-rose-400 flex items-center justify-between">
+                  <span>{quoteError}</span>
                   <button
                     type="button"
-                    onClick={() => setStep('configure')}
-                    className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold cursor-pointer"
+                    onClick={() => fetchWalletAndQuote(createdEvent?.game_theme_id, selectedPaymentMode)}
+                    className="underline text-rose-300 font-bold ml-2 cursor-pointer"
                   >
-                    Edit
+                    Retry
                   </button>
                 </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Payment Mode Selector */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-300">Payment Option</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPaymentMode('FULL_PAID');
+                          fetchWalletAndQuote(createdEvent?.game_theme_id, 'FULL_PAID');
+                        }}
+                        className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                          selectedPaymentMode === 'FULL_PAID'
+                            ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
+                            : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="font-bold text-slate-200">Paid Balance</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">{formatCurrency(standardPrice)}</div>
+                      </button>
 
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Event</span>
-                    <span className="font-bold text-slate-100">{name}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Game</span>
-                    <span className="font-semibold text-slate-200">
-                      {gameDisplayName} <span className="text-slate-500">({themeDisplayName})</span>
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Duration</span>
-                    <span className="font-medium text-slate-200">
-                      {calculateDurationLabel(startsAt, expiresAt, durationPreset)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Event Date</span>
-                    <span className="font-medium text-slate-200">{formatEventDate(startsAt)}</span>
-                  </div>
-                </div>
-              </div>
+                      {wallet && wallet.welcome_credit > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPaymentMode('WELCOME_CREDIT');
+                            fetchWalletAndQuote(createdEvent?.game_theme_id, 'WELCOME_CREDIT');
+                          }}
+                          className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                            selectedPaymentMode === 'WELCOME_CREDIT'
+                              ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
+                              : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="font-bold text-emerald-400 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" />
+                            <span>Welcome Credit</span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">Save RM800 (Pay RM600)</div>
+                        </button>
+                      )}
 
-              {/* ------------------------------------------------------------- */}
-              {/* SECTION B: PRICE BREAKDOWN                                    */}
-              {/* ------------------------------------------------------------- */}
-              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-5 space-y-3">
-                <h3 className="text-xs uppercase tracking-wider font-bold text-slate-400 border-b border-slate-800/80 pb-3">
-                  Payment
-                </h3>
+                      {wallet && wallet.showcase_credit > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPaymentMode('SHOWCASE_CREDIT');
+                            fetchWalletAndQuote(createdEvent?.game_theme_id, 'SHOWCASE_CREDIT');
+                          }}
+                          className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                            selectedPaymentMode === 'SHOWCASE_CREDIT'
+                              ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
+                              : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="font-bold text-amber-400 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" />
+                            <span>Showcase Credit</span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">Save RM300 (Pay RM1,100)</div>
+                        </button>
+                      )}
 
-                <div className="space-y-2 text-xs">
-                  {/* Event Price */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-300">Event Price</span>
-                    <span className="font-mono font-bold text-slate-200">
-                      {formatCurrency(standardPrice)}
-                    </span>
+                      {wallet && wallet.topup_credit > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPaymentMode('TOPUP_CREDIT');
+                            fetchWalletAndQuote(createdEvent?.game_theme_id, 'TOPUP_CREDIT');
+                          }}
+                          className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                            selectedPaymentMode === 'TOPUP_CREDIT'
+                              ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
+                              : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="font-bold text-blue-400 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" />
+                            <span>Top-up Credit</span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">Save up to 20% (RM280)</div>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Automatically Applied Eligible Credit */}
-                  {totalDiscount > 0 && (
-                    <div className="flex items-center justify-between text-emerald-400">
-                      <div className="flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                        <span>{creditAppliedLabel}</span>
+                  {/* Financial Breakdown */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
+                    <div className="flex items-center justify-between text-slate-300">
+                      <span>Event Price</span>
+                      <span className="font-mono font-bold">{formatCurrency(standardPrice)}</span>
+                    </div>
+
+                    {totalDiscount > 0 && (
+                      <div className="flex items-center justify-between text-emerald-400">
+                        <span className="flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Credit Applied
+                        </span>
+                        <span className="font-mono font-bold">-{formatCurrency(totalDiscount)}</span>
                       </div>
-                      <span className="font-mono font-bold">
-                        -{formatCurrency(totalDiscount)}
+                    )}
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-800 font-semibold text-slate-100">
+                      <span>Amount Required</span>
+                      <span className="font-mono font-bold text-amber-400 text-sm">
+                        {formatCurrency(paidAmount)}
                       </span>
                     </div>
-                  )}
 
-                  {creditAppliedExplanation && (
-                    <div className="text-[11px] text-emerald-400/90 italic pt-0.5">
-                      {creditAppliedExplanation}
-                    </div>
-                  )}
-
-                  {/* Divider */}
-                  <div className="border-t border-slate-800 my-2 pt-2 flex items-center justify-between text-sm">
-                    <span className="font-bold text-slate-100">Amount Required</span>
-                    <span className="font-mono font-black text-amber-400 text-base">
-                      {formatCurrency(paidAmount)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* ------------------------------------------------------------- */}
-              {/* SECTION C: PAYMENT & BALANCE STATUS                           */}
-              {/* ------------------------------------------------------------- */}
-              {!showInlineTopUp ? (
-                <div className="space-y-4">
-                  {/* Wallet Balance Card */}
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Wallet className="w-4 h-4 text-amber-400" />
-                      <span>Wallet Balance</span>
-                    </div>
-                    {loadingQuote ? (
-                      <div className="flex items-center gap-1.5 text-slate-400">
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                        <span>Loading...</span>
-                      </div>
-                    ) : (
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-slate-400">
+                      <span className="flex items-center gap-1.5">
+                        <Wallet className="w-3.5 h-3.5" />
+                        Available Paid Balance
+                      </span>
                       <span className="font-mono font-bold text-slate-200">
                         {formatCurrency(availableBalance)}
                       </span>
-                    )}
+                    </div>
                   </div>
 
-                  {/* API Calculation Error (Separate from insufficient balance) */}
-                  {quoteError && (
-                    <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs text-rose-400">
-                      <div className="flex items-center gap-2">
+                  {/* Insufficient balance top-up box */}
+                  {isInsufficientBalance && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
                         <AlertCircle className="w-4 h-4 shrink-0" />
-                        <span>Payment calculation error: {quoteError}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => fetchWalletAndQuote(selectedThemeId)}
-                        className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-semibold text-[11px] cursor-pointer"
-                      >
-                        Retry
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Insufficient Balance State Banner */}
-                  {(serverShortfall || isInsufficientBalance) && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 space-y-2">
-                      <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-                        <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
                         <span>Insufficient Balance</span>
                       </div>
                       <p className="text-xs text-slate-300">
-                        You need <span className="font-mono font-bold text-amber-300">{formatCurrency(serverShortfall ? serverShortfall.shortfall : needAmount)}</span> more to create this event.
+                        You need <span className="font-mono font-bold text-amber-300">{formatCurrency(needAmount)}</span> more to activate this event.
                       </p>
-                      {activeCalculation?.reasons && activeCalculation.reasons.length > 0 && (
-                        <div className="pt-1 text-[11px] text-amber-400/80">
-                          {activeCalculation.reasons.map((r, i) => (
-                            <div key={i}>• {r}</div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Payment CTAs */}
-                  <div className="space-y-2.5 pt-2">
-                    {loadingQuote ? (
                       <button
                         type="button"
-                        disabled={true}
-                        className="w-full py-3.5 px-6 rounded-2xl bg-slate-800 text-slate-400 font-bold text-sm cursor-wait opacity-75 flex items-center justify-center gap-2"
+                        disabled={isSubmittingTopUp}
+                        onClick={() => handleStartTopUpFlow(needAmount > 0 ? needAmount : 1400)}
+                        className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
                       >
-                        <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                        <span>Calculating Pricing...</span>
-                      </button>
-                    ) : quoteError ? (
-                      <button
-                        type="button"
-                        onClick={() => fetchWalletAndQuote(selectedThemeId)}
-                        className="w-full py-3.5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                        <span>Retry Calculation</span>
-                      </button>
-                    ) : (isSufficient && !serverShortfall) ? (
-                      <button
-                        type="button"
-                        onClick={handleConfirmAndPay}
-                        disabled={submittingPayment}
-                        className="w-full py-3.5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
-                      >
-                        {submittingPayment ? (
+                        {isSubmittingTopUp ? (
                           <>
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                            <span>Processing Payment...</span>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Connecting to Gateway...</span>
                           </>
                         ) : (
-                          <span>Confirm and Pay {formatCurrency(paidAmount)}</span>
+                          <>
+                            <PlusCircle className="w-3.5 h-3.5" />
+                            <span>Top Up {formatCurrency(needAmount)}</span>
+                          </>
                         )}
                       </button>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          disabled={isSubmittingTopUp}
-                          onClick={() => {
-                            const topUpAmt = serverShortfall ? serverShortfall.shortfall : needAmount;
-                            handleStartTopUpFlow(topUpAmt > 0 ? topUpAmt : 1400);
-                          }}
-                          className="w-full py-3.5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-black text-sm shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
-                        >
-                          {isSubmittingTopUp ? (
-                            <>
-                              <RefreshCw className="w-4 h-4 animate-spin" />
-                              <span>Connecting to Gateway...</span>
-                            </>
-                          ) : (
-                            <>
-                              <PlusCircle className="w-4 h-4" />
-                              <span>Top Up {formatCurrency(serverShortfall ? serverShortfall.shortfall : needAmount)}</span>
-                            </>
-                          )}
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={true}
-                          className="w-full py-3.5 px-6 rounded-2xl bg-slate-800 text-slate-500 font-bold text-sm cursor-not-allowed opacity-60 flex items-center justify-center gap-2"
-                        >
-                          <span>Continue to Payment</span>
-                        </button>
-                      </>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={handleClose}
-                      className="w-full py-2 px-4 rounded-xl text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors cursor-pointer text-center"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* ----------------------------------------------------------- */
-                /* INLINE TOP-UP VIEW (Seamless, non-interruptive)             */
-                /* ----------------------------------------------------------- */
-                <div className="bg-slate-950 border border-amber-500/40 rounded-2xl p-5 space-y-4 animate-in fade-in">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-amber-400" />
-                      <h4 className="text-xs font-bold text-slate-100">Top Up Wallet</h4>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowInlineTopUp(false)}
-                      className="text-[11px] text-slate-400 hover:text-slate-200 cursor-pointer"
-                    >
-                      Back
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-slate-400">
-                    Select or enter a top-up amount to complete this event launch without restarting.
-                  </p>
-
-                  {/* Preset Options */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {Array.from(new Set([needAmount, 1400, 3000, 6000, 10000]))
-                      .filter((amt) => amt > 0)
-                      .slice(0, 4)
-                      .map((amt) => {
-                        const isSelected = inlineTopUpAmount === amt;
-                        return (
-                          <button
-                            key={amt}
-                            type="button"
-                            onClick={() => setInlineTopUpAmount(amt)}
-                            className={`p-3 rounded-xl border text-left text-xs font-bold transition-all cursor-pointer ${
-                              isSelected
-                                ? 'border-amber-500 bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/30'
-                                : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
-                            }`}
-                          >
-                            <div>{formatCurrency(amt)}</div>
-                            <div className="text-[10px] text-slate-500 font-normal">
-                              {amt === needAmount ? 'Exact Need' : amt >= 6000 ? 'Includes Reward' : 'Preset'}
-                            </div>
-                          </button>
-                        );
-                      })}
-                  </div>
-
-                  {/* Custom Amount Input */}
-                  <div className="space-y-1.5 pt-1">
-                    <label className="text-[11px] font-semibold text-slate-400">Custom Amount (RM)</label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">RM</span>
-                      <input
-                        type="number"
-                        min="1"
-                        step="any"
-                        value={inlineTopUpAmount || ''}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          setInlineTopUpAmount(!isNaN(val) && val > 0 ? val : 0);
-                        }}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-11 pr-4 py-2.5 text-xs text-slate-100 font-mono focus:border-amber-500 focus:outline-none"
-                        placeholder="Enter amount"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Submit Inline Top Up CTA */}
-                  <div className="space-y-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => handleStartTopUpFlow(inlineTopUpAmount)}
-                      disabled={isSubmittingTopUp || inlineTopUpAmount <= 0}
-                      className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      {isSubmittingTopUp ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Connecting to Payment Gateway...</span>
-                        </>
-                      ) : (
-                        <span>Confirm Top Up {formatCurrency(inlineTopUpAmount)}</span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowInlineTopUp(false)}
-                      className="w-full py-1.5 text-center text-slate-500 hover:text-slate-300 text-xs font-medium cursor-pointer"
-                    >
-                      Cancel Top Up
-                    </button>
-                  </div>
+                  )}
                 </div>
               )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setStep('created')}
+                className="px-4 py-2.5 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Back
+              </button>
+
+              <button
+                type="button"
+                disabled={submittingPayment || isInsufficientBalance || loadingQuote || !!quoteError}
+                onClick={handleConfirmPaymentAndActivate}
+                className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
+              >
+                {submittingPayment ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Processing Payment...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Pay {formatCurrency(paidAmount)} & Activate</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
             </div>
           </div>
         )}
 
         {/* ================================================================= */}
-        {/* STEP 3: PAYMENT CONFIRMATION (SECTION 9)                          */}
+        {/* STEP 4: EVENT ACTIVATED CONFIRMATION                              */}
         {/* ================================================================= */}
-        {step === 'success' && successData && (
+        {step === 'activated' && (
           <div className="p-8 sm:p-10 space-y-6 text-center animate-in zoom-in-95 duration-200">
-            {/* Green Checkmark */}
             <div className="inline-flex p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400">
               <CheckCircle2 className="w-12 h-12 stroke-[2.5]" />
             </div>
 
             <div className="space-y-1.5">
-              <h2 className="text-2xl font-black text-slate-100">Payment Successful</h2>
-              <p className="text-xs text-slate-400">Your event has been scheduled and deployed successfully.</p>
+              <h2 className="text-2xl font-black text-slate-100">Event Activated!</h2>
+              <p className="text-xs text-slate-400">Your event has been activated and is ready for live players.</p>
             </div>
 
-            {/* Summary Details */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 text-left text-xs space-y-2.5 max-w-sm mx-auto">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Event</span>
-                <span className="font-bold text-slate-100">{successData.event?.name || name}</span>
+                <span className="font-bold text-slate-100">{activatedEvent?.name || createdEvent?.name}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Paid</span>
-                <span className="font-mono font-bold text-emerald-400">
-                  {formatCurrency(successData.paidAmount)}
-                </span>
+                <span className="text-slate-400">Status</span>
+                <span className="font-bold text-emerald-400 uppercase">Active</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Remaining Balance</span>
-                <span className="font-mono font-bold text-amber-400">
-                  {formatCurrency(successData.remainingBalance)}
-                </span>
+                <span className="text-slate-400">Paid Amount</span>
+                <span className="font-mono font-bold text-slate-200">{formatCurrency(paidAmount)}</span>
               </div>
             </div>
 
-            {/* View Event Button */}
-            <div className="pt-2">
+            <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => {
-                  onEventCreated(successData.event);
-                  handleClose();
-                }}
-                className="w-full py-3.5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+                onClick={() => window.open(publicUrl, '_blank')}
+                className="py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <span>View Event</span>
-                <ArrowRight className="w-4 h-4" />
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Open Game</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClose}
+                className="py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <span>Done</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -1322,17 +1087,17 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
       </div>
 
-      {/* Production Payment Checkout Modal */}
+      {/* Production Payment Checkout Modal for Top Up */}
       {showCheckoutModal && activeCheckoutOrder && currentOrganization && (
         <PaymentCheckoutModal
           isOpen={showCheckoutModal}
-          onClose={handlePaymentCancelled}
+          onClose={() => setShowCheckoutModal(false)}
           order={activeCheckoutOrder}
           checkoutSession={checkoutSession}
           organizationId={currentOrganization.id}
-          onPaymentSuccess={handlePaymentSuccess}
-          onPaymentFailed={handlePaymentFailed}
-          onPaymentCancelled={handlePaymentCancelled}
+          onPaymentSuccess={handlePaymentSuccessTopUp}
+          onPaymentFailed={() => setShowCheckoutModal(false)}
+          onPaymentCancelled={() => setShowCheckoutModal(false)}
         />
       )}
     </div>

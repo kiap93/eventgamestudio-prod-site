@@ -1588,6 +1588,21 @@ export async function processEventPayment(
         updated_at: new Date().toISOString(),
       };
 
+      try {
+        const { localEventsCache } = await import('./events.js');
+        const cachedEvent = localEventsCache.get(eventId);
+        if (cachedEvent) {
+          cachedEvent.status = 'scheduled';
+          cachedEvent.payment_status = 'PAID';
+          cachedEvent.payment_mode = mode;
+          cachedEvent.paid_amount = calculation.paidAmount;
+          cachedEvent.discount_amount = calculation.totalDiscount;
+          localEventsCache.set(eventId, cachedEvent);
+        }
+      } catch (cacheErr) {
+        // ignore
+      }
+
       return {
         success: true,
         paymentCalculation: calculation,
@@ -1722,10 +1737,26 @@ export async function processEventPayment(
 
     // 6. Update Event record payment status if event exists in DB
     try {
+      const { localEventsCache } = await import('./events.js');
+      const cachedEvent = localEventsCache.get(eventId);
+      if (cachedEvent) {
+        cachedEvent.status = 'scheduled';
+        cachedEvent.payment_status = 'PAID';
+        cachedEvent.payment_mode = mode;
+        cachedEvent.paid_amount = calculation.paidAmount;
+        cachedEvent.discount_amount = calculation.totalDiscount;
+        localEventsCache.set(eventId, cachedEvent);
+      }
+    } catch (cacheErr) {
+      // ignore
+    }
+
+    try {
       const supabase = getSupabaseServerClient(env);
       await supabase
         .from('events')
         .update({
+          status: 'scheduled',
           payment_status: 'PAID',
           payment_mode: mode,
           paid_amount: calculation.paidAmount,

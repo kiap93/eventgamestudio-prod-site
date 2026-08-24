@@ -5,6 +5,7 @@ export interface RateLimitOptions {
   max: number;
   message?: string;
   keyPrefix?: string;
+  keyGenerator?: (req: any) => string;
   skipSuccessfulRequests?: boolean;
   skipFailedRequests?: boolean;
 }
@@ -175,7 +176,9 @@ export function createRateLimiter(options: RateLimitOptions) {
   } = options;
 
   return (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
-    const clientKey = getExpressClientKey(req, keyPrefix);
+    const clientKey = options.keyGenerator
+      ? `${keyPrefix}:${options.keyGenerator(req)}`
+      : getExpressClientKey(req, keyPrefix);
     const result = checkRateLimit(clientKey, { windowMs, max, keyPrefix });
 
     // Set standard RateLimit headers
@@ -242,7 +245,7 @@ export const organizationRateLimiter = createRateLimiter({
 
 /**
  * 4. Events Mutation Rate Limiter:
- * Protects POST /api/events, POST /api/events/quote, PUT/DELETE /api/events/:id.
+ * Protects POST /api/events/quote, PUT/DELETE /api/events/:id.
  * 20 requests per 60 seconds.
  */
 export const eventRateLimiter = createRateLimiter({
@@ -250,6 +253,23 @@ export const eventRateLimiter = createRateLimiter({
   max: 20,
   keyPrefix: 'events',
   message: 'Event creation and modification rate limit exceeded. Please slow down.',
+});
+
+/**
+ * 4B. Event Creation Rate Limiter:
+ * Dedicated server-side rate limit to prevent delete + create spam:
+ * Maximum 3 event creation attempts per organization within 10 minutes.
+ */
+export const eventCreationRateLimiter = createRateLimiter({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 3, // max 3 attempts per 10 minutes
+  keyPrefix: 'event_creation',
+  keyGenerator: (req: any) => {
+    const orgId = req.jwtPayload?.organizationId || req.params?.orgId || req.body?.organization_id;
+    if (orgId) return `org:${orgId}`;
+    return req.user?.id || req.ip || 'anonymous';
+  },
+  message: 'Event creation rate limit exceeded: Maximum 3 event creation attempts per 10 minutes per organization.',
 });
 
 /**

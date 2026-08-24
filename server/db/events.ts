@@ -28,10 +28,10 @@ import { getPlatformPricingSettings } from './platformSettings.js';
 import crypto from 'node:crypto';
 
 // In-memory cache fallback for mock / test environments
-const localEventsCache = new Map<string, EventRecord>();
+export const localEventsCache = new Map<string, EventRecord>();
 
 /**
- * Calculates current real-time status of an event based on time windows.
+ * Calculates current real-time status of an event based on time windows and payment status.
  */
 export function calculateEventStatus(
   event: {
@@ -39,11 +39,19 @@ export function calculateEventStatus(
     starts_at: string;
     expires_at: string;
     setup_starts_at?: string | null;
+    payment_status?: string | null;
   },
   now: Date = new Date()
 ): EventStatus {
   const rawStatus = (event.status || '').toLowerCase();
   if (rawStatus === 'cancelled') return 'cancelled';
+
+  // PENDING_PAYMENT events NEVER automatically expire
+  const payStatus = (event.payment_status || '').toUpperCase();
+  if (rawStatus === 'pending_payment' || payStatus === 'PENDING_PAYMENT' || payStatus === 'UNPAID') {
+    return 'pending_payment';
+  }
+
   if (rawStatus === 'draft') return 'draft';
 
   const nowTime = now.getTime();
@@ -57,6 +65,24 @@ export function calculateEventStatus(
     return 'live';
   }
   return 'scheduled';
+}
+
+/**
+ * Counts currently pending-payment events for an organization.
+ * Used to enforce the hard server-side limit of MAXIMUM 2 PENDING_PAYMENT events per org.
+ */
+export async function getPendingEventsCountByOrgId(
+  organizationId: string,
+  env?: Record<string, any>
+): Promise<number> {
+  const events = await getEventsByOrgId(organizationId, env);
+  const pending = events.filter((e) => {
+    const rawStatus = (e.status || '').toLowerCase();
+    const payStatus = (e.payment_status || '').toUpperCase();
+    if (rawStatus === 'cancelled') return false;
+    return rawStatus === 'pending_payment' || payStatus === 'PENDING_PAYMENT' || payStatus === 'UNPAID';
+  });
+  return pending.length;
 }
 
 /**
@@ -302,7 +328,22 @@ export async function getEventsByOrgId(
       throw new Error(`Failed to list events: ${eventsError.message}`);
     }
   } else {
-    events = (eventsData || []) as EventRecord[];
+    events = ((eventsData || []) as EventRecord[]).map((ev) => {
+      const cached = localEventsCache.get(ev.id);
+      if (cached) {
+        return {
+          ...cached,
+          ...ev,
+          status: cached.status || ev.status,
+          payment_status: cached.payment_status || ev.payment_status,
+          payment_mode: cached.payment_mode || ev.payment_mode,
+          paid_amount: cached.paid_amount !== undefined ? cached.paid_amount : ev.paid_amount,
+          event_price: cached.event_price || ev.event_price,
+          event_currency: cached.event_currency || ev.event_currency,
+        };
+      }
+      return ev;
+    });
   }
   if (events.length === 0) return [];
 
@@ -337,11 +378,17 @@ export async function getEventsByOrgId(
     const storedPrice = event.event_price !== undefined && event.event_price !== null
       ? Number(event.event_price)
       : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : 1400.00);
+    const paymentStatus = event.payment_status || (event.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
+    const isPaid = paymentStatus === 'PAID';
 
     return {
       ...event,
       event_price: storedPrice,
       event_currency: event.event_currency || 'MYR',
+      payment_status: paymentStatus,
+      payment_mode: event.payment_mode || (isPaid ? 'FULL_PAID' : undefined),
+      paid_amount: event.paid_amount !== undefined ? event.paid_amount : (isPaid ? storedPrice : 0),
+      discount_amount: event.discount_amount || 0,
       calculated_status: calculated,
       setup_starts_at: setupStartTime.toISOString(),
       cancellation_eligibility: cancellationEligibility,
@@ -394,7 +441,21 @@ export async function getEventById(
       throw new Error(`Failed to get event: ${error.message}`);
     }
   } else {
-    eventRecord = (event as EventRecord) || null;
+    const cached = localEventsCache.get(eventId);
+    if (cached) {
+      eventRecord = {
+        ...cached,
+        ...(event as EventRecord),
+        status: cached.status || (event as EventRecord).status,
+        payment_status: cached.payment_status || (event as EventRecord).payment_status,
+        payment_mode: cached.payment_mode || (event as EventRecord).payment_mode,
+        paid_amount: cached.paid_amount !== undefined ? cached.paid_amount : (event as EventRecord).paid_amount,
+        event_price: cached.event_price || (event as EventRecord).event_price,
+        event_currency: cached.event_currency || (event as EventRecord).event_currency,
+      };
+    } else {
+      eventRecord = (event as EventRecord) || null;
+    }
   }
 
   if (!eventRecord) return null;
@@ -414,14 +475,16 @@ export async function getEventById(
   const storedPrice = eventRecord.event_price !== undefined && eventRecord.event_price !== null
     ? Number(eventRecord.event_price)
     : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : 1400.00);
+  const paymentStatus = eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
+  const isPaid = paymentStatus === 'PAID';
 
   return {
     ...eventRecord,
     event_price: storedPrice,
     event_currency: eventRecord.event_currency || 'MYR',
-    payment_status: eventRecord.payment_status || 'PAID',
-    payment_mode: eventRecord.payment_mode || 'FULL_PAID',
-    paid_amount: eventRecord.paid_amount !== undefined ? eventRecord.paid_amount : storedPrice,
+    payment_status: paymentStatus,
+    payment_mode: eventRecord.payment_mode || (isPaid ? 'FULL_PAID' : undefined),
+    paid_amount: eventRecord.paid_amount !== undefined ? eventRecord.paid_amount : (isPaid ? storedPrice : 0),
     discount_amount: eventRecord.discount_amount || 0,
     calculated_status: calculateEventStatus(eventRecord),
     setup_starts_at: setupStartTime.toISOString(),
@@ -468,7 +531,24 @@ export async function getEventByPublicToken(
       throw new Error(`Failed to get public event: ${error.message}`);
     }
   } else {
-    eventRecord = (event as EventRecord) || null;
+    const raw = (event as EventRecord) || null;
+    if (raw) {
+      const cached = localEventsCache.get(raw.id) || Array.from(localEventsCache.values()).find((e) => e.public_token === publicToken.trim().toUpperCase());
+      if (cached) {
+        eventRecord = {
+          ...cached,
+          ...raw,
+          status: cached.status || raw.status,
+          payment_status: cached.payment_status || raw.payment_status,
+          payment_mode: cached.payment_mode || raw.payment_mode,
+          paid_amount: cached.paid_amount !== undefined ? cached.paid_amount : raw.paid_amount,
+          event_price: cached.event_price || raw.event_price,
+          event_currency: cached.event_currency || raw.event_currency,
+        };
+      } else {
+        eventRecord = raw;
+      }
+    }
   }
 
   if (!eventRecord) return null;
@@ -493,8 +573,20 @@ export async function getEventByPublicToken(
     orgSlug = orgData.slug;
   }
 
+  const paymentStatus = eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
+  const isPaid = paymentStatus === 'PAID';
+  const storedPrice = eventRecord.event_price !== undefined && eventRecord.event_price !== null
+    ? Number(eventRecord.event_price)
+    : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : 1400.00);
+
   return {
     ...eventRecord,
+    event_price: storedPrice,
+    event_currency: eventRecord.event_currency || 'MYR',
+    payment_status: paymentStatus,
+    payment_mode: eventRecord.payment_mode || (isPaid ? 'FULL_PAID' : undefined),
+    paid_amount: eventRecord.paid_amount !== undefined ? eventRecord.paid_amount : (isPaid ? storedPrice : 0),
+    discount_amount: eventRecord.discount_amount || 0,
     calculated_status: calculateEventStatus(eventRecord),
     game_theme: theme,
     game: game
@@ -513,6 +605,7 @@ export async function getEventByPublicToken(
 /**
  * Create a new Event record in the database.
  * Verifies that the referenced Game Theme belongs to the same Organization (or is a system theme).
+ * Enforces the hard limit of MAXIMUM 2 PENDING_PAYMENT events per organization.
  */
 export async function createEvent(
   params: {
@@ -523,13 +616,14 @@ export async function createEvent(
     starts_at: string;
     expires_at: string;
     status?: EventStatus;
-    payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED';
+    payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED' | 'PENDING_PAYMENT';
     payment_mode?: PaymentMode;
     paid_amount?: number;
     discount_amount?: number;
     event_price?: number;
     event_currency?: string;
     created_by?: string | null;
+    skipPendingLimitCheck?: boolean;
   },
   env?: Record<string, any>
 ): Promise<EventRecord> {
@@ -557,7 +651,22 @@ export async function createEvent(
     throw new Error('Expiry time must be later than start time');
   }
 
-  // 3. Resolve server-authoritative event pricing if not supplied
+  // 3. Enforce maximum 2 PENDING_PAYMENT events limit per organization
+  const isPending = (params.payment_status || 'PENDING_PAYMENT') === 'PENDING_PAYMENT' ||
+    params.payment_status === 'UNPAID' ||
+    params.status === 'pending_payment';
+
+  if (isPending && !params.skipPendingLimitCheck) {
+    const pendingCount = await getPendingEventsCountByOrgId(params.organization_id, env);
+    if (pendingCount >= 2) {
+      const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
+      err.code = 'PENDING_EVENT_LIMIT_REACHED';
+      err.status = 422;
+      throw err;
+    }
+  }
+
+  // 4. Resolve server-authoritative event pricing if not supplied
   let price = params.event_price;
   let currency = params.event_currency || 'MYR';
   if (!price || price <= 0) {
@@ -566,7 +675,7 @@ export async function createEvent(
     currency = defaultPricing.default_currency;
   }
 
-  // 4. Generate collision-resistant unique token
+  // 5. Generate collision-resistant unique token
   let token = generatePublicToken();
   let attempts = 0;
   while (attempts < 5) {
@@ -583,7 +692,9 @@ export async function createEvent(
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  const initialStatus = params.status || 'scheduled';
+  const initialStatus: EventStatus = params.status || (isPending ? 'pending_payment' : 'scheduled');
+  const initialPaymentStatus = params.payment_status || (isPending ? 'PENDING_PAYMENT' : 'PAID');
+  const safePaidAmount = params.paid_amount !== undefined ? params.paid_amount : (initialPaymentStatus === 'PAID' ? price : 0);
 
   const dbPayload: any = {
     id,
@@ -594,6 +705,7 @@ export async function createEvent(
     starts_at: new Date(params.starts_at).toISOString(),
     expires_at: new Date(params.expires_at).toISOString(),
     status: initialStatus,
+    payment_status: initialPaymentStatus,
     event_price: price,
     event_currency: currency,
     public_token: token,
@@ -609,28 +721,66 @@ export async function createEvent(
     .single();
 
   if (error) {
-    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
-      const fullRecord: EventRecord = {
-        ...dbPayload,
-        payment_status: params.payment_status || 'PAID',
-        payment_mode: params.payment_mode || 'FULL_PAID',
-        paid_amount: params.paid_amount !== undefined ? params.paid_amount : price,
-        discount_amount: params.discount_amount || 0,
-        event_price: price,
-        event_currency: currency,
+    // If schema cache lacks newly added columns (PGRST204) or check constraint (23514) on status:
+    if (
+      error.code === 'PGRST204' ||
+      error.code === '23514' ||
+      error.message?.includes('schema cache') ||
+      error.message?.includes('violates check constraint')
+    ) {
+      // Create a compatible payload with core columns only
+      const compatiblePayload = {
+        id,
+        organization_id: params.organization_id,
+        game_theme_id: params.game_theme_id,
+        name: params.name.trim(),
+        event_date: params.event_date || params.starts_at.split('T')[0],
+        starts_at: new Date(params.starts_at).toISOString(),
+        expires_at: new Date(params.expires_at).toISOString(),
+        status: (initialStatus === 'pending_payment' ? 'draft' : initialStatus) as any,
+        public_token: token,
+        created_by: params.created_by || null,
+        created_at: now,
+        updated_at: now,
       };
-      localEventsCache.set(dbPayload.id, fullRecord);
-      return fullRecord;
+
+      const retry = await supabase
+        .from('events')
+        .insert(compatiblePayload)
+        .select()
+        .single();
+
+      if (!retry.error) {
+        data = retry.data;
+        error = null;
+      }
     }
-    console.error('Error in createEvent:', error);
-    throw new Error(`Failed to create event: ${error.message}`);
+
+    if (error) {
+      if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+        const fullRecord: EventRecord = {
+          ...dbPayload,
+          payment_status: initialPaymentStatus,
+          payment_mode: params.payment_mode || (initialPaymentStatus === 'PAID' ? 'FULL_PAID' : undefined),
+          paid_amount: safePaidAmount,
+          discount_amount: params.discount_amount || 0,
+          event_price: price,
+          event_currency: currency,
+        };
+        localEventsCache.set(dbPayload.id, fullRecord);
+        return fullRecord;
+      }
+      console.error('Error in createEvent:', error);
+      throw new Error(`Failed to create event: ${error.message}`);
+    }
   }
 
   const fullRecord: EventRecord = {
     ...(data as any),
-    payment_status: params.payment_status || 'PAID',
-    payment_mode: params.payment_mode || 'FULL_PAID',
-    paid_amount: params.paid_amount !== undefined ? params.paid_amount : price,
+    status: initialStatus,
+    payment_status: initialPaymentStatus,
+    payment_mode: params.payment_mode || (initialPaymentStatus === 'PAID' ? 'FULL_PAID' : undefined),
+    paid_amount: safePaidAmount,
     discount_amount: params.discount_amount || 0,
     event_price: price,
     event_currency: currency,

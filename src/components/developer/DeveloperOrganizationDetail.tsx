@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { apiFetch } from '../../lib/api';
 import {
   Building2,
   ArrowLeft,
@@ -107,7 +108,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/developer/organizations/${orgId}`);
+      const res = await apiFetch(`/api/developer/organizations/${orgId}`);
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || `Failed to fetch organization details (${res.status})`);
@@ -133,7 +134,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
     setRecalculating(true);
     setActionMessage(null);
     try {
-      const res = await fetch(`/api/developer/organizations/${orgId}/wallet/recalculate`, {
+      const res = await apiFetch(`/api/developer/organizations/${orgId}/wallet/recalculate`, {
         method: 'POST',
       });
       const resJson = await res.json();

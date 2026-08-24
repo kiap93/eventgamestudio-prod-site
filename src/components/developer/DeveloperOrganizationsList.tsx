@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { apiFetch } from '../../lib/api';
 import {
   Building2,
   Search,
@@ -50,7 +51,7 @@ export const DeveloperOrganizationsList: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/developer/organizations');
+      const res = await apiFetch('/api/developer/organizations');
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Failed to fetch organizations (${res.status})`);
