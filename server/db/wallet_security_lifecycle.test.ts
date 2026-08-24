@@ -17,6 +17,7 @@
  */
 
 import crypto from 'node:crypto';
+import { getSupabaseServerClient } from '../supabase.js';
 import {
   getWalletBalance,
   createTopupOrder,
@@ -36,6 +37,24 @@ import {
 let passed = 0;
 let failed = 0;
 
+async function ensureTestOrg(orgId: string) {
+  const supabase = getSupabaseServerClient();
+  try {
+    const { data: users } = await supabase.from('users').select('id').limit(1);
+    const validOwnerId = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+    await supabase.from('organizations').upsert({
+      id: orgId,
+      name: `Test Org ${orgId.slice(0, 8)}`,
+      slug: `test-org-${orgId.slice(0, 8)}`,
+      owner_id: validOwnerId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  } catch {
+    // Ignore in local mode
+  }
+}
+
 function assertEqual(actual: any, expected: any, testName: string) {
   if (actual === expected) {
     console.log(`  ✓ PASS: ${testName} (expected ${expected}, got ${actual})`);
@@ -51,11 +70,17 @@ async function runSecurityTests() {
   console.log(' RUNNING WALLET TOP-UP SECURITY & LIFECYCLE TESTS');
   console.log('======================================================\n');
 
-  const orgAId = `11111111-aaaa-4000-8000-${crypto.randomUUID().slice(24)}`;
-  const orgBId = `22222222-bbbb-4000-8000-${crypto.randomUUID().slice(24)}`;
-  const userOrgAOwner = `owner-a-${crypto.randomUUID().slice(24)}`;
-  const userOrgBAdmin = `admin-b-${crypto.randomUUID().slice(24)}`;
-  const devAdminUser = `dev-superadmin-${crypto.randomUUID().slice(24)}`;
+  const orgAId = crypto.randomUUID();
+  const orgBId = crypto.randomUUID();
+
+  const supabase = getSupabaseServerClient();
+  const { data: users } = await supabase.from('users').select('id').limit(5);
+  const userOrgAOwner = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+  const userOrgBAdmin = users?.[1]?.id || users?.[0]?.id || '77d03383-9622-4c58-a447-3d0c6cfb9f96';
+  const devAdminUser = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+
+  await ensureTestOrg(orgAId);
+  await ensureTestOrg(orgBId);
 
   // ----------------------------------------------------
   // TEST 1: DIRECT TOPUP MUTATION IS FORBIDDEN & REJECTED

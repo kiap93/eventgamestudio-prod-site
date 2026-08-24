@@ -46,11 +46,13 @@ let failed = 0;
 async function ensureTestOrg(orgId: string) {
   const supabase = getSupabaseServerClient();
   try {
+    const { data: users } = await supabase.from('users').select('id').limit(1);
+    const validOwnerId = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
     await supabase.from('organizations').upsert({
       id: orgId,
       name: `Test Org ${orgId.slice(0, 8)}`,
       slug: `test-org-${orgId.slice(0, 8)}`,
-      owner_id: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+      owner_id: validOwnerId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -233,7 +235,7 @@ async function runTests() {
 
   const testOrgPhase3 = crypto.randomUUID();
   await ensureTestOrg(testOrgPhase3);
-  const testUserId = '6de8515d-cd56-4ef8-80f0-3d5f34fa291e';
+  const testUserId = '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
 
   // 1. Create RM6,000 order (Qualifies for 5% = RM300 expected credit)
   const order6k = await createTopupOrder({

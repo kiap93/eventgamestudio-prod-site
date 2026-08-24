@@ -11,7 +11,7 @@ async function runTests() {
   // Test 1: Create Organization (Starts with 0 paid balance and RM800 Welcome Credit)
   const org = await createOrganization({
     name: 'Shortfall Test Corp ' + Date.now(),
-    owner_id: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+    owner_id: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
   });
 
   const initialWallet = await getWalletBalance(org.id);
@@ -54,7 +54,7 @@ async function runTests() {
   // Test 3: Create Top Up Order with exact shortfall (RM 600)
   const topUpOrder = await createTopupOrder({
     organizationId: org.id,
-    userId: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+    userId: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
     amount: 600,
     currency: 'MYR',
     notes: 'Cover shortfall for event creation',
@@ -73,7 +73,7 @@ async function runTests() {
     newStatus: 'PAID',
     paymentMethod: 'card',
     paymentReference: 'test_ref_shortfall_paid',
-    processedBy: '6de8515d-cd56-4ef8-80f0-3d5f34fa291e',
+    processedBy: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
     isTrustedSettlement: true,
   });
 
