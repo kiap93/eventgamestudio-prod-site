@@ -5,6 +5,7 @@ export type PresentationMode =
   | 'landing'
   | 'public_game'
   | 'public_event'
+  | 'event_preview'
   | 'studio'
   | 'studio_preview'
   | 'login'
@@ -16,6 +17,7 @@ export interface RouteContext {
   mode: PresentationMode;
   isPublicGameRoute: boolean;
   isPublicEventRoute: boolean;
+  isEventPreviewRoute: boolean;
   isStudioRoute: boolean;
   isPreviewRoute: boolean;
   isDeveloperAdminRoute: boolean;
@@ -72,6 +74,7 @@ export function parseRoute(pathname: string): RouteContext {
       mode: 'landing',
       isPublicGameRoute: false,
       isPublicEventRoute: false,
+      isEventPreviewRoute: false,
       isStudioRoute: false,
       isPreviewRoute: false,
       isDeveloperAdminRoute: false,
@@ -124,6 +127,7 @@ export function parseRoute(pathname: string): RouteContext {
       mode: 'developer_admin',
       isPublicGameRoute: false,
       isPublicEventRoute: false,
+      isEventPreviewRoute: false,
       isStudioRoute: false,
       isPreviewRoute: false,
       isDeveloperAdminRoute: true,
@@ -136,12 +140,13 @@ export function parseRoute(pathname: string): RouteContext {
     };
   }
 
-  // 1. Check for Public Event Route: /e/:publicToken
-  if (parts.length >= 2 && parts[0].toLowerCase() === 'e') {
+  // 1. Check for Public Event Routes: /play/:publicToken or /e/:publicToken
+  if (parts.length >= 2 && (parts[0].toLowerCase() === 'e' || parts[0].toLowerCase() === 'play')) {
     return {
       mode: 'public_event',
       isPublicGameRoute: true,
       isPublicEventRoute: true,
+      isEventPreviewRoute: false,
       isStudioRoute: false,
       isPreviewRoute: false,
       isDeveloperAdminRoute: false,
@@ -151,12 +156,44 @@ export function parseRoute(pathname: string): RouteContext {
     };
   }
 
+  // 1.5. Check for Authenticated Event Preview Route: /events/:eventId/preview or /events/preview/:eventId
+  if (parts.length >= 2 && parts[0].toLowerCase() === 'events') {
+    if (parts.length >= 3 && parts[2].toLowerCase() === 'preview') {
+      return {
+        mode: 'event_preview',
+        isPublicGameRoute: false,
+        isPublicEventRoute: false,
+        isEventPreviewRoute: true,
+        isStudioRoute: true,
+        isPreviewRoute: true,
+        isDeveloperAdminRoute: false,
+        eventId: parts[1],
+        gameType: queryGameType,
+        pathname: cleanPath,
+      };
+    } else if (parts[1]?.toLowerCase() === 'preview' && parts[2]) {
+      return {
+        mode: 'event_preview',
+        isPublicGameRoute: false,
+        isPublicEventRoute: false,
+        isEventPreviewRoute: true,
+        isStudioRoute: true,
+        isPreviewRoute: true,
+        isDeveloperAdminRoute: false,
+        eventId: parts[2],
+        gameType: queryGameType,
+        pathname: cleanPath,
+      };
+    }
+  }
+
   // 2. Check for Accept Invite
   if (cleanPath.startsWith('/accept-invite')) {
     return {
       mode: 'accept_invite',
       isPublicGameRoute: false,
       isPublicEventRoute: false,
+      isEventPreviewRoute: false,
       isStudioRoute: false,
       isPreviewRoute: false,
       isDeveloperAdminRoute: false,
@@ -170,6 +207,7 @@ export function parseRoute(pathname: string): RouteContext {
       mode: 'create_org',
       isPublicGameRoute: false,
       isPublicEventRoute: false,
+      isEventPreviewRoute: false,
       isStudioRoute: false,
       isPreviewRoute: false,
       isDeveloperAdminRoute: false,
@@ -183,6 +221,7 @@ export function parseRoute(pathname: string): RouteContext {
       mode: 'login',
       isPublicGameRoute: false,
       isPublicEventRoute: false,
+      isEventPreviewRoute: false,
       isStudioRoute: false,
       isPreviewRoute: false,
       isDeveloperAdminRoute: false,
@@ -196,6 +235,7 @@ export function parseRoute(pathname: string): RouteContext {
       mode: 'landing',
       isPublicGameRoute: false,
       isPublicEventRoute: false,
+      isEventPreviewRoute: false,
       isStudioRoute: false,
       isPreviewRoute: false,
       isDeveloperAdminRoute: false,
@@ -218,6 +258,7 @@ export function parseRoute(pathname: string): RouteContext {
     mode: 'studio',
     isPublicGameRoute: false,
     isPublicEventRoute: false,
+    isEventPreviewRoute: false,
     isStudioRoute: true,
     isPreviewRoute: false,
     isDeveloperAdminRoute: false,

@@ -3,6 +3,15 @@
 -- EVENT GAME STUDIO - ATOMIC EVENT PAYMENT RPC / TRANSACTION ENGINE
 -- ==============================================================================
 
+-- 0. Ensure events table has required payment tracking columns
+ALTER TABLE public.events 
+  ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'UNPAID',
+  ADD COLUMN IF NOT EXISTS payment_mode TEXT,
+  ADD COLUMN IF NOT EXISTS event_price NUMERIC(10, 2) NOT NULL DEFAULT 1400.00,
+  ADD COLUMN IF NOT EXISTS event_currency TEXT NOT NULL DEFAULT 'MYR',
+  ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(10, 2) DEFAULT 0.00,
+  ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10, 2) DEFAULT 0.00;
+
 CREATE OR REPLACE FUNCTION public.process_event_payment_atomic(
   p_organization_id UUID,
   p_event_id UUID,

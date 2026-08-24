@@ -290,7 +290,13 @@ CREATE TABLE IF NOT EXISTS public.events (
   event_date TEXT,
   starts_at TIMESTAMPTZ NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
-  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('draft', 'scheduled', 'live', 'expired', 'cancelled')),
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('draft', 'scheduled', 'live', 'expired', 'cancelled', 'pending_payment')),
+  payment_status TEXT NOT NULL DEFAULT 'UNPAID' CHECK (payment_status IN ('PAID', 'UNPAID', 'REFUNDED', 'PENDING_PAYMENT')),
+  payment_mode TEXT,
+  event_price NUMERIC(10, 2) NOT NULL DEFAULT 1400.00,
+  event_currency TEXT NOT NULL DEFAULT 'MYR',
+  paid_amount NUMERIC(10, 2) DEFAULT 0.00,
+  discount_amount NUMERIC(10, 2) DEFAULT 0.00,
   public_token TEXT UNIQUE NOT NULL,
   created_by UUID REFERENCES public.users (id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
@@ -300,6 +306,12 @@ CREATE TABLE IF NOT EXISTS public.events (
 -- Safely add any missing columns to existing events table
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS event_date TEXT;
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'scheduled';
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'UNPAID';
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS payment_mode TEXT;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS event_price NUMERIC(10, 2) NOT NULL DEFAULT 1400.00;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS event_currency TEXT NOT NULL DEFAULT 'MYR';
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(10, 2) DEFAULT 0.00;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10, 2) DEFAULT 0.00;
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS public_token TEXT;
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS created_by UUID;
 
@@ -308,6 +320,7 @@ CREATE INDEX IF NOT EXISTS idx_events_org_id ON public.events (organization_id);
 CREATE INDEX IF NOT EXISTS idx_events_game_theme_id ON public.events (game_theme_id);
 CREATE INDEX IF NOT EXISTS idx_events_public_token ON public.events (public_token);
 CREATE INDEX IF NOT EXISTS idx_events_status ON public.events (status);
+CREATE INDEX IF NOT EXISTS idx_events_payment_status ON public.events (payment_status);
 CREATE INDEX IF NOT EXISTS idx_events_starts_at ON public.events (starts_at);
 CREATE INDEX IF NOT EXISTS idx_events_expires_at ON public.events (expires_at);
 

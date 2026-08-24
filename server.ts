@@ -1839,8 +1839,42 @@ app.post('/api/events/:eventId/cancel', eventRateLimiter, authenticateJWT, async
 });
 
 /**
+ * GET /api/events/:eventId/preview
+ * Authenticated preview endpoint for organization members & designers to test play and configure
+ */
+app.get('/api/events/:eventId/preview', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view');
+    if (!isMember) {
+      res.status(403).json({ error: 'Forbidden: Access denied to this event preview' });
+      return;
+    }
+
+    res.json({
+      event: {
+        ...event,
+        is_preview: true,
+      },
+    });
+  } catch (err: any) {
+    console.error('Get event preview error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * GET /api/public/events/:publicToken
- * Public unauthenticated endpoint for event players
+ * Public unauthenticated endpoint for event players.
+ * STRICTLY ENFORCES: Public play is only accessible for PAID, non-cancelled events.
  */
 app.get('/api/public/events/:publicToken', async (req, res) => {
   try {
@@ -1850,13 +1884,33 @@ app.get('/api/public/events/:publicToken', async (req, res) => {
       return;
     }
 
-    const event = await getEventByPublicToken(publicToken);
-    if (!event) {
+    const rawEvent = await getEventByPublicToken(publicToken, undefined, { allowUnpaid: true });
+    if (!rawEvent) {
       res.status(404).json({ error: 'Event not found or invalid URL' });
       return;
     }
 
-    res.json({ event });
+    if (rawEvent.status === 'cancelled') {
+      res.status(403).json({
+        error: 'This event has been cancelled by the organizer.',
+        code: 'EVENT_CANCELLED',
+        is_cancelled: true,
+      });
+      return;
+    }
+
+    if (rawEvent.payment_status !== 'PAID' || rawEvent.status === 'pending_payment') {
+      res.status(403).json({
+        error: 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
+        code: 'PAYMENT_REQUIRED',
+        is_pending_payment: true,
+        event_id: rawEvent.id,
+        event_name: rawEvent.name,
+      });
+      return;
+    }
+
+    res.json({ event: rawEvent });
   } catch (err: any) {
     console.error('Public event resolution error:', err);
     res.status(500).json({ error: err.message });
@@ -1927,7 +1981,7 @@ app.post('/api/events/:eventId/high-scores', highScoreRateLimiter, async (req, r
 
 /**
  * GET /api/public/events/:publicToken/high-scores
- * Public endpoint to get high scores by public event token
+ * Public endpoint to get high scores by public event token (PAID events only)
  */
 app.get('/api/public/events/:publicToken/high-scores', async (req, res) => {
   try {
@@ -1935,9 +1989,9 @@ app.get('/api/public/events/:publicToken/high-scores', async (req, res) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
     const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
 
-    const event = await getEventByPublicToken(publicToken);
+    const event = await getEventByPublicToken(publicToken, undefined, { allowUnpaid: false });
     if (!event) {
-      res.status(404).json({ error: 'Event not found or invalid link' });
+      res.status(404).json({ error: 'Event not found or payment pending' });
       return;
     }
 
@@ -1955,7 +2009,7 @@ app.get('/api/public/events/:publicToken/high-scores', async (req, res) => {
 
 /**
  * POST /api/public/events/:publicToken/high-scores
- * Public endpoint to submit score by public event token
+ * Public endpoint to submit score by public event token (PAID events only)
  */
 app.post('/api/public/events/:publicToken/high-scores', highScoreRateLimiter, async (req, res) => {
   try {
@@ -1967,9 +2021,9 @@ app.post('/api/public/events/:publicToken/high-scores', highScoreRateLimiter, as
       return;
     }
 
-    const event = await getEventByPublicToken(publicToken);
+    const event = await getEventByPublicToken(publicToken, undefined, { allowUnpaid: false });
     if (!event) {
-      res.status(404).json({ error: 'Event not found or invalid link' });
+      res.status(404).json({ error: 'Event not found or payment pending' });
       return;
     }
 

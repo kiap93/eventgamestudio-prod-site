@@ -1572,6 +1572,32 @@ export default {
         return jsonResponse({ events }, 200, cors);
       }
 
+      const getEventPreviewParams = parseRoute('/api/events/:eventId/preview', pathname);
+      if (getEventPreviewParams && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = getEventPreviewParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view', env);
+        if (!isMember) {
+          return errorResponse('Forbidden: Access denied to this event preview', 403, cors);
+        }
+
+        return jsonResponse({
+          event: {
+            ...event,
+            is_preview: true,
+          },
+        }, 200, cors);
+      }
+
       const getEventParams = parseRoute('/api/events/:eventId', pathname);
       if (getEventParams && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
@@ -1993,12 +2019,30 @@ export default {
           return errorResponse('Public token required', 422, cors);
         }
 
-        const event = await getEventByPublicToken(publicToken, env);
-        if (!event) {
+        const rawEvent = await getEventByPublicToken(publicToken, env, { allowUnpaid: true });
+        if (!rawEvent) {
           return errorResponse('Event not found or invalid URL', 404, cors);
         }
 
-        return jsonResponse({ event }, 200, cors);
+        if (rawEvent.status === 'cancelled') {
+          return jsonResponse({
+            error: 'This event has been cancelled by the organizer.',
+            code: 'EVENT_CANCELLED',
+            is_cancelled: true,
+          }, 403, cors);
+        }
+
+        if (rawEvent.payment_status !== 'PAID' || rawEvent.status === 'pending_payment') {
+          return jsonResponse({
+            error: 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
+            code: 'PAYMENT_REQUIRED',
+            is_pending_payment: true,
+            event_id: rawEvent.id,
+            event_name: rawEvent.name,
+          }, 403, cors);
+        }
+
+        return jsonResponse({ event: rawEvent }, 200, cors);
       }
 
       // ==========================================
@@ -2013,9 +2057,9 @@ export default {
           return errorResponse('Public token required', 422, cors);
         }
 
-        const event = await getEventByPublicToken(publicToken, env);
+        const event = await getEventByPublicToken(publicToken, env, { allowUnpaid: false });
         if (!event) {
-          return errorResponse('Event not found or invalid link', 404, cors);
+          return errorResponse('Event not found or payment pending', 404, cors);
         }
 
         const limit = Number(url.searchParams.get('limit') || 20);
@@ -2036,9 +2080,9 @@ export default {
           return errorResponse('Public token required', 422, cors);
         }
 
-        const event = await getEventByPublicToken(publicToken, env);
+        const event = await getEventByPublicToken(publicToken, env, { allowUnpaid: false });
         if (!event) {
-          return errorResponse('Event not found or invalid link', 404, cors);
+          return errorResponse('Event not found or payment pending', 404, cors);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;

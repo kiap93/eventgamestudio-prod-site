@@ -156,7 +156,13 @@ CREATE TABLE IF NOT EXISTS public.events (
   event_date TEXT,
   starts_at TIMESTAMPTZ NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
-  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('draft', 'scheduled', 'live', 'expired', 'cancelled')),
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('draft', 'scheduled', 'live', 'expired', 'cancelled', 'pending_payment')),
+  payment_status TEXT NOT NULL DEFAULT 'UNPAID' CHECK (payment_status IN ('PAID', 'UNPAID', 'REFUNDED', 'PENDING_PAYMENT')),
+  payment_mode TEXT,
+  event_price NUMERIC(10, 2) NOT NULL DEFAULT 1400.00,
+  event_currency TEXT NOT NULL DEFAULT 'MYR',
+  paid_amount NUMERIC(10, 2) DEFAULT 0.00,
+  discount_amount NUMERIC(10, 2) DEFAULT 0.00,
   public_token TEXT UNIQUE NOT NULL,
   created_by UUID REFERENCES public.users (id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
@@ -167,6 +173,7 @@ CREATE INDEX IF NOT EXISTS idx_events_org_id ON public.events (organization_id);
 CREATE INDEX IF NOT EXISTS idx_events_game_theme_id ON public.events (game_theme_id);
 CREATE INDEX IF NOT EXISTS idx_events_public_token ON public.events (public_token);
 CREATE INDEX IF NOT EXISTS idx_events_status ON public.events (status);
+CREATE INDEX IF NOT EXISTS idx_events_payment_status ON public.events (payment_status);
 CREATE INDEX IF NOT EXISTS idx_events_starts_expires ON public.events (starts_at, expires_at);
 
 -- ------------------------------------------------------------------------------
@@ -611,13 +618,18 @@ AS $$
 DECLARE
   v_wallet RECORD;
   v_event RECORD;
-  v_event_price NUMERIC := COALESCE(p_event_price, 1400.00);
+  v_event_price NUMERIC;
   v_credit_to_use NUMERIC := 0.00;
+  v_welcome_to_use NUMERIC := 0.00;
+  v_showcase_to_use NUMERIC := 0.00;
+  v_topup_to_use NUMERIC := 0.00;
   v_paid_to_use NUMERIC := 0.00;
   v_credit_balance_type TEXT := NULL;
   v_credit_txn RECORD;
+  v_topup_credit_txn RECORD;
   v_paid_txn RECORD;
   v_credit_ref TEXT;
+  v_topup_ref TEXT;
   v_paid_ref TEXT;
   v_now TIMESTAMPTZ := timezone('utc'::text, now());
   v_existing_payment RECORD;
@@ -634,15 +646,34 @@ BEGIN
     RAISE EXCEPTION 'Event ID is required';
   END IF;
 
-  IF p_payment_mode NOT IN ('FULL_PAID', 'WELCOME_CREDIT', 'SHOWCASE_CREDIT', 'TOPUP_CREDIT') THEN
+  IF p_payment_mode NOT IN ('FULL_PAID', 'WELCOME_CREDIT', 'SHOWCASE_CREDIT', 'TOPUP_CREDIT', 'COMBINED_CREDIT') THEN
     RAISE EXCEPTION 'Invalid payment mode: %', p_payment_mode;
+  END IF;
+
+  -- 2. Lock & Validate Event Record (if exists in events table)
+  SELECT * INTO v_event
+  FROM public.events
+  WHERE id = p_event_id
+  FOR UPDATE;
+
+  IF v_event.id IS NOT NULL THEN
+    IF v_event.organization_id <> p_organization_id THEN
+      RAISE EXCEPTION 'Security Error: Event does not belong to your organization';
+    END IF;
+    IF v_event.payment_status = 'PAID' THEN
+      RAISE EXCEPTION 'Event is already marked as PAID';
+    END IF;
+    -- Server-Authoritative: Event's own stored price takes precedence
+    v_event_price := COALESCE(v_event.event_price, p_event_price, 1400.00);
+  ELSE
+    v_event_price := COALESCE(p_event_price, 1400.00);
   END IF;
 
   IF v_event_price <= 0 THEN
     RAISE EXCEPTION 'Event price must be greater than 0';
   END IF;
 
-  -- 2. Idempotency Protection: Check if event is already paid in transaction ledger
+  -- 3. Idempotency Protection: Check if event is already paid in transaction ledger
   SELECT * INTO v_existing_payment
   FROM public.wallet_transactions
   WHERE organization_id = p_organization_id
@@ -682,7 +713,7 @@ BEGIN
     );
   END IF;
 
-  -- 3. Lock & Validate Organization Wallet (Row-level lock prevents race conditions & double-spend)
+  -- 4. Lock & Validate Organization Wallet
   SELECT * INTO v_wallet
   FROM public.organization_wallets
   WHERE organization_id = p_organization_id
@@ -705,22 +736,7 @@ BEGIN
     RETURNING * INTO v_wallet;
   END IF;
 
-  -- 4. Lock & Validate Event Record (if exists in events table)
-  SELECT * INTO v_event
-  FROM public.events
-  WHERE id = p_event_id
-  FOR UPDATE;
-
-  IF v_event.id IS NOT NULL THEN
-    IF v_event.organization_id <> p_organization_id THEN
-      RAISE EXCEPTION 'Security Error: Event does not belong to your organization';
-    END IF;
-    IF v_event.payment_status = 'PAID' THEN
-      RAISE EXCEPTION 'Event is already marked as PAID';
-    END IF;
-  END IF;
-
-  -- 5. Calculate and validate business rules for payment mode
+  -- 5. Calculate and validate business rules for payment mode based on authoritative v_event_price
   IF p_payment_mode = 'FULL_PAID' THEN
     v_credit_to_use := 0.00;
     v_paid_to_use := v_event_price;
@@ -732,7 +748,8 @@ BEGIN
 
   ELSIF p_payment_mode = 'WELCOME_CREDIT' THEN
     v_credit_balance_type := 'WELCOME_CREDIT';
-    v_credit_to_use := LEAST(800.00, v_event_price);
+    v_welcome_to_use := LEAST(800.00, v_wallet.welcome_credit, v_event_price);
+    v_credit_to_use := v_welcome_to_use;
     v_paid_to_use := v_event_price - v_credit_to_use;
 
     IF v_wallet.welcome_credit < v_credit_to_use THEN
@@ -747,7 +764,8 @@ BEGIN
 
   ELSIF p_payment_mode = 'SHOWCASE_CREDIT' THEN
     v_credit_balance_type := 'SHOWCASE_CREDIT';
-    v_credit_to_use := LEAST(300.00, v_event_price);
+    v_showcase_to_use := LEAST(300.00, v_wallet.showcase_credit, v_event_price);
+    v_credit_to_use := v_showcase_to_use;
     v_paid_to_use := v_event_price - v_credit_to_use;
 
     IF v_wallet.showcase_credit < v_credit_to_use THEN
@@ -763,70 +781,200 @@ BEGIN
   ELSIF p_payment_mode = 'TOPUP_CREDIT' THEN
     v_credit_balance_type := 'TOPUP_CREDIT';
     v_max_cap := ROUND(v_event_price * 0.20, 2);
-    v_req := COALESCE(p_topup_credit_requested, v_max_cap);
-    v_credit_to_use := LEAST(v_req, v_max_cap, v_wallet.topup_credit, v_event_price);
+
+    IF p_topup_credit_requested > 0 THEN
+      IF p_topup_credit_requested > v_max_cap THEN
+        RAISE EXCEPTION 'Top-up Credit cannot exceed 20%% of event price (Max RM%).', ROUND(v_max_cap, 2)::text;
+      END IF;
+      v_req := p_topup_credit_requested;
+    ELSE
+      v_req := v_max_cap;
+    END IF;
+
+    v_topup_to_use := LEAST(v_wallet.topup_credit, v_max_cap, v_req, v_event_price);
+    v_credit_to_use := v_topup_to_use;
     v_paid_to_use := v_event_price - v_credit_to_use;
 
-    IF v_wallet.topup_credit < v_credit_to_use THEN
-      RAISE EXCEPTION 'Insufficient Top-up Credit. Required: RM%, Available: RM%.',
-        ROUND(v_credit_to_use, 2)::text, ROUND(v_wallet.topup_credit, 2)::text;
+    IF v_credit_to_use <= 0 AND v_wallet.topup_credit <= 0 THEN
+      RAISE EXCEPTION 'No Top-up Credit available in wallet.';
     END IF;
 
     IF v_wallet.paid_balance < v_paid_to_use THEN
       RAISE EXCEPTION 'Insufficient Paid Balance for Top-up Credit payment. Required: RM%, Available: RM%.',
         ROUND(v_paid_to_use, 2)::text, ROUND(v_wallet.paid_balance, 2)::text;
     END IF;
+
+  ELSIF p_payment_mode = 'COMBINED_CREDIT' THEN
+    -- Welcome credit component
+    v_welcome_to_use := LEAST(800.00, v_wallet.welcome_credit, v_event_price);
+    
+    -- Topup credit component (20% cap)
+    v_max_cap := ROUND(v_event_price * 0.20, 2);
+    IF p_topup_credit_requested > 0 THEN
+      v_req := LEAST(p_topup_credit_requested, v_max_cap);
+    ELSE
+      v_req := v_max_cap;
+    END IF;
+    
+    v_topup_to_use := LEAST(v_wallet.topup_credit, v_max_cap, v_req, v_event_price - v_welcome_to_use);
+    v_credit_to_use := v_welcome_to_use + v_topup_to_use;
+    v_paid_to_use := v_event_price - v_credit_to_use;
+
+    IF v_wallet.paid_balance < v_paid_to_use THEN
+      RAISE EXCEPTION 'Insufficient Paid Balance for Combined Credit payment. Required: RM%, Available: RM%.',
+        ROUND(v_paid_to_use, 2)::text, ROUND(v_wallet.paid_balance, 2)::text;
+    END IF;
   END IF;
 
-  -- 6. Setup references
-  IF p_reference_id IS NOT NULL AND p_reference_id <> '' THEN
-    v_credit_ref := p_reference_id || '_credit';
-    v_paid_ref := p_reference_id || '_paid';
+  -- 6. Insert promotional credit transaction(s) into ledger if used
+  IF p_payment_mode = 'COMBINED_CREDIT' THEN
+    IF v_welcome_to_use > 0 THEN
+      v_credit_ref := COALESCE(p_reference_id || '_welcome_credit', 'event_' || p_event_id::text || '_welcome_credit');
+      INSERT INTO public.wallet_transactions (
+        organization_id,
+        event_id,
+        transaction_type,
+        balance_type,
+        amount,
+        currency,
+        status,
+        reference_id,
+        description,
+        metadata,
+        created_by,
+        created_at
+      ) VALUES (
+        p_organization_id,
+        p_event_id,
+        'CREDIT_USAGE',
+        'WELCOME_CREDIT',
+        -v_welcome_to_use,
+        'MYR',
+        'COMPLETED',
+        v_credit_ref,
+        COALESCE(p_description, 'Applied RM' || ROUND(v_welcome_to_use, 2)::text || ' Welcome Credit discount'),
+        p_metadata || jsonb_build_object(
+          'event_id', p_event_id,
+          'payment_mode', p_payment_mode,
+          'credit_type', 'WELCOME_CREDIT',
+          'credit_discount', v_welcome_to_use,
+          'event_price', v_event_price
+        ),
+        p_created_by,
+        v_now
+      )
+      RETURNING * INTO v_credit_txn;
+
+      UPDATE public.organization_wallets
+      SET welcome_credit = welcome_credit - v_welcome_to_use,
+          updated_at = v_now
+      WHERE organization_id = p_organization_id;
+    END IF;
+
+    IF v_topup_to_use > 0 THEN
+      v_topup_ref := COALESCE(p_reference_id || '_topup_credit', 'event_' || p_event_id::text || '_topup_credit');
+      INSERT INTO public.wallet_transactions (
+        organization_id,
+        event_id,
+        transaction_type,
+        balance_type,
+        amount,
+        currency,
+        status,
+        reference_id,
+        description,
+        metadata,
+        created_by,
+        created_at
+      ) VALUES (
+        p_organization_id,
+        p_event_id,
+        'CREDIT_USAGE',
+        'TOPUP_CREDIT',
+        -v_topup_to_use,
+        'MYR',
+        'COMPLETED',
+        v_topup_ref,
+        COALESCE(p_description, 'Applied RM' || ROUND(v_topup_to_use, 2)::text || ' Event Credit discount'),
+        p_metadata || jsonb_build_object(
+          'event_id', p_event_id,
+          'payment_mode', p_payment_mode,
+          'credit_type', 'TOPUP_CREDIT',
+          'credit_discount', v_topup_to_use,
+          'event_price', v_event_price
+        ),
+        p_created_by,
+        v_now
+      )
+      RETURNING * INTO v_topup_credit_txn;
+
+      UPDATE public.organization_wallets
+      SET topup_credit = topup_credit - v_topup_to_use,
+          updated_at = v_now
+      WHERE organization_id = p_organization_id;
+    END IF;
   ELSE
-    v_credit_ref := 'event_' || p_event_id::text || '_credit';
-    v_paid_ref := 'event_' || p_event_id::text || '_paid';
+    IF v_credit_to_use > 0 THEN
+      v_credit_ref := COALESCE(p_reference_id || '_credit', 'event_' || p_event_id::text || '_credit');
+      
+      INSERT INTO public.wallet_transactions (
+        organization_id,
+        event_id,
+        transaction_type,
+        balance_type,
+        amount,
+        currency,
+        status,
+        reference_id,
+        description,
+        metadata,
+        created_by,
+        created_at
+      ) VALUES (
+        p_organization_id,
+        p_event_id,
+        'CREDIT_USAGE',
+        v_credit_balance_type,
+        -v_credit_to_use,
+        'MYR',
+        'COMPLETED',
+        v_credit_ref,
+        COALESCE(p_description, 'Applied RM' || ROUND(v_credit_to_use, 2)::text || ' ' || replace(p_payment_mode, '_', ' ') || ' discount'),
+        p_metadata || jsonb_build_object(
+          'event_id', p_event_id,
+          'payment_mode', p_payment_mode,
+          'credit_discount', v_credit_to_use,
+          'event_price', v_event_price
+        ),
+        p_created_by,
+        v_now
+      )
+      RETURNING * INTO v_credit_txn;
+
+      -- Deduct credit balance from wallet
+      IF v_credit_balance_type = 'WELCOME_CREDIT' THEN
+        UPDATE public.organization_wallets
+        SET welcome_credit = welcome_credit - v_credit_to_use,
+            updated_at = v_now
+        WHERE organization_id = p_organization_id;
+      ELSIF v_credit_balance_type = 'SHOWCASE_CREDIT' THEN
+        UPDATE public.organization_wallets
+        SET showcase_credit = showcase_credit - v_credit_to_use,
+            updated_at = v_now
+        WHERE organization_id = p_organization_id;
+      ELSIF v_credit_balance_type = 'TOPUP_CREDIT' THEN
+        UPDATE public.organization_wallets
+        SET topup_credit = topup_credit - v_credit_to_use,
+            updated_at = v_now
+        WHERE organization_id = p_organization_id;
+      END IF;
+    END IF;
   END IF;
 
-  -- 7. Insert Credit Deduction in immutable ledger (if promotional credit used)
-  IF v_credit_to_use > 0 AND v_credit_balance_type IS NOT NULL THEN
-    INSERT INTO public.wallet_transactions (
-      organization_id,
-      event_id,
-      transaction_type,
-      balance_type,
-      amount,
-      currency,
-      status,
-      reference_id,
-      description,
-      metadata,
-      created_by,
-      created_at
-    ) VALUES (
-      p_organization_id,
-      p_event_id,
-      'CREDIT_USAGE',
-      v_credit_balance_type,
-      -v_credit_to_use,
-      'MYR',
-      'COMPLETED',
-      v_credit_ref,
-      COALESCE(p_description, 'Applied RM' || ROUND(v_credit_to_use, 2)::text || ' ' || replace(p_payment_mode, '_', ' ') || ' for Event'),
-      jsonb_build_object(
-        'event_id', p_event_id,
-        'payment_mode', p_payment_mode,
-        'credit_type', v_credit_balance_type,
-        'credit_discount', v_credit_to_use,
-        'event_price', v_event_price
-      ) || COALESCE(p_metadata, '{}'::jsonb),
-      p_created_by,
-      v_now
-    )
-    RETURNING * INTO v_credit_txn;
-  END IF;
-
-  -- 8. Insert Paid Balance Deduction in immutable ledger (if paid amount > 0)
+  -- 7. Insert paid balance payment transaction into ledger
   IF v_paid_to_use > 0 THEN
+    v_paid_ref := COALESCE(p_reference_id || '_paid', 'event_' || p_event_id::text || '_paid');
+
     INSERT INTO public.wallet_transactions (
       organization_id,
       event_id,
@@ -849,44 +997,43 @@ BEGIN
       'MYR',
       'COMPLETED',
       v_paid_ref,
-      'Paid RM' || ROUND(v_paid_to_use, 2)::text || ' from Paid Balance for Event',
-      jsonb_build_object(
+      COALESCE(p_description, 'Paid RM' || ROUND(v_paid_to_use, 2)::text || ' from Paid Balance for Event'),
+      p_metadata || jsonb_build_object(
         'event_id', p_event_id,
         'payment_mode', p_payment_mode,
         'paid_amount', v_paid_to_use,
-        'credit_applied', v_credit_to_use,
-        'total_event_cost', v_event_price
-      ) || COALESCE(p_metadata, '{}'::jsonb),
+        'event_price', v_event_price
+      ),
       p_created_by,
       v_now
     )
     RETURNING * INTO v_paid_txn;
+
+    -- Deduct paid balance from wallet
+    UPDATE public.organization_wallets
+    SET paid_balance = paid_balance - v_paid_to_use,
+        updated_at = v_now
+    WHERE organization_id = p_organization_id;
   END IF;
 
-  -- 9. Update Organization Wallets Cached Balances
-  UPDATE public.organization_wallets
-  SET
-    paid_balance = paid_balance - v_paid_to_use,
-    welcome_credit = CASE WHEN v_credit_balance_type = 'WELCOME_CREDIT' THEN welcome_credit - v_credit_to_use ELSE welcome_credit END,
-    showcase_credit = CASE WHEN v_credit_balance_type = 'SHOWCASE_CREDIT' THEN showcase_credit - v_credit_to_use ELSE showcase_credit END,
-    topup_credit = CASE WHEN v_credit_balance_type = 'TOPUP_CREDIT' THEN topup_credit - v_credit_to_use ELSE topup_credit END,
-    updated_at = v_now
-  WHERE organization_id = p_organization_id
-  RETURNING * INTO v_wallet;
+  -- 8. Refresh wallet record
+  SELECT * INTO v_wallet FROM public.organization_wallets WHERE organization_id = p_organization_id;
 
-  -- 10. Mark Event as PAID in events table (if event exists)
+  -- 9. Mark Event as PAID in events table (and promote pending_payment to scheduled)
   IF v_event.id IS NOT NULL THEN
     UPDATE public.events
-    SET
-      payment_status = 'PAID',
-      payment_mode = p_payment_mode,
-      paid_amount = v_paid_to_use,
-      discount_amount = v_credit_to_use,
-      updated_at = v_now
+    SET payment_status = 'PAID',
+        payment_mode = p_payment_mode,
+        paid_amount = v_paid_to_use,
+        discount_amount = v_credit_to_use,
+        event_price = v_event_price,
+        event_currency = 'MYR',
+        status = CASE WHEN status = 'pending_payment' THEN 'scheduled' ELSE status END,
+        updated_at = v_now
     WHERE id = p_event_id;
   END IF;
 
-  -- 11. Return atomic transaction payload
+  -- 10. Return JSON result payload
   RETURN jsonb_build_object(
     'success', true,
     'event_id', p_event_id,
@@ -895,7 +1042,7 @@ BEGIN
     'paid_amount', v_paid_to_use,
     'discount_amount', v_credit_to_use,
     'credit_transaction', CASE WHEN v_credit_txn.id IS NOT NULL THEN to_jsonb(v_credit_txn) ELSE NULL END,
-    'paid_transaction', CASE WHEN v_paid_txn.id IS NOT NULL THEN to_jsonb(v_paid_txn) ELSE NULL END,
+    'paid_transaction', to_jsonb(v_paid_txn),
     'wallet', jsonb_build_object(
       'paid_balance', v_wallet.paid_balance,
       'welcome_credit', v_wallet.welcome_credit,
@@ -1275,6 +1422,70 @@ BEGIN
   RAISE EXCEPTION 'Unsupported status transition: %', p_status;
 END;
 $$;
+
+-- ------------------------------------------------------------------------------
+-- 17. EVENT HIGH SCORES TABLE & PERFORMANCE INDEXES
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.event_high_scores (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  player_name VARCHAR(50) NOT NULL DEFAULT 'Player',
+  score INTEGER NOT NULL DEFAULT 0 CHECK (score >= 0),
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_high_scores_event_score 
+  ON public.event_high_scores (event_id, score DESC, created_at ASC);
+
+CREATE INDEX IF NOT EXISTS idx_event_high_scores_created_at 
+  ON public.event_high_scores (created_at DESC);
+
+ALTER TABLE public.event_high_scores ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can view event high scores" ON public.event_high_scores;
+CREATE POLICY "Public can view event high scores"
+  ON public.event_high_scores FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public can insert event high scores" ON public.event_high_scores;
+CREATE POLICY "Public can insert event high scores"
+  ON public.event_high_scores FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Event managers can delete high scores" ON public.event_high_scores;
+CREATE POLICY "Event managers can delete high scores"
+  ON public.event_high_scores FOR DELETE USING (true);
+
+-- ------------------------------------------------------------------------------
+-- 18. PLATFORM SETTINGS TABLE (SERVER-AUTHORITATIVE GLOBAL CONFIGURATION)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.platform_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  description TEXT,
+  updated_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+INSERT INTO public.platform_settings (key, value, description)
+VALUES (
+  'event_pricing',
+  '{"default_price": 1400.00, "default_currency": "MYR"}'::jsonb,
+  'Platform default event pricing configuration for new events'
+)
+ON CONFLICT (key) DO NOTHING;
+
+ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can read platform settings" ON public.platform_settings;
+CREATE POLICY "Anyone can read platform settings"
+  ON public.platform_settings FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Developer admins can manage platform settings" ON public.platform_settings;
+CREATE POLICY "Developer admins can manage platform settings"
+  ON public.platform_settings FOR ALL
+  USING (public.is_developer_admin())
+  WITH CHECK (public.is_developer_admin());
+
 
 
 

@@ -504,11 +504,14 @@ export async function getEventById(
 }
 
 /**
- * Public resolution endpoint: Get event by public token (no login required).
+ * Public resolution endpoint: Get event by public token.
+ * By default, enforces strict public safety: ONLY returns PAID, non-cancelled events.
+ * Set options.allowUnpaid = true for internal preview or status verification.
  */
 export async function getEventByPublicToken(
   publicToken: string,
-  env?: Record<string, any>
+  env?: Record<string, any>,
+  options?: { allowUnpaid?: boolean }
 ): Promise<EventWithDetails | null> {
   if (!publicToken || typeof publicToken !== 'string' || publicToken === 'undefined' || publicToken === 'null' || !publicToken.trim()) {
     return null;
@@ -552,6 +555,17 @@ export async function getEventByPublicToken(
   }
 
   if (!eventRecord) return null;
+
+  const paymentStatus = eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
+  const isPaid = paymentStatus === 'PAID';
+
+  // Strict Public Guard: Do NOT resolve unpaid or pending-payment events on public routes unless explicitly permitted
+  if (!options?.allowUnpaid) {
+    if (!isPaid || eventRecord.status === 'pending_payment' || eventRecord.status === 'cancelled') {
+      return null;
+    }
+  }
+
   const theme = await getThemeById(eventRecord.game_theme_id, env);
 
   let game: GameRecord | null = null;
@@ -573,8 +587,6 @@ export async function getEventByPublicToken(
     orgSlug = orgData.slug;
   }
 
-  const paymentStatus = eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
-  const isPaid = paymentStatus === 'PAID';
   const storedPrice = eventRecord.event_price !== undefined && eventRecord.event_price !== null
     ? Number(eventRecord.event_price)
     : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : 1400.00);

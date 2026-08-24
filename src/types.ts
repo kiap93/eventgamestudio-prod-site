@@ -1,6 +1,6 @@
 import { GameTheme, ThemeDropItem, ThemeDifficultyStage } from './themes/types';
 
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.0.1';
 
 export type GameState = 'START' | 'COUNTDOWN' | 'PLAYING' | 'PAUSED' | 'GAME_OVER';
 

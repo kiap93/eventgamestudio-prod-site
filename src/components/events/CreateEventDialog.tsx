@@ -432,7 +432,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && (!isServerPayable || availableBalance < paidAmount);
   const needAmount = Math.max(0, paidAmount - availableBalance);
 
-  const publicUrl = createdEvent ? `${window.location.origin}/e/${createdEvent.public_token}` : '';
+  const publicUrl = createdEvent ? `${window.location.origin}/play/${createdEvent.public_token}` : '';
+  const previewUrl = createdEvent ? `${window.location.origin}/events/${createdEvent.id}/preview` : '';
 
   const handleCopyLink = async () => {
     if (!publicUrl) return;
@@ -698,8 +699,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
             {/* Public Link Box */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                <span>Dedicated Event URL</span>
-                <span className="text-[11px] text-amber-400 font-normal">Active & Ready to test</span>
+                <span>Public Share URL</span>
+                <span className="text-[11px] text-amber-400 font-normal">Goes live upon payment</span>
               </label>
               <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-2.5">
                 <span className="font-mono text-xs text-slate-300 truncate flex-1 pl-1">
@@ -729,9 +730,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-start gap-3 text-xs text-amber-200">
               <AlertCircle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
               <div className="space-y-1">
-                <p className="font-bold text-amber-300">Payment is required before this event is activated</p>
+                <p className="font-bold text-amber-300">Payment is required before players can access the public link</p>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  You can open and test the game right now. When you're ready, pay and activate the event to make it live for players.
+                  You can test-play your game right now in the private preview room. When ready, activate the event to unlock public access and the live leaderboard.
                 </p>
               </div>
             </div>
@@ -750,11 +751,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => window.open(publicUrl, '_blank')}
-                  className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                  onClick={() => window.open(previewUrl, '_blank')}
+                  className="py-2.5 px-4 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-200 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Open Event URL</span>
+                  <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Test Play Preview</span>
                 </button>
 
                 <button

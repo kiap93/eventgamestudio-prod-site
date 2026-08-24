@@ -6,6 +6,7 @@ import { CreateOrganizationPage } from './components/auth/CreateOrganizationPage
 import { AcceptInvitePage } from './components/auth/AcceptInvitePage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { PublicEventGameView } from './components/events/PublicEventGameView';
+import { EventPreviewGameView } from './components/events/EventPreviewGameView';
 import { DeveloperAdminPage } from './components/developer/DeveloperAdminPage';
 import { LandingPage } from './components/landing/LandingPage';
 import { ShieldAlert } from 'lucide-react';
@@ -43,9 +44,14 @@ const AppContent: React.FC = () => {
     }
   }, [isLoading, isAuthenticated, isLoginRoute, isProtectedRoute, routeContext.mode, currentUser?.is_developer]);
 
-  // 1. PUBLIC EVENT ROUTE: /e/:publicToken (Unauthenticated Public Player View)
+  // 1. PUBLIC EVENT ROUTE: /play/:publicToken or /e/:publicToken (Unauthenticated Public Player View)
   if (routeContext.mode === 'public_event') {
     return <PublicEventGameView />;
+  }
+
+  // 1.5. AUTHENTICATED EVENT PREVIEW ROUTE: /events/:eventId/preview
+  if (routeContext.mode === 'event_preview') {
+    return <EventPreviewGameView />;
   }
 
   // 2. ACCEPT INVITE ROUTE

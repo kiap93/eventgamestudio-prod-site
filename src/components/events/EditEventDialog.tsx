@@ -354,7 +354,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
             <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between text-xs">
               <div className="flex items-center gap-2 text-slate-300">
                 <Link className="w-4 h-4 text-amber-400" />
-                <span className="font-mono">{window.location.origin}/e/{event.public_token}</span>
+                <span className="font-mono">{window.location.origin}/play/{event.public_token}</span>
               </div>
             </div>
 

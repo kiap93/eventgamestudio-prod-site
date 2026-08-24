@@ -40,7 +40,8 @@ export const EventCard: React.FC<EventCardProps> = ({
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  const publicUrl = `${window.location.origin}/e/${event.public_token}`;
+  const publicUrl = `${window.location.origin}/play/${event.public_token}`;
+  const previewUrl = `/events/${event.id}/preview`;
   const isViewer = userRole === 'viewer';
   const isOwnerOrAdmin = ['owner', 'admin'].includes(userRole || '');
 
@@ -66,6 +67,11 @@ export const EventCard: React.FC<EventCardProps> = ({
   const openPublicGame = (e: React.MouseEvent) => {
     e.stopPropagation();
     window.open(publicUrl, '_blank');
+  };
+
+  const openPreviewGame = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigateTo(previewUrl);
   };
 
   const getStatusBadge = (status: string) => {
@@ -231,9 +237,14 @@ export const EventCard: React.FC<EventCardProps> = ({
 
       {/* Public URL Box */}
       <div className="flex items-center justify-between gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs">
-        <span className="font-mono text-[11px] text-slate-400 truncate">
-          /e/{event.public_token}
-        </span>
+        <div className="flex items-center gap-1.5 min-w-0 truncate font-mono text-[11px] text-slate-400">
+          <span className="truncate">/play/{event.public_token}</span>
+          {isPendingPayment && (
+            <span className="text-[10px] text-amber-500/80 font-sans font-medium shrink-0">
+              (Active after payment)
+            </span>
+          )}
+        </div>
         <button
           onClick={copyLink}
           className="flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 shrink-0 transition-colors cursor-pointer"
@@ -273,16 +284,16 @@ export const EventCard: React.FC<EventCardProps> = ({
               className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm shadow-amber-500/20 cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>Open Link</span>
+              <span>Play Live</span>
             </button>
           )}
 
           <button
-            onClick={openPublicGame}
+            onClick={openPreviewGame}
             className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
-            title="Open / Preview Game"
+            title="Open Authenticated Test Preview"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
+            <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
             <span className="hidden sm:inline">Preview</span>
           </button>
 
