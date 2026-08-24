@@ -617,7 +617,6 @@ export default {
               email: user.email,
               name: user.name,
               avatar_url: user.avatar_url,
-              is_developer: user.is_developer === true,
             },
             organizations: memberships,
             activeOrganizationId: activeOrgId || null,
@@ -650,7 +649,6 @@ export default {
               email: user.email,
               name: user.name,
               avatar_url: user.avatar_url,
-              is_developer: user.is_developer === true,
             },
             organizations: memberships,
             activeOrganization: activeMember
@@ -1006,7 +1004,6 @@ export default {
               email: user.email,
               name: user.name,
               avatar_url: user.avatar_url,
-              is_developer: user.is_developer === true,
             },
             organization: {
               id: org?.id || invite.organization_id,
@@ -2737,14 +2734,7 @@ export default {
       if (pathname === '/api/developer/stats' && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
-        const allowed = isUserDeveloperAdmin(auth.user, env);
-        console.log('[DeveloperAuth]', {
-          userId: auth.user?.id,
-          email: auth.user?.email,
-          isDeveloper: auth.user?.is_developer,
-          allowed,
-        });
-        if (!allowed) {
+        if (!isUserDeveloperAdmin(auth.user, env)) {
           return errorResponse('Forbidden: Developer Admin access required', 403, cors);
         }
 
@@ -2768,14 +2758,7 @@ export default {
       if (pathname === '/api/developer/games' && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
-        const allowed = isUserDeveloperAdmin(auth.user, env);
-        console.log('[DeveloperAuth]', {
-          userId: auth.user?.id,
-          email: auth.user?.email,
-          isDeveloper: auth.user?.is_developer,
-          allowed,
-        });
-        if (!allowed) {
+        if (!isUserDeveloperAdmin(auth.user, env)) {
           return errorResponse('Forbidden: Developer Admin access required', 403, cors);
         }
 

@@ -303,6 +303,8 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
 
     const token = signAppToken(user.id, activeOrgId, activeRole as any);
 
+    const isDev = isUserDeveloperAdmin(user);
+
     res.json({
       token,
       user: {
@@ -310,7 +312,7 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
         email: user.email,
         name: user.name,
         avatar_url: user.avatar_url,
-        is_developer: user.is_developer === true,
+        is_developer: isDev,
       },
       organizations: memberships,
       activeOrganizationId: activeOrgId || null,
@@ -340,13 +342,15 @@ app.get('/api/auth/me', authenticateJWT, async (req: AuthenticatedRequest, res) 
       activeMember = memberships[0];
     }
 
+    const isDev = isUserDeveloperAdmin(user);
+
     res.json({
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
         avatar_url: user.avatar_url,
-        is_developer: user.is_developer === true,
+        is_developer: isDev,
       },
       organizations: memberships,
       activeOrganization: activeMember
@@ -739,7 +743,6 @@ app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
         email: user.email,
         name: user.name,
         avatar_url: user.avatar_url,
-        is_developer: user.is_developer === true,
       },
       organization: {
         id: org?.id || invite.organization_id,
