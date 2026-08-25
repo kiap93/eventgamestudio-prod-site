@@ -49,29 +49,6 @@ export const DeveloperEmailSettings: React.FC = () => {
     text: string;
   } | null>(null);
 
-  // Check URL query parameters for callback result (e.g., /developer/email?status=connected or ?error=...)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const callbackStatus = params.get('status');
-    const callbackEmail = params.get('email');
-    const callbackError = params.get('error');
-
-    if (callbackStatus === 'connected') {
-      setUiNotice({
-        type: 'success',
-        text: `Successfully linked platform Gmail account (${callbackEmail || 'verified'})! Automated invitations are now active.`,
-      });
-      // Clean query parameters from URL without full reload
-      window.history.replaceState({}, '', window.location.pathname);
-    } else if (callbackError) {
-      setUiNotice({
-        type: 'error',
-        text: `Failed to connect Gmail: ${decodeURIComponent(callbackError)}`,
-      });
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
-
   const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
@@ -97,8 +74,47 @@ export const DeveloperEmailSettings: React.FC = () => {
     }
   }, []);
 
+  // Check URL query parameters for post-OAuth callback result (e.g., /developer/email?status=connected or ?status=error&reason=...)
   useEffect(() => {
-    fetchStatus();
+    const params = new URLSearchParams(window.location.search);
+    const callbackStatus = params.get('status');
+    const callbackReason = params.get('reason') || params.get('error');
+
+    if (callbackStatus === 'connected') {
+      setUiNotice({
+        type: 'success',
+        text: 'Gmail connected successfully.',
+      });
+      // Clean query parameters from URL without full reload
+      window.history.replaceState({}, '', window.location.pathname);
+      // Immediately fetch authoritative connection state from database/API
+      fetchStatus();
+    } else if (callbackStatus === 'error' || callbackReason) {
+      let errorText = 'Failed to connect Gmail.';
+      if (callbackReason === 'oauth_denied') {
+        errorText = 'Google OAuth authorization was cancelled or denied.';
+      } else if (callbackReason === 'invalid_state') {
+        errorText = 'OAuth security verification expired or failed. Please try connecting again.';
+      } else if (callbackReason === 'missing_refresh_token') {
+        errorText = 'Google did not return a refresh token. Please re-authenticate with prompt consent.';
+      } else if (callbackReason === 'exchange_failed') {
+        errorText = 'Failed to exchange authorization code with Google OAuth servers.';
+      } else if (callbackReason === 'missing_code') {
+        errorText = 'Missing OAuth authorization code from Google callback.';
+      } else if (callbackReason) {
+        errorText = `Failed to connect Gmail: ${decodeURIComponent(callbackReason)}`;
+      }
+
+      setUiNotice({
+        type: 'error',
+        text: errorText,
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+      fetchStatus();
+    } else {
+      // Normal page load without OAuth query params
+      fetchStatus();
+    }
   }, [fetchStatus]);
 
   const handleConnectGmail = async () => {

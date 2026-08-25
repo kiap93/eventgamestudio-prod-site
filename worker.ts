@@ -122,6 +122,7 @@ import {
   buildGoogleAuthUrl,
   exchangeGoogleAuthCode,
   getGoogleMailConfig,
+  getFrontendBaseUrl,
   sendEmailViaGmail,
   generateInvitationEmailTemplate,
   generateTestEmailTemplate,
@@ -3758,15 +3759,16 @@ export default {
             );
           }
 
-          const customRedirectUri = url.searchParams.get('redirect_uri') || `${url.origin}/api/email/google/callback`;
+          // Callback URI on the API worker (e.g. https://eventgamestudio-api.kiap93-kmj.workers.dev/api/email/google/callback)
+          const callbackRedirectUri = config.redirectUri || `${url.origin}/api/email/google/callback`;
           const stateToken = generateOAuthStateToken(auth.user.id, env);
-          const authUrl = buildGoogleAuthUrl(stateToken, customRedirectUri, env);
+          const authUrl = buildGoogleAuthUrl(stateToken, callbackRedirectUri, env);
 
           return jsonResponse(
             {
               success: true,
               authUrl,
-              redirectUri: customRedirectUri,
+              redirectUri: callbackRedirectUri,
             },
             200,
             cors
@@ -3779,12 +3781,9 @@ export default {
 
       // GET /api/email/google/callback
       if (pathname === '/api/email/google/callback' && method === 'GET') {
-        const appBaseUrl =
-          env?.APP_URL ||
-          (typeof process !== 'undefined' ? process.env?.APP_URL : '') ||
-          url.origin ||
-          'https://eventgamestudio.com';
-        const redirectBase = `${appBaseUrl.replace(/\/+$/, '')}/developer/email`;
+        const frontendBaseUrl = getFrontendBaseUrl(env);
+        const redirectSuccess = `${frontendBaseUrl}/developer/email?status=connected`;
+        const redirectErrorBase = `${frontendBaseUrl}/developer/email?status=error`;
 
         const code = url.searchParams.get('code');
         const state = url.searchParams.get('state');
@@ -3793,15 +3792,16 @@ export default {
 
         if (oauthError) {
           console.warn('[Gmail OAuth] Callback received error from Google:', oauthError, oauthErrorDescription);
+          const reason = oauthError === 'access_denied' ? 'oauth_denied' : 'oauth_error';
           return Response.redirect(
-            `${redirectBase}?error=${encodeURIComponent(oauthErrorDescription || oauthError)}`,
+            `${redirectErrorBase}&reason=${encodeURIComponent(reason)}`,
             302
           );
         }
 
         if (!code || !state) {
           return Response.redirect(
-            `${redirectBase}?error=${encodeURIComponent('Missing OAuth code or state from Google callback')}`,
+            `${redirectErrorBase}&reason=missing_code`,
             302
           );
         }
@@ -3811,14 +3811,23 @@ export default {
         if (!stateResult.valid) {
           console.error('[Gmail OAuth] State validation failed:', stateResult.error);
           return Response.redirect(
-            `${redirectBase}?error=${encodeURIComponent(stateResult.error || 'Invalid or expired state parameter')}`,
+            `${redirectErrorBase}&reason=invalid_state`,
             302
           );
         }
 
         try {
-          const callbackRedirectUri = `${url.origin}/api/email/google/callback`;
+          const config = getGoogleMailConfig(env);
+          const callbackRedirectUri = config.redirectUri || `${url.origin}/api/email/google/callback`;
           const tokenResult = await exchangeGoogleAuthCode(code, callbackRedirectUri, env);
+
+          if (!tokenResult.refreshToken) {
+            console.error('[Gmail OAuth] Token exchange completed without a refresh token');
+            return Response.redirect(
+              `${redirectErrorBase}&reason=missing_refresh_token`,
+              302
+            );
+          }
 
           // Encrypt refresh token before storing
           const encryptedRefreshToken = await encryptRefreshToken(tokenResult.refreshToken, undefined, env);
@@ -3838,14 +3847,12 @@ export default {
 
           console.log(`[Gmail OAuth] Successfully connected platform sending account: ${tokenResult.email}`);
 
-          return Response.redirect(
-            `${redirectBase}?status=connected&email=${encodeURIComponent(tokenResult.email)}`,
-            302
-          );
+          // Redirect browser to the frontend Developer Email page (no tokens or email in URL)
+          return Response.redirect(redirectSuccess, 302);
         } catch (err: any) {
           console.error('[Gmail OAuth] Failed to complete token exchange or save settings:', err);
           return Response.redirect(
-            `${redirectBase}?error=${encodeURIComponent(err.message || 'Failed to link Gmail account')}`,
+            `${redirectErrorBase}&reason=exchange_failed`,
             302
           );
         }
@@ -3873,13 +3880,14 @@ export default {
           return jsonResponse(
             {
               success: true,
-              configured: Boolean(config.clientId && config.clientSecret),
               connected: isConnected,
-              status: isConnected ? (settings?.status || 'connected') : 'disconnected',
               email: isConnected ? (settings?.email_address || null) : null,
+              enabled: isConnected ? (settings?.enabled !== false) : false,
+              status: isConnected ? (settings?.status || 'connected') : 'disconnected',
+              configured: Boolean(config.clientId && config.clientSecret),
               lastConnectedAt: isConnected ? (settings?.last_connected_at || null) : null,
               lastError: settings?.last_error || null,
-              redirectUri: `${url.origin}/api/email/google/callback`,
+              redirectUri: config.redirectUri || `${url.origin}/api/email/google/callback`,
               hasClientId: Boolean(config.clientId),
               hasClientSecret: Boolean(config.clientSecret),
             },

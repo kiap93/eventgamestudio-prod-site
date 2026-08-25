@@ -83,6 +83,26 @@ export interface GoogleMailConfig {
   redirectUri: string;
 }
 
+/**
+ * Returns the configured frontend web application URL (e.g. https://eventgamestudio.com)
+ * used for post-OAuth redirects to the developer admin UI.
+ */
+export function getFrontendBaseUrl(env?: Record<string, any>): string {
+  const procEnv = typeof process !== 'undefined' ? process.env : {};
+
+  const frontendUrl =
+    env?.APP_URL ||
+    procEnv.APP_URL ||
+    env?.FRONTEND_URL ||
+    procEnv.FRONTEND_URL ||
+    'https://eventgamestudio.com';
+
+  return frontendUrl.trim().replace(/\/+$/, '');
+}
+
+/**
+ * Returns the Google Mail OAuth configuration with the dedicated API Worker callback URI.
+ */
 export function getGoogleMailConfig(env?: Record<string, any>): GoogleMailConfig {
   const procEnv = typeof process !== 'undefined' ? process.env : {};
 
@@ -104,11 +124,11 @@ export function getGoogleMailConfig(env?: Record<string, any>): GoogleMailConfig
     '';
 
   if (!redirectUri) {
-    const appUrl =
-      env?.APP_URL ||
-      procEnv.APP_URL ||
-      'https://eventgamestudio.com';
-    redirectUri = `${appUrl.replace(/\/+$/, '')}/api/email/google/callback`;
+    const apiBaseUrl =
+      env?.API_BASE_URL ||
+      procEnv.API_BASE_URL ||
+      'https://eventgamestudio-api.kiap93-kmj.workers.dev';
+    redirectUri = `${apiBaseUrl.trim().replace(/\/+$/, '')}/api/email/google/callback`;
   }
 
   return {
