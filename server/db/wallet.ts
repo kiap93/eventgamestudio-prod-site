@@ -1,4 +1,10 @@
-import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
+import {
+  getSupabaseServerClient,
+  isSupabaseConfigured,
+  isLocalFallbackAllowed,
+  assertProductionSafe,
+  isProductionEnvironment,
+} from '../supabase.js';
 import {
   OrganizationWalletRecord,
   WalletTransactionRecord,
@@ -347,6 +353,7 @@ export async function recalculateWalletBalances(
     transactions = (data || []) as WalletTransactionRecord[];
   } else {
     // Development / test fallback when Supabase is not configured
+    assertProductionSafe('recalculateWalletBalances', env);
     transactions = Array.from(localTransactionsCache.values()).filter(
       (t) => t.organization_id === organizationId && t.status === 'COMPLETED'
     );
@@ -537,6 +544,7 @@ async function appendLedgerTransaction(
   }
 
   // Development/Test mock fallback only when Supabase is not configured
+  assertProductionSafe('appendLedgerTransaction', env);
   localTransactionsCache.set(id, record);
   saveLocalStores();
   return record;
@@ -748,6 +756,7 @@ export async function grantWelcomeCredit(
   transaction: WalletTransactionRecord;
   wallet: WalletBalanceSummary;
   alreadyGranted: boolean;
+  message?: string;
 }> {
   const { organizationId, createdBy, referenceId, metadata } = params;
 
@@ -755,32 +764,35 @@ export async function grantWelcomeCredit(
     throw new Error('Organization ID is required');
   }
 
-  // Check if welcome credit has already been granted in local cache
-  let existing = Array.from(localTransactionsCache.values()).find(
-    (t) =>
-      t.organization_id === organizationId &&
-      t.transaction_type === 'WELCOME_CREDIT' &&
-      t.status === 'COMPLETED'
-  );
+  let existing: WalletTransactionRecord | undefined = undefined;
 
-  if (!existing) {
-    try {
-      const supabase = getSupabaseServerClient(env);
-      const { data, error } = await supabase
-        .from('wallet_transactions')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .eq('transaction_type', 'WELCOME_CREDIT')
-        .eq('status', 'COMPLETED')
-        .maybeSingle();
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .eq('transaction_type', 'WELCOME_CREDIT')
+      .eq('status', 'COMPLETED')
+      .maybeSingle();
 
-      if (!error && data) {
-        existing = data as WalletTransactionRecord;
-        localTransactionsCache.set(existing.id, existing);
-      }
-    } catch {
-      // Continue with local state
+    if (error) {
+      console.error('Fatal: Supabase check welcome credit failed in production:', error);
+      throw new Error(`Financial ledger transaction failed: ${error.message}`);
     }
+
+    if (data) {
+      existing = data as WalletTransactionRecord;
+      localTransactionsCache.set(existing.id, existing);
+    }
+  } else {
+    assertProductionSafe('grantWelcomeCredit', env);
+    existing = Array.from(localTransactionsCache.values()).find(
+      (t) =>
+        t.organization_id === organizationId &&
+        t.transaction_type === 'WELCOME_CREDIT' &&
+        t.status === 'COMPLETED'
+    );
   }
 
   if (existing) {
@@ -789,6 +801,7 @@ export async function grantWelcomeCredit(
       transaction: existing,
       wallet: currentWallet,
       alreadyGranted: true,
+      message: 'Welcome Credit has already been granted to this organization (one-time grant).',
     };
   }
 
@@ -819,6 +832,7 @@ export async function grantWelcomeCredit(
     transaction,
     wallet,
     alreadyGranted: false,
+    message: `Successfully granted RM${WELCOME_CREDIT_AMOUNT.toFixed(2)} Welcome Credit!`,
   };
 }
 
@@ -1004,6 +1018,7 @@ export async function grantShowcaseCredit(
   transaction: WalletTransactionRecord;
   wallet: WalletBalanceSummary;
   alreadyGranted: boolean;
+  message?: string;
 }> {
   const { organizationId, eventId, createdBy, referenceId, metadata } = params;
 
@@ -1011,32 +1026,35 @@ export async function grantShowcaseCredit(
     throw new Error('Organization ID is required');
   }
 
-  // Check if showcase credit was already granted in local cache
-  let existing = Array.from(localTransactionsCache.values()).find(
-    (t) =>
-      t.organization_id === organizationId &&
-      t.transaction_type === 'SHOWCASE_CREDIT' &&
-      t.status === 'COMPLETED'
-  );
+  let existing: WalletTransactionRecord | undefined = undefined;
 
-  if (!existing) {
-    try {
-      const supabase = getSupabaseServerClient(env);
-      const { data, error } = await supabase
-        .from('wallet_transactions')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .eq('transaction_type', 'SHOWCASE_CREDIT')
-        .eq('status', 'COMPLETED')
-        .maybeSingle();
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .eq('transaction_type', 'SHOWCASE_CREDIT')
+      .eq('status', 'COMPLETED')
+      .maybeSingle();
 
-      if (!error && data) {
-        existing = data as WalletTransactionRecord;
-        localTransactionsCache.set(existing.id, existing);
-      }
-    } catch {
-      // Continue with local state
+    if (error) {
+      console.error('Fatal: Supabase check showcase credit failed in production:', error);
+      throw new Error(`Financial ledger transaction failed: ${error.message}`);
     }
+
+    if (data) {
+      existing = data as WalletTransactionRecord;
+      localTransactionsCache.set(existing.id, existing);
+    }
+  } else {
+    assertProductionSafe('grantShowcaseCredit', env);
+    existing = Array.from(localTransactionsCache.values()).find(
+      (t) =>
+        t.organization_id === organizationId &&
+        t.transaction_type === 'SHOWCASE_CREDIT' &&
+        t.status === 'COMPLETED'
+    );
   }
 
   if (existing) {
@@ -1045,6 +1063,7 @@ export async function grantShowcaseCredit(
       transaction: existing,
       wallet: currentWallet,
       alreadyGranted: true,
+      message: 'Showcase Credit has already been granted to this organization (one-time reward).',
     };
   }
 
@@ -1075,6 +1094,7 @@ export async function grantShowcaseCredit(
     transaction,
     wallet,
     alreadyGranted: false,
+    message: `Successfully granted RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)} Showcase Reward Credit!`,
   };
 }
 
@@ -1601,80 +1621,91 @@ export async function processEventPayment(
       p_metadata: params.metadata || {},
     });
 
-    if (!error && data) {
-      const payload = data as any;
-      const transactions: WalletTransactionRecord[] = [];
-      if (payload.credit_transaction) {
-        transactions.push(payload.credit_transaction as WalletTransactionRecord);
-      }
-      if (payload.paid_transaction) {
-        transactions.push(payload.paid_transaction as WalletTransactionRecord);
-      }
-
-      const calculation = await calculateEventPayment(
-        eventPrice,
-        mode,
-        organizationId,
-        {
-          topupCreditRequested,
-          useWelcomeCredit: params.useWelcomeCredit,
-          useEventCredit: params.useEventCredit ?? params.useTopupCredit,
-          welcomeCreditRequested: params.welcomeCreditRequested,
-        },
-        env
-      );
-      const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
-
-      const paidBal = Number(payload.wallet?.paid_balance ?? 0);
-      const welcomeBal = Number(payload.wallet?.welcome_credit ?? 0);
-      const showcaseBal = Number(payload.wallet?.showcase_credit ?? 0);
-      const topupBal = Number(payload.wallet?.topup_credit ?? 0);
-
-      const walletResult: WalletBalanceSummary = {
-        organization_id: organizationId,
-        paid_balance: paidBal,
-        welcome_credit: welcomeBal,
-        showcase_credit: showcaseBal,
-        topup_credit: topupBal,
-        total_balance: paidBal + welcomeBal + showcaseBal + topupBal,
-        total_credit: welcomeBal + showcaseBal + topupBal,
-        currency: 'MYR',
-        welcome_credit_granted: true,
-        showcase_credit_granted: true,
-        can_use_welcome_credit: welcomeBal > 0,
-        can_use_showcase_credit: showcaseBal > 0,
-        updated_at: new Date().toISOString(),
-      };
-
-      try {
-        const { localEventsCache } = await import('./events.js');
-        const cachedEvent = localEventsCache.get(eventId);
-        if (cachedEvent) {
-          cachedEvent.status = 'scheduled';
-          cachedEvent.payment_status = 'PAID';
-          cachedEvent.payment_mode = mode;
-          cachedEvent.paid_amount = calculation.paidAmount;
-          cachedEvent.discount_amount = calculation.totalDiscount;
-          localEventsCache.set(eventId, cachedEvent);
-        }
-      } catch (cacheErr) {
-        // ignore
-      }
-
-      return {
-        success: true,
-        paymentCalculation: calculation,
-        quote,
-        transactions,
-        wallet: walletResult,
-      };
-    } else if (error && error.code !== 'PGRST202') {
+    if (error) {
       console.error('Fatal: Supabase atomic payment transaction failed:', error);
       throw new Error(`Financial ledger transaction failed: ${error.message}`);
     }
+
+    if (!data) {
+      throw new Error('Financial ledger transaction failed: No data returned from atomic payment procedure');
+    }
+
+    const payload = data as any;
+    if (payload.success === false) {
+      const err: any = new Error(payload.error || payload.message || 'Atomic payment transaction rejected by database');
+      if (payload.code) err.code = payload.code;
+      throw err;
+    }
+
+    const transactions: WalletTransactionRecord[] = [];
+    if (payload.credit_transaction) {
+      transactions.push(payload.credit_transaction as WalletTransactionRecord);
+    }
+    if (payload.paid_transaction) {
+      transactions.push(payload.paid_transaction as WalletTransactionRecord);
+    }
+
+    const calculation = await calculateEventPayment(
+      eventPrice,
+      mode,
+      organizationId,
+      {
+        topupCreditRequested,
+        useWelcomeCredit: params.useWelcomeCredit,
+        useEventCredit: params.useEventCredit ?? params.useTopupCredit,
+        welcomeCreditRequested: params.welcomeCreditRequested,
+      },
+      env
+    );
+    const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
+
+    const paidBal = Number(payload.wallet?.paid_balance ?? 0);
+    const welcomeBal = Number(payload.wallet?.welcome_credit ?? 0);
+    const showcaseBal = Number(payload.wallet?.showcase_credit ?? 0);
+    const topupBal = Number(payload.wallet?.topup_credit ?? 0);
+
+    const walletResult: WalletBalanceSummary = {
+      organization_id: organizationId,
+      paid_balance: paidBal,
+      welcome_credit: welcomeBal,
+      showcase_credit: showcaseBal,
+      topup_credit: topupBal,
+      total_balance: paidBal + welcomeBal + showcaseBal + topupBal,
+      total_credit: welcomeBal + showcaseBal + topupBal,
+      currency: 'MYR',
+      welcome_credit_granted: true,
+      showcase_credit_granted: true,
+      can_use_welcome_credit: welcomeBal > 0,
+      can_use_showcase_credit: showcaseBal > 0,
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      const { localEventsCache } = await import('./events.js');
+      const cachedEvent = localEventsCache.get(eventId);
+      if (cachedEvent) {
+        cachedEvent.status = 'scheduled';
+        cachedEvent.payment_status = 'PAID';
+        cachedEvent.payment_mode = mode;
+        cachedEvent.paid_amount = calculation.paidAmount;
+        cachedEvent.discount_amount = calculation.totalDiscount;
+        localEventsCache.set(eventId, cachedEvent);
+      }
+    } catch (cacheErr) {
+      // ignore
+    }
+
+    return {
+      success: true,
+      paymentCalculation: calculation,
+      quote,
+      transactions,
+      wallet: walletResult,
+    };
   }
 
   // NON-PRODUCTION / LOCAL DEV MODE: In-memory atomic snapshot with automatic rollback
+  assertProductionSafe('processEventPayment', env);
   const txnsSnapshot = new Map(localTransactionsCache);
   const walletsSnapshot = new Map(localWalletsCache);
 
@@ -2422,46 +2453,50 @@ export async function createTopupOrder(
 
   // 1. Production Supabase write attempt if available
   if (isSupabaseConfigured(env)) {
-    try {
-      const supabase = getSupabaseServerClient(env);
-      const { data, error } = await supabase
-        .from('wallet_topup_orders')
-        .insert(orderRecord)
-        .select()
-        .maybeSingle();
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('wallet_topup_orders')
+      .insert(orderRecord)
+      .select()
+      .maybeSingle();
 
-      if (!error && data) {
-        const saved = data as TopupOrderRecord;
-        localTopupOrdersCache.set(saved.id, saved);
-        saveLocalStores();
-
-        // Record TOP_UP_CREATED audit event
-        await recordWalletAuditEvent(
-          {
-            organizationId,
-            eventType: 'TOP_UP_CREATED',
-            orderId: saved.id,
-            paymentReference: paymentReference || null,
-            amount: sanitizedAmount,
-            currency,
-            actorId: userId,
-            metadata: {
-              expected_credit_amount: expectedCreditAmount,
-              bonus_percentage: saved.bonus_percentage,
-              total_wallet_value: totalWalletValue,
-            },
-          },
-          env
-        );
-
-        return saved;
-      }
-    } catch {
-      // Fall through to local cache for test/dev environments
+    if (error) {
+      console.error('Fatal: Supabase insert wallet_topup_orders failed in production:', error);
+      throw new Error(`Financial top-up order creation failed: ${error.message}`);
     }
+
+    if (!data) {
+      throw new Error('Financial top-up order creation failed: No confirmation received from database');
+    }
+
+    const saved = data as TopupOrderRecord;
+    localTopupOrdersCache.set(saved.id, saved);
+    saveLocalStores();
+
+    // Record TOP_UP_CREATED audit event
+    await recordWalletAuditEvent(
+      {
+        organizationId,
+        eventType: 'TOP_UP_CREATED',
+        orderId: saved.id,
+        paymentReference: paymentReference || null,
+        amount: sanitizedAmount,
+        currency,
+        actorId: userId,
+        metadata: {
+          expected_credit_amount: expectedCreditAmount,
+          bonus_percentage: saved.bonus_percentage,
+          total_wallet_value: totalWalletValue,
+        },
+      },
+      env
+    );
+
+    return saved;
   }
 
-  // 2. Local cache persistence
+  // 2. Local cache persistence (dev/test only)
+  assertProductionSafe('createTopupOrder', env);
   localTopupOrdersCache.set(orderRecord.id, orderRecord);
   saveLocalStores();
 
@@ -2496,30 +2531,33 @@ export async function getTopupOrderById(
 ): Promise<TopupOrderRecord | null> {
   if (!orderId) return null;
 
-  // Check local cache first
-  const cached = localTopupOrdersCache.get(orderId);
-  if (cached) return cached;
-
   if (isSupabaseConfigured(env)) {
-    try {
-      const supabase = getSupabaseServerClient(env);
-      const { data, error } = await supabase
-        .from('wallet_topup_orders')
-        .select('*')
-        .eq('id', orderId)
-        .maybeSingle();
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('wallet_topup_orders')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle();
 
-      if (!error && data) {
-        const order = data as TopupOrderRecord;
-        localTopupOrdersCache.set(order.id, order);
-        return order;
+    if (error) {
+      console.error('Error fetching topup order from Supabase:', error);
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Failed to fetch top-up order from database: ${error.message}`);
       }
-    } catch {
-      // Return null or cached
     }
+
+    if (data) {
+      const order = data as TopupOrderRecord;
+      localTopupOrdersCache.set(order.id, order);
+      return order;
+    }
+    return null;
   }
 
-  return null;
+  // Check local cache in dev/test
+  assertProductionSafe('getTopupOrderById', env);
+  const cached = localTopupOrdersCache.get(orderId);
+  return cached || null;
 }
 
 /**
@@ -2534,26 +2572,30 @@ export async function listTopupOrdersByOrganization(
   let orders: TopupOrderRecord[] = [];
 
   if (isSupabaseConfigured(env)) {
-    try {
-      const supabase = getSupabaseServerClient(env);
-      const { data, error } = await supabase
-        .from('wallet_topup_orders')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false });
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('wallet_topup_orders')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        orders = data as TopupOrderRecord[];
-        for (const o of orders) {
-          localTopupOrdersCache.set(o.id, o);
-        }
-        return orders;
+    if (error) {
+      console.error('Error listing topup orders from Supabase:', error);
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Failed to list top-up orders from database: ${error.message}`);
       }
-    } catch {
-      // fallback
+    }
+
+    if (data) {
+      orders = data as TopupOrderRecord[];
+      for (const o of orders) {
+        localTopupOrdersCache.set(o.id, o);
+      }
+      return orders;
     }
   }
 
+  assertProductionSafe('listTopupOrdersByOrganization', env);
   orders = Array.from(localTopupOrdersCache.values())
     .filter((o) => o.organization_id === organizationId)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -2621,84 +2663,76 @@ export async function processTopupOrderStatus(
 
     const now = new Date().toISOString();
 
-    // 1. Production Supabase RPC attempt if available
+    // 1. Production Supabase RPC execution
     if (isSupabaseConfigured(env)) {
-      try {
-        const supabase = getSupabaseServerClient(env);
-        const { data, error } = await supabase.rpc('process_topup_order_atomic', {
-          p_order_id: orderId,
-          p_organization_id: order.organization_id,
-          p_status: newStatus,
-          p_payment_reference: paymentReference || null,
-          p_payment_method: paymentMethod || null,
-          p_processed_by: processedBy || null,
-          p_reason: reason || null,
-          p_metadata: metadata || {},
-        });
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase.rpc('process_topup_order_atomic', {
+        p_order_id: orderId,
+        p_organization_id: order.organization_id,
+        p_status: newStatus,
+        p_payment_reference: paymentReference || null,
+        p_payment_method: paymentMethod || null,
+        p_processed_by: processedBy || null,
+        p_reason: reason || null,
+        p_metadata: metadata || {},
+      });
 
-        if (error) {
-          throw new Error(error.message || `Database error processing top-up order`);
-        }
-
-        if (data && data.success) {
-          if (data.order) {
-            localTopupOrdersCache.set(data.order.id, data.order);
-          }
-          if (data.wallet) {
-            localWalletsCache.set(order.organization_id, data.wallet);
-          }
-          if (data.topup_transaction) {
-            localTransactionsCache.set(data.topup_transaction.id, data.topup_transaction);
-          }
-          if (data.promo_credit_transaction) {
-            localTransactionsCache.set(data.promo_credit_transaction.id, data.promo_credit_transaction);
-          }
-          saveLocalStores();
-
-          if (newStatus === 'PAID' && !data.is_idempotent_replay) {
-            await recordWalletAuditEvent(
-              {
-                organizationId: order.organization_id,
-                eventType: 'PAYMENT_COMPLETED',
-                orderId: order.id,
-                paymentReference: paymentReference || order.payment_reference,
-                amount: order.top_up_amount,
-                currency: order.currency,
-                actorId: processedBy || order.user_id,
-                metadata: {
-                  payment_method: paymentMethod || order.payment_method,
-                  reason,
-                },
-              },
-              env
-            );
-          }
-
-          return {
-            order: data.order,
-            alreadyProcessed: Boolean(data.is_idempotent_replay),
-            ledgerResult: data.wallet ? {
-              topupTransaction: data.topup_transaction,
-              promoCreditTransaction: data.promo_credit_transaction,
-              wallet: data.wallet,
-            } : undefined,
-            message: data.message,
-          };
-        }
-      } catch (err: any) {
-        if (err.message && (
-          err.message.includes('Cannot change status') ||
-          err.message.includes('Security Error') ||
-          err.message.includes('Invalid status') ||
-          err.message.includes('Top-up order not found')
-        )) {
-          throw err;
-        }
-        // Continue to local execution for local test/dev environment
+      if (error) {
+        console.error('Fatal: Supabase atomic topup processing failed in production:', error);
+        throw new Error(error.message || `Database error processing top-up order`);
       }
+
+      if (!data || !data.success) {
+        throw new Error(data?.message || 'Database rejected top-up order processing');
+      }
+
+      if (data.order) {
+        localTopupOrdersCache.set(data.order.id, data.order);
+      }
+      if (data.wallet) {
+        localWalletsCache.set(order.organization_id, data.wallet);
+      }
+      if (data.topup_transaction) {
+        localTransactionsCache.set(data.topup_transaction.id, data.topup_transaction);
+      }
+      if (data.promo_credit_transaction) {
+        localTransactionsCache.set(data.promo_credit_transaction.id, data.promo_credit_transaction);
+      }
+      saveLocalStores();
+
+      if (newStatus === 'PAID' && !data.is_idempotent_replay) {
+        await recordWalletAuditEvent(
+          {
+            organizationId: order.organization_id,
+            eventType: 'PAYMENT_COMPLETED',
+            orderId: order.id,
+            paymentReference: paymentReference || order.payment_reference,
+            amount: order.top_up_amount,
+            currency: order.currency,
+            actorId: processedBy || order.user_id,
+            metadata: {
+              payment_method: paymentMethod || order.payment_method,
+              reason,
+            },
+          },
+          env
+        );
+      }
+
+      return {
+        order: data.order,
+        alreadyProcessed: Boolean(data.is_idempotent_replay),
+        ledgerResult: data.wallet ? {
+          topupTransaction: data.topup_transaction,
+          promoCreditTransaction: data.promo_credit_transaction,
+          wallet: data.wallet,
+        } : undefined,
+        message: data.message,
+      };
     }
 
-    // 2. Local State Machine and Idempotency Enforcement
+    // 2. Local State Machine and Idempotency Enforcement (dev/test only)
+    assertProductionSafe('processTopupOrderStatus', env);
     // If order is ALREADY 'PAID'
     if (order.status === 'PAID') {
       if (newStatus === 'PAID') {

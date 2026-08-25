@@ -24,6 +24,7 @@ import {
   getGameById,
   ensureDefaultGame,
   ensureDefaultGames,
+  getAvailableGamesForStudio,
   updateGameCustomization,
   uploadGameAsset,
   getThemesByOrgId,
@@ -1219,7 +1220,7 @@ app.delete('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReq
 
 /**
  * GET /api/games
- * Get games catalog for active organization from Supabase
+ * Get games catalog for active organization from Supabase (Developer/Admin registered games)
  */
 app.get('/api/games', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -1237,8 +1238,7 @@ app.get('/api/games', authenticateJWT, async (req: AuthenticatedRequest, res) =>
       return;
     }
 
-    const org = await getOrganizationById(organizationId);
-    const games = await ensureDefaultGames(organizationId, org?.name || 'Studio');
+    const games = await getAvailableGamesForStudio(organizationId);
 
     res.json({ games });
   } catch (err: any) {
@@ -1566,6 +1566,7 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
 
     const {
       name,
+      game_id,
       game_theme_id,
       event_date,
       starts_at,
@@ -1591,6 +1592,7 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
     // Create event with PENDING_PAYMENT status (no wallet balance deducted)
     const created = await createEvent({
       organization_id: organizationId,
+      game_id,
       game_theme_id,
       name,
       event_date,
@@ -1612,8 +1614,15 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
     console.error('Create event error:', err);
     if (err.code === 'PENDING_EVENT_LIMIT_REACHED' || err.status === 422) {
       res.status(422).json({
-        code: 'PENDING_EVENT_LIMIT_REACHED',
+        code: err.code || 'VALIDATION_ERROR',
         error: err.message || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.',
+      });
+      return;
+    }
+    if (err.code === 'GAME_INACTIVE' || err.code === 'THEME_GAME_MISMATCH' || err.code === 'GAME_NOT_FOUND') {
+      res.status(422).json({
+        code: err.code,
+        error: err.message,
       });
       return;
     }
@@ -3072,9 +3081,10 @@ app.get('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (req: 
 
 /**
  * PUT /api/developer/games/:gameId
- * Update platform game metadata and defaults
+ * PATCH /api/developer/games/:gameId
+ * Update platform game metadata, status, and defaults
  */
-app.put('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+const handleUpdatePlatformGame = async (req: AuthenticatedRequest, res: any) => {
   try {
     const { gameId } = req.params;
     const updates = req.body;
@@ -3089,19 +3099,30 @@ app.put('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (req: 
     }
     res.status(500).json({ error: err.message });
   }
-});
+};
+
+app.put('/api/developer/games/:gameId', authenticateDeveloperAdmin, handleUpdatePlatformGame);
+app.patch('/api/developer/games/:gameId', authenticateDeveloperAdmin, handleUpdatePlatformGame);
 
 /**
  * DELETE /api/developer/games/:gameId
- * Delete a platform game
+ * Delete a platform game (restricted if game is linked to any events)
  */
 app.delete('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { gameId } = req.params;
     await deletePlatformGame(gameId);
-    res.json({ success: true });
+    res.json({ success: true, message: 'Game deleted successfully' });
   } catch (err: any) {
     console.error('Developer delete game error:', err);
+    if (err.code === 'GAME_IN_USE' || err.code === '23503' || err.status === 409) {
+      res.status(409).json({
+        success: false,
+        code: 'GAME_IN_USE',
+        error: err.message || 'Cannot delete game because it is used by existing events. Deactivate the game instead.',
+      });
+      return;
+    }
     res.status(500).json({ error: err.message });
   }
 });

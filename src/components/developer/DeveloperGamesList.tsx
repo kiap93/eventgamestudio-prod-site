@@ -43,6 +43,34 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [editingGame, setEditingGame] = useState<PlatformGame | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const handleDelete = async (game: PlatformGame) => {
+    setActionError(null);
+    if (!confirm(`Are you sure you want to delete "${game.name}"? If any events have used this game, deletion will be blocked.`)) {
+      return;
+    }
+
+    try {
+      await onDeleteGame(game.id);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to delete game');
+    }
+  };
+
+  const handleToggleStatus = async (game: PlatformGame) => {
+    setActionError(null);
+    setTogglingId(game.id);
+    try {
+      const nextStatus = game.status === 'active' ? 'draft' : 'active';
+      await onUpdateGame(game.id, { status: nextStatus });
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to update game status');
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   const filteredGames = games.filter((game) => {
     const matchesSearch =
@@ -57,6 +85,20 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
 
   return (
     <div className="space-y-6">
+      {actionError && (
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between text-xs text-rose-300">
+          <div className="flex items-center gap-2.5">
+            <Archive className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-slate-400 hover:text-white p-1 rounded"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       {/* Platform Stats Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between">
@@ -247,23 +289,31 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                 <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
                   <div className="flex items-center space-x-1">
                     <button
+                      onClick={() => handleToggleStatus(game)}
+                      disabled={togglingId === game.id}
+                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-colors ${
+                        isActive
+                          ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                          : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                      }`}
+                      title={isActive ? 'Deactivate game' : 'Activate game'}
+                    >
+                      {isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button
                       onClick={() => {
                         setEditingGame(game);
                         setIsCreateModalOpen(true);
                       }}
-                      className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                      className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                       title="Edit Game Metadata"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(`Are you sure you want to delete "${game.name}"? This action cannot be undone.`)) {
-                          onDeleteGame(game.id);
-                        }
-                      }}
-                      className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                      title="Delete Game"
+                      onClick={() => handleDelete(game)}
+                      className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                      title="Delete Game (Blocked if events exist)"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

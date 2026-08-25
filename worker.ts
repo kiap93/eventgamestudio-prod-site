@@ -19,6 +19,7 @@ import {
   getGameById,
   ensureDefaultGame,
   ensureDefaultGames,
+  getAvailableGamesForStudio,
   updateGameCustomization,
   getThemesByOrgId,
   getThemeById,
@@ -1449,12 +1450,7 @@ export default {
           return errorResponse('Forbidden: You are not a member of this organization', 403, cors);
         }
 
-        let games = await getGamesByOrgId(organizationId, env);
-        if (games.length === 0) {
-          const org = await getOrganizationById(organizationId, env);
-          const defaultGame = await ensureDefaultGame(organizationId, org?.name || 'Studio', env);
-          games = [defaultGame];
-        }
+        const games = await getAvailableGamesForStudio(organizationId, env);
 
         return jsonResponse({ games }, 200, cors);
       }
@@ -1762,6 +1758,7 @@ export default {
         const body = (await request.json().catch(() => ({}))) as any;
         const {
           name,
+          game_id,
           game_theme_id,
           event_date,
           starts_at,
@@ -1786,6 +1783,7 @@ export default {
           const created = await createEvent(
             {
               organization_id: organizationId,
+              game_id,
               game_theme_id,
               name,
               event_date,
@@ -1809,8 +1807,14 @@ export default {
           console.error('Create event error in worker:', err);
           if (err.code === 'PENDING_EVENT_LIMIT_REACHED' || err.status === 422) {
             return jsonResponse({
-              code: 'PENDING_EVENT_LIMIT_REACHED',
+              code: err.code || 'VALIDATION_ERROR',
               error: err.message || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.',
+            }, 422, cors);
+          }
+          if (err.code === 'GAME_INACTIVE' || err.code === 'THEME_GAME_MISMATCH' || err.code === 'GAME_NOT_FOUND') {
+            return jsonResponse({
+              code: err.code,
+              error: err.message,
             }, 422, cors);
           }
           return errorResponse(err.message || 'Failed to create event', err.status || 500, cors);
@@ -3149,7 +3153,7 @@ export default {
         return jsonResponse({ game, themes }, 200, cors);
       }
 
-      if (devGameDetailParams && method === 'PUT') {
+      if (devGameDetailParams && (method === 'PUT' || method === 'PATCH')) {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
         if (!isUserDeveloperAdmin(auth.user, env)) {
@@ -3179,9 +3183,20 @@ export default {
         const { gameId } = devGameDetailParams;
         try {
           await deletePlatformGame(gameId, env);
-          return jsonResponse({ success: true }, 200, cors);
+          return jsonResponse({ success: true, message: 'Game deleted successfully' }, 200, cors);
         } catch (err: any) {
           console.error('Developer delete game error:', err);
+          if (err.code === 'GAME_IN_USE' || err.code === '23503' || err.status === 409) {
+            return jsonResponse(
+              {
+                success: false,
+                code: 'GAME_IN_USE',
+                error: err.message || 'Cannot delete game because it is used by existing events. Deactivate the game instead.',
+              },
+              409,
+              cors
+            );
+          }
           return errorResponse(err.message || 'Failed to delete game', 500, cors);
         }
       }

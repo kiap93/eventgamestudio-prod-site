@@ -17,7 +17,11 @@ import {
   consumeShowcaseCredit,
   getWalletBalance,
   recalculateWalletBalances,
+  createTopupOrder,
+  processTopupOrderStatus,
+  processEventPayment,
 } from './wallet.js';
+import { createOrganization } from './organizations.js';
 import { isSupabaseConfigured } from '../supabase.js';
 
 let passed = 0;
@@ -130,6 +134,70 @@ async function runProductionAcidTests() {
     recalcThrewError = true;
   }
   assertTrue(recalcThrewError, 'recalculateWalletBalances throws error when Supabase query fails in production mode');
+
+  // Test 6: createTopupOrder in production when database is down must throw
+  let topupOrderThrewError = false;
+  try {
+    await createTopupOrder(
+      {
+        organizationId: testOrgId,
+        userId: crypto.randomUUID(),
+        amount: 500,
+      },
+      mockProdEnv
+    );
+  } catch (err: any) {
+    topupOrderThrewError = true;
+  }
+  assertTrue(topupOrderThrewError, 'createTopupOrder throws error when Supabase fails in production mode');
+
+  // Test 7: processTopupOrderStatus in production when database is down must throw
+  let processTopupThrewError = false;
+  try {
+    await processTopupOrderStatus(
+      {
+        orderId: crypto.randomUUID(),
+        newStatus: 'PAID',
+        isTrustedSettlement: true,
+      },
+      mockProdEnv
+    );
+  } catch (err: any) {
+    processTopupThrewError = true;
+  }
+  assertTrue(processTopupThrewError, 'processTopupOrderStatus throws error when Supabase fails in production mode');
+
+  // Test 8: processEventPayment in production when database is down must throw
+  let eventPaymentThrewError = false;
+  try {
+    await processEventPayment(
+      {
+        organizationId: testOrgId,
+        eventId: crypto.randomUUID(),
+        paymentMode: 'FULL_PAID',
+        eventPrice: 1400,
+      },
+      mockProdEnv
+    );
+  } catch (err: any) {
+    eventPaymentThrewError = true;
+  }
+  assertTrue(eventPaymentThrewError, 'processEventPayment throws error when Supabase fails in production mode');
+
+  // Test 9: createOrganization in production when database is down must throw
+  let createOrgThrewError = false;
+  try {
+    await createOrganization(
+      {
+        name: 'Test Safe Org',
+        owner_id: crypto.randomUUID(),
+      },
+      mockProdEnv
+    );
+  } catch (err: any) {
+    createOrgThrewError = true;
+  }
+  assertTrue(createOrgThrewError, 'createOrganization throws error when Supabase fails in production mode');
 
   console.log('\n======================================================');
   console.log(` RESULTS: ${passed} PASSED, ${failed} FAILED`);

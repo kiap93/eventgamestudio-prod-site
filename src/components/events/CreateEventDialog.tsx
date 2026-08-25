@@ -40,6 +40,17 @@ interface GameThemeOption {
   status?: string;
 }
 
+interface PlatformGameOption {
+  id: string;
+  name: string;
+  slug: string;
+  game_type: string;
+  description?: string | null;
+  icon_name?: string | null;
+  status: string;
+  theme_count?: number;
+}
+
 interface CreateEventDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -61,9 +72,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
   // Form Fields
   const [name, setName] = useState('');
+  const [games, setGames] = useState<PlatformGameOption[]>([]);
+  const [selectedGameId, setSelectedGameId] = useState<string>('all');
   const [selectedThemeId, setSelectedThemeId] = useState<string>('');
   const [themes, setThemes] = useState<GameThemeOption[]>([]);
-  const [loadingThemes, setLoadingThemes] = useState(false);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
 
   // Duration & Dates
   const [durationPreset, setDurationPreset] = useState<DurationPreset>('1day');
@@ -150,30 +163,43 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     setExpiresAt(`${year}-${month}-${day}T${hours}:${mins}`);
   };
 
-  // Fetch Game Themes on dialog open
+  // Fetch Available Registered Games & Game Themes on dialog open
   useEffect(() => {
     if (!isOpen) return;
 
-    const fetchThemes = async () => {
+    const fetchCatalog = async () => {
       try {
-        setLoadingThemes(true);
-        const res = await apiFetch('/api/themes');
-        if (!res.ok) throw new Error('Failed to fetch game themes');
-        const data = await res.json();
-        const list = (data.themes || []) as GameThemeOption[];
-        setThemes(list);
+        setLoadingCatalog(true);
+        // 1. Fetch Admin-registered platform games from Supabase
+        const gamesPromise = apiFetch('/api/games');
+        // 2. Fetch active themes
+        const themesPromise = apiFetch('/api/themes');
 
-        if (list.length > 0 && !selectedThemeId) {
-          setSelectedThemeId(list[0].id);
+        const [gamesRes, themesRes] = await Promise.all([gamesPromise, themesPromise]);
+
+        if (gamesRes.ok) {
+          const gamesData = await gamesRes.json();
+          const gameList = (gamesData.games || []) as PlatformGameOption[];
+          setGames(gameList);
+        }
+
+        if (themesRes.ok) {
+          const themesData = await themesRes.json();
+          const themeList = (themesData.themes || []) as GameThemeOption[];
+          setThemes(themeList);
+
+          if (themeList.length > 0 && !selectedThemeId) {
+            setSelectedThemeId(themeList[0].id);
+          }
         }
       } catch (err: any) {
-        console.error('Error fetching themes for event:', err);
+        console.error('Error fetching game catalog for event:', err);
       } finally {
-        setLoadingThemes(false);
+        setLoadingCatalog(false);
       }
     };
 
-    fetchThemes();
+    fetchCatalog();
   }, [isOpen]);
 
   // Fetch Wallet & Calculate Quote
@@ -226,6 +252,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const handleClose = () => {
     setStep('configure');
     setName('');
+    setSelectedGameId('all');
     setCreationError(null);
     setPaymentError(null);
     setQuoteError(null);
@@ -246,9 +273,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       return;
     }
 
-    if (!selectedThemeId && themes.length > 0) {
-      setSelectedThemeId(themes[0].id);
-    }
+    const currentTheme = themes.find((t) => t.id === selectedThemeId) || themes[0];
+    const themeIdToUse = currentTheme?.id || selectedThemeId;
+    const gameIdToUse = currentTheme?.game_id || (selectedGameId !== 'all' ? selectedGameId : games[0]?.id);
 
     const startTime = new Date(startsAt).getTime();
     const expiryTime = new Date(expiresAt).getTime();
@@ -271,7 +298,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
-          game_theme_id: selectedThemeId,
+          game_id: gameIdToUse || undefined,
+          game_theme_id: themeIdToUse,
           event_date: startsAt.split('T')[0],
           starts_at: new Date(startsAt).toISOString(),
           expires_at: new Date(expiresAt).toISOString(),
@@ -502,46 +530,108 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               </div>
 
               {/* 2. Select Game & Theme */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-300">
-                  Game & Theme <span className="text-amber-400">*</span>
-                </label>
-                {loadingThemes ? (
-                  <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                    <span>Loading available games...</span>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1">
-                    {themes.map((theme) => {
-                      const isSelected = selectedThemeId === theme.id;
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-300">
+                    Game & Theme <span className="text-amber-400">*</span>
+                  </label>
+                  {games.length > 1 && (
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {games.length} Registered Platform Games
+                    </span>
+                  )}
+                </div>
+
+                {/* Game filter pills if multiple games */}
+                {games.length > 1 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGameId('all')}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                        selectedGameId === 'all'
+                          ? 'bg-amber-500 text-slate-950 shadow-sm'
+                          : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      All Games ({themes.length})
+                    </button>
+                    {games.map((g) => {
+                      const count = themes.filter((t) => t.game_id === g.id).length;
                       return (
                         <button
-                          key={theme.id}
+                          key={g.id}
                           type="button"
-                          onClick={() => setSelectedThemeId(theme.id)}
-                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                            isSelected
-                              ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/30 text-slate-100'
-                              : 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-800/40 text-slate-400'
+                          onClick={() => {
+                            setSelectedGameId(g.id);
+                            // Auto-select first theme of this game if current theme is not in this game
+                            const firstThemeOfGame = themes.find((t) => t.game_id === g.id);
+                            if (firstThemeOfGame && (!selectedThemeId || !themes.find(t => t.id === selectedThemeId && t.game_id === g.id))) {
+                              setSelectedThemeId(firstThemeOfGame.id);
+                            }
+                          }}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
+                            selectedGameId === g.id
+                              ? 'bg-amber-500 text-slate-950 shadow-sm'
+                              : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200'
                           }`}
                         >
-                          <div className="truncate mr-2">
-                            <div className="text-xs font-bold text-slate-200 truncate">
-                              {theme.game_name || 'Catch the Brand'}
-                            </div>
-                            <div className="text-[11px] text-slate-400 truncate">
-                              {theme.name}
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <div className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shrink-0">
-                              <Check className="w-2.5 h-2.5 stroke-[3]" />
-                            </div>
-                          )}
+                          <span>{g.name}</span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                            selectedGameId === g.id ? 'bg-slate-900/30 text-slate-950' : 'bg-slate-800 text-slate-400'
+                          }`}>
+                            {count}
+                          </span>
                         </button>
                       );
                     })}
+                  </div>
+                )}
+
+                {loadingCatalog ? (
+                  <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                    <span>Loading registered games and themes...</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1">
+                    {themes
+                      .filter((theme) => selectedGameId === 'all' || theme.game_id === selectedGameId)
+                      .map((theme) => {
+                        const isSelected = selectedThemeId === theme.id;
+                        const gameName = theme.game_name || games.find((g) => g.id === theme.game_id)?.name || 'Catch the Brand';
+                        return (
+                          <button
+                            key={theme.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedThemeId(theme.id);
+                              if (theme.game_id && selectedGameId !== 'all' && selectedGameId !== theme.game_id) {
+                                setSelectedGameId(theme.game_id);
+                              }
+                            }}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                              isSelected
+                                ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/30 text-slate-100'
+                                : 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-800/40 text-slate-400'
+                            }`}
+                          >
+                            <div className="truncate mr-2">
+                              <div className="text-xs font-bold text-slate-200 truncate">
+                                {gameName}
+                              </div>
+                              <div className="text-[11px] text-slate-400 truncate">
+                                {theme.name}
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <div className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shrink-0">
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                   </div>
                 )}
               </div>

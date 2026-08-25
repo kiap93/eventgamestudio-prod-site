@@ -334,6 +334,7 @@ export async function getEventsByOrgId(
         return {
           ...cached,
           ...ev,
+          game_id: cached.game_id || ev.game_id,
           status: cached.status || ev.status,
           payment_status: cached.payment_status || ev.payment_status,
           payment_mode: cached.payment_mode || ev.payment_mode,
@@ -347,17 +348,32 @@ export async function getEventsByOrgId(
   }
   if (events.length === 0) return [];
 
-  // Fetch related game themes and games to enrich event list
+  // Fetch related game themes to enrich event list
   const themeIds = Array.from(new Set(events.map((e) => e.game_theme_id).filter(Boolean)));
   const { data: themesData } = await supabase
     .from('game_themes')
-    .select('*, games(id, name, slug, game_type)')
+    .select('*, games(id, name, slug, game_type, status, description, icon_name)')
     .in('id', themeIds);
 
   const themesMap = new Map<string, any>();
   if (themesData) {
     for (const t of themesData) {
       themesMap.set(t.id, t);
+    }
+  }
+
+  // Fetch games by direct event.game_id
+  const directGameIds = Array.from(new Set(events.map((e) => e.game_id).filter(Boolean) as string[]));
+  const gamesMap = new Map<string, any>();
+  if (directGameIds.length > 0) {
+    const { data: gamesData } = await supabase
+      .from('games')
+      .select('id, name, slug, game_type, status, description, icon_name')
+      .in('id', directGameIds);
+    if (gamesData) {
+      for (const g of gamesData) {
+        gamesMap.set(g.id, g);
+      }
     }
   }
 
@@ -370,7 +386,8 @@ export async function getEventsByOrgId(
 
   return events.map((event) => {
     const theme = themesMap.get(event.game_theme_id) || null;
-    const game = theme?.games || null;
+    const directGame = event.game_id ? gamesMap.get(event.game_id) : null;
+    const resolvedGame = directGame || theme?.games || null;
     const calculated = calculateEventStatus(event);
     const showcase = showcaseMap.get(event.id) || null;
     const setupStartTime = getSetupDayStartTime(event);
@@ -383,6 +400,7 @@ export async function getEventsByOrgId(
 
     return {
       ...event,
+      game_id: event.game_id || theme?.game_id || resolvedGame?.id || null,
       event_price: storedPrice,
       event_currency: event.event_currency || 'MYR',
       payment_status: paymentStatus,
@@ -393,12 +411,15 @@ export async function getEventsByOrgId(
       setup_starts_at: setupStartTime.toISOString(),
       cancellation_eligibility: cancellationEligibility,
       game_theme: theme,
-      game: game
+      game: resolvedGame
         ? {
-            id: game.id,
-            name: game.name,
-            slug: game.slug,
-            game_type: game.game_type || 'catch-brand',
+            id: resolvedGame.id,
+            name: resolvedGame.name,
+            slug: resolvedGame.slug,
+            game_type: resolvedGame.game_type || 'catch-brand',
+            status: resolvedGame.status || 'active',
+            description: resolvedGame.description || null,
+            icon_name: resolvedGame.icon_name || null,
           }
         : null,
       showcase: showcase,
@@ -446,6 +467,7 @@ export async function getEventById(
       eventRecord = {
         ...cached,
         ...(event as EventRecord),
+        game_id: cached.game_id || (event as EventRecord).game_id,
         status: cached.status || (event as EventRecord).status,
         payment_status: cached.payment_status || (event as EventRecord).payment_status,
         payment_mode: cached.payment_mode || (event as EventRecord).payment_mode,
@@ -462,9 +484,13 @@ export async function getEventById(
   let theme: GameThemeRecord | null = null;
   let game: GameRecord | null = null;
 
+  if (eventRecord.game_id) {
+    game = await getGameById(eventRecord.game_id, env);
+  }
+
   if (eventRecord.game_theme_id) {
     theme = await getThemeById(eventRecord.game_theme_id, env);
-    if (theme && theme.game_id) {
+    if (!game && theme && theme.game_id) {
       game = await getGameById(theme.game_id, env);
     }
   }
@@ -480,6 +506,7 @@ export async function getEventById(
 
   return {
     ...eventRecord,
+    game_id: eventRecord.game_id || theme?.game_id || game?.id || null,
     event_price: storedPrice,
     event_currency: eventRecord.event_currency || 'MYR',
     payment_status: paymentStatus,
@@ -496,6 +523,9 @@ export async function getEventById(
           name: game.name,
           slug: game.slug,
           game_type: game.game_type || 'catch-brand',
+          status: game.status || 'active',
+          description: game.description || null,
+          icon_name: game.icon_name || null,
         }
       : null,
     showcase: showcase,
@@ -616,12 +646,14 @@ export async function getEventByPublicToken(
 
 /**
  * Create a new Event record in the database.
- * Verifies that the referenced Game Theme belongs to the same Organization (or is a system theme).
+ * Verifies that the referenced Game exists and is active.
+ * Verifies that the referenced Game Theme belongs to the chosen Game and Organization.
  * Enforces the hard limit of MAXIMUM 2 PENDING_PAYMENT events per organization.
  */
 export async function createEvent(
   params: {
     organization_id: string;
+    game_id?: string | null;
     game_theme_id: string;
     name: string;
     event_date?: string | null;
@@ -641,17 +673,59 @@ export async function createEvent(
 ): Promise<EventRecord> {
   const supabase = getSupabaseServerClient(env);
 
-  // 1. Verify organization isolation: The theme must belong to this organization or be a system theme!
+  // 1. Verify organization isolation: The theme must exist and belong to this organization or be a system theme!
   const theme = await getThemeById(params.game_theme_id, env);
   if (!theme) {
-    throw new Error('Selected Game Theme not found');
+    const err: any = new Error('Selected Game Theme not found');
+    err.status = 404;
+    throw err;
   }
 
   if (theme.organization_id && theme.organization_id !== params.organization_id && !theme.is_system) {
-    throw new Error('Security Error: Game Theme does not belong to your organization');
+    const err: any = new Error('Security Error: Game Theme does not belong to your organization');
+    err.status = 403;
+    throw err;
   }
 
-  // 2. Validate time boundaries
+  // 2. Validate Game Existence & Active Status
+  const targetGameId = params.game_id || theme.game_id;
+  if (!targetGameId) {
+    const err: any = new Error('No valid Game specified for this event.');
+    err.status = 422;
+    throw err;
+  }
+
+  // Verify theme belongs to chosen game
+  if (params.game_id && theme.game_id && params.game_id !== theme.game_id) {
+    const err: any = new Error('Selected theme does not belong to the chosen game.');
+    err.code = 'THEME_GAME_MISMATCH';
+    err.status = 422;
+    throw err;
+  }
+
+  const game = await getGameById(targetGameId, env);
+  if (!game) {
+    const err: any = new Error('The selected game was not found.');
+    err.code = 'GAME_NOT_FOUND';
+    err.status = 404;
+    throw err;
+  }
+
+  // Validate active status for new event creation
+  if (game.status === 'inactive') {
+    const err: any = new Error('This game is currently inactive and cannot be selected for new events.');
+    err.code = 'GAME_INACTIVE';
+    err.status = 422;
+    throw err;
+  }
+
+  if (game.organization_id && game.organization_id !== params.organization_id && !game.is_system) {
+    const err: any = new Error('Security Error: Game does not belong to your organization');
+    err.status = 403;
+    throw err;
+  }
+
+  // 3. Validate time boundaries
   const startsAtTime = new Date(params.starts_at).getTime();
   const expiresAtTime = new Date(params.expires_at).getTime();
 
@@ -663,7 +737,7 @@ export async function createEvent(
     throw new Error('Expiry time must be later than start time');
   }
 
-  // 3. Enforce maximum 2 PENDING_PAYMENT events limit per organization
+  // 4. Enforce maximum 2 PENDING_PAYMENT events limit per organization
   const isPending = (params.payment_status || 'PENDING_PAYMENT') === 'PENDING_PAYMENT' ||
     params.payment_status === 'UNPAID' ||
     params.status === 'pending_payment';
@@ -678,7 +752,7 @@ export async function createEvent(
     }
   }
 
-  // 4. Resolve server-authoritative event pricing if not supplied
+  // 5. Resolve server-authoritative event pricing if not supplied
   let price = params.event_price;
   let currency = params.event_currency || 'MYR';
   if (!price || price <= 0) {
@@ -687,7 +761,7 @@ export async function createEvent(
     currency = defaultPricing.default_currency;
   }
 
-  // 5. Generate collision-resistant unique token
+  // 6. Generate collision-resistant unique token
   let token = generatePublicToken();
   let attempts = 0;
   while (attempts < 5) {
@@ -711,6 +785,7 @@ export async function createEvent(
   const dbPayload: any = {
     id,
     organization_id: params.organization_id,
+    game_id: targetGameId,
     game_theme_id: params.game_theme_id,
     name: params.name.trim(),
     event_date: params.event_date || params.starts_at.split('T')[0],
@@ -740,10 +815,11 @@ export async function createEvent(
       error.message?.includes('schema cache') ||
       error.message?.includes('violates check constraint')
     ) {
-      // Create a compatible payload with core columns only
-      const compatiblePayload = {
+      // Create a compatible payload with core columns
+      const compatiblePayload: any = {
         id,
         organization_id: params.organization_id,
+        game_id: targetGameId,
         game_theme_id: params.game_theme_id,
         name: params.name.trim(),
         event_date: params.event_date || params.starts_at.split('T')[0],
@@ -789,6 +865,7 @@ export async function createEvent(
 
   const fullRecord: EventRecord = {
     ...(data as any),
+    game_id: targetGameId,
     status: initialStatus,
     payment_status: initialPaymentStatus,
     payment_mode: params.payment_mode || (initialPaymentStatus === 'PAID' ? 'FULL_PAID' : undefined),
@@ -803,18 +880,11 @@ export async function createEvent(
 
 /**
  * Atomically create an Event and process wallet payment.
- *
- * ACID Transaction Pipeline:
- * 1. Validate Organization, Game Theme, and Date constraints.
- * 2. Calculate Event pricing & credit breakdown server-side.
- * 3. Enforce that the organization wallet has sufficient funds (rejection happens BEFORE event creation).
- * 4. Insert the Event record marked as PAID.
- * 5. Process atomic payment via immutable transaction ledger.
- * 6. If payment processing fails, immediately rollback (delete) the event record.
  */
 export async function createEventWithAtomicPayment(
   params: {
     organization_id: string;
+    game_id?: string | null;
     game_theme_id: string;
     name: string;
     event_date?: string | null;
@@ -842,6 +912,7 @@ export async function createEventWithAtomicPayment(
   return withOrganizationLock(params.organization_id, async () => {
     const {
       organization_id,
+      game_id,
       game_theme_id,
       name,
       event_date,
@@ -873,7 +944,35 @@ export async function createEventWithAtomicPayment(
       throw new Error('Security Error: Game Theme does not belong to your organization');
     }
 
-    // 2. Validate time boundaries
+    // 2. Validate Game Existence & Active Status
+    const targetGameId = game_id || theme.game_id;
+    if (!targetGameId) {
+      throw new Error('No game specified for this event');
+    }
+
+    if (game_id && theme.game_id && game_id !== theme.game_id) {
+      const err: any = new Error('Selected theme does not belong to the chosen game.');
+      err.code = 'THEME_GAME_MISMATCH';
+      err.status = 422;
+      throw err;
+    }
+
+    const game = await getGameById(targetGameId, env);
+    if (!game) {
+      const err: any = new Error('The selected game was not found.');
+      err.code = 'GAME_NOT_FOUND';
+      err.status = 404;
+      throw err;
+    }
+
+    if (game.status === 'inactive') {
+      const err: any = new Error('This game is currently inactive and cannot be selected for new events.');
+      err.code = 'GAME_INACTIVE';
+      err.status = 422;
+      throw err;
+    }
+
+    // 3. Validate time boundaries
     const startsAtTime = new Date(starts_at).getTime();
     const expiresAtTime = new Date(expires_at).getTime();
 
@@ -885,7 +984,7 @@ export async function createEventWithAtomicPayment(
       throw new Error('Expiry time must be later than start time');
     }
 
-    // 3. Server-side payment calculation and validation (Authoritative Balance & Credit Check)
+    // 4. Server-side payment calculation and validation (Authoritative Balance & Credit Check)
     const calculation = await calculateEventPayment(
       eventPrice,
       payment_mode,
@@ -905,10 +1004,11 @@ export async function createEventWithAtomicPayment(
       throw error;
     }
 
-    // 4. Create the Event Record with PAID status & payment details (Only created AFTER balance check passes)
+    // 5. Create the Event Record with PAID status & payment details
     const createdEventRecord = await createEvent(
       {
         organization_id,
+        game_id: targetGameId,
         game_theme_id,
         name,
         event_date,
@@ -926,7 +1026,7 @@ export async function createEventWithAtomicPayment(
       env
     );
 
-    // 5. Execute Atomic Ledger Payment
+    // 6. Execute Atomic Ledger Payment
     try {
       const paymentResult = await processEventPayment(
         {
@@ -943,7 +1043,7 @@ export async function createEventWithAtomicPayment(
         env
       );
 
-      // 6. Fetch fully enriched event
+      // 7. Fetch fully enriched event
       const enrichedEvent = await getEventById(createdEventRecord.id, env);
       if (!enrichedEvent) {
         throw new Error('Failed to retrieve newly created event');
@@ -955,7 +1055,6 @@ export async function createEventWithAtomicPayment(
       };
     } catch (paymentError: any) {
       console.error('Fatal: Event payment failed after record insertion. Initiating automatic ACID rollback:', paymentError);
-      // Automatic Rollback: Delete the orphan event record so user is never charged for an uncreated event
       await deleteEvent(createdEventRecord.id, env).catch((rollbackErr) => {
         console.error('CRITICAL: Failed to rollback event creation after payment error:', rollbackErr);
       });

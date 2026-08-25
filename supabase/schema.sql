@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS public.games (
   game_type TEXT NOT NULL DEFAULT 'catch-brand',
   description TEXT,
   icon_name TEXT,
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'draft')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'archived', 'draft')),
   is_system BOOLEAN NOT NULL DEFAULT false,
   ownership_type TEXT NOT NULL DEFAULT 'organization' CHECK (ownership_type IN ('system', 'organization')),
   background_url TEXT,
@@ -151,6 +151,7 @@ CREATE INDEX IF NOT EXISTS idx_game_themes_ownership_type ON public.game_themes 
 CREATE TABLE IF NOT EXISTS public.events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations (id) ON DELETE CASCADE,
+  game_id UUID REFERENCES public.games (id) ON DELETE RESTRICT,
   game_theme_id UUID NOT NULL REFERENCES public.game_themes (id) ON DELETE RESTRICT,
   name TEXT NOT NULL,
   event_date TEXT,
@@ -170,6 +171,7 @@ CREATE TABLE IF NOT EXISTS public.events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_org_id ON public.events (organization_id);
+CREATE INDEX IF NOT EXISTS idx_events_game_id ON public.events (game_id);
 CREATE INDEX IF NOT EXISTS idx_events_game_theme_id ON public.events (game_theme_id);
 CREATE INDEX IF NOT EXISTS idx_events_public_token ON public.events (public_token);
 CREATE INDEX IF NOT EXISTS idx_events_status ON public.events (status);

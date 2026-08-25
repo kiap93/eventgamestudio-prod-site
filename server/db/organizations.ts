@@ -1,4 +1,9 @@
-import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
+import {
+  getSupabaseServerClient,
+  isSupabaseConfigured,
+  isLocalFallbackAllowed,
+  assertProductionSafe,
+} from '../supabase.js';
 import {
   OrganizationRecord,
   OrgRole,
@@ -54,104 +59,106 @@ export interface DeveloperOrganizationDetailResponse {
 const localOrgsCache = new Map<string, OrganizationRecord>();
 
 export async function getOrganizationById(id: string, env?: Record<string, any>): Promise<OrganizationRecord | null> {
-  if (!isSupabaseConfigured(env)) {
-    return localOrgsCache.get(id) || null;
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error in getOrganizationById:', error);
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Failed to fetch organization from database: ${error.message}`);
+      }
+    }
+
+    if (data) return data as OrganizationRecord;
+    return null;
   }
 
-  const supabase = getSupabaseServerClient(env);
-  const { data, error } = await supabase
-    .from('organizations')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
-
-  if (error) {
-    console.error('Error in getOrganizationById:', error);
-    return localOrgsCache.get(id) || null;
-  }
-
-  return data as OrganizationRecord | null;
+  assertProductionSafe('getOrganizationById', env);
+  return localOrgsCache.get(id) || null;
 }
 
 export async function getOrganizationBySlug(slug: string, env?: Record<string, any>): Promise<OrganizationRecord | null> {
-  if (!isSupabaseConfigured(env)) {
-    for (const org of localOrgsCache.values()) {
-      if (org.slug === slug) return org;
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error in getOrganizationBySlug:', error);
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Failed to fetch organization from database: ${error.message}`);
+      }
     }
+
+    if (data) return data as OrganizationRecord;
     return null;
   }
 
-  const supabase = getSupabaseServerClient(env);
-  const { data, error } = await supabase
-    .from('organizations')
-    .select('*')
-    .eq('slug', slug)
-    .maybeSingle();
-
-  if (error) {
-    console.error('Error in getOrganizationBySlug:', error);
-    for (const org of localOrgsCache.values()) {
-      if (org.slug === slug) return org;
-    }
-    return null;
+  assertProductionSafe('getOrganizationBySlug', env);
+  for (const org of localOrgsCache.values()) {
+    if (org.slug === slug) return org;
   }
-
-  return data as OrganizationRecord | null;
+  return null;
 }
 
 export async function getUserOrganizations(userId: string, env?: Record<string, any>): Promise<UserOrganizationMembership[]> {
-  if (!isSupabaseConfigured(env)) {
-    return Array.from(localOrgsCache.values()).map((o) => ({
-      id: o.id,
-      name: o.name,
-      slug: o.slug,
-      role: 'owner' as OrgRole,
-      logo_url: o.logo_url,
-      created_at: o.created_at,
-    }));
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('organization_members')
+      .select(`
+        organization_id,
+        role,
+        created_at,
+        organizations (
+          id,
+          name,
+          slug,
+          logo_url
+        )
+      `)
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error in getUserOrganizations:', error);
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Failed to fetch user organizations from database: ${error.message}`);
+      }
+    }
+
+    if (data) {
+      return data.map((item: any) => {
+        const org = item.organizations;
+        return {
+          id: item.organization_id,
+          role: item.role as OrgRole,
+          name: org ? org.name : 'Unknown Organization',
+          slug: org ? org.slug : '',
+          logo_url: org ? org.logo_url : null,
+          created_at: item.created_at,
+        };
+      });
+    }
+    return [];
   }
 
-  const supabase = getSupabaseServerClient(env);
-  const { data, error } = await supabase
-    .from('organization_members')
-    .select(`
-      organization_id,
-      role,
-      created_at,
-      organizations (
-        id,
-        name,
-        slug,
-        logo_url
-      )
-    `)
-    .eq('user_id', userId);
-
-  if (error) {
-    console.error('Error in getUserOrganizations:', error);
-    return Array.from(localOrgsCache.values()).map((o) => ({
-      id: o.id,
-      name: o.name,
-      slug: o.slug,
-      role: 'owner' as OrgRole,
-      logo_url: o.logo_url,
-      created_at: o.created_at,
-    }));
-  }
-
-  if (!data) return [];
-
-  return data.map((item: any) => {
-    const org = item.organizations;
-    return {
-      id: item.organization_id,
-      role: item.role as OrgRole,
-      name: org ? org.name : 'Unknown Organization',
-      slug: org ? org.slug : '',
-      logo_url: org ? org.logo_url : null,
-      created_at: item.created_at,
-    };
-  });
+  assertProductionSafe('getUserOrganizations', env);
+  return Array.from(localOrgsCache.values()).map((o) => ({
+    id: o.id,
+    name: o.name,
+    slug: o.slug,
+    role: 'owner' as OrgRole,
+    logo_url: o.logo_url,
+    created_at: o.created_at,
+  }));
 }
 
 export async function createOrganization(
@@ -187,6 +194,7 @@ export async function createOrganization(
   };
 
   if (!isSupabaseConfigured(env)) {
+    assertProductionSafe('createOrganization', env);
     localOrgsCache.set(id, orgRecord);
     try {
       await grantWelcomeCredit(
@@ -223,9 +231,8 @@ export async function createOrganization(
     .single();
 
   if (error) {
-    console.error('Error in createOrganization:', error);
-    localOrgsCache.set(id, orgRecord);
-    return orgRecord;
+    console.error('Fatal error in createOrganization:', error);
+    throw new Error(`Failed to create organization in database: ${error.message}`);
   }
 
   const organization = data as OrganizationRecord;
@@ -247,7 +254,9 @@ export async function createOrganization(
     );
   } catch (grantErr) {
     console.error('Failed to grant welcome credit upon organization creation:', grantErr);
-    // Non-fatal or idempotent; duplicate protection prevents double grants if retried
+    if (!isLocalFallbackAllowed(env)) {
+      throw grantErr;
+    }
   }
 
   return organization;

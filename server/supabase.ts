@@ -99,6 +99,55 @@ export function isSupabaseConfigured(env?: Record<string, any>): boolean {
   return true;
 }
 
+/**
+ * Checks if the current execution context is in production mode.
+ */
+export function isProductionEnvironment(env?: Record<string, any>): boolean {
+  const procEnv = typeof process !== 'undefined' ? process.env : {};
+  const nodeEnv = env?.NODE_ENV || procEnv.NODE_ENV || '';
+  const appEnv = env?.ENVIRONMENT || env?.APP_ENV || procEnv.ENVIRONMENT || procEnv.APP_ENV || '';
+  return nodeEnv === 'production' || appEnv === 'production';
+}
+
+/**
+ * PRODUCTION SAFETY RULE:
+ * Local in-memory or JSON-file fallback is strictly prohibited in production mode.
+ * Fallback is only enabled when NODE_ENV !== 'production' or when an explicit development
+ * flag (e.g. ALLOW_LOCAL_FALLBACK=true or ENABLE_LOCAL_FALLBACK=true) is present.
+ */
+export function isLocalFallbackAllowed(env?: Record<string, any>): boolean {
+  const procEnv = typeof process !== 'undefined' ? process.env : {};
+  const explicitAllow =
+    env?.ALLOW_LOCAL_FALLBACK === 'true' ||
+    procEnv.ALLOW_LOCAL_FALLBACK === 'true' ||
+    env?.ALLOW_LOCAL_FALLBACK === true ||
+    env?.ENABLE_LOCAL_FALLBACK === 'true' ||
+    procEnv.ENABLE_LOCAL_FALLBACK === 'true' ||
+    env?.ENABLE_LOCAL_FALLBACK === true;
+
+  if (explicitAllow) return true;
+
+  // In production, local fallback is strictly prohibited
+  if (isProductionEnvironment(env)) {
+    return false;
+  }
+
+  // Allowed in local dev / test mock sandbox without production flags
+  return true;
+}
+
+/**
+ * Guard assertion for critical mutation operations (wallet, payment, topup, organization creation).
+ * Throws a fatal error if execution is in production mode without a configured Supabase database.
+ */
+export function assertProductionSafe(operationName: string, env?: Record<string, any>): void {
+  if (!isLocalFallbackAllowed(env) && !isSupabaseConfigured(env)) {
+    throw new Error(
+      `Fatal: Operation "${operationName}" cannot proceed without a configured Supabase database in production mode. Local in-memory fallback is strictly disabled for financial and organizational safety.`
+    );
+  }
+}
+
 export const supabase = {
   get client(): SupabaseClient {
     return getSupabaseServerClient();

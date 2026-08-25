@@ -168,6 +168,7 @@ export interface EventQuoteOption {
 export interface EventRecord {
   id: string;
   organization_id: string;
+  game_id?: string | null;
   game_theme_id: string;
   name: string;
   event_date?: string | null;
@@ -220,6 +221,9 @@ export interface EventWithDetails extends EventRecord {
     name: string;
     slug: string;
     game_type: string;
+    status?: string;
+    description?: string | null;
+    icon_name?: string | null;
   } | null;
   organization_name?: string;
   organization_slug?: string;

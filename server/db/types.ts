@@ -224,7 +224,7 @@ export interface GameRecord {
   game_type: string;
   description?: string | null;
   icon_name?: string | null;
-  status: 'active' | 'archived' | 'draft';
+  status: 'active' | 'inactive' | 'archived' | 'draft';
   is_system?: boolean;
   ownership_type?: 'system' | 'organization';
   background_url: string | null;
@@ -232,6 +232,8 @@ export interface GameRecord {
   items_config: ItemConfig[] | string | null;
   settings_config: SettingsConfig | string | null;
   theme_count?: number;
+  system_theme_count?: number;
+  events_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -241,6 +243,7 @@ export type EventStatus = 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelle
 export interface EventRecord {
   id: string;
   organization_id: string;
+  game_id?: string | null;
   game_theme_id: string;
   name: string;
   event_date?: string | null;
@@ -276,6 +279,9 @@ export interface EventWithDetails extends EventRecord {
     name: string;
     slug: string;
     game_type: string;
+    status?: string;
+    description?: string | null;
+    icon_name?: string | null;
   } | null;
   organization_name?: string;
   organization_slug?: string;

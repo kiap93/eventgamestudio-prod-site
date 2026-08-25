@@ -545,10 +545,12 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
 
   const themeCountsByGame = new Map<string, number>();
   const systemThemeCountsByGame = new Map<string, number>();
+  const themeToGameMap = new Map<string, string>();
 
   if (themesData) {
     for (const t of themesData) {
       if (t.game_id) {
+        themeToGameMap.set(t.id, t.game_id);
         themeCountsByGame.set(t.game_id, (themeCountsByGame.get(t.game_id) || 0) + 1);
         if (t.is_system || t.ownership_type === 'system') {
           systemThemeCountsByGame.set(t.game_id, (systemThemeCountsByGame.get(t.game_id) || 0) + 1);
@@ -557,13 +559,30 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
     }
   }
 
+  // Count events per game (via events.game_id and events.game_theme_id)
+  const { data: eventsData } = await supabase
+    .from('events')
+    .select('id, game_id, game_theme_id');
+
+  const eventCountsByGame = new Map<string, number>();
+  if (eventsData) {
+    for (const ev of eventsData) {
+      const gId = ev.game_id || (ev.game_theme_id ? themeToGameMap.get(ev.game_theme_id) : null);
+      if (gId) {
+        eventCountsByGame.set(gId, (eventCountsByGame.get(gId) || 0) + 1);
+      }
+    }
+  }
+
   return games.map((game) => ({
     ...game,
     is_system: true,
     ownership_type: 'system',
+    status: (game.status as any) || 'active',
     game_type: game.game_type || 'catch-brand',
     theme_count: themeCountsByGame.get(game.id) || 0,
     system_theme_count: systemThemeCountsByGame.get(game.id) || 0,
+    events_count: eventCountsByGame.get(game.id) || 0,
   } as any));
 }
 
@@ -574,7 +593,7 @@ export async function createPlatformGame(
     game_type: string;
     description?: string | null;
     icon_name?: string | null;
-    status?: 'active' | 'archived' | 'draft';
+    status?: 'active' | 'inactive' | 'archived' | 'draft';
     background_url?: string | null;
     basket_config?: any;
     items_config?: any;
@@ -671,6 +690,7 @@ export async function createPlatformGame(
     ownership_type: 'system',
     theme_count: 0,
     system_theme_count: 0,
+    events_count: 0,
   } as GameRecord;
 }
 
@@ -682,7 +702,7 @@ export async function updatePlatformGame(
     game_type?: string;
     description?: string | null;
     icon_name?: string | null;
-    status?: 'active' | 'archived' | 'draft';
+    status?: 'active' | 'inactive' | 'archived' | 'draft';
     background_url?: string | null;
     basket_config?: any;
     items_config?: any;
@@ -771,7 +791,21 @@ export async function updatePlatformGame(
 export async function deletePlatformGame(gameId: string, env?: Record<string, any>): Promise<void> {
   const supabase = getSupabaseServerClient(env);
 
-  // Check if any events reference themes belonging to this game
+  // 1. Direct check: Check if any events reference this game directly via events.game_id
+  const { data: directEvents, error: directEventsErr } = await supabase
+    .from('events')
+    .select('id')
+    .eq('game_id', gameId)
+    .limit(1);
+
+  if (directEvents && directEvents.length > 0) {
+    const err: any = new Error('This game cannot be deleted because it is already used by one or more events. Deactivate it instead.');
+    err.code = 'GAME_IN_USE';
+    err.status = 409;
+    throw err;
+  }
+
+  // 2. Check if any events reference themes belonging to this game
   const { data: themes } = await supabase
     .from('game_themes')
     .select('id')
@@ -779,21 +813,83 @@ export async function deletePlatformGame(gameId: string, env?: Record<string, an
 
   if (themes && themes.length > 0) {
     const themeIds = themes.map((t) => t.id);
-    const { data: events } = await supabase
+    const { data: themeEvents } = await supabase
       .from('events')
       .select('id')
       .in('game_theme_id', themeIds)
       .limit(1);
 
-    if (events && events.length > 0) {
-      throw new Error('Cannot delete game: Live or scheduled events are actively using themes from this game.');
+    if (themeEvents && themeEvents.length > 0) {
+      const err: any = new Error('This game cannot be deleted because it is already used by one or more events. Deactivate it instead.');
+      err.code = 'GAME_IN_USE';
+      err.status = 409;
+      throw err;
     }
   }
 
+  // 3. Perform delete
   const { error } = await supabase.from('games').delete().eq('id', gameId);
   if (error) {
+    if (error.code === '23503' || error.message?.includes('foreign key') || error.message?.includes('restrict')) {
+      const err: any = new Error('This game cannot be deleted because it is already used by one or more events. Deactivate it instead.');
+      err.code = 'GAME_IN_USE';
+      err.status = 409;
+      throw err;
+    }
     console.error('Error in deletePlatformGame:', error);
     throw new Error(`Failed to delete platform game: ${error.message}`);
   }
 }
+
+/**
+ * Retrieves the list of active games available for an organization in Game Studio.
+ * Games must be registered by Developer/Admin in Supabase.
+ */
+export async function getAvailableGamesForStudio(organizationId: string, env?: Record<string, any>): Promise<GameRecord[]> {
+  const supabase = getSupabaseServerClient(env);
+  await cleanupDuplicateSystemGames(env);
+
+  // Fetch all active system games registered by Admin/Developer + any org-specific games
+  const { data: gamesData, error } = await supabase
+    .from('games')
+    .select('*')
+    .or(`is_system.eq.true,organization_id.is.null,organization_id.eq.${organizationId}`)
+    .eq('status', 'active')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error in getAvailableGamesForStudio:', error);
+    throw new Error(`Failed to list available games: ${error.message}`);
+  }
+
+  let games = (gamesData || []) as GameRecord[];
+
+  // If no system games yet exist in the database, seed and initialize them
+  if (games.length === 0) {
+    const platformGames = await ensureSystemCatalogGames(env);
+    games = platformGames.filter((g) => g.status === 'active');
+  }
+
+  // Count available themes for this organization (system themes + organization custom themes for this game)
+  const { data: themesData } = await supabase
+    .from('game_themes')
+    .select('id, game_id, organization_id, is_system, status')
+    .or(`organization_id.eq.${organizationId},is_system.eq.true`)
+    .eq('status', 'active');
+
+  const themeCountsByGame = new Map<string, number>();
+  if (themesData) {
+    for (const t of themesData) {
+      if (t.game_id) {
+        themeCountsByGame.set(t.game_id, (themeCountsByGame.get(t.game_id) || 0) + 1);
+      }
+    }
+  }
+
+  return games.map((game) => ({
+    ...game,
+    theme_count: themeCountsByGame.get(game.id) || 0,
+  }));
+}
+
 

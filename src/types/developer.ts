@@ -8,7 +8,7 @@ export interface PlatformGame {
   game_type: string;
   description: string | null;
   icon_name: string;
-  status: 'active' | 'draft' | 'archived';
+  status: 'active' | 'inactive' | 'draft' | 'archived';
   is_system: boolean;
   ownership_type: 'system' | 'organization';
   background_url: string | null;
@@ -16,6 +16,8 @@ export interface PlatformGame {
   items_config: any;
   settings_config: any;
   theme_count?: number;
+  system_theme_count?: number;
+  events_count?: number;
   created_at: string;
   updated_at: string;
 }
