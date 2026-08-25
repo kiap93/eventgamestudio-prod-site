@@ -56,7 +56,45 @@ export interface DeveloperOrganizationDetailResponse {
   recent_transactions: WalletTransactionRecord[];
 }
 
+import fs from 'node:fs';
+import path from 'node:path';
+
+const LOCAL_ORGS_FILE = path.join(process.cwd(), 'uploads', 'organizations.json');
 const localOrgsCache = new Map<string, OrganizationRecord>();
+
+function loadLocalOrgs(): void {
+  try {
+    if (fs.existsSync(LOCAL_ORGS_FILE)) {
+      const raw = fs.readFileSync(LOCAL_ORGS_FILE, 'utf-8');
+      const list = JSON.parse(raw) as OrganizationRecord[];
+      localOrgsCache.clear();
+      for (const org of list) {
+        localOrgsCache.set(org.id, org);
+      }
+    }
+  } catch (err) {
+    console.warn('Warning loading local organizations store:', err);
+  }
+}
+
+function saveLocalOrgs(): void {
+  try {
+    const dir = path.dirname(LOCAL_ORGS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(
+      LOCAL_ORGS_FILE,
+      JSON.stringify(Array.from(localOrgsCache.values()), null, 2),
+      'utf-8'
+    );
+  } catch (err) {
+    console.warn('Warning saving local organizations store:', err);
+  }
+}
+
+// Initial load
+loadLocalOrgs();
 
 export async function getOrganizationById(id: string, env?: Record<string, any>): Promise<OrganizationRecord | null> {
   if (isSupabaseConfigured(env)) {
@@ -212,6 +250,7 @@ export async function createOrganization(
     } catch (grantErr) {
       console.error('Failed to grant welcome credit upon organization creation:', grantErr);
     }
+    saveLocalOrgs();
     return orgRecord;
   }
 
@@ -408,6 +447,23 @@ export async function getAllOrganizationsForDeveloper(
     }
   }
 
+  // Pre-fetch organization wallets cache if available
+  const walletsMap = new Map<string, any>();
+  if (isProdDb) {
+    try {
+      const { data: walletsData } = await supabase
+        .from('organization_wallets')
+        .select('*');
+      if (walletsData) {
+        for (const w of walletsData) {
+          walletsMap.set(w.organization_id, w);
+        }
+      }
+    } catch (wErr) {
+      console.warn('Notice fetching organization_wallets cache in getAllOrganizationsForDeveloper:', wErr);
+    }
+  }
+
   const result: DeveloperOrganizationListItem[] = [];
 
   for (const org of orgs) {
@@ -425,25 +481,50 @@ export async function getAllOrganizationsForDeveloper(
     }
 
     let wallet: WalletBalanceSummary;
-    try {
-      wallet = await getWalletBalance(org.id, env);
-    } catch (wErr) {
-      console.warn(`Could not calculate wallet balance for org ${org.id}:`, wErr);
+    const cachedWallet = walletsMap.get(org.id);
+    if (cachedWallet) {
+      const paidBalance = Number(cachedWallet.paid_balance || 0);
+      const welcomeCredit = Number(cachedWallet.welcome_credit || 0);
+      const showcaseCredit = Number(cachedWallet.showcase_credit || 0);
+      const topupCredit = Number(cachedWallet.topup_credit || 0);
+      const totalCredit = welcomeCredit + showcaseCredit + topupCredit;
+      const totalBalance = paidBalance + totalCredit;
       wallet = {
         organization_id: org.id,
-        currency: 'MYR',
-        paid_balance: 0,
-        welcome_credit: 0,
-        showcase_credit: 0,
-        topup_credit: 0,
-        total_balance: 0,
-        total_credit: 0,
-        welcome_credit_granted: false,
-        showcase_credit_granted: false,
-        can_use_welcome_credit: false,
-        can_use_showcase_credit: false,
-        updated_at: new Date().toISOString(),
+        currency: cachedWallet.currency || 'MYR',
+        paid_balance: paidBalance,
+        welcome_credit: welcomeCredit,
+        showcase_credit: showcaseCredit,
+        topup_credit: topupCredit,
+        total_balance: totalBalance,
+        total_credit: totalCredit,
+        welcome_credit_granted: cachedWallet.welcome_credit_granted || false,
+        showcase_credit_granted: cachedWallet.showcase_credit_granted || false,
+        can_use_welcome_credit: welcomeCredit > 0,
+        can_use_showcase_credit: showcaseCredit > 0,
+        updated_at: cachedWallet.updated_at || org.updated_at || new Date().toISOString(),
       };
+    } else {
+      try {
+        wallet = await getWalletBalance(org.id, env);
+      } catch (wErr) {
+        console.warn(`Could not calculate wallet balance for org ${org.id}:`, wErr);
+        wallet = {
+          organization_id: org.id,
+          currency: 'MYR',
+          paid_balance: 0,
+          welcome_credit: 0,
+          showcase_credit: 0,
+          topup_credit: 0,
+          total_balance: 0,
+          total_credit: 0,
+          welcome_credit_granted: false,
+          showcase_credit_granted: false,
+          can_use_welcome_credit: false,
+          can_use_showcase_credit: false,
+          updated_at: new Date().toISOString(),
+        };
+      }
     }
 
     const memberCount = memberCounts.get(org.id) ?? 1;

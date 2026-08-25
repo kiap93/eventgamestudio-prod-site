@@ -3601,6 +3601,29 @@ export default {
         }
       }
 
+      // POST /api/developer/organizations/:orgId/wallet/recalculate
+      const devOrgRecalcMatch = pathname.match(/^\/api\/developer\/organizations\/([^\/]+)\/wallet\/recalculate$/);
+      if (devOrgRecalcMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const orgId = devOrgRecalcMatch[1];
+        try {
+          const summary = await recalculateWalletBalances(orgId, env);
+          return jsonResponse({
+            success: true,
+            message: 'Wallet balances successfully recalculated and synchronized with ledger.',
+            wallet: summary,
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Developer recalculate wallet error:', err);
+          return errorResponse(err.message || 'Failed to recalculate wallet balances', 500, cors);
+        }
+      }
+
       // ----------------------------------------------------
       // WALLET ENGINE & TRANSACTION LEDGER ENDPOINTS
       // ----------------------------------------------------

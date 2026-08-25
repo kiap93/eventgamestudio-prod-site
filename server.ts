@@ -3593,6 +3593,25 @@ app.get('/api/developer/organizations/:orgId', authenticateDeveloperAdmin, async
   }
 });
 
+/**
+ * POST /api/developer/organizations/:orgId/wallet/recalculate
+ * Re-synchronize and verify organization wallet balances with immutable ledger
+ */
+app.post('/api/developer/organizations/:orgId/wallet/recalculate', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { orgId } = req.params;
+    const summary = await recalculateWalletBalances(orgId);
+    res.json({
+      success: true,
+      message: 'Wallet balances successfully recalculated and synchronized with ledger.',
+      wallet: summary,
+    });
+  } catch (err: any) {
+    console.error('Developer recalculate wallet error:', err);
+    res.status(500).json({ error: err.message || 'Failed to recalculate wallet balances' });
+  }
+});
+
 // ----------------------------------------------------
 // WALLET ENGINE & TRANSACTION LEDGER ENDPOINTS
 // ----------------------------------------------------
