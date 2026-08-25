@@ -15,6 +15,9 @@ export async function createInvitation(
     token_hash: string;
     invited_by: string;
     expires_at: string;
+    email_status?: 'pending' | 'sent' | 'failed';
+    email_sent_at?: string | null;
+    email_error?: string | null;
   },
   env?: Record<string, any>
 ): Promise<OrgInvitationRecord> {
@@ -22,22 +25,55 @@ export async function createInvitation(
   const id = params.id || crypto.randomUUID();
   const now = new Date().toISOString();
 
+  const insertPayload: Record<string, any> = {
+    id,
+    organization_id: params.organization_id,
+    email: params.email.trim().toLowerCase(),
+    role: params.role,
+    token_hash: params.token_hash,
+    invited_by: params.invited_by,
+    expires_at: params.expires_at,
+    created_at: now,
+    email_status: params.email_status || 'pending',
+    email_sent_at: params.email_sent_at || null,
+    email_error: params.email_error || null,
+  };
+
   const { data, error } = await supabase
     .from('organization_invitations')
-    .insert({
-      id,
-      organization_id: params.organization_id,
-      email: params.email.trim().toLowerCase(),
-      role: params.role,
-      token_hash: params.token_hash,
-      invited_by: params.invited_by,
-      expires_at: params.expires_at,
-      created_at: now,
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
   if (error) {
+    // If the error is due to missing email_status columns in existing Supabase schema, retry with basic fields
+    if (error.message && (error.message.includes('column') || error.message.includes('email_status'))) {
+      const basicPayload = {
+        id,
+        organization_id: params.organization_id,
+        email: params.email.trim().toLowerCase(),
+        role: params.role,
+        token_hash: params.token_hash,
+        invited_by: params.invited_by,
+        expires_at: params.expires_at,
+        created_at: now,
+      };
+      const retryResult = await supabase
+        .from('organization_invitations')
+        .insert(basicPayload)
+        .select()
+        .single();
+
+      if (retryResult.error) {
+        console.error('Error in createInvitation retry:', retryResult.error);
+        throw new Error(`Failed to create invitation: ${retryResult.error.message}`);
+      }
+      return {
+        ...retryResult.data,
+        email_status: params.email_status || 'pending',
+      } as OrgInvitationRecord;
+    }
+
     console.error('Error in createInvitation:', error);
     throw new Error(`Failed to create invitation: ${error.message}`);
   }
@@ -127,4 +163,27 @@ export async function markInvitationAccepted(
   }
 
   return data as OrgInvitationRecord;
+}
+
+export async function updateInvitationEmailStatus(
+  id: string,
+  emailStatus: 'pending' | 'sent' | 'failed',
+  emailError?: string | null,
+  env?: Record<string, any>
+): Promise<void> {
+  const supabase = getSupabaseServerClient(env);
+  const now = new Date().toISOString();
+
+  try {
+    await supabase
+      .from('organization_invitations')
+      .update({
+        email_status: emailStatus,
+        email_sent_at: emailStatus === 'sent' ? now : undefined,
+        email_error: emailError || null,
+      })
+      .eq('id', id);
+  } catch (err) {
+    console.warn('Notice updating invitation email status in Supabase:', err);
+  }
 }

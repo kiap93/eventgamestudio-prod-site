@@ -111,7 +111,24 @@ import {
   getEventScoreStats,
   deleteEventScore,
   clearEventHighScores,
+  getGoogleMailSettings,
+  saveGoogleMailSettings,
+  disconnectGoogleMail,
+  updateGoogleMailStatus,
+  updateInvitationEmailStatus,
 } from './server/db/index.js';
+
+import {
+  buildGoogleAuthUrl,
+  exchangeGoogleAuthCode,
+  getGoogleMailConfig,
+  sendEmailViaGmail,
+  generateInvitationEmailTemplate,
+  generateTestEmailTemplate,
+  generateOAuthStateToken,
+  verifyOAuthStateToken,
+  encryptRefreshToken,
+} from './server/email/index.js';
 
 import {
   createPaymentSession,
@@ -861,11 +878,57 @@ export default {
             token_hash: tokenHash,
             invited_by: user.id,
             expires_at: expiresAt,
+            email_status: 'pending',
           },
           env
         );
 
-        const inviteUrl = `/accept-invite?token=${rawToken}`;
+        const appBaseUrl =
+          env?.APP_URL ||
+          (typeof process !== 'undefined' ? process.env?.APP_URL : '') ||
+          url.origin ||
+          'https://eventgamestudio.com';
+        const absoluteInviteUrl = `${appBaseUrl.replace(/\/+$/, '')}/accept-invite?token=${rawToken}`;
+        const relativeInviteUrl = `/accept-invite?token=${rawToken}`;
+
+        let emailStatus: 'sent' | 'failed' | 'not_configured' = 'not_configured';
+        let emailError: string | null = null;
+
+        // Check if platform Gmail sender is connected
+        try {
+          const mailSettings = await getGoogleMailSettings(env);
+          if (mailSettings && mailSettings.enabled && mailSettings.refresh_token_encrypted && mailSettings.status !== 'disconnected') {
+            const template = generateInvitationEmailTemplate({
+              organizationName: org.name,
+              inviteUrl: absoluteInviteUrl,
+              role,
+              inviterName: user.name || user.email,
+            });
+
+            await sendEmailViaGmail(
+              {
+                to: invitation.email,
+                subject: template.subject,
+                html: template.html,
+                text: template.text,
+                fromName: 'EventGameStudio',
+              },
+              env
+            );
+
+            emailStatus = 'sent';
+            await updateInvitationEmailStatus(invitation.id, 'sent', null, env);
+            console.log(`[Invitations] Invitation email successfully sent to ${invitation.email} via Gmail API.`);
+          } else {
+            console.log(`[Invitations] Gmail sending is not connected. Invitation record created without sending email.`);
+            emailStatus = 'not_configured';
+          }
+        } catch (emailErr: any) {
+          console.error(`[Invitations] Failed to send invitation email to ${invitation.email} via Gmail API:`, emailErr);
+          emailStatus = 'failed';
+          emailError = emailErr.message || 'Failed to deliver invitation email via Gmail API';
+          await updateInvitationEmailStatus(invitation.id, 'failed', emailError, env);
+        }
 
         return jsonResponse(
           {
@@ -875,9 +938,20 @@ export default {
               role: invitation.role,
               expires_at: invitation.expires_at,
               organizationName: org.name,
+              email_status: emailStatus === 'not_configured' ? 'pending' : emailStatus,
+              email_error: emailError,
             },
             inviteToken: rawToken,
-            inviteUrl,
+            inviteUrl: relativeInviteUrl,
+            absoluteInviteUrl,
+            emailStatus,
+            emailError,
+            message:
+              emailStatus === 'sent'
+                ? `Invitation email successfully sent to ${invitation.email} via Gmail API.`
+                : emailStatus === 'not_configured'
+                ? `Invitation created. Share the link manually, or connect Gmail in Developer Admin to enable automated sending.`
+                : `Invitation created, but failed to deliver email: ${emailError}. You can share the link manually.`,
           },
           200,
           cors
@@ -3659,6 +3733,244 @@ export default {
         } catch (err: any) {
           console.error('Developer recalculate wallet error:', err);
           return errorResponse(err.message || 'Failed to recalculate wallet balances', 500, cors);
+        }
+      }
+
+      // ====================================================
+      // DEVELOPER GMAIL API EMAIL INTEGRATION ENDPOINTS
+      // ====================================================
+
+      // GET /api/email/google/connect
+      if (pathname === '/api/email/google/connect' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const config = getGoogleMailConfig(env);
+          if (!config.clientId) {
+            return errorResponse(
+              'Server configuration error: GOOGLE_MAIL_CLIENT_ID is not configured in environment variables.',
+              500,
+              cors
+            );
+          }
+
+          const customRedirectUri = url.searchParams.get('redirect_uri') || `${url.origin}/api/email/google/callback`;
+          const stateToken = generateOAuthStateToken(auth.user.id, env);
+          const authUrl = buildGoogleAuthUrl(stateToken, customRedirectUri, env);
+
+          return jsonResponse(
+            {
+              success: true,
+              authUrl,
+              redirectUri: customRedirectUri,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          console.error('Error generating Google connect URL:', err);
+          return errorResponse(err.message || 'Failed to initiate Google OAuth connect', 500, cors);
+        }
+      }
+
+      // GET /api/email/google/callback
+      if (pathname === '/api/email/google/callback' && method === 'GET') {
+        const appBaseUrl =
+          env?.APP_URL ||
+          (typeof process !== 'undefined' ? process.env?.APP_URL : '') ||
+          url.origin ||
+          'https://eventgamestudio.com';
+        const redirectBase = `${appBaseUrl.replace(/\/+$/, '')}/developer/email`;
+
+        const code = url.searchParams.get('code');
+        const state = url.searchParams.get('state');
+        const oauthError = url.searchParams.get('error');
+        const oauthErrorDescription = url.searchParams.get('error_description');
+
+        if (oauthError) {
+          console.warn('[Gmail OAuth] Callback received error from Google:', oauthError, oauthErrorDescription);
+          return Response.redirect(
+            `${redirectBase}?error=${encodeURIComponent(oauthErrorDescription || oauthError)}`,
+            302
+          );
+        }
+
+        if (!code || !state) {
+          return Response.redirect(
+            `${redirectBase}?error=${encodeURIComponent('Missing OAuth code or state from Google callback')}`,
+            302
+          );
+        }
+
+        // Verify state token
+        const stateResult = verifyOAuthStateToken(state, env);
+        if (!stateResult.valid) {
+          console.error('[Gmail OAuth] State validation failed:', stateResult.error);
+          return Response.redirect(
+            `${redirectBase}?error=${encodeURIComponent(stateResult.error || 'Invalid or expired state parameter')}`,
+            302
+          );
+        }
+
+        try {
+          const callbackRedirectUri = `${url.origin}/api/email/google/callback`;
+          const tokenResult = await exchangeGoogleAuthCode(code, callbackRedirectUri, env);
+
+          // Encrypt refresh token before storing
+          const encryptedRefreshToken = await encryptRefreshToken(tokenResult.refreshToken, undefined, env);
+
+          // Save settings to platform store
+          await saveGoogleMailSettings(
+            {
+              email_address: tokenResult.email,
+              refresh_token_encrypted: encryptedRefreshToken,
+              connected_by: stateResult.userId || null,
+              enabled: true,
+              status: 'connected',
+              last_error: null,
+            },
+            env
+          );
+
+          console.log(`[Gmail OAuth] Successfully connected platform sending account: ${tokenResult.email}`);
+
+          return Response.redirect(
+            `${redirectBase}?status=connected&email=${encodeURIComponent(tokenResult.email)}`,
+            302
+          );
+        } catch (err: any) {
+          console.error('[Gmail OAuth] Failed to complete token exchange or save settings:', err);
+          return Response.redirect(
+            `${redirectBase}?error=${encodeURIComponent(err.message || 'Failed to link Gmail account')}`,
+            302
+          );
+        }
+      }
+
+      // GET /api/email/google/status
+      if (pathname === '/api/email/google/status' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const settings = await getGoogleMailSettings(env);
+          const config = getGoogleMailConfig(env);
+
+          const isConnected = Boolean(
+            settings &&
+            settings.enabled &&
+            settings.refresh_token_encrypted &&
+            settings.status !== 'disconnected'
+          );
+
+          return jsonResponse(
+            {
+              success: true,
+              configured: Boolean(config.clientId && config.clientSecret),
+              connected: isConnected,
+              status: isConnected ? (settings?.status || 'connected') : 'disconnected',
+              email: isConnected ? (settings?.email_address || null) : null,
+              lastConnectedAt: isConnected ? (settings?.last_connected_at || null) : null,
+              lastError: settings?.last_error || null,
+              redirectUri: `${url.origin}/api/email/google/callback`,
+              hasClientId: Boolean(config.clientId),
+              hasClientSecret: Boolean(config.clientSecret),
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          console.error('Error fetching Google Mail status:', err);
+          return errorResponse(err.message || 'Failed to fetch Google Mail status', 500, cors);
+        }
+      }
+
+      // POST /api/email/google/disconnect
+      if (pathname === '/api/email/google/disconnect' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          await disconnectGoogleMail(env);
+          console.log('[Gmail API] Platform sending account disconnected by developer admin:', auth.user.email);
+          return jsonResponse(
+            {
+              success: true,
+              message: 'Gmail sending integration successfully disconnected.',
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          console.error('Error disconnecting Google Mail:', err);
+          return errorResponse(err.message || 'Failed to disconnect Google Mail', 500, cors);
+        }
+      }
+
+      // POST /api/email/google/test
+      if (pathname === '/api/email/google/test' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const recipientEmail = (body?.to || '').trim().toLowerCase();
+
+        if (!recipientEmail || !recipientEmail.includes('@') || recipientEmail.length < 5) {
+          return errorResponse('Valid recipient email address is required (e.g., {"to": "developer@domain.com"})', 422, cors);
+        }
+
+        try {
+          const settings = await getGoogleMailSettings(env);
+          if (!settings || !settings.enabled || !settings.refresh_token_encrypted || settings.status === 'disconnected') {
+            return errorResponse(
+              'Gmail sending account is not connected. Please connect a Gmail account before sending test emails.',
+              400,
+              cors
+            );
+          }
+
+          const template = generateTestEmailTemplate(settings.email_address);
+
+          const result = await sendEmailViaGmail(
+            {
+              to: recipientEmail,
+              subject: template.subject,
+              html: template.html,
+              text: template.text,
+              fromName: 'EventGameStudio Test',
+            },
+            env
+          );
+
+          return jsonResponse(
+            {
+              success: true,
+              message: `Test email successfully sent to ${recipientEmail} via Gmail API.`,
+              messageId: result.messageId,
+              threadId: result.threadId,
+              senderEmail: result.senderEmail,
+              recipient: recipientEmail,
+              timestamp: new Date().toISOString(),
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          console.error('Test email delivery error:', err);
+          return errorResponse(err.message || 'Failed to send test email via Gmail API', 500, cors);
         }
       }
 

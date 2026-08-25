@@ -48,6 +48,23 @@ export interface OrgInvitationRecord {
   expires_at: string;
   accepted_at: string | null;
   created_at: string;
+  email_status?: 'pending' | 'sent' | 'failed';
+  email_sent_at?: string | null;
+  email_error?: string | null;
+}
+
+export interface GoogleMailSettingsRecord {
+  id: string;
+  provider: 'google_mail';
+  email_address: string;
+  refresh_token_encrypted: string;
+  enabled: boolean;
+  status: 'connected' | 'error' | 'disconnected';
+  last_error: string | null;
+  last_connected_at: string | null;
+  created_at: string;
+  updated_at: string;
+  connected_by: string | null;
 }
 
 export interface BasketConfig {
