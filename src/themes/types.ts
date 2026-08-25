@@ -116,12 +116,17 @@ export interface GameLayoutConfig {
 export interface GameTheme {
   id: string;
   organization_id?: string;
+  game_id?: string | null;
+  game_name?: string;
+  game_slug?: string;
   name: string;
   slug: string;
   base_theme_id?: string;
   description?: string | null;
   status: 'active' | 'archived' | 'draft';
   is_default?: boolean;
+  is_system?: boolean;
+  ownership_type?: 'system' | 'organization';
 
   // Configuration groups
   branding: ThemeBrandingConfig;

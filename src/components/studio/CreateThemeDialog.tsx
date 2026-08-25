@@ -10,6 +10,8 @@ interface CreateThemeDialogProps {
   existingThemes: GameTheme[];
   onCreate: (themeData: Partial<GameTheme>) => Promise<GameTheme>;
   onDuplicate: (themeId: string, newName?: string) => Promise<GameTheme>;
+  gameId?: string;
+  gameName?: string;
 }
 
 export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
@@ -19,6 +21,8 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
   existingThemes,
   onCreate,
   onDuplicate,
+  gameId,
+  gameName,
 }) => {
   const [creationMode, setCreationMode] = useState<'scratch' | 'duplicate'>('scratch');
   const [themeName, setThemeName] = useState('');
@@ -52,6 +56,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
         // Start from scratch using clean baseline defaults
         const base = existingThemes[0] || durianTheme;
         const newTheme = await onCreate({
+          game_id: gameId,
           name: themeName.trim(),
           slug: themeName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
           description: `Custom game theme: ${themeName.trim()}`,
@@ -142,7 +147,9 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
             </div>
             <div>
               <h3 className="text-lg font-black text-slate-100 tracking-tight">Create New Theme</h3>
-              <p className="text-xs text-slate-400">Choose how you want to set up your game theme</p>
+              <p className="text-xs text-slate-400">
+                {gameName ? `Set up a custom theme for ${gameName}` : 'Choose how you want to set up your game theme'}
+              </p>
             </div>
           </div>
           <button

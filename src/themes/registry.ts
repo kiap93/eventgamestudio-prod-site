@@ -250,6 +250,11 @@ export function normalizeGameTheme(raw: any): GameTheme {
   return {
     id,
     organization_id: raw.organization_id,
+    game_id: raw.game_id || raw.games?.id || null,
+    game_name: raw.game_name || raw.games?.name || undefined,
+    game_slug: raw.game_slug || raw.games?.slug || undefined,
+    is_system: Boolean(raw.is_system),
+    ownership_type: raw.ownership_type || (raw.is_system ? 'system' : 'organization'),
     name,
     slug,
     base_theme_id,

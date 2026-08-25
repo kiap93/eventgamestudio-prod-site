@@ -36,27 +36,6 @@ export const CATALOG_GAMES = [
     description: 'Fast-paced arcade catcher! Catch good brand objects, dodge hazardous obstacles, and collect golden bonus items.',
     icon_name: 'Gamepad2',
   },
-  {
-    name: 'Brand Memory Match',
-    slug: 'memory-match',
-    game_type: 'memory-match',
-    description: 'Grid-based card flip memory matching challenge featuring your custom product graphics and icons.',
-    icon_name: 'Grid3X3',
-  },
-  {
-    name: 'Speed Reflex Tap',
-    slug: 'reaction-tap',
-    game_type: 'reaction-tap',
-    description: 'High-speed reaction tap tester testing player agility and focus on appearing sponsor tokens.',
-    icon_name: 'Zap',
-  },
-  {
-    name: 'Event Trivia Speed Quiz',
-    slug: 'speed-quiz',
-    game_type: 'speed-quiz',
-    description: 'Interactive timed multiple-choice trivia challenge for live event booths and activations.',
-    icon_name: 'HelpCircle',
-  },
 ];
 
 export class GameConflictError extends Error {
@@ -295,42 +274,11 @@ export async function ensureDefaultGames(
   _orgName?: string,
   env?: Record<string, any>
 ): Promise<GameRecord[]> {
-  const existingGames = await getGamesByOrgId(organizationId, env);
-  if (existingGames.length >= CATALOG_GAMES.length) {
-    return existingGames;
-  }
-
-  const existingTypes = new Set(existingGames.map((g) => g.game_type || g.slug));
-
-  for (const catalogGame of CATALOG_GAMES) {
-    if (!existingTypes.has(catalogGame.game_type) && !existingTypes.has(catalogGame.slug)) {
-      try {
-        await createGame(
-          {
-            organization_id: organizationId,
-            name: catalogGame.name,
-            slug: catalogGame.slug,
-            game_type: catalogGame.game_type,
-            description: catalogGame.description,
-            icon_name: catalogGame.icon_name,
-            background_url: '/assets/background.png',
-            basket_config: DEFAULT_BASKET_CONFIG,
-            items_config: DEFAULT_ITEMS_CONFIG,
-            settings_config: DEFAULT_SETTINGS_CONFIG,
-          },
-          env
-        );
-      } catch (err: any) {
-        console.warn('Could not seed game:', catalogGame.name, err.message);
-      }
-    }
-  }
-
-  return await getGamesByOrgId(organizationId, env);
+  return await getAvailableGamesForStudio(organizationId, env);
 }
 
-export async function ensureDefaultGame(organizationId: string, orgName: string, env?: Record<string, any>): Promise<GameRecord> {
-  const games = await ensureDefaultGames(organizationId, orgName, env);
+export async function ensureDefaultGame(organizationId: string, _orgName?: string, env?: Record<string, any>): Promise<GameRecord> {
+  const games = await getAvailableGamesForStudio(organizationId, env);
   return games[0];
 }
 
@@ -375,6 +323,37 @@ export async function updateGameCustomization(
 export async function cleanupDuplicateSystemGames(env?: Record<string, any>): Promise<void> {
   try {
     const supabase = getSupabaseServerClient(env);
+    
+    // Clean up any rogue org-specific games by reassigning their themes to system games if needed, or removing orphan duplicates
+    const { data: orgGames } = await supabase
+      .from('games')
+      .select('id, name, slug, game_type, organization_id')
+      .not('organization_id', 'is', null);
+
+    if (orgGames && orgGames.length > 0) {
+      const { data: systemGames } = await supabase
+        .from('games')
+        .select('id, game_type, slug')
+        .or('is_system.eq.true,organization_id.is.null');
+
+      const systemMap = new Map<string, string>();
+      if (systemGames) {
+        for (const sg of systemGames) {
+          if (sg.game_type) systemMap.set(sg.game_type, sg.id);
+          if (sg.slug) systemMap.set(sg.slug, sg.id);
+        }
+      }
+
+      for (const og of orgGames) {
+        const canonicalSystemId = systemMap.get(og.game_type || '') || systemMap.get(og.slug || '');
+        if (canonicalSystemId) {
+          await supabase.from('game_themes').update({ game_id: canonicalSystemId }).eq('game_id', og.id);
+          await supabase.from('events').update({ game_id: canonicalSystemId }).eq('game_id', og.id);
+        }
+        await supabase.from('games').delete().eq('id', og.id);
+      }
+    }
+
     const { data: systemGames, error } = await supabase
       .from('games')
       .select('id, name, slug, game_type, created_at')
@@ -421,6 +400,8 @@ export async function cleanupDuplicateSystemGames(env?: Record<string, any>): Pr
           console.warn(`[System Games] Merging duplicate game ${dup.name} (${dup.id}) into canonical game ${canonical.name} (${canonical.id})`);
           // Reassign themes from duplicate to canonical game
           await supabase.from('game_themes').update({ game_id: canonical.id }).eq('game_id', dup.id);
+          // Reassign events from duplicate to canonical game
+          await supabase.from('events').update({ game_id: canonical.id }).eq('game_id', dup.id);
           // Delete duplicate game record
           await supabase.from('games').delete().eq('id', dup.id);
         }
@@ -448,35 +429,33 @@ export async function ensureSystemCatalogGames(env?: Record<string, any>): Promi
   }
 
   const list = (existingGames || []) as GameRecord[];
-  const existingTypes = new Set(list.map((g) => g.game_type || g.slug));
-  const existingSlugs = new Set(list.map((g) => g.slug));
-
-  for (const catalogGame of CATALOG_GAMES) {
-    if (!existingTypes.has(catalogGame.game_type) && !existingSlugs.has(catalogGame.slug)) {
-      try {
-        const id = crypto.randomUUID();
-        const now = new Date().toISOString();
-        await supabase.from('games').insert({
-          id,
-          organization_id: null,
-          is_system: true,
-          ownership_type: 'system',
-          name: catalogGame.name,
-          slug: catalogGame.slug,
-          game_type: catalogGame.game_type,
-          description: catalogGame.description,
-          icon_name: catalogGame.icon_name,
-          status: 'active',
-          background_url: '/assets/background.png',
-          basket_config: DEFAULT_BASKET_CONFIG,
-          items_config: DEFAULT_ITEMS_CONFIG,
-          settings_config: DEFAULT_SETTINGS_CONFIG,
-          created_at: now,
-          updated_at: now,
-        });
-      } catch (err: any) {
-        console.warn('Could not seed system game:', catalogGame.name, err.message);
-      }
+  
+  // If NO system games exist at all in database, initialize baseline platform game
+  if (list.length === 0) {
+    const catalogGame = CATALOG_GAMES[0];
+    try {
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      await supabase.from('games').insert({
+        id,
+        organization_id: null,
+        is_system: true,
+        ownership_type: 'system',
+        name: catalogGame.name,
+        slug: catalogGame.slug,
+        game_type: catalogGame.game_type,
+        description: catalogGame.description,
+        icon_name: catalogGame.icon_name,
+        status: 'active',
+        background_url: '/assets/background.png',
+        basket_config: DEFAULT_BASKET_CONFIG,
+        items_config: DEFAULT_ITEMS_CONFIG,
+        settings_config: DEFAULT_SETTINGS_CONFIG,
+        created_at: now,
+        updated_at: now,
+      });
+    } catch (err: any) {
+      console.warn('Could not seed baseline system game:', catalogGame.name, err.message);
     }
   }
 
@@ -503,39 +482,36 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
 
   let games = (gamesData || []) as GameRecord[];
 
-  // If no system games exist yet, initialize them
+  // If no system games exist yet, initialize baseline platform game
   if (games.length === 0) {
-    for (const catalogGame of CATALOG_GAMES) {
-      if (!games.some((g) => g.slug === catalogGame.slug || g.game_type === catalogGame.game_type)) {
-        try {
-          const id = crypto.randomUUID();
-          const now = new Date().toISOString();
-          const { data: created } = await supabase
-            .from('games')
-            .insert({
-              id,
-              organization_id: null,
-              is_system: true,
-              ownership_type: 'system',
-              name: catalogGame.name,
-              slug: catalogGame.slug,
-              game_type: catalogGame.game_type,
-              description: catalogGame.description,
-              icon_name: catalogGame.icon_name,
-              status: 'active',
-              background_url: '/assets/background.png',
-              basket_config: DEFAULT_BASKET_CONFIG,
-              items_config: DEFAULT_ITEMS_CONFIG,
-              settings_config: DEFAULT_SETTINGS_CONFIG,
-              created_at: now,
-              updated_at: now,
-            })
-            .select()
-            .single();
-          if (created) games.push(created as GameRecord);
-        } catch (_err) {}
-      }
-    }
+    const catalogGame = CATALOG_GAMES[0];
+    try {
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      const { data: created } = await supabase
+        .from('games')
+        .insert({
+          id,
+          organization_id: null,
+          is_system: true,
+          ownership_type: 'system',
+          name: catalogGame.name,
+          slug: catalogGame.slug,
+          game_type: catalogGame.game_type,
+          description: catalogGame.description,
+          icon_name: catalogGame.icon_name,
+          status: 'active',
+          background_url: '/assets/background.png',
+          basket_config: DEFAULT_BASKET_CONFIG,
+          items_config: DEFAULT_ITEMS_CONFIG,
+          settings_config: DEFAULT_SETTINGS_CONFIG,
+          created_at: now,
+          updated_at: now,
+        })
+        .select()
+        .single();
+      if (created) games.push(created as GameRecord);
+    } catch (_err) {}
   }
 
   // Count themes per game (system default themes and all themes)
@@ -843,17 +819,17 @@ export async function deletePlatformGame(gameId: string, env?: Record<string, an
 
 /**
  * Retrieves the list of active games available for an organization in Game Studio.
- * Games must be registered by Developer/Admin in Supabase.
+ * Games are platform-level entities registered by Developer/Admin in Supabase.
  */
 export async function getAvailableGamesForStudio(organizationId: string, env?: Record<string, any>): Promise<GameRecord[]> {
   const supabase = getSupabaseServerClient(env);
   await cleanupDuplicateSystemGames(env);
 
-  // Fetch all active system games registered by Admin/Developer + any org-specific games
+  // Fetch all active system games registered by Admin/Developer
   const { data: gamesData, error } = await supabase
     .from('games')
     .select('*')
-    .or(`is_system.eq.true,organization_id.is.null,organization_id.eq.${organizationId}`)
+    .or('is_system.eq.true,organization_id.is.null')
     .eq('status', 'active')
     .order('created_at', { ascending: true });
 
@@ -864,7 +840,7 @@ export async function getAvailableGamesForStudio(organizationId: string, env?: R
 
   let games = (gamesData || []) as GameRecord[];
 
-  // If no system games yet exist in the database, seed and initialize them
+  // If no system games yet exist in the database, seed only the baseline system game
   if (games.length === 0) {
     const platformGames = await ensureSystemCatalogGames(env);
     games = platformGames.filter((g) => g.status === 'active');
@@ -888,6 +864,8 @@ export async function getAvailableGamesForStudio(organizationId: string, env?: R
 
   return games.map((game) => ({
     ...game,
+    is_system: true,
+    ownership_type: 'system',
     theme_count: themeCountsByGame.get(game.id) || 0,
   }));
 }

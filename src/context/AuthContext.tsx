@@ -48,7 +48,7 @@ interface AuthContextType {
   createOrganization: (name: string, logoUrl?: string) => Promise<string>;
   refreshSession: () => Promise<void>;
   fetchActiveGame: () => Promise<void>;
-  fetchThemes: () => Promise<GameTheme[]>;
+  fetchThemes: (gameId?: string) => Promise<GameTheme[]>;
   fetchSystemThemes: (gameId?: string) => Promise<GameTheme[]>;
   createTheme: (themeData: Partial<GameTheme>) => Promise<GameTheme>;
   updateTheme: (themeId: string, themeData: Partial<GameTheme>) => Promise<GameTheme>;
@@ -89,12 +89,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [token]
   );
 
-  const fetchThemes = useCallback(async (): Promise<GameTheme[]> => {
+  const fetchThemes = useCallback(async (gameId?: string): Promise<GameTheme[]> => {
     const currentToken = localStorage.getItem('app_token');
     if (!currentToken) return [];
 
     try {
-      const res = await authFetch('/api/themes');
+      const url = gameId ? `/api/themes?gameId=${encodeURIComponent(gameId)}` : '/api/themes';
+      const res = await authFetch(url);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.themes)) {

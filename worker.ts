@@ -1462,15 +1462,24 @@ export default {
 
         const user = auth.user!;
         const { gameId } = getGameParams;
+        const organizationId = auth.jwtPayload?.organizationId;
 
         const game = await getGameById(gameId, env);
         if (!game) {
           return errorResponse('Game not found', 404, cors);
         }
 
-        const { isMember } = await verifyOrgMembershipAndPermission(user.id, game.organization_id, 'game.view', env);
-        if (!isMember) {
-          return errorResponse('Access denied to this game', 403, cors);
+        const isSystemGame = Boolean(game.is_system) || !game.organization_id;
+        if (!isSystemGame && game.organization_id) {
+          const { isMember } = await verifyOrgMembershipAndPermission(user.id, game.organization_id, 'game.view', env);
+          if (!isMember) {
+            return errorResponse('Access denied to this game', 403, cors);
+          }
+        } else if (organizationId) {
+          const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.view', env);
+          if (!isMember) {
+            return errorResponse('Access denied: You are not a member of the active organization', 403, cors);
+          }
         }
 
         return jsonResponse({ game }, 200, cors);
@@ -1483,6 +1492,7 @@ export default {
 
         const user = auth.user!;
         const { gameId } = updateGameParams;
+        const organizationId = auth.jwtPayload?.organizationId;
         const body = (await request.json().catch(() => ({}))) as any;
         const { background_url, basket_config, items_config, settings_config, name } = body;
 
@@ -1491,19 +1501,34 @@ export default {
           return errorResponse('Game not found', 404, cors);
         }
 
+        const isSystemGame = Boolean(game.is_system) || !game.organization_id;
+        if (isSystemGame) {
+          // Platform/system games are customized via themes or developer admin
+          if (!isUserDeveloperAdmin(user, env)) {
+            return errorResponse('System baseline games cannot be directly modified. Create a custom theme instead.', 403, cors);
+          }
+        }
+
+        const targetOrgId = game.organization_id || organizationId;
+        if (!targetOrgId && !isUserDeveloperAdmin(user, env)) {
+          return errorResponse('No active organization context found', 422, cors);
+        }
+
         let requiredPerm = 'game.view';
         if (background_url !== undefined) requiredPerm = 'game.background.edit';
         else if (items_config !== undefined) requiredPerm = 'game.items.edit';
         else if (basket_config !== undefined) requiredPerm = 'game.basket.edit';
         else if (settings_config !== undefined) requiredPerm = 'game.settings.edit';
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, game.organization_id, requiredPerm, env);
-        if (!isMember) {
-          return errorResponse('Access denied: Not an organization member', 403, cors);
-        }
+        if (targetOrgId) {
+          const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, targetOrgId, requiredPerm, env);
+          if (!isMember) {
+            return errorResponse('Access denied: Not an organization member', 403, cors);
+          }
 
-        if (role === 'viewer') {
-          return errorResponse('Viewers cannot modify game customization', 403, cors);
+          if (role === 'viewer') {
+            return errorResponse('Viewers cannot modify game customization', 403, cors);
+          }
         }
 
         const updatedGame = await updateGameCustomization(
@@ -1528,18 +1553,31 @@ export default {
 
         const user = auth.user!;
         const { gameId } = getGameThemesParams;
+        const organizationId = auth.jwtPayload?.organizationId;
 
         const game = await getGameById(gameId, env);
         if (!game) {
           return errorResponse('Game not found', 404, cors);
         }
 
-        const { isMember } = await verifyOrgMembershipAndPermission(user.id, game.organization_id, 'game.view', env);
-        if (!isMember) {
-          return errorResponse('Access denied to this game', 403, cors);
+        const isSystemGame = Boolean(game.is_system) || !game.organization_id;
+        if (!isSystemGame && game.organization_id) {
+          const { isMember } = await verifyOrgMembershipAndPermission(user.id, game.organization_id, 'game.view', env);
+          if (!isMember) {
+            return errorResponse('Access denied to this game', 403, cors);
+          }
+        } else if (organizationId) {
+          const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.view', env);
+          if (!isMember) {
+            return errorResponse('Access denied: You are not a member of the active organization', 403, cors);
+          }
         }
 
-        const themes = await getThemesByOrgId(game.organization_id, gameId, env);
+        const targetOrgId = organizationId || game.organization_id;
+        let themes: any[] = [];
+        if (targetOrgId) {
+          themes = await getThemesByOrgId(targetOrgId, gameId, env);
+        }
         return jsonResponse({ themes }, 200, cors);
       }
 

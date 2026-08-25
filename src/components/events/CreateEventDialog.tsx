@@ -172,25 +172,59 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         setLoadingCatalog(true);
         // 1. Fetch Admin-registered platform games from Supabase
         const gamesPromise = apiFetch('/api/games');
-        // 2. Fetch active themes
+        // 2. Fetch active org custom themes
         const themesPromise = apiFetch('/api/themes');
+        // 3. Fetch system default themes
+        const systemThemesPromise = apiFetch('/api/themes/system');
 
-        const [gamesRes, themesRes] = await Promise.all([gamesPromise, themesPromise]);
+        const [gamesRes, themesRes, sysThemesRes] = await Promise.all([
+          gamesPromise,
+          themesPromise,
+          systemThemesPromise,
+        ]);
 
+        let gameList: PlatformGameOption[] = [];
         if (gamesRes.ok) {
           const gamesData = await gamesRes.json();
-          const gameList = (gamesData.games || []) as PlatformGameOption[];
+          gameList = (gamesData.games || []) as PlatformGameOption[];
           setGames(gameList);
         }
 
+        const registeredGameIds = new Set(gameList.map((g) => g.id));
+
+        let allThemes: GameThemeOption[] = [];
         if (themesRes.ok) {
           const themesData = await themesRes.json();
-          const themeList = (themesData.themes || []) as GameThemeOption[];
-          setThemes(themeList);
-
-          if (themeList.length > 0 && !selectedThemeId) {
-            setSelectedThemeId(themeList[0].id);
+          if (Array.isArray(themesData.themes)) {
+            allThemes.push(...themesData.themes);
           }
+        }
+        if (sysThemesRes.ok) {
+          const sysData = await sysThemesRes.json();
+          if (Array.isArray(sysData.themes)) {
+            for (const st of sysData.themes) {
+              if (!allThemes.some((t) => t.id === st.id)) {
+                allThemes.push(st);
+              }
+            }
+          }
+        }
+
+        // STRICT FILTER: Only keep themes that belong to active registered platform games in `gameList`
+        const validThemes = allThemes.filter((t) => {
+          if (!t.game_id) return false;
+          return registeredGameIds.has(t.game_id);
+        });
+
+        setThemes(validThemes);
+
+        if (validThemes.length > 0) {
+          // If no theme selected or currently selected theme not in validThemes, select first
+          if (!selectedThemeId || !validThemes.some((t) => t.id === selectedThemeId)) {
+            setSelectedThemeId(validThemes[0].id);
+          }
+        } else {
+          setSelectedThemeId('');
         }
       } catch (err: any) {
         console.error('Error fetching game catalog for event:', err);
@@ -594,45 +628,53 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                     <span>Loading registered games and themes...</span>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1">
-                    {themes
-                      .filter((theme) => selectedGameId === 'all' || theme.game_id === selectedGameId)
-                      .map((theme) => {
-                        const isSelected = selectedThemeId === theme.id;
-                        const gameName = theme.game_name || games.find((g) => g.id === theme.game_id)?.name || 'Catch the Brand';
-                        return (
-                          <button
-                            key={theme.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedThemeId(theme.id);
-                              if (theme.game_id && selectedGameId !== 'all' && selectedGameId !== theme.game_id) {
-                                setSelectedGameId(theme.game_id);
-                              }
-                            }}
-                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                              isSelected
-                                ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/30 text-slate-100'
-                                : 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-800/40 text-slate-400'
-                            }`}
-                          >
-                            <div className="truncate mr-2">
-                              <div className="text-xs font-bold text-slate-200 truncate">
-                                {gameName}
-                              </div>
-                              <div className="text-[11px] text-slate-400 truncate">
-                                {theme.name}
-                              </div>
-                            </div>
-                            {isSelected && (
-                              <div className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shrink-0">
-                                <Check className="w-2.5 h-2.5 stroke-[3]" />
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                  </div>
+                  <>
+                    {themes.filter((theme) => selectedGameId === 'all' || theme.game_id === selectedGameId).length === 0 ? (
+                      <div className="p-4 rounded-xl border border-dashed border-slate-800 text-center text-xs text-slate-500">
+                        No active themes available for the selected game. Please select another game or create a theme in Games.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1">
+                        {themes
+                          .filter((theme) => selectedGameId === 'all' || theme.game_id === selectedGameId)
+                          .map((theme) => {
+                            const isSelected = selectedThemeId === theme.id;
+                            const gameName = games.find((g) => g.id === theme.game_id)?.name || theme.game_name || 'Catch the Brand';
+                            return (
+                              <button
+                                key={theme.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedThemeId(theme.id);
+                                  if (theme.game_id && selectedGameId !== 'all' && selectedGameId !== theme.game_id) {
+                                    setSelectedGameId(theme.game_id);
+                                  }
+                                }}
+                                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                                  isSelected
+                                    ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/30 text-slate-100'
+                                    : 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-800/40 text-slate-400'
+                                }`}
+                              >
+                                <div className="truncate mr-2">
+                                  <div className="text-xs font-bold text-slate-200 truncate">
+                                    {gameName}
+                                  </div>
+                                  <div className="text-[11px] text-slate-400 truncate">
+                                    {theme.name}
+                                  </div>
+                                </div>
+                                {isSelected && (
+                                  <div className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shrink-0">
+                                    <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 

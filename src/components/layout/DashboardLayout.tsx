@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { GameCustomizerPage } from '../studio/GameCustomizerPage';
+import { GamesPage } from '../games/GamesPage';
 import { TeamMembersPage } from '../org/TeamMembersPage';
 import { EventsPage } from '../events/EventsPage';
 import { EventShowcasePage } from '../events/EventShowcasePage';
@@ -33,17 +33,17 @@ export const DashboardLayout: React.FC = () => {
     logout,
   } = useAuth();
 
-  const getInitialTab = (): 'events' | 'customizer' | 'team' | 'wallet' | 'wallet-topup' => {
+  const getInitialTab = (): 'events' | 'games' | 'team' | 'wallet' | 'wallet-topup' => {
     const path = window.location.pathname;
     if (path === '/wallet/top-up' || path.startsWith('/wallet/top-up')) return 'wallet-topup';
     if (path === '/wallet' || path.startsWith('/wallet')) return 'wallet';
-    if (path === '/events' || path.startsWith('/events')) return 'events';
+    if (path === '/games' || path.startsWith('/games') || path.startsWith('/game-themes') || path === '/studio') return 'games';
     if (path === '/team') return 'team';
-    if (path.startsWith('/game-themes') || path === '/studio') return 'customizer';
+    if (path === '/events' || path.startsWith('/events')) return 'events';
     return 'events';
   };
 
-  const [activeTab, setActiveTab] = useState<'events' | 'customizer' | 'team' | 'wallet' | 'wallet-topup'>(() => getInitialTab());
+  const [activeTab, setActiveTab] = useState<'events' | 'games' | 'team' | 'wallet' | 'wallet-topup'>(() => getInitialTab());
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
 
@@ -130,24 +130,24 @@ export const DashboardLayout: React.FC = () => {
       setActiveTab('wallet-topup');
     } else if (path === '/wallet' || path.startsWith('/wallet')) {
       setActiveTab('wallet');
-    } else if (path === '/events' || path.startsWith('/events')) {
-      setActiveTab('events');
+    } else if (path === '/games' || path.startsWith('/games') || path.startsWith('/game-themes') || path === '/studio') {
+      setActiveTab('games');
     } else if (path === '/team') {
       setActiveTab('team');
-    } else if (path.startsWith('/game-themes') || path === '/studio') {
-      setActiveTab('customizer');
+    } else if (path === '/events' || path.startsWith('/events')) {
+      setActiveTab('events');
     }
   }, [routeContext.pathname]);
 
-  const handleTabChange = (tab: 'events' | 'customizer' | 'team' | 'wallet' | 'wallet-topup') => {
+  const handleTabChange = (tab: 'events' | 'games' | 'team' | 'wallet' | 'wallet-topup') => {
     setActiveTab(tab);
     if (tab === 'events') {
       if (window.location.pathname !== '/events') {
         navigateTo('/events');
       }
-    } else if (tab === 'customizer') {
-      if (!window.location.pathname.startsWith('/game-themes')) {
-        navigateTo('/game-themes');
+    } else if (tab === 'games') {
+      if (!window.location.pathname.startsWith('/games')) {
+        navigateTo('/games');
       }
     } else if (tab === 'team') {
       if (window.location.pathname !== '/team') {
@@ -216,15 +216,15 @@ export const DashboardLayout: React.FC = () => {
             </button>
 
             <button
-              onClick={() => handleTabChange('customizer')}
+              onClick={() => handleTabChange('games')}
               className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                activeTab === 'customizer'
+                activeTab === 'games'
                   ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Palette className="w-3.5 h-3.5" />
-              <span>Game Themes</span>
+              <Gamepad2 className="w-3.5 h-3.5" />
+              <span>Games</span>
             </button>
 
             <button
@@ -466,7 +466,7 @@ export const DashboardLayout: React.FC = () => {
         ) : (
           <>
             {activeTab === 'events' && <EventsPage />}
-            {activeTab === 'customizer' && <GameCustomizerPage />}
+            {activeTab === 'games' && <GamesPage />}
             {activeTab === 'team' && <TeamMembersPage />}
             {activeTab === 'wallet' && (
               <OrganizationWalletPage

@@ -185,6 +185,20 @@ export interface EventRecord {
   updated_at: string;
 }
 
+export interface GameRecord {
+  id: string;
+  name: string;
+  slug: string;
+  game_type: string;
+  description?: string | null;
+  icon_name?: string | null;
+  status: 'active' | 'draft' | 'archived' | string;
+  theme_count?: number;
+  event_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export type CancellationErrorCode =
   | 'ELIGIBLE_FOR_CANCELLATION'
   | 'SETUP_DAY_STARTED'
