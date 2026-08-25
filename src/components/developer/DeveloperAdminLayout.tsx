@@ -18,11 +18,12 @@ import {
   Gift,
   Coins,
   Building2,
+  Mail,
 } from 'lucide-react';
 
 interface DeveloperAdminLayoutProps {
   children: React.ReactNode;
-  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing' | 'organizations';
+  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing' | 'organizations' | 'email';
 }
 
 export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
@@ -132,6 +133,18 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 <Coins className="w-4 h-4 text-cyan-400" />
                 <span>Event Pricing Control</span>
               </button>
+
+              <button
+                onClick={() => navigateTo('/developer/email')}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  activeSection === 'email'
+                    ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Mail className="w-4 h-4 text-indigo-400" />
+                <span>Gmail API Email</span>
+              </button>
             </nav>
           </div>
 
@@ -236,6 +249,21 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             >
               <Coins className="w-4 h-4 text-cyan-400" />
               <span>Event Pricing Control</span>
+            </button>
+
+            <button
+              onClick={() => {
+                navigateTo('/developer/email');
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold ${
+                activeSection === 'email'
+                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <Mail className="w-4 h-4 text-indigo-400" />
+              <span>Gmail API Email</span>
             </button>
 
             <button

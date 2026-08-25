@@ -31,7 +31,7 @@ export interface RouteContext {
   developerGameId?: string;
   developerThemeId?: string;
   developerOrgId?: string;
-  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing' | 'organizations';
+  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing' | 'organizations' | 'email';
   developerAction?: 'new-theme' | 'edit-theme' | 'new-game' | 'edit-game' | 'test-play';
   pathname: string;
 }
@@ -101,6 +101,8 @@ export function parseRoute(pathname: string): RouteContext {
       if (parts[2]) {
         developerOrgId = parts[2];
       }
+    } else if (parts[1] === 'email' || parts[1] === 'mail') {
+      developerSection = 'email';
     } else if (parts[1] === 'showcases') {
       developerSection = 'showcases';
     } else if (parts[1] === 'pricing' || parts[1] === 'events') {

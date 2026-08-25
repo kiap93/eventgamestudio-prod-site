@@ -28,6 +28,7 @@ import {
   Copy,
   Layers,
   ShieldCheck,
+  ChevronDown,
 } from 'lucide-react';
 
 interface GameThemeOption {
@@ -73,7 +74,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   // Form Fields
   const [name, setName] = useState('');
   const [games, setGames] = useState<PlatformGameOption[]>([]);
-  const [selectedGameId, setSelectedGameId] = useState<string>('all');
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
   const [selectedThemeId, setSelectedThemeId] = useState<string>('');
   const [themes, setThemes] = useState<GameThemeOption[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
@@ -218,10 +219,18 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
         setThemes(validThemes);
 
-        if (validThemes.length > 0) {
-          // If no theme selected or currently selected theme not in validThemes, select first
-          if (!selectedThemeId || !validThemes.some((t) => t.id === selectedThemeId)) {
-            setSelectedThemeId(validThemes[0].id);
+        // Determine active selected game
+        let activeGameId = selectedGameId;
+        if (!activeGameId || !gameList.some((g) => g.id === activeGameId)) {
+          activeGameId = gameList[0]?.id || '';
+          setSelectedGameId(activeGameId);
+        }
+
+        // Determine active selected theme for this chosen game
+        const themesForGame = validThemes.filter((t) => t.game_id === activeGameId);
+        if (themesForGame.length > 0) {
+          if (!selectedThemeId || !themesForGame.some((t) => t.id === selectedThemeId)) {
+            setSelectedThemeId(themesForGame[0].id);
           }
         } else {
           setSelectedThemeId('');
@@ -235,6 +244,17 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
     fetchCatalog();
   }, [isOpen]);
+
+  // Handle Game selection change - updates game and auto-selects first theme of that game
+  const handleGameChange = (gameId: string) => {
+    setSelectedGameId(gameId);
+    const themesForGame = themes.filter((t) => t.game_id === gameId);
+    if (themesForGame.length > 0) {
+      setSelectedThemeId(themesForGame[0].id);
+    } else {
+      setSelectedThemeId('');
+    }
+  };
 
   // Fetch Wallet & Calculate Quote
   const fetchWalletAndQuote = async (targetThemeId?: string, modeToUse?: PaymentMode) => {
@@ -286,7 +306,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const handleClose = () => {
     setStep('configure');
     setName('');
-    setSelectedGameId('all');
+    setSelectedGameId('');
+    setSelectedThemeId('');
     setCreationError(null);
     setPaymentError(null);
     setQuoteError(null);
@@ -307,9 +328,19 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       return;
     }
 
+    if (!selectedGameId) {
+      setCreationError('Please select a game engine');
+      return;
+    }
+
+    if (!selectedThemeId) {
+      setCreationError('Please select a game theme for this event');
+      return;
+    }
+
     const currentTheme = themes.find((t) => t.id === selectedThemeId) || themes[0];
     const themeIdToUse = currentTheme?.id || selectedThemeId;
-    const gameIdToUse = currentTheme?.game_id || (selectedGameId !== 'all' ? selectedGameId : games[0]?.id);
+    const gameIdToUse = selectedGameId || currentTheme?.game_id || games[0]?.id;
 
     const startTime = new Date(startsAt).getTime();
     const expiryTime = new Date(expiresAt).getTime();
@@ -563,118 +594,119 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 />
               </div>
 
-              {/* 2. Select Game & Theme */}
-              <div className="space-y-2.5">
+              {/* 2. Select Game & Theme (Split into two cascading dropdowns) */}
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-300">
-                    Game & Theme <span className="text-amber-400">*</span>
-                  </label>
-                  {games.length > 1 && (
+                  <span className="text-xs font-bold text-slate-300">
+                    Game & Theme Selection <span className="text-amber-400">*</span>
+                  </span>
+                  {games.length > 0 && (
                     <span className="text-[11px] text-slate-400 font-medium">
-                      {games.length} Registered Platform Games
+                      {games.length} Registered Platform {games.length === 1 ? 'Game' : 'Games'}
                     </span>
                   )}
                 </div>
 
-                {/* Game filter pills if multiple games */}
-                {games.length > 1 && (
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedGameId('all')}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                        selectedGameId === 'all'
-                          ? 'bg-amber-500 text-slate-950 shadow-sm'
-                          : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      All Games ({themes.length})
-                    </button>
-                    {games.map((g) => {
-                      const count = themes.filter((t) => t.game_id === g.id).length;
-                      return (
-                        <button
-                          key={g.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedGameId(g.id);
-                            // Auto-select first theme of this game if current theme is not in this game
-                            const firstThemeOfGame = themes.find((t) => t.game_id === g.id);
-                            if (firstThemeOfGame && (!selectedThemeId || !themes.find(t => t.id === selectedThemeId && t.game_id === g.id))) {
-                              setSelectedThemeId(firstThemeOfGame.id);
-                            }
-                          }}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1.5 ${
-                            selectedGameId === g.id
-                              ? 'bg-amber-500 text-slate-950 shadow-sm'
-                              : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          <span>{g.name}</span>
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                            selectedGameId === g.id ? 'bg-slate-900/30 text-slate-950' : 'bg-slate-800 text-slate-400'
-                          }`}>
-                            {count}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
                 {loadingCatalog ? (
-                  <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                  <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
                     <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
                     <span>Loading registered games and themes...</span>
                   </div>
                 ) : (
-                  <>
-                    {themes.filter((theme) => selectedGameId === 'all' || theme.game_id === selectedGameId).length === 0 ? (
-                      <div className="p-4 rounded-xl border border-dashed border-slate-800 text-center text-xs text-slate-500">
-                        No active themes available for the selected game. Please select another game or create a theme in Games.
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {/* 1st Dropdown: Game Engine */}
+                    <div className="space-y-1.5">
+                      <label htmlFor="event-game-dropdown" className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                        <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
+                        <span>1. Select Game Engine</span>
+                        <span className="text-amber-400">*</span>
+                      </label>
+
+                      <div className="relative">
+                        <select
+                          id="event-game-dropdown"
+                          value={selectedGameId}
+                          onChange={(e) => handleGameChange(e.target.value)}
+                          disabled={games.length === 0}
+                          className="w-full appearance-none px-3.5 py-3 pl-10 pr-9 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-slate-100 text-sm focus:outline-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {games.length === 0 ? (
+                            <option value="">No registered games found</option>
+                          ) : (
+                            games.map((g) => (
+                              <option key={g.id} value={g.id} className="bg-slate-900 text-slate-100 py-1">
+                                {g.name}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                          <Gamepad2 className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                          <ChevronDown className="w-4 h-4" />
+                        </div>
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1">
-                        {themes
-                          .filter((theme) => selectedGameId === 'all' || theme.game_id === selectedGameId)
-                          .map((theme) => {
-                            const isSelected = selectedThemeId === theme.id;
-                            const gameName = games.find((g) => g.id === theme.game_id)?.name || theme.game_name || 'Catch the Brand';
-                            return (
-                              <button
-                                key={theme.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedThemeId(theme.id);
-                                  if (theme.game_id && selectedGameId !== 'all' && selectedGameId !== theme.game_id) {
-                                    setSelectedGameId(theme.game_id);
-                                  }
-                                }}
-                                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                                  isSelected
-                                    ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/30 text-slate-100'
-                                    : 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-800/40 text-slate-400'
-                                }`}
-                              >
-                                <div className="truncate mr-2">
-                                  <div className="text-xs font-bold text-slate-200 truncate">
-                                    {gameName}
-                                  </div>
-                                  <div className="text-[11px] text-slate-400 truncate">
-                                    {theme.name}
-                                  </div>
-                                </div>
-                                {isSelected && (
-                                  <div className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shrink-0">
-                                    <Check className="w-2.5 h-2.5 stroke-[3]" />
-                                  </div>
-                                )}
-                              </button>
-                            );
-                          })}
+
+                      {games.find((g) => g.id === selectedGameId)?.description && (
+                        <p className="text-[11px] text-slate-500 line-clamp-1">
+                          {games.find((g) => g.id === selectedGameId)?.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* 2nd Dropdown: Available Themes for chosen Game */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="event-theme-dropdown" className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                          <span>2. Select Theme</span>
+                          <span className="text-amber-400">*</span>
+                        </label>
+                        {selectedGameId && (
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            {themes.filter((t) => t.game_id === selectedGameId).length} available
+                          </span>
+                        )}
                       </div>
-                    )}
-                  </>
+
+                      <div className="relative">
+                        <select
+                          id="event-theme-dropdown"
+                          value={selectedThemeId}
+                          onChange={(e) => setSelectedThemeId(e.target.value)}
+                          disabled={!selectedGameId || themes.filter((t) => t.game_id === selectedGameId).length === 0}
+                          className="w-full appearance-none px-3.5 py-3 pl-10 pr-9 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-slate-100 text-sm focus:outline-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {!selectedGameId ? (
+                            <option value="">Select a game first</option>
+                          ) : themes.filter((t) => t.game_id === selectedGameId).length === 0 ? (
+                            <option value="">No active themes for this game</option>
+                          ) : (
+                            themes
+                              .filter((t) => t.game_id === selectedGameId)
+                              .map((t) => (
+                                <option key={t.id} value={t.id} className="bg-slate-900 text-slate-100 py-1">
+                                  {t.name}
+                                </option>
+                              ))
+                          )}
+                        </select>
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                          <Sparkles className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                          <ChevronDown className="w-4 h-4" />
+                        </div>
+                      </div>
+
+                      {selectedGameId && themes.filter((t) => t.game_id === selectedGameId).length === 0 && (
+                        <p className="text-[11px] text-amber-400/90">
+                          No active themes found. Customize a theme in the Games tab.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 

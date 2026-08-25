@@ -10,6 +10,7 @@ import { DeveloperShowcaseReviews } from './DeveloperShowcaseReviews';
 import { DeveloperPricingManager } from './DeveloperPricingManager';
 import { DeveloperOrganizationsList } from './DeveloperOrganizationsList';
 import { DeveloperOrganizationDetail } from './DeveloperOrganizationDetail';
+import { DeveloperEmailSettings } from './DeveloperEmailSettings';
 import { ShieldAlert } from 'lucide-react';
 
 export const DeveloperAdminPage: React.FC = () => {
@@ -84,6 +85,15 @@ export const DeveloperAdminPage: React.FC = () => {
     return (
       <DeveloperAdminLayout activeSection="pricing">
         <DeveloperPricingManager />
+      </DeveloperAdminLayout>
+    );
+  }
+
+  // 1c. If viewing Gmail API Email Integration: /developer/email
+  if (route.developerSection === 'email') {
+    return (
+      <DeveloperAdminLayout activeSection="email">
+        <DeveloperEmailSettings />
       </DeveloperAdminLayout>
     );
   }
