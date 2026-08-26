@@ -41,6 +41,11 @@ function saveLocalGmailSettings(): void {
   }
 }
 
+function isUuid(val?: string | null): boolean {
+  if (!val || typeof val !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+}
+
 loadLocalGmailSettings();
 
 /**
@@ -53,6 +58,36 @@ export async function getGoogleMailSettings(
   if (isSupabaseConfigured(env)) {
     try {
       const supabase = getSupabaseServerClient(env);
+
+      // 1. First check platform_settings table (standard global settings table in Supabase)
+      const { data: platformData, error: platformError } = await supabase
+        .from('platform_settings')
+        .select('*')
+        .eq('key', 'google_mail')
+        .maybeSingle();
+
+      if (!platformError && platformData && platformData.value) {
+        const val = typeof platformData.value === 'string' ? JSON.parse(platformData.value) : platformData.value;
+        if (val && typeof val === 'object' && val.email_address) {
+          const rec: GoogleMailSettingsRecord = {
+            id: val.id || 'platform-google-mail-primary',
+            provider: 'google_mail',
+            email_address: val.email_address,
+            refresh_token_encrypted: val.refresh_token_encrypted || '',
+            enabled: val.enabled !== false,
+            status: val.status || 'connected',
+            last_error: val.last_error || null,
+            last_connected_at: val.last_connected_at || platformData.updated_at || val.created_at,
+            created_at: val.created_at || platformData.updated_at,
+            updated_at: platformData.updated_at || val.updated_at,
+            connected_by: val.connected_by || platformData.updated_by || null,
+          };
+          localGmailSettingsCache = rec;
+          return rec;
+        }
+      }
+
+      // 2. Fallback check dedicated google_mail_settings table if present
       const { data, error } = await supabase
         .from('google_mail_settings')
         .select('*')
@@ -62,7 +97,7 @@ export async function getGoogleMailSettings(
         .maybeSingle();
 
       if (!error && data) {
-        return {
+        const rec: GoogleMailSettingsRecord = {
           id: data.id,
           provider: 'google_mail',
           email_address: data.email_address,
@@ -75,9 +110,11 @@ export async function getGoogleMailSettings(
           updated_at: data.updated_at,
           connected_by: data.connected_by || null,
         };
+        localGmailSettingsCache = rec;
+        return rec;
       }
     } catch (err) {
-      console.warn('Notice loading google_mail_settings from Supabase, using local fallback:', err);
+      console.warn('Notice loading google_mail settings from Supabase, using local fallback:', err);
     }
   }
 
@@ -122,27 +159,44 @@ export async function saveGoogleMailSettings(
   if (isSupabaseConfigured(env)) {
     try {
       const supabase = getSupabaseServerClient(env);
-      const { error } = await supabase
-        .from('google_mail_settings')
-        .upsert(
-          {
-            id: record.id,
-            provider: record.provider,
-            email_address: record.email_address,
-            refresh_token_encrypted: record.refresh_token_encrypted,
-            enabled: record.enabled,
-            status: record.status,
-            last_error: record.last_error,
-            last_connected_at: record.last_connected_at,
-            created_at: record.created_at,
-            updated_at: record.updated_at,
-            connected_by: record.connected_by,
-          },
-          { onConflict: 'provider' }
-        );
 
-      if (error) {
-        console.warn('Notice saving google_mail_settings to Supabase:', error.message);
+      // 1. Always persist to platform_settings table (supported out-of-the-box across all workers/services)
+      const { error: platformError } = await supabase
+        .from('platform_settings')
+        .upsert({
+          key: 'google_mail',
+          value: record,
+          description: 'Platform dedicated Google Workspace / Gmail sending account settings',
+          updated_by: isUuid(record.connected_by) ? record.connected_by : null,
+          updated_at: now,
+        });
+
+      if (platformError) {
+        console.warn('Notice saving google_mail to platform_settings:', platformError.message);
+      }
+
+      // 2. Also attempt dedicated google_mail_settings table if it exists
+      try {
+        await supabase
+          .from('google_mail_settings')
+          .upsert(
+            {
+              id: record.id,
+              provider: record.provider,
+              email_address: record.email_address,
+              refresh_token_encrypted: record.refresh_token_encrypted,
+              enabled: record.enabled,
+              status: record.status,
+              last_error: record.last_error,
+              last_connected_at: record.last_connected_at,
+              created_at: record.created_at,
+              updated_at: record.updated_at,
+              connected_by: isUuid(record.connected_by) ? record.connected_by : null,
+            },
+            { onConflict: 'provider' }
+          );
+      } catch {
+        // Ignored if table does not exist
       }
     } catch (err) {
       console.warn('Notice saving google_mail_settings to Supabase:', err);
@@ -176,15 +230,35 @@ export async function disconnectGoogleMail(env?: Record<string, any>): Promise<v
   if (isSupabaseConfigured(env)) {
     try {
       const supabase = getSupabaseServerClient(env);
-      await supabase
-        .from('google_mail_settings')
-        .update({
-          enabled: false,
-          status: 'disconnected',
-          refresh_token_encrypted: '',
-          updated_at: now,
-        })
-        .eq('provider', 'google_mail');
+      if (localGmailSettingsCache) {
+        await supabase
+          .from('platform_settings')
+          .upsert({
+            key: 'google_mail',
+            value: localGmailSettingsCache,
+            description: 'Platform dedicated Google Workspace / Gmail sending account settings',
+            updated_at: now,
+          });
+      } else {
+        await supabase
+          .from('platform_settings')
+          .delete()
+          .eq('key', 'google_mail');
+      }
+
+      try {
+        await supabase
+          .from('google_mail_settings')
+          .update({
+            enabled: false,
+            status: 'disconnected',
+            refresh_token_encrypted: '',
+            updated_at: now,
+          })
+          .eq('provider', 'google_mail');
+      } catch {
+        // Ignored
+      }
     } catch (err) {
       console.warn('Notice updating google_mail_settings disconnect in Supabase:', err);
     }
@@ -214,13 +288,26 @@ export async function updateGoogleMailStatus(
     try {
       const supabase = getSupabaseServerClient(env);
       await supabase
-        .from('google_mail_settings')
-        .update({
-          status,
-          last_error: lastError || null,
+        .from('platform_settings')
+        .upsert({
+          key: 'google_mail',
+          value: existing,
+          description: 'Platform dedicated Google Workspace / Gmail sending account settings',
           updated_at: now,
-        })
-        .eq('id', existing.id);
+        });
+
+      try {
+        await supabase
+          .from('google_mail_settings')
+          .update({
+            status,
+            last_error: lastError || null,
+            updated_at: now,
+          })
+          .eq('id', existing.id);
+      } catch {
+        // Ignored
+      }
     } catch (err) {
       console.warn('Notice updating google_mail_settings status in Supabase:', err);
     }
