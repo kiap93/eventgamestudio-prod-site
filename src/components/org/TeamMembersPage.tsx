@@ -79,6 +79,8 @@ export const TeamMembersPage: React.FC = () => {
         throw new Error(data.error || 'Failed to send invitation');
       }
 
+      const fullInviteLink = data.absoluteInviteUrl || `${window.location.origin}${data.inviteUrl}`;
+
       if (data.emailStatus === 'sent') {
         setMessage({
           type: 'success',
@@ -87,12 +89,12 @@ export const TeamMembersPage: React.FC = () => {
       } else if (data.emailStatus === 'failed') {
         setMessage({
           type: 'error',
-          text: `Invitation created, but failed to deliver email (${data.emailError || 'Gmail API error'}). Share link manually: ${window.location.origin}${data.inviteUrl}`,
+          text: `Invitation created, but failed to deliver email (${data.emailError || 'Gmail API error'}). Share link manually: ${fullInviteLink}`,
         });
       } else {
         setMessage({
           type: 'success',
-          text: `Invitation generated for ${inviteEmail}! Share link: ${window.location.origin}${data.inviteUrl}`,
+          text: `Invitation generated for ${inviteEmail}! Share link: ${fullInviteLink}`,
         });
       }
 

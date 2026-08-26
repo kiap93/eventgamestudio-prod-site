@@ -426,6 +426,13 @@ export default {
     }
 
     try {
+      // Redirect non-API accept-invite route to frontend app if hit on API worker
+      if (pathname === '/accept-invite' && method === 'GET') {
+        const frontendBaseUrl = getFrontendBaseUrl(env, request);
+        const redirectTarget = `${frontendBaseUrl}/accept-invite${url.search}`;
+        return Response.redirect(redirectTarget, 302);
+      }
+
       // If the request is not an API route and env.ASSETS is available, delegate to Cloudflare Assets with SPA fallback
       if (!pathname.startsWith('/api') && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
         let assetResponse = await env.ASSETS.fetch(request);
@@ -893,12 +900,8 @@ export default {
           env
         );
 
-        const appBaseUrl =
-          env?.APP_URL ||
-          (typeof process !== 'undefined' ? process.env?.APP_URL : '') ||
-          url.origin ||
-          'https://eventgamestudio.com';
-        const absoluteInviteUrl = `${appBaseUrl.replace(/\/+$/, '')}/accept-invite?token=${rawToken}`;
+        const frontendBaseUrl = getFrontendBaseUrl(env, request);
+        const absoluteInviteUrl = `${frontendBaseUrl}/accept-invite?token=${rawToken}`;
         const relativeInviteUrl = `/accept-invite?token=${rawToken}`;
 
         let emailStatus: 'sent' | 'failed' | 'not_configured' = 'not_configured';

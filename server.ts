@@ -13,6 +13,7 @@ import {
   getOrgMembers,
   getActiveOrgInvitations,
   createInvitation,
+  updateInvitationEmailStatus,
   getInvitationByTokenHash,
   markInvitationAccepted,
   getMember,
@@ -176,6 +177,7 @@ import {
   disconnectGoogleMail,
   sendEmailViaGmail,
   generateTestEmailTemplate,
+  generateInvitationEmailTemplate,
 } from './server/email/index.js';
 
 
@@ -578,7 +580,45 @@ app.post('/api/organizations/:organizationId/invitations', invitationRateLimiter
       expires_at: expiresAt,
     });
 
-    const inviteUrl = `/accept-invite?token=${rawToken}`;
+    const frontendBaseUrl = getFrontendBaseUrl(process.env, req);
+    const absoluteInviteUrl = `${frontendBaseUrl}/accept-invite?token=${rawToken}`;
+    const relativeInviteUrl = `/accept-invite?token=${rawToken}`;
+
+    let emailStatus: 'sent' | 'failed' | 'not_configured' = 'not_configured';
+    let emailError: string | null = null;
+
+    // Check if platform Gmail sender is connected
+    try {
+      const mailSettings = await getGoogleMailSettings();
+      if (mailSettings && mailSettings.enabled && mailSettings.refresh_token_encrypted && mailSettings.status !== 'disconnected') {
+        const template = generateInvitationEmailTemplate({
+          organizationName: org.name,
+          inviteUrl: absoluteInviteUrl,
+          role,
+          inviterName: user.name || user.email,
+        });
+
+        await sendEmailViaGmail({
+          to: invitation.email,
+          subject: template.subject,
+          html: template.html,
+          text: template.text,
+          fromName: 'EventGameStudio',
+        });
+
+        emailStatus = 'sent';
+        await updateInvitationEmailStatus(invitation.id, 'sent', null);
+        console.log(`[Invitations] Invitation email successfully sent to ${invitation.email} via Gmail API.`);
+      } else {
+        console.log(`[Invitations] Gmail sending is not connected. Invitation record created without sending email.`);
+        emailStatus = 'not_configured';
+      }
+    } catch (emailErr: any) {
+      console.error(`[Invitations] Failed to send invitation email to ${invitation.email} via Gmail API:`, emailErr);
+      emailStatus = 'failed';
+      emailError = emailErr.message || 'Failed to deliver invitation email via Gmail API';
+      await updateInvitationEmailStatus(invitation.id, 'failed', emailError);
+    }
 
     res.json({
       invitation: {
@@ -587,9 +627,20 @@ app.post('/api/organizations/:organizationId/invitations', invitationRateLimiter
         role: invitation.role,
         expires_at: invitation.expires_at,
         organizationName: org.name,
+        email_status: emailStatus === 'not_configured' ? 'pending' : emailStatus,
+        email_error: emailError,
       },
       inviteToken: rawToken,
-      inviteUrl,
+      inviteUrl: relativeInviteUrl,
+      absoluteInviteUrl,
+      emailStatus,
+      emailError,
+      message:
+        emailStatus === 'sent'
+          ? `Invitation email successfully sent to ${invitation.email} via Gmail API.`
+          : emailStatus === 'not_configured'
+          ? `Invitation created. Share the link manually, or connect Gmail in Developer Admin to enable automated sending.`
+          : `Invitation created, but failed to deliver email: ${emailError}. You can share the link manually.`,
     });
   } catch (err: any) {
     console.error('Create invitation error:', err);

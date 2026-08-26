@@ -90,19 +90,54 @@ export interface GoogleMailConfig {
 
 /**
  * Returns the configured frontend web application URL (e.g. https://eventgamestudio.com)
- * used for post-OAuth redirects to the developer admin UI.
+ * used for post-OAuth redirects to the developer admin UI and invitation links.
  */
-export function getFrontendBaseUrl(env?: Record<string, any>): string {
+export function getFrontendBaseUrl(env?: Record<string, any>, request?: any): string {
   const procEnv = typeof process !== 'undefined' ? process.env : {};
 
-  const frontendUrl =
-    env?.APP_URL ||
-    procEnv.APP_URL ||
+  // 1. Check explicit environment configuration (if it's not a workers.dev domain)
+  const envUrl =
     env?.FRONTEND_URL ||
     procEnv.FRONTEND_URL ||
-    'https://eventgamestudio.com';
+    env?.APP_URL ||
+    procEnv.APP_URL;
 
-  return frontendUrl.trim().replace(/\/+$/, '');
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim() && !envUrl.includes('.workers.dev') && !envUrl.includes('-api.')) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+
+  // 2. Extract from request Origin or Referer header if available
+  if (request) {
+    let origin = '';
+    if (typeof request.headers?.get === 'function') {
+      origin = request.headers.get('origin') || '';
+      if (!origin) {
+        const referer = request.headers.get('referer');
+        if (referer) {
+          try {
+            origin = new URL(referer).origin;
+          } catch {}
+        }
+      }
+    } else if (request.headers) {
+      origin = request.headers.origin || '';
+      if (!origin && request.headers.referer) {
+        try {
+          origin = new URL(request.headers.referer).origin;
+        } catch {}
+      }
+    }
+
+    if (origin && typeof origin === 'string' && origin !== 'null' && origin !== 'undefined') {
+      const cleanOrigin = origin.trim().replace(/\/+$/, '');
+      if (!cleanOrigin.includes('.workers.dev') && !cleanOrigin.includes('-api.')) {
+        return cleanOrigin;
+      }
+    }
+  }
+
+  // 3. Platform default frontend URL
+  return 'https://eventgamestudio.com';
 }
 
 /**
