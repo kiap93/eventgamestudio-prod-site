@@ -163,6 +163,21 @@ import {
   getCorsHeaders,
 } from './server/cors.js';
 
+import {
+  getGoogleMailConfig,
+  getFrontendBaseUrl,
+  generateOAuthStateToken,
+  verifyOAuthStateToken,
+  buildGoogleAuthUrl,
+  exchangeGoogleAuthCode,
+  encryptRefreshToken,
+  getGoogleMailSettings,
+  saveGoogleMailSettings,
+  disconnectGoogleMail,
+  sendEmailViaGmail,
+  generateTestEmailTemplate,
+} from './server/email/index.js';
+
 
 const app = express();
 const PORT = 3000;
@@ -4685,6 +4700,211 @@ app.post('/api/developer/wallet/reverse', authenticateDeveloperAdmin, async (req
   } catch (err: any) {
     console.error('Reverse transaction error:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ====================================================
+// DEVELOPER GMAIL API EMAIL INTEGRATION ENDPOINTS
+// ====================================================
+
+/**
+ * GET /api/email/google/connect
+ * Initiates the Google OAuth2 web-server flow for Gmail sending permissions.
+ */
+app.get('/api/email/google/connect', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const config = getGoogleMailConfig();
+    if (!config.clientId) {
+      res.status(500).json({
+        error: 'Server configuration error: GOOGLE_MAIL_CLIENT_ID is not configured in environment variables.',
+      });
+      return;
+    }
+
+    const callbackRedirectUri = config.redirectUri || `${req.protocol}://${req.get('host')}/api/email/google/callback`;
+    const stateToken = generateOAuthStateToken(req.user!.id);
+    const authUrl = buildGoogleAuthUrl(stateToken, callbackRedirectUri);
+
+    const accept = req.headers.accept || '';
+    const wantsRedirect = !accept.includes('application/json') || req.query.redirect === 'true' || Boolean(req.query.token) || Boolean(req.query.auth_token);
+
+    if (wantsRedirect) {
+      res.redirect(302, authUrl);
+      return;
+    }
+
+    res.json({
+      success: true,
+      authUrl,
+      redirectUri: callbackRedirectUri,
+    });
+  } catch (err: any) {
+    console.error('Error generating Google connect URL:', err);
+    res.status(500).json({ error: err.message || 'Failed to initiate Google OAuth connect' });
+  }
+});
+
+/**
+ * GET /api/email/google/callback
+ * Handles Google OAuth callback on the API server.
+ */
+app.get('/api/email/google/callback', async (req: express.Request, res: express.Response) => {
+  const frontendBaseUrl = getFrontendBaseUrl();
+  const redirectSuccess = `${frontendBaseUrl}/developer/email?status=connected`;
+  const redirectErrorBase = `${frontendBaseUrl}/developer/email?status=error`;
+
+  const code = req.query.code as string;
+  const state = req.query.state as string;
+  const oauthError = req.query.error as string;
+  const oauthErrorDescription = req.query.error_description as string;
+
+  if (oauthError) {
+    console.warn('[Gmail OAuth] Callback received error from Google:', oauthError, oauthErrorDescription);
+    const reason = oauthError === 'access_denied' ? 'oauth_denied' : 'oauth_error';
+    res.redirect(302, `${redirectErrorBase}&reason=${encodeURIComponent(reason)}`);
+    return;
+  }
+
+  if (!code || !state) {
+    res.redirect(302, `${redirectErrorBase}&reason=missing_code`);
+    return;
+  }
+
+  const stateResult = verifyOAuthStateToken(state);
+  if (!stateResult.valid) {
+    console.error('[Gmail OAuth] State validation failed:', stateResult.error);
+    res.redirect(302, `${redirectErrorBase}&reason=invalid_state`);
+    return;
+  }
+
+  try {
+    const config = getGoogleMailConfig();
+    const callbackRedirectUri = config.redirectUri || `${req.protocol}://${req.get('host')}/api/email/google/callback`;
+    const tokenResult = await exchangeGoogleAuthCode(code, callbackRedirectUri);
+
+    if (!tokenResult.refreshToken) {
+      console.error('[Gmail OAuth] Token exchange completed without a refresh token');
+      res.redirect(302, `${redirectErrorBase}&reason=missing_refresh_token`);
+      return;
+    }
+
+    const encryptedRefreshToken = await encryptRefreshToken(tokenResult.refreshToken);
+
+    await saveGoogleMailSettings({
+      email_address: tokenResult.email,
+      refresh_token_encrypted: encryptedRefreshToken,
+      connected_by: stateResult.userId || null,
+      enabled: true,
+      status: 'connected',
+      last_error: null,
+    });
+
+    console.log(`[Gmail OAuth] Successfully connected platform sending account: ${tokenResult.email}`);
+    res.redirect(302, redirectSuccess);
+  } catch (err: any) {
+    console.error('[Gmail OAuth] Failed to complete token exchange or save settings:', err);
+    res.redirect(302, `${redirectErrorBase}&reason=exchange_failed`);
+  }
+});
+
+/**
+ * GET /api/email/google/status
+ * Returns safe connection status for the Developer Email UI.
+ */
+app.get('/api/email/google/status', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const settings = await getGoogleMailSettings();
+    const config = getGoogleMailConfig();
+
+    const isConnected = Boolean(
+      settings &&
+      settings.enabled &&
+      settings.refresh_token_encrypted &&
+      settings.status !== 'disconnected'
+    );
+
+    res.json({
+      success: true,
+      connected: isConnected,
+      email: isConnected ? (settings?.email_address || null) : null,
+      enabled: isConnected ? (settings?.enabled !== false) : false,
+      status: isConnected ? (settings?.status || 'connected') : 'disconnected',
+      configured: Boolean(config.clientId && config.clientSecret),
+      lastConnectedAt: isConnected ? (settings?.last_connected_at || null) : null,
+      lastError: settings?.last_error || null,
+      redirectUri: config.redirectUri || `${req.protocol}://${req.get('host')}/api/email/google/callback`,
+      hasClientId: Boolean(config.clientId),
+      hasClientSecret: Boolean(config.clientSecret),
+    });
+  } catch (err: any) {
+    console.error('Error fetching Google Mail status:', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch Google Mail status' });
+  }
+});
+
+/**
+ * POST /api/email/google/disconnect
+ * Disconnects the platform Gmail sending account.
+ */
+app.post('/api/email/google/disconnect', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    await disconnectGoogleMail();
+    console.log('[Gmail API] Platform sending account disconnected by developer admin:', req.user?.email);
+    res.json({
+      success: true,
+      message: 'Gmail sending integration successfully disconnected.',
+    });
+  } catch (err: any) {
+    console.error('Error disconnecting Google Mail:', err);
+    res.status(500).json({ error: err.message || 'Failed to disconnect Google Mail' });
+  }
+});
+
+/**
+ * POST /api/email/test
+ * Sends a test email to verify Gmail API credentials and delivery.
+ */
+app.post('/api/email/test', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const { recipientEmail } = req.body;
+    const targetEmail = (recipientEmail || req.user?.email || '').trim().toLowerCase();
+
+    if (!targetEmail || !targetEmail.includes('@')) {
+      res.status(400).json({ error: 'Valid recipient email address is required.' });
+      return;
+    }
+
+    const settings = await getGoogleMailSettings();
+    if (!settings || !settings.enabled || !settings.refresh_token_encrypted || settings.status === 'disconnected') {
+      res.status(400).json({
+        error: 'Gmail sending account is not connected. Please connect a Gmail account before sending test emails.',
+      });
+      return;
+    }
+
+    const { html, text, subject } = generateTestEmailTemplate(settings.email_address);
+
+    const result = await sendEmailViaGmail({
+      to: targetEmail,
+      subject,
+      html,
+      text,
+      fromName: 'EventGameStudio Platform',
+    });
+
+    res.json({
+      success: true,
+      message: `Test email successfully sent to ${targetEmail} via connected Gmail account (${result.senderEmail})`,
+      messageId: result.messageId,
+      threadId: result.threadId,
+      senderEmail: result.senderEmail,
+      recipientEmail: targetEmail,
+    });
+  } catch (err: any) {
+    console.error('Test email sending error:', err);
+    res.status(500).json({
+      error: err.message || 'Failed to dispatch test email via Gmail API',
+    });
   }
 });
 

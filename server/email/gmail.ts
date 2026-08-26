@@ -158,7 +158,7 @@ export function buildGoogleAuthUrl(
     client_id: config.clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email',
+    scope: 'https://www.googleapis.com/auth/gmail.send',
     access_type: 'offline',
     prompt: 'consent', // Forces Google to issue a refresh_token on every connect
     state,
@@ -218,44 +218,29 @@ export async function exchangeGoogleAuthCode(
     throw new Error('Failed to retrieve access token from Google');
   }
 
-  // Fetch the connected email address from Google
+  // Fetch the connected email address strictly from official Gmail API users/me/profile
   let connectedEmail = '';
   try {
-    const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+    const profileRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
       headers: {
         Authorization: `Bearer ${tokenData.access_token}`,
       },
     });
-    if (userInfoRes.ok) {
-      const userInfo = (await userInfoRes.json()) as { email?: string };
-      if (userInfo.email) {
-        connectedEmail = userInfo.email.trim().toLowerCase();
+    if (profileRes.ok) {
+      const profile = (await profileRes.json()) as { emailAddress?: string };
+      if (profile.emailAddress) {
+        connectedEmail = profile.emailAddress.trim().toLowerCase();
       }
+    } else {
+      const errText = await profileRes.text();
+      console.warn('Gmail profile retrieval error response:', profileRes.status, errText);
     }
   } catch (err) {
-    console.warn('Notice retrieving userinfo, attempting Gmail profile fallback:', err);
+    console.warn('Error retrieving Gmail profile:', err);
   }
 
   if (!connectedEmail) {
-    try {
-      const profileRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
-        headers: {
-          Authorization: `Bearer ${tokenData.access_token}`,
-        },
-      });
-      if (profileRes.ok) {
-        const profile = (await profileRes.json()) as { emailAddress?: string };
-        if (profile.emailAddress) {
-          connectedEmail = profile.emailAddress.trim().toLowerCase();
-        }
-      }
-    } catch (err) {
-      console.warn('Notice retrieving Gmail profile:', err);
-    }
-  }
-
-  if (!connectedEmail) {
-    throw new Error('Failed to determine connected Gmail address');
+    throw new Error('Failed to determine connected Gmail address from Gmail API profile');
   }
 
   if (!tokenData.refresh_token) {
