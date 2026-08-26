@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { apiFetch } from '../../lib/api';
+import { apiFetch, getApiBaseUrl } from '../../lib/api';
 import {
   Mail,
   CheckCircle2,
@@ -117,26 +117,22 @@ export const DeveloperEmailSettings: React.FC = () => {
     }
   }, [fetchStatus]);
 
-  const handleConnectGmail = async () => {
+  const handleConnectGmail = () => {
     setConnecting(true);
     setUiNotice(null);
     try {
-      const res = await apiFetch('/api/email/google/connect');
-      const data = await res.json();
-      if (res.ok && data.authUrl) {
-        // Redirect browser to Google's official OAuth consent screen
-        window.location.href = data.authUrl;
-      } else {
-        setUiNotice({
-          type: 'error',
-          text: data.error || 'Failed to initiate Google OAuth connect',
-        });
-        setConnecting(false);
-      }
+      const token =
+        localStorage.getItem('app_token') ||
+        localStorage.getItem('durian_app_token') ||
+        '';
+      const baseUrl = getApiBaseUrl();
+      const connectUrl = `${baseUrl}/api/email/google/connect${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      // Top-level browser navigation directly to the Worker's connect endpoint
+      window.location.href = connectUrl;
     } catch (err: any) {
       setUiNotice({
         type: 'error',
-        text: err.message || 'Error connecting to Google OAuth endpoint',
+        text: err.message || 'Error redirecting to Google connect endpoint',
       });
       setConnecting(false);
     }

@@ -335,15 +335,24 @@ async function authenticateWorkerRequest(
   jwtPayload?: AppJWTPayload;
   errorResponse?: Response;
 }> {
+  const url = new URL(request.url);
   const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return {
-      authenticated: false,
-      errorResponse: errorResponse('Unauthenticated: Missing or invalid Authorization header', 401, cors),
-    };
+  let token = '';
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  } else if (url.searchParams.get('token')) {
+    token = url.searchParams.get('token')!.trim();
+  } else if (url.searchParams.get('auth_token')) {
+    token = url.searchParams.get('auth_token')!.trim();
   }
 
-  const token = authHeader.substring(7);
+  if (!token) {
+    return {
+      authenticated: false,
+      errorResponse: errorResponse('Unauthenticated: Missing or invalid Authorization header or token parameter', 401, cors),
+    };
+  }
 
   // 1. Try App JWT
   try {
@@ -3764,6 +3773,13 @@ export default {
           const stateToken = generateOAuthStateToken(auth.user.id, env);
           const authUrl = buildGoogleAuthUrl(stateToken, callbackRedirectUri, env);
 
+          const accept = request.headers.get('Accept') || '';
+          const wantsRedirect = !accept.includes('application/json') || url.searchParams.has('redirect') || url.searchParams.has('token') || url.searchParams.has('auth_token');
+
+          if (wantsRedirect) {
+            return Response.redirect(authUrl, 302);
+          }
+
           return jsonResponse(
             {
               success: true,
@@ -3925,8 +3941,8 @@ export default {
         }
       }
 
-      // POST /api/email/google/test
-      if (pathname === '/api/email/google/test' && method === 'POST') {
+      // POST /api/email/google/test or /api/email/test
+      if ((pathname === '/api/email/google/test' || pathname === '/api/email/test') && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
         if (!isUserDeveloperAdmin(auth.user, env)) {
@@ -3934,7 +3950,7 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const recipientEmail = (body?.to || '').trim().toLowerCase();
+        const recipientEmail = (body?.to || body?.recipientEmail || '').trim().toLowerCase();
 
         if (!recipientEmail || !recipientEmail.includes('@') || recipientEmail.length < 5) {
           return errorResponse('Valid recipient email address is required (e.g., {"to": "developer@domain.com"})', 422, cors);

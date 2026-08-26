@@ -183,12 +183,20 @@ export async function authenticateJWT(
   next: NextFunction
 ): Promise<void> {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Unauthenticated: Missing or invalid Authorization header' });
-    return;
+  let token = '';
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  } else if (req.query?.token && typeof req.query.token === 'string') {
+    token = req.query.token.trim();
+  } else if (req.query?.auth_token && typeof req.query.auth_token === 'string') {
+    token = req.query.auth_token.trim();
   }
 
-  const token = authHeader.substring(7);
+  if (!token) {
+    res.status(401).json({ error: 'Unauthenticated: Missing or invalid Authorization header or token parameter' });
+    return;
+  }
 
   // Try App JWT first
   try {
