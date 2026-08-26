@@ -201,7 +201,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
                 onClick={triggerBonusCatch}
                 className="relative h-[320px] sm:h-[440px] md:h-[500px] w-full cursor-crosshair overflow-hidden select-none"
                 style={{
-                  backgroundImage: `url('/assets/background.png')`,
+                  backgroundImage: `url('/assets/themes/carnival/background.png')`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                 }}
@@ -281,7 +281,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
                   style={{ left: `${interactiveBasketX}%` }}
                 >
                   <img
-                    src="/assets/basket.png"
+                    src="/assets/themes/carnival/basket.png"
                     alt="Player Catcher"
                     className="w-24 sm:w-32 h-auto drop-shadow-[0_15px_20px_rgba(0,0,0,0.6)]"
                     loading="eager"
