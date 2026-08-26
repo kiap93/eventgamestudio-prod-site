@@ -156,10 +156,10 @@ export const DEFAULT_DURIAN_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
     logoUrl: null,
     clientLogoUrl: null,
   },
-  background_url: '/assets/background.png',
+  background_url: '/assets/themes/carnival/background.png',
   basket_config: {
     name: 'Bamboo Basket',
-    imageUrl: '/assets/basket.png',
+    imageUrl: '/assets/themes/carnival/basket.png',
     width: 140,
     height: 70,
     catchAreaRatio: 0.72,
@@ -170,9 +170,9 @@ export const DEFAULT_DURIAN_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
   },
   items_config: [
     {
-      id: 'green_durian',
-      name: 'Fresh Green Durian',
-      imageUrl: '/assets/durian_green.png',
+      id: 'ticket',
+      name: 'Golden Carnival Ticket',
+      imageUrl: '/assets/themes/carnival/item_normal_01.png',
       points: 10,
       speedMultiplier: 1.0,
       spawnWeight: 75,
@@ -184,9 +184,9 @@ export const DEFAULT_DURIAN_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
       collisionCenterYRatio: 0.54,
     },
     {
-      id: 'orange_durian',
-      name: 'Spiky Hazard Durian',
-      imageUrl: '/assets/durian_brown.png',
+      id: 'mask',
+      name: 'Carnival Cursed Mask',
+      imageUrl: '/assets/themes/carnival/item_hazard_01.png',
       points: -10,
       speedMultiplier: 1.15,
       spawnWeight: 20,
@@ -198,9 +198,9 @@ export const DEFAULT_DURIAN_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
       collisionCenterYRatio: 0.54,
     },
     {
-      id: 'golden_durian',
-      name: 'Golden Musang King',
-      imageUrl: '/assets/durian_green.png', // Procedural gold shader or asset
+      id: 'star',
+      name: 'Cosmic Carnival Star',
+      imageUrl: '/assets/themes/carnival/item_bonus_01.png', // Procedural gold shader or asset
       points: 50,
       speedMultiplier: 1.3,
       spawnWeight: 5,

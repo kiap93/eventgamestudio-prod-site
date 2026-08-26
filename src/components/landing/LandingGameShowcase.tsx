@@ -122,7 +122,7 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                     <div
                       className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
                       style={{
-                        backgroundImage: `url('/assets/background.png')`,
+                        backgroundImage: `url('/assets/themes/carnival/background.png')`,
                       }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/20 to-slate-950/40" />
@@ -140,7 +140,7 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                     {/* Animated Stage Elements */}
                     <div className="absolute top-1/3 left-1/4 animate-bounce duration-1000">
                       <img
-                        src="/assets/durian_green.png"
+                        src="/assets/themes/carnival/item_normal_01.png"
                         alt="Catchable item"
                         className="w-12 h-12 sm:w-16 sm:h-16 drop-shadow-[0_12px_16px_rgba(0,0,0,0.7)] transform -rotate-6"
                         loading="lazy"
@@ -148,7 +148,7 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                     </div>
                     <div className="absolute top-1/4 right-1/4 animate-pulse">
                       <img
-                        src="/assets/durian_brown.png"
+                        src="/assets/themes/carnival/item_hazard_01.png"
                         alt="Obstacle item"
                         className="w-10 h-10 sm:w-14 sm:h-14 drop-shadow-[0_12px_16px_rgba(0,0,0,0.7)] transform rotate-12 opacity-90"
                         loading="lazy"
@@ -156,7 +156,7 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                     </div>
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
                       <img
-                        src="/assets/basket.png"
+                        src="/assets/themes/carnival/basket.png"
                         alt="Player catcher"
                         className="w-28 sm:w-36 h-auto drop-shadow-[0_20px_25px_rgba(0,0,0,0.8)]"
                         loading="lazy"

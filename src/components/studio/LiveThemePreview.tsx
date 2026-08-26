@@ -570,7 +570,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
       theme.clientLogo ||
       theme.branding?.logoUrl ||
       theme.logo ||
-      '/assets/basket.png';
+      '/logo.png';
 
     const getElementContent = () => {
       switch (key) {

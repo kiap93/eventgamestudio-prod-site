@@ -134,12 +134,12 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   const goodItemImg =
     activeTheme?.fallingObject ||
     goodItem?.imageUrl ||
-    '/assets/durian_green.png';
+    '/assets/themes/carnival/item_normal_01.png';
 
   const badItemImg =
     activeTheme?.badFallingObject ||
     badItem?.imageUrl ||
-    '/assets/durian_brown.png';
+    '/assets/themes/carnival/item_hazard_01.png';
 
   const hasEventContext = Boolean(publicToken || (eventId && eventId !== 'undefined' && eventId !== 'null'));
 

@@ -97,10 +97,10 @@ export function resolveThemeDefaultItemImage(
     if (isBonus) return '/assets/honey_mango.png';
     return '/assets/ripe_mango.png';
   }
-  // Default durian assets
-  if (isHazard) return '/assets/durian_brown.png';
-  if (isBonus) return '/assets/durian_green.png';
-  return '/assets/durian_green.png';
+  // Default theme assets
+  if (isHazard) return '/assets/themes/carnival/item_hazard_01.png';
+  if (isBonus) return '/assets/themes/carnival/item_bonus_01.png';
+  return '/assets/themes/carnival/item_normal_01.png';
 }
 
 /**
@@ -112,7 +112,7 @@ export function resolveThemeDefaultBasketImage(theme: Partial<GameTheme> | any):
   if (baseId === 'chinese-new-year') return '/assets/fortune_basket.png';
   if (baseId === 'halloween') return '/assets/pumpkin_bucket.png';
   if (baseId === 'mango') return '/assets/fruit_crate.png';
-  return '/assets/basket.png';
+  return '/assets/themes/carnival/basket.png';
 }
 
 /**
@@ -124,7 +124,7 @@ export function resolveThemeDefaultBgImage(theme: Partial<GameTheme> | any): str
   if (baseId === 'chinese-new-year') return '/assets/cny_bg.png';
   if (baseId === 'halloween') return '/assets/halloween_bg.png';
   if (baseId === 'mango') return '/assets/mango_bg.png';
-  return '/assets/background.png';
+  return '/assets/themes/carnival/background.png';
 }
 
 /**

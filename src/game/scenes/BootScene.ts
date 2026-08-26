@@ -20,21 +20,21 @@ export class BootScene extends Phaser.Scene {
     });
 
     // 1. Preload default Durian theme PNG assets into legacy texture keys
-    this.load.image('background', '/assets/background.png');
-    this.load.image('green_durian', '/assets/durian_green.png');
-    this.load.image('orange_durian', '/assets/durian_brown.png');
-    this.load.image('golden_durian', '/assets/durian_green.png');
-    this.load.image('basket', '/assets/basket.png');
+    this.load.image('background', '/assets/themes/carnival/background.png');
+    this.load.image('ticket', '/assets/themes/carnival/item_normal_01.png');
+    this.load.image('mask', '/assets/themes/carnival/item_hazard_01.png');
+    this.load.image('star', '/assets/themes/carnival/item_bonus_01.png');
+    this.load.image('basket', '/assets/themes/carnival/basket.png');
 
     // 2. Preload active theme image assets
     const themeId = theme.id;
     const bgPath = theme.background_url || theme.background;
     const catcherPath = theme.basket_config?.imageUrl || theme.catcher;
 
-    if (bgPath && bgPath !== '/assets/background.png' && !bgPath.startsWith('theme_')) {
+    if (bgPath && bgPath !== '/assets/themes/carnival/background.png' && !bgPath.startsWith('theme_')) {
       this.load.image(`theme_${themeId}_bg`, bgPath);
     }
-    if (catcherPath && catcherPath !== '/assets/basket.png') {
+    if (catcherPath && catcherPath !== '/assets/themes/carnival/basket.png') {
       this.load.image(`theme_${themeId}_catcher`, catcherPath);
     }
 

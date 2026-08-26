@@ -191,7 +191,7 @@ BEGIN
         'Catch falling branded collectibles with precision paddle/basket mechanics.',
         'Gamepad2',
         'active',
-        '/assets/background.png',
+        '/assets/themes/carnival/background.png',
         timezone('utc'::text, now()),
         timezone('utc'::text, now())
       ) RETURNING id INTO catch_game_id;
