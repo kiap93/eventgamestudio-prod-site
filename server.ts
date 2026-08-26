@@ -13,6 +13,9 @@ import {
   getOrgMembers,
   getActiveOrgInvitations,
   createInvitation,
+  getInvitationById,
+  renewInvitation,
+  deleteInvitation,
   updateInvitationEmailStatus,
   getInvitationByTokenHash,
   markInvitationAccepted,
@@ -644,6 +647,155 @@ app.post('/api/organizations/:organizationId/invitations', invitationRateLimiter
     });
   } catch (err: any) {
     console.error('Create invitation error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/organizations/:organizationId/invitations/:invitationId/resend
+ * Re-trigger invitation email with a fresh/renewed token
+ */
+app.post('/api/organizations/:organizationId/invitations/:invitationId/resend', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { organizationId, invitationId } = req.params;
+
+    const { isMember, role: myRole } = await verifyOrgMembershipAndPermission(
+      user.id,
+      organizationId,
+      'organization.members.invite'
+    );
+
+    if (!isMember || !['owner', 'admin'].includes(myRole || '')) {
+      res.status(403).json({ error: 'Only owners and admins can manage invitations' });
+      return;
+    }
+
+    const org = await getOrganizationById(organizationId);
+    if (!org) {
+      res.status(404).json({ error: 'Organization not found' });
+      return;
+    }
+
+    const invitation = await getInvitationById(invitationId);
+    if (!invitation || invitation.organization_id !== organizationId) {
+      res.status(404).json({ error: 'Invitation not found' });
+      return;
+    }
+
+    if (invitation.accepted_at) {
+      res.status(400).json({ error: 'This invitation has already been accepted' });
+      return;
+    }
+
+    // Generate fresh token and extend expiration by 7 days
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashToken(rawToken);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const frontendBaseUrl = getFrontendBaseUrl(process.env, req);
+    const absoluteInviteUrl = `${frontendBaseUrl}/accept-invite?token=${rawToken}`;
+    const relativeInviteUrl = `/accept-invite?token=${rawToken}`;
+
+    let emailStatus: 'sent' | 'failed' | 'not_configured' = 'not_configured';
+    let emailError: string | null = null;
+
+    // Check if platform Gmail sender is connected
+    try {
+      const mailSettings = await getGoogleMailSettings();
+      if (mailSettings && mailSettings.enabled && mailSettings.refresh_token_encrypted && mailSettings.status !== 'disconnected') {
+        const template = generateInvitationEmailTemplate({
+          organizationName: org.name,
+          inviteUrl: absoluteInviteUrl,
+          role: invitation.role,
+          inviterName: user.name || user.email,
+        });
+
+        await sendEmailViaGmail({
+          to: invitation.email,
+          subject: template.subject,
+          html: template.html,
+          text: template.text,
+          fromName: 'EventGameStudio',
+        });
+
+        emailStatus = 'sent';
+      } else {
+        emailStatus = 'not_configured';
+      }
+    } catch (emailErr: any) {
+      console.error(`[Invitations] Failed to resend invitation email to ${invitation.email}:`, emailErr);
+      emailStatus = 'failed';
+      emailError = emailErr.message || 'Failed to deliver invitation email via Gmail API';
+    }
+
+    const updatedInvitation = await renewInvitation(invitation.id, {
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+      email_status: emailStatus === 'not_configured' ? 'pending' : emailStatus,
+      email_sent_at: emailStatus === 'sent' ? now.toISOString() : null,
+      email_error: emailError,
+    });
+
+    res.json({
+      success: true,
+      invitation: {
+        id: updatedInvitation.id,
+        email: updatedInvitation.email,
+        role: updatedInvitation.role,
+        expires_at: updatedInvitation.expires_at,
+        email_status: updatedInvitation.email_status || emailStatus,
+        email_error: emailError,
+      },
+      inviteToken: rawToken,
+      inviteUrl: relativeInviteUrl,
+      absoluteInviteUrl,
+      emailStatus,
+      emailError,
+      message:
+        emailStatus === 'sent'
+          ? `Invitation email successfully resent to ${invitation.email} via Gmail API.`
+          : emailStatus === 'not_configured'
+          ? `Invitation renewed. Share the link manually, or connect Gmail in Developer Admin to enable automated sending.`
+          : `Invitation renewed, but failed to deliver email: ${emailError}. You can share the link manually.`,
+    });
+  } catch (err: any) {
+    console.error('Resend invitation error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/organizations/:organizationId/invitations/:invitationId
+ * Revoke a pending invitation
+ */
+app.delete('/api/organizations/:organizationId/invitations/:invitationId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { organizationId, invitationId } = req.params;
+
+    const { isMember, role: myRole } = await verifyOrgMembershipAndPermission(
+      user.id,
+      organizationId,
+      'organization.members.remove'
+    );
+
+    if (!isMember || !['owner', 'admin'].includes(myRole || '')) {
+      res.status(403).json({ error: 'Permission denied to revoke invitations' });
+      return;
+    }
+
+    const invitation = await getInvitationById(invitationId);
+    if (!invitation || invitation.organization_id !== organizationId) {
+      res.status(404).json({ error: 'Invitation not found' });
+      return;
+    }
+
+    await deleteInvitation(invitationId);
+    res.json({ success: true, message: 'Invitation revoked successfully' });
+  } catch (err: any) {
+    console.error('Delete invitation error:', err);
     res.status(500).json({ error: err.message });
   }
 });

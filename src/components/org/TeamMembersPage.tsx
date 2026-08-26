@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
-import { Users, Mail, UserPlus, Shield, Trash2, Copy, Check, Clock, ShieldCheck } from 'lucide-react';
+import { Users, Mail, UserPlus, Shield, Trash2, Copy, Check, Clock, ShieldCheck, RefreshCw, Send, AlertCircle, CheckCircle2, X } from 'lucide-react';
 
 interface Member {
   id: string;
@@ -19,6 +19,8 @@ interface Invitation {
   role: string;
   expires_at: string;
   created_at: string;
+  email_status?: 'pending' | 'sent' | 'failed';
+  email_error?: string | null;
 }
 
 export const TeamMembersPage: React.FC = () => {
@@ -30,6 +32,8 @@ export const TeamMembersPage: React.FC = () => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'designer' | 'viewer'>('designer');
   const [sendingInvite, setSendingInvite] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -104,6 +108,71 @@ export const TeamMembersPage: React.FC = () => {
       setMessage({ type: 'error', text: err.message });
     } finally {
       setSendingInvite(false);
+    }
+  };
+
+  const handleResendInvite = async (invitationId: string, email: string) => {
+    if (!currentOrganization) return;
+    setResendingId(invitationId);
+    setMessage(null);
+
+    try {
+      const res = await apiFetch(`/api/organizations/${currentOrganization.id}/invitations/${invitationId}/resend`, {
+        method: 'POST',
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to resend invitation');
+      }
+
+      const fullInviteLink = data.absoluteInviteUrl || `${window.location.origin}${data.inviteUrl}`;
+
+      if (data.emailStatus === 'sent') {
+        setMessage({
+          type: 'success',
+          text: `Fresh invitation email sent to ${email} successfully!`,
+        });
+      } else if (data.emailStatus === 'failed') {
+        setMessage({
+          type: 'error',
+          text: `Failed to deliver email to ${email} (${data.emailError || 'Gmail API error'}). You can share the link manually: ${fullInviteLink}`,
+        });
+      } else {
+        setMessage({
+          type: 'success',
+          text: `Invitation token renewed for ${email}! Share link manually: ${fullInviteLink}`,
+        });
+      }
+
+      fetchMembers();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Failed to resend invitation' });
+    } finally {
+      setResendingId(null);
+    }
+  };
+
+  const handleRevokeInvite = async (invitationId: string, email: string) => {
+    if (!currentOrganization || !confirm(`Revoke pending invitation for ${email}?`)) return;
+    setRevokingId(invitationId);
+
+    try {
+      const res = await apiFetch(`/api/organizations/${currentOrganization.id}/invitations/${invitationId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setMessage({ type: 'success', text: `Invitation for ${email} has been revoked.` });
+        fetchMembers();
+      } else {
+        const err = await res.json();
+        setMessage({ type: 'error', text: err.error || 'Failed to revoke invitation' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setRevokingId(null);
     }
   };
 
@@ -300,30 +369,89 @@ export const TeamMembersPage: React.FC = () => {
       {/* Pending Invitations */}
       {invitations.length > 0 && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-          <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
-            <Clock className="w-5 h-5 text-amber-400" />
-            <span>Pending Invitations ({invitations.length})</span>
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-400" />
+              <span>Pending Invitations ({invitations.length})</span>
+            </h2>
+            <span className="text-xs text-slate-500 hidden sm:inline">
+              Invited members sign in with their Google account to accept
+            </span>
+          </div>
 
           <div className="space-y-3">
-            {invitations.map((inv) => (
-              <div
-                key={inv.id}
-                className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-200 text-sm">{inv.email}</span>
-                    <span className="uppercase text-[10px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded">
-                      {inv.role}
-                    </span>
+            {invitations.map((inv) => {
+              const isResending = resendingId === inv.id;
+              const isRevoking = revokingId === inv.id;
+
+              return (
+                <div
+                  key={inv.id}
+                  className="bg-slate-950 border border-slate-800 hover:border-slate-700/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-slate-200 text-sm">{inv.email}</span>
+                      <span className="uppercase text-[10px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded">
+                        {inv.role}
+                      </span>
+                      {inv.email_status === 'sent' && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Mail Sent
+                        </span>
+                      )}
+                      {inv.email_status === 'failed' && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded"
+                          title={inv.email_error || undefined}
+                        >
+                          <AlertCircle className="w-3 h-3" />
+                          Mail Failed
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Expires: {new Date(inv.expires_at).toLocaleString()}
+                    </p>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Expires: {new Date(inv.expires_at).toLocaleString()}
-                  </p>
+
+                  {isOwnerOrAdmin && (
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                      {/* Re-trigger / Resend Invitation Mail Button */}
+                      <button
+                        onClick={() => handleResendInvite(inv.id, inv.email)}
+                        disabled={isResending || isRevoking}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 hover:text-amber-200 rounded-lg transition-all disabled:opacity-50"
+                        title="Resend invitation email with a fresh 7-day token"
+                      >
+                        {isResending ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Resending...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="w-3.5 h-3.5" />
+                            <span>Resend Invitation Mail</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Revoke Invitation Button */}
+                      <button
+                        onClick={() => handleRevokeInvite(inv.id, inv.email)}
+                        disabled={isResending || isRevoking}
+                        className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/30 rounded-lg transition-all disabled:opacity-50"
+                        title="Revoke invitation"
+                      >
+                        {isRevoking ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
