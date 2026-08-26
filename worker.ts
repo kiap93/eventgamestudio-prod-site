@@ -116,6 +116,9 @@ import {
   disconnectGoogleMail,
   updateGoogleMailStatus,
   updateInvitationEmailStatus,
+  getInvitationById,
+  renewInvitation,
+  deleteInvitation,
 } from './server/db/index.js';
 
 import {
@@ -969,6 +972,154 @@ export default {
           200,
           cors
         );
+      }
+
+      const resendInviteParams = parseRoute('/api/organizations/:organizationId/invitations/:invitationId/resend', pathname);
+      if (resendInviteParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { organizationId, invitationId } = resendInviteParams;
+
+        const { isMember, role: myRole } = await verifyOrgMembershipAndPermission(
+          user.id,
+          organizationId,
+          'organization.members.invite',
+          env
+        );
+
+        if (!isMember || !['owner', 'admin'].includes(myRole || '')) {
+          return errorResponse('Only owners and admins can manage invitations', 403, cors);
+        }
+
+        const org = await getOrganizationById(organizationId, env);
+        if (!org) {
+          return errorResponse('Organization not found', 404, cors);
+        }
+
+        const invitation = await getInvitationById(invitationId, env);
+        if (!invitation || invitation.organization_id !== organizationId) {
+          return errorResponse('Invitation not found', 404, cors);
+        }
+
+        if (invitation.accepted_at) {
+          return errorResponse('This invitation has already been accepted', 400, cors);
+        }
+
+        const rawTokenArray = new Uint8Array(32);
+        crypto.getRandomValues(rawTokenArray);
+        const rawToken = Array.from(rawTokenArray)
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+        const tokenHash = hashToken(rawToken);
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+        const frontendBaseUrl = getFrontendBaseUrl(env, request);
+        const absoluteInviteUrl = `${frontendBaseUrl}/accept-invite?token=${rawToken}`;
+        const relativeInviteUrl = `/accept-invite?token=${rawToken}`;
+
+        let emailStatus: 'sent' | 'failed' | 'not_configured' = 'not_configured';
+        let emailError: string | null = null;
+
+        try {
+          const mailSettings = await getGoogleMailSettings(env);
+          if (mailSettings && mailSettings.enabled && mailSettings.refresh_token_encrypted && mailSettings.status !== 'disconnected') {
+            const template = generateInvitationEmailTemplate({
+              organizationName: org.name,
+              inviteUrl: absoluteInviteUrl,
+              role: invitation.role,
+              inviterName: user.name || user.email,
+            });
+
+            await sendEmailViaGmail(
+              {
+                to: invitation.email,
+                subject: template.subject,
+                html: template.html,
+                text: template.text,
+                fromName: 'EventGameStudio',
+              },
+              env
+            );
+
+            emailStatus = 'sent';
+          } else {
+            emailStatus = 'not_configured';
+          }
+        } catch (emailErr: any) {
+          console.error(`[Invitations] Failed to resend invitation email to ${invitation.email}:`, emailErr);
+          emailStatus = 'failed';
+          emailError = emailErr.message || 'Failed to deliver invitation email via Gmail API';
+        }
+
+        const updatedInvitation = await renewInvitation(
+          invitation.id,
+          {
+            token_hash: tokenHash,
+            expires_at: expiresAt,
+            email_status: emailStatus === 'not_configured' ? 'pending' : emailStatus,
+            email_sent_at: emailStatus === 'sent' ? now.toISOString() : null,
+            email_error: emailError,
+          },
+          env
+        );
+
+        return jsonResponse(
+          {
+            success: true,
+            invitation: {
+              id: updatedInvitation.id,
+              email: updatedInvitation.email,
+              role: updatedInvitation.role,
+              expires_at: updatedInvitation.expires_at,
+              email_status: updatedInvitation.email_status || emailStatus,
+              email_error: emailError,
+            },
+            inviteToken: rawToken,
+            inviteUrl: relativeInviteUrl,
+            absoluteInviteUrl,
+            emailStatus,
+            emailError,
+            message:
+              emailStatus === 'sent'
+                ? `Invitation email successfully resent to ${invitation.email} via Gmail API.`
+                : emailStatus === 'not_configured'
+                ? `Invitation renewed. Share the link manually, or connect Gmail in Developer Admin to enable automated sending.`
+                : `Invitation renewed, but failed to deliver email: ${emailError}. You can share the link manually.`,
+          },
+          200,
+          cors
+        );
+      }
+
+      const deleteInviteParams = parseRoute('/api/organizations/:organizationId/invitations/:invitationId', pathname);
+      if (deleteInviteParams && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { organizationId, invitationId } = deleteInviteParams;
+
+        const { isMember, role: myRole } = await verifyOrgMembershipAndPermission(
+          user.id,
+          organizationId,
+          'organization.members.remove',
+          env
+        );
+
+        if (!isMember || !['owner', 'admin'].includes(myRole || '')) {
+          return errorResponse('Permission denied to revoke invitations', 403, cors);
+        }
+
+        const invitation = await getInvitationById(invitationId, env);
+        if (!invitation || invitation.organization_id !== organizationId) {
+          return errorResponse('Invitation not found', 404, cors);
+        }
+
+        await deleteInvitation(invitationId, env);
+        return jsonResponse({ success: true, message: 'Invitation revoked successfully' }, 200, cors);
       }
 
       const removeMemberParams = parseRoute('/api/organizations/:organizationId/members/:memberId', pathname);
