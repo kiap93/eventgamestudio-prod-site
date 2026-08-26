@@ -79,6 +79,7 @@ export const DeveloperEmailSettings: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     const callbackStatus = params.get('status');
     const callbackReason = params.get('reason') || params.get('error');
+    const callbackDetail = params.get('detail');
 
     if (callbackStatus === 'connected') {
       setUiNotice({
@@ -94,15 +95,15 @@ export const DeveloperEmailSettings: React.FC = () => {
       if (callbackReason === 'oauth_denied') {
         errorText = 'Google OAuth authorization was cancelled or denied.';
       } else if (callbackReason === 'invalid_state') {
-        errorText = 'OAuth security verification expired or failed. Please try connecting again.';
+        errorText = `OAuth security verification expired or failed.${callbackDetail ? ` (${decodeURIComponent(callbackDetail)})` : ' Please try connecting again.'}`;
       } else if (callbackReason === 'missing_refresh_token') {
         errorText = 'Google did not return a refresh token. Please re-authenticate with prompt consent.';
       } else if (callbackReason === 'exchange_failed') {
-        errorText = 'Failed to exchange authorization code with Google OAuth servers.';
+        errorText = `Failed to exchange authorization code with Google OAuth servers.${callbackDetail ? ` Details: ${decodeURIComponent(callbackDetail)}` : ''}`;
       } else if (callbackReason === 'missing_code') {
         errorText = 'Missing OAuth authorization code from Google callback.';
       } else if (callbackReason) {
-        errorText = `Failed to connect Gmail: ${decodeURIComponent(callbackReason)}`;
+        errorText = `Failed to connect Gmail: ${decodeURIComponent(callbackReason)}${callbackDetail ? ` - ${decodeURIComponent(callbackDetail)}` : ''}`;
       }
 
       setUiNotice({

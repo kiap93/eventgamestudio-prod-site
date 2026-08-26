@@ -3770,7 +3770,7 @@ export default {
 
           // Callback URI on the API worker (e.g. https://eventgamestudio-api.kiap93-kmj.workers.dev/api/email/google/callback)
           const callbackRedirectUri = config.redirectUri || `${url.origin}/api/email/google/callback`;
-          const stateToken = generateOAuthStateToken(auth.user.id, env);
+          const stateToken = generateOAuthStateToken(auth.user.id, env, callbackRedirectUri);
           const authUrl = buildGoogleAuthUrl(stateToken, callbackRedirectUri, env);
 
           const accept = request.headers.get('Accept') || '';
@@ -3817,8 +3817,9 @@ export default {
         if (oauthError) {
           console.warn('[Gmail OAuth] Callback received error from Google:', oauthError, oauthErrorDescription);
           const reason = oauthError === 'access_denied' ? 'oauth_denied' : 'oauth_error';
+          const detail = oauthErrorDescription || oauthError;
           return Response.redirect(
-            `${redirectErrorBase}&reason=${encodeURIComponent(reason)}`,
+            `${redirectErrorBase}&reason=${encodeURIComponent(reason)}&detail=${encodeURIComponent(detail)}`,
             302
           );
         }
@@ -3835,14 +3836,14 @@ export default {
         if (!stateResult.valid) {
           console.error('[Gmail OAuth] State validation failed:', stateResult.error);
           return Response.redirect(
-            `${redirectErrorBase}&reason=invalid_state`,
+            `${redirectErrorBase}&reason=invalid_state&detail=${encodeURIComponent(stateResult.error || '')}`,
             302
           );
         }
 
         try {
           const config = getGoogleMailConfig(env);
-          const callbackRedirectUri = config.redirectUri || `${url.origin}/api/email/google/callback`;
+          const callbackRedirectUri = stateResult.redirectUri || config.redirectUri || `${url.origin}/api/email/google/callback`;
           const tokenResult = await exchangeGoogleAuthCode(code, callbackRedirectUri, env);
 
           if (!tokenResult.refreshToken) {
@@ -3876,7 +3877,7 @@ export default {
         } catch (err: any) {
           console.error('[Gmail OAuth] Failed to complete token exchange or save settings:', err);
           return Response.redirect(
-            `${redirectErrorBase}&reason=exchange_failed`,
+            `${redirectErrorBase}&reason=exchange_failed&detail=${encodeURIComponent(err.message || '')}`,
             302
           );
         }

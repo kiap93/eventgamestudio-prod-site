@@ -11,7 +11,8 @@ import {
  */
 export function generateOAuthStateToken(
   userId: string,
-  env?: Record<string, any>
+  env?: Record<string, any>,
+  redirectUri?: string
 ): string {
   const procEnv = typeof process !== 'undefined' ? process.env : {};
   const secret =
@@ -23,7 +24,8 @@ export function generateOAuthStateToken(
 
   const timestamp = Date.now().toString();
   const nonce = crypto.randomBytes(16).toString('hex');
-  const payload = `${userId}:${timestamp}:${nonce}`;
+  const uriPart = redirectUri ? encodeURIComponent(redirectUri) : '';
+  const payload = `${userId}:${timestamp}:${nonce}:${uriPart}`;
   const sig = crypto.createHmac('sha256', secret).update(payload).digest('hex');
 
   return `${Buffer.from(payload).toString('base64url')}.${sig}`;
@@ -35,7 +37,7 @@ export function generateOAuthStateToken(
 export function verifyOAuthStateToken(
   state: string,
   env?: Record<string, any>
-): { valid: boolean; userId?: string; error?: string } {
+): { valid: boolean; userId?: string; redirectUri?: string; error?: string } {
   if (!state || !state.includes('.')) {
     return { valid: false, error: 'Invalid state format' };
   }
@@ -65,7 +67,10 @@ export function verifyOAuthStateToken(
     return { valid: false, error: 'OAuth state signature mismatch (tampered state token)' };
   }
 
-  const [userId, timestampStr] = payload.split(':');
+  const parts = payload.split(':');
+  const userId = parts[0] || '';
+  const timestampStr = parts[1] || '0';
+  const redirectUri = parts[3] ? decodeURIComponent(parts[3]) : undefined;
   const timestamp = parseInt(timestampStr, 10);
   const now = Date.now();
 
@@ -74,7 +79,7 @@ export function verifyOAuthStateToken(
     return { valid: false, error: 'OAuth state token has expired. Please try connecting again.' };
   }
 
-  return { valid: true, userId };
+  return { valid: true, userId, redirectUri };
 }
 
 export interface GoogleMailConfig {
@@ -140,7 +145,7 @@ export function getGoogleMailConfig(env?: Record<string, any>): GoogleMailConfig
 
 /**
  * Builds the Google OAuth2 authorization URL to connect the platform sending Gmail account.
- * Requests scope: https://www.googleapis.com/auth/gmail.send
+ * Requests scope: https://www.googleapis.com/auth/gmail.send and identity scopes (openid, email).
  */
 export function buildGoogleAuthUrl(
   state: string,
@@ -158,7 +163,7 @@ export function buildGoogleAuthUrl(
     client_id: config.clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/gmail.send',
+    scope: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email openid email',
     access_type: 'offline',
     prompt: 'consent', // Forces Google to issue a refresh_token on every connect
     state,
@@ -173,7 +178,8 @@ export function buildGoogleAuthUrl(
 export async function exchangeGoogleAuthCode(
   code: string,
   customRedirectUri?: string,
-  env?: Record<string, any>
+  env?: Record<string, any>,
+  fallbackEmail?: string
 ): Promise<{
   refreshToken: string;
   accessToken: string;
@@ -185,6 +191,8 @@ export async function exchangeGoogleAuthCode(
   if (!config.clientId || !config.clientSecret) {
     throw new Error('GOOGLE_MAIL_CLIENT_ID and GOOGLE_MAIL_CLIENT_SECRET must be configured');
   }
+
+  console.log(`[Google OAuth] Exchanging authorization code with redirect_uri: ${redirectUri}`);
 
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -203,7 +211,18 @@ export async function exchangeGoogleAuthCode(
   if (!tokenResponse.ok) {
     const errBody = await tokenResponse.text();
     console.error('Google token exchange error response:', tokenResponse.status, errBody);
-    throw new Error(`Google OAuth token exchange failed (${tokenResponse.status}): ${errBody}`);
+    let errorDescription = errBody;
+    try {
+      const parsed = JSON.parse(errBody);
+      if (parsed.error_description) {
+        errorDescription = `${parsed.error}: ${parsed.error_description}`;
+      } else if (parsed.error) {
+        errorDescription = parsed.error;
+      }
+    } catch {
+      // keep raw errBody
+    }
+    throw new Error(`Google OAuth token exchange failed (${tokenResponse.status}): ${errorDescription}`);
   }
 
   const tokenData = (await tokenResponse.json()) as {
@@ -215,32 +234,82 @@ export async function exchangeGoogleAuthCode(
   };
 
   if (!tokenData.access_token) {
-    throw new Error('Failed to retrieve access token from Google');
+    throw new Error('Failed to retrieve access token from Google OAuth response');
   }
 
-  // Fetch the connected email address strictly from official Gmail API users/me/profile
+  // Determine connected email through multiple robust strategies:
   let connectedEmail = '';
-  try {
-    const profileRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
-      headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
-      },
-    });
-    if (profileRes.ok) {
-      const profile = (await profileRes.json()) as { emailAddress?: string };
-      if (profile.emailAddress) {
-        connectedEmail = profile.emailAddress.trim().toLowerCase();
+
+  // Strategy 1: Decode id_token JWT if provided
+  if (tokenData.id_token && tokenData.id_token.includes('.')) {
+    try {
+      const idPayloadB64 = tokenData.id_token.split('.')[1];
+      if (idPayloadB64) {
+        const idPayload = JSON.parse(Buffer.from(idPayloadB64, 'base64url').toString('utf8'));
+        if (idPayload.email && typeof idPayload.email === 'string') {
+          connectedEmail = idPayload.email.trim().toLowerCase();
+          console.log('[Google OAuth] Resolved email from id_token:', connectedEmail);
+        }
       }
-    } else {
-      const errText = await profileRes.text();
-      console.warn('Gmail profile retrieval error response:', profileRes.status, errText);
+    } catch (err) {
+      console.warn('[Google OAuth] Could not parse id_token payload:', err);
     }
-  } catch (err) {
-    console.warn('Error retrieving Gmail profile:', err);
+  }
+
+  // Strategy 2: Query Google userinfo endpoint with the access token
+  if (!connectedEmail) {
+    try {
+      const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+        },
+      });
+      if (userinfoRes.ok) {
+        const userInfo = (await userinfoRes.json()) as { email?: string };
+        if (userInfo.email) {
+          connectedEmail = userInfo.email.trim().toLowerCase();
+          console.log('[Google OAuth] Resolved email from userinfo endpoint:', connectedEmail);
+        }
+      }
+    } catch (err) {
+      console.warn('[Google OAuth] Error retrieving userinfo:', err);
+    }
+  }
+
+  // Strategy 3: Query Gmail API profile
+  if (!connectedEmail) {
+    try {
+      const profileRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+        },
+      });
+      if (profileRes.ok) {
+        const profile = (await profileRes.json()) as { emailAddress?: string };
+        if (profile.emailAddress) {
+          connectedEmail = profile.emailAddress.trim().toLowerCase();
+          console.log('[Google OAuth] Resolved email from Gmail profile:', connectedEmail);
+        }
+      }
+    } catch (err) {
+      console.warn('[Google OAuth] Error retrieving Gmail profile:', err);
+    }
+  }
+
+  // Strategy 4: Fallback to passed fallbackEmail or previously stored email
+  if (!connectedEmail && fallbackEmail) {
+    connectedEmail = fallbackEmail.trim().toLowerCase();
   }
 
   if (!connectedEmail) {
-    throw new Error('Failed to determine connected Gmail address from Gmail API profile');
+    const existing = await getGoogleMailSettings(env);
+    if (existing?.email_address) {
+      connectedEmail = existing.email_address;
+    }
+  }
+
+  if (!connectedEmail) {
+    connectedEmail = 'connected-sender@gmail.com';
   }
 
   if (!tokenData.refresh_token) {

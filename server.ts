@@ -4722,7 +4722,7 @@ app.get('/api/email/google/connect', authenticateDeveloperAdmin, async (req: Aut
     }
 
     const callbackRedirectUri = config.redirectUri || `${req.protocol}://${req.get('host')}/api/email/google/callback`;
-    const stateToken = generateOAuthStateToken(req.user!.id);
+    const stateToken = generateOAuthStateToken(req.user!.id, undefined, callbackRedirectUri);
     const authUrl = buildGoogleAuthUrl(stateToken, callbackRedirectUri);
 
     const accept = req.headers.accept || '';
@@ -4763,7 +4763,8 @@ app.get('/api/email/google/callback', async (req: express.Request, res: express.
   if (oauthError) {
     console.warn('[Gmail OAuth] Callback received error from Google:', oauthError, oauthErrorDescription);
     const reason = oauthError === 'access_denied' ? 'oauth_denied' : 'oauth_error';
-    res.redirect(302, `${redirectErrorBase}&reason=${encodeURIComponent(reason)}`);
+    const detail = oauthErrorDescription || oauthError;
+    res.redirect(302, `${redirectErrorBase}&reason=${encodeURIComponent(reason)}&detail=${encodeURIComponent(detail)}`);
     return;
   }
 
@@ -4775,13 +4776,13 @@ app.get('/api/email/google/callback', async (req: express.Request, res: express.
   const stateResult = verifyOAuthStateToken(state);
   if (!stateResult.valid) {
     console.error('[Gmail OAuth] State validation failed:', stateResult.error);
-    res.redirect(302, `${redirectErrorBase}&reason=invalid_state`);
+    res.redirect(302, `${redirectErrorBase}&reason=invalid_state&detail=${encodeURIComponent(stateResult.error || '')}`);
     return;
   }
 
   try {
     const config = getGoogleMailConfig();
-    const callbackRedirectUri = config.redirectUri || `${req.protocol}://${req.get('host')}/api/email/google/callback`;
+    const callbackRedirectUri = stateResult.redirectUri || config.redirectUri || `${req.protocol}://${req.get('host')}/api/email/google/callback`;
     const tokenResult = await exchangeGoogleAuthCode(code, callbackRedirectUri);
 
     if (!tokenResult.refreshToken) {
@@ -4802,10 +4803,11 @@ app.get('/api/email/google/callback', async (req: express.Request, res: express.
     });
 
     console.log(`[Gmail OAuth] Successfully connected platform sending account: ${tokenResult.email}`);
+
     res.redirect(302, redirectSuccess);
   } catch (err: any) {
     console.error('[Gmail OAuth] Failed to complete token exchange or save settings:', err);
-    res.redirect(302, `${redirectErrorBase}&reason=exchange_failed`);
+    res.redirect(302, `${redirectErrorBase}&reason=exchange_failed&detail=${encodeURIComponent(err.message || '')}`);
   }
 });
 
