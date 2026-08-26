@@ -4726,9 +4726,11 @@ app.get('/api/email/google/connect', authenticateDeveloperAdmin, async (req: Aut
     const authUrl = buildGoogleAuthUrl(stateToken, callbackRedirectUri);
 
     const accept = req.headers.accept || '';
-    const wantsRedirect = !accept.includes('application/json') || req.query.redirect === 'true' || Boolean(req.query.token) || Boolean(req.query.auth_token);
+    const isExplicitBrowserRedirect =
+      req.query.redirect === 'true' ||
+      (!accept.includes('application/json') && accept.includes('text/html'));
 
-    if (wantsRedirect) {
+    if (isExplicitBrowserRedirect) {
       res.redirect(302, authUrl);
       return;
     }

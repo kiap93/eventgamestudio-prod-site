@@ -3774,10 +3774,18 @@ export default {
           const authUrl = buildGoogleAuthUrl(stateToken, callbackRedirectUri, env);
 
           const accept = request.headers.get('Accept') || '';
-          const wantsRedirect = !accept.includes('application/json') || url.searchParams.has('redirect') || url.searchParams.has('token') || url.searchParams.has('auth_token');
+          const isExplicitBrowserRedirect =
+            url.searchParams.get('redirect') === 'true' ||
+            (!accept.includes('application/json') && accept.includes('text/html'));
 
-          if (wantsRedirect) {
-            return Response.redirect(authUrl, 302);
+          if (isExplicitBrowserRedirect) {
+            return new Response(null, {
+              status: 302,
+              headers: {
+                Location: authUrl,
+                ...cors,
+              },
+            });
           }
 
           return jsonResponse(

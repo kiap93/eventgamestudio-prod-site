@@ -117,24 +117,50 @@ export const DeveloperEmailSettings: React.FC = () => {
     }
   }, [fetchStatus]);
 
-  const handleConnectGmail = () => {
+  const handleConnectGmail = async () => {
     setConnecting(true);
     setUiNotice(null);
     try {
+      // 1. Fetch the server-constructed Google OAuth authorization URL
+      const res = await apiFetch('/api/email/google/connect', {
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+      const data = await res.json();
+
+      if (res.ok && data.authUrl) {
+        // Direct browser navigation to Google OAuth consent screen
+        window.location.href = data.authUrl;
+        return;
+      }
+
+      if (data.error) {
+        setUiNotice({
+          type: 'error',
+          text: data.error,
+        });
+        setConnecting(false);
+        return;
+      }
+
+      // Fallback: direct browser navigation with explicit redirect flag
       const token =
         localStorage.getItem('app_token') ||
         localStorage.getItem('durian_app_token') ||
         '';
       const baseUrl = getApiBaseUrl();
-      const connectUrl = `${baseUrl}/api/email/google/connect${token ? `?token=${encodeURIComponent(token)}` : ''}`;
-      // Top-level browser navigation directly to the Worker's connect endpoint
+      const connectUrl = `${baseUrl}/api/email/google/connect?redirect=true${token ? `&token=${encodeURIComponent(token)}` : ''}`;
       window.location.href = connectUrl;
     } catch (err: any) {
-      setUiNotice({
-        type: 'error',
-        text: err.message || 'Error redirecting to Google connect endpoint',
-      });
-      setConnecting(false);
+      console.warn('apiFetch failed, falling back to direct navigation:', err);
+      const token =
+        localStorage.getItem('app_token') ||
+        localStorage.getItem('durian_app_token') ||
+        '';
+      const baseUrl = getApiBaseUrl();
+      const connectUrl = `${baseUrl}/api/email/google/connect?redirect=true${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+      window.location.href = connectUrl;
     }
   };
 
