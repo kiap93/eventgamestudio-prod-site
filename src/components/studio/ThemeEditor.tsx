@@ -9,8 +9,7 @@ import { AudioTab } from './AudioTab';
 import { BrandingTab } from './BrandingTab';
 import { LayoutTab } from './LayoutTab';
 import { GameShell } from '../shell/GameShell';
-import { LayoutElementKey } from '../../themes/layout';
-import { resolveGameTypeFromTheme, getGameDefinitionStrict, GAME_REGISTRY } from '../../games/registry';
+import { LayoutElementKey, GameLayoutConfig } from '../../themes/layout';
 import {
   ArrowLeft,
   Palette,
@@ -21,13 +20,14 @@ import {
   Save,
   Check,
   RotateCcw,
+  CheckCircle2,
+  CircleDot,
   AlertCircle,
   Play,
   Gamepad2,
   Grid,
   Maximize2,
   Minimize2,
-  Info,
 } from 'lucide-react';
 
 interface ThemeEditorProps {
@@ -130,17 +130,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
     }
   }, [themeId, themes]);
 
-  // Strict game resolution from theme metadata
-  const resolvedGameType = useMemo(() => {
-    if (!draftTheme) return null;
-    return resolveGameTypeFromTheme(draftTheme);
-  }, [draftTheme]);
-
-  const gameDef = useMemo(() => {
-    if (!resolvedGameType) return null;
-    return getGameDefinitionStrict(resolvedGameType);
-  }, [resolvedGameType]);
-
   // Determine if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
     if (!draftTheme || !savedThemeSnapshot) return false;
@@ -171,11 +160,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
     setSaveSuccess(false);
 
     try {
-      const payload: GameTheme = {
-        ...draftTheme,
-        game_type: resolvedGameType || draftTheme.game_type || 'catch-brand',
-      };
-      const updated = await updateTheme(draftTheme.id, payload);
+      const updated = await updateTheme(draftTheme.id, draftTheme);
       const cloned = JSON.parse(JSON.stringify(updated));
       setDraftTheme(cloned);
       setSavedThemeSnapshot(cloned);
@@ -214,33 +199,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
     );
   }
 
-  // If the game cannot be resolved in GAME_REGISTRY, show explicit notice (no unsafe fallback)
-  if (!gameDef || !resolvedGameType) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-16 space-y-6">
-        <div className="bg-rose-950/40 border border-rose-500/40 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
-          <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 mx-auto flex items-center justify-center">
-            <AlertCircle className="w-6 h-6" />
-          </div>
-          <h2 className="text-lg font-black text-slate-100">Unregistered or Unknown Game Engine</h2>
-          <p className="text-xs text-slate-300 max-w-md mx-auto leading-relaxed">
-            This theme references game type <code className="px-2 py-0.5 bg-slate-900 rounded font-mono text-amber-400">{draftTheme.game_type || draftTheme.game_slug || 'undefined'}</code> which is not recognized in the Game Registry.
-          </p>
-          <div className="pt-2 flex justify-center gap-3">
-            <button
-              onClick={onBack}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-all"
-            >
-              Return to Catalog
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const itemsTabLabel = gameDef.customization?.itemsTabLabel || '2. Collectibles';
-
   // ============================================================
   // PLAY LIVE GAME MODE: CLEAN FULL-PAGE GAME PREVIEW
   // HIDE Theme Settings / Editor panel, sidebar, tabs, controls
@@ -272,14 +230,14 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
 
               <div className="h-5 w-px bg-slate-800 hidden sm:block shrink-0" />
 
-              {/* Theme Name & Game Type */}
+              {/* Theme Name */}
               <div className="flex items-center gap-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 <h1 className="text-sm sm:text-base font-black text-slate-100 tracking-tight truncate">
                   {draftTheme.name}
                 </h1>
-                <span className="text-[11px] font-mono text-amber-400 bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800 hidden md:inline-block shrink-0">
-                  {gameDef.name}
+                <span className="text-[11px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800 hidden md:inline-block shrink-0">
+                  Live Game Mode
                 </span>
               </div>
             </div>
@@ -313,7 +271,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
           </header>
         )}
 
-        {/* Full-width Game Viewport using current draftTheme and strictly resolved gameType */}
+        {/* Full-width Game Viewport using current draftTheme */}
         <div
           className={`flex-1 w-full flex flex-col items-center justify-center overflow-hidden ${
             isFullscreen
@@ -324,7 +282,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
           <GameShell
             key={`live-game-${draftTheme.id}-${restartKey}`}
             customTheme={draftTheme}
-            gameType={resolvedGameType}
+            gameType={activeGame?.game_type_id || activeGame?.slug || 'catch-brand'}
             showCabinetFooter={false}
             className="w-full h-full"
           />
@@ -346,7 +304,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
           <button
             type="button"
             onClick={handleBackClick}
-            className="flex items-center gap-2 px-3.5 py-2 bg-slate-950 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-800 rounded-2xl text-xs font-bold transition-all shadow-sm shrink-0 cursor-pointer"
+            className="flex items-center gap-2 px-3.5 py-2 bg-slate-950 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-800 rounded-2xl text-xs font-bold transition-all shadow-sm shrink-0"
           >
             <ArrowLeft className="w-4 h-4 text-amber-400" />
             <span>Back to Themes</span>
@@ -357,12 +315,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               <h1 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">
                 {draftTheme.name}
               </h1>
-
-              {/* Game Badge */}
-              <span className="px-2.5 py-0.5 rounded-full bg-slate-950 text-amber-400 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5">
-                <Gamepad2 className="w-3.5 h-3.5" />
-                <span>{gameDef.name}</span>
-              </span>
 
               {/* Status Badge */}
               {draftTheme.status === 'draft' && (
@@ -392,7 +344,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               )}
             </div>
             <p className="text-xs text-slate-400">
-              Customize visual presentation and game-specific settings for {gameDef.name}.
+              Customize visuals, drop collectibles, physics tuning, layout positioning, and audio for this theme.
             </p>
           </div>
         </div>
@@ -405,7 +357,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               type="button"
               onClick={handleResetDraft}
               disabled={saving}
-              className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-slate-700 cursor-pointer"
+              className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-slate-700"
               title="Discard unsaved edits and restore last saved state"
             >
               <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
@@ -417,7 +369,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
           <button
             type="button"
             onClick={() => setIsPlayingLiveGame(true)}
-            className="px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
+            className="px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-md"
             title="Play live game in clean full-page mode with the current draft theme"
           >
             <Play className="w-3.5 h-3.5 fill-current" />
@@ -431,7 +383,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             disabled={saving || isViewer || !hasUnsavedChanges}
             className={`px-5 py-2.5 rounded-xl font-black text-xs shadow-xl transition-all flex items-center gap-2 ${
               hasUnsavedChanges
-                ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 active:scale-95 ring-2 ring-amber-400/30 cursor-pointer'
+                ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 active:scale-95 ring-2 ring-amber-400/30'
                 : 'bg-slate-800 text-slate-400 border border-slate-700 cursor-default'
             }`}
           >
@@ -468,7 +420,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             <button
               type="button"
               onClick={() => setIsPlayingLiveGame(true)}
-              className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+              className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95"
             >
               <Gamepad2 className="w-4 h-4" />
               <span>Play Live Game</span>
@@ -477,7 +429,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             <button
               type="button"
               onClick={handleBackClick}
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 active:scale-95"
             >
               <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
               <span>Back to Themes</span>
@@ -502,7 +454,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             <button
               type="button"
               onClick={() => setActiveTab('visuals')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === 'visuals'
                   ? 'bg-amber-500 text-slate-950 shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -515,20 +467,20 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             <button
               type="button"
               onClick={() => setActiveTab('items')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === 'items'
                   ? 'bg-amber-500 text-slate-950 shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>{itemsTabLabel}</span>
+              <span>2. Items</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('gameplay')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === 'gameplay'
                   ? 'bg-amber-500 text-slate-950 shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -541,7 +493,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             <button
               type="button"
               onClick={() => setActiveTab('audio')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === 'audio'
                   ? 'bg-amber-500 text-slate-950 shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -554,7 +506,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             <button
               type="button"
               onClick={() => setActiveTab('branding')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === 'branding'
                   ? 'bg-amber-500 text-slate-950 shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -567,7 +519,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             <button
               type="button"
               onClick={() => setActiveTab('layout')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === 'layout'
                   ? 'bg-amber-500 text-slate-950 shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -586,7 +538,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
                 onChange={setDraftTheme}
                 onUploadAsset={handleUploadAssetFile}
                 uploadingAsset={uploadingAsset}
-                gameType={resolvedGameType}
               />
             )}
 
@@ -596,7 +547,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
                 onChange={setDraftTheme}
                 onUploadAsset={handleUploadAssetFile}
                 uploadingAsset={uploadingAsset}
-                gameType={resolvedGameType}
               />
             )}
 
@@ -604,7 +554,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               <GameplayTab
                 theme={draftTheme}
                 onChange={setDraftTheme}
-                gameType={resolvedGameType}
               />
             )}
 
@@ -612,7 +561,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               <AudioTab
                 theme={draftTheme}
                 onChange={setDraftTheme}
-                gameType={resolvedGameType}
               />
             )}
 
@@ -643,7 +591,6 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
         >
           <LiveThemePreview
             theme={draftTheme}
-            gameType={resolvedGameType}
             editableLayout={activeTab === 'layout'}
             selectedElementKey={selectedLayoutElement}
             onSelectElementKey={setSelectedLayoutElement}
@@ -679,7 +626,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               <button
                 type="button"
                 onClick={() => setShowUnsavedModal(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-xs font-bold rounded-xl transition-all"
               >
                 Stay
               </button>
@@ -689,7 +636,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
                   setShowUnsavedModal(false);
                   onBack();
                 }}
-                className="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 active:scale-95 text-rose-300 border border-rose-500/40 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                className="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 active:scale-95 text-rose-300 border border-rose-500/40 text-xs font-bold rounded-xl transition-all"
               >
                 Leave Without Saving
               </button>
@@ -700,3 +647,4 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
     </div>
   );
 };
+

@@ -4734,6 +4734,7 @@ export default {
           const result = await verifyAndProcessPaymentWebhook({
             rawBody: webhookPayload,
             signature: signatureHeader,
+            secretOverride: secret,
             env,
           });
 

@@ -64,7 +64,7 @@ const benefits = [
 
 export const LandingAgencies: React.FC = () => {
   return (
-    <section id="agencies" className="relative py-20 md:py-32 bg-slate-950/80 border-t border-slate-900 overflow-hidden">
+    <section id="agencies" className="relative scroll-mt-16 sm:scroll-mt-20 py-20 md:py-32 bg-slate-950/80 border-t border-slate-900 overflow-hidden">
       {/* Ambient Lighting */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-gradient-to-b from-amber-500/5 via-emerald-500/5 to-transparent blur-3xl pointer-events-none rounded-full" />
 

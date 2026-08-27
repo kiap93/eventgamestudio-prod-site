@@ -42,7 +42,6 @@ import {
 
 interface LiveThemePreviewProps {
   theme: GameTheme;
-  gameType?: string;
   onTriggerItemDrop?: (item: ThemeDropItem) => void;
   className?: string;
   editableLayout?: boolean;
@@ -89,7 +88,6 @@ interface DragState {
 
 export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   theme,
-  gameType,
   className = '',
   editableLayout = false,
   selectedElementKey = null,
@@ -111,11 +109,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   );
   const [currentStageName, setCurrentStageName] = useState<string>('Stage 1: Calm');
 
-  const resolvedGameType = (gameType || theme.game_type || theme.game_slug || '').toLowerCase();
   const isMemoryMatch =
-    resolvedGameType === 'memory-match' ||
+    theme.game_slug === 'memory-match' ||
     theme.slug?.includes('memory') ||
-    theme.base_theme_id === 'memory-carnival';
+    (theme as any).game_type === 'memory-match';
 
   // Memory match interactive preview state
   const [memoryDeck, setMemoryDeck] = useState<MemoryCard[]>(() => createShuffledDeck(theme));

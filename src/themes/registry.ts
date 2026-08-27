@@ -262,7 +262,6 @@ export function normalizeGameTheme(raw: any): GameTheme {
     game_id: raw.game_id || raw.games?.id || null,
     game_name: raw.game_name || raw.games?.name || undefined,
     game_slug: raw.game_slug || raw.games?.slug || undefined,
-    game_type: raw.game_type || raw.games?.game_type || (base_theme_id === 'memory-carnival' ? 'memory-match' : raw.game_slug || undefined),
     is_system: Boolean(raw.is_system),
     ownership_type: raw.ownership_type || (raw.is_system ? 'system' : 'organization'),
     name,

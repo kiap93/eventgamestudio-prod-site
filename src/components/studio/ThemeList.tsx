@@ -352,13 +352,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
           <GameShell
             key={`live-game-${playingTheme.id}-${restartKey}`}
             customTheme={playingTheme}
-            gameType={
-              playingTheme.game_type ||
-              playingTheme.game_slug ||
-              activeGame?.game_type_id ||
-              activeGame?.slug ||
-              (playingTheme.slug?.includes('memory') ? 'memory-match' : 'catch-brand')
-            }
+            gameType={activeGame?.game_type_id || activeGame?.slug || 'catch-brand'}
             showCabinetFooter={false}
             className="w-full h-full"
           />

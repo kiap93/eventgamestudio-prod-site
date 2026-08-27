@@ -115,7 +115,7 @@ export const LandingBrandYourGame: React.FC = () => {
   };
 
   return (
-    <section id="brand-your-game" className="relative py-20 md:py-32 bg-slate-950/90 border-t border-slate-900 overflow-hidden">
+    <section id="brand-your-game" className="relative scroll-mt-16 sm:scroll-mt-20 py-20 md:py-32 bg-slate-950/90 border-t border-slate-900 overflow-hidden">
       {/* Dynamic Background Glow matching selected theme */}
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] blur-3xl opacity-20 pointer-events-none transition-all duration-700 rounded-full"

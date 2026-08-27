@@ -2490,7 +2490,6 @@ export async function createTopupOrder(
     paid_at: null,
     failed_at: null,
     cancelled_at: null,
-    created_by: userId,
   };
 
   // 1. Production Supabase write attempt if available

@@ -1112,6 +1112,7 @@ CREATE TABLE IF NOT EXISTS public.wallet_topup_orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   currency TEXT NOT NULL DEFAULT 'MYR',
   top_up_amount NUMERIC(12, 2) NOT NULL CHECK (top_up_amount > 0),
   expected_credit_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (expected_credit_amount >= 0),

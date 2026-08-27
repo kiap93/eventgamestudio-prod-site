@@ -32,7 +32,7 @@ export const LandingEventShowcase: React.FC = () => {
   };
 
   return (
-    <section id="event-showcase" className="relative py-20 md:py-32 bg-slate-950 border-t border-slate-900 overflow-hidden">
+    <section id="event-showcase" className="relative scroll-mt-16 sm:scroll-mt-20 py-20 md:py-32 bg-slate-950 border-t border-slate-900 overflow-hidden">
       {/* Background Accent Mesh */}
       <div className="absolute top-1/3 right-1/4 w-[500px] h-[500px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-10 left-10 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />

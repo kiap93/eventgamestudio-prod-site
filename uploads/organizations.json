@@ -70,5 +70,50 @@
     "logo_url": null,
     "created_at": "2026-08-27T08:38:30.829Z",
     "updated_at": "2026-08-27T08:38:30.829Z"
+  },
+  {
+    "id": "0d74df34-80ad-49f7-a087-e1dbe92c59ef",
+    "name": "Auto Welcome Org Test",
+    "slug": "auto-welcome-org-test-869ba8",
+    "owner_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "logo_url": null,
+    "created_at": "2026-08-27T09:14:21.404Z",
+    "updated_at": "2026-08-27T09:14:21.404Z"
+  },
+  {
+    "id": "a61cb68d-3cd8-4fb3-8619-b42fcfdc3283",
+    "name": "Shortfall Test Corp 1787822089815",
+    "slug": "shortfall-test-corp-1787822089815-3597d4",
+    "owner_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "logo_url": null,
+    "created_at": "2026-08-27T09:14:49.815Z",
+    "updated_at": "2026-08-27T09:14:49.815Z"
+  },
+  {
+    "id": "62db5675-b8b8-42aa-be66-e1528646c708",
+    "name": "Auto Welcome Org Test",
+    "slug": "auto-welcome-org-test-a24905",
+    "owner_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "logo_url": null,
+    "created_at": "2026-08-27T09:16:45.085Z",
+    "updated_at": "2026-08-27T09:16:45.085Z"
+  },
+  {
+    "id": "a9734ffe-90e8-4c83-b602-b9302a41de9f",
+    "name": "Auto Welcome Org Test",
+    "slug": "auto-welcome-org-test-ba63c1",
+    "owner_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "logo_url": null,
+    "created_at": "2026-08-27T09:20:58.816Z",
+    "updated_at": "2026-08-27T09:20:58.816Z"
+  },
+  {
+    "id": "3eb7f155-bf14-4c46-a64c-a7e4f8ad663f",
+    "name": "Shortfall Test Corp 1787822461719",
+    "slug": "shortfall-test-corp-1787822461719-703247",
+    "owner_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "logo_url": null,
+    "created_at": "2026-08-27T09:21:01.719Z",
+    "updated_at": "2026-08-27T09:21:01.719Z"
   }
 ]

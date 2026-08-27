@@ -4414,6 +4414,7 @@ app.post('/api/developer/wallet/test-webhook', authenticateJWT, async (req: Auth
     const result = await verifyAndProcessPaymentWebhook({
       rawBody: webhookPayload,
       signature: signatureHeader,
+      secretOverride: secret,
     });
 
     res.json({
