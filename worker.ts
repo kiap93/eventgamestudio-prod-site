@@ -39,6 +39,8 @@ import {
   cancelEvent,
   canCancelEvent,
   determineEventRefund,
+  reactivateEvent,
+  runEventLifecycleMaintenance,
   PaymentMode,
   getAllPlatformGames,
   createPlatformGame,
@@ -155,6 +157,7 @@ import { getSupabaseServerClient } from './server/supabase.js';
 import { checkWorkerRateLimit } from './server/rateLimiter.js';
 
 export interface Env {
+  NODE_ENV?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   JWT_SECRET?: string;
@@ -368,7 +371,15 @@ async function authenticateWorkerRequest(
       };
     }
     return { authenticated: true, user, jwtPayload: payload };
-  } catch (_appErr) {
+  } catch (appErr: any) {
+    if (appErr?.message?.includes('JWT_SECRET is required')) {
+      console.error('[Worker Auth Config Error]', appErr.message);
+      return {
+        authenticated: false,
+        errorResponse: errorResponse(`Server Configuration Error: ${appErr.message}`, 500, cors),
+      };
+    }
+
     // 2. Try Supabase Auth Token
     try {
       const supabase = getSupabaseServerClient(env);
@@ -2055,7 +2066,7 @@ export default {
         }
 
         try {
-          // Create event with PENDING_PAYMENT status (no wallet balance deducted)
+          // Create event with DRAFT event_status and UNPAID payment_status (no wallet balance deducted)
           const created = await createEvent(
             {
               organization_id: organizationId,
@@ -2065,8 +2076,9 @@ export default {
               event_date,
               starts_at,
               expires_at,
-              status: 'pending_payment',
-              payment_status: 'PENDING_PAYMENT',
+              status: 'draft',
+              event_status: 'DRAFT',
+              payment_status: 'UNPAID',
               created_by: user.id,
               event_price,
             },
@@ -2278,6 +2290,7 @@ export default {
           eventId,
           {
             cancelledBy: user.id,
+            cancelReason: body?.cancel_reason || body?.cancelReason || 'USER_CANCELLED',
             reason: body?.reason || 'User cancelled event before Setup Day',
           },
           env
@@ -2304,19 +2317,22 @@ export default {
           return errorResponse('Event not found or invalid URL', 404, cors);
         }
 
-        if (rawEvent.status === 'cancelled') {
+        if (rawEvent.event_status === 'CANCELLED' || rawEvent.status === 'cancelled') {
           return jsonResponse({
-            error: 'This event has been cancelled by the organizer.',
+            error: 'This event has been cancelled.',
             code: 'EVENT_CANCELLED',
             is_cancelled: true,
+            cancel_reason: rawEvent.cancel_reason,
           }, 403, cors);
         }
 
-        if (rawEvent.payment_status !== 'PAID' || rawEvent.status === 'pending_payment') {
+        if (rawEvent.payment_status !== 'PAID' || rawEvent.event_status !== 'LIVE' || rawEvent.status === 'pending_payment' || rawEvent.status === 'draft') {
           return jsonResponse({
             error: 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
             code: 'PAYMENT_REQUIRED',
             is_pending_payment: true,
+            event_status: rawEvent.event_status,
+            payment_status: rawEvent.payment_status,
             event_id: rawEvent.id,
             event_name: rawEvent.name,
           }, 403, cors);
@@ -3834,6 +3850,62 @@ export default {
         }
       }
 
+      // POST /api/developer/events/:eventId/reactivate & /api/admin/events/:eventId/reactivate
+      const devEventReactivateMatch = parseRoute('/api/developer/events/:eventId/reactivate', pathname) ||
+                                      parseRoute('/api/admin/events/:eventId/reactivate', pathname);
+      if (devEventReactivateMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const { eventId } = devEventReactivateMatch;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { reason } = body;
+
+        try {
+          const event = await reactivateEvent(
+            eventId,
+            {
+              adminUserId: auth.user?.id,
+              reason: reason || 'Developer admin manual reactivation',
+            },
+            env
+          );
+
+          return jsonResponse({
+            success: true,
+            event,
+            message: `Event "${event.name}" successfully reactivated to ${event.event_status} status.`,
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin reactivate event error:', err);
+          return errorResponse(err.message || 'Failed to reactivate event', err.status || 500, cors);
+        }
+      }
+
+      // POST /api/developer/events/maintenance & /api/admin/events/maintenance
+      if ((pathname === '/api/developer/events/maintenance' || pathname === '/api/admin/events/maintenance') && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const result = await runEventLifecycleMaintenance(env);
+          return jsonResponse({
+            success: true,
+            result,
+            message: `Maintenance complete: ${result.cancelledCount} unpaid expired events cancelled, ${result.completedCount} expired paid events marked completed.`,
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Run event maintenance error in worker:', err);
+          return errorResponse(err.message || 'Failed to run event lifecycle maintenance', 500, cors);
+        }
+      }
+
       // ----------------------------------------------------
       // DEVELOPER ADMIN ORGANIZATIONS ENDPOINTS
       // ----------------------------------------------------
@@ -5063,6 +5135,19 @@ export default {
     } catch (err: any) {
       console.error('Unhandled worker error:', err);
       return errorResponse(err.message || 'Internal Server Error', 500, cors);
+    }
+  },
+
+  /**
+   * Cloudflare Worker Scheduled Cron Trigger Handler
+   * Periodically runs event lifecycle maintenance (e.g. every minute)
+   */
+  async scheduled(_controller: any, env: Env, _ctx: any): Promise<void> {
+    try {
+      const result = await runEventLifecycleMaintenance(env);
+      console.log(`[Worker Cron Maintenance] Processed: ${result.cancelledCount} cancelled, ${result.completedCount} completed`);
+    } catch (err) {
+      console.error('[Worker Cron Maintenance] Error running event lifecycle maintenance:', err);
     }
   },
 };

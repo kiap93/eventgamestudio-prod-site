@@ -525,13 +525,27 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && (!isServerPayable || availableBalance < paidAmount);
   const needAmount = Math.max(0, paidAmount - availableBalance);
 
-  const publicUrl = createdEvent ? `${window.location.origin}/play/${createdEvent.public_token}` : '';
+  const publicUrl = activatedEvent || (createdEvent && (createdEvent.event_status === 'LIVE' || createdEvent.payment_status === 'PAID'))
+    ? `${window.location.origin}/play/${activatedEvent?.public_token || createdEvent?.public_token}`
+    : '';
   const previewUrl = createdEvent ? `${window.location.origin}/events/${createdEvent.id}/preview` : '';
 
-  const handleCopyLink = async () => {
-    if (!publicUrl) return;
+  const handleCopyPreviewLink = async () => {
+    if (!previewUrl) return;
     try {
-      await navigator.clipboard.writeText(publicUrl);
+      await navigator.clipboard.writeText(previewUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) {
+      console.error('Copy link error', err);
+    }
+  };
+
+  const handleCopyPublicLink = async () => {
+    const targetUrl = publicUrl || (activatedEvent ? `${window.location.origin}/play/${activatedEvent.public_token}` : '');
+    if (!targetUrl) return;
+    try {
+      await navigator.clipboard.writeText(targetUrl);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
     } catch (err) {
@@ -825,18 +839,18 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         )}
 
         {/* ================================================================= */}
-        {/* STEP 2: EVENT CREATED SUCCESS STATE                               */}
+        {/* STEP 2: EVENT CREATED SUCCESS STATE (PREVIEW ONLY)                */}
         {/* ================================================================= */}
         {step === 'created' && createdEvent && (
           <div className="p-6 sm:p-8 space-y-6 flex flex-col flex-1 overflow-y-auto custom-scrollbar animate-in zoom-in-95 duration-200">
-            {/* Celebration Icon */}
+            {/* Celebration / Status Icon */}
             <div className="text-center space-y-2">
               <div className="inline-flex p-4 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 mx-auto">
                 <CheckCircle2 className="w-10 h-10 stroke-[2.5]" />
               </div>
-              <h2 className="text-2xl font-black text-slate-100 tracking-tight">Event Created</h2>
+              <h2 className="text-2xl font-black text-slate-100 tracking-tight">Event Created (Draft)</h2>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Your event has been created and is ready for configuration and testing.
+                Your event has been saved as a Draft with a private preview link.
               </p>
             </div>
 
@@ -852,28 +866,37 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   {selectedTheme?.game_name || 'Game'} / {selectedTheme?.name || 'Theme'}
                 </span>
               </div>
+              <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
+                <span className="text-slate-400">Event Status:</span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold text-[10px] uppercase">
+                  {createdEvent.event_status || 'DRAFT'}
+                </span>
+              </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Status:</span>
+                <span className="text-slate-400">Payment Status:</span>
                 <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold text-[10px] uppercase">
-                  Pending Payment
+                  {createdEvent.payment_status || 'UNPAID'}
                 </span>
               </div>
             </div>
 
-            {/* Public Link Box */}
+            {/* Private Preview Link Box */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                <span>Public Share URL</span>
-                <span className="text-[11px] text-amber-400 font-normal">Goes live upon payment</span>
+                <span className="flex items-center gap-1.5">
+                  <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Private Preview URL</span>
+                </span>
+                <span className="text-[10px] text-purple-400 font-medium">Owner & Tester Access Only</span>
               </label>
-              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-2.5">
-                <span className="font-mono text-xs text-slate-300 truncate flex-1 pl-1">
-                  {publicUrl}
+              <div className="flex items-center gap-2 bg-slate-950 border border-purple-500/30 rounded-xl p-2.5">
+                <span className="font-mono text-xs text-purple-200 truncate flex-1 pl-1">
+                  {previewUrl}
                 </span>
                 <button
                   type="button"
-                  onClick={handleCopyLink}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                  onClick={handleCopyPreviewLink}
+                  className="px-3 py-1.5 rounded-lg bg-purple-950/80 hover:bg-purple-900/80 text-purple-300 hover:text-purple-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer border border-purple-500/40"
                 >
                   {copiedLink ? (
                     <>
@@ -883,7 +906,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy</span>
+                      <span>Copy Preview</span>
                     </>
                   )}
                 </button>
@@ -894,9 +917,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-start gap-3 text-xs text-amber-200">
               <AlertCircle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
               <div className="space-y-1">
-                <p className="font-bold text-amber-300">Payment is required before players can access the public link</p>
+                <p className="font-bold text-amber-300">Public player link is generated ONLY after payment confirmation</p>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  You can test-play your game right now in the private preview room. When ready, activate the event to unlock public access and the live leaderboard.
+                  You can test gameplay and verify theme configurations via the preview link above. To publish the event to the public and start live leaderboard scoring, proceed to payment and activation.
                 </p>
               </div>
             </div>
@@ -927,7 +950,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   onClick={handleClose}
                   className="py-2.5 px-4 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors cursor-pointer text-center"
                 >
-                  Pay Later
+                  Save as Draft
                 </button>
               </div>
             </div>
@@ -1200,48 +1223,85 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         )}
 
         {/* ================================================================= */}
-        {/* STEP 4: EVENT ACTIVATED CONFIRMATION                              */}
+        {/* STEP 4: EVENT ACTIVATED CONFIRMATION (PUBLIC LIVE)                */}
         {/* ================================================================= */}
         {step === 'activated' && (
-          <div className="p-8 sm:p-10 space-y-6 text-center animate-in zoom-in-95 duration-200">
-            <div className="inline-flex p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400">
+          <div className="p-8 sm:p-10 space-y-6 text-center animate-in zoom-in-95 duration-200 flex flex-col flex-1 overflow-y-auto custom-scrollbar">
+            <div className="inline-flex p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 mx-auto">
               <CheckCircle2 className="w-12 h-12 stroke-[2.5]" />
             </div>
 
             <div className="space-y-1.5">
-              <h2 className="text-2xl font-black text-slate-100">Event Activated!</h2>
-              <p className="text-xs text-slate-400">Your event has been activated and is ready for live players.</p>
+              <h2 className="text-2xl font-black text-slate-100">Event Activated & Live!</h2>
+              <p className="text-xs text-slate-400">Payment confirmed. Your event is now LIVE and the public player URL is ready.</p>
             </div>
 
-            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 text-left text-xs space-y-2.5 max-w-sm mx-auto">
+            {/* Public Link Box */}
+            <div className="space-y-2 text-left max-w-sm mx-auto w-full">
+              <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Public Game URL</span>
+                </span>
+                <span className="text-[10px] text-emerald-400 font-bold uppercase">LIVE</span>
+              </label>
+              <div className="flex items-center gap-2 bg-slate-950 border border-emerald-500/40 rounded-xl p-2.5">
+                <span className="font-mono text-xs text-emerald-300 truncate flex-1 pl-1">
+                  {publicUrl}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyPublicLink}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900/80 text-emerald-300 hover:text-emerald-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer border border-emerald-500/40"
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 text-left text-xs space-y-2.5 max-w-sm mx-auto w-full">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Event</span>
                 <span className="font-bold text-slate-100">{activatedEvent?.name || createdEvent?.name}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Status</span>
-                <span className="font-bold text-emerald-400 uppercase">Active</span>
+                <span className="text-slate-400">Event Status</span>
+                <span className="font-bold text-emerald-400 uppercase">LIVE</span>
               </div>
               <div className="flex items-center justify-between">
+                <span className="text-slate-400">Payment Status</span>
+                <span className="font-bold text-emerald-400 uppercase">PAID</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-900 pt-2">
                 <span className="text-slate-400">Paid Amount</span>
                 <span className="font-mono font-bold text-slate-200">{formatCurrency(paidAmount)}</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="grid grid-cols-2 gap-3 pt-2 max-w-sm mx-auto w-full">
               <button
                 type="button"
                 onClick={() => window.open(publicUrl, '_blank')}
                 className="py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                <span>Open Game</span>
+                <span>Open Live Game</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleClose}
-                className="py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                className="py-3 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <span>Done</span>
                 <ArrowRight className="w-3.5 h-3.5" />

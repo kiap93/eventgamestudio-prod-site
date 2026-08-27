@@ -13,9 +13,9 @@ export const DEFAULT_BASKET_CONFIG: BasketConfig = {
 };
 
 export const DEFAULT_ITEMS_CONFIG: ItemConfig[] = [
-  { id: 'green_durian', name: 'Fresh Green Durian', points: 100, speedMultiplier: 1.0, enabled: true, isHazard: false },
-  { id: 'golden_durian', name: 'Golden Musang King', points: 250, speedMultiplier: 1.2, enabled: true, isHazard: false },
-  { id: 'orange_durian', name: 'Spiky Hazard', points: -150, speedMultiplier: 1.3, enabled: true, isHazard: true },
+  { id: 'ticket', name: 'Golden Carnival Ticket', points: 100, speedMultiplier: 1.0, enabled: true, isHazard: false },
+  { id: 'star', name: 'Cosmic Carnival Star', points: 250, speedMultiplier: 1.2, enabled: true, isHazard: false },
+  { id: 'mask', name: 'Carnival Cursed Mask', points: -150, speedMultiplier: 1.3, enabled: true, isHazard: true },
 ];
 
 export const DEFAULT_SETTINGS_CONFIG: SettingsConfig = {

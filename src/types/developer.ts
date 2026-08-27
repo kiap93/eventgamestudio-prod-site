@@ -44,7 +44,9 @@ export interface AdminEventPricingItem {
   name: string;
   slug: string;
   status: string;
+  event_status?: string;
   payment_status?: string;
+  cancel_reason?: string | null;
   event_price?: number;
   event_currency?: string;
   effective_price: number;

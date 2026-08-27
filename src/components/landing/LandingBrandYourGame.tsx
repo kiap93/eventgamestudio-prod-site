@@ -33,17 +33,17 @@ interface ThemePresetDisplay {
 
 const THEME_PRESETS: ThemePresetDisplay[] = [
   {
-    id: 'durian',
-    name: 'Durian Harvest',
-    clientMock: 'Tropical Agro Expo 2026',
-    tagline: 'Catch fresh Green Durians, dodge Spiky Hazards!',
-    badge: 'Tropical Festival',
+    id: 'carnival',
+    name: 'Carnival Fiesta',
+    clientMock: 'Grand Carnival Expo 2026',
+    tagline: 'Catch Golden Tickets & Cosmic Stars, dodge Cursed Masks!',
+    badge: 'Carnival Celebration',
     accentColor: '#f59e0b',
-    bgGradient: 'from-amber-950/60 via-slate-900 to-emerald-950/40',
-    goodItemLabel: 'Green Musang King (+10 pts)',
-    hazardItemLabel: 'Rotten Hazard (-10 pts)',
-    bonusItemLabel: 'Golden Black Thorn (+50 pts)',
-    catcherLabel: 'Rattan Harvest Basket',
+    bgGradient: 'from-amber-950/60 via-slate-900 to-purple-950/40',
+    goodItemLabel: 'Golden Carnival Ticket (+10 pts)',
+    hazardItemLabel: 'Carnival Cursed Mask (-10 pts)',
+    bonusItemLabel: 'Cosmic Carnival Star (+50 pts)',
+    catcherLabel: 'Carnival Cart',
   },
   {
     id: 'chinese-new-year',
@@ -101,10 +101,10 @@ const THEME_PRESETS: ThemePresetDisplay[] = [
 
 export const LandingBrandYourGame: React.FC = () => {
   const { isAuthenticated } = useAuth();
-  const [selectedPresetId, setSelectedPresetId] = useState<string>('durian');
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('carnival');
 
   const currentPreset = THEME_PRESETS.find((p) => p.id === selectedPresetId) || THEME_PRESETS[0];
-  const registeredTheme: GameTheme = THEME_REGISTRY[selectedPresetId] || THEME_REGISTRY['durian'];
+  const registeredTheme: GameTheme = THEME_REGISTRY[selectedPresetId] || THEME_REGISTRY['carnival'];
 
   const handleCustomizeClick = () => {
     if (isAuthenticated) {

@@ -1,6 +1,6 @@
 import { GameTheme, ThemeDropItem } from './types';
 import { normalizeGameLayout } from './layout';
-import { durianTheme } from './durian';
+import { carnivalTheme } from './carnival';
 import { christmasTheme } from './christmas';
 import { cnyTheme } from './cny';
 import { halloweenTheme } from './halloween';
@@ -9,27 +9,32 @@ import { mangoTheme } from './mango';
 /**
  * Default active theme ID.
  */
-export const DEFAULT_ACTIVE_THEME_ID = 'durian';
+export const DEFAULT_ACTIVE_THEME_ID = 'carnival';
 
 export const THEME_REGISTRY: Record<string, GameTheme> = {
-  durian: durianTheme,
+  carnival: carnivalTheme,
   christmas: christmasTheme,
   'chinese-new-year': cnyTheme,
   halloween: halloweenTheme,
   mango: mangoTheme,
+  // Alias durian to carnival for seamless backwards-compatibility
+  durian: carnivalTheme,
 };
 
-let currentActiveTheme: GameTheme = durianTheme;
+let currentActiveTheme: GameTheme = carnivalTheme;
 
 export function resolveThemeBaseId(raw: any): string {
-  if (!raw) return 'durian';
-  if (raw.base_theme_id) return raw.base_theme_id;
-  if (raw.baseThemeId) return raw.baseThemeId;
+  if (!raw) return 'carnival';
+  if (raw.base_theme_id) return raw.base_theme_id === 'durian' ? 'carnival' : raw.base_theme_id;
+  if (raw.baseThemeId) return raw.baseThemeId === 'durian' ? 'carnival' : raw.baseThemeId;
 
   const id = (raw.id || '').toLowerCase();
   const slug = (raw.slug || '').toLowerCase();
   const name = (raw.name || '').toLowerCase();
 
+  if (id === 'carnival' || slug.includes('carnival') || name.includes('carnival')) {
+    return 'carnival';
+  }
   if (id === 'christmas' || slug.includes('christmas') || name.includes('christmas')) {
     return 'christmas';
   }
@@ -53,16 +58,14 @@ export function resolveThemeBaseId(raw: any): string {
   if (id === 'mango' || slug.includes('mango') || name.includes('mango')) {
     return 'mango';
   }
-  if (id === 'durian' || slug.includes('durian') || name.includes('durian')) {
-    return 'durian';
-  }
 
   // Check if raw.id is in registry
   if (raw.id && THEME_REGISTRY[raw.id]?.base_theme_id) {
-    return THEME_REGISTRY[raw.id].base_theme_id!;
+    const matched = THEME_REGISTRY[raw.id].base_theme_id!;
+    return matched === 'durian' ? 'carnival' : matched;
   }
 
-  return 'durian';
+  return 'carnival';
 }
 
 /**
@@ -97,7 +100,7 @@ export function resolveThemeDefaultItemImage(
     if (isBonus) return '/assets/honey_mango.png';
     return '/assets/ripe_mango.png';
   }
-  // Default theme assets
+  // Default Carnival theme assets
   if (isHazard) return '/assets/themes/carnival/item_hazard_01.png';
   if (isBonus) return '/assets/themes/carnival/item_bonus_01.png';
   return '/assets/themes/carnival/item_normal_01.png';
@@ -131,13 +134,13 @@ export function resolveThemeDefaultBgImage(theme: Partial<GameTheme> | any): str
  * Normalizes a theme object (whether from DB or preset) into a fully populated GameTheme
  */
 export function normalizeGameTheme(raw: any): GameTheme {
-  if (!raw) return durianTheme;
+  if (!raw) return carnivalTheme;
 
   const base_theme_id = resolveThemeBaseId(raw);
-  const basePreset = THEME_REGISTRY[base_theme_id] || durianTheme;
+  const basePreset = THEME_REGISTRY[base_theme_id] || carnivalTheme;
 
   const id = raw.id || raw.slug || 'theme-' + Date.now();
-  const name = raw.name || raw.branding?.gameTitle || basePreset.name;
+  const name = String(raw.name || raw.branding?.gameTitle || basePreset?.name || 'Custom Theme');
   const slug = raw.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const description = raw.description ?? basePreset.description;
   const status = raw.status || 'active';
@@ -318,14 +321,14 @@ export function getActiveTheme(): GameTheme {
 }
 
 /**
- * Retrieve a theme by ID or slug with safe fallback to durianTheme
+ * Retrieve a theme by ID or slug with safe fallback to carnivalTheme
  */
 export function getThemeById(id: string): GameTheme {
   const theme = THEME_REGISTRY[id];
   if (theme) {
     return theme;
   }
-  return currentActiveTheme || durianTheme;
+  return currentActiveTheme || carnivalTheme;
 }
 
 /**

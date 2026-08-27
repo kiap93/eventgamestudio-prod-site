@@ -1,6 +1,7 @@
 export * from './types';
 export * from './layout';
 export * from './registry';
+export * from './carnival';
 export * from './durian';
 export * from './christmas';
 export * from './cny';

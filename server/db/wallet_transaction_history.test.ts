@@ -50,6 +50,7 @@ async function runTests() {
       orderId: orderA.id,
       newStatus: 'PAID',
       paymentReference: 'pay_stripe_orgA_1001',
+      isTrustedSettlement: true,
     });
 
     // 3. Query transactions for Org A
@@ -78,6 +79,7 @@ async function runTests() {
       orderId: order.id,
       newStatus: 'PAID',
       paymentReference: 'pay_stripe_test_6000',
+      isTrustedSettlement: true,
     });
 
     // B. Event Payment (creates EVENT_PAYMENT and CREDIT_USAGE)
@@ -171,6 +173,7 @@ async function runTests() {
       orderId: order.id,
       newStatus: 'PAID',
       paymentReference: 'pay_stripe_audit_ref_9988',
+      isTrustedSettlement: true,
     });
 
     assert.strictEqual(processResult.order.status, 'PAID');

@@ -316,6 +316,9 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
             eventId={eventData.id}
             publicToken={eventData.public_token}
             showCabinetFooter={!isFullscreen}
+            allowImmersiveFullscreen={false}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={toggleFullscreen}
             className="w-full h-full max-w-full max-h-full"
           />
         </div>

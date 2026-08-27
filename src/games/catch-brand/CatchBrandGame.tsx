@@ -274,9 +274,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
 
   return (
     <div
-      className={`game-viewport relative w-full h-full flex items-center justify-center overflow-hidden bg-[#07130b] ${
-        isFullscreen ? 'game-fullscreen' : ''
-      }`}
+      className="game-viewport relative w-full h-full flex items-center justify-center overflow-hidden bg-[#07130b]"
     >
       {/* 16:9 Proportionally Scaled Game Stage containing Canvas and UI overlay */}
       <div className="game-stage relative w-full h-full aspect-[16/9] max-w-full max-h-full flex items-center justify-center overflow-hidden">

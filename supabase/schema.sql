@@ -157,8 +157,10 @@ CREATE TABLE IF NOT EXISTS public.events (
   event_date TEXT,
   starts_at TIMESTAMPTZ NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
-  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('draft', 'scheduled', 'live', 'expired', 'cancelled', 'pending_payment')),
-  payment_status TEXT NOT NULL DEFAULT 'UNPAID' CHECK (payment_status IN ('PAID', 'UNPAID', 'REFUNDED', 'PENDING_PAYMENT')),
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'live', 'expired', 'cancelled', 'pending_payment', 'active', 'completed')),
+  event_status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (event_status IN ('DRAFT', 'PAYMENT_PENDING', 'LIVE', 'COMPLETED', 'CANCELLED')),
+  payment_status TEXT NOT NULL DEFAULT 'UNPAID' CHECK (payment_status IN ('UNPAID', 'PENDING', 'PAID', 'FAILED', 'REFUNDED', 'PENDING_PAYMENT')),
+  cancel_reason TEXT CHECK (cancel_reason IS NULL OR cancel_reason IN ('USER_CANCELLED', 'PAYMENT_TIMEOUT', 'ADMIN_CANCELLED')),
   payment_mode TEXT,
   event_price NUMERIC(10, 2) NOT NULL DEFAULT 1400.00,
   event_currency TEXT NOT NULL DEFAULT 'MYR',
@@ -175,8 +177,10 @@ CREATE INDEX IF NOT EXISTS idx_events_game_id ON public.events (game_id);
 CREATE INDEX IF NOT EXISTS idx_events_game_theme_id ON public.events (game_theme_id);
 CREATE INDEX IF NOT EXISTS idx_events_public_token ON public.events (public_token);
 CREATE INDEX IF NOT EXISTS idx_events_status ON public.events (status);
+CREATE INDEX IF NOT EXISTS idx_events_event_status ON public.events (event_status);
 CREATE INDEX IF NOT EXISTS idx_events_payment_status ON public.events (payment_status);
 CREATE INDEX IF NOT EXISTS idx_events_starts_expires ON public.events (starts_at, expires_at);
+CREATE INDEX IF NOT EXISTS idx_events_lifecycle_cron ON public.events (event_status, starts_at, payment_status);
 
 -- ------------------------------------------------------------------------------
 -- 8. ROW LEVEL SECURITY & HELPER FUNCTIONS
@@ -376,19 +380,65 @@ VALUES ('game-assets', 'game-assets', true)
 ON CONFLICT (id) DO NOTHING;
 
 DROP POLICY IF EXISTS "Public read access for game-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload game-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can update game-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Organization members can upload to their org folder in game-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Organization members can update their org assets in game-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Organization members can delete their org assets in game-assets" ON storage.objects;
+
+-- Public CDN read access (assets like backgrounds and themes are publicly viewable by URL)
 CREATE POLICY "Public read access for game-assets"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'game-assets');
 
-DROP POLICY IF EXISTS "Authenticated users can upload game-assets" ON storage.objects;
-CREATE POLICY "Authenticated users can upload game-assets"
+-- Strict tenant-scoped upload policy:
+-- Confined to caller's organization path: organizations/<organization_id>/...
+CREATE POLICY "Organization members can upload to their org folder in game-assets"
   ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'game-assets');
+  WITH CHECK (
+    bucket_id = 'game-assets'
+    AND auth.uid() IS NOT NULL
+    AND (
+      public.is_developer_admin()
+      OR (
+        (storage.foldername(name))[1] = 'organizations'
+        AND (storage.foldername(name))[2] IS NOT NULL
+        AND public.get_org_role(((storage.foldername(name))[2])::uuid) IN ('owner', 'admin', 'designer')
+      )
+    )
+  );
 
-DROP POLICY IF EXISTS "Authenticated users can update game-assets" ON storage.objects;
-CREATE POLICY "Authenticated users can update game-assets"
+-- Strict tenant-scoped update policy
+CREATE POLICY "Organization members can update their org assets in game-assets"
   ON storage.objects FOR UPDATE
-  USING (bucket_id = 'game-assets');
+  USING (
+    bucket_id = 'game-assets'
+    AND auth.uid() IS NOT NULL
+    AND (
+      public.is_developer_admin()
+      OR (
+        (storage.foldername(name))[1] = 'organizations'
+        AND (storage.foldername(name))[2] IS NOT NULL
+        AND public.get_org_role(((storage.foldername(name))[2])::uuid) IN ('owner', 'admin', 'designer')
+      )
+    )
+  );
+
+-- Strict tenant-scoped delete policy
+CREATE POLICY "Organization members can delete their org assets in game-assets"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'game-assets'
+    AND auth.uid() IS NOT NULL
+    AND (
+      public.is_developer_admin()
+      OR (
+        (storage.foldername(name))[1] = 'organizations'
+        AND (storage.foldername(name))[2] IS NOT NULL
+        AND public.get_org_role(((storage.foldername(name))[2])::uuid) IN ('owner', 'admin')
+      )
+    )
+  );
 
 -- ------------------------------------------------------------------------------
 -- 10. WALLET ENGINE & IMMUTABLE TRANSACTION LEDGER
@@ -1446,16 +1496,71 @@ CREATE INDEX IF NOT EXISTS idx_event_high_scores_created_at
 ALTER TABLE public.event_high_scores ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public can view event high scores" ON public.event_high_scores;
-CREATE POLICY "Public can view event high scores"
-  ON public.event_high_scores FOR SELECT USING (true);
-
+DROP POLICY IF EXISTS "Anyone can view high scores of published events" ON public.event_high_scores;
 DROP POLICY IF EXISTS "Public can insert event high scores" ON public.event_high_scores;
-CREATE POLICY "Public can insert event high scores"
-  ON public.event_high_scores FOR INSERT WITH CHECK (true);
-
+DROP POLICY IF EXISTS "Org members and developer admins can insert high scores" ON public.event_high_scores;
 DROP POLICY IF EXISTS "Event managers can delete high scores" ON public.event_high_scores;
+DROP POLICY IF EXISTS "Developer admins can update high scores" ON public.event_high_scores;
+
+-- Hardened SELECT: Only allow viewing scores for live/paid events or when user belongs to the event's organization
+CREATE POLICY "Anyone can view high scores of published events"
+  ON public.event_high_scores
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.events e
+      WHERE e.id = event_high_scores.event_id
+        AND (
+          e.event_status = 'LIVE'
+          OR e.payment_status = 'PAID'
+          OR (auth.uid() IS NOT NULL AND public.get_org_role(e.organization_id) IS NOT NULL)
+          OR public.is_developer_admin()
+        )
+    )
+  );
+
+-- Hardened INSERT:
+-- Public player submissions MUST pass through the backend proxy (Worker/Server) with rate limiting
+-- and validation using service-role. Direct anon client inserts are denied.
+-- Authenticated org members or developer admins may submit scores for their events.
+CREATE POLICY "Org members and developer admins can insert high scores"
+  ON public.event_high_scores
+  FOR INSERT
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND EXISTS (
+      SELECT 1 FROM public.events e
+      WHERE e.id = event_high_scores.event_id
+        AND (
+          public.get_org_role(e.organization_id) IN ('owner', 'admin', 'designer', 'viewer')
+          OR public.is_developer_admin()
+        )
+    )
+  );
+
+-- Hardened DELETE:
+-- Only organization owners and admins (or developer admins) can delete/reset scores for their event.
 CREATE POLICY "Event managers can delete high scores"
-  ON public.event_high_scores FOR DELETE USING (true);
+  ON public.event_high_scores
+  FOR DELETE
+  USING (
+    auth.uid() IS NOT NULL
+    AND EXISTS (
+      SELECT 1 FROM public.events e
+      WHERE e.id = event_high_scores.event_id
+        AND (
+          public.get_org_role(e.organization_id) IN ('owner', 'admin')
+          OR public.is_developer_admin()
+        )
+    )
+  );
+
+-- Hardened UPDATE:
+-- Only developer admins can update scores
+CREATE POLICY "Developer admins can update high scores"
+  ON public.event_high_scores
+  FOR UPDATE
+  USING (public.is_developer_admin());
 
 -- ------------------------------------------------------------------------------
 -- 18. PLATFORM SETTINGS TABLE (SERVER-AUTHORITATIVE GLOBAL CONFIGURATION)

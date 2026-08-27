@@ -14,6 +14,9 @@ export interface GameShellProps {
   showCabinetFooter?: boolean;
   eventId?: string;
   publicToken?: string;
+  allowImmersiveFullscreen?: boolean;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export const GameShell: React.FC<GameShellProps> = ({
@@ -24,11 +27,16 @@ export const GameShell: React.FC<GameShellProps> = ({
   showCabinetFooter = true,
   eventId,
   publicToken,
+  allowImmersiveFullscreen = false,
+  isFullscreen: controlledFullscreen,
+  onToggleFullscreen: controlledToggleFullscreen,
 }) => {
   const { activeGame, activeTheme: contextActiveTheme } = useAuth();
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [internalFullscreen, setInternalFullscreen] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const isFullscreen = controlledFullscreen !== undefined ? controlledFullscreen : internalFullscreen;
 
   // Active theme resolution
   const [activeTheme, setActiveThemeState] = useState<GameTheme>(
@@ -67,7 +75,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   // Fullscreen change listener
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(
+      setInternalFullscreen(
         !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
       );
     };
@@ -82,6 +90,11 @@ export const GameShell: React.FC<GameShellProps> = ({
   }, []);
 
   const handleToggleFullscreen = () => {
+    if (controlledToggleFullscreen) {
+      controlledToggleFullscreen();
+      return;
+    }
+
     const isCurrentlyFs =
       !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
     if (!isCurrentlyFs && !isFullscreen) {
@@ -90,7 +103,7 @@ export const GameShell: React.FC<GameShellProps> = ({
       } else if ((document.documentElement as any).webkitRequestFullscreen) {
         (document.documentElement as any).webkitRequestFullscreen();
       }
-      setIsFullscreen(true);
+      setInternalFullscreen(true);
     } else {
       if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
         if (document.exitFullscreen) {
@@ -99,7 +112,7 @@ export const GameShell: React.FC<GameShellProps> = ({
           (document as any).webkitExitFullscreen();
         }
       }
-      setIsFullscreen(false);
+      setInternalFullscreen(false);
     }
   };
 
@@ -109,18 +122,20 @@ export const GameShell: React.FC<GameShellProps> = ({
 
   return (
     <div
-      className={
-        isFullscreen
-          ? 'game-fullscreen fixed inset-0 z-[99999] w-screen h-screen bg-[#07130b] overflow-hidden p-0 m-0 flex flex-col items-center justify-center'
-          : `w-full h-full max-w-full max-h-full flex flex-col items-center justify-center bg-[#07130b] overflow-hidden relative ${className}`
-      }
+      className={`w-full h-full max-w-full max-h-full flex flex-col items-center justify-center bg-[#07130b] overflow-hidden relative ${className}`}
     >
       {/* Cabinet Frame Wrapper: Uses available viewport space dynamically */}
-      <div className={isFullscreen ? 'w-full h-full p-0 m-0 flex items-center justify-center' : 'flex-1 w-full min-h-0 min-w-0 flex items-center justify-center overflow-hidden p-1 sm:p-2'}>
+      <div
+        className={
+          isFullscreen && allowImmersiveFullscreen
+            ? 'w-full h-full p-0 m-0 flex items-center justify-center'
+            : 'flex-1 w-full min-h-0 min-w-0 flex items-center justify-center overflow-hidden p-1 sm:p-2'
+        }
+      >
         <div
           ref={containerRef}
           className={
-            isFullscreen
+            isFullscreen && allowImmersiveFullscreen
               ? 'relative w-full h-full max-w-full max-h-full aspect-[16/9] overflow-hidden flex items-center justify-center p-0 m-0 border-none rounded-none bg-[#07130b] shadow-none'
               : 'game-cabinet relative aspect-[16/9] bg-[#0c2012] border-2 sm:border-4 border-[#1e4627] rounded-2xl sm:rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.15)] overflow-hidden flex items-center justify-center'
           }
@@ -140,7 +155,7 @@ export const GameShell: React.FC<GameShellProps> = ({
         </div>
       </div>
 
-      {/* Footer Branding (only in windowed mode, placed outside the game viewport) */}
+      {/* Footer Branding (only in windowed mode with footer enabled) */}
       {!isFullscreen && showCabinetFooter && (
         <footer className="h-6 sm:h-7 mb-1 text-slate-500 font-mono text-[10px] sm:text-xs flex items-center gap-2 shrink-0 select-none">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

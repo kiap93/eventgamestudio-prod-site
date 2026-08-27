@@ -165,6 +165,10 @@ export interface EventQuoteOption {
   reasons: string[];
 }
 
+export type EventLifecycleStatus = 'DRAFT' | 'PAYMENT_PENDING' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+export type PaymentLifecycleStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+export type EventCancelReason = 'USER_CANCELLED' | 'PAYMENT_TIMEOUT' | 'ADMIN_CANCELLED';
+
 export interface EventRecord {
   id: string;
   organization_id: string;
@@ -174,11 +178,15 @@ export interface EventRecord {
   event_date?: string | null;
   starts_at: string;
   expires_at: string;
-  status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
-  payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED' | 'PENDING_PAYMENT';
+  status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active' | 'completed';
+  event_status?: EventLifecycleStatus;
+  payment_status?: PaymentLifecycleStatus | 'PENDING_PAYMENT';
+  cancel_reason?: EventCancelReason | null;
   payment_mode?: PaymentMode;
   paid_amount?: number;
   discount_amount?: number;
+  event_price?: number;
+  event_currency?: string;
   public_token: string;
   created_by?: string | null;
   created_at: string;

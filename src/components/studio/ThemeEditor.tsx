@@ -282,7 +282,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
           <GameShell
             key={`live-game-${draftTheme.id}-${restartKey}`}
             customTheme={draftTheme}
-            gameType={activeGame?.game_type_id || activeGame?.slug || 'durian'}
+            gameType={activeGame?.game_type_id || activeGame?.slug || 'catch-brand'}
             showCabinetFooter={false}
             className="w-full h-full"
           />

@@ -2,6 +2,9 @@ name = "eventgamestudio"
 main = "worker.ts"
 compatibility_date = "2026-08-07"
 
+[vars]
+NODE_ENV = "production"
+
 [assets]
 directory = "./dist"
 not_found_handling = "single-page-application"

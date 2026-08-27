@@ -39,8 +39,10 @@ export class TextureGenerator {
       } else if (baseId === 'mango') {
         this.createRipeMangoTexture(scene, goodKey);
       } else {
-        // Alias to green_durian or default good
-        if (scene.textures.exists('green_durian')) {
+        // Alias to ticket or carnival good item
+        if (scene.textures.exists('ticket')) {
+          this.aliasTexture(scene, 'ticket', goodKey);
+        } else if (scene.textures.exists('green_durian')) {
           this.aliasTexture(scene, 'green_durian', goodKey);
         } else {
           this.createGreenDurianTexture(scene);
@@ -60,7 +62,9 @@ export class TextureGenerator {
       } else if (baseId === 'mango') {
         this.createSourMangoTexture(scene, badKey);
       } else {
-        if (scene.textures.exists('orange_durian')) {
+        if (scene.textures.exists('mask')) {
+          this.aliasTexture(scene, 'mask', badKey);
+        } else if (scene.textures.exists('orange_durian')) {
           this.aliasTexture(scene, 'orange_durian', badKey);
         } else {
           this.createOrangeDurianTexture(scene);
@@ -80,7 +84,9 @@ export class TextureGenerator {
       } else if (baseId === 'mango') {
         this.createHoneyMangoTexture(scene, bonusKey);
       } else {
-        if (scene.textures.exists('golden_durian')) {
+        if (scene.textures.exists('star')) {
+          this.aliasTexture(scene, 'star', bonusKey);
+        } else if (scene.textures.exists('golden_durian')) {
           this.aliasTexture(scene, 'golden_durian', bonusKey);
         } else {
           this.createGoldenDurianTexture(scene);
@@ -145,8 +151,12 @@ export class TextureGenerator {
             } else if (baseId === 'mango') {
               this.createSourMangoTexture(scene, itemKey);
             } else {
-              this.createOrangeDurianTexture(scene);
-              this.aliasTexture(scene, 'orange_durian', itemKey);
+              if (scene.textures.exists('mask')) {
+                this.aliasTexture(scene, 'mask', itemKey);
+              } else {
+                this.createOrangeDurianTexture(scene);
+                this.aliasTexture(scene, 'orange_durian', itemKey);
+              }
             }
           } else if (item.isBonus) {
             if (scene.textures.exists(bonusKey)) {
@@ -160,8 +170,12 @@ export class TextureGenerator {
             } else if (baseId === 'mango') {
               this.createHoneyMangoTexture(scene, itemKey);
             } else {
-              this.createGoldenDurianTexture(scene);
-              this.aliasTexture(scene, 'golden_durian', itemKey);
+              if (scene.textures.exists('star')) {
+                this.aliasTexture(scene, 'star', itemKey);
+              } else {
+                this.createGoldenDurianTexture(scene);
+                this.aliasTexture(scene, 'golden_durian', itemKey);
+              }
             }
           } else {
             if (scene.textures.exists(goodKey)) {
@@ -175,8 +189,12 @@ export class TextureGenerator {
             } else if (baseId === 'mango') {
               this.createRipeMangoTexture(scene, itemKey);
             } else {
-              this.createGreenDurianTexture(scene);
-              this.aliasTexture(scene, 'green_durian', itemKey);
+              if (scene.textures.exists('ticket')) {
+                this.aliasTexture(scene, 'ticket', itemKey);
+              } else {
+                this.createGreenDurianTexture(scene);
+                this.aliasTexture(scene, 'green_durian', itemKey);
+              }
             }
           }
         }

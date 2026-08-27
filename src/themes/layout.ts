@@ -39,9 +39,11 @@ export function useGameUiScale(containerRef: RefObject<HTMLElement | null>): num
       rafId = requestAnimationFrame(() => {
         const currentEl = containerRef.current;
         if (!currentEl) return;
-        const rect = currentEl.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          const nextScale = calculateGameUiScale(rect.width, rect.height);
+        const targetEl = (currentEl.parentElement as HTMLElement) || currentEl;
+        const width = targetEl.clientWidth || targetEl.getBoundingClientRect().width;
+        const height = targetEl.clientHeight || targetEl.getBoundingClientRect().height;
+        if (width > 0 && height > 0) {
+          const nextScale = calculateGameUiScale(width, height);
           setScale((prev) => (Math.abs(prev - nextScale) > 0.001 ? nextScale : prev));
           currentEl.style.setProperty('--game-ui-scale', String(nextScale));
         }

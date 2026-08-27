@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GameTheme, durianTheme } from '../../themes';
+import { GameTheme, carnivalTheme } from '../../themes';
 import { getDefaultUILayout } from '../../themes/layout';
 import { Sparkles, Copy, Plus, AlertCircle, Check, X, Layers } from 'lucide-react';
 
@@ -54,19 +54,20 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
         onCreated(newTheme.id);
       } else {
         // Start from scratch using clean baseline defaults
-        const base = existingThemes[0] || durianTheme;
+        const base = existingThemes[0] || carnivalTheme;
+        const cleanName = (themeName || 'New Theme').trim();
         const newTheme = await onCreate({
           game_id: gameId,
-          name: themeName.trim(),
-          slug: themeName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          description: `Custom game theme: ${themeName.trim()}`,
+          name: cleanName,
+          slug: cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          description: `Custom game theme: ${cleanName}`,
           branding: {
             gameTitle: themeName.trim(),
             subtitle: `Catch custom items in ${themeName.trim()}!`,
             logoUrl: null,
             clientLogoUrl: null,
           },
-          background_url: base.background_url || durianTheme.background_url,
+          background_url: base.background_url || carnivalTheme.background_url,
           basket_config: base.basket_config
             ? JSON.parse(JSON.stringify(base.basket_config))
             : {

@@ -100,20 +100,31 @@ export function isSupabaseConfigured(env?: Record<string, any>): boolean {
 }
 
 /**
- * Checks if the current execution context is in production mode.
+ * Detects if the current execution runtime is Cloudflare Workers / Serverless Edge.
+ */
+export function isCloudflareWorkerRuntime(): boolean {
+  return (
+    typeof (globalThis as any).WebSocketPair !== 'undefined' ||
+    (typeof navigator !== 'undefined' && (navigator as any)?.userAgent === 'Cloudflare-Workers') ||
+    (typeof (globalThis as any).caches !== 'undefined' && typeof (globalThis as any).caches?.default !== 'undefined')
+  );
+}
+
+/**
+ * Checks if the current execution context is in production mode or running in Cloudflare Workers.
  */
 export function isProductionEnvironment(env?: Record<string, any>): boolean {
   const procEnv = typeof process !== 'undefined' ? process.env : {};
   const nodeEnv = env?.NODE_ENV || procEnv.NODE_ENV || '';
   const appEnv = env?.ENVIRONMENT || env?.APP_ENV || procEnv.ENVIRONMENT || procEnv.APP_ENV || '';
-  return nodeEnv === 'production' || appEnv === 'production';
+  return nodeEnv === 'production' || appEnv === 'production' || isCloudflareWorkerRuntime();
 }
 
 /**
  * PRODUCTION SAFETY RULE:
- * Local in-memory or JSON-file fallback is strictly prohibited in production mode.
- * Fallback is only enabled when NODE_ENV !== 'production' or when an explicit development
- * flag (e.g. ALLOW_LOCAL_FALLBACK=true or ENABLE_LOCAL_FALLBACK=true) is present.
+ * Local in-memory or JSON-file fallback is strictly prohibited in production mode and Cloudflare Workers.
+ * Fallback is only enabled when NODE_ENV !== 'production' and not on Cloudflare Workers,
+ * or when an explicit development/test flag (ALLOW_LOCAL_FALLBACK=true) is explicitly passed.
  */
 export function isLocalFallbackAllowed(env?: Record<string, any>): boolean {
   const procEnv = typeof process !== 'undefined' ? process.env : {};
@@ -127,7 +138,7 @@ export function isLocalFallbackAllowed(env?: Record<string, any>): boolean {
 
   if (explicitAllow) return true;
 
-  // In production, local fallback is strictly prohibited
+  // In production or Cloudflare Workers, local fallback is strictly prohibited
   if (isProductionEnvironment(env)) {
     return false;
   }
@@ -138,12 +149,12 @@ export function isLocalFallbackAllowed(env?: Record<string, any>): boolean {
 
 /**
  * Guard assertion for critical mutation operations (wallet, payment, topup, organization creation).
- * Throws a fatal error if execution is in production mode without a configured Supabase database.
+ * Throws a fatal error if execution is in production mode or Cloudflare Workers without a configured Supabase database.
  */
 export function assertProductionSafe(operationName: string, env?: Record<string, any>): void {
   if (!isLocalFallbackAllowed(env) && !isSupabaseConfigured(env)) {
     throw new Error(
-      `Fatal: Operation "${operationName}" cannot proceed without a configured Supabase database in production mode. Local in-memory fallback is strictly disabled for financial and organizational safety.`
+      `Fatal: Financial database operation "${operationName}" cannot proceed without a valid Supabase database connection in production/Worker environment. Local database fallback is strictly disabled for financial integrity.`
     );
   }
 }

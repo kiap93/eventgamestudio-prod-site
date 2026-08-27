@@ -45,9 +45,12 @@ export interface OrgDetailData {
     id: string;
     user_id: string;
     role: string;
-    user_name: string;
-    user_email: string;
-    user_avatar: string | null;
+    name?: string;
+    email?: string;
+    avatar_url?: string | null;
+    user_name?: string;
+    user_email?: string;
+    user_avatar?: string | null;
     created_at: string;
   }>;
   wallet: {
@@ -496,22 +499,38 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
             </div>
 
             <div className="divide-y divide-slate-800">
-              {members.slice(0, 5).map((m) => (
-                <div key={m.id} className="py-2.5 flex items-center justify-between text-xs">
-                  <div className="flex items-center space-x-2.5">
-                    <div className="w-7 h-7 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-[11px]">
-                      {m.user_name?.charAt(0) || 'U'}
+              {members.slice(0, 5).map((m) => {
+                const memberName = (m.name || m.user_name || '').trim() || (m.email || m.user_email ? (m.email || m.user_email)!.split('@')[0] : 'Team Member');
+                const memberEmail = m.email || m.user_email || '-';
+                const memberAvatar = m.avatar_url || m.user_avatar;
+                const initial = memberName.charAt(0).toUpperCase() || 'U';
+
+                return (
+                  <div key={m.id} className="py-2.5 flex items-center justify-between text-xs">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="w-7 h-7 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-[11px] overflow-hidden shrink-0">
+                        {memberAvatar ? (
+                          <img
+                            src={memberAvatar}
+                            alt={memberName}
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          initial
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-slate-200 font-semibold block truncate">{memberName}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{memberEmail}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-slate-200 font-semibold block">{m.user_name}</span>
-                      <span className="text-[10px] text-slate-400 block">{m.user_email}</span>
-                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono text-[10px] uppercase shrink-0">
+                      {m.role}
+                    </span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono text-[10px] uppercase">
-                    {m.role}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -585,35 +604,51 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {members.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-800 text-emerald-400 font-bold flex items-center justify-center text-xs">
-                          {m.user_name?.charAt(0) || 'U'}
+                {members.map((m) => {
+                  const memberName = (m.name || m.user_name || '').trim() || (m.email || m.user_email ? (m.email || m.user_email)!.split('@')[0] : 'Team Member');
+                  const memberEmail = m.email || m.user_email || '-';
+                  const memberAvatar = m.avatar_url || m.user_avatar;
+                  const initial = memberName.charAt(0).toUpperCase() || 'U';
+
+                  return (
+                    <tr key={m.id} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-800 text-emerald-400 font-bold flex items-center justify-center text-xs overflow-hidden shrink-0">
+                            {memberAvatar ? (
+                              <img
+                                src={memberAvatar}
+                                alt={memberName}
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              initial
+                            )}
+                          </div>
+                          <span className="font-semibold text-white">{memberName}</span>
                         </div>
-                        <span className="font-semibold text-white">{m.user_name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-slate-300 font-mono text-[11px]">{m.user_email}</td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          m.role === 'owner'
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : m.role === 'admin'
-                            ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                            : 'bg-slate-800 text-slate-300'
-                        }`}
-                      >
-                        {m.role}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-slate-400 text-[11px]">
-                      {m.created_at ? new Date(m.created_at).toLocaleDateString('en-MY') : '-'}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3 px-4 text-slate-300 font-mono text-[11px]">{memberEmail}</td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            m.role === 'owner'
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : m.role === 'admin'
+                              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                              : 'bg-slate-800 text-slate-300'
+                          }`}
+                        >
+                          {m.role}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-400 text-[11px]">
+                        {m.created_at ? new Date(m.created_at).toLocaleDateString('en-MY') : '-'}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -739,7 +774,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
                             )}
                             <div>
                               <span className="font-bold text-slate-200 block uppercase font-mono text-[11px]">
-                                {tx.type.replace(/_/g, ' ')}
+                                {(tx.type || 'TRANSACTION').replace(/_/g, ' ')}
                               </span>
                               <span className="text-[10px] text-slate-400">
                                 {tx.description || tx.notes || 'Ledger transaction'}
@@ -753,15 +788,15 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
                             isCredit ? 'text-emerald-400' : 'text-rose-400'
                           }`}
                         >
-                          {isCredit ? '+' : '-'} {formatCurrency(Math.abs(tx.amount), tx.currency)}
+                          {isCredit ? '+' : '-'} {formatCurrency(Math.abs(tx.amount || 0), tx.currency || 'MYR')}
                         </td>
 
                         <td className="py-3 px-4 text-right font-mono text-slate-300">
-                          {formatCurrency(tx.balance_after, tx.currency)}
+                          {formatCurrency(tx.balance_after || 0, tx.currency || 'MYR')}
                         </td>
 
                         <td className="py-3 px-4 font-mono text-[10px] text-slate-400">
-                          {tx.reference_id || tx.id.slice(0, 8)}
+                          {tx.reference_id || (tx.id ? String(tx.id).slice(0, 8) : '-')}
                         </td>
 
                         <td className="py-3 px-4 text-slate-400 text-[11px] whitespace-nowrap">

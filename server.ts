@@ -66,6 +66,8 @@ import {
   cancelEvent,
   canCancelEvent,
   determineEventRefund,
+  reactivateEvent,
+  runEventLifecycleMaintenance,
   getShowcaseByEventId,
   getShowcaseById,
   createShowcase,
@@ -1807,7 +1809,7 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       return;
     }
 
-    // Create event with PENDING_PAYMENT status (no wallet balance deducted)
+    // Create event with DRAFT event_status and UNPAID payment_status (no wallet balance deducted)
     const created = await createEvent({
       organization_id: organizationId,
       game_id,
@@ -1816,8 +1818,9 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       event_date,
       starts_at,
       expires_at,
-      status: 'pending_payment',
-      payment_status: 'PENDING_PAYMENT',
+      status: 'draft',
+      event_status: 'DRAFT',
+      payment_status: 'UNPAID',
       created_by: user.id,
       event_price,
     });
@@ -2045,6 +2048,7 @@ app.post('/api/events/:eventId/cancel', eventRateLimiter, authenticateJWT, async
 
     const cancelled = await cancelEvent(eventId, {
       cancelledBy: user.id,
+      cancelReason: req.body?.cancel_reason || req.body?.cancelReason || 'USER_CANCELLED',
       reason: req.body?.reason || 'User cancelled event before Setup Day',
     });
 
@@ -2101,7 +2105,7 @@ app.get('/api/events/:eventId/preview', authenticateJWT, async (req: Authenticat
 /**
  * GET /api/public/events/:publicToken
  * Public unauthenticated endpoint for event players.
- * STRICTLY ENFORCES: Public play is only accessible for PAID, non-cancelled events.
+ * STRICTLY ENFORCES: Public play is only accessible for PAID, LIVE, non-cancelled events.
  */
 app.get('/api/public/events/:publicToken', async (req, res) => {
   try {
@@ -2117,20 +2121,23 @@ app.get('/api/public/events/:publicToken', async (req, res) => {
       return;
     }
 
-    if (rawEvent.status === 'cancelled') {
+    if (rawEvent.event_status === 'CANCELLED' || rawEvent.status === 'cancelled') {
       res.status(403).json({
-        error: 'This event has been cancelled by the organizer.',
+        error: 'This event has been cancelled.',
         code: 'EVENT_CANCELLED',
         is_cancelled: true,
+        cancel_reason: rawEvent.cancel_reason,
       });
       return;
     }
 
-    if (rawEvent.payment_status !== 'PAID' || rawEvent.status === 'pending_payment') {
+    if (rawEvent.payment_status !== 'PAID' || rawEvent.event_status !== 'LIVE' || rawEvent.status === 'pending_payment' || rawEvent.status === 'draft') {
       res.status(403).json({
         error: 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
         code: 'PAYMENT_REQUIRED',
         is_pending_payment: true,
+        event_status: rawEvent.event_status,
+        payment_status: rawEvent.payment_status,
         event_id: rawEvent.id,
         event_name: rawEvent.name,
       });
@@ -3771,6 +3778,55 @@ app.patch('/api/developer/events/:eventId/pricing', authenticateDeveloperAdmin, 
 app.put('/api/admin/events/:eventId/pricing', authenticateDeveloperAdmin, handleUpdateEventPricing);
 app.patch('/api/admin/events/:eventId/pricing', authenticateDeveloperAdmin, handleUpdateEventPricing);
 
+/**
+ * POST /api/developer/events/:eventId/reactivate (and /api/admin/events/:eventId/reactivate)
+ * Developer Admin: Manual status override / reactivate event
+ */
+const handleReactivateAdminEvent = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { eventId } = req.params;
+    const { reason } = req.body;
+
+    const event = await reactivateEvent(eventId, {
+      adminUserId: req.user?.id,
+      reason: reason || 'Developer admin manual reactivation',
+    });
+
+    res.json({
+      success: true,
+      event,
+      message: `Event "${event.name}" successfully reactivated to ${event.event_status} status.`,
+    });
+  } catch (err: any) {
+    console.error('Admin reactivate event error:', err);
+    res.status(err.status || 500).json({ error: err.message || 'Failed to reactivate event' });
+  }
+};
+
+app.post('/api/developer/events/:eventId/reactivate', authenticateDeveloperAdmin, handleReactivateAdminEvent);
+app.post('/api/admin/events/:eventId/reactivate', authenticateDeveloperAdmin, handleReactivateAdminEvent);
+
+/**
+ * POST /api/developer/events/maintenance (and /api/admin/events/maintenance)
+ * Developer Admin: Manually trigger event lifecycle maintenance worker
+ */
+const handleRunEventMaintenance = async (_req: AuthenticatedRequest, res: any) => {
+  try {
+    const result = await runEventLifecycleMaintenance();
+    res.json({
+      success: true,
+      result,
+      message: `Maintenance complete: ${result.cancelledCount} unpaid expired events cancelled, ${result.completedCount} expired paid events marked completed.`,
+    });
+  } catch (err: any) {
+    console.error('Run event maintenance error:', err);
+    res.status(500).json({ error: err.message || 'Failed to run event lifecycle maintenance' });
+  }
+};
+
+app.post('/api/developer/events/maintenance', authenticateDeveloperAdmin, handleRunEventMaintenance);
+app.post('/api/admin/events/maintenance', authenticateDeveloperAdmin, handleRunEventMaintenance);
+
 // ----------------------------------------------------
 // DEVELOPER ADMIN ORGANIZATIONS ENDPOINTS
 // ----------------------------------------------------
@@ -5148,6 +5204,15 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server listening on http://0.0.0.0:${PORT}`);
+
+    // Start background event lifecycle maintenance job (runs every 60 seconds)
+    setInterval(async () => {
+      try {
+        await runEventLifecycleMaintenance();
+      } catch (err) {
+        console.error('[Event Lifecycle Maintenance] Periodic job error:', err);
+      }
+    }, 60 * 1000);
   });
 }
 

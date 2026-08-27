@@ -66,7 +66,7 @@ export const LandingPage: React.FC = () => {
       <LandingDemoModal
         isOpen={demoModalOpen}
         onClose={() => setDemoModalOpen(false)}
-        gameTitle="Catch the Brand (Durian Catch)"
+        gameTitle="Catch the Brand (Carnival Fiesta)"
       />
     </div>
   );

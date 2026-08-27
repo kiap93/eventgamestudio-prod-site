@@ -63,8 +63,9 @@ const LOCAL_ORGS_FILE = path.join(process.cwd(), 'uploads', 'organizations.json'
 const localOrgsCache = new Map<string, OrganizationRecord>();
 
 function loadLocalOrgs(): void {
+  if (!isLocalFallbackAllowed()) return;
   try {
-    if (fs.existsSync(LOCAL_ORGS_FILE)) {
+    if (typeof fs !== 'undefined' && typeof fs.existsSync === 'function' && fs.existsSync(LOCAL_ORGS_FILE)) {
       const raw = fs.readFileSync(LOCAL_ORGS_FILE, 'utf-8');
       const list = JSON.parse(raw) as OrganizationRecord[];
       localOrgsCache.clear();
@@ -78,16 +79,19 @@ function loadLocalOrgs(): void {
 }
 
 function saveLocalOrgs(): void {
+  if (!isLocalFallbackAllowed()) return;
   try {
-    const dir = path.dirname(LOCAL_ORGS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    if (typeof fs !== 'undefined' && typeof fs.writeFileSync === 'function') {
+      const dir = path.dirname(LOCAL_ORGS_FILE);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(
+        LOCAL_ORGS_FILE,
+        JSON.stringify(Array.from(localOrgsCache.values()), null, 2),
+        'utf-8'
+      );
     }
-    fs.writeFileSync(
-      LOCAL_ORGS_FILE,
-      JSON.stringify(Array.from(localOrgsCache.values()), null, 2),
-      'utf-8'
-    );
   } catch (err) {
     console.warn('Warning saving local organizations store:', err);
   }
@@ -379,11 +383,15 @@ export async function getAllOrganizationsForDeveloper(
 
     if (error) {
       console.error('Error fetching organizations in getAllOrganizationsForDeveloper:', error);
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Failed to fetch organizations from database: ${error.message}`);
+      }
       orgs = Array.from(localOrgsCache.values());
     } else {
       orgs = (data || []) as OrganizationRecord[];
     }
   } else {
+    assertProductionSafe('getAllOrganizationsForDeveloper', env);
     orgs = Array.from(localOrgsCache.values()).sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );

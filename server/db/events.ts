@@ -2,6 +2,9 @@ import { getSupabaseServerClient } from '../supabase.js';
 import {
   EventRecord,
   EventStatus,
+  EventLifecycleStatus,
+  PaymentLifecycleStatus,
+  EventCancelReason,
   EventWithDetails,
   GameThemeRecord,
   GameRecord,
@@ -35,36 +38,79 @@ export const localEventsCache = new Map<string, EventRecord>();
  */
 export function calculateEventStatus(
   event: {
-    status: EventStatus | string;
+    status?: EventStatus | string | null;
+    event_status?: string | null;
     starts_at: string;
     expires_at: string;
     setup_starts_at?: string | null;
     payment_status?: string | null;
+    cancel_reason?: string | null;
   },
   now: Date = new Date()
 ): EventStatus {
   const rawStatus = (event.status || '').toLowerCase();
-  if (rawStatus === 'cancelled') return 'cancelled';
-
-  // PENDING_PAYMENT events NEVER automatically expire
+  const eventStatus = (event.event_status || '').toUpperCase();
   const payStatus = (event.payment_status || '').toUpperCase();
-  if (rawStatus === 'pending_payment' || payStatus === 'PENDING_PAYMENT' || payStatus === 'UNPAID') {
-    return 'pending_payment';
-  }
+  const cancelReason = event.cancel_reason || null;
 
-  if (rawStatus === 'draft') return 'draft';
+  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
+    return 'cancelled';
+  }
 
   const nowTime = now.getTime();
   const startsAt = new Date(event.starts_at).getTime();
   const expiresAt = new Date(event.expires_at).getTime();
 
-  if (nowTime >= expiresAt || rawStatus === 'expired' || rawStatus === 'completed') {
+  // If unpaid or pending payment:
+  if (payStatus !== 'PAID') {
+    // If event start time has already passed without payment, it is timed out / cancelled
+    if (nowTime >= startsAt) {
+      return 'cancelled';
+    }
+    if (eventStatus === 'DRAFT' || rawStatus === 'draft') {
+      return 'draft';
+    }
+    return 'pending_payment';
+  }
+
+  // If PAID:
+  if (eventStatus === 'COMPLETED' || rawStatus === 'expired' || rawStatus === 'completed' || nowTime >= expiresAt) {
     return 'expired';
   }
-  if (nowTime >= startsAt || rawStatus === 'live' || rawStatus === 'active') {
+  if (nowTime >= startsAt || eventStatus === 'LIVE' || rawStatus === 'live' || rawStatus === 'active') {
     return 'live';
   }
   return 'scheduled';
+}
+
+/**
+ * Derives the canonical uppercase event_status lifecycle enum.
+ */
+export function deriveEventLifecycleStatus(
+  event: {
+    status?: EventStatus | string | null;
+    event_status?: string | null;
+    starts_at: string;
+    expires_at: string;
+    payment_status?: string | null;
+    cancel_reason?: string | null;
+  },
+  now: Date = new Date()
+): 'DRAFT' | 'PAYMENT_PENDING' | 'LIVE' | 'COMPLETED' | 'CANCELLED' {
+  if (event.event_status) {
+    const s = event.event_status.toUpperCase();
+    if (['DRAFT', 'PAYMENT_PENDING', 'LIVE', 'COMPLETED', 'CANCELLED'].includes(s)) {
+      if (s === 'CANCELLED') return 'CANCELLED';
+      if (s === 'COMPLETED') return 'COMPLETED';
+    }
+  }
+
+  const calculated = calculateEventStatus(event, now);
+  if (calculated === 'cancelled') return 'CANCELLED';
+  if (calculated === 'expired') return 'COMPLETED';
+  if (calculated === 'draft') return 'DRAFT';
+  if (calculated === 'pending_payment') return 'PAYMENT_PENDING';
+  return 'LIVE';
 }
 
 /**
@@ -397,13 +443,16 @@ export async function getEventsByOrgId(
       : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : 1400.00);
     const paymentStatus = event.payment_status || (event.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
     const isPaid = paymentStatus === 'PAID';
+    const eventLifecycle = event.event_status || deriveEventLifecycleStatus(event);
 
     return {
       ...event,
       game_id: event.game_id || theme?.game_id || resolvedGame?.id || null,
       event_price: storedPrice,
       event_currency: event.event_currency || 'MYR',
-      payment_status: paymentStatus,
+      event_status: eventLifecycle,
+      payment_status: paymentStatus as any,
+      cancel_reason: event.cancel_reason || null,
       payment_mode: event.payment_mode || (isPaid ? 'FULL_PAID' : undefined),
       paid_amount: event.paid_amount !== undefined ? event.paid_amount : (isPaid ? storedPrice : 0),
       discount_amount: event.discount_amount || 0,
@@ -469,7 +518,9 @@ export async function getEventById(
         ...(event as EventRecord),
         game_id: cached.game_id || (event as EventRecord).game_id,
         status: cached.status || (event as EventRecord).status,
+        event_status: cached.event_status || (event as EventRecord).event_status,
         payment_status: cached.payment_status || (event as EventRecord).payment_status,
+        cancel_reason: cached.cancel_reason || (event as EventRecord).cancel_reason,
         payment_mode: cached.payment_mode || (event as EventRecord).payment_mode,
         paid_amount: cached.paid_amount !== undefined ? cached.paid_amount : (event as EventRecord).paid_amount,
         event_price: cached.event_price || (event as EventRecord).event_price,
@@ -503,13 +554,16 @@ export async function getEventById(
     : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : 1400.00);
   const paymentStatus = eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
   const isPaid = paymentStatus === 'PAID';
+  const eventLifecycle = eventRecord.event_status || deriveEventLifecycleStatus(eventRecord);
 
   return {
     ...eventRecord,
     game_id: eventRecord.game_id || theme?.game_id || game?.id || null,
     event_price: storedPrice,
     event_currency: eventRecord.event_currency || 'MYR',
-    payment_status: paymentStatus,
+    event_status: eventLifecycle,
+    payment_status: paymentStatus as any,
+    cancel_reason: eventRecord.cancel_reason || null,
     payment_mode: eventRecord.payment_mode || (isPaid ? 'FULL_PAID' : undefined),
     paid_amount: eventRecord.paid_amount !== undefined ? eventRecord.paid_amount : (isPaid ? storedPrice : 0),
     discount_amount: eventRecord.discount_amount || 0,
@@ -535,7 +589,7 @@ export async function getEventById(
 
 /**
  * Public resolution endpoint: Get event by public token.
- * By default, enforces strict public safety: ONLY returns PAID, non-cancelled events.
+ * By default, enforces strict public safety: ONLY returns PAID, LIVE, non-cancelled events.
  * Set options.allowUnpaid = true for internal preview or status verification.
  */
 export async function getEventByPublicToken(
@@ -572,7 +626,9 @@ export async function getEventByPublicToken(
           ...cached,
           ...raw,
           status: cached.status || raw.status,
+          event_status: cached.event_status || raw.event_status,
           payment_status: cached.payment_status || raw.payment_status,
+          cancel_reason: cached.cancel_reason || raw.cancel_reason,
           payment_mode: cached.payment_mode || raw.payment_mode,
           paid_amount: cached.paid_amount !== undefined ? cached.paid_amount : raw.paid_amount,
           event_price: cached.event_price || raw.event_price,
@@ -586,12 +642,14 @@ export async function getEventByPublicToken(
 
   if (!eventRecord) return null;
 
-  const paymentStatus = eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
+  const derivedLifecycle = deriveEventLifecycleStatus(eventRecord);
+  const eventLifecycleStatus = (eventRecord.event_status || derivedLifecycle).toUpperCase();
+  const paymentStatus = (eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID')).toUpperCase();
   const isPaid = paymentStatus === 'PAID';
 
-  // Strict Public Guard: Do NOT resolve unpaid or pending-payment events on public routes unless explicitly permitted
+  // Strict Public Guard: Do NOT resolve unpaid, non-LIVE, draft, or cancelled events on public routes unless explicitly permitted (e.g. preview)
   if (!options?.allowUnpaid) {
-    if (!isPaid || eventRecord.status === 'pending_payment' || eventRecord.status === 'cancelled') {
+    if (!isPaid || eventLifecycleStatus !== 'LIVE' || eventRecord.status === 'cancelled' || eventRecord.status === 'draft' || eventRecord.status === 'pending_payment') {
       return null;
     }
   }
@@ -625,7 +683,9 @@ export async function getEventByPublicToken(
     ...eventRecord,
     event_price: storedPrice,
     event_currency: eventRecord.event_currency || 'MYR',
-    payment_status: paymentStatus,
+    event_status: eventLifecycleStatus as EventLifecycleStatus,
+    payment_status: paymentStatus as any,
+    cancel_reason: eventRecord.cancel_reason || null,
     payment_mode: eventRecord.payment_mode || (isPaid ? 'FULL_PAID' : undefined),
     paid_amount: eventRecord.paid_amount !== undefined ? eventRecord.paid_amount : (isPaid ? storedPrice : 0),
     discount_amount: eventRecord.discount_amount || 0,
@@ -660,7 +720,9 @@ export async function createEvent(
     starts_at: string;
     expires_at: string;
     status?: EventStatus;
-    payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED' | 'PENDING_PAYMENT';
+    event_status?: EventLifecycleStatus;
+    payment_status?: PaymentLifecycleStatus | 'PENDING_PAYMENT';
+    cancel_reason?: EventCancelReason | null;
     payment_mode?: PaymentMode;
     paid_amount?: number;
     discount_amount?: number;
@@ -738,7 +800,7 @@ export async function createEvent(
   }
 
   // 4. Enforce maximum 2 PENDING_PAYMENT events limit per organization
-  const isPending = (params.payment_status || 'PENDING_PAYMENT') === 'PENDING_PAYMENT' ||
+  const isPending = (params.payment_status || 'UNPAID') === 'PENDING_PAYMENT' ||
     params.payment_status === 'UNPAID' ||
     params.status === 'pending_payment';
 
@@ -778,8 +840,9 @@ export async function createEvent(
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  const initialStatus: EventStatus = params.status || (isPending ? 'pending_payment' : 'scheduled');
-  const initialPaymentStatus = params.payment_status || (isPending ? 'PENDING_PAYMENT' : 'PAID');
+  const initialEventStatus: EventLifecycleStatus = params.event_status || 'DRAFT';
+  const initialPaymentStatus: PaymentLifecycleStatus = (params.payment_status as PaymentLifecycleStatus) || 'UNPAID';
+  const initialStatus: EventStatus = params.status || (initialEventStatus === 'DRAFT' ? 'draft' : 'pending_payment');
   const safePaidAmount = params.paid_amount !== undefined ? params.paid_amount : (initialPaymentStatus === 'PAID' ? price : 0);
 
   const dbPayload: any = {
@@ -792,7 +855,9 @@ export async function createEvent(
     starts_at: new Date(params.starts_at).toISOString(),
     expires_at: new Date(params.expires_at).toISOString(),
     status: initialStatus,
+    event_status: initialEventStatus,
     payment_status: initialPaymentStatus,
+    cancel_reason: params.cancel_reason || null,
     event_price: price,
     event_currency: currency,
     public_token: token,
@@ -848,7 +913,9 @@ export async function createEvent(
       if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
         const fullRecord: EventRecord = {
           ...dbPayload,
+          event_status: initialEventStatus,
           payment_status: initialPaymentStatus,
+          cancel_reason: params.cancel_reason || null,
           payment_mode: params.payment_mode || (initialPaymentStatus === 'PAID' ? 'FULL_PAID' : undefined),
           paid_amount: safePaidAmount,
           discount_amount: params.discount_amount || 0,
@@ -867,7 +934,9 @@ export async function createEvent(
     ...(data as any),
     game_id: targetGameId,
     status: initialStatus,
+    event_status: initialEventStatus,
     payment_status: initialPaymentStatus,
+    cancel_reason: params.cancel_reason || null,
     payment_mode: params.payment_mode || (initialPaymentStatus === 'PAID' ? 'FULL_PAID' : undefined),
     paid_amount: safePaidAmount,
     discount_amount: params.discount_amount || 0,
@@ -1078,6 +1147,9 @@ export async function updateEvent(
     starts_at?: string;
     expires_at?: string;
     status?: EventStatus;
+    event_status?: EventLifecycleStatus;
+    payment_status?: PaymentLifecycleStatus | 'PENDING_PAYMENT';
+    cancel_reason?: EventCancelReason | null;
   },
   env?: Record<string, any>
 ): Promise<EventRecord> {
@@ -1112,6 +1184,18 @@ export async function updateEvent(
 
   if (updates.status !== undefined) {
     payload.status = updates.status;
+  }
+
+  if (updates.event_status !== undefined) {
+    payload.event_status = updates.event_status;
+  }
+
+  if (updates.payment_status !== undefined) {
+    payload.payment_status = updates.payment_status;
+  }
+
+  if (updates.cancel_reason !== undefined) {
+    payload.cancel_reason = updates.cancel_reason;
   }
 
   // 2. If changing theme, verify organizational isolation
@@ -1162,6 +1246,7 @@ export async function cancelEvent(
   options?: {
     cancelledBy?: string;
     reason?: string;
+    cancelReason?: EventCancelReason;
     force?: boolean;
     skipRefund?: boolean;
     now?: Date;
@@ -1202,8 +1287,18 @@ export async function cancelEvent(
     );
   }
 
+  const determinedReason: EventCancelReason =
+    options?.cancelReason ||
+    (options?.reason?.includes('TIMEOUT')
+      ? 'PAYMENT_TIMEOUT'
+      : options?.cancelledBy === 'admin'
+      ? 'ADMIN_CANCELLED'
+      : 'USER_CANCELLED');
+
   const updatePayload: any = {
     status: 'cancelled',
+    event_status: 'CANCELLED',
+    cancel_reason: determinedReason,
   };
 
   if (refundInfo.canRefund && !options?.skipRefund) {
@@ -1216,6 +1311,145 @@ export async function cancelEvent(
     ...updated,
     eligibility,
     refundResult,
+  };
+}
+
+/**
+ * Admin override: Reactivate a cancelled or draft event.
+ */
+export async function reactivateEvent(
+  eventId: string,
+  options?: { adminUserId?: string; reason?: string },
+  env?: Record<string, any>
+): Promise<EventWithDetails> {
+  const existing = await getEventById(eventId, env);
+  if (!existing) {
+    throw new Error('Event not found');
+  }
+
+  const isPaid = existing.payment_status === 'PAID';
+  const targetEventStatus: EventLifecycleStatus = isPaid ? 'LIVE' : 'PAYMENT_PENDING';
+  const targetStatus: EventStatus = isPaid ? 'scheduled' : 'pending_payment';
+
+  const updatePayload: any = {
+    event_status: targetEventStatus,
+    status: targetStatus,
+    cancel_reason: null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const supabase = getSupabaseServerClient(env);
+  await supabase.from('events').update(updatePayload).eq('id', eventId);
+
+  const cached = localEventsCache.get(eventId);
+  if (cached) {
+    cached.event_status = targetEventStatus;
+    cached.status = targetStatus;
+    cached.cancel_reason = null;
+    cached.updated_at = updatePayload.updated_at;
+    localEventsCache.set(eventId, cached);
+  }
+
+  await recordWalletAuditEvent(
+    {
+      organizationId: existing.organization_id,
+      eventType: 'ADMIN_ADJUSTMENT',
+      amount: 0,
+      currency: existing.event_currency || 'MYR',
+      actorId: options?.adminUserId || undefined,
+      metadata: {
+        action: 'EVENT_REACTIVATED',
+        event_id: eventId,
+        event_name: existing.name,
+        previous_status: existing.event_status,
+        new_event_status: targetEventStatus,
+        reason: options?.reason || 'Admin reactivated event',
+      },
+    },
+    env
+  );
+
+  const updated = await getEventById(eventId, env);
+  if (!updated) throw new Error('Failed to load reactivated event');
+  return updated;
+}
+
+/**
+ * Scheduled Worker Maintenance Job:
+ * 1. Automatically cancels unpaid events when event start time passes (cancel_reason = 'PAYMENT_TIMEOUT').
+ * 2. Marks expired paid events as COMPLETED.
+ */
+export async function runEventLifecycleMaintenance(
+  env?: Record<string, any>,
+  now: Date = new Date()
+): Promise<{
+  cancelledCount: number;
+  completedCount: number;
+  cancelledEvents: string[];
+  completedEvents: string[];
+}> {
+  const supabase = getSupabaseServerClient(env);
+  const nowIso = now.toISOString();
+  const cancelledEvents: string[] = [];
+  const completedEvents: string[] = [];
+
+  let allEvents: EventRecord[] = [];
+  const { data, error } = await supabase.from('events').select('*');
+  if (error || !data) {
+    allEvents = Array.from(localEventsCache.values());
+  } else {
+    allEvents = data as EventRecord[];
+  }
+
+  for (const ev of allEvents) {
+    const payStatus = (ev.payment_status || '').toUpperCase();
+    const evStatus = (ev.event_status || '').toUpperCase();
+    const rawStatus = (ev.status || '').toLowerCase();
+    const startsAtTime = new Date(ev.starts_at).getTime();
+    const expiresAtTime = new Date(ev.expires_at).getTime();
+    const nowTime = now.getTime();
+
+    // 1. Unpaid events whose start time has arrived/passed -> Auto-cancel with PAYMENT_TIMEOUT
+    if (payStatus !== 'PAID' && evStatus !== 'CANCELLED' && rawStatus !== 'cancelled') {
+      if (nowTime >= startsAtTime) {
+        cancelledEvents.push(ev.id);
+        const payload = {
+          event_status: 'CANCELLED' as EventLifecycleStatus,
+          status: 'cancelled' as EventStatus,
+          cancel_reason: 'PAYMENT_TIMEOUT' as EventCancelReason,
+          updated_at: nowIso,
+        };
+        await supabase.from('events').update(payload).eq('id', ev.id);
+        const cached = localEventsCache.get(ev.id);
+        if (cached) {
+          localEventsCache.set(ev.id, { ...cached, ...payload });
+        }
+      }
+    }
+
+    // 2. Paid events whose expiry time has passed -> Mark COMPLETED
+    if (payStatus === 'PAID' && evStatus !== 'CANCELLED' && evStatus !== 'COMPLETED' && rawStatus !== 'cancelled' && rawStatus !== 'expired') {
+      if (nowTime >= expiresAtTime) {
+        completedEvents.push(ev.id);
+        const payload = {
+          event_status: 'COMPLETED' as EventLifecycleStatus,
+          status: 'expired' as EventStatus,
+          updated_at: nowIso,
+        };
+        await supabase.from('events').update(payload).eq('id', ev.id);
+        const cached = localEventsCache.get(ev.id);
+        if (cached) {
+          localEventsCache.set(ev.id, { ...cached, ...payload });
+        }
+      }
+    }
+  }
+
+  return {
+    cancelledCount: cancelledEvents.length,
+    completedCount: completedEvents.length,
+    cancelledEvents,
+    completedEvents,
   };
 }
 
@@ -1291,11 +1525,20 @@ export async function getAllAdminEvents(
     const storedPrice = event.event_price !== undefined && event.event_price !== null
       ? Number(event.event_price)
       : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : 1400.00);
+    const paymentStatus = event.payment_status || (event.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
+    const isPaid = paymentStatus === 'PAID';
+    const eventLifecycle = event.event_status || deriveEventLifecycleStatus(event);
 
     return {
       ...event,
       event_price: storedPrice,
       event_currency: event.event_currency || 'MYR',
+      event_status: eventLifecycle,
+      payment_status: paymentStatus as any,
+      cancel_reason: event.cancel_reason || null,
+      payment_mode: event.payment_mode || (isPaid ? 'FULL_PAID' : undefined),
+      paid_amount: event.paid_amount !== undefined ? event.paid_amount : (isPaid ? storedPrice : 0),
+      discount_amount: event.discount_amount || 0,
       organization_name: org?.name || 'Unknown Organization',
       organization_slug: org?.slug || 'unknown',
       calculated_status: calculated,

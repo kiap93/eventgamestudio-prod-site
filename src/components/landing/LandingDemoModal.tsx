@@ -17,7 +17,7 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
   isOpen,
   onClose,
   initialThemeId = DEFAULT_ACTIVE_THEME_ID,
-  gameTitle = 'Catch the Brand (Durian Catch)',
+  gameTitle = 'Catch the Brand (Carnival Fiesta)',
 }) => {
   const { isAuthenticated } = useAuth();
   const [selectedThemeId, setSelectedThemeId] = useState<string>(initialThemeId);
@@ -25,7 +25,7 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentTheme: GameTheme = THEME_REGISTRY[selectedThemeId] || THEME_REGISTRY['durian'];
+  const currentTheme: GameTheme = THEME_REGISTRY[selectedThemeId] || THEME_REGISTRY['carnival'];
 
   const handleRestart = () => {
     setSessionKey(Date.now());

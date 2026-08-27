@@ -5,8 +5,8 @@ import { getUserById, getUserByEmail, getMember } from './db/index.js';
 import { UserRecord, OrgMemberRecord, OrgRole } from './db/types.js';
 import { getSupabaseServerClient } from './supabase.js';
 
-// Ephemeral in-memory dev secret if running in non-production mode without configured secret,
-// but NEVER a hardcoded static fallback string.
+// Ephemeral in-memory dev secret ONLY for local Node.js development servers,
+// NEVER allowed in production or Cloudflare Worker / serverless runtime environments.
 let ephemeralDevSecret: string | null = null;
 
 export function getJwtSecret(customSecret?: string, env?: Record<string, any>): Uint8Array {
@@ -16,20 +16,39 @@ export function getJwtSecret(customSecret?: string, env?: Record<string, any>): 
     (typeof process !== 'undefined' ? process.env.JWT_SECRET : undefined);
 
   if (!secretStr) {
-    const isProduction =
-      env?.NODE_ENV === 'production' ||
-      (typeof process !== 'undefined' && process.env.NODE_ENV === 'production');
+    const isWorkerRuntime =
+      typeof (globalThis as any).WebSocketPair !== 'undefined' ||
+      (typeof navigator !== 'undefined' && (navigator as any)?.userAgent === 'Cloudflare-Workers') ||
+      (typeof (globalThis as any).caches !== 'undefined' && typeof (globalThis as any).caches?.default !== 'undefined') ||
+      typeof process === 'undefined';
 
-    if (isProduction) {
-      throw new Error('JWT_SECRET is required in production');
+    const procEnv = typeof process !== 'undefined' ? process.env : {};
+    const isExplicitNodeDev =
+      !isWorkerRuntime &&
+      (env?.NODE_ENV === 'development' || procEnv.NODE_ENV === 'development') &&
+      procEnv.NODE_ENV !== 'production' &&
+      env?.NODE_ENV !== 'production';
+
+    // In production OR in any Cloudflare Worker / Edge runtime, ephemeral secrets are forbidden
+    // because distributed edge isolates do not share memory and restart frequently.
+    if (!isExplicitNodeDev) {
+      throw new Error(
+        'JWT_SECRET is required in production and Cloudflare Worker environments. Ephemeral in-memory secrets are strictly disallowed.'
+      );
     }
 
-    // In local non-production/dev environments without a configured JWT_SECRET,
-    // generate an ephemeral 256-bit secret rather than using a static fallback string.
+    // In local Node.js development mode without a configured JWT_SECRET:
     if (!ephemeralDevSecret) {
-      ephemeralDevSecret = crypto.randomBytes(32).toString('hex');
+      if (typeof crypto !== 'undefined' && typeof crypto.randomBytes === 'function') {
+        ephemeralDevSecret = crypto.randomBytes(32).toString('hex');
+      } else {
+        ephemeralDevSecret = Array.from(
+          (globalThis as any).crypto.getRandomValues(new Uint8Array(32)),
+          (b: unknown) => (b as number).toString(16).padStart(2, '0')
+        ).join('');
+      }
       console.warn(
-        '[AUTH] WARNING: JWT_SECRET environment variable is not set. Generated an ephemeral in-memory 256-bit secret for this session.'
+        '[AUTH] WARNING: JWT_SECRET environment variable is not set. Generated an ephemeral in-memory 256-bit secret for this local Node.js development session.'
       );
     }
     return new TextEncoder().encode(ephemeralDevSecret);
@@ -211,8 +230,13 @@ export async function authenticateJWT(
     req.jwtPayload = payload;
     next();
     return;
-  } catch (_appJwtErr) {
-    // If App JWT verification fails, check if it's a Supabase Auth token
+  } catch (appJwtErr: any) {
+    if (appJwtErr?.message?.includes('JWT_SECRET is required')) {
+      console.error('[AUTH CONFIG ERROR]', appJwtErr.message);
+      res.status(500).json({ error: `Server Configuration Error: ${appJwtErr.message}` });
+      return;
+    }
+    // If App JWT verification fails with normal invalid signature/expired token, check if it's a Supabase Auth token
     try {
       const supabase = getSupabaseServerClient();
       const { data: authData, error: authError } = await supabase.auth.getUser(token);

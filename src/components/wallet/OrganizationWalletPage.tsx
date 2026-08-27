@@ -235,7 +235,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
       // Look for linked Top Up Order ID
       const orderId =
         txn.metadata?.topup_order_id ||
-        (txn.reference_id && txn.reference_id.startsWith('topup_order_')
+        (typeof txn.reference_id === 'string' && txn.reference_id.startsWith('topup_order_')
           ? txn.reference_id.replace('topup_order_', '').replace('_promo', '')
           : null);
 

@@ -255,7 +255,11 @@ export interface GameRecord {
   updated_at: string;
 }
 
-export type EventStatus = 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
+export type EventLifecycleStatus = 'DRAFT' | 'PAYMENT_PENDING' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+export type PaymentLifecycleStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+export type EventCancelReason = 'USER_CANCELLED' | 'PAYMENT_TIMEOUT' | 'ADMIN_CANCELLED';
+
+export type EventStatus = 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active' | 'completed';
 
 export interface EventRecord {
   id: string;
@@ -267,7 +271,9 @@ export interface EventRecord {
   starts_at: string;
   expires_at: string;
   status: EventStatus;
-  payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED' | 'PENDING_PAYMENT';
+  event_status?: EventLifecycleStatus;
+  payment_status?: PaymentLifecycleStatus | 'PENDING_PAYMENT';
+  cancel_reason?: EventCancelReason | null;
   payment_mode?: PaymentMode;
   paid_amount?: number;
   discount_amount?: number;

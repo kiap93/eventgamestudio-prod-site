@@ -65,37 +65,41 @@ const localTopupOrdersCache = new Map<string, TopupOrderRecord>();
 const localAuditLogCache = new Map<string, WalletAuditRecord>();
 
 function loadLocalStores(): void {
+  // Never attempt file I/O or populate local disk caches in production or on Cloudflare Workers
+  if (!isLocalFallbackAllowed()) return;
   try {
-    if (fs.existsSync(LOCAL_WALLETS_FILE)) {
-      const raw = fs.readFileSync(LOCAL_WALLETS_FILE, 'utf-8');
-      const list = JSON.parse(raw) as OrganizationWalletRecord[];
-      localWalletsCache.clear();
-      for (const w of list) {
-        localWalletsCache.set(w.organization_id, w);
+    if (typeof fs !== 'undefined' && typeof fs.existsSync === 'function') {
+      if (fs.existsSync(LOCAL_WALLETS_FILE)) {
+        const raw = fs.readFileSync(LOCAL_WALLETS_FILE, 'utf-8');
+        const list = JSON.parse(raw) as OrganizationWalletRecord[];
+        localWalletsCache.clear();
+        for (const w of list) {
+          localWalletsCache.set(w.organization_id, w);
+        }
       }
-    }
-    if (fs.existsSync(LOCAL_TRANSACTIONS_FILE)) {
-      const raw = fs.readFileSync(LOCAL_TRANSACTIONS_FILE, 'utf-8');
-      const list = JSON.parse(raw) as WalletTransactionRecord[];
-      localTransactionsCache.clear();
-      for (const t of list) {
-        localTransactionsCache.set(t.id, t);
+      if (fs.existsSync(LOCAL_TRANSACTIONS_FILE)) {
+        const raw = fs.readFileSync(LOCAL_TRANSACTIONS_FILE, 'utf-8');
+        const list = JSON.parse(raw) as WalletTransactionRecord[];
+        localTransactionsCache.clear();
+        for (const t of list) {
+          localTransactionsCache.set(t.id, t);
+        }
       }
-    }
-    if (fs.existsSync(LOCAL_TOPUP_ORDERS_FILE)) {
-      const raw = fs.readFileSync(LOCAL_TOPUP_ORDERS_FILE, 'utf-8');
-      const list = JSON.parse(raw) as TopupOrderRecord[];
-      localTopupOrdersCache.clear();
-      for (const o of list) {
-        localTopupOrdersCache.set(o.id, o);
+      if (fs.existsSync(LOCAL_TOPUP_ORDERS_FILE)) {
+        const raw = fs.readFileSync(LOCAL_TOPUP_ORDERS_FILE, 'utf-8');
+        const list = JSON.parse(raw) as TopupOrderRecord[];
+        localTopupOrdersCache.clear();
+        for (const o of list) {
+          localTopupOrdersCache.set(o.id, o);
+        }
       }
-    }
-    if (fs.existsSync(LOCAL_AUDIT_LOGS_FILE)) {
-      const raw = fs.readFileSync(LOCAL_AUDIT_LOGS_FILE, 'utf-8');
-      const list = JSON.parse(raw) as WalletAuditRecord[];
-      localAuditLogCache.clear();
-      for (const a of list) {
-        localAuditLogCache.set(a.id, a);
+      if (fs.existsSync(LOCAL_AUDIT_LOGS_FILE)) {
+        const raw = fs.readFileSync(LOCAL_AUDIT_LOGS_FILE, 'utf-8');
+        const list = JSON.parse(raw) as WalletAuditRecord[];
+        localAuditLogCache.clear();
+        for (const a of list) {
+          localAuditLogCache.set(a.id, a);
+        }
       }
     }
   } catch (err) {
@@ -104,31 +108,35 @@ function loadLocalStores(): void {
 }
 
 function saveLocalStores(): void {
+  // Never attempt file I/O or persist local disk caches in production or on Cloudflare Workers
+  if (!isLocalFallbackAllowed()) return;
   try {
-    const dir = path.dirname(LOCAL_WALLETS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    if (typeof fs !== 'undefined' && typeof fs.writeFileSync === 'function') {
+      const dir = path.dirname(LOCAL_WALLETS_FILE);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(
+        LOCAL_WALLETS_FILE,
+        JSON.stringify(Array.from(localWalletsCache.values()), null, 2),
+        'utf-8'
+      );
+      fs.writeFileSync(
+        LOCAL_TRANSACTIONS_FILE,
+        JSON.stringify(Array.from(localTransactionsCache.values()), null, 2),
+        'utf-8'
+      );
+      fs.writeFileSync(
+        LOCAL_TOPUP_ORDERS_FILE,
+        JSON.stringify(Array.from(localTopupOrdersCache.values()), null, 2),
+        'utf-8'
+      );
+      fs.writeFileSync(
+        LOCAL_AUDIT_LOGS_FILE,
+        JSON.stringify(Array.from(localAuditLogCache.values()), null, 2),
+        'utf-8'
+      );
     }
-    fs.writeFileSync(
-      LOCAL_WALLETS_FILE,
-      JSON.stringify(Array.from(localWalletsCache.values()), null, 2),
-      'utf-8'
-    );
-    fs.writeFileSync(
-      LOCAL_TRANSACTIONS_FILE,
-      JSON.stringify(Array.from(localTransactionsCache.values()), null, 2),
-      'utf-8'
-    );
-    fs.writeFileSync(
-      LOCAL_TOPUP_ORDERS_FILE,
-      JSON.stringify(Array.from(localTopupOrdersCache.values()), null, 2),
-      'utf-8'
-    );
-    fs.writeFileSync(
-      LOCAL_AUDIT_LOGS_FILE,
-      JSON.stringify(Array.from(localAuditLogCache.values()), null, 2),
-      'utf-8'
-    );
   } catch (err) {
     console.warn('Warning saving local wallet store:', err);
   }
@@ -210,18 +218,25 @@ export async function recordWalletAuditEvent(
     `[WALLET AUDIT] [${auditRecord.event_type}] Org: ${auditRecord.organization_id} | Order: ${auditRecord.order_id || 'N/A'} | Ref: ${auditRecord.payment_reference || 'N/A'} | Amount: ${auditRecord.amount !== null ? `${auditRecord.currency || 'MYR'} ${auditRecord.amount.toFixed(2)}` : 'N/A'}`
   );
 
-  // In-memory cache
-  localAuditLogCache.set(id, auditRecord);
-  saveLocalStores();
+  // Only persist to local memory cache if local fallback is allowed
+  if (isLocalFallbackAllowed(env)) {
+    localAuditLogCache.set(id, auditRecord);
+    saveLocalStores();
+  }
 
-  // If Supabase is configured, write to audit table if available
+  // If Supabase is configured, write to audit table
   if (isSupabaseConfigured(env)) {
     try {
       const supabase = getSupabaseServerClient(env);
-      await supabase.from('wallet_audit_logs').insert(auditRecord);
-    } catch {
-      // Non-blocking fallback
+      const { error } = await supabase.from('wallet_audit_logs').insert(auditRecord);
+      if (error) {
+        console.warn('Warning: wallet audit log insert failed:', error.message);
+      }
+    } catch (err: any) {
+      console.warn('Warning inserting wallet audit log to Supabase:', err.message);
     }
+  } else {
+    assertProductionSafe('recordWalletAuditEvent', env);
   }
 
   return auditRecord;
@@ -257,29 +272,34 @@ export async function getWalletAuditTrail(
   }
 
   if (isSupabaseConfigured(effectiveEnv)) {
-    try {
-      const supabase = getSupabaseServerClient(effectiveEnv);
-      let query = supabase
-        .from('wallet_audit_logs')
-        .select('*')
-        .eq('organization_id', organizationId);
+    const supabase = getSupabaseServerClient(effectiveEnv);
+    let query = supabase
+      .from('wallet_audit_logs')
+      .select('*')
+      .eq('organization_id', organizationId);
 
-      if (filterEventType) {
-        query = query.eq('event_type', filterEventType);
-      }
-
-      const { data, error } = await query
-        .order('timestamp', { ascending: false })
-        .range(queryOffset, queryOffset + queryLimit - 1);
-
-      if (!error && data && data.length > 0) {
-        return data as WalletAuditRecord[];
-      }
-    } catch {
-      // fallback
+    if (filterEventType) {
+      query = query.eq('event_type', filterEventType);
     }
+
+    const { data, error } = await query
+      .order('timestamp', { ascending: false })
+      .range(queryOffset, queryOffset + queryLimit - 1);
+
+    if (error) {
+      console.error('Error fetching wallet audit trail from database:', error);
+      if (!isLocalFallbackAllowed(effectiveEnv)) {
+        throw new Error(`Database error fetching wallet audit trail: ${error.message}`);
+      }
+    }
+
+    if (data) {
+      return data as WalletAuditRecord[];
+    }
+    return [];
   }
 
+  assertProductionSafe('getWalletAuditTrail', effectiveEnv);
   let list = Array.from(localAuditLogCache.values())
     .filter((a) => a.organization_id === organizationId);
 
@@ -428,7 +448,9 @@ export async function recalculateWalletBalances(
     } catch (err: any) {
       console.warn('Notice writing organization_wallets cache to Supabase:', err.message);
     }
-    localWalletsCache.set(organizationId, walletRecord);
+    if (isLocalFallbackAllowed(env)) {
+      localWalletsCache.set(organizationId, walletRecord);
+    }
   } else {
     // Persist locally in dev/test
     localWalletsCache.set(organizationId, walletRecord);
@@ -539,7 +561,9 @@ async function appendLedgerTransaction(
     }
 
     const savedRecord = data as WalletTransactionRecord;
-    localTransactionsCache.set(savedRecord.id, savedRecord);
+    if (isLocalFallbackAllowed(env)) {
+      localTransactionsCache.set(savedRecord.id, savedRecord);
+    }
     return savedRecord;
   }
 
@@ -586,71 +610,81 @@ export async function createTopup(
     throw new Error('Top-up amount must be greater than zero');
   }
 
-  // Idempotency check: if referenceId is provided, check both memory cache and Supabase
+  // Idempotency check: if referenceId is provided, check Supabase or local cache
   if (referenceId) {
-    let existing = Array.from(localTransactionsCache.values()).find(
-      (t) =>
-        t.organization_id === organizationId &&
-        t.reference_id === referenceId &&
-        t.transaction_type === 'TOPUP' &&
-        t.status === 'COMPLETED'
-    );
+    let existing: WalletTransactionRecord | undefined = undefined;
 
-    if (!existing) {
-      try {
+    if (isSupabaseConfigured(env)) {
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase
+        .from('wallet_transactions')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .eq('reference_id', referenceId)
+        .eq('transaction_type', 'TOPUP')
+        .eq('status', 'COMPLETED')
+        .maybeSingle();
+
+      if (error) {
+        console.error('Fatal: Supabase idempotency query failed in production:', error);
+        throw new Error(`Financial ledger transaction failed: ${error.message}`);
+      }
+
+      if (data) {
+        existing = data as WalletTransactionRecord;
+        if (isLocalFallbackAllowed(env)) {
+          localTransactionsCache.set(existing.id, existing);
+        }
+      }
+    } else {
+      assertProductionSafe('createTopup', env);
+      existing = Array.from(localTransactionsCache.values()).find(
+        (t) =>
+          t.organization_id === organizationId &&
+          t.reference_id === referenceId &&
+          t.transaction_type === 'TOPUP' &&
+          t.status === 'COMPLETED'
+      );
+    }
+
+    if (existing) {
+      let promoExisting: WalletTransactionRecord | null = null;
+      if (isSupabaseConfigured(env)) {
         const supabase = getSupabaseServerClient(env);
         const { data, error } = await supabase
           .from('wallet_transactions')
           .select('*')
           .eq('organization_id', organizationId)
-          .eq('reference_id', referenceId)
-          .eq('transaction_type', 'TOPUP')
-          .eq('status', 'COMPLETED')
+          .eq('reference_id', `${referenceId}_promo`)
+          .eq('transaction_type', 'TOPUP_CREDIT')
           .maybeSingle();
 
-        if (!error && data) {
-          existing = data as WalletTransactionRecord;
-          localTransactionsCache.set(existing.id, existing);
+        if (error) {
+          console.error('Fatal: Supabase promo idempotency query failed in production:', error);
+          throw new Error(`Financial ledger transaction failed: ${error.message}`);
         }
-      } catch {
-        // Continue with local state
-      }
-    }
 
-    if (existing) {
-      let promoExisting = Array.from(localTransactionsCache.values()).find(
-        (t) =>
-          t.organization_id === organizationId &&
-          (t.reference_id === `${referenceId}_promo` ||
-            t.reference_id === existing!.id ||
-            t.metadata?.parent_topup_id === existing!.id) &&
-          t.transaction_type === 'TOPUP_CREDIT'
-      );
-
-      if (!promoExisting) {
-        try {
-          const supabase = getSupabaseServerClient(env);
-          const { data, error } = await supabase
-            .from('wallet_transactions')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .eq('reference_id', `${referenceId}_promo`)
-            .eq('transaction_type', 'TOPUP_CREDIT')
-            .maybeSingle();
-
-          if (!error && data) {
-            promoExisting = data as WalletTransactionRecord;
+        if (data) {
+          promoExisting = data as WalletTransactionRecord;
+          if (isLocalFallbackAllowed(env)) {
             localTransactionsCache.set(promoExisting.id, promoExisting);
           }
-        } catch {
-          // ignore
         }
+      } else {
+        promoExisting = Array.from(localTransactionsCache.values()).find(
+          (t) =>
+            t.organization_id === organizationId &&
+            (t.reference_id === `${referenceId}_promo` ||
+              t.reference_id === existing!.id ||
+              t.metadata?.parent_topup_id === existing!.id) &&
+            t.transaction_type === 'TOPUP_CREDIT'
+        ) || null;
       }
 
       const currentWallet = await getWalletBalance(organizationId, env);
       return {
         topupTransaction: existing,
-        promoCreditTransaction: promoExisting || null,
+        promoCreditTransaction: promoExisting,
         wallet: currentWallet,
       };
     }
@@ -783,7 +817,9 @@ export async function grantWelcomeCredit(
 
     if (data) {
       existing = data as WalletTransactionRecord;
-      localTransactionsCache.set(existing.id, existing);
+      if (isLocalFallbackAllowed(env)) {
+        localTransactionsCache.set(existing.id, existing);
+      }
     }
   } else {
     assertProductionSafe('grantWelcomeCredit', env);
@@ -1045,7 +1081,9 @@ export async function grantShowcaseCredit(
 
     if (data) {
       existing = data as WalletTransactionRecord;
-      localTransactionsCache.set(existing.id, existing);
+      if (isLocalFallbackAllowed(env)) {
+        localTransactionsCache.set(existing.id, existing);
+      }
     }
   } else {
     assertProductionSafe('grantShowcaseCredit', env);
@@ -1897,7 +1935,9 @@ export async function processEventPayment(
       const cachedEvent = localEventsCache.get(eventId);
       if (cachedEvent) {
         cachedEvent.status = 'scheduled';
+        cachedEvent.event_status = 'LIVE';
         cachedEvent.payment_status = 'PAID';
+        cachedEvent.cancel_reason = null;
         cachedEvent.payment_mode = mode;
         cachedEvent.paid_amount = calculation.paidAmount;
         cachedEvent.discount_amount = calculation.totalDiscount;
@@ -1913,7 +1953,9 @@ export async function processEventPayment(
         .from('events')
         .update({
           status: 'scheduled',
+          event_status: 'LIVE',
           payment_status: 'PAID',
+          cancel_reason: null,
           payment_mode: mode,
           paid_amount: calculation.paidAmount,
           discount_amount: calculation.totalDiscount,
@@ -2548,7 +2590,9 @@ export async function getTopupOrderById(
 
     if (data) {
       const order = data as TopupOrderRecord;
-      localTopupOrdersCache.set(order.id, order);
+      if (isLocalFallbackAllowed(env)) {
+        localTopupOrdersCache.set(order.id, order);
+      }
       return order;
     }
     return null;
@@ -2588,8 +2632,10 @@ export async function listTopupOrdersByOrganization(
 
     if (data) {
       orders = data as TopupOrderRecord[];
-      for (const o of orders) {
-        localTopupOrdersCache.set(o.id, o);
+      if (isLocalFallbackAllowed(env)) {
+        for (const o of orders) {
+          localTopupOrdersCache.set(o.id, o);
+        }
       }
       return orders;
     }
@@ -2686,19 +2732,21 @@ export async function processTopupOrderStatus(
         throw new Error(data?.message || 'Database rejected top-up order processing');
       }
 
-      if (data.order) {
-        localTopupOrdersCache.set(data.order.id, data.order);
+      if (isLocalFallbackAllowed(env)) {
+        if (data.order) {
+          localTopupOrdersCache.set(data.order.id, data.order);
+        }
+        if (data.wallet) {
+          localWalletsCache.set(order.organization_id, data.wallet);
+        }
+        if (data.topup_transaction) {
+          localTransactionsCache.set(data.topup_transaction.id, data.topup_transaction);
+        }
+        if (data.promo_credit_transaction) {
+          localTransactionsCache.set(data.promo_credit_transaction.id, data.promo_credit_transaction);
+        }
+        saveLocalStores();
       }
-      if (data.wallet) {
-        localWalletsCache.set(order.organization_id, data.wallet);
-      }
-      if (data.topup_transaction) {
-        localTransactionsCache.set(data.topup_transaction.id, data.topup_transaction);
-      }
-      if (data.promo_credit_transaction) {
-        localTransactionsCache.set(data.promo_credit_transaction.id, data.promo_credit_transaction);
-      }
-      saveLocalStores();
 
       if (newStatus === 'PAID' && !data.is_idempotent_replay) {
         await recordWalletAuditEvent(

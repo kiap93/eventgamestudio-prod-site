@@ -314,20 +314,29 @@ export const TeamMembersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {members.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 pl-2 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 overflow-hidden flex items-center justify-center font-bold text-amber-300">
-                        {m.avatar_url ? (
-                          <img src={m.avatar_url} alt={m.name} className="w-full h-full object-cover" />
-                        ) : (
-                          m.name.charAt(0).toUpperCase()
-                        )}
-                      </div>
-                      <span className="font-semibold text-slate-200">{m.name}</span>
-                    </td>
-                    <td className="py-3 text-slate-400">{m.email}</td>
-                    <td className="py-3">
+                {members.map((m) => {
+                  const memberName = (m.name || '').trim() || (m.email ? m.email.split('@')[0] : 'Team Member');
+                  const initial = memberName.charAt(0).toUpperCase() || 'U';
+
+                  return (
+                    <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 pl-2 flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 overflow-hidden flex items-center justify-center font-bold text-amber-300 shrink-0">
+                          {m.avatar_url ? (
+                            <img
+                              src={m.avatar_url}
+                              alt={memberName}
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            initial
+                          )}
+                        </div>
+                        <span className="font-semibold text-slate-200">{memberName}</span>
+                      </td>
+                      <td className="py-3 text-slate-400 font-mono text-[11px]">{m.email || '-'}</td>
+                      <td className="py-3">
                       <span
                         className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
                           m.role === 'owner'
@@ -359,7 +368,8 @@ export const TeamMembersPage: React.FC = () => {
                       </td>
                     )}
                   </tr>
-                ))}
+                );
+              })}
               </tbody>
             </table>
           </div>

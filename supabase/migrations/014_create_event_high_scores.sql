@@ -23,18 +23,21 @@ CREATE INDEX IF NOT EXISTS idx_event_high_scores_created_at
 ALTER TABLE public.event_high_scores ENABLE ROW LEVEL SECURITY;
 
 -- Public read access: Anyone can view event high scores
+DROP POLICY IF EXISTS "Public can view event high scores" ON public.event_high_scores;
 CREATE POLICY "Public can view event high scores"
   ON public.event_high_scores
   FOR SELECT
   USING (true);
 
 -- Public insert access: Any player can submit a high score
+DROP POLICY IF EXISTS "Public can insert event high scores" ON public.event_high_scores;
 CREATE POLICY "Public can insert event high scores"
   ON public.event_high_scores
   FOR INSERT
   WITH CHECK (true);
 
 -- Admin management access: Service role and authenticated event managers can delete/manage scores
+DROP POLICY IF EXISTS "Event managers can delete high scores" ON public.event_high_scores;
 CREATE POLICY "Event managers can delete high scores"
   ON public.event_high_scores
   FOR DELETE

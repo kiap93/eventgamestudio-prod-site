@@ -143,6 +143,10 @@ export const DeveloperPricingManager: React.FC = () => {
     setTempEventCurrency(event.event_currency || pricingSettings.default_currency || 'MYR');
   };
 
+  // Reactivate event state
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+  const [runningMaintenance, setRunningMaintenance] = useState<boolean>(false);
+
   // Handle saving individual event custom price
   const handleSaveEventPricing = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,6 +187,64 @@ export const DeveloperPricingManager: React.FC = () => {
     }
   };
 
+  // Handle developer admin manual reactivate / status override
+  const handleReactivateEvent = async (eventId: string, eventName: string) => {
+    const confirmReactivate = window.confirm(
+      `Are you sure you want to manually reactivate event "${eventName}"?\n\nThis will restore the event status to LIVE (or DRAFT if unpaid) and clear any cancellation reason.`
+    );
+    if (!confirmReactivate) return;
+
+    setReactivatingId(eventId);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/developer/events/${eventId}/reactivate`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          reason: 'Manual developer admin reactivation',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to reactivate event');
+      }
+
+      setSuccessMsg(data.message || `Event "${eventName}" successfully reactivated.`);
+      setTimeout(() => setSuccessMsg(null), 5000);
+      fetchData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to reactivate event');
+    } finally {
+      setReactivatingId(null);
+    }
+  };
+
+  // Handle developer admin trigger maintenance worker
+  const handleRunMaintenance = async () => {
+    setRunningMaintenance(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/developer/events/maintenance', {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to run maintenance job');
+      }
+
+      setSuccessMsg(data.message || 'Lifecycle maintenance completed successfully.');
+      setTimeout(() => setSuccessMsg(null), 6000);
+      fetchData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to trigger maintenance');
+    } finally {
+      setRunningMaintenance(false);
+    }
+  };
+
   // Filtered events
   const filteredEvents = events.filter((ev) => {
     const matchesSearch =
@@ -190,10 +252,17 @@ export const DeveloperPricingManager: React.FC = () => {
       (ev.organization_name && ev.organization_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
       ev.slug.toLowerCase().includes(searchTerm.toLowerCase());
 
+    const effectiveEventStatus = (ev.event_status || ev.status || '').toUpperCase();
+    const effectivePaymentStatus = (ev.payment_status || 'UNPAID').toUpperCase();
+
     const matchesStatus =
       statusFilter === 'all' ||
-      (statusFilter === 'paid' && ev.payment_status === 'PAID') ||
-      (statusFilter === 'unpaid' && ev.payment_status !== 'PAID') ||
+      (statusFilter === 'paid' && effectivePaymentStatus === 'PAID') ||
+      (statusFilter === 'unpaid' && effectivePaymentStatus !== 'PAID') ||
+      (statusFilter === 'draft' && effectiveEventStatus === 'DRAFT') ||
+      (statusFilter === 'live' && (effectiveEventStatus === 'LIVE' || effectiveEventStatus === 'ACTIVE')) ||
+      (statusFilter === 'completed' && effectiveEventStatus === 'COMPLETED') ||
+      (statusFilter === 'cancelled' && effectiveEventStatus === 'CANCELLED') ||
       ev.status === statusFilter;
 
     const matchesPricingType =
@@ -226,6 +295,16 @@ export const DeveloperPricingManager: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-3">
+          <button
+            onClick={handleRunMaintenance}
+            disabled={runningMaintenance || loading}
+            className="flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer disabled:opacity-50"
+            title="Execute background maintenance job to cancel expired unpaid events and complete expired live events"
+          >
+            <ShieldCheck className={`w-3.5 h-3.5 ${runningMaintenance ? 'animate-spin text-amber-400' : 'text-amber-400'}`} />
+            <span>{runningMaintenance ? 'Running Maintenance...' : 'Run Lifecycle Maintenance'}</span>
+          </button>
+
           <button
             onClick={fetchData}
             disabled={loading}
@@ -474,10 +553,11 @@ export const DeveloperPricingManager: React.FC = () => {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-500 cursor-pointer"
             >
-              <option value="all">All Event Statuses</option>
-              <option value="active">Active</option>
-              <option value="draft">Draft</option>
-              <option value="completed">Completed</option>
+              <option value="all">All Event & Payment Statuses</option>
+              <option value="draft">Event: DRAFT</option>
+              <option value="live">Event: LIVE</option>
+              <option value="completed">Event: COMPLETED</option>
+              <option value="cancelled">Event: CANCELLED</option>
               <option value="paid">Payment: PAID</option>
               <option value="unpaid">Payment: UNPAID</option>
             </select>
@@ -505,8 +585,8 @@ export const DeveloperPricingManager: React.FC = () => {
                   <th className="px-5 py-3.5">Organization</th>
                   <th className="px-5 py-3.5">Effective Price</th>
                   <th className="px-5 py-3.5">Pricing Status</th>
-                  <th className="px-5 py-3.5">Payment</th>
                   <th className="px-5 py-3.5">Event Status</th>
+                  <th className="px-5 py-3.5">Payment Status</th>
                   <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -515,6 +595,9 @@ export const DeveloperPricingManager: React.FC = () => {
                   const isPaid = ev.payment_status === 'PAID';
                   const effectivePrice = ev.effective_price || ev.event_price || pricingSettings.default_price;
                   const currency = ev.event_currency || pricingSettings.default_currency || 'MYR';
+                  const eventStatus = (ev.event_status || ev.status || 'DRAFT').toUpperCase();
+                  const paymentStatus = (ev.payment_status || (isPaid ? 'PAID' : 'UNPAID')).toUpperCase();
+                  const isCancelled = eventStatus === 'CANCELLED';
 
                   return (
                     <tr key={ev.id} className="hover:bg-slate-800/40 transition-colors">
@@ -555,12 +638,54 @@ export const DeveloperPricingManager: React.FC = () => {
                         )}
                       </td>
 
+                      {/* Event Status & Cancellation Reason */}
+                      <td className="px-5 py-4">
+                        <div className="space-y-1">
+                          {eventStatus === 'LIVE' || eventStatus === 'ACTIVE' ? (
+                            <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              <span>LIVE</span>
+                            </span>
+                          ) : eventStatus === 'DRAFT' ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              DRAFT
+                            </span>
+                          ) : eventStatus === 'COMPLETED' ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                              COMPLETED
+                            </span>
+                          ) : eventStatus === 'CANCELLED' ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                              CANCELLED
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                              {eventStatus}
+                            </span>
+                          )}
+
+                          {ev.cancel_reason && (
+                            <div className="text-[10px] font-mono text-rose-400/90">
+                              Reason: {ev.cancel_reason}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
                       {/* Payment Status */}
                       <td className="px-5 py-4">
-                        {isPaid ? (
+                        {paymentStatus === 'PAID' ? (
                           <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                             <Check className="w-3 h-3" />
                             <span>PAID</span>
+                          </span>
+                        ) : paymentStatus === 'REFUNDED' ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                            REFUNDED
+                          </span>
+                        ) : paymentStatus === 'FAILED' ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                            FAILED
                           </span>
                         ) : (
                           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
@@ -569,24 +694,30 @@ export const DeveloperPricingManager: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Event Status */}
-                      <td className="px-5 py-4">
-                        <span className={`capitalize text-xs font-semibold ${
-                          ev.status === 'active' ? 'text-emerald-400' : ev.status === 'completed' ? 'text-blue-400' : 'text-slate-400'
-                        }`}>
-                          {ev.status}
-                        </span>
-                      </td>
-
                       {/* Actions */}
                       <td className="px-5 py-4 text-right">
-                        <button
-                          onClick={() => handleOpenEditEvent(ev)}
-                          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-cyan-500/20 hover:text-cyan-300 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>Edit Price</span>
-                        </button>
+                        <div className="inline-flex items-center justify-end space-x-2">
+                          <button
+                            onClick={() => handleOpenEditEvent(ev)}
+                            className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-cyan-500/20 hover:text-cyan-300 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
+                            title="Edit Price"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit Price</span>
+                          </button>
+
+                          {(isCancelled || eventStatus === 'DRAFT') && (
+                            <button
+                              onClick={() => handleReactivateEvent(ev.id, ev.name)}
+                              disabled={reactivatingId === ev.id}
+                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition-colors cursor-pointer disabled:opacity-50"
+                              title="Manually override status & reactivate event"
+                            >
+                              <ShieldCheck className={`w-3.5 h-3.5 ${reactivatingId === ev.id ? 'animate-spin' : ''}`} />
+                              <span>{reactivatingId === ev.id ? 'Reactivating...' : 'Reactivate'}</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
