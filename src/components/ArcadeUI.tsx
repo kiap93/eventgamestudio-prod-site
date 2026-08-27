@@ -992,7 +992,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                   <ul className="list-disc list-inside space-y-1 font-mono text-[11px] text-amber-300">
                     <li><code className="text-slate-200">ACTIVE_THEME_ID</code>: Single configuration value in <code className="text-slate-200">src/themes/registry.ts</code>.</li>
                     <li><code className="text-slate-200">GameTheme interface</code>: Define background, catcher, falling items, titles, and custom sounds.</li>
-                    <li><code className="text-slate-200">Fallback Protection</code>: Automatically degrades to default Durian assets if any asset is missing.</li>
+                    <li><code className="text-slate-200">Fallback Protection</code>: Automatically degrades to default Carnival assets if any asset is missing.</li>
                   </ul>
                 </div>
               </div>

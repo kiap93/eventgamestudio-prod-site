@@ -35,7 +35,7 @@ export class GameScene extends Phaser.Scene {
 
   private redFlashOverlay!: Phaser.GameObjects.Rectangle;
   private bgImage!: Phaser.GameObjects.Image;
-  private loadedThemeId: string = 'durian';
+  private loadedThemeId: string = 'carnival';
   private currentDifficultyStageIndex: number = -1;
 
   // React Callbacks
@@ -342,18 +342,24 @@ export class GameScene extends Phaser.Scene {
       if (selectedItem.isHazard) {
         if (this.textures.exists(`theme_${themeId}_bad`)) {
           textureKey = `theme_${themeId}_bad`;
+        } else if (this.textures.exists('mask')) {
+          textureKey = 'mask';
         } else {
-          textureKey = baseId === 'durian' ? 'orange_durian' : 'green_durian';
+          textureKey = 'orange_durian';
         }
       } else if (selectedItem.isBonus) {
         if (this.textures.exists(`theme_${themeId}_bonus`)) {
           textureKey = `theme_${themeId}_bonus`;
+        } else if (this.textures.exists('star')) {
+          textureKey = 'star';
         } else {
-          textureKey = baseId === 'durian' ? 'golden_durian' : 'green_durian';
+          textureKey = 'golden_durian';
         }
       } else {
         if (this.textures.exists(`theme_${themeId}_good`)) {
           textureKey = `theme_${themeId}_good`;
+        } else if (this.textures.exists('ticket')) {
+          textureKey = 'ticket';
         } else {
           textureKey = 'green_durian';
         }

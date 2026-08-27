@@ -24,13 +24,25 @@ export class Durian extends FallingItem {
     if (!textureKey) {
       if (durianType === 'ORANGE' || durianType === 'BAD') {
         const themeKey = `theme_${themeId}_bad`;
-        textureKey = scene.textures.exists(themeKey) ? themeKey : 'orange_durian';
+        textureKey = scene.textures.exists(themeKey)
+          ? themeKey
+          : scene.textures.exists('mask')
+          ? 'mask'
+          : 'orange_durian';
       } else if (durianType === 'GOLDEN' || durianType === 'BONUS') {
         const themeKey = `theme_${themeId}_bonus`;
-        textureKey = scene.textures.exists(themeKey) ? themeKey : 'golden_durian';
+        textureKey = scene.textures.exists(themeKey)
+          ? themeKey
+          : scene.textures.exists('star')
+          ? 'star'
+          : 'golden_durian';
       } else {
         const themeKey = `theme_${themeId}_good`;
-        textureKey = scene.textures.exists(themeKey) ? themeKey : 'green_durian';
+        textureKey = scene.textures.exists(themeKey)
+          ? themeKey
+          : scene.textures.exists('ticket')
+          ? 'ticket'
+          : 'green_durian';
       }
     }
 
