@@ -32,6 +32,11 @@ import { createShuffledDeck } from './cardDeck';
 import { memorySounds } from './memorySounds';
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
 import { apiFetch } from '../../lib/api';
+import {
+  calculateMemoryMatchScore,
+  MEMORY_MATCH_GAME_VERSION,
+  MEMORY_MATCH_SCORING_VERSION,
+} from './scoring';
 
 // Icon resolver helper for cards
 const renderCardIcon = (iconName?: string, className: string = 'w-8 h-8') => {
@@ -91,6 +96,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   const [maxComboStreak, setMaxComboStreak] = useState<number>(0);
   const [timeRemaining, setTimeRemaining] = useState<number>(gameDuration);
   const [isVictory, setIsVictory] = useState<boolean>(false);
+  const [sessionId, setSessionId] = useState<string>(() => `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
 
   // Leaderboard / Score Submission
   const [playerName, setPlayerName] = useState<string>(() => {
@@ -155,6 +161,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     setIsVictory(false);
     setScoreSubmitted(false);
     setSubmittedRank(null);
+    setSessionId(`mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
   }, [activeTheme, gameDuration]);
 
   useEffect(() => {
@@ -220,20 +227,26 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
       setIsVictory(won);
       updateGameState('GAME_OVER');
 
+      const finalDuration = Math.max(1, gameDuration - timeRemaining);
+      const finalPairs = won ? 8 : matchedPairsCount;
+      const finalScore = calculateMemoryMatchScore({
+        moves,
+        duration: finalDuration,
+        matchedPairs: finalPairs,
+        totalPairs: 8,
+      });
+
+      setScore(finalScore);
+
       if (won) {
         memorySounds.playVictory();
-        // Time bonus calculation: 15 points per remaining second
-        const timeBonus = timeRemaining * 15;
-        // Move efficiency bonus: extra points for finishing in fewer moves
-        const efficiencyBonus = Math.max(0, (24 - moves) * 25);
-        setScore((prev) => prev + timeBonus + efficiencyBonus);
       } else {
         memorySounds.playMismatch();
       }
 
       fetchLeaderboard();
     },
-    [timeRemaining, moves, updateGameState]
+    [timeRemaining, moves, matchedPairsCount, gameDuration, updateGameState]
   );
 
   // Card Flip Click Handler
@@ -366,6 +379,19 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     localStorage.setItem('event_player_name', trimmedName);
     setIsSubmittingScore(true);
 
+    const metadataPayload = {
+      gameType: 'memory-match',
+      moves,
+      matchedPairs: isVictory ? 8 : matchedPairsCount,
+      totalPairs: 8,
+      duration: Math.max(1, gameDuration - timeRemaining),
+      isVictory,
+      timeRemaining,
+      sessionId,
+      gameVersion: MEMORY_MATCH_GAME_VERSION,
+      scoringVersion: MEMORY_MATCH_SCORING_VERSION,
+    };
+
     if (!hasEventContext) {
       try {
         const localEntry: EventLeaderboardEntry = {
@@ -373,15 +399,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
           event_id: 'studio-preview',
           player_name: trimmedName,
           score,
-          metadata: {
-            gameType: 'memory-match',
-            moves,
-            matchedPairs: matchedPairsCount,
-            totalPairs: 8,
-            duration: gameDuration - timeRemaining,
-            isVictory,
-            timeRemaining,
-          },
+          metadata: metadataPayload,
           created_at: new Date().toISOString(),
           rank: 1,
         };
@@ -422,15 +440,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
         body: JSON.stringify({
           player_name: trimmedName,
           score,
-          metadata: {
-            gameType: 'memory-match',
-            moves,
-            matchedPairs: matchedPairsCount,
-            totalPairs: 8,
-            duration: gameDuration - timeRemaining,
-            isVictory,
-            timeRemaining,
-          },
+          metadata: metadataPayload,
         }),
       });
 

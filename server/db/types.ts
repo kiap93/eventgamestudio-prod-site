@@ -634,6 +634,21 @@ export interface EventScoreStats {
   highScore: number;
   averageScore: number;
   latestScoreAt?: string | null;
+  completedCount?: number;
+  completionRate?: number;
+  averageMoves?: number | null;
+  averageDuration?: number | null;
+  gameTypeBreakdown?: Record<
+    string,
+    {
+      totalPlays: number;
+      completedPlays: number;
+      averageScore: number;
+      highScore: number;
+      averageMoves?: number | null;
+      averageDuration?: number | null;
+    }
+  >;
 }
 
 // ----------------------------------------------------
