@@ -6,6 +6,12 @@ import {
 } from './types.js';
 import { getEventById, getEventByPublicToken } from './events.js';
 import { isUUID } from './themes.js';
+import {
+  calculateMemoryMatchScore,
+  validateMemoryMatchResult,
+  MEMORY_MATCH_GAME_VERSION,
+  MEMORY_MATCH_SCORING_VERSION,
+} from '../games/memoryMatchScoring.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -115,27 +121,67 @@ export async function submitEventScore(
     }
   }
 
-  // Validate Memory Match specific metadata if present
-  if (metadata.gameType === 'memory-match') {
-    if (metadata.moves !== undefined && (typeof metadata.moves !== 'number' || metadata.moves < 0)) {
-      const err: any = new Error('Invalid moves count in score metadata');
-      err.status = 422;
-      throw err;
-    }
-    if (metadata.matchedPairs !== undefined && (typeof metadata.matchedPairs !== 'number' || metadata.matchedPairs < 0 || metadata.matchedPairs > (metadata.totalPairs || 8))) {
-      const err: any = new Error('Invalid matchedPairs count in score metadata');
-      err.status = 422;
-      throw err;
-    }
-    if (metadata.duration !== undefined && (typeof metadata.duration !== 'number' || metadata.duration < 0)) {
-      const err: any = new Error('Invalid duration in score metadata');
-      err.status = 422;
-      throw err;
+  // Idempotency check: if sessionId / playId is provided, check if already recorded
+  const sessionId = metadata.sessionId || metadata.session_id || metadata.playId || metadata.play_id;
+  let currentEventScores = localHighScoresCache.get(resolvedEventId) || [];
+
+  if (sessionId && typeof sessionId === 'string' && sessionId.trim()) {
+    const existingSessionRecord = currentEventScores.find(
+      (s) =>
+        s.metadata?.sessionId === sessionId ||
+        s.metadata?.session_id === sessionId ||
+        s.metadata?.playId === sessionId ||
+        s.metadata?.play_id === sessionId
+    );
+    if (existingSessionRecord) {
+      const rank = currentEventScores.findIndex((s) => s.id === existingSessionRecord.id) + 1;
+      return {
+        score: existingSessionRecord,
+        rank: rank > 0 ? rank : 1,
+        isNewHighScore: false,
+        totalEntries: currentEventScores.length,
+      };
     }
   }
 
+  // Validate Memory Match specific metadata if present
+  let scoreNum = Math.floor(Number(params.score));
+
+  if (metadata.gameType === 'memory-match') {
+    const moves = typeof metadata.moves === 'number' ? metadata.moves : 0;
+    const duration = typeof metadata.duration === 'number' ? metadata.duration : 0;
+    const matchedPairs = typeof metadata.matchedPairs === 'number' ? metadata.matchedPairs : 0;
+    const totalPairs = typeof metadata.totalPairs === 'number' ? metadata.totalPairs : 8;
+
+    const validation = validateMemoryMatchResult({
+      moves,
+      duration,
+      matchedPairs,
+      totalPairs,
+      submittedScore: isNaN(scoreNum) ? undefined : scoreNum,
+    });
+
+    if (!validation.isValid) {
+      const err: any = new Error(validation.reason || 'Invalid Memory Match score data');
+      err.status = 422;
+      throw err;
+    }
+
+    if (validation.expectedScore !== undefined) {
+      scoreNum = validation.expectedScore;
+    }
+
+    // Embed version metadata
+    metadata.gameVersion = metadata.gameVersion || MEMORY_MATCH_GAME_VERSION;
+    metadata.scoringVersion = metadata.scoringVersion || MEMORY_MATCH_SCORING_VERSION;
+    metadata.matchedPairs = matchedPairs;
+    metadata.totalPairs = totalPairs;
+    metadata.moves = moves;
+    metadata.duration = duration;
+    metadata.isVictory = matchedPairs === totalPairs;
+  }
+
   // Validate score: must be a non-negative integer
-  const scoreNum = Math.floor(Number(params.score));
   if (isNaN(scoreNum) || scoreNum < 0) {
     const err: any = new Error('Score must be a non-negative integer');
     err.status = 422;
@@ -162,7 +208,6 @@ export async function submitEventScore(
   };
 
   // Check existing scores in cache/db to calculate rank and high score flag
-  let currentEventScores = localHighScoresCache.get(resolvedEventId) || [];
   const currentHighest = currentEventScores.length > 0
     ? Math.max(...currentEventScores.map((s) => s.score))
     : 0;
@@ -343,6 +388,11 @@ export async function getEventScoreStats(
       highScore: 0,
       averageScore: 0,
       latestScoreAt: null,
+      completedCount: 0,
+      completionRate: 0,
+      averageMoves: null,
+      averageDuration: null,
+      gameTypeBreakdown: {},
     };
   }
 
@@ -350,6 +400,74 @@ export async function getEventScoreStats(
   const highScore = Math.max(...scores.map((s) => s.score));
   const sumScores = scores.reduce((acc, s) => acc + s.score, 0);
   const averageScore = Math.round(sumScores / scores.length);
+
+  // Extended game metrics
+  let completedCount = 0;
+  let totalMoves = 0;
+  let countMoves = 0;
+  let totalDuration = 0;
+  let countDuration = 0;
+
+  const gameTypeBreakdown: Record<string, any> = {};
+
+  for (const s of scores) {
+    const meta = s.metadata || {};
+    const gType = meta.gameType || 'generic';
+
+    if (!gameTypeBreakdown[gType]) {
+      gameTypeBreakdown[gType] = {
+        totalPlays: 0,
+        completedPlays: 0,
+        totalScore: 0,
+        highScore: 0,
+        totalMoves: 0,
+        countMoves: 0,
+        totalDuration: 0,
+        countDuration: 0,
+      };
+    }
+
+    const gb = gameTypeBreakdown[gType];
+    gb.totalPlays += 1;
+    gb.totalScore += s.score;
+    if (s.score > gb.highScore) gb.highScore = s.score;
+
+    const isComplete = meta.isVictory === true || (meta.matchedPairs && meta.matchedPairs === (meta.totalPairs || 8));
+    if (isComplete) {
+      completedCount += 1;
+      gb.completedPlays += 1;
+    }
+
+    if (typeof meta.moves === 'number' && meta.moves >= 0) {
+      totalMoves += meta.moves;
+      countMoves += 1;
+      gb.totalMoves += meta.moves;
+      gb.countMoves += 1;
+    }
+
+    if (typeof meta.duration === 'number' && meta.duration >= 0) {
+      totalDuration += meta.duration;
+      countDuration += 1;
+      gb.totalDuration += meta.duration;
+      gb.countDuration += 1;
+    }
+  }
+
+  const formattedBreakdown: Record<string, any> = {};
+  for (const [key, val] of Object.entries(gameTypeBreakdown)) {
+    formattedBreakdown[key] = {
+      totalPlays: val.totalPlays,
+      completedPlays: val.completedPlays,
+      averageScore: val.totalPlays > 0 ? Math.round(val.totalScore / val.totalPlays) : 0,
+      highScore: val.highScore,
+      averageMoves: val.countMoves > 0 ? Math.round(val.totalMoves / val.countMoves) : null,
+      averageDuration: val.countDuration > 0 ? Math.round(val.totalDuration / val.countDuration) : null,
+    };
+  }
+
+  const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const averageMoves = countMoves > 0 ? Math.round(totalMoves / countMoves) : null;
+  const averageDuration = countDuration > 0 ? Math.round(totalDuration / countDuration) : null;
 
   // Latest score timestamp
   const latestTimestamp = scores.reduce((latest, s) => {
@@ -363,6 +481,11 @@ export async function getEventScoreStats(
     highScore,
     averageScore,
     latestScoreAt: latestTimestamp > 0 ? new Date(latestTimestamp).toISOString() : null,
+    completedCount,
+    completionRate,
+    averageMoves,
+    averageDuration,
+    gameTypeBreakdown: formattedBreakdown,
   };
 }
 

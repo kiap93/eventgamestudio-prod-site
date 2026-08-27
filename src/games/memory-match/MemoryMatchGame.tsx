@@ -32,6 +32,11 @@ import { createShuffledDeck } from './cardDeck';
 import { memorySounds } from './memorySounds';
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
 import { apiFetch } from '../../lib/api';
+import {
+  calculateMemoryMatchScore,
+  MEMORY_MATCH_GAME_VERSION,
+  MEMORY_MATCH_SCORING_VERSION,
+} from './scoring';
 
 // Icon resolver helper for cards
 const renderCardIcon = (iconName?: string, className: string = 'w-8 h-8') => {
@@ -91,6 +96,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   const [maxComboStreak, setMaxComboStreak] = useState<number>(0);
   const [timeRemaining, setTimeRemaining] = useState<number>(gameDuration);
   const [isVictory, setIsVictory] = useState<boolean>(false);
+  const [sessionId, setSessionId] = useState<string>(() => `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
 
   // Leaderboard / Score Submission
   const [playerName, setPlayerName] = useState<string>(() => {
@@ -155,6 +161,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     setIsVictory(false);
     setScoreSubmitted(false);
     setSubmittedRank(null);
+    setSessionId(`mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
   }, [activeTheme, gameDuration]);
 
   useEffect(() => {
@@ -162,14 +169,19 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   }, [initBoard]);
 
   // Main countdown timer (3.. 2.. 1.. GO!)
-  const startCountdown = () => {
+  const startCountdown = useCallback(() => {
     initBoard();
-    updateGameState('COUNTDOWN');
     setCountdown(3);
-    memorySounds.playTick(false);
+    updateGameState('COUNTDOWN');
+  }, [initBoard, updateGameState]);
+
+  // Dedicated countdown effect (3 -> 2 -> 1 -> PLAYING)
+  useEffect(() => {
+    if (gameState !== 'COUNTDOWN') return;
 
     let current = 3;
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    setCountdown(3);
+    memorySounds.playTick(false);
 
     countdownTimerRef.current = setInterval(() => {
       current -= 1;
@@ -177,12 +189,86 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
         setCountdown(current);
         memorySounds.playTick(false);
       } else {
-        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+        if (countdownTimerRef.current) {
+          clearInterval(countdownTimerRef.current);
+          countdownTimerRef.current = null;
+        }
         memorySounds.playTick(true);
         updateGameState('PLAYING');
       }
     }, 900);
-  };
+
+    return () => {
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+    };
+  }, [gameState, updateGameState]);
+
+  // High score submission
+  const fetchLeaderboard = useCallback(async () => {
+    if (!hasEventContext) {
+      try {
+        const raw = localStorage.getItem('arcade_local_leaderboard');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          setLeaderboardScores(Array.isArray(parsed) ? parsed : []);
+        }
+      } catch {
+        setLeaderboardScores([]);
+      }
+      return;
+    }
+
+    setLoadingLeaderboard(true);
+    try {
+      const url = publicToken
+        ? `/api/public/events/${publicToken}/high-scores?limit=50`
+        : `/api/events/${eventId}/high-scores?limit=50`;
+      const res = await apiFetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setLeaderboardScores(data.scores || []);
+      }
+    } catch (err) {
+      console.warn('Leaderboard fetch error:', err);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  }, [hasEventContext, publicToken, eventId]);
+
+  // Handle Game Over / Victory
+  const handleGameOver = useCallback(
+    (won: boolean) => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setIsVictory(won);
+      updateGameState('GAME_OVER');
+
+      const finalDuration = Math.max(1, gameDuration - timeRemaining);
+      const finalPairs = won ? 8 : matchedPairsCount;
+      const finalScore = calculateMemoryMatchScore({
+        moves,
+        duration: finalDuration,
+        matchedPairs: finalPairs,
+        totalPairs: 8,
+      });
+
+      setScore(finalScore);
+
+      if (won) {
+        memorySounds.playVictory();
+      } else {
+        memorySounds.playMismatch();
+      }
+
+      fetchLeaderboard();
+    },
+    [timeRemaining, moves, matchedPairsCount, gameDuration, updateGameState, fetchLeaderboard]
+  );
 
   // Playing state countdown timer
   useEffect(() => {
@@ -190,7 +276,10 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
       timerRef.current = setInterval(() => {
         setTimeRemaining((prev) => {
           if (prev <= 1) {
-            clearInterval(timerRef.current!);
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+            }
             handleGameOver(false);
             return 0;
           }
@@ -208,33 +297,12 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     }
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
-    };
-  }, [gameState]);
-
-  // Handle Game Over / Victory
-  const handleGameOver = useCallback(
-    (won: boolean) => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      setIsVictory(won);
-      updateGameState('GAME_OVER');
-
-      if (won) {
-        memorySounds.playVictory();
-        // Time bonus calculation: 15 points per remaining second
-        const timeBonus = timeRemaining * 15;
-        // Move efficiency bonus: extra points for finishing in fewer moves
-        const efficiencyBonus = Math.max(0, (24 - moves) * 25);
-        setScore((prev) => prev + timeBonus + efficiencyBonus);
-      } else {
-        memorySounds.playMismatch();
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
-
-      fetchLeaderboard();
-    },
-    [timeRemaining, moves, updateGameState]
-  );
+    };
+  }, [gameState, handleGameOver]);
 
   // Card Flip Click Handler
   const handleCardClick = (index: number) => {
@@ -326,38 +394,6 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     }
   };
 
-  // High score submission
-  const fetchLeaderboard = async () => {
-    if (!hasEventContext) {
-      try {
-        const raw = localStorage.getItem('arcade_local_leaderboard');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          setLeaderboardScores(Array.isArray(parsed) ? parsed : []);
-        }
-      } catch {
-        setLeaderboardScores([]);
-      }
-      return;
-    }
-
-    setLoadingLeaderboard(true);
-    try {
-      const url = publicToken
-        ? `/api/public/events/${publicToken}/high-scores?limit=50`
-        : `/api/events/${eventId}/high-scores?limit=50`;
-      const res = await apiFetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setLeaderboardScores(data.scores || []);
-      }
-    } catch (err) {
-      console.warn('Leaderboard fetch error:', err);
-    } finally {
-      setLoadingLeaderboard(false);
-    }
-  };
-
   const handleSubmitScore = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (isSubmittingScore || scoreSubmitted) return;
@@ -366,6 +402,19 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     localStorage.setItem('event_player_name', trimmedName);
     setIsSubmittingScore(true);
 
+    const metadataPayload = {
+      gameType: 'memory-match',
+      moves,
+      matchedPairs: isVictory ? 8 : matchedPairsCount,
+      totalPairs: 8,
+      duration: Math.max(1, gameDuration - timeRemaining),
+      isVictory,
+      timeRemaining,
+      sessionId,
+      gameVersion: MEMORY_MATCH_GAME_VERSION,
+      scoringVersion: MEMORY_MATCH_SCORING_VERSION,
+    };
+
     if (!hasEventContext) {
       try {
         const localEntry: EventLeaderboardEntry = {
@@ -373,15 +422,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
           event_id: 'studio-preview',
           player_name: trimmedName,
           score,
-          metadata: {
-            gameType: 'memory-match',
-            moves,
-            matchedPairs: matchedPairsCount,
-            totalPairs: 8,
-            duration: gameDuration - timeRemaining,
-            isVictory,
-            timeRemaining,
-          },
+          metadata: metadataPayload,
           created_at: new Date().toISOString(),
           rank: 1,
         };
@@ -422,15 +463,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
         body: JSON.stringify({
           player_name: trimmedName,
           score,
-          metadata: {
-            gameType: 'memory-match',
-            moves,
-            matchedPairs: matchedPairsCount,
-            totalPairs: 8,
-            duration: gameDuration - timeRemaining,
-            isVictory,
-            timeRemaining,
-          },
+          metadata: metadataPayload,
         }),
       });
 

@@ -906,11 +906,18 @@ export async function createEvent(
       if (!retry.error) {
         data = retry.data;
         error = null;
+      } else {
+        error = retry.error;
       }
     }
 
     if (error) {
-      if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+      if (
+        error.message?.includes('Placeholder') ||
+        error.code === 'PGRST000' ||
+        error.code === 'PGRST204' ||
+        error.message?.includes('schema cache')
+      ) {
         const fullRecord: EventRecord = {
           ...dbPayload,
           event_status: initialEventStatus,

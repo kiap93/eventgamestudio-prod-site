@@ -207,6 +207,28 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
           </div>
         </div>
 
+        {/* Extended Gameplay Metrics (if available) */}
+        {(stats?.completionRate !== undefined || stats?.averageMoves !== null || stats?.averageDuration !== null) && (
+          <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-slate-950/50 border-b border-slate-800 text-xs text-slate-400">
+            <span className="font-semibold text-slate-300">Gameplay Metrics:</span>
+            {stats?.completionRate !== undefined && (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-medium">
+                {stats.completionRate}% Completion Rate
+              </span>
+            )}
+            {stats?.averageMoves !== null && stats?.averageMoves !== undefined && (
+              <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 font-medium">
+                Avg {stats.averageMoves} Moves
+              </span>
+            )}
+            {stats?.averageDuration !== null && stats?.averageDuration !== undefined && (
+              <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 font-medium">
+                Avg {stats.averageDuration}s Duration
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Filter / Search Bar & Actions */}
         <div className="p-4 border-b border-slate-800/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div className="relative flex-1">
@@ -309,9 +331,26 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
                         <div className="text-sm font-bold text-white truncate font-mono">
                           {entry.player_name}
                         </div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                          <Clock className="w-3 h-3" />
-                          <span>{createdDate}</span>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{createdDate}</span>
+                          </span>
+                          {entry.metadata?.moves !== undefined && (
+                            <span className="px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-400 font-mono">
+                              {entry.metadata.moves} moves
+                            </span>
+                          )}
+                          {entry.metadata?.duration !== undefined && (
+                            <span className="px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-400 font-mono">
+                              {entry.metadata.duration}s
+                            </span>
+                          )}
+                          {entry.metadata?.isVictory && (
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-950/60 border border-emerald-800/60 text-[10px] text-emerald-400 font-medium">
+                              Completed
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
