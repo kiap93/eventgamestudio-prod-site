@@ -121,6 +121,7 @@ export interface GameTheme {
   game_id?: string | null;
   game_name?: string;
   game_slug?: string;
+  game_type?: string;
   name: string;
   slug: string;
   base_theme_id?: string;

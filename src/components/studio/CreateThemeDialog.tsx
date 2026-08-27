@@ -12,6 +12,8 @@ interface CreateThemeDialogProps {
   onDuplicate: (themeId: string, newName?: string) => Promise<GameTheme>;
   gameId?: string;
   gameName?: string;
+  gameType?: string;
+  gameSlug?: string;
 }
 
 export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
@@ -23,6 +25,8 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
   onDuplicate,
   gameId,
   gameName,
+  gameType,
+  gameSlug,
 }) => {
   const [creationMode, setCreationMode] = useState<'scratch' | 'duplicate'>('scratch');
   const [themeName, setThemeName] = useState('');
@@ -53,13 +57,22 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
         const newTheme = await onDuplicate(targetSource, themeName.trim());
         onCreated(newTheme.id);
       } else {
-        // Start from scratch using clean baseline defaults
-        const isMemoryGame = gameName?.toLowerCase().includes('memory') || false;
+        // Start from scratch using clean baseline defaults tailored to this game
+        const resolvedType = (gameType || gameSlug || '').toLowerCase();
+        const isMemoryGame =
+          resolvedType === 'memory-match' ||
+          gameName?.toLowerCase().includes('memory') ||
+          false;
+
         const defaultBase = isMemoryGame ? memoryMatchTheme : carnivalTheme;
         const base = existingThemes[0] || defaultBase;
         const cleanName = (themeName || 'New Theme').trim();
         const newTheme = await onCreate({
           game_id: gameId,
+          game_type: resolvedType || (isMemoryGame ? 'memory-match' : 'catch-brand'),
+          game_slug: gameSlug || (isMemoryGame ? 'memory-match' : 'catch-brand'),
+          game_name: gameName,
+          base_theme_id: isMemoryGame ? 'memory-carnival' : 'carnival',
           name: cleanName,
           slug: cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
           description: `Custom game theme: ${cleanName}`,

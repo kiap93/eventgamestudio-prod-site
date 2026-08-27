@@ -594,10 +594,10 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
             <div className="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
               <GameShell
                 key={`${playingTheme.id}-${restartKey}`}
-                theme={playingTheme}
-                gameType={game.game_type || 'catch-brand'}
-                organizationSlug={currentOrganization?.slug || 'preview'}
-                isStudioPreview={true}
+                customTheme={playingTheme}
+                gameType={game.game_type || game.slug}
+                showCabinetFooter={false}
+                className="w-full h-full"
               />
             </div>
           </div>
@@ -619,6 +619,8 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
         onDuplicate={duplicateTheme}
         gameId={game.id}
         gameName={game.name}
+        gameType={game.game_type || game.slug}
+        gameSlug={game.slug}
       />
 
       {/* Clone All Default Themes Confirmation Modal */}

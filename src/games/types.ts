@@ -11,6 +11,16 @@ export interface BaseGameConfig {
   bgmEnabled?: boolean;
 }
 
+export interface GameCustomizationSchema {
+  supportsItems: boolean;
+  itemsTabLabel: string; // e.g. "2. Items" (Catch) vs "2. Cards" (Memory)
+  supportsCatcher: boolean;
+  supportsCardBack: boolean;
+  supportsPhysics: boolean;
+  gameplayTabTitle: string;
+  gameplayDescription: string;
+}
+
 export interface CatchBrandConfig extends BaseGameConfig {
   fallSpeedMultiplier?: number;
   cameraControlEnabled?: boolean;
@@ -46,6 +56,7 @@ export interface GameDefinition<TConfig extends BaseGameConfig = BaseGameConfig>
   defaultDurationSeconds: number;
   supportedInputTypes: ('keyboard' | 'touch' | 'mouse' | 'motion' | 'camera')[];
   defaultConfig: TConfig;
+  customization?: GameCustomizationSchema;
   component: React.ComponentType<GameComponentProps<TConfig>>;
   isAvailable: boolean;
   comingSoon?: boolean;
