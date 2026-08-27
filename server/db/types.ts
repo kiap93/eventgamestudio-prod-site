@@ -169,6 +169,8 @@ export interface ThemeVisualsConfig {
   secondaryColor?: string;
   accentColor?: string;
   textColor?: string;
+  cardBackUrl?: string | null;
+  cardFrontBg?: string;
   cardGoodBg?: string;
   cardGoodBorder?: string;
   cardBadBg?: string;

@@ -51,8 +51,14 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
   const catcherFileInputRef = useRef<HTMLInputElement | null>(null);
   const catcherReplaceFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const isMemoryMatch =
+    theme.game_slug === 'memory-match' ||
+    theme.slug?.includes('memory') ||
+    (theme as any).game_type === 'memory-match';
+
   const currentBgUrl = theme.background_url || theme.background || '';
-  const currentCatcherUrl = theme.basket_config?.imageUrl || theme.basket || '';
+  const currentCardBackUrl = theme.visuals_config?.cardBackUrl || theme.basket_config?.imageUrl || theme.basket || '';
+  const currentCatcherUrl = currentCardBackUrl;
 
   const processBackgroundFile = async (file: File) => {
     setUploadError(null);
@@ -191,9 +197,13 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
           ...theme.basket_config,
           imageUrl: uploadedUrl,
         },
+        visuals_config: {
+          ...theme.visuals_config,
+          cardBackUrl: uploadedUrl,
+        },
       });
     } catch (err: any) {
-      setCatcherUploadError(err.message || 'Failed to upload catcher image');
+      setCatcherUploadError(err.message || 'Failed to upload image');
     }
   };
 
@@ -231,6 +241,10 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
       basket_config: {
         ...theme.basket_config,
         imageUrl: '',
+      },
+      visuals_config: {
+        ...theme.visuals_config,
+        cardBackUrl: null,
       },
     });
   };
@@ -392,325 +406,523 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
         )}
       </div>
 
-      {/* 2. CATCHER / BASKET CARD */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
-              <Sparkles className="w-4 h-4" />
-            </span>
-            <div>
-              <h3 className="text-sm font-bold text-slate-100">Catcher / Basket</h3>
-              <p className="text-xs text-slate-400">
-                Configure the player-controlled catcher artwork, width, and catch opening
-              </p>
+      {/* 2. CATCHER OR MEMORY MATCH CARD BACK */}
+      {isMemoryMatch ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+                <Sparkles className="w-4 h-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-slate-100">Card Back Artwork & Deck Styling</h3>
+                <p className="text-xs text-slate-400">
+                  Upload a custom card back sprite or pattern and configure card color palettes
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Catcher Name */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-300">Catcher Name</label>
-          <input
-            type="text"
-            value={theme.basket_config?.name || theme.basketName || 'Basket'}
-            onChange={(e) =>
-              onChange({
-                ...theme,
-                basketName: e.target.value,
-                basket_config: {
-                  ...theme.basket_config,
-                  name: e.target.value,
-                },
-              })
-            }
-            placeholder="e.g. Golden Basket, Sleigh, Tray"
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
-          />
-        </div>
+          {/* Card Back Visual Upload / Preview Section */}
+          <div className="space-y-2.5">
+            <label className="text-xs font-semibold text-slate-300">Card Back Face Artwork</label>
 
-        {/* Catcher Artwork Visual Upload / Preview Section */}
-        <div className="space-y-2.5">
-          <label className="text-xs font-semibold text-slate-300">Catcher Artwork</label>
-
-          {catcherUploadError && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-2.5 text-xs text-rose-300">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div className="flex-1">{catcherUploadError}</div>
-            </div>
-          )}
-
-          {currentCatcherUrl ? (
-            /* AFTER IMAGE UPLOADED: PREVIEW WITH REPLACE & REMOVE ACTIONS */
-            <div className="space-y-3">
-              <div className="relative rounded-2xl overflow-hidden border-2 border-slate-700 bg-slate-950/90 p-6 flex flex-col items-center justify-center min-h-[160px] max-h-[220px] group shadow-inner">
-                {/* Subtle checkered transparent canvas background pattern */}
-                <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:16px_16px]" />
-
-                <img
-                  src={currentCatcherUrl}
-                  alt={theme.basket_config?.name || 'Catcher Preview'}
-                  className="max-h-28 max-w-full object-contain filter drop-shadow-lg group-hover:scale-105 transition-transform duration-300 z-10"
-                  referrerPolicy="no-referrer"
-                />
-
-                {uploadingAsset === 'basket' && (
-                  <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 text-amber-400 z-20">
-                    <RefreshCw className="w-6 h-6 animate-spin" />
-                    <span className="text-xs font-bold text-slate-200">Uploading new catcher...</span>
-                  </div>
-                )}
+            {catcherUploadError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-2.5 text-xs text-rose-300">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="flex-1">{catcherUploadError}</div>
               </div>
+            )}
 
-              {/* Action Buttons: Replace Image and Remove */}
-              <div className="flex items-center justify-end gap-2">
+            {currentCardBackUrl ? (
+              <div className="space-y-3">
+                <div className="relative rounded-2xl overflow-hidden border-2 border-slate-700 bg-slate-950/90 p-6 flex flex-col items-center justify-center min-h-[160px] max-h-[220px] group shadow-inner">
+                  <div className="w-24 h-32 rounded-xl bg-slate-900 border-2 border-amber-500/60 p-2 flex items-center justify-center overflow-hidden shadow-xl group-hover:scale-105 transition-transform">
+                    <img
+                      src={currentCardBackUrl}
+                      alt="Card Back Preview"
+                      className="max-h-full max-w-full object-contain filter drop-shadow-md"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+
+                  {uploadingAsset === 'basket' && (
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 text-amber-400 z-20">
+                      <RefreshCw className="w-6 h-6 animate-spin" />
+                      <span className="text-xs font-bold text-slate-200">Uploading new card back...</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2">
+                  <input
+                    ref={catcherReplaceFileInputRef}
+                    type="file"
+                    accept="image/png,image/webp,image/jpeg,image/jpg"
+                    className="hidden"
+                    disabled={uploadingAsset === 'basket'}
+                    onChange={handleCatcherFileInputChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => catcherReplaceFileInputRef.current?.click()}
+                    disabled={uploadingAsset === 'basket'}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${uploadingAsset === 'basket' ? 'animate-spin' : ''}`} />
+                    <span>{uploadingAsset === 'basket' ? 'Uploading...' : 'Replace Card Back'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRemoveCatcher}
+                    disabled={uploadingAsset === 'basket'}
+                    className="px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-400 text-xs font-bold rounded-xl border border-rose-500/20 flex items-center gap-2 transition-all disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onDragEnter={handleCatcherDrag}
+                onDragLeave={handleCatcherDrag}
+                onDragOver={handleCatcherDrag}
+                onDrop={handleCatcherDrop}
+                onClick={() => catcherFileInputRef.current?.click()}
+                className={`cursor-pointer rounded-2xl border-2 border-dashed p-8 transition-all flex flex-col items-center justify-center text-center gap-3 ${
+                  catcherDragActive
+                    ? 'border-emerald-400 bg-emerald-500/10 scale-[1.01]'
+                    : 'border-slate-800 hover:border-slate-700 bg-slate-950/60 hover:bg-slate-950'
+                }`}
+              >
                 <input
-                  ref={catcherReplaceFileInputRef}
+                  ref={catcherFileInputRef}
                   type="file"
                   accept="image/png,image/webp,image/jpeg,image/jpg"
                   className="hidden"
                   disabled={uploadingAsset === 'basket'}
                   onChange={handleCatcherFileInputChange}
                 />
-                <button
-                  type="button"
-                  onClick={() => catcherReplaceFileInputRef.current?.click()}
-                  disabled={uploadingAsset === 'basket'}
-                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 transition-all disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${uploadingAsset === 'basket' ? 'animate-spin' : ''}`} />
-                  <span>{uploadingAsset === 'basket' ? 'Uploading...' : 'Replace Image'}</span>
-                </button>
 
-                <button
-                  type="button"
-                  onClick={handleRemoveCatcher}
-                  disabled={uploadingAsset === 'basket'}
-                  className="px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-400 text-xs font-bold rounded-xl border border-rose-500/20 flex items-center gap-2 transition-all disabled:opacity-50"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Remove</span>
-                </button>
+                <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-emerald-400 shadow-md">
+                  {uploadingAsset === 'basket' ? (
+                    <RefreshCw className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <Upload className="w-6 h-6" />
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-slate-200">
+                    {uploadingAsset === 'basket'
+                      ? 'Uploading card back image...'
+                      : catcherDragActive
+                      ? 'Drop card back image here'
+                      : 'Upload Custom Card Back'}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    PNG / WebP (leave empty to use default carnival geometric pattern)
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            /* BEFORE IMAGE UPLOADED: VISUAL UPLOAD AREA */
-            <div
-              onDragEnter={handleCatcherDrag}
-              onDragLeave={handleCatcherDrag}
-              onDragOver={handleCatcherDrag}
-              onDrop={handleCatcherDrop}
-              onClick={() => catcherFileInputRef.current?.click()}
-              className={`cursor-pointer rounded-2xl border-2 border-dashed p-8 transition-all flex flex-col items-center justify-center text-center gap-3 ${
-                catcherDragActive
-                  ? 'border-emerald-400 bg-emerald-500/10 scale-[1.01]'
-                  : 'border-slate-800 hover:border-slate-700 bg-slate-950/60 hover:bg-slate-950'
-              }`}
-            >
-              <input
-                ref={catcherFileInputRef}
-                type="file"
-                accept="image/png,image/webp,image/jpeg,image/jpg"
-                className="hidden"
-                disabled={uploadingAsset === 'basket'}
-                onChange={handleCatcherFileInputChange}
-              />
-
-              <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-emerald-400 shadow-md">
-                {uploadingAsset === 'basket' ? (
-                  <RefreshCw className="w-6 h-6 animate-spin" />
-                ) : (
-                  <Upload className="w-6 h-6" />
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-xs font-bold text-slate-200">
-                  {uploadingAsset === 'basket'
-                    ? 'Uploading catcher image...'
-                    : catcherDragActive
-                    ? 'Drop catcher image here'
-                    : 'Upload Catcher'}
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  PNG / WebP recommended
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="mt-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 pointer-events-none"
-              >
-                <Upload className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Upload Image</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Visual Catcher Dimension Sliders */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80">
-          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-3.5 space-y-2">
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-semibold text-slate-300">Catcher Width</span>
-              <span className="text-amber-400 font-bold font-mono">
-                {theme.basket_config?.width || 120} px
-              </span>
-            </div>
-            <input
-              type="range"
-              min="80"
-              max="240"
-              step="5"
-              value={theme.basket_config?.width || 120}
-              onChange={(e) =>
-                onChange({
-                  ...theme,
-                  basket_config: {
-                    ...theme.basket_config,
-                    width: parseInt(e.target.value) || 120,
-                  },
-                })
-              }
-              className="w-full accent-amber-500 cursor-pointer"
-            />
-            <p className="text-[11px] text-slate-500">
-              Width of the displayed catcher sprite on screen
-            </p>
+            )}
           </div>
 
-          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-3.5 space-y-2">
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-semibold text-slate-300">Catch Opening Ratio</span>
-              <span className="text-amber-400 font-bold font-mono">
-                {Math.round((theme.basket_config?.catchAreaRatio || 0.85) * 100)}%
-              </span>
+          {/* Card Color Themes */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-800/80">
+            {/* Card Face Color */}
+            <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-3.5 space-y-2">
+              <span className="text-xs font-semibold text-slate-300">Card Front Border Color</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={theme.visuals_config?.cardBadBorder || '#f59e0b'}
+                  onChange={(e) =>
+                    onChange({
+                      ...theme,
+                      visuals_config: {
+                        ...theme.visuals_config,
+                        cardBadBorder: e.target.value,
+                      },
+                    })
+                  }
+                  className="w-8 h-8 rounded-lg bg-transparent border-0 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={theme.visuals_config?.cardBadBorder || '#f59e0b'}
+                  onChange={(e) =>
+                    onChange({
+                      ...theme,
+                      visuals_config: {
+                        ...theme.visuals_config,
+                        cardBadBorder: e.target.value,
+                      },
+                    })
+                  }
+                  className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 text-xs text-slate-200 font-mono"
+                />
+              </div>
             </div>
-            <input
-              type="range"
-              min="0.5"
-              max="1.0"
-              step="0.05"
-              value={theme.basket_config?.catchAreaRatio || 0.85}
-              onChange={(e) =>
-                onChange({
-                  ...theme,
-                  basket_config: {
-                    ...theme.basket_config,
-                    catchAreaRatio: parseFloat(e.target.value) || 0.85,
-                  },
-                })
-              }
-              className="w-full accent-amber-500 cursor-pointer"
-            />
-            <p className="text-[11px] text-slate-500">
-              Percentage of catcher width that successfully catches items
-            </p>
+
+            {/* Matched Pair Border Color */}
+            <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-3.5 space-y-2">
+              <span className="text-xs font-semibold text-slate-300">Matched Pair Border Color</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={theme.visuals_config?.cardGoodBorder || '#10b981'}
+                  onChange={(e) =>
+                    onChange({
+                      ...theme,
+                      visuals_config: {
+                        ...theme.visuals_config,
+                        cardGoodBorder: e.target.value,
+                      },
+                    })
+                  }
+                  className="w-8 h-8 rounded-lg bg-transparent border-0 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={theme.visuals_config?.cardGoodBorder || '#10b981'}
+                  onChange={(e) =>
+                    onChange({
+                      ...theme,
+                      visuals_config: {
+                        ...theme.visuals_config,
+                        cardGoodBorder: e.target.value,
+                      },
+                    })
+                  }
+                  className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 text-xs text-slate-200 font-mono"
+                />
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Collapsible Advanced Collision & Hitbox Section */}
-        <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/50">
-          <button
-            type="button"
-            onClick={() => setShowAdvancedBasket(!showAdvancedBasket)}
-            className="w-full px-4 py-3 bg-slate-950 hover:bg-slate-900/80 flex items-center justify-between text-xs font-bold text-slate-300 transition-colors"
-          >
+      ) : (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sliders className="w-3.5 h-3.5 text-amber-400" />
-              <span>Advanced Collision & Physics Tuning</span>
-            </div>
-            <div className="flex items-center gap-1 text-slate-400">
-              <span className="text-[10px] font-normal">
-                {showAdvancedBasket ? 'Hide' : 'Show Advanced'}
+              <span className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+                <Sparkles className="w-4 h-4" />
               </span>
-              {showAdvancedBasket ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <div>
+                <h3 className="text-sm font-bold text-slate-100">Catcher / Basket</h3>
+                <p className="text-xs text-slate-400">
+                  Configure the player-controlled catcher artwork, width, and catch opening
+                </p>
+              </div>
             </div>
-          </button>
+          </div>
 
-          {showAdvancedBasket && (
-            <div className="p-4 border-t border-slate-800 space-y-4 text-xs">
-              <div className="bg-slate-900/60 border border-slate-800 p-3 rounded-xl flex items-start gap-2.5 text-slate-400 text-[11px]">
-                <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <span>
-                  These ratios allow precise pixel matching for custom PNG artwork that may have transparent padding around the rim.
+          {/* Catcher Name */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300">Catcher Name</label>
+            <input
+              type="text"
+              value={theme.basket_config?.name || theme.basketName || 'Basket'}
+              onChange={(e) =>
+                onChange({
+                  ...theme,
+                  basketName: e.target.value,
+                  basket_config: {
+                    ...theme.basket_config,
+                    name: e.target.value,
+                  },
+                })
+              }
+              placeholder="e.g. Golden Basket, Sleigh, Tray"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+            />
+          </div>
+
+          {/* Catcher Artwork Visual Upload / Preview Section */}
+          <div className="space-y-2.5">
+            <label className="text-xs font-semibold text-slate-300">Catcher Artwork</label>
+
+            {catcherUploadError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-2.5 text-xs text-rose-300">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="flex-1">{catcherUploadError}</div>
+              </div>
+            )}
+
+            {currentCatcherUrl ? (
+              /* AFTER IMAGE UPLOADED: PREVIEW WITH REPLACE & REMOVE ACTIONS */
+              <div className="space-y-3">
+                <div className="relative rounded-2xl overflow-hidden border-2 border-slate-700 bg-slate-950/90 p-6 flex flex-col items-center justify-center min-h-[160px] max-h-[220px] group shadow-inner">
+                  {/* Subtle checkered transparent canvas background pattern */}
+                  <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:16px_16px]" />
+
+                  <img
+                    src={currentCatcherUrl}
+                    alt={theme.basket_config?.name || 'Catcher Preview'}
+                    className="max-h-28 max-w-full object-contain filter drop-shadow-lg group-hover:scale-105 transition-transform duration-300 z-10"
+                    referrerPolicy="no-referrer"
+                  />
+
+                  {uploadingAsset === 'basket' && (
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 text-amber-400 z-20">
+                      <RefreshCw className="w-6 h-6 animate-spin" />
+                      <span className="text-xs font-bold text-slate-200">Uploading new catcher...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Buttons: Replace Image and Remove */}
+                <div className="flex items-center justify-end gap-2">
+                  <input
+                    ref={catcherReplaceFileInputRef}
+                    type="file"
+                    accept="image/png,image/webp,image/jpeg,image/jpg"
+                    className="hidden"
+                    disabled={uploadingAsset === 'basket'}
+                    onChange={handleCatcherFileInputChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => catcherReplaceFileInputRef.current?.click()}
+                    disabled={uploadingAsset === 'basket'}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${uploadingAsset === 'basket' ? 'animate-spin' : ''}`} />
+                    <span>{uploadingAsset === 'basket' ? 'Uploading...' : 'Replace Image'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRemoveCatcher}
+                    disabled={uploadingAsset === 'basket'}
+                    className="px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-400 text-xs font-bold rounded-xl border border-rose-500/20 flex items-center gap-2 transition-all disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* BEFORE IMAGE UPLOADED: VISUAL UPLOAD AREA */
+              <div
+                onDragEnter={handleCatcherDrag}
+                onDragLeave={handleCatcherDrag}
+                onDragOver={handleCatcherDrag}
+                onDrop={handleCatcherDrop}
+                onClick={() => catcherFileInputRef.current?.click()}
+                className={`cursor-pointer rounded-2xl border-2 border-dashed p-8 transition-all flex flex-col items-center justify-center text-center gap-3 ${
+                  catcherDragActive
+                    ? 'border-emerald-400 bg-emerald-500/10 scale-[1.01]'
+                    : 'border-slate-800 hover:border-slate-700 bg-slate-950/60 hover:bg-slate-950'
+                }`}
+              >
+                <input
+                  ref={catcherFileInputRef}
+                  type="file"
+                  accept="image/png,image/webp,image/jpeg,image/jpg"
+                  className="hidden"
+                  disabled={uploadingAsset === 'basket'}
+                  onChange={handleCatcherFileInputChange}
+                />
+
+                <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-emerald-400 shadow-md">
+                  {uploadingAsset === 'basket' ? (
+                    <RefreshCw className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <Upload className="w-6 h-6" />
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-slate-200">
+                    {uploadingAsset === 'basket'
+                      ? 'Uploading catcher image...'
+                      : catcherDragActive
+                      ? 'Drop catcher image here'
+                      : 'Upload Catcher'}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    PNG / WebP recommended
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  className="mt-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 pointer-events-none"
+                >
+                  <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Upload Image</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Visual Catcher Dimension Sliders */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80">
+            <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-3.5 space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-semibold text-slate-300">Catcher Width</span>
+                <span className="text-amber-400 font-bold font-mono">
+                  {theme.basket_config?.width || 120} px
                 </span>
               </div>
+              <input
+                type="range"
+                min="80"
+                max="240"
+                step="5"
+                value={theme.basket_config?.width || 120}
+                onChange={(e) =>
+                  onChange({
+                    ...theme,
+                    basket_config: {
+                      ...theme.basket_config,
+                      width: parseInt(e.target.value) || 120,
+                    },
+                  })
+                }
+                className="w-full accent-amber-500 cursor-pointer"
+              />
+              <p className="text-[11px] text-slate-500">
+                Width of the displayed catcher sprite on screen
+              </p>
+            </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-400">
-                    Collision Width Ratio
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.3"
-                    max="1.0"
-                    value={theme.basket_config?.collisionWidthRatio || 0.72}
-                    onChange={(e) =>
-                      onChange({
-                        ...theme,
-                        basket_config: {
-                          ...theme.basket_config,
-                          collisionWidthRatio: parseFloat(e.target.value) || 0.72,
-                        },
-                      })
-                    }
-                    className="w-full mt-1 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-200 focus:outline-none"
-                  />
+            <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-3.5 space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-semibold text-slate-300">Catch Opening Ratio</span>
+                <span className="text-amber-400 font-bold font-mono">
+                  {Math.round((theme.basket_config?.catchAreaRatio || 0.85) * 100)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="1.0"
+                step="0.05"
+                value={theme.basket_config?.catchAreaRatio || 0.85}
+                onChange={(e) =>
+                  onChange({
+                    ...theme,
+                    basket_config: {
+                      ...theme.basket_config,
+                      catchAreaRatio: parseFloat(e.target.value) || 0.85,
+                    },
+                  })
+                }
+                className="w-full accent-amber-500 cursor-pointer"
+              />
+              <p className="text-[11px] text-slate-500">
+                Percentage of catcher width that successfully catches items
+              </p>
+            </div>
+          </div>
+
+          {/* Collapsible Advanced Collision & Hitbox Section */}
+          <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/50">
+            <button
+              type="button"
+              onClick={() => setShowAdvancedBasket(!showAdvancedBasket)}
+              className="w-full px-4 py-3 bg-slate-950 hover:bg-slate-900/80 flex items-center justify-between text-xs font-bold text-slate-300 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                <span>Advanced Collision & Physics Tuning</span>
+              </div>
+              <div className="flex items-center gap-1 text-slate-400">
+                <span className="text-[10px] font-normal">
+                  {showAdvancedBasket ? 'Hide' : 'Show Advanced'}
+                </span>
+                {showAdvancedBasket ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </div>
+            </button>
+
+            {showAdvancedBasket && (
+              <div className="p-4 border-t border-slate-800 space-y-4 text-xs">
+                <div className="bg-slate-900/60 border border-slate-800 p-3 rounded-xl flex items-start gap-2.5 text-slate-400 text-[11px]">
+                  <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <span>
+                    These ratios allow precise pixel matching for custom PNG artwork that may have transparent padding around the rim.
+                  </span>
                 </div>
 
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-400">
-                    Collision Height Ratio
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.05"
-                    max="0.5"
-                    value={theme.basket_config?.collisionHeightRatio || 0.13}
-                    onChange={(e) =>
-                      onChange({
-                        ...theme,
-                        basket_config: {
-                          ...theme.basket_config,
-                          collisionHeightRatio: parseFloat(e.target.value) || 0.13,
-                        },
-                      })
-                    }
-                    className="w-full mt-1 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-200 focus:outline-none"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400">
+                      Collision Width Ratio
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.3"
+                      max="1.0"
+                      value={theme.basket_config?.collisionWidthRatio || 0.72}
+                      onChange={(e) =>
+                        onChange({
+                          ...theme,
+                          basket_config: {
+                            ...theme.basket_config,
+                            collisionWidthRatio: parseFloat(e.target.value) || 0.72,
+                          },
+                        })
+                      }
+                      className="w-full mt-1 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-200 focus:outline-none"
+                    />
+                  </div>
 
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-400">
-                    Vertical Rim Offset Ratio
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.0"
-                    max="0.8"
-                    value={theme.basket_config?.collisionOffsetYRatio || 0.34}
-                    onChange={(e) =>
-                      onChange({
-                        ...theme,
-                        basket_config: {
-                          ...theme.basket_config,
-                          collisionOffsetYRatio: parseFloat(e.target.value) || 0.34,
-                        },
-                      })
-                    }
-                    className="w-full mt-1 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-200 focus:outline-none"
-                  />
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400">
+                      Collision Height Ratio
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.05"
+                      max="0.5"
+                      value={theme.basket_config?.collisionHeightRatio || 0.13}
+                      onChange={(e) =>
+                        onChange({
+                          ...theme,
+                          basket_config: {
+                            ...theme.basket_config,
+                            collisionHeightRatio: parseFloat(e.target.value) || 0.13,
+                          },
+                        })
+                      }
+                      className="w-full mt-1 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-200 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400">
+                      Vertical Rim Offset Ratio
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.0"
+                      max="0.8"
+                      value={theme.basket_config?.collisionOffsetYRatio || 0.34}
+                      onChange={(e) =>
+                        onChange({
+                          ...theme,
+                          basket_config: {
+                            ...theme.basket_config,
+                            collisionOffsetYRatio: parseFloat(e.target.value) || 0.34,
+                          },
+                        })
+                      }
+                      className="w-full mt-1 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-200 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

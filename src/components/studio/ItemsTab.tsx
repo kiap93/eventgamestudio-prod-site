@@ -228,6 +228,23 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
     theme.slug?.includes('memory') ||
     (theme as any).game_type === 'memory-match';
 
+  const handleResetDefaultPairs = () => {
+    const defaultPairs: ThemeDropItem[] = [
+      { id: 'pair_ticket', name: 'Golden Ticket', imageUrl: '/assets/themes/carnival/item_normal_01.png', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
+      { id: 'pair_mask', name: 'Carnival Mask', imageUrl: '/assets/themes/carnival/item_hazard_01.png', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
+      { id: 'pair_star', name: 'Cosmic Star', imageUrl: '/assets/themes/carnival/item_bonus_01.png', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: true },
+      { id: 'pair_cart', name: 'Carnival Cart', imageUrl: '/assets/themes/carnival/basket.png', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
+      { id: 'pair_tent', name: 'Big Top Tent', imageUrl: '', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
+      { id: 'pair_balloons', name: 'Party Balloons', imageUrl: '', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
+      { id: 'pair_cup', name: 'Carnival Cup', imageUrl: '', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
+      { id: 'pair_wheel', name: 'Fortune Wheel', imageUrl: '', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
+    ];
+    onChange({
+      ...theme,
+      items_config: defaultPairs,
+    });
+  };
+
   const handleAddItem = () => {
     const newItem: ThemeDropItem = {
       id: `item_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -320,84 +337,119 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
               </h3>
               <p className="text-xs text-slate-400">
                 {isMemoryMatch
-                  ? 'Define the 8 unique card pairs, custom sprites, and match points for the 4×4 memory board'
+                  ? 'Define the 8 unique card pairs, custom front face sprites, and match points for the 4×4 memory board'
                   : 'Define collectible points, speed, artwork, and spawn weight'}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {isMemoryMatch && (
-            <span
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border ${
-                items.length >= 8
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-              }`}
+        <div className="flex flex-wrap items-center gap-2">
+          {isMemoryMatch ? (
+            <>
+              <button
+                type="button"
+                onClick={handleResetDefaultPairs}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-semibold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Reset 8 Pairs</span>
+              </button>
+              <span
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border ${
+                  items.length >= 8
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                }`}
+              >
+                {items.length} / 8 Pairs {items.length >= 8 ? '✓' : ''}
+              </span>
+              <button
+                type="button"
+                onClick={handleAddItem}
+                disabled={items.length >= 12}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Pair</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={handleAddItem}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
             >
-              {items.length} / 8 Card Pairs {items.length >= 8 ? '✓' : ''}
-            </span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Item</span>
+            </button>
           )}
-          <button
-            type="button"
-            onClick={handleAddItem}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>{isMemoryMatch ? 'Add Card Pair' : 'Add Item'}</span>
-          </button>
         </div>
       </div>
 
-      {/* Spawn Distribution Summary Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
-        <div className="flex justify-between items-center text-xs font-semibold text-slate-300">
-          <span>Relative Spawn Chance Distribution</span>
-          <span className="text-slate-400 font-mono text-[11px]">
-            {items.filter((i) => i.enabled).length} active items
-          </span>
+      {/* Memory Match Helper Alert if fewer than 8 pairs */}
+      {isMemoryMatch && items.length < 8 && (
+        <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3 text-xs text-amber-300">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <span className="font-bold">4x4 Grid Board Requirement:</span>
+            <p className="text-amber-300/90">
+              Memory Match requires at least 8 unique card pairs to fill the 16 cards on the 4×4 grid. Click &quot;Reset 8 Pairs&quot; or add more pairs so all 8 slots have custom designs.
+            </p>
+          </div>
         </div>
+      )}
 
-        <div className="h-3 w-full bg-slate-950 rounded-full overflow-hidden flex p-0.5 gap-0.5 border border-slate-800">
-          {items
-            .filter((i) => i.enabled)
-            .map((item, idx) => {
-              const weight = Number(item.spawnWeight) || 10;
-              const safeTotal = Number(totalWeight) || 1;
-              const pct = (weight / safeTotal) * 100;
-              const bgClass =
-                item.points < 0
-                  ? 'bg-rose-500'
-                  : item.points >= 50
-                  ? 'bg-amber-400'
-                  : 'bg-emerald-500';
-              return (
-                <div
-                  key={item.id || idx}
-                  style={{ width: `${Math.max(4, pct)}%` }}
-                  className={`h-full rounded-sm ${bgClass} transition-all duration-300`}
-                  title={`${item.name}: ${(Number(pct) || 0).toFixed(1)}% chance`}
-                />
-              );
-            })}
-        </div>
+      {/* Spawn Distribution Summary Bar (Only for Arcade drop items) */}
+      {!isMemoryMatch && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+          <div className="flex justify-between items-center text-xs font-semibold text-slate-300">
+            <span>Relative Spawn Chance Distribution</span>
+            <span className="text-slate-400 font-mono text-[11px]">
+              {items.filter((i) => i.enabled).length} active items
+            </span>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            <span>Positive Item (+Pts)</span>
+          <div className="h-3 w-full bg-slate-950 rounded-full overflow-hidden flex p-0.5 gap-0.5 border border-slate-800">
+            {items
+              .filter((i) => i.enabled)
+              .map((item, idx) => {
+                const weight = Number(item.spawnWeight) || 10;
+                const safeTotal = Number(totalWeight) || 1;
+                const pct = (weight / safeTotal) * 100;
+                const bgClass =
+                  item.points < 0
+                    ? 'bg-rose-500'
+                    : item.points >= 50
+                    ? 'bg-amber-400'
+                    : 'bg-emerald-500';
+                return (
+                  <div
+                    key={item.id || idx}
+                    style={{ width: `${Math.max(4, pct)}%` }}
+                    className={`h-full rounded-sm ${bgClass} transition-all duration-300`}
+                    title={`${item.name}: ${(Number(pct) || 0).toFixed(1)}% chance`}
+                  />
+                );
+              })}
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-            <span>Hazard / Bomb (-Pts)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-            <span>Bonus Special (+50 Pts)</span>
+
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <span>Positive Item (+Pts)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+              <span>Hazard / Bomb (-Pts)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+              <span>Bonus Special (+50 Pts)</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Items Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -414,9 +466,9 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
             <div
               key={itemId}
               className={`bg-slate-900 border rounded-3xl p-5 space-y-4 shadow-lg relative transition-all ${
-                isHazard
+                isHazard && !isMemoryMatch
                   ? 'border-rose-500/40 bg-gradient-to-b from-rose-950/20 to-slate-900'
-                  : isBonus
+                  : isBonus && !isMemoryMatch
                   ? 'border-amber-500/40 bg-gradient-to-b from-amber-950/20 to-slate-900'
                   : 'border-slate-800'
               } ${!item.enabled ? 'opacity-60' : ''}`}
@@ -424,13 +476,15 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
               {/* Item Card Header */}
               <div className="flex items-center justify-between gap-2">
                 <div className="text-xs font-bold text-slate-300 flex items-center gap-2">
-                  <span>Drop Item</span>
-                  {isHazard && (
+                  <span className="px-2 py-0.5 rounded-lg bg-slate-800 text-amber-400 font-mono text-[11px] border border-slate-700">
+                    {isMemoryMatch ? `Pair #${index + 1}` : `Item #${index + 1}`}
+                  </span>
+                  {!isMemoryMatch && isHazard && (
                     <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 text-[10px] border border-rose-500/30">
                       Hazard
                     </span>
                   )}
-                  {isBonus && (
+                  {!isMemoryMatch && isBonus && (
                     <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] border border-amber-500/30">
                       Bonus
                     </span>
@@ -461,7 +515,9 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
               {/* Item Name & Points inputs */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2 space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-400">Item Name</label>
+                  <label className="text-[11px] font-semibold text-slate-400">
+                    {isMemoryMatch ? 'Card Pair Title' : 'Item Name'}
+                  </label>
                   <input
                     type="text"
                     value={item.name}
@@ -470,7 +526,9 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-400">Score Points</label>
+                  <label className="text-[11px] font-semibold text-slate-400">
+                    {isMemoryMatch ? 'Pair Points' : 'Score Points'}
+                  </label>
                   <input
                     type="number"
                     value={item.points}
@@ -493,52 +551,54 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                 isUploading={isUploading}
               />
 
-              {/* Speed Multiplier & Spawn Weight Sliders */}
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[11px] font-semibold text-slate-300">
-                    <span>Speed</span>
-                    <span className="text-amber-400 font-mono">
-                      {(Number(item.speedMultiplier) || 1.0).toFixed(1)}x
-                    </span>
+              {/* Speed Multiplier & Spawn Weight Sliders (Only for falling games) */}
+              {!isMemoryMatch && (
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] font-semibold text-slate-300">
+                      <span>Speed</span>
+                      <span className="text-amber-400 font-mono">
+                        {(Number(item.speedMultiplier) || 1.0).toFixed(1)}x
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2.5"
+                      step="0.1"
+                      value={item.speedMultiplier || 1.0}
+                      onChange={(e) =>
+                        handleUpdateItem(index, {
+                          speedMultiplier: parseFloat(e.target.value) || 1.0,
+                        })
+                      }
+                      className="w-full accent-amber-500 cursor-pointer"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="2.5"
-                    step="0.1"
-                    value={item.speedMultiplier || 1.0}
-                    onChange={(e) =>
-                      handleUpdateItem(index, {
-                        speedMultiplier: parseFloat(e.target.value) || 1.0,
-                      })
-                    }
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
-                </div>
 
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[11px] font-semibold text-slate-300">
-                    <span>Spawn Weight</span>
-                    <span className="text-amber-400 font-mono">
-                      {item.spawnWeight || 10} ({spawnPct}%)
-                    </span>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] font-semibold text-slate-300">
+                      <span>Spawn Weight</span>
+                      <span className="text-amber-400 font-mono">
+                        {item.spawnWeight || 10} ({spawnPct}%)
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="50"
+                      step="1"
+                      value={item.spawnWeight || 10}
+                      onChange={(e) =>
+                        handleUpdateItem(index, {
+                          spawnWeight: parseInt(e.target.value) || 10,
+                        })
+                      }
+                      className="w-full accent-amber-500 cursor-pointer"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="50"
-                    step="1"
-                    value={item.spawnWeight || 10}
-                    onChange={(e) =>
-                      handleUpdateItem(index, {
-                        spawnWeight: parseInt(e.target.value) || 10,
-                      })
-                    }
-                    className="w-full accent-amber-500 cursor-pointer"
-                  />
                 </div>
-              </div>
+              )}
             </div>
           );
         })}

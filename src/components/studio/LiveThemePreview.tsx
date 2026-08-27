@@ -897,17 +897,28 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                     >
                       {/* CARD BACK */}
                       <div
-                        className="absolute inset-0 w-full h-full rounded-xl flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors"
+                        className="absolute inset-0 w-full h-full rounded-xl flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors overflow-hidden p-1"
                         style={{
                           backfaceVisibility: 'hidden',
                           backgroundColor: theme.visuals_config?.cardBadBg || '#0f172a',
                           borderColor: theme.visuals_config?.cardBadBorder || '#334155',
                         }}
                       >
-                        <Grid3X3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 group-hover/card:text-amber-400 transition-colors" />
-                        <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 mt-0.5 font-bold">
-                          {idx + 1}
-                        </span>
+                        {theme.visuals_config?.cardBackUrl || theme.basket_config?.imageUrl || theme.basketUrl ? (
+                          <img
+                            src={theme.visuals_config?.cardBackUrl || theme.basket_config?.imageUrl || theme.basketUrl}
+                            alt="Card Back"
+                            className="max-h-full max-w-full object-contain filter drop-shadow-sm pointer-events-none"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <>
+                            <Grid3X3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 group-hover/card:text-amber-400 transition-colors" />
+                            <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 mt-0.5 font-bold">
+                              {idx + 1}
+                            </span>
+                          </>
+                        )}
                       </div>
 
                       {/* CARD FRONT FACE */}
