@@ -223,13 +223,17 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
   uploadingAsset,
 }) => {
   const items = theme.items_config || [];
+  const isMemoryMatch =
+    theme.game_slug === 'memory-match' ||
+    theme.slug?.includes('memory') ||
+    (theme as any).game_type === 'memory-match';
 
   const handleAddItem = () => {
     const newItem: ThemeDropItem = {
       id: `item_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      name: 'New Item',
+      name: isMemoryMatch ? `Card Pair ${items.length + 1}` : 'New Item',
       imageUrl: '',
-      points: 10,
+      points: isMemoryMatch ? 100 : 10,
       speedMultiplier: 1.0,
       spawnWeight: 10,
       enabled: true,
@@ -311,22 +315,37 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
               <Sparkles className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">Drop Items & Hazards</h3>
+              <h3 className="text-sm font-bold text-slate-100">
+                {isMemoryMatch ? 'Memory Match Card Pairs' : 'Drop Items & Hazards'}
+              </h3>
               <p className="text-xs text-slate-400">
-                Define collectible points, speed, artwork, and spawn weight
+                {isMemoryMatch
+                  ? 'Define the 8 unique card pairs, custom sprites, and match points for the 4×4 memory board'
+                  : 'Define collectible points, speed, artwork, and spawn weight'}
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          {isMemoryMatch && (
+            <span
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border ${
+                items.length >= 8
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+              }`}
+            >
+              {items.length} / 8 Card Pairs {items.length >= 8 ? '✓' : ''}
+            </span>
+          )}
           <button
             type="button"
             onClick={handleAddItem}
             className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Add Item</span>
+            <span>{isMemoryMatch ? 'Add Card Pair' : 'Add Item'}</span>
           </button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GameTheme, carnivalTheme } from '../../themes';
+import { GameTheme, carnivalTheme, memoryMatchTheme } from '../../themes';
 import { getDefaultUILayout } from '../../themes/layout';
 import { Sparkles, Copy, Plus, AlertCircle, Check, X, Layers } from 'lucide-react';
 
@@ -54,7 +54,9 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
         onCreated(newTheme.id);
       } else {
         // Start from scratch using clean baseline defaults
-        const base = existingThemes[0] || carnivalTheme;
+        const isMemoryGame = gameName?.toLowerCase().includes('memory') || false;
+        const defaultBase = isMemoryGame ? memoryMatchTheme : carnivalTheme;
+        const base = existingThemes[0] || defaultBase;
         const cleanName = (themeName || 'New Theme').trim();
         const newTheme = await onCreate({
           game_id: gameId,
@@ -63,70 +65,28 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
           description: `Custom game theme: ${cleanName}`,
           branding: {
             gameTitle: themeName.trim(),
-            subtitle: `Catch custom items in ${themeName.trim()}!`,
+            subtitle: isMemoryGame
+              ? `Flip and match pairs in ${themeName.trim()}!`
+              : `Catch custom items in ${themeName.trim()}!`,
             logoUrl: null,
             clientLogoUrl: null,
           },
-          background_url: base.background_url || carnivalTheme.background_url,
+          background_url: base.background_url || defaultBase.background_url,
           basket_config: base.basket_config
             ? JSON.parse(JSON.stringify(base.basket_config))
-            : {
-                name: 'Basket',
-                imageUrl: null,
-                width: 140,
-                height: 70,
-                catchAreaRatio: 0.75,
-                speed: 550,
-              },
+            : JSON.parse(JSON.stringify(defaultBase.basket_config)),
           items_config: base.items_config
             ? JSON.parse(JSON.stringify(base.items_config))
-            : [
-                {
-                  id: 'item_good_1',
-                  name: 'Standard Collectible',
-                  points: 10,
-                  speedMultiplier: 1.0,
-                  spawnWeight: 75,
-                  enabled: true,
-                  isHazard: false,
-                  isBonus: false,
-                },
-                {
-                  id: 'item_bad_1',
-                  name: 'Hazard Penalty',
-                  points: -10,
-                  speedMultiplier: 1.15,
-                  spawnWeight: 20,
-                  enabled: true,
-                  isHazard: true,
-                  isBonus: false,
-                },
-              ],
+            : JSON.parse(JSON.stringify(defaultBase.items_config)),
           physics_config: base.physics_config
             ? JSON.parse(JSON.stringify(base.physics_config))
-            : {
-                gameDurationSeconds: 20,
-                fallSpeedMultiplier: 0.7,
-                basketSpeed: 550,
-                baseFallSpeed: 300,
-                spawnIntervalMin: 600,
-                spawnIntervalMax: 1200,
-                difficultyStages: [],
-              },
+            : JSON.parse(JSON.stringify(defaultBase.physics_config)),
           visuals_config: base.visuals_config
             ? JSON.parse(JSON.stringify(base.visuals_config))
-            : {
-                accent: '#f59e0b',
-                primary: '#0f172a',
-                hudColor: '#fbbf24',
-              },
+            : JSON.parse(JSON.stringify(defaultBase.visuals_config)),
           sounds_config: base.sounds_config
             ? JSON.parse(JSON.stringify(base.sounds_config))
-            : {
-                soundEnabled: true,
-                bgmEnabled: true,
-                soundVolume: 0.8,
-              },
+            : JSON.parse(JSON.stringify(defaultBase.sounds_config)),
           layout: getDefaultUILayout(),
         });
         onCreated(newTheme.id);

@@ -106,6 +106,34 @@ export async function submitEventScore(
 
   const resolvedEventId = event.id;
 
+  // Validate game compatibility if metadata specifies a gameType
+  if (metadata.gameType && event.game?.game_type) {
+    if (metadata.gameType !== event.game.game_type) {
+      const err: any = new Error(`Score submission gameType "${metadata.gameType}" does not match event gameType "${event.game.game_type}"`);
+      err.status = 422;
+      throw err;
+    }
+  }
+
+  // Validate Memory Match specific metadata if present
+  if (metadata.gameType === 'memory-match') {
+    if (metadata.moves !== undefined && (typeof metadata.moves !== 'number' || metadata.moves < 0)) {
+      const err: any = new Error('Invalid moves count in score metadata');
+      err.status = 422;
+      throw err;
+    }
+    if (metadata.matchedPairs !== undefined && (typeof metadata.matchedPairs !== 'number' || metadata.matchedPairs < 0 || metadata.matchedPairs > (metadata.totalPairs || 8))) {
+      const err: any = new Error('Invalid matchedPairs count in score metadata');
+      err.status = 422;
+      throw err;
+    }
+    if (metadata.duration !== undefined && (typeof metadata.duration !== 'number' || metadata.duration < 0)) {
+      const err: any = new Error('Invalid duration in score metadata');
+      err.status = 422;
+      throw err;
+    }
+  }
+
   // Validate score: must be a non-negative integer
   const scoreNum = Math.floor(Number(params.score));
   if (isNaN(scoreNum) || scoreNum < 0) {

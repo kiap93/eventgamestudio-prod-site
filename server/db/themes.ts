@@ -286,8 +286,150 @@ export const DEFAULT_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organization_
 
 export const DEFAULT_DURIAN_THEME = DEFAULT_CARNIVAL_THEME;
 
+export const DEFAULT_MEMORY_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Memory Carnival Pairs',
+  slug: 'memory-carnival',
+  description: 'Classic memory concentration card match with 8 carnival attraction pairs, time bonuses, and combo multipliers.',
+  status: 'active',
+  branding: {
+    gameTitle: 'MEMORY MATCH CARNIVAL',
+    subtitle: 'Flip cards, match 8 carnival pairs, and beat the clock!',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/themes/carnival/background.png',
+  basket_config: {
+    name: 'Card Deck',
+    imageUrl: null,
+    width: 140,
+    height: 70,
+    catchAreaRatio: 0.75,
+    speed: 550,
+  },
+  items_config: [
+    {
+      id: 'pair_ticket',
+      name: 'Golden Ticket',
+      imageUrl: '/assets/themes/carnival/item_normal_01.png',
+      points: 100,
+      speedMultiplier: 1.0,
+      spawnWeight: 12,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+    },
+    {
+      id: 'pair_mask',
+      name: 'Carnival Mask',
+      imageUrl: '/assets/themes/carnival/item_hazard_01.png',
+      points: 100,
+      speedMultiplier: 1.0,
+      spawnWeight: 12,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+    },
+    {
+      id: 'pair_star',
+      name: 'Cosmic Star',
+      imageUrl: '/assets/themes/carnival/item_bonus_01.png',
+      points: 100,
+      speedMultiplier: 1.0,
+      spawnWeight: 12,
+      enabled: true,
+      isHazard: false,
+      isBonus: true,
+    },
+    {
+      id: 'pair_cart',
+      name: 'Carnival Cart',
+      imageUrl: '/assets/themes/carnival/basket.png',
+      points: 100,
+      speedMultiplier: 1.0,
+      spawnWeight: 12,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+    },
+    {
+      id: 'pair_tent',
+      name: 'Big Top Tent',
+      imageUrl: null,
+      points: 100,
+      speedMultiplier: 1.0,
+      spawnWeight: 12,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+    },
+    {
+      id: 'pair_balloons',
+      name: 'Party Balloons',
+      imageUrl: null,
+      points: 100,
+      speedMultiplier: 1.0,
+      spawnWeight: 12,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+    },
+    {
+      id: 'pair_cup',
+      name: 'Carnival Cup',
+      imageUrl: null,
+      points: 100,
+      speedMultiplier: 1.0,
+      spawnWeight: 12,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+    },
+    {
+      id: 'pair_wheel',
+      name: 'Fortune Wheel',
+      imageUrl: null,
+      points: 100,
+      speedMultiplier: 1.0,
+      spawnWeight: 12,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+    },
+  ],
+  physics_config: {
+    gameDurationSeconds: 45,
+    baseFallSpeed: 500,
+    fallSpeedMultiplier: 1.0,
+    spawnIntervalMin: 500,
+    spawnIntervalMax: 1000,
+    difficultyStages: [
+      { timeThreshold: 0, spawnInterval: 1000, speedMin: 350, speedMax: 500, hazardRatio: 0, bonusRatio: 0, stageName: 'Classic 4x4 Grid' },
+    ],
+  },
+  visuals_config: {
+    primaryColor: '#f59e0b',
+    secondaryColor: '#ec4899',
+    accentColor: '#10b981',
+    textColor: '#ffffff',
+    cardGoodBg: 'rgba(6, 78, 59, 0.85)',
+    cardGoodBorder: '#10b981',
+    cardBadBg: 'rgba(15, 23, 42, 0.95)',
+    cardBadBorder: '#f59e0b',
+    bgGradientFrom: '#0f172a',
+    bgGradientVia: '#1e1b4b',
+    bgGradientTo: '#0f172a',
+  },
+  sounds_config: {
+    soundVolume: 0.8,
+    soundEnabled: true,
+    bgmEnabled: true,
+  },
+  layout: DEFAULT_CARNIVAL_THEME.layout,
+};
+
 export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'>> = [
   DEFAULT_CARNIVAL_THEME,
+  DEFAULT_MEMORY_CARNIVAL_THEME,
   {
     name: 'Christmas Gift Rush',
     slug: 'christmas-rush',
@@ -1780,8 +1922,18 @@ export async function ensureSystemDefaultThemesForGame(
   const supabase = getSupabaseServerClient(env);
   const created: GameThemeRecord[] = [];
 
-  for (let i = 0; i < PRESET_THEMES.length; i++) {
-    const preset = PRESET_THEMES[i];
+  // Filter presets based on gameType
+  const relevantPresets = PRESET_THEMES.filter((p) => {
+    if (gameType === 'memory-match') {
+      return p.slug.includes('memory') || p.slug === 'carnival';
+    }
+    return !p.slug.includes('memory');
+  });
+
+  const presetsToSeed = relevantPresets.length > 0 ? relevantPresets : PRESET_THEMES;
+
+  for (let i = 0; i < presetsToSeed.length; i++) {
+    const preset = presetsToSeed[i];
     const isFirst = i === 0;
 
     try {

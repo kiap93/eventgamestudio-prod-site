@@ -198,5 +198,27 @@ body,
   font-size: 0.75rem;
 }
 
+/* ================= MEMORY MATCH 3D CARD ANIMATIONS ================= */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+@keyframes card-wobble {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  20% { transform: translateX(-4px) rotate(-3deg); }
+  40% { transform: translateX(4px) rotate(3deg); }
+  60% { transform: translateX(-3px) rotate(-2deg); }
+  80% { transform: translateX(3px) rotate(2deg); }
+}
+
+.animate-wobble {
+  animation: card-wobble 0.4s ease-in-out;
+}
+
+
 
 

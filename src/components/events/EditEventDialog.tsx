@@ -77,10 +77,32 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
     const fetchThemes = async () => {
       try {
         setLoadingThemes(true);
-        const res = await apiFetch('/api/themes');
-        if (!res.ok) throw new Error('Failed to fetch game themes');
-        const data = await res.json();
-        setThemes(data.themes || []);
+        const [customRes, systemRes] = await Promise.all([
+          apiFetch('/api/themes'),
+          apiFetch('/api/themes/system'),
+        ]);
+
+        let customThemes: GameThemeOption[] = [];
+        let systemThemes: GameThemeOption[] = [];
+
+        if (customRes.ok) {
+          const data = await customRes.json();
+          customThemes = data.themes || [];
+        }
+        if (systemRes.ok) {
+          const data = await systemRes.json();
+          systemThemes = data.system_themes || data.themes || [];
+        }
+
+        const map = new Map<string, GameThemeOption>();
+        for (const t of [...systemThemes, ...customThemes]) {
+          if (t && t.id) {
+            map.set(t.id, t);
+          }
+        }
+
+        const allThemes = Array.from(map.values());
+        setThemes(allThemes);
       } catch (err: any) {
         console.error('Error fetching themes:', err);
       } finally {
@@ -243,8 +265,8 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
               ) : (
                 <div className="space-y-4 max-h-52 overflow-y-auto pr-1">
                   {Array.from(
-                    themes.reduce((groups, theme) => {
-                      const gameKey = theme.game_name || 'Catch The Brand';
+                    (event?.game_id ? themes.filter((t) => !t.game_id || t.game_id === event.game_id) : themes).reduce((groups, theme) => {
+                      const gameKey = theme.game_name || event?.game?.name || 'Assigned Game';
                       if (!groups.has(gameKey)) groups.set(gameKey, []);
                       groups.get(gameKey)!.push(theme);
                       return groups;

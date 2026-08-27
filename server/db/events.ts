@@ -1198,14 +1198,20 @@ export async function updateEvent(
     payload.cancel_reason = updates.cancel_reason;
   }
 
-  // 2. If changing theme, verify organizational isolation
+  // 2. If changing theme, verify organizational isolation and game compatibility
   if (updates.game_theme_id !== undefined && updates.game_theme_id !== existing.game_theme_id) {
     const newTheme = await getThemeById(updates.game_theme_id, env);
     if (!newTheme) {
       throw new Error('New Game Theme not found');
     }
-    if (newTheme.organization_id !== existing.organization_id) {
+    if (newTheme.organization_id && newTheme.organization_id !== existing.organization_id && !newTheme.is_system) {
       throw new Error('Security Error: Game Theme belongs to another organization');
+    }
+    if (existing.game_id && newTheme.game_id && existing.game_id !== newTheme.game_id) {
+      const err: any = new Error('Selected theme does not belong to the chosen game for this event.');
+      err.code = 'THEME_GAME_MISMATCH';
+      err.status = 422;
+      throw err;
     }
     payload.game_theme_id = updates.game_theme_id;
   }

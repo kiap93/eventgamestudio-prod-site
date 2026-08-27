@@ -1,5 +1,7 @@
 import { GameDefinition, CatchBrandConfig } from './types';
 import { CatchBrandGame } from './catch-brand/CatchBrandGame';
+import { MemoryMatchGame } from './memory-match/MemoryMatchGame';
+import { MemoryMatchConfig } from './memory-match/types';
 
 export const DEFAULT_GAME_TYPE = 'catch-brand';
 
@@ -57,7 +59,7 @@ export const GAME_REGISTRY: Record<string, GameDefinition<any>> = {
     iconName: 'Grid3X3',
     category: 'puzzle',
     minPlayers: 1,
-    maxPlayers: 2,
+    maxPlayers: 1,
     defaultDurationSeconds: 45,
     supportedInputTypes: ['touch', 'mouse'],
     defaultConfig: {
@@ -65,10 +67,15 @@ export const GAME_REGISTRY: Record<string, GameDefinition<any>> = {
       soundVolume: 0.8,
       soundEnabled: true,
       bgmEnabled: true,
-    },
-    component: CatchBrandGame, // Fallback until implemented
-    isAvailable: false,
-    comingSoon: true,
+      gridRows: 4,
+      gridCols: 4,
+      pairCount: 8,
+      mismatchDelayMs: 850,
+      matchPoints: 100,
+      comboPoints: 30,
+    } as MemoryMatchConfig,
+    component: MemoryMatchGame,
+    isAvailable: true,
   },
   'speed-quiz': {
     id: 'speed-quiz',

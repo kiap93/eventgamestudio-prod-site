@@ -7,3 +7,4 @@ export * from './christmas';
 export * from './cny';
 export * from './halloween';
 export * from './mango';
+export * from './memory-match';

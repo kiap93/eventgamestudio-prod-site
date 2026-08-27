@@ -36,6 +36,13 @@ export const CATALOG_GAMES = [
     description: 'Fast-paced arcade catcher! Catch good brand objects, dodge hazardous obstacles, and collect golden bonus items.',
     icon_name: 'Gamepad2',
   },
+  {
+    name: 'Brand Memory Match',
+    slug: 'memory-match',
+    game_type: 'memory-match',
+    description: 'Classic card flip and memory puzzle matching custom branded products and logos.',
+    icon_name: 'Grid3X3',
+  },
 ];
 
 export class GameConflictError extends Error {
@@ -429,33 +436,50 @@ export async function ensureSystemCatalogGames(env?: Record<string, any>): Promi
   }
 
   const list = (existingGames || []) as GameRecord[];
-  
-  // If NO system games exist at all in database, initialize baseline platform game
-  if (list.length === 0) {
-    const catalogGame = CATALOG_GAMES[0];
-    try {
-      const id = crypto.randomUUID();
-      const now = new Date().toISOString();
-      await supabase.from('games').insert({
-        id,
-        organization_id: null,
-        is_system: true,
-        ownership_type: 'system',
-        name: catalogGame.name,
-        slug: catalogGame.slug,
-        game_type: catalogGame.game_type,
-        description: catalogGame.description,
-        icon_name: catalogGame.icon_name,
-        status: 'active',
-        background_url: '/assets/themes/carnival/background.png',
-        basket_config: DEFAULT_BASKET_CONFIG,
-        items_config: DEFAULT_ITEMS_CONFIG,
-        settings_config: DEFAULT_SETTINGS_CONFIG,
-        created_at: now,
-        updated_at: now,
-      });
-    } catch (err: any) {
-      console.warn('Could not seed baseline system game:', catalogGame.name, err.message);
+  const existingTypes = new Set(list.map((g) => g.game_type || g.slug));
+
+  // Ensure each catalog game exists in platform games
+  for (const catalogGame of CATALOG_GAMES) {
+    if (!existingTypes.has(catalogGame.game_type) && !existingTypes.has(catalogGame.slug)) {
+      try {
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const { data: created } = await supabase
+          .from('games')
+          .insert({
+            id,
+            organization_id: null,
+            is_system: true,
+            ownership_type: 'system',
+            name: catalogGame.name,
+            slug: catalogGame.slug,
+            game_type: catalogGame.game_type,
+            description: catalogGame.description,
+            icon_name: catalogGame.icon_name,
+            status: 'active',
+            background_url: '/assets/themes/carnival/background.png',
+            basket_config: DEFAULT_BASKET_CONFIG,
+            items_config: DEFAULT_ITEMS_CONFIG,
+            settings_config: DEFAULT_SETTINGS_CONFIG,
+            created_at: now,
+            updated_at: now,
+          })
+          .select()
+          .single();
+
+        if (created) {
+          list.push(created as GameRecord);
+          // Seed default system themes for this new platform game
+          try {
+            const { ensureSystemDefaultThemesForGame } = await import('./themes.js');
+            await ensureSystemDefaultThemesForGame(created.id, created.game_type, env);
+          } catch (themeErr: any) {
+            console.warn('Could not seed system themes for game:', catalogGame.name, themeErr?.message);
+          }
+        }
+      } catch (err: any) {
+        console.warn('Could not seed baseline system game:', catalogGame.name, err.message);
+      }
     }
   }
 
@@ -481,37 +505,45 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
   }
 
   let games = (gamesData || []) as GameRecord[];
+  const existingTypes = new Set(games.map((g) => g.game_type || g.slug));
 
-  // If no system games exist yet, initialize baseline platform game
-  if (games.length === 0) {
-    const catalogGame = CATALOG_GAMES[0];
-    try {
-      const id = crypto.randomUUID();
-      const now = new Date().toISOString();
-      const { data: created } = await supabase
-        .from('games')
-        .insert({
-          id,
-          organization_id: null,
-          is_system: true,
-          ownership_type: 'system',
-          name: catalogGame.name,
-          slug: catalogGame.slug,
-          game_type: catalogGame.game_type,
-          description: catalogGame.description,
-          icon_name: catalogGame.icon_name,
-          status: 'active',
-          background_url: '/assets/themes/carnival/background.png',
-          basket_config: DEFAULT_BASKET_CONFIG,
-          items_config: DEFAULT_ITEMS_CONFIG,
-          settings_config: DEFAULT_SETTINGS_CONFIG,
-          created_at: now,
-          updated_at: now,
-        })
-        .select()
-        .single();
-      if (created) games.push(created as GameRecord);
-    } catch (_err) {}
+  // If any catalog game is missing, initialize it
+  for (const catalogGame of CATALOG_GAMES) {
+    if (!existingTypes.has(catalogGame.game_type) && !existingTypes.has(catalogGame.slug)) {
+      try {
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const { data: created } = await supabase
+          .from('games')
+          .insert({
+            id,
+            organization_id: null,
+            is_system: true,
+            ownership_type: 'system',
+            name: catalogGame.name,
+            slug: catalogGame.slug,
+            game_type: catalogGame.game_type,
+            description: catalogGame.description,
+            icon_name: catalogGame.icon_name,
+            status: 'active',
+            background_url: '/assets/themes/carnival/background.png',
+            basket_config: DEFAULT_BASKET_CONFIG,
+            items_config: DEFAULT_ITEMS_CONFIG,
+            settings_config: DEFAULT_SETTINGS_CONFIG,
+            created_at: now,
+            updated_at: now,
+          })
+          .select()
+          .single();
+        if (created) {
+          games.push(created as GameRecord);
+          try {
+            const { ensureSystemDefaultThemesForGame } = await import('./themes.js');
+            await ensureSystemDefaultThemesForGame(created.id, created.game_type, env);
+          } catch (_err) {}
+        }
+      } catch (_err) {}
+    }
   }
 
   // Count themes per game (system default themes and all themes)

@@ -5,6 +5,7 @@ import { christmasTheme } from './christmas';
 import { cnyTheme } from './cny';
 import { halloweenTheme } from './halloween';
 import { mangoTheme } from './mango';
+import { memoryMatchTheme } from './memory-match';
 
 /**
  * Default active theme ID.
@@ -17,6 +18,8 @@ export const THEME_REGISTRY: Record<string, GameTheme> = {
   'chinese-new-year': cnyTheme,
   halloween: halloweenTheme,
   mango: mangoTheme,
+  'memory-carnival': memoryMatchTheme,
+  'memory-match': memoryMatchTheme,
   // Alias durian to carnival for seamless backwards-compatibility
   durian: carnivalTheme,
 };
@@ -32,6 +35,9 @@ export function resolveThemeBaseId(raw: any): string {
   const slug = (raw.slug || '').toLowerCase();
   const name = (raw.name || '').toLowerCase();
 
+  if (id === 'memory-carnival' || id === 'memory-match' || slug.includes('memory') || name.includes('memory')) {
+    return 'memory-carnival';
+  }
   if (id === 'carnival' || slug.includes('carnival') || name.includes('carnival')) {
     return 'carnival';
   }

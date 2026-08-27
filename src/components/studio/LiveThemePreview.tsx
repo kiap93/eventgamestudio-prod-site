@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameTheme, ThemeDropItem } from '../../themes/types';
 import { soundManager } from '../../game/systems/SoundManager';
+import { createShuffledDeck } from '../../games/memory-match/cardDeck';
+import { MemoryCard } from '../../games/memory-match/types';
 import {
   GameLayoutConfig,
   LayoutElementKey,
@@ -29,6 +31,13 @@ import {
   Timer as TimerIcon,
   Type,
   Megaphone,
+  Ticket,
+  CheckCircle2,
+  Grid3X3,
+  ShoppingBag,
+  Tent,
+  PartyPopper,
+  Disc,
 } from 'lucide-react';
 
 interface LiveThemePreviewProps {
@@ -99,6 +108,92 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     theme.physics_config?.gameDurationSeconds || 20
   );
   const [currentStageName, setCurrentStageName] = useState<string>('Stage 1: Calm');
+
+  const isMemoryMatch =
+    theme.game_slug === 'memory-match' ||
+    theme.slug?.includes('memory') ||
+    (theme as any).game_type === 'memory-match';
+
+  // Memory match interactive preview state
+  const [memoryDeck, setMemoryDeck] = useState<MemoryCard[]>(() => createShuffledDeck(theme));
+  const [memoryFlippedIndices, setMemoryFlippedIndices] = useState<number[]>([]);
+  const [matchedPairCount, setMatchedPairCount] = useState<number>(0);
+
+  // Sync memory deck when theme items or branding change
+  useEffect(() => {
+    if (isMemoryMatch) {
+      setMemoryDeck(createShuffledDeck(theme));
+      setMemoryFlippedIndices([]);
+      setMatchedPairCount(0);
+    }
+  }, [theme, isMemoryMatch]);
+
+  const handleCardClick = (index: number) => {
+    if (!memoryDeck[index] || memoryDeck[index].isMatched || memoryDeck[index].isFlipped) return;
+    if (memoryFlippedIndices.length >= 2) return;
+
+    const nextDeck = [...memoryDeck];
+    nextDeck[index] = { ...nextDeck[index], isFlipped: true };
+    setMemoryDeck(nextDeck);
+
+    const nextFlipped = [...memoryFlippedIndices, index];
+    setMemoryFlippedIndices(nextFlipped);
+
+    if (nextFlipped.length === 2) {
+      const [firstIdx, secondIdx] = nextFlipped;
+      const firstCard = nextDeck[firstIdx];
+      const secondCard = nextDeck[secondIdx];
+
+      if (firstCard.pairId === secondCard.pairId) {
+        setTimeout(() => {
+          setMemoryDeck((prev) =>
+            prev.map((c, i) =>
+              i === firstIdx || i === secondIdx ? { ...c, isMatched: true } : c
+            )
+          );
+          setScore((s) => s + (firstCard.points || 100));
+          setMatchedPairCount((m) => m + 1);
+          setMemoryFlippedIndices([]);
+        }, 400);
+      } else {
+        setTimeout(() => {
+          setMemoryDeck((prev) =>
+            prev.map((c, i) =>
+              i === firstIdx || i === secondIdx ? { ...c, isFlipped: false } : c
+            )
+          );
+          setMemoryFlippedIndices([]);
+        }, 800);
+      }
+    }
+  };
+
+  const renderCardIcon = (iconName?: string, className: string = 'w-6 h-6') => {
+    switch (iconName) {
+      case 'Ticket':
+        return <Ticket className={className} />;
+      case 'Sparkles':
+        return <Sparkles className={className} />;
+      case 'Star':
+        return <Star className={className} />;
+      case 'ShoppingBag':
+        return <ShoppingBag className={className} />;
+      case 'Tent':
+        return <Tent className={className} />;
+      case 'PartyPopper':
+        return <PartyPopper className={className} />;
+      case 'Trophy':
+        return <Trophy className={className} />;
+      case 'Disc':
+        return <Disc className={className} />;
+      case 'CheckCircle2':
+        return <CheckCircle2 className={className} />;
+      case 'Flame':
+        return <Flame className={className} />;
+      default:
+        return <Sparkles className={className} />;
+    }
+  };
 
   // Dragging and resizing state for layout elements
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -763,15 +858,116 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         onPointerCancel={handleContainerPointerUp}
         className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none flex items-center justify-center"
       >
-        <canvas
-          ref={canvasRef}
-          width={DESIGN_WIDTH}
-          height={DESIGN_HEIGHT}
-          onPointerMove={handlePointerMove}
-          className={`w-full h-full object-contain ${
-            isInteractive ? 'cursor-ew-resize' : 'cursor-default'
-          }`}
-        />
+        {isMemoryMatch ? (
+          /* MEMORY MATCH LIVE BOARD PREVIEW */
+          <div
+            className="w-full h-full relative flex items-center justify-center p-4 overflow-hidden"
+            style={{
+              backgroundImage: theme.background_url ? `url(${theme.background_url})` : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+            }}
+          >
+            {/* Background Gradient Fallback / Tint */}
+            <div
+              className="absolute inset-0 z-0 pointer-events-none"
+              style={{
+                background: theme.background_url
+                  ? 'rgba(15, 23, 42, 0.65)'
+                  : `linear-gradient(135deg, ${theme.visuals_config?.bgGradientFrom || '#0f172a'} 0%, ${theme.visuals_config?.bgGradientVia || '#1e1b4b'} 50%, ${theme.visuals_config?.bgGradientTo || '#0f172a'} 100%)`,
+              }}
+            />
+
+            {/* 4x4 Interactive Card Grid Centered */}
+            <div className="relative z-10 w-full max-w-[480px] sm:max-w-[560px] aspect-[4/3] grid grid-cols-4 gap-1.5 sm:gap-2.5 p-2 sm:p-3 rounded-2xl bg-slate-950/70 backdrop-blur-md border border-slate-800/80 shadow-2xl">
+              {memoryDeck.map((card, idx) => {
+                const isFlipped = card.isFlipped || card.isMatched;
+                return (
+                  <div
+                    key={card.id || idx}
+                    onClick={() => handleCardClick(idx)}
+                    className="relative w-full h-full cursor-pointer perspective-1000 group/card transition-transform active:scale-95"
+                    title={`Click to flip ${card.name}`}
+                  >
+                    <div
+                      className={`relative w-full h-full duration-300 rounded-xl transition-all [transform-style:preserve-3d] shadow-sm ${
+                        isFlipped ? '[transform:rotateY(180deg)]' : ''
+                      }`}
+                    >
+                      {/* CARD BACK */}
+                      <div
+                        className="absolute inset-0 w-full h-full rounded-xl flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors"
+                        style={{
+                          backfaceVisibility: 'hidden',
+                          backgroundColor: theme.visuals_config?.cardBadBg || '#0f172a',
+                          borderColor: theme.visuals_config?.cardBadBorder || '#334155',
+                        }}
+                      >
+                        <Grid3X3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 group-hover/card:text-amber-400 transition-colors" />
+                        <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 mt-0.5 font-bold">
+                          {idx + 1}
+                        </span>
+                      </div>
+
+                      {/* CARD FRONT FACE */}
+                      <div
+                        className="absolute inset-0 w-full h-full rounded-xl flex flex-col items-center justify-between p-1 sm:p-1.5 border-2 shadow-lg"
+                        style={{
+                          backfaceVisibility: 'hidden',
+                          transform: 'rotateY(180deg)',
+                          backgroundColor: card.isMatched
+                            ? theme.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
+                            : card.bgColor || 'rgba(15, 23, 42, 0.95)',
+                          borderColor: card.isMatched
+                            ? theme.visuals_config?.cardGoodBorder || '#10b981'
+                            : card.borderColor || '#f59e0b',
+                        }}
+                      >
+                        {card.isMatched && (
+                          <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow">
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                          </div>
+                        )}
+                        <div className="flex-1 w-full flex items-center justify-center p-0.5">
+                          {card.imageUrl ? (
+                            <img
+                              src={card.imageUrl}
+                              alt={card.name}
+                              className="max-h-[80%] max-w-[80%] object-contain drop-shadow"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div
+                              className="p-1 rounded-lg flex items-center justify-center"
+                              style={{ color: card.color || '#fbbf24' }}
+                            >
+                              {renderCardIcon(card.iconName, 'w-5 h-5 sm:w-7 sm:h-7')}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[8px] sm:text-[10px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-0.5">
+                          {card.name}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* CATCH BRAND FALLING CANVAS SIMULATION */
+          <canvas
+            ref={canvasRef}
+            width={DESIGN_WIDTH}
+            height={DESIGN_HEIGHT}
+            onPointerMove={handlePointerMove}
+            className={`w-full h-full object-contain ${
+              isInteractive ? 'cursor-ew-resize' : 'cursor-default'
+            }`}
+          />
+        )}
 
         {/* RESPONSIVE SCALED LOGICAL LAYOUT OVERLAYS (1024x576) */}
         <div
@@ -793,27 +989,32 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           {LAYOUT_ELEMENT_KEYS.map((k) => renderLayoutElementOverlay(k))}
         </div>
 
-        {isInteractive && (
+        {isInteractive && !isMemoryMatch && (
           <div className="absolute bottom-2 inset-x-0 mx-auto w-fit bg-amber-500/90 text-slate-950 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-lg pointer-events-none animate-bounce z-30">
             Move mouse / finger horizontally across canvas to catch items!
           </div>
         )}
       </div>
 
-      {/* Quick Drop Item Tester Palette */}
+      {/* Quick Drop Item / Card Pair Tester Palette */}
       <div className="space-y-1.5 pt-1">
         <div className="flex items-center justify-between text-[11px] text-slate-400">
           <span className="font-semibold flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-amber-400" /> Instant Item Drop Tester
+            <Sparkles className="w-3 h-3 text-amber-400" />{' '}
+            {isMemoryMatch ? 'Memory Match Card Pairs' : 'Instant Item Drop Tester'}
           </span>
-          <span>Click to spawn item</span>
+          <span>{isMemoryMatch ? 'Configured theme pairs' : 'Click to spawn item'}</span>
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           {(theme.items_config || []).map((item, idx) => (
             <button
               key={item.id || idx}
-              onClick={() => dropItemInstantly(item)}
+              onClick={() => {
+                if (!isMemoryMatch) {
+                  dropItemInstantly(item);
+                }
+              }}
               className={`px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 border transition-all ${
                 item.isHazard
                   ? 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20'
