@@ -49,7 +49,14 @@ export const GameShell: React.FC<GameShellProps> = ({
   );
 
   // Current game definition lookup
-  const gameDef = getGameDefinition(gameType);
+  const resolvedGameType =
+    (customTheme?.game_slug === 'memory-match' ||
+      (customTheme as any)?.game_type === 'memory-match' ||
+      customTheme?.slug?.includes('memory'))
+      ? 'memory-match'
+      : (gameType || DEFAULT_GAME_TYPE);
+
+  const gameDef = getGameDefinition(resolvedGameType);
   const GameComponent = gameDef.component;
 
   // Sync theme changes

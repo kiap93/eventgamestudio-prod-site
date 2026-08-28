@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { GameTheme, ThemeDifficultyStage } from '../../themes/types';
+import { MemoryMatchGameplayCustomizer } from './games/MemoryMatchCustomizer';
 import {
   Zap,
   Clock,
@@ -19,6 +20,16 @@ interface GameplayTabProps {
 }
 
 export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => {
+  const isMemoryMatch =
+    theme.game_slug === 'memory-match' ||
+    (theme as any).game_type === 'memory-match' ||
+    (theme as any).game_id === 'memory-match' ||
+    theme.slug?.includes('memory');
+
+  if (isMemoryMatch) {
+    return <MemoryMatchGameplayCustomizer theme={theme} onChange={onChange} />;
+  }
+
   const [showAdvancedPhysics, setShowAdvancedPhysics] = useState(false);
 
   const physics = theme.physics_config || {

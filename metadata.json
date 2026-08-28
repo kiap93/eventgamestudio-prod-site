@@ -1,6 +1,6 @@
 {
   "name": "Remix Copy of Remix Durian Catcher",
-  "description": "EventGameStudio interactive event gaming platform featuring customizable Catch The Brand and Memory Match games with full Theme Studio styling and assets customization.",
+  "description": "EventGameStudio: Interactive game customization platform featuring Catch the Brand and Memory Match arcade games.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

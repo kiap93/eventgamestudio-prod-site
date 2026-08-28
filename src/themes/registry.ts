@@ -34,8 +34,17 @@ export function resolveThemeBaseId(raw: any): string {
   const id = (raw.id || '').toLowerCase();
   const slug = (raw.slug || '').toLowerCase();
   const name = (raw.name || '').toLowerCase();
+  const gameSlug = (raw.game_slug || (raw.games?.slug) || '').toLowerCase();
+  const gameType = (raw.game_type || raw.game_id || '').toLowerCase();
 
-  if (id === 'memory-carnival' || id === 'memory-match' || slug.includes('memory') || name.includes('memory')) {
+  if (
+    id === 'memory-carnival' ||
+    id === 'memory-match' ||
+    slug.includes('memory') ||
+    name.includes('memory') ||
+    gameSlug === 'memory-match' ||
+    gameType === 'memory-match'
+  ) {
     return 'memory-carnival';
   }
   if (id === 'carnival' || slug.includes('carnival') || name.includes('carnival')) {

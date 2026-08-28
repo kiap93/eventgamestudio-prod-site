@@ -54,39 +54,50 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
         onCreated(newTheme.id);
       } else {
         // Start from scratch using clean baseline defaults
-        const isMemoryGame = gameName?.toLowerCase().includes('memory') || false;
+        const isMemoryGame =
+          gameName?.toLowerCase().includes('memory') ||
+          gameId === 'memory-match' ||
+          false;
         const defaultBase = isMemoryGame ? memoryMatchTheme : carnivalTheme;
-        const base = existingThemes[0] || defaultBase;
+        const matchingExisting = existingThemes.find((t) =>
+          isMemoryGame
+            ? t.game_slug === 'memory-match' || (t as any).game_type === 'memory-match' || t.slug?.includes('memory')
+            : t.game_slug !== 'memory-match' && (t as any).game_type !== 'memory-match' && !t.slug?.includes('memory')
+        );
+        const base = matchingExisting || defaultBase;
         const cleanName = (themeName || 'New Theme').trim();
         const newTheme = await onCreate({
           game_id: gameId,
+          game_slug: isMemoryGame ? 'memory-match' : 'catch-brand',
           name: cleanName,
           slug: cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          description: `Custom game theme: ${cleanName}`,
+          description: isMemoryGame
+            ? `Custom Memory Match theme: ${cleanName}`
+            : `Custom game theme: ${cleanName}`,
           branding: {
-            gameTitle: themeName.trim(),
+            gameTitle: themeName.trim().toUpperCase(),
             subtitle: isMemoryGame
               ? `Flip and match pairs in ${themeName.trim()}!`
               : `Catch custom items in ${themeName.trim()}!`,
             logoUrl: null,
             clientLogoUrl: null,
           },
-          background_url: base.background_url || defaultBase.background_url,
-          basket_config: base.basket_config
-            ? JSON.parse(JSON.stringify(base.basket_config))
-            : JSON.parse(JSON.stringify(defaultBase.basket_config)),
-          items_config: base.items_config
-            ? JSON.parse(JSON.stringify(base.items_config))
-            : JSON.parse(JSON.stringify(defaultBase.items_config)),
-          physics_config: base.physics_config
-            ? JSON.parse(JSON.stringify(base.physics_config))
-            : JSON.parse(JSON.stringify(defaultBase.physics_config)),
-          visuals_config: base.visuals_config
-            ? JSON.parse(JSON.stringify(base.visuals_config))
-            : JSON.parse(JSON.stringify(defaultBase.visuals_config)),
-          sounds_config: base.sounds_config
-            ? JSON.parse(JSON.stringify(base.sounds_config))
-            : JSON.parse(JSON.stringify(defaultBase.sounds_config)),
+          background_url: defaultBase.background_url || base.background_url,
+          basket_config: isMemoryGame
+            ? JSON.parse(JSON.stringify(memoryMatchTheme.basket_config))
+            : JSON.parse(JSON.stringify(base.basket_config || defaultBase.basket_config)),
+          items_config: isMemoryGame
+            ? JSON.parse(JSON.stringify(memoryMatchTheme.items_config))
+            : JSON.parse(JSON.stringify(base.items_config || defaultBase.items_config)),
+          physics_config: isMemoryGame
+            ? JSON.parse(JSON.stringify(memoryMatchTheme.physics_config))
+            : JSON.parse(JSON.stringify(base.physics_config || defaultBase.physics_config)),
+          visuals_config: isMemoryGame
+            ? JSON.parse(JSON.stringify(memoryMatchTheme.visuals_config))
+            : JSON.parse(JSON.stringify(base.visuals_config || defaultBase.visuals_config)),
+          sounds_config: isMemoryGame
+            ? JSON.parse(JSON.stringify(memoryMatchTheme.sounds_config))
+            : JSON.parse(JSON.stringify(base.sounds_config || defaultBase.sounds_config)),
           layout: getDefaultUILayout(),
         });
         onCreated(newTheme.id);

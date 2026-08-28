@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GameTheme } from '../../themes/types';
 import { soundManager } from '../../game/systems/SoundManager';
+import { MemoryMatchAudioTester } from './games/MemoryMatchCustomizer';
 import {
   Volume2,
   VolumeX,
@@ -21,6 +22,12 @@ interface AudioTabProps {
 }
 
 export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
+  const isMemoryMatch =
+    theme.game_slug === 'memory-match' ||
+    (theme as any).game_type === 'memory-match' ||
+    (theme as any).game_id === 'memory-match' ||
+    theme.slug?.includes('memory');
+
   const [isPlayingBgmSample, setIsPlayingBgmSample] = useState(false);
   const [showCustomAudioUrls, setShowCustomAudioUrls] = useState(false);
 
@@ -140,142 +147,146 @@ export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
       </div>
 
       {/* 2. INTERACTIVE SOUND EFFECTS TESTER PALETTE */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-lg">
-        <div>
-          <h3 className="text-sm font-bold text-slate-100">Sound Effects Triggers</h3>
-          <p className="text-xs text-slate-400">
-            Click any event below to preview its audio feedback tone immediately
-          </p>
+      {isMemoryMatch ? (
+        <MemoryMatchAudioTester />
+      ) : (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-lg">
+          <div>
+            <h3 className="text-sm font-bold text-slate-100">Sound Effects Triggers</h3>
+            <p className="text-xs text-slate-400">
+              Click any event below to preview its audio feedback tone immediately
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {/* Good Item Catch */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <Sparkles className="w-4 h-4" />
+                </span>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-200">Catch Good Item</h4>
+                  <p className="text-[10px] text-slate-400">High Chime / Pluck</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => soundManager.playGreenCatch()}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
+              >
+                <Play className="w-3 h-3 text-emerald-400" />
+                <span>Test</span>
+              </button>
+            </div>
+
+            {/* Hazard Catch */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  <Flame className="w-4 h-4" />
+                </span>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-200">Catch Hazard Bomb</h4>
+                  <p className="text-[10px] text-slate-400">Sawtooth Low Buzz</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => soundManager.playOrangeCatch()}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
+              >
+                <Play className="w-3 h-3 text-rose-400" />
+                <span>Test</span>
+              </button>
+            </div>
+
+            {/* Bonus Catch */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <Star className="w-4 h-4" />
+                </span>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-200">Catch Bonus Special</h4>
+                  <p className="text-[10px] text-slate-400">Arpeggiated C-E-G-C</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => soundManager.playGoldenCatch()}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
+              >
+                <Play className="w-3 h-3 text-amber-400" />
+                <span>Test</span>
+              </button>
+            </div>
+
+            {/* Game Start Fanfare */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                  <Play className="w-4 h-4" />
+                </span>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-200">Start Fanfare</h4>
+                  <p className="text-[10px] text-slate-400">Upbeat 4-Note Chime</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => soundManager.playStart()}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
+              >
+                <Play className="w-3 h-3 text-sky-400" />
+                <span>Test</span>
+              </button>
+            </div>
+
+            {/* Countdown Beep */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  <Music className="w-4 h-4" />
+                </span>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-200">Countdown Beep</h4>
+                  <p className="text-[10px] text-slate-400">3... 2... 1... GO!</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => soundManager.playCountdownBeep(true)}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
+              >
+                <Play className="w-3 h-3 text-purple-400" />
+                <span>Test</span>
+              </button>
+            </div>
+
+            {/* Game Over Jingle */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                  <VolumeX className="w-4 h-4" />
+                </span>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-200">Game Over Jingle</h4>
+                  <p className="text-[10px] text-slate-400">Descending Minor Tune</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => soundManager.playGameOver()}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
+              >
+                <Play className="w-3 h-3 text-orange-400" />
+                <span>Test</span>
+              </button>
+            </div>
+          </div>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {/* Good Item Catch */}
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <Sparkles className="w-4 h-4" />
-              </span>
-              <div>
-                <h4 className="text-xs font-bold text-slate-200">Catch Good Item</h4>
-                <p className="text-[10px] text-slate-400">High Chime / Pluck</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => soundManager.playGreenCatch()}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
-            >
-              <Play className="w-3 h-3 text-emerald-400" />
-              <span>Test</span>
-            </button>
-          </div>
-
-          {/* Hazard Catch */}
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                <Flame className="w-4 h-4" />
-              </span>
-              <div>
-                <h4 className="text-xs font-bold text-slate-200">Catch Hazard Bomb</h4>
-                <p className="text-[10px] text-slate-400">Sawtooth Low Buzz</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => soundManager.playOrangeCatch()}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
-            >
-              <Play className="w-3 h-3 text-rose-400" />
-              <span>Test</span>
-            </button>
-          </div>
-
-          {/* Bonus Catch */}
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                <Star className="w-4 h-4" />
-              </span>
-              <div>
-                <h4 className="text-xs font-bold text-slate-200">Catch Bonus Special</h4>
-                <p className="text-[10px] text-slate-400">Arpeggiated C-E-G-C</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => soundManager.playGoldenCatch()}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
-            >
-              <Play className="w-3 h-3 text-amber-400" />
-              <span>Test</span>
-            </button>
-          </div>
-
-          {/* Game Start Fanfare */}
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                <Play className="w-4 h-4" />
-              </span>
-              <div>
-                <h4 className="text-xs font-bold text-slate-200">Start Fanfare</h4>
-                <p className="text-[10px] text-slate-400">Upbeat 4-Note Chime</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => soundManager.playStart()}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
-            >
-              <Play className="w-3 h-3 text-sky-400" />
-              <span>Test</span>
-            </button>
-          </div>
-
-          {/* Countdown Beep */}
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                <Music className="w-4 h-4" />
-              </span>
-              <div>
-                <h4 className="text-xs font-bold text-slate-200">Countdown Beep</h4>
-                <p className="text-[10px] text-slate-400">3... 2... 1... GO!</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => soundManager.playCountdownBeep(true)}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
-            >
-              <Play className="w-3 h-3 text-purple-400" />
-              <span>Test</span>
-            </button>
-          </div>
-
-          {/* Game Over Jingle */}
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/20">
-                <VolumeX className="w-4 h-4" />
-              </span>
-              <div>
-                <h4 className="text-xs font-bold text-slate-200">Game Over Jingle</h4>
-                <p className="text-[10px] text-slate-400">Descending Minor Tune</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => soundManager.playGameOver()}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition-all"
-            >
-              <Play className="w-3 h-3 text-orange-400" />
-              <span>Test</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* 3. COLLAPSIBLE CUSTOM AUDIO ASSET URLS */}
       <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/50">

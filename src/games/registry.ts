@@ -108,8 +108,14 @@ export function getGameDefinition(gameType?: string | null): GameDefinition {
   if (!gameType) {
     return GAME_REGISTRY[DEFAULT_GAME_TYPE];
   }
-  const normalized = gameType.trim().toLowerCase();
-  return GAME_REGISTRY[normalized] || GAME_REGISTRY[DEFAULT_GAME_TYPE];
+  const normalized = gameType.trim().toLowerCase().replace(/_/g, '-');
+  if (GAME_REGISTRY[normalized]) {
+    return GAME_REGISTRY[normalized];
+  }
+  if (normalized.includes('memory')) {
+    return GAME_REGISTRY['memory-match'];
+  }
+  return GAME_REGISTRY[DEFAULT_GAME_TYPE];
 }
 
 /**
