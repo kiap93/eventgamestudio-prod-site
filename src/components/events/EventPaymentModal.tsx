@@ -87,6 +87,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
       const quoteRes = await apiFetch('/api/events/quote', {
         method: 'POST',
         body: JSON.stringify({
+          event_id: event.id,
           game_theme_id: event.game_theme_id || event.game_theme?.id,
           payment_mode: 'COMBINED_CREDIT',
           event_price: event.event_price || undefined,
@@ -127,8 +128,8 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
 
   if (!isOpen || !event) return null;
 
-  // Pricing & Balances
-  const eventPrice = Number(activeCalculation?.eventPrice ?? event.event_price ?? 1400);
+  // Pricing & Balances - Authoritative from server calculation / event record
+  const eventPrice = Number(activeCalculation?.eventPrice ?? event.event_price ?? 0);
   const availableWelcomeCredit = Number(wallet?.welcome_credit ?? 0);
   const availableEventCredit = Number(wallet?.topup_credit ?? 0);
   const availablePaidBalance = Number(wallet?.paid_balance ?? 0);

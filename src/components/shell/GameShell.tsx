@@ -31,7 +31,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   showCabinetFooter = true,
   eventId,
   publicToken,
-  allowImmersiveFullscreen = false,
+  allowImmersiveFullscreen = true,
   isFullscreen: controlledFullscreen,
   onToggleFullscreen: controlledToggleFullscreen,
 }) => {
@@ -134,24 +134,30 @@ export const GameShell: React.FC<GameShellProps> = ({
     setIsMuted((prev) => !prev);
   };
 
+  const useImmersiveLayout = isFullscreen && allowImmersiveFullscreen;
+
   return (
     <div
-      className={`w-full h-full max-w-full max-h-full flex flex-col items-center justify-center bg-[#07130b] overflow-hidden relative ${className}`}
+      className={
+        useImmersiveLayout
+          ? `w-full h-full min-w-0 min-h-0 max-w-none max-h-none p-0 m-0 overflow-hidden relative bg-[#07130b] ${className}`
+          : `w-full h-full max-w-full max-h-full flex flex-col items-center justify-center bg-[#07130b] overflow-hidden relative ${className}`
+      }
     >
       {/* Cabinet Frame Wrapper: Uses available viewport space dynamically */}
       <div
         className={
-          isFullscreen && allowImmersiveFullscreen
-            ? 'w-full h-full p-0 m-0 flex items-center justify-center'
+          useImmersiveLayout
+            ? 'w-full h-full min-w-0 min-h-0 max-w-none max-h-none p-0 m-0 overflow-hidden flex items-center justify-center'
             : 'flex-1 w-full min-h-0 min-w-0 flex items-center justify-center overflow-hidden p-1 sm:p-2'
         }
       >
         <div
           ref={containerRef}
           className={
-            isFullscreen && allowImmersiveFullscreen
-              ? 'relative w-full h-full max-w-full max-h-full overflow-hidden flex items-center justify-center p-0 m-0 border-none rounded-none bg-[#07130b] shadow-none'
-              : gameType === 'memory-match'
+            useImmersiveLayout
+              ? 'relative w-full h-full min-w-0 min-h-0 max-w-none max-h-none p-0 m-0 overflow-hidden flex items-center justify-center border-0 border-none rounded-none bg-[#07130b] shadow-none'
+              : resolvedGameType === 'memory-match'
               ? 'relative w-full h-full max-w-5xl min-h-0 bg-[#0c2012] border-2 sm:border-4 border-[#1e4627] rounded-2xl sm:rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.15)] overflow-hidden flex flex-col items-center justify-center'
               : 'game-cabinet relative aspect-[16/9] bg-[#0c2012] border-2 sm:border-4 border-[#1e4627] rounded-2xl sm:rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.15)] overflow-hidden flex items-center justify-center'
           }
@@ -172,7 +178,7 @@ export const GameShell: React.FC<GameShellProps> = ({
       </div>
 
       {/* Footer Branding (only in windowed mode with footer enabled) */}
-      {!isFullscreen && showCabinetFooter && (
+      {!useImmersiveLayout && showCabinetFooter && (
         <footer className="h-6 sm:h-7 mb-1 text-slate-500 font-mono text-[10px] sm:text-xs flex items-center gap-2 shrink-0 select-none">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <span>{activeTheme.gameTitle || gameDef.name}</span>

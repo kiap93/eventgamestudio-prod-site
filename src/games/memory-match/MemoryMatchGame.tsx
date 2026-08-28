@@ -533,13 +533,13 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
 
   const accuracyPercent = moves > 0 ? Math.min(100, Math.round((matchedPairsCount / moves) * 100)) : 0;
   const gameTitle = activeTheme?.branding?.gameTitle || activeTheme?.name || 'MEMORY MATCH';
-  const customBgUrl = activeTheme?.background_url && activeTheme.background_url.trim() !== '' && !activeTheme.background_url.includes('carnival/background.png')
+  const customBgUrl = activeTheme?.background_url && activeTheme.background_url.trim() !== ''
     ? activeTheme.background_url
     : null;
 
   return (
     <div
-      className="relative w-full h-full min-h-0 flex flex-col items-center justify-between overflow-hidden select-none bg-[#07130b]"
+      className="relative w-full h-full min-w-0 min-h-0 flex flex-col items-center justify-between overflow-hidden select-none bg-[#07130b]"
       style={{
         backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
         backgroundImage: customBgUrl
@@ -547,8 +547,9 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
           : `radial-gradient(circle at 50% 20%, ${
               activeTheme?.visuals_config?.bgGradientFrom || 'rgba(30, 16, 53, 0.6)'
             } 0%, ${activeTheme?.visuals_config?.bgGradientTo || '#07130b'} 100%)`,
-        backgroundSize: customBgUrl ? 'cover' : undefined,
-        backgroundPosition: customBgUrl ? 'center' : undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center center',
+        backgroundRepeat: 'no-repeat',
       }}
     >
       {/* ========================================================================= */}

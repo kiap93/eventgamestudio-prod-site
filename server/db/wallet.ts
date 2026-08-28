@@ -1641,7 +1641,29 @@ export async function processEventPayment(
     mode = 'FULL_PAID';
   }
 
-  const eventPrice = params.eventPrice && params.eventPrice > 0 ? params.eventPrice : STANDARD_EVENT_PRICE;
+  let eventPrice = params.eventPrice;
+  if (!eventPrice || eventPrice <= 0) {
+    if (eventId) {
+      try {
+        const { getEventById } = await import('./events.js');
+        const ev = await getEventById(eventId, env);
+        if (ev && ev.event_price) {
+          eventPrice = ev.event_price;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+  if (!eventPrice || eventPrice <= 0) {
+    try {
+      const { getPlatformPricingSettings } = await import('./platformSettings.js');
+      const settings = await getPlatformPricingSettings(env);
+      eventPrice = settings.default_price;
+    } catch (e) {
+      eventPrice = STANDARD_EVENT_PRICE;
+    }
+  }
   const topupCreditRequested = params.topupCreditRequested ?? params.topupCreditAmountToUse;
 
   // PRODUCTION MODE: Atomic PostgreSQL RPC Transaction Block

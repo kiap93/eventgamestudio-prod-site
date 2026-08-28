@@ -277,8 +277,10 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       const quoteRes = await apiFetch('/api/events/quote', {
         method: 'POST',
         body: JSON.stringify({
+          event_id: createdEvent?.id || undefined,
           game_theme_id: themeId || undefined,
           payment_mode: mode,
+          event_price: createdEvent?.event_price || undefined,
         }),
       });
 
@@ -510,7 +512,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
   // Selected Theme Details
   const selectedTheme = themes.find((t) => t.id === selectedThemeId) || themes[0];
-  const standardPrice = activeCalculation?.eventPrice ?? 1400;
+  const standardPrice = activeCalculation?.eventPrice ?? createdEvent?.event_price ?? 0;
   const paidAmount = activeCalculation?.paidAmount ?? (
     selectedPaymentMode === 'WELCOME_CREDIT' ? 600 :
     selectedPaymentMode === 'SHOWCASE_CREDIT' ? 1100 :

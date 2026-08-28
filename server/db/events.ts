@@ -1,4 +1,4 @@
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isLocalFallbackAllowed } from '../supabase.js';
 import {
   EventRecord,
   EventStatus,
@@ -375,21 +375,24 @@ export async function getEventsByOrgId(
     }
   } else {
     events = ((eventsData || []) as EventRecord[]).map((ev) => {
-      const cached = localEventsCache.get(ev.id);
-      if (cached) {
-        return {
-          ...cached,
-          ...ev,
-          game_id: cached.game_id || ev.game_id,
-          status: cached.status || ev.status,
-          payment_status: cached.payment_status || ev.payment_status,
-          payment_mode: cached.payment_mode || ev.payment_mode,
-          paid_amount: cached.paid_amount !== undefined ? cached.paid_amount : ev.paid_amount,
-          event_price: cached.event_price || ev.event_price,
-          event_currency: cached.event_currency || ev.event_currency,
-        };
+      if (isLocalFallbackAllowed(env)) {
+        localEventsCache.set(ev.id, ev);
       }
-      return ev;
+      const cached = isLocalFallbackAllowed(env) ? localEventsCache.get(ev.id) : undefined;
+      return {
+        ...(cached || {}),
+        ...ev,
+        // Database values MUST take absolute precedence over cache
+        game_id: ev.game_id || cached?.game_id,
+        status: ev.status || cached?.status,
+        event_status: ev.event_status || cached?.event_status,
+        payment_status: ev.payment_status || cached?.payment_status,
+        payment_mode: ev.payment_mode || cached?.payment_mode,
+        paid_amount: ev.paid_amount !== undefined && ev.paid_amount !== null ? ev.paid_amount : cached?.paid_amount,
+        event_price: ev.event_price !== undefined && ev.event_price !== null ? ev.event_price : cached?.event_price,
+        event_currency: ev.event_currency || cached?.event_currency || 'MYR',
+        cancel_reason: ev.cancel_reason !== undefined ? ev.cancel_reason : cached?.cancel_reason,
+      };
     });
   }
   if (events.length === 0) return [];
@@ -510,23 +513,28 @@ export async function getEventById(
       throw new Error(`Failed to get event: ${error.message}`);
     }
   } else {
-    const cached = localEventsCache.get(eventId);
-    if (cached) {
+    const raw = (event as EventRecord) || null;
+    if (raw) {
+      if (isLocalFallbackAllowed(env)) {
+        localEventsCache.set(raw.id, raw);
+      }
+      const cached = isLocalFallbackAllowed(env) ? localEventsCache.get(eventId) : undefined;
       eventRecord = {
-        ...cached,
-        ...(event as EventRecord),
-        game_id: cached.game_id || (event as EventRecord).game_id,
-        status: cached.status || (event as EventRecord).status,
-        event_status: cached.event_status || (event as EventRecord).event_status,
-        payment_status: cached.payment_status || (event as EventRecord).payment_status,
-        cancel_reason: cached.cancel_reason || (event as EventRecord).cancel_reason,
-        payment_mode: cached.payment_mode || (event as EventRecord).payment_mode,
-        paid_amount: cached.paid_amount !== undefined ? cached.paid_amount : (event as EventRecord).paid_amount,
-        event_price: cached.event_price || (event as EventRecord).event_price,
-        event_currency: cached.event_currency || (event as EventRecord).event_currency,
+        ...(cached || {}),
+        ...raw,
+        // Database values MUST take absolute precedence over cache
+        game_id: raw.game_id || cached?.game_id,
+        status: raw.status || cached?.status,
+        event_status: raw.event_status || cached?.event_status,
+        payment_status: raw.payment_status || cached?.payment_status,
+        cancel_reason: raw.cancel_reason !== undefined ? raw.cancel_reason : cached?.cancel_reason,
+        payment_mode: raw.payment_mode || cached?.payment_mode,
+        paid_amount: raw.paid_amount !== undefined && raw.paid_amount !== null ? raw.paid_amount : cached?.paid_amount,
+        event_price: raw.event_price !== undefined && raw.event_price !== null ? raw.event_price : cached?.event_price,
+        event_currency: raw.event_currency || cached?.event_currency || 'MYR',
       };
     } else {
-      eventRecord = (event as EventRecord) || null;
+      eventRecord = null;
     }
   }
 
@@ -619,23 +627,27 @@ export async function getEventByPublicToken(
   } else {
     const raw = (event as EventRecord) || null;
     if (raw) {
-      const cached = localEventsCache.get(raw.id) || Array.from(localEventsCache.values()).find((e) => e.public_token === publicToken.trim().toUpperCase());
-      if (cached) {
-        eventRecord = {
-          ...cached,
-          ...raw,
-          status: cached.status || raw.status,
-          event_status: cached.event_status || raw.event_status,
-          payment_status: cached.payment_status || raw.payment_status,
-          cancel_reason: cached.cancel_reason || raw.cancel_reason,
-          payment_mode: cached.payment_mode || raw.payment_mode,
-          paid_amount: cached.paid_amount !== undefined ? cached.paid_amount : raw.paid_amount,
-          event_price: cached.event_price || raw.event_price,
-          event_currency: cached.event_currency || raw.event_currency,
-        };
-      } else {
-        eventRecord = raw;
+      if (isLocalFallbackAllowed(env)) {
+        localEventsCache.set(raw.id, raw);
       }
+      const cached = isLocalFallbackAllowed(env)
+        ? (localEventsCache.get(raw.id) || Array.from(localEventsCache.values()).find((e) => e.public_token === publicToken.trim().toUpperCase()))
+        : undefined;
+      eventRecord = {
+        ...(cached || {}),
+        ...raw,
+        // Database values MUST take absolute precedence over cache
+        status: raw.status || cached?.status,
+        event_status: raw.event_status || cached?.event_status,
+        payment_status: raw.payment_status || cached?.payment_status,
+        cancel_reason: raw.cancel_reason !== undefined ? raw.cancel_reason : cached?.cancel_reason,
+        payment_mode: raw.payment_mode || cached?.payment_mode,
+        paid_amount: raw.paid_amount !== undefined && raw.paid_amount !== null ? raw.paid_amount : cached?.paid_amount,
+        event_price: raw.event_price !== undefined && raw.event_price !== null ? raw.event_price : cached?.event_price,
+        event_currency: raw.event_currency || cached?.event_currency || 'MYR',
+      };
+    } else {
+      eventRecord = null;
     }
   }
 
@@ -1502,6 +1514,11 @@ export async function getAllAdminEvents(
     }
   } else {
     events = (eventsData || []) as EventRecord[];
+    if (isLocalFallbackAllowed(env)) {
+      for (const ev of events) {
+        localEventsCache.set(ev.id, ev);
+      }
+    }
   }
 
   // Fetch all organizations

@@ -1677,6 +1677,7 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
     }
 
     const {
+      event_id,
       game_theme_id,
       payment_mode,
       topup_credit_requested,
@@ -1685,7 +1686,23 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
       use_event_credit,
       welcome_credit_requested,
     } = req.body;
-    const price = typeof event_price === 'number' && event_price > 0 ? event_price : STANDARD_EVENT_PRICE;
+
+    let price = typeof event_price === 'number' && event_price > 0 ? event_price : undefined;
+    if (!price && event_id) {
+      const existing = await getEventById(event_id);
+      if (existing && existing.event_price) {
+        price = existing.event_price;
+      }
+    }
+    if (!price) {
+      try {
+        const { getPlatformPricingSettings } = await import('./server/db/platformSettings.js');
+        const settings = await getPlatformPricingSettings();
+        price = settings.default_price;
+      } catch (e) {
+        price = STANDARD_EVENT_PRICE;
+      }
+    }
 
     let themeInfo: any = null;
     if (game_theme_id) {

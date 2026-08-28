@@ -306,7 +306,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
       {/* Main Play Area */}
       <main
         className={`flex-1 w-full min-h-0 min-w-0 max-w-full overflow-hidden flex flex-col items-center justify-center ${
-          isFullscreen ? 'p-0 m-0 h-full' : 'p-1 sm:p-2 sm:px-3'
+          isFullscreen ? 'p-0 m-0 h-full w-full min-w-0 min-h-0 max-w-none max-h-none' : 'p-1 sm:p-2 sm:px-3'
         }`}
       >
         <div className="w-full h-full min-h-0 min-w-0 max-w-full max-h-full flex flex-col items-center justify-center overflow-hidden">
@@ -316,7 +316,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
             eventId={eventData.id}
             publicToken={eventData.public_token}
             showCabinetFooter={!isFullscreen}
-            allowImmersiveFullscreen={false}
+            allowImmersiveFullscreen={true}
             isFullscreen={isFullscreen}
             onToggleFullscreen={toggleFullscreen}
             className="w-full h-full max-w-full max-h-full"
