@@ -26,6 +26,22 @@ export interface MemoryMatchPairConfig {
   points?: number;
 }
 
+export type MemoryMatchLayoutMode = 'grid' | 'random';
+
+export interface MemoryMatchRandomLayoutConfig {
+  minSpacing: number; // default: 12 (range: 0-40 px)
+  rotationMin: number; // default: -8 (range: -15 to 0 deg)
+  rotationMax: number; // default: 8 (range: 0 to 15 deg)
+}
+
+export interface MemoryMatchBoardConfig {
+  layoutMode: MemoryMatchLayoutMode; // 'grid' | 'random'
+  rows: number; // default: 4 (range: 2 to 6)
+  cols: number; // default: 4 (range: 2 to 6)
+  cardGap: number; // default: 12 px
+  randomLayout: MemoryMatchRandomLayoutConfig;
+}
+
 export interface MemoryMatchGridConfig {
   rows: number; // default: 4
   cols: number; // default: 4
@@ -41,7 +57,8 @@ export interface MemoryMatchGameplayConfig {
 export interface MemoryMatchGameConfig {
   cardBackUrl?: string | null;
   pairs: MemoryMatchPairConfig[];
-  grid: MemoryMatchGridConfig;
+  board: MemoryMatchBoardConfig;
+  grid?: MemoryMatchGridConfig;
   gameplay: MemoryMatchGameplayConfig;
 }
 

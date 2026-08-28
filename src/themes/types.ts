@@ -1,4 +1,4 @@
-import type { MemoryMatchGameConfig } from '../games/memory-match/types';
+import type { MemoryMatchGameConfig, MemoryMatchBoardConfig } from '../games/memory-match/types';
 
 export interface ThemeBrandingConfig {
 
@@ -212,6 +212,17 @@ export const DEFAULT_MEMORY_MATCH_CONFIG: MemoryMatchGameConfig = {
     { id: 'pair_trophy', name: 'Trophy', imageUrl: null, points: 100, iconName: 'Trophy', color: '#a855f7', bgColor: 'rgba(168, 85, 247, 0.15)', borderColor: '#a855f7' },
     { id: 'pair_rocket', name: 'Rocket', imageUrl: null, points: 100, iconName: 'Flame', color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.15)', borderColor: '#f97316' },
   ],
+  board: {
+    layoutMode: 'grid',
+    rows: 4,
+    cols: 4,
+    cardGap: 12,
+    randomLayout: {
+      minSpacing: 12,
+      rotationMin: -8,
+      rotationMax: 8,
+    },
+  },
   grid: {
     rows: 4,
     cols: 4,
@@ -227,7 +238,7 @@ export const DEFAULT_MEMORY_MATCH_CONFIG: MemoryMatchGameConfig = {
 /**
  * Resolves the authoritative MemoryMatchGameConfig from theme.game_config,
  * with safe fallback to legacy fields (items_config, visuals_config, physics_config)
- * ONLY if game_config is missing or empty.
+ * and backward-compatible normalization for board layout settings.
  */
 export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryMatchGameConfig {
   const gc = theme?.game_config as Partial<MemoryMatchGameConfig> | undefined;
@@ -235,17 +246,46 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
   const hasGameConfig =
     gc &&
     typeof gc === 'object' &&
-    (Array.isArray(gc.pairs) || gc.gameplay !== undefined || gc.cardBackUrl !== undefined);
+    (Array.isArray(gc.pairs) || gc.gameplay !== undefined || gc.cardBackUrl !== undefined || gc.board !== undefined || gc.grid !== undefined);
 
   if (hasGameConfig) {
+    const rawBoard = gc.board;
+    const rawGrid = gc.grid;
+
+    const rows = Math.max(2, Math.min(6, Number(rawBoard?.rows) || Number(rawGrid?.rows) || 4));
+    const cols = Math.max(2, Math.min(6, Number(rawBoard?.cols) || Number(rawGrid?.cols) || 4));
+    const layoutMode = rawBoard?.layoutMode === 'random' ? 'random' : 'grid';
+    const cardGap = typeof rawBoard?.cardGap === 'number' ? Math.max(4, Math.min(32, rawBoard.cardGap)) : 12;
+
+    const rawRandom = rawBoard?.randomLayout;
+    const minSpacing = typeof rawRandom?.minSpacing === 'number' ? Math.max(0, Math.min(40, rawRandom.minSpacing)) : 12;
+    let rotationMin = typeof rawRandom?.rotationMin === 'number' ? Math.max(-15, Math.min(0, rawRandom.rotationMin)) : -8;
+    let rotationMax = typeof rawRandom?.rotationMax === 'number' ? Math.max(0, Math.min(15, rawRandom.rotationMax)) : 8;
+    if (rotationMin > rotationMax) {
+      [rotationMin, rotationMax] = [rotationMax, rotationMin];
+    }
+
+    const resolvedBoard: MemoryMatchBoardConfig = {
+      layoutMode: rawBoard?.layoutMode === 'random' ? 'random' : 'grid',
+      rows,
+      cols,
+      cardGap,
+      randomLayout: {
+        minSpacing,
+        rotationMin,
+        rotationMax,
+      },
+    };
+
     return {
       cardBackUrl: gc.cardBackUrl !== undefined ? gc.cardBackUrl : (theme?.visuals_config?.cardBackUrl || null),
       pairs: Array.isArray(gc.pairs) && gc.pairs.length > 0
         ? gc.pairs
         : DEFAULT_MEMORY_MATCH_CONFIG.pairs,
+      board: resolvedBoard,
       grid: {
-        rows: gc.grid?.rows ?? 4,
-        cols: gc.grid?.cols ?? 4,
+        rows: resolvedBoard.rows,
+        cols: resolvedBoard.cols,
       },
       gameplay: {
         gameDurationSeconds: gc.gameplay?.gameDurationSeconds ?? theme?.physics_config?.gameDurationSeconds ?? 45,
@@ -273,6 +313,17 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
   return {
     cardBackUrl: theme?.visuals_config?.cardBackUrl || null,
     pairs: legacyPairs,
+    board: {
+      layoutMode: 'grid',
+      rows: 4,
+      cols: 4,
+      cardGap: 12,
+      randomLayout: {
+        minSpacing: 12,
+        rotationMin: -8,
+        rotationMax: 8,
+      },
+    },
     grid: {
       rows: 4,
       cols: 4,

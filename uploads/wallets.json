@@ -8734,5 +8734,18 @@
     "showcase_credit_granted": false,
     "created_at": "2026-08-28T09:33:14.334Z",
     "updated_at": "2026-08-28T09:33:14.404Z"
+  },
+  {
+    "id": "61c4da76-9154-4fbb-8fc0-ac9ec7845970",
+    "organization_id": "7c8b0535-7398-4e34-9bbe-8a8534ea88a6",
+    "paid_balance": 0,
+    "welcome_credit": 800,
+    "showcase_credit": 0,
+    "topup_credit": 0,
+    "currency": "MYR",
+    "welcome_credit_granted": true,
+    "showcase_credit_granted": false,
+    "created_at": "2026-08-28T09:49:09.033Z",
+    "updated_at": "2026-08-28T09:49:09.033Z"
   }
 ]

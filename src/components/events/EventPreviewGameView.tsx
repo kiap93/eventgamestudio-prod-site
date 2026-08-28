@@ -217,91 +217,89 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
       }`}
     >
       {/* ------------------------------------------------------------- */}
-      {/* AUTHENTICATED PREVIEW HEADER TOOLBAR                          */}
+      {/* AUTHENTICATED PREVIEW HEADER TOOLBAR (Hidden in Fullscreen)    */}
       {/* ------------------------------------------------------------- */}
-      <header
-        className={`w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-slate-100 z-50 shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 transition-all ${
-          isFullscreen ? 'h-10 sm:h-11 shadow-lg' : 'h-13 sm:h-14'
-        }`}
-      >
-        {/* Left: Navigation & Context */}
-        <div className="flex items-center gap-2.5 min-w-0 truncate">
-          <button
-            type="button"
-            onClick={() => navigateTo('/events')}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
-            title="Exit Preview"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Events</span>
-          </button>
+      {!isFullscreen && (
+        <header className="w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-slate-100 z-50 shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 transition-all h-13 sm:h-14">
+          {/* Left: Navigation & Context */}
+          <div className="flex items-center gap-2.5 min-w-0 truncate">
+            <button
+              type="button"
+              onClick={() => navigateTo('/events')}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
+              title="Exit Preview"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Events</span>
+            </button>
 
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-300 text-[11px] font-bold shrink-0">
-            <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
-            <span>TEST PLAY PREVIEW</span>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-300 text-[11px] font-bold shrink-0">
+              <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
+              <span>TEST PLAY PREVIEW</span>
+            </div>
+
+            <div className="hidden lg:flex items-center gap-2 text-xs truncate">
+              <span className="font-bold text-slate-200 truncate">{eventData.name}</span>
+              <span className="text-slate-600">•</span>
+              <span className="text-slate-400 truncate font-mono text-[11px]">
+                {gameName} / <strong className="text-amber-300 font-semibold">{themeName}</strong>
+              </span>
+            </div>
           </div>
 
-          <div className="hidden lg:flex items-center gap-2 text-xs truncate">
-            <span className="font-bold text-slate-200 truncate">{eventData.name}</span>
-            <span className="text-slate-600">•</span>
-            <span className="text-slate-400 truncate font-mono text-[11px]">
-              {gameName} / <strong className="text-amber-300 font-semibold">{themeName}</strong>
-            </span>
+          {/* Right: Payment Status & Action CTAs */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {isPendingPayment ? (
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-semibold">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Payment Pending (RM {(eventData.event_price || 1400).toFixed(2)})</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(true)}
+                  className="px-3 sm:px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <CreditCard className="w-3.5 h-3.5 text-slate-950" />
+                  <span>Pay & Activate</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Paid & Active</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyPublicLink}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 font-semibold text-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Copy Public Player URL"
+                >
+                  {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span className="hidden md:inline">{copiedLink ? 'Copied Link' : 'Copy Public URL'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.open(`/play/${eventData.public_token}`, '_blank')}
+                  className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
+                  title="Open Public Link in New Tab"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={toggleFullscreen}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
+              title="Toggle Fullscreen"
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
           </div>
-        </div>
-
-        {/* Right: Payment Status & Action CTAs */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {isPendingPayment ? (
-            <div className="flex items-center gap-2">
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-semibold">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                <span>Payment Pending (RM {(eventData.event_price || 1400).toFixed(2)})</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPaymentModal(true)}
-                className="px-3 sm:px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 transition-all cursor-pointer flex items-center gap-1.5"
-              >
-                <CreditCard className="w-3.5 h-3.5 text-slate-950" />
-                <span>Pay & Activate</span>
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Paid & Active</span>
-              </div>
-              <button
-                type="button"
-                onClick={copyPublicLink}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 font-semibold text-xs transition-all cursor-pointer flex items-center gap-1.5"
-                title="Copy Public Player URL"
-              >
-                {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span className="hidden md:inline">{copiedLink ? 'Copied Link' : 'Copy Public URL'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => window.open(`/play/${eventData.public_token}`, '_blank')}
-                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
-                title="Open Public Link in New Tab"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          <button
-            onClick={toggleFullscreen}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
-            title="Toggle Fullscreen"
-          >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Main Play Area */}
       <main

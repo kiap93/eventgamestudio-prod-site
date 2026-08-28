@@ -265,8 +265,8 @@ export function shuffleArray<T>(array: T[]): T[] {
  */
 export function createShuffledDeck(theme?: GameTheme | null): MemoryCard[] {
   const memoryConfig = getMemoryMatchConfig(theme);
-  const rows = Math.max(2, memoryConfig.grid?.rows ?? 4);
-  const cols = Math.max(2, memoryConfig.grid?.cols ?? 4);
+  const rows = Math.max(2, memoryConfig.board?.rows ?? memoryConfig.grid?.rows ?? 4);
+  const cols = Math.max(2, memoryConfig.board?.cols ?? memoryConfig.grid?.cols ?? 4);
   const totalCards = (rows * cols) % 2 === 0 ? rows * cols : rows * cols - 1;
   const requiredPairsCount = Math.max(1, Math.floor(totalCards / 2));
 
