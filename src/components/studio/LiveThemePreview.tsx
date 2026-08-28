@@ -877,8 +877,16 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               }}
             />
 
-            {/* 4x4 Interactive Card Grid Centered */}
-            <div className="relative z-10 w-full max-w-[480px] sm:max-w-[560px] aspect-[4/3] grid grid-cols-4 gap-1.5 sm:gap-2.5 p-2 sm:p-3 rounded-2xl bg-slate-950/70 backdrop-blur-md border border-slate-800/80 shadow-2xl">
+            {/* Dynamic Interactive Card Grid Centered */}
+            <div
+              className="relative z-10 w-full max-w-[560px] max-h-[90%] gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-2xl bg-slate-950/70 backdrop-blur-md border border-slate-800/80 shadow-2xl overflow-hidden"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${Math.max(2, getMemoryMatchConfig(theme).grid?.cols ?? 4)}, minmax(0, 1fr))`,
+                gridTemplateRows: `repeat(${Math.max(2, getMemoryMatchConfig(theme).grid?.rows ?? 4)}, minmax(0, 1fr))`,
+                aspectRatio: `${Math.max(2, getMemoryMatchConfig(theme).grid?.cols ?? 4)} / ${Math.max(2, getMemoryMatchConfig(theme).grid?.rows ?? 4)}`,
+              }}
+            >
               {memoryDeck.map((card, idx) => {
                 const isFlipped = card.isFlipped || card.isMatched;
                 return (

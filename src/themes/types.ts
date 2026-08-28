@@ -138,6 +138,10 @@ export interface GameTheme {
   branding: ThemeBrandingConfig;
   background_url: string;
   basket_config: ThemeBasketConfig | null;
+  /**
+   * @deprecated For Memory Match, game_config.pairs is the sole authoritative source of truth.
+   * items_config is retained only as a legacy mirror to preserve schema compatibility with older readers.
+   */
   items_config: ThemeDropItem[];
   physics_config: ThemePhysicsConfig;
   visuals_config: ThemeVisualsConfig;

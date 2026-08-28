@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { GameTheme, isMemoryMatchTheme } from '../../themes';
+import { GameTheme, isMemoryMatchTheme, getMemoryMatchConfig } from '../../themes';
 import {
   Layers,
   Sparkles,
@@ -187,8 +187,16 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
     // 3. Upload using onUploadAsset(file, 'basket')
     try {
       const uploadedUrl = await onUploadAsset(file, 'basket');
+      const nextGameConfig = isMemoryMatch
+        ? {
+            ...getMemoryMatchConfig(theme),
+            cardBackUrl: uploadedUrl,
+          }
+        : theme.game_config;
+
       onChange({
         ...theme,
+        game_config: nextGameConfig,
         basket: uploadedUrl,
         basket_config: {
           ...theme.basket_config,
@@ -232,8 +240,16 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
 
   const handleRemoveCatcher = () => {
     setCatcherUploadError(null);
+    const nextGameConfig = isMemoryMatch
+      ? {
+          ...getMemoryMatchConfig(theme),
+          cardBackUrl: null,
+        }
+      : theme.game_config;
+
     onChange({
       ...theme,
+      game_config: nextGameConfig,
       basket: '',
       basket_config: {
         ...theme.basket_config,

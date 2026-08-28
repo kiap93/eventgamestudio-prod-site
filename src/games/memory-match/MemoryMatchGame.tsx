@@ -80,6 +80,11 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   onToggleMute,
 }) => {
   const memoryConfig = getMemoryMatchConfig(activeTheme);
+  const rows = Math.max(2, memoryConfig.grid?.rows ?? 4);
+  const cols = Math.max(2, memoryConfig.grid?.cols ?? 4);
+  const totalCards = (rows * cols) % 2 === 0 ? rows * cols : 16;
+  const totalPairs = Math.floor(totalCards / 2);
+
   const gameDuration = config?.gameDurationSeconds ?? settings?.gameDurationSeconds ?? memoryConfig.gameplay.gameDurationSeconds ?? 45;
   const mismatchDelay = config?.mismatchDelayMs ?? memoryConfig.gameplay.mismatchDelayMs ?? 850;
   const matchPoints = config?.matchPoints ?? memoryConfig.gameplay.matchPoints ?? 100;
@@ -275,12 +280,12 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
       onGameStateChangeRef.current?.('GAME_OVER');
 
       const finalDuration = Math.max(1, gameDuration - timeRemainingRef.current);
-      const finalPairs = won ? 8 : matchedPairsCountRef.current;
+      const finalPairs = won ? totalPairs : matchedPairsCountRef.current;
       const finalScore = calculateMemoryMatchScore({
         moves: movesRef.current,
         duration: finalDuration,
         matchedPairs: finalPairs,
-        totalPairs: 8,
+        totalPairs: totalPairs,
       });
 
       setScore(finalScore);
@@ -293,7 +298,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
 
       fetchLeaderboard();
     },
-    [gameDuration, fetchLeaderboard]
+    [gameDuration, totalPairs, fetchLeaderboard]
   );
 
   // Playing state game duration timer
@@ -387,8 +392,8 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
           setFlippedIndices([]);
           setIsLocked(false);
 
-          // If all 8 pairs matched -> VICTORY!
-          if (newMatchedCount >= 8) {
+          // If all pairs matched -> VICTORY!
+          if (newMatchedCount >= totalPairs) {
             handleGameOver(true);
           }
         }, 350);
@@ -431,8 +436,8 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     const metadataPayload = {
       gameType: 'memory-match',
       moves,
-      matchedPairs: isVictory ? 8 : matchedPairsCount,
-      totalPairs: 8,
+      matchedPairs: isVictory ? totalPairs : matchedPairsCount,
+      totalPairs: totalPairs,
       duration: Math.max(1, gameDuration - timeRemaining),
       isVictory,
       timeRemaining,
@@ -560,7 +565,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
               {gameTitle}
             </h1>
             <span className="hidden sm:inline-block text-[10px] text-amber-400 font-bold uppercase tracking-wider">
-              4×4 Concentration
+              {rows}×{cols} Concentration
             </span>
           </div>
         </div>
@@ -573,7 +578,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
             <span className="text-slate-400 hidden xs:inline">Pairs:</span>
             <span className="font-bold text-emerald-400">
               {matchedPairsCount}
-              <span className="text-slate-600">/8</span>
+              <span className="text-slate-600">/{totalPairs}</span>
             </span>
           </div>
 
@@ -672,10 +677,18 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
       </header>
 
       {/* ========================================================================= */}
-      {/* 2. MAIN 4x4 CARD BOARD GRID AREA (Fills available space, centered square)  */}
+      {/* 2. MAIN CARD BOARD GRID AREA (Fills available space, responsive dynamic grid) */}
       {/* ========================================================================= */}
       <main className="flex-1 w-full min-h-0 flex items-center justify-center p-2 sm:p-4 md:p-6 relative overflow-hidden">
-        <div className="w-full h-full max-h-[min(100%,660px)] max-w-[min(100%,660px)] aspect-square grid grid-cols-4 grid-rows-4 gap-2 sm:gap-3 md:gap-3.5 m-auto">
+        <div
+          className="w-full h-full max-h-[min(100%,660px)] max-w-[min(100%,660px)] gap-2 sm:gap-3 md:gap-3.5 m-auto"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+            gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+            aspectRatio: `${cols} / ${rows}`,
+          }}
+        >
           {cards.map((card, index) => {
             const isFaceUp = card.isFlipped || card.isMatched;
 
@@ -798,7 +811,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                   {gameTitle}
                 </h2>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Flip cards, find all 8 matching pairs, and score max bonus points before time expires!
+                  Flip cards, find all {totalPairs} matching pairs, and score max bonus points before time expires!
                 </p>
               </div>
 
@@ -806,11 +819,11 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
               <div className="grid grid-cols-3 gap-2 py-2 text-[11px] font-mono">
                 <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300">
                   <span className="block text-[10px] text-slate-500 uppercase">Grid</span>
-                  <span className="font-bold text-amber-400">16 Cards</span>
+                  <span className="font-bold text-amber-400">{totalCards} Cards</span>
                 </div>
                 <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300">
                   <span className="block text-[10px] text-slate-500 uppercase">Pairs</span>
-                  <span className="font-bold text-emerald-400">8 Pairs</span>
+                  <span className="font-bold text-emerald-400">{totalPairs} Pairs</span>
                 </div>
                 <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300">
                   <span className="block text-[10px] text-slate-500 uppercase">Timer</span>
@@ -882,7 +895,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                   <>
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
                       <Trophy className="w-3.5 h-3.5" />
-                      <span>VICTORY! ALL 8 PAIRS MATCHED</span>
+                      <span>VICTORY! ALL {totalPairs} PAIRS MATCHED</span>
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                       Brilliant Memory!
@@ -918,7 +931,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                 <div className="space-y-0.5">
                   <span className="text-[10px] text-slate-500 uppercase font-bold">Pairs</span>
                   <span className="block text-base sm:text-lg font-black text-emerald-400 font-mono">
-                    {matchedPairsCount}/8
+                    {matchedPairsCount}/{totalPairs}
                   </span>
                 </div>
                 <div className="space-y-0.5">
