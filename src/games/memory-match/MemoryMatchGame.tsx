@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Trophy,
   RotateCcw,
@@ -80,7 +80,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   onToggleFullscreen,
   onToggleMute,
 }) => {
-  const memoryConfig = getMemoryMatchConfig(activeTheme);
+  const memoryConfig = useMemo(() => getMemoryMatchConfig(activeTheme), [activeTheme]);
   const boardConfig = memoryConfig.board;
   const rows = boardConfig.rows;
   const cols = boardConfig.cols;
@@ -96,7 +96,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   const [gameState, setGameState] = useState<GameState>('START');
 
   const [countdown, setCountdown] = useState<number>(3);
-  const [cards, setCards] = useState<MemoryCard[]>([]);
+  const [cards, setCards] = useState<MemoryCard[]>(() => createShuffledDeck(activeTheme));
   const [randomPositions, setRandomPositions] = useState<CardPosition[]>(() =>
     generateRandomCardPositions(createShuffledDeck(activeTheme).length, boardConfig)
   );
@@ -176,6 +176,9 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     onStatsChangeRef.current?.(stats);
   }, [score, matchedPairsCount, moves, comboStreak, timeRemaining]);
 
+  const themeId = activeTheme?.id;
+  const boardLayoutKey = `${boardConfig.layoutMode}_${boardConfig.rows}_${boardConfig.cols}_${boardConfig.cardGap}_${boardConfig.randomLayout.minSpacing}_${boardConfig.randomLayout.rotationMin}_${boardConfig.randomLayout.rotationMax}`;
+
   // Initialize fresh card deck on theme change or mount
   const initBoard = useCallback(() => {
     const newDeck = createShuffledDeck(activeTheme);
@@ -195,9 +198,11 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     setSessionId(`mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
   }, [activeTheme, boardConfig, gameDuration]);
 
+  // Only re-initialize board on mount or when theme/layout configuration changes
   useEffect(() => {
     initBoard();
-  }, [initBoard]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeId, boardLayoutKey]);
 
   // Main countdown trigger (3.. 2.. 1.. GO!)
   const startCountdown = useCallback(() => {
@@ -307,6 +312,11 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     [gameDuration, totalPairs, fetchLeaderboard]
   );
 
+  const handleGameOverRef = useRef(handleGameOver);
+  useEffect(() => {
+    handleGameOverRef.current = handleGameOver;
+  }, [handleGameOver]);
+
   // Playing state game duration timer
   useEffect(() => {
     if (gameState !== 'PLAYING') {
@@ -323,7 +333,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
         clearInterval(interval);
         timerRef.current = null;
         setTimeRemaining(0);
-        handleGameOver(false);
+        handleGameOverRef.current(false);
       } else {
         const next = current - 1;
         setTimeRemaining(next);
@@ -339,7 +349,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
       clearInterval(interval);
       timerRef.current = null;
     };
-  }, [gameState, handleGameOver]);
+  }, [gameState]);
 
   // Card Flip Click Handler
   const handleCardClick = (index: number) => {

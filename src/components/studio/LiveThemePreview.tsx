@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { GameTheme, ThemeDropItem, isMemoryMatchTheme, getMemoryMatchConfig } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
 
@@ -112,7 +112,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   const [currentStageName, setCurrentStageName] = useState<string>('Stage 1: Calm');
 
   const isMemoryMatch = isMemoryMatchTheme(theme);
-  const memoryConfig = getMemoryMatchConfig(theme);
+  const memoryConfig = useMemo(() => getMemoryMatchConfig(theme), [theme]);
   const boardConfig = memoryConfig.board;
 
   // Memory match interactive preview state
