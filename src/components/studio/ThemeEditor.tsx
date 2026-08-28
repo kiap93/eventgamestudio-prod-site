@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { GameTheme } from '../../themes';
+import { GameTheme, getThemeGameType, isMemoryMatchTheme } from '../../themes';
 import { LiveThemePreview } from './LiveThemePreview';
 import { VisualsTab } from './VisualsTab';
 import { ItemsTab } from './ItemsTab';
@@ -282,7 +282,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
           <GameShell
             key={`live-game-${draftTheme.id}-${restartKey}`}
             customTheme={draftTheme}
-            gameType={activeGame?.game_type_id || activeGame?.slug || 'catch-brand'}
+            gameType={getThemeGameType(draftTheme, activeGame?.game_type_id || activeGame?.slug || 'catch-brand')}
             showCabinetFooter={false}
             className="w-full h-full"
           />
@@ -474,7 +474,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>2. Items</span>
+              <span>{isMemoryMatchTheme(draftTheme) ? '2. Card Pairs' : '2. Items'}</span>
             </button>
 
             <button

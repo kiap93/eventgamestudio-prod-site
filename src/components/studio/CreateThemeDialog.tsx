@@ -69,6 +69,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
         const newTheme = await onCreate({
           game_id: gameId,
           game_slug: isMemoryGame ? 'memory-match' : 'catch-brand',
+          game_type: isMemoryGame ? 'memory-match' : 'catch-brand',
           name: cleanName,
           slug: cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
           description: isMemoryGame

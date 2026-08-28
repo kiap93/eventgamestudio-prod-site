@@ -121,6 +121,7 @@ export interface GameTheme {
   game_id?: string | null;
   game_name?: string;
   game_slug?: string;
+  game_type?: string;
   name: string;
   slug: string;
   base_theme_id?: string;
@@ -161,4 +162,32 @@ export interface GameTheme {
     bad?: string;
     bonus?: string;
   };
+}
+
+/**
+ * Resolves the true game_type of a theme.
+ * The theme itself is the primary source of truth for its game type.
+ */
+export function getThemeGameType(theme?: Partial<GameTheme> | null, fallbackGameType?: string): string {
+  if (!theme) return fallbackGameType || 'catch-brand';
+  if (theme.game_type) return theme.game_type;
+  if (theme.game_slug) return theme.game_slug;
+  if (
+    theme.base_theme_id === 'memory-carnival' ||
+    theme.base_theme_id === 'memory-match' ||
+    theme.id === 'memory-carnival' ||
+    theme.id === 'memory-match' ||
+    theme.slug?.includes('memory') ||
+    (theme.name && theme.name.toLowerCase().includes('memory'))
+  ) {
+    return 'memory-match';
+  }
+  return fallbackGameType || 'catch-brand';
+}
+
+/**
+ * Checks if a theme belongs to Memory Match.
+ */
+export function isMemoryMatchTheme(theme?: Partial<GameTheme> | null, fallbackGameType?: string): boolean {
+  return getThemeGameType(theme, fallbackGameType) === 'memory-match';
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GameTheme } from '../../themes/types';
+import { GameTheme, isMemoryMatchTheme } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
 import { MemoryMatchAudioTester } from './games/MemoryMatchCustomizer';
 import {
@@ -22,11 +22,7 @@ interface AudioTabProps {
 }
 
 export const AudioTab: React.FC<AudioTabProps> = ({ theme, onChange }) => {
-  const isMemoryMatch =
-    theme.game_slug === 'memory-match' ||
-    (theme as any).game_type === 'memory-match' ||
-    (theme as any).game_id === 'memory-match' ||
-    theme.slug?.includes('memory');
+  const isMemoryMatch = isMemoryMatchTheme(theme);
 
   const [isPlayingBgmSample, setIsPlayingBgmSample] = useState(false);
   const [showCustomAudioUrls, setShowCustomAudioUrls] = useState(false);

@@ -124,6 +124,29 @@ async function safeUpdateGame(
 }
 
 export async function getGameById(gameId: string, env?: Record<string, any>): Promise<GameRecord | null> {
+  if (localGamesCache.has(gameId)) {
+    return localGamesCache.get(gameId)!;
+  }
+  if (!isSupabaseConfigured(env)) {
+    const match = CATALOG_GAMES.find((g) => g.slug === gameId || g.game_type === gameId) || CATALOG_GAMES[0];
+    return {
+      id: gameId,
+      organization_id: null,
+      is_system: true,
+      ownership_type: 'system',
+      name: match.name,
+      slug: match.slug,
+      game_type: match.game_type as any,
+      description: match.description,
+      branding: { gameTitle: match.name } as any,
+      basket_config: DEFAULT_BASKET_CONFIG,
+      items_config: DEFAULT_ITEMS_CONFIG,
+      settings_config: DEFAULT_SETTINGS_CONFIG,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as unknown as GameRecord;
+  }
+
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('games')
@@ -132,11 +155,16 @@ export async function getGameById(gameId: string, env?: Record<string, any>): Pr
     .maybeSingle();
 
   if (error) {
+    if (localGamesCache.has(gameId)) {
+      return localGamesCache.get(gameId)!;
+    }
     if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
       const match = CATALOG_GAMES.find((g) => g.slug === gameId || g.game_type === gameId) || CATALOG_GAMES[0];
       return {
         id: gameId,
-        organization_id: '00000000-0000-0000-0000-000000000001',
+        organization_id: null,
+        is_system: true,
+        ownership_type: 'system',
         name: match.name,
         slug: match.slug,
         game_type: match.game_type as any,
@@ -854,6 +882,28 @@ export async function deletePlatformGame(gameId: string, env?: Record<string, an
  * Games are platform-level entities registered by Developer/Admin in Supabase.
  */
 export async function getAvailableGamesForStudio(organizationId: string, env?: Record<string, any>): Promise<GameRecord[]> {
+  if (!isSupabaseConfigured(env)) {
+    return CATALOG_GAMES.map((cg) => ({
+      id: cg.slug,
+      organization_id: null,
+      is_system: true,
+      ownership_type: 'system',
+      name: cg.name,
+      slug: cg.slug,
+      game_type: cg.game_type,
+      description: cg.description,
+      icon_name: cg.icon_name,
+      status: 'active',
+      background_url: '/assets/themes/carnival/background.png',
+      basket_config: DEFAULT_BASKET_CONFIG,
+      items_config: DEFAULT_ITEMS_CONFIG,
+      settings_config: DEFAULT_SETTINGS_CONFIG,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      theme_count: 1,
+    } as unknown as GameRecord));
+  }
+
   const supabase = getSupabaseServerClient(env);
   await cleanupDuplicateSystemGames(env);
 
@@ -866,6 +916,27 @@ export async function getAvailableGamesForStudio(organizationId: string, env?: R
     .order('created_at', { ascending: true });
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+      return CATALOG_GAMES.map((cg) => ({
+        id: cg.slug,
+        organization_id: null,
+        is_system: true,
+        ownership_type: 'system',
+        name: cg.name,
+        slug: cg.slug,
+        game_type: cg.game_type,
+        description: cg.description,
+        icon_name: cg.icon_name,
+        status: 'active',
+        background_url: '/assets/themes/carnival/background.png',
+        basket_config: DEFAULT_BASKET_CONFIG,
+        items_config: DEFAULT_ITEMS_CONFIG,
+        settings_config: DEFAULT_SETTINGS_CONFIG,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        theme_count: 1,
+      } as unknown as GameRecord));
+    }
     console.error('Error in getAvailableGamesForStudio:', error);
     throw new Error(`Failed to list available games: ${error.message}`);
   }

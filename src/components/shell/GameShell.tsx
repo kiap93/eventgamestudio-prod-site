@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { GameTheme, initActiveTheme } from '../../themes';
+import { GameTheme, initActiveTheme, getThemeById, getThemeGameType } from '../../themes';
 import { GameSettings, GameState, GameStats } from '../../types';
 import { getGameSettings, mapServerSettingsToGameSettings, setActiveGameSettings } from '../../game/settings';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +8,7 @@ import { GameTypeId } from '../../games/types';
 
 export interface GameShellProps {
   gameType?: GameTypeId | string;
+  theme?: GameTheme;
   customTheme?: GameTheme;
   customSettings?: GameSettings;
   className?: string;
@@ -17,10 +18,13 @@ export interface GameShellProps {
   allowImmersiveFullscreen?: boolean;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  organizationSlug?: string;
+  isStudioPreview?: boolean;
 }
 
 export const GameShell: React.FC<GameShellProps> = ({
   gameType = DEFAULT_GAME_TYPE,
+  theme,
   customTheme,
   customSettings,
   className = '',
@@ -31,6 +35,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   isFullscreen: controlledFullscreen,
   onToggleFullscreen: controlledToggleFullscreen,
 }) => {
+  const effectiveThemeProp = customTheme || theme;
   const { activeGame, activeTheme: contextActiveTheme } = useAuth();
   const [internalFullscreen, setInternalFullscreen] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -38,35 +43,37 @@ export const GameShell: React.FC<GameShellProps> = ({
 
   const isFullscreen = controlledFullscreen !== undefined ? controlledFullscreen : internalFullscreen;
 
+  // Current game definition lookup
+  const resolvedGameType = effectiveThemeProp
+    ? getThemeGameType(effectiveThemeProp, gameType || DEFAULT_GAME_TYPE)
+    : (gameType || (contextActiveTheme ? getThemeGameType(contextActiveTheme, DEFAULT_GAME_TYPE) : DEFAULT_GAME_TYPE));
+
   // Active theme resolution
-  const [activeTheme, setActiveThemeState] = useState<GameTheme>(
-    () => customTheme || contextActiveTheme || initActiveTheme()
-  );
+  const [activeTheme, setActiveThemeState] = useState<GameTheme>(() => {
+    if (effectiveThemeProp) return effectiveThemeProp;
+    if (contextActiveTheme) return contextActiveTheme;
+    if (resolvedGameType === 'memory-match') return getThemeById('memory-carnival');
+    return initActiveTheme();
+  });
 
   // Active settings resolution
   const [settings, setSettings] = useState<GameSettings>(
     () => customSettings || getGameSettings()
   );
 
-  // Current game definition lookup
-  const resolvedGameType =
-    (customTheme?.game_slug === 'memory-match' ||
-      (customTheme as any)?.game_type === 'memory-match' ||
-      customTheme?.slug?.includes('memory'))
-      ? 'memory-match'
-      : (gameType || DEFAULT_GAME_TYPE);
-
   const gameDef = getGameDefinition(resolvedGameType);
   const GameComponent = gameDef.component;
 
   // Sync theme changes
   useEffect(() => {
-    if (customTheme) {
-      setActiveThemeState(customTheme);
+    if (effectiveThemeProp) {
+      setActiveThemeState(effectiveThemeProp);
     } else if (contextActiveTheme) {
       setActiveThemeState(contextActiveTheme);
+    } else if (resolvedGameType === 'memory-match') {
+      setActiveThemeState(getThemeById('memory-carnival'));
     }
-  }, [customTheme, contextActiveTheme]);
+  }, [effectiveThemeProp, contextActiveTheme, resolvedGameType]);
 
   // Sync Supabase backend activeGame configuration to settings
   useEffect(() => {

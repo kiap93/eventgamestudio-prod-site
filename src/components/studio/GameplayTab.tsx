@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GameTheme, ThemeDifficultyStage } from '../../themes/types';
+import { GameTheme, ThemeDifficultyStage, isMemoryMatchTheme } from '../../themes';
 import { MemoryMatchGameplayCustomizer } from './games/MemoryMatchCustomizer';
 import {
   Zap,
@@ -20,11 +20,7 @@ interface GameplayTabProps {
 }
 
 export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => {
-  const isMemoryMatch =
-    theme.game_slug === 'memory-match' ||
-    (theme as any).game_type === 'memory-match' ||
-    (theme as any).game_id === 'memory-match' ||
-    theme.slug?.includes('memory');
+  const isMemoryMatch = isMemoryMatchTheme(theme);
 
   if (isMemoryMatch) {
     return <MemoryMatchGameplayCustomizer theme={theme} onChange={onChange} />;

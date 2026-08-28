@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { GameTheme, ThemeDropItem } from '../../themes/types';
+import { GameTheme, ThemeDropItem, isMemoryMatchTheme } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
 import { createShuffledDeck } from '../../games/memory-match/cardDeck';
 import { MemoryCard } from '../../games/memory-match/types';
@@ -109,10 +109,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   );
   const [currentStageName, setCurrentStageName] = useState<string>('Stage 1: Calm');
 
-  const isMemoryMatch =
-    theme.game_slug === 'memory-match' ||
-    theme.slug?.includes('memory') ||
-    (theme as any).game_type === 'memory-match';
+  const isMemoryMatch = isMemoryMatchTheme(theme);
 
   // Memory match interactive preview state
   const [memoryDeck, setMemoryDeck] = useState<MemoryCard[]>(() => createShuffledDeck(theme));

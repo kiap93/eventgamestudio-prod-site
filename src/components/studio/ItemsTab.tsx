@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { GameTheme, ThemeDropItem } from '../../themes/types';
+import { GameTheme, ThemeDropItem, isMemoryMatchTheme } from '../../themes';
+import { MemoryMatchCardsCustomizer } from './games/MemoryMatchCustomizer';
 import {
   Sparkles,
   Plus,
@@ -222,11 +223,20 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
   onUploadAsset,
   uploadingAsset,
 }) => {
+  const isMemoryMatch = isMemoryMatchTheme(theme);
+
+  if (isMemoryMatch) {
+    return (
+      <MemoryMatchCardsCustomizer
+        theme={theme}
+        onChange={onChange}
+        onUploadAsset={onUploadAsset}
+        uploadingAsset={uploadingAsset}
+      />
+    );
+  }
+
   const items = theme.items_config || [];
-  const isMemoryMatch =
-    theme.game_slug === 'memory-match' ||
-    theme.slug?.includes('memory') ||
-    (theme as any).game_type === 'memory-match';
 
   const handleResetDefaultPairs = () => {
     const defaultPairs: ThemeDropItem[] = [

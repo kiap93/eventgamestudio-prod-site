@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { GameTheme } from '../../themes/types';
+import { GameTheme, isMemoryMatchTheme } from '../../themes';
 import {
   Layers,
   Sparkles,
@@ -51,10 +51,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
   const catcherFileInputRef = useRef<HTMLInputElement | null>(null);
   const catcherReplaceFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const isMemoryMatch =
-    theme.game_slug === 'memory-match' ||
-    theme.slug?.includes('memory') ||
-    (theme as any).game_type === 'memory-match';
+  const isMemoryMatch = isMemoryMatchTheme(theme);
 
   const currentBgUrl = theme.background_url || theme.background || '';
   const currentCardBackUrl = theme.visuals_config?.cardBackUrl || theme.basket_config?.imageUrl || theme.basket || '';

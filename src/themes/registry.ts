@@ -265,12 +265,20 @@ export function normalizeGameTheme(raw: any): GameTheme {
 
   const catcherEffectiveImg = basket_config.imageUrl || resolveThemeDefaultBasketImage({ base_theme_id });
 
+  const resolvedGameType =
+    raw.game_type ||
+    raw.game_slug ||
+    raw.games?.slug ||
+    raw.games?.game_type ||
+    (base_theme_id === 'memory-carnival' || base_theme_id === 'memory-match' || slug.includes('memory') || name.toLowerCase().includes('memory') ? 'memory-match' : 'catch-brand');
+
   return {
     id,
     organization_id: raw.organization_id,
-    game_id: raw.game_id || raw.games?.id || null,
-    game_name: raw.game_name || raw.games?.name || undefined,
-    game_slug: raw.game_slug || raw.games?.slug || undefined,
+    game_id: raw.game_id || raw.games?.id || (resolvedGameType === 'memory-match' ? 'memory-match' : null),
+    game_name: raw.game_name || raw.games?.name || (resolvedGameType === 'memory-match' ? 'Brand Memory Match' : 'Catch the Brand'),
+    game_slug: raw.game_slug || raw.games?.slug || resolvedGameType,
+    game_type: resolvedGameType,
     is_system: Boolean(raw.is_system),
     ownership_type: raw.ownership_type || (raw.is_system ? 'system' : 'organization'),
     name,
