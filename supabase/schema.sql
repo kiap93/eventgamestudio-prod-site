@@ -669,8 +669,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_wallet RECORD;
-  v_event RECORD;
+  v_wallet public.organization_wallets%ROWTYPE;
+  v_event public.events%ROWTYPE;
   v_event_price NUMERIC;
   v_credit_to_use NUMERIC := 0.00;
   v_welcome_to_use NUMERIC := 0.00;
@@ -678,15 +678,15 @@ DECLARE
   v_topup_to_use NUMERIC := 0.00;
   v_paid_to_use NUMERIC := 0.00;
   v_credit_balance_type TEXT := NULL;
-  v_credit_txn RECORD;
-  v_topup_credit_txn RECORD;
-  v_paid_txn RECORD;
+  v_credit_txn public.wallet_transactions%ROWTYPE;
+  v_topup_credit_txn public.wallet_transactions%ROWTYPE;
+  v_paid_txn public.wallet_transactions%ROWTYPE;
   v_credit_ref TEXT;
   v_topup_ref TEXT;
   v_paid_ref TEXT;
   v_now TIMESTAMPTZ := timezone('utc'::text, now());
-  v_existing_payment RECORD;
-  v_existing_credit RECORD;
+  v_existing_payment public.wallet_transactions%ROWTYPE;
+  v_existing_credit public.wallet_transactions%ROWTYPE;
   v_max_cap NUMERIC;
   v_req NUMERIC;
 BEGIN
@@ -736,15 +736,15 @@ BEGIN
     AND status = 'COMPLETED'
   LIMIT 1;
 
-  IF v_existing_payment.id IS NOT NULL THEN
-    SELECT * INTO v_existing_credit
-    FROM public.wallet_transactions
-    WHERE organization_id = p_organization_id
-      AND event_id = p_event_id
-      AND transaction_type = 'CREDIT_USAGE'
-      AND status = 'COMPLETED'
-    LIMIT 1;
+  SELECT * INTO v_existing_credit
+  FROM public.wallet_transactions
+  WHERE organization_id = p_organization_id
+    AND event_id = p_event_id
+    AND transaction_type = 'CREDIT_USAGE'
+    AND status = 'COMPLETED'
+  LIMIT 1;
 
+  IF v_existing_payment.id IS NOT NULL OR v_existing_credit.id IS NOT NULL THEN
     SELECT * INTO v_wallet FROM public.organization_wallets WHERE organization_id = p_organization_id;
 
     RETURN jsonb_build_object(
@@ -753,10 +753,10 @@ BEGIN
       'event_id', p_event_id,
       'payment_mode', p_payment_mode,
       'event_price', v_event_price,
-      'paid_amount', ABS(v_existing_payment.amount),
+      'paid_amount', COALESCE(ABS(v_existing_payment.amount), 0.00),
       'discount_amount', COALESCE(ABS(v_existing_credit.amount), 0.00),
       'credit_transaction', CASE WHEN v_existing_credit.id IS NOT NULL THEN to_jsonb(v_existing_credit) ELSE NULL END,
-      'paid_transaction', to_jsonb(v_existing_payment),
+      'paid_transaction', CASE WHEN v_existing_payment.id IS NOT NULL THEN to_jsonb(v_existing_payment) ELSE NULL END,
       'wallet', jsonb_build_object(
         'paid_balance', COALESCE(v_wallet.paid_balance, 0.00),
         'welcome_credit', COALESCE(v_wallet.welcome_credit, 0.00),
@@ -1094,8 +1094,9 @@ BEGIN
     'event_price', v_event_price,
     'paid_amount', v_paid_to_use,
     'discount_amount', v_credit_to_use,
-    'credit_transaction', CASE WHEN v_credit_txn.id IS NOT NULL THEN to_jsonb(v_credit_txn) ELSE NULL END,
-    'paid_transaction', to_jsonb(v_paid_txn),
+    'credit_transaction', CASE WHEN v_credit_to_use > 0 AND v_credit_txn.id IS NOT NULL THEN to_jsonb(v_credit_txn) ELSE NULL END,
+    'topup_credit_transaction', CASE WHEN v_topup_to_use > 0 AND v_topup_credit_txn.id IS NOT NULL THEN to_jsonb(v_topup_credit_txn) ELSE NULL END,
+    'paid_transaction', CASE WHEN v_paid_to_use > 0 AND v_paid_txn.id IS NOT NULL THEN to_jsonb(v_paid_txn) ELSE NULL END,
     'wallet', jsonb_build_object(
       'paid_balance', v_wallet.paid_balance,
       'welcome_credit', v_wallet.welcome_credit,
@@ -1183,15 +1184,15 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_order RECORD;
-  v_wallet RECORD;
-  v_topup_txn RECORD;
-  v_promo_txn RECORD;
+  v_order public.wallet_topup_orders%ROWTYPE;
+  v_wallet public.organization_wallets%ROWTYPE;
+  v_topup_txn public.wallet_transactions%ROWTYPE;
+  v_promo_txn public.wallet_transactions%ROWTYPE;
   v_now TIMESTAMPTZ := timezone('utc'::text, now());
   v_promo_credit NUMERIC := 0.00;
   v_tier_rate TEXT := '0%';
-  v_existing_topup RECORD;
-  v_existing_promo RECORD;
+  v_existing_topup public.wallet_transactions%ROWTYPE;
+  v_existing_promo public.wallet_transactions%ROWTYPE;
 BEGIN
   -- 1. Input validations
   IF p_order_id IS NULL THEN
@@ -1406,8 +1407,8 @@ BEGIN
       'success', true,
       'is_idempotent_replay', false,
       'order', to_jsonb(v_order),
-      'topup_transaction', to_jsonb(v_topup_txn),
-      'promo_credit_transaction', CASE WHEN v_promo_txn.id IS NOT NULL THEN to_jsonb(v_promo_txn) ELSE NULL END,
+      'topup_transaction', CASE WHEN v_topup_txn.id IS NOT NULL THEN to_jsonb(v_topup_txn) ELSE NULL END,
+      'promo_credit_transaction', CASE WHEN v_promo_credit > 0 AND v_promo_txn.id IS NOT NULL THEN to_jsonb(v_promo_txn) ELSE NULL END,
       'wallet', jsonb_build_object(
         'paid_balance', v_wallet.paid_balance,
         'welcome_credit', v_wallet.welcome_credit,

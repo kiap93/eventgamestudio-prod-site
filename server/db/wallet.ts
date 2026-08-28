@@ -1701,6 +1701,9 @@ export async function processEventPayment(
     if (payload.credit_transaction) {
       transactions.push(payload.credit_transaction as WalletTransactionRecord);
     }
+    if (payload.topup_credit_transaction) {
+      transactions.push(payload.topup_credit_transaction as WalletTransactionRecord);
+    }
     if (payload.paid_transaction) {
       transactions.push(payload.paid_transaction as WalletTransactionRecord);
     }
