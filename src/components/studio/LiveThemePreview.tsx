@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { GameTheme, ThemeDropItem, isMemoryMatchTheme } from '../../themes';
+import { GameTheme, ThemeDropItem, isMemoryMatchTheme, getMemoryMatchConfig } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
+
 import { createShuffledDeck } from '../../games/memory-match/cardDeck';
 import { MemoryCard } from '../../games/memory-match/types';
 import {
@@ -901,9 +902,9 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                           borderColor: theme.visuals_config?.cardBadBorder || '#334155',
                         }}
                       >
-                        {theme.visuals_config?.cardBackUrl || theme.basket_config?.imageUrl || theme.basketUrl ? (
+                        {getMemoryMatchConfig(theme).cardBackUrl ? (
                           <img
-                            src={theme.visuals_config?.cardBackUrl || theme.basket_config?.imageUrl || theme.basketUrl}
+                            src={getMemoryMatchConfig(theme).cardBackUrl!}
                             alt="Card Back"
                             className="max-h-full max-w-full object-contain filter drop-shadow-sm pointer-events-none"
                             referrerPolicy="no-referrer"
@@ -917,6 +918,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                           </>
                         )}
                       </div>
+
 
                       {/* CARD FRONT FACE */}
                       <div

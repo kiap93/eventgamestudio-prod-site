@@ -1,4 +1,4 @@
-import { GameTheme } from './types';
+import { GameTheme, DEFAULT_MEMORY_MATCH_CONFIG } from './types';
 import { DEFAULT_GAME_LAYOUT } from './layout';
 
 export const memoryMatchTheme: GameTheme = {
@@ -27,7 +27,10 @@ export const memoryMatchTheme: GameTheme = {
 
   basket_config: null,
 
+  game_config: DEFAULT_MEMORY_MATCH_CONFIG,
+
   items_config: [
+
     {
       id: 'pair_diamond',
       name: 'Diamond',

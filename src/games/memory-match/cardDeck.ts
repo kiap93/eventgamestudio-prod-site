@@ -1,4 +1,4 @@
-import { GameTheme } from '../../themes/types';
+import { GameTheme, getMemoryMatchConfig } from '../../themes/types';
 import { MemoryCard } from './types';
 
 interface CardPrototype {
@@ -111,23 +111,25 @@ export function shuffleArray<T>(array: T[]): T[] {
 /**
  * Builds 8 unique pairs tailored to the given theme, duplicates them to 16 cards,
  * and shuffles them randomly.
+ * Prioritizes game_config.pairs as the authoritative source of truth.
  */
 export function createShuffledDeck(theme?: GameTheme | null): MemoryCard[] {
+  const memoryConfig = getMemoryMatchConfig(theme);
   const prototypes: CardPrototype[] = [];
 
-  // If the active theme has custom card pairs in items_config, use them
-  if (theme?.items_config && theme.items_config.length > 0) {
-    theme.items_config.forEach((item, index) => {
-      if (prototypes.length < 8 && item.enabled !== false) {
+  if (memoryConfig.pairs && memoryConfig.pairs.length > 0) {
+    memoryConfig.pairs.forEach((pair, index) => {
+      if (prototypes.length < 8) {
+        const fallbackProto = DEFAULT_CARD_PROTOTYPES[index % DEFAULT_CARD_PROTOTYPES.length];
         prototypes.push({
-          pairId: `pair_${item.id || index}`,
-          name: item.name || `Pair ${index + 1}`,
-          imageUrl: item.imageUrl || null,
-          iconName: item.isBonus ? 'Star' : item.isHazard ? 'Flame' : 'Sparkles',
-          color: item.isBonus ? '#eab308' : item.isHazard ? '#f43f5e' : '#6366f1',
-          bgColor: item.isBonus ? 'rgba(234, 179, 8, 0.15)' : item.isHazard ? 'rgba(244, 63, 94, 0.15)' : 'rgba(99, 102, 241, 0.15)',
-          borderColor: item.isBonus ? '#eab308' : item.isHazard ? '#f43f5e' : '#6366f1',
-          points: item.points || 100,
+          pairId: pair.id || `pair_${index}`,
+          name: pair.name || fallbackProto.name,
+          imageUrl: pair.imageUrl || null,
+          iconName: pair.iconName || fallbackProto.iconName,
+          color: pair.color || fallbackProto.color,
+          bgColor: pair.bgColor || fallbackProto.bgColor,
+          borderColor: pair.borderColor || fallbackProto.borderColor,
+          points: pair.points ?? 100,
         });
       }
     });
@@ -182,3 +184,4 @@ export function createShuffledDeck(theme?: GameTheme | null): MemoryCard[] {
 
   return shuffleArray(cards);
 }
+

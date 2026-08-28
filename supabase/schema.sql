@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS public.game_themes (
   visuals_config JSONB NOT NULL DEFAULT '{}'::jsonb,
   sounds_config JSONB NOT NULL DEFAULT '{}'::jsonb,
   layout JSONB NOT NULL DEFAULT '{}'::jsonb,
+  game_config JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );

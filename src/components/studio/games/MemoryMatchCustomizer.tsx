@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { GameTheme, ThemeDropItem } from '../../../themes/types';
+import { GameTheme, ThemeDropItem, getMemoryMatchConfig } from '../../../themes/types';
+import { MemoryMatchGameConfig, MemoryMatchPairConfig } from '../../../games/memory-match/types';
 import {
   Grid3X3,
   Layers,
@@ -86,7 +87,23 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const currentCardBackUrl = theme.visuals_config?.cardBackUrl || '';
+  const memoryConfig = getMemoryMatchConfig(theme);
+  const currentCardBackUrl = memoryConfig.cardBackUrl || '';
+
+  const updateCardBack = (newCardBackUrl: string | null) => {
+    const nextMemoryConfig: MemoryMatchGameConfig = {
+      ...memoryConfig,
+      cardBackUrl: newCardBackUrl,
+    };
+    onChange({
+      ...theme,
+      game_config: nextMemoryConfig,
+      visuals_config: {
+        ...theme.visuals_config,
+        cardBackUrl: newCardBackUrl,
+      },
+    });
+  };
 
   const processCardBackFile = async (file: File) => {
     setCardBackUploadError(null);
@@ -113,13 +130,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
 
     try {
       const uploadedUrl = await onUploadAsset(file, 'cardBack');
-      onChange({
-        ...theme,
-        visuals_config: {
-          ...theme.visuals_config,
-          cardBackUrl: uploadedUrl,
-        },
-      });
+      updateCardBack(uploadedUrl);
     } catch (err: any) {
       setCardBackUploadError(err.message || 'Failed to upload card back artwork');
     }
@@ -213,15 +224,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    onChange({
-                      ...theme,
-                      visuals_config: {
-                        ...theme.visuals_config,
-                        cardBackUrl: null,
-                      },
-                    });
-                  }}
+                  onClick={() => updateCardBack(null)}
                   className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-rose-500/30"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -289,15 +292,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
               <button
                 key={preset.name}
                 type="button"
-                onClick={() => {
-                  onChange({
-                    ...theme,
-                    visuals_config: {
-                      ...theme.visuals_config,
-                      cardBackUrl: preset.url,
-                    },
-                  });
-                }}
+                onClick={() => updateCardBack(preset.url)}
                 className={`p-2.5 rounded-xl border text-left flex flex-col items-center gap-2 transition-all ${
                   currentCardBackUrl === preset.url
                     ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/30'
@@ -397,34 +392,35 @@ export const MemoryMatchCardsCustomizer: React.FC<MemoryMatchCardsCustomizerProp
   onUploadAsset,
   uploadingAsset,
 }) => {
-  // Ensure we display 8 card pairs
-  const rawItems = theme.items_config || [];
-  const [editingPairIdx, setEditingPairIdx] = useState<number | null>(null);
+  const memoryConfig = getMemoryMatchConfig(theme);
+  const pairs: MemoryMatchPairConfig[] = memoryConfig.pairs;
 
-  // Initialize or ensure 8 card items
-  const cardPairs: ThemeDropItem[] = Array.from({ length: 8 }).map((_, idx) => {
-    if (rawItems[idx]) {
-      return rawItems[idx];
-    }
-    return {
-      id: `pair_${idx + 1}`,
-      name: `Card Pair ${idx + 1}`,
-      imageUrl: null,
-      points: 100,
+  const handleUpdateCardPair = (index: number, updates: Partial<MemoryMatchPairConfig>) => {
+    const updatedPairs = [...pairs];
+    updatedPairs[index] = { ...updatedPairs[index], ...updates };
+
+    const nextMemoryConfig: MemoryMatchGameConfig = {
+      ...memoryConfig,
+      pairs: updatedPairs,
+    };
+
+    // Also mirror to items_config for backwards-compatibility
+    const nextItemsConfig: ThemeDropItem[] = updatedPairs.map((p, i) => ({
+      id: p.id || `pair_${i + 1}`,
+      name: p.name || `Card Pair ${i + 1}`,
+      imageUrl: p.imageUrl || null,
+      points: p.points ?? 100,
       enabled: true,
       isHazard: false,
       isBonus: false,
       speedMultiplier: 1.0,
       spawnWeight: 10,
-    };
-  });
+    }));
 
-  const handleUpdateCardPair = (index: number, updates: Partial<ThemeDropItem>) => {
-    const updated = [...cardPairs];
-    updated[index] = { ...updated[index], ...updates };
     onChange({
       ...theme,
-      items_config: updated,
+      game_config: nextMemoryConfig,
+      items_config: nextItemsConfig,
     });
   };
 
@@ -456,7 +452,7 @@ export const MemoryMatchCardsCustomizer: React.FC<MemoryMatchCardsCustomizerProp
 
       {/* 8 Pairs Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {cardPairs.map((pair, idx) => {
+        {pairs.map((pair, idx) => {
           const isUploadingThis = uploadingAsset === `card_pair_${idx}`;
           const currentImg = pair.imageUrl;
 
@@ -539,22 +535,30 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
   theme,
   onChange,
 }) => {
-  const physics = theme.physics_config || {
-    gameDurationSeconds: 45,
-    baseFallSpeed: 500,
-    fallSpeedMultiplier: 1.0,
-    spawnIntervalMin: 850,
-    spawnIntervalMax: 1000,
-    difficultyStages: [],
-  };
+  const memoryConfig = getMemoryMatchConfig(theme);
+  const gameplay = memoryConfig.gameplay;
 
-  const handleUpdatePhysics = (updates: Partial<typeof physics>) => {
+  const handleUpdateGameplay = (updates: Partial<typeof gameplay>) => {
+    const nextGameplay = {
+      ...gameplay,
+      ...updates,
+    };
+    const nextMemoryConfig: MemoryMatchGameConfig = {
+      ...memoryConfig,
+      gameplay: nextGameplay,
+    };
+
+    // Mirror to physics_config for backward-compatibility
+    const nextPhysics = {
+      ...(theme.physics_config || {}),
+      gameDurationSeconds: nextGameplay.gameDurationSeconds,
+      spawnIntervalMin: nextGameplay.mismatchDelayMs,
+    };
+
     onChange({
       ...theme,
-      physics_config: {
-        ...physics,
-        ...updates,
-      },
+      game_config: nextMemoryConfig,
+      physics_config: nextPhysics as any,
     });
   };
 
@@ -584,7 +588,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
                 Match Duration
               </span>
               <span className="text-amber-400 font-bold font-mono text-sm">
-                {physics.gameDurationSeconds || 45}s
+                {gameplay.gameDurationSeconds || 45}s
               </span>
             </div>
             <input
@@ -592,9 +596,9 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
               min="15"
               max="90"
               step="5"
-              value={physics.gameDurationSeconds || 45}
+              value={gameplay.gameDurationSeconds || 45}
               onChange={(e) =>
-                handleUpdatePhysics({
+                handleUpdateGameplay({
                   gameDurationSeconds: parseInt(e.target.value) || 45,
                 })
               }
@@ -611,7 +615,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
                 Mismatch Delay
               </span>
               <span className="text-sky-400 font-bold font-mono text-sm">
-                {physics.spawnIntervalMin || 850}ms
+                {gameplay.mismatchDelayMs || 850}ms
               </span>
             </div>
             <input
@@ -619,10 +623,10 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
               min="400"
               max="1500"
               step="50"
-              value={physics.spawnIntervalMin || 850}
+              value={gameplay.mismatchDelayMs || 850}
               onChange={(e) =>
-                handleUpdatePhysics({
-                  spawnIntervalMin: parseInt(e.target.value) || 850,
+                handleUpdateGameplay({
+                  mismatchDelayMs: parseInt(e.target.value) || 850,
                 })
               }
               className="w-full accent-sky-500 cursor-pointer"
@@ -710,3 +714,4 @@ export const MemoryMatchAudioTester: React.FC = () => {
     </div>
   );
 };
+

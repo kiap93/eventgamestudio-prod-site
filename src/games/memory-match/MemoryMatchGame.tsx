@@ -31,7 +31,9 @@ import { MemoryCard, MemoryMatchConfig } from './types';
 import { createShuffledDeck } from './cardDeck';
 import { memorySounds } from './memorySounds';
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
+import { getMemoryMatchConfig } from '../../themes/types';
 import { apiFetch } from '../../lib/api';
+
 import {
   calculateMemoryMatchScore,
   MEMORY_MATCH_GAME_VERSION,
@@ -77,12 +79,15 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   onToggleFullscreen,
   onToggleMute,
 }) => {
-  const gameDuration = config?.gameDurationSeconds ?? settings?.gameDurationSeconds ?? 45;
-  const mismatchDelay = config?.mismatchDelayMs ?? 850;
-  const matchPoints = config?.matchPoints ?? 100;
-  const comboPoints = config?.comboPoints ?? 30;
+  const memoryConfig = getMemoryMatchConfig(activeTheme);
+  const gameDuration = config?.gameDurationSeconds ?? settings?.gameDurationSeconds ?? memoryConfig.gameplay.gameDurationSeconds ?? 45;
+  const mismatchDelay = config?.mismatchDelayMs ?? memoryConfig.gameplay.mismatchDelayMs ?? 850;
+  const matchPoints = config?.matchPoints ?? memoryConfig.gameplay.matchPoints ?? 100;
+  const comboPoints = config?.comboPoints ?? memoryConfig.gameplay.comboPoints ?? 30;
+  const cardBackUrl = memoryConfig.cardBackUrl;
 
   const [gameState, setGameState] = useState<GameState>('START');
+
   const [countdown, setCountdown] = useState<number>(3);
   const [cards, setCards] = useState<MemoryCard[]>([]);
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
@@ -704,9 +709,9 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                       borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
                     }}
                   >
-                    {activeTheme?.visuals_config?.cardBackUrl ? (
+                    {cardBackUrl ? (
                       <img
-                        src={activeTheme.visuals_config.cardBackUrl}
+                        src={cardBackUrl}
                         alt="Card Back"
                         className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
                         referrerPolicy="no-referrer"
@@ -720,6 +725,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                       </>
                     )}
                   </div>
+
 
                   {/* ------------------------------------------------------------- */}
                   {/* FRONT FACE (Flipped Face-Up / Matched State)                  */}

@@ -1,4 +1,7 @@
+import type { MemoryMatchGameConfig } from '../games/memory-match/types';
+
 export interface ThemeBrandingConfig {
+
   gameTitle: string;
   subtitle?: string;
   logoUrl?: string | null;
@@ -140,6 +143,7 @@ export interface GameTheme {
   visuals_config: ThemeVisualsConfig;
   sounds_config: ThemeSoundsConfig;
   layout?: GameLayoutConfig;
+  game_config?: Record<string, any>;
 
   // Convenience / Backward-compatibility properties
   gameTitle?: string;
@@ -191,3 +195,90 @@ export function getThemeGameType(theme?: Partial<GameTheme> | null, fallbackGame
 export function isMemoryMatchTheme(theme?: Partial<GameTheme> | null, fallbackGameType?: string): boolean {
   return getThemeGameType(theme, fallbackGameType) === 'memory-match';
 }
+
+export const DEFAULT_MEMORY_MATCH_CONFIG: MemoryMatchGameConfig = {
+  cardBackUrl: null,
+  pairs: [
+    { id: 'pair_diamond', name: 'Diamond', imageUrl: null, points: 100, iconName: 'Sparkles', color: '#6366f1', bgColor: 'rgba(99, 102, 241, 0.15)', borderColor: '#6366f1' },
+    { id: 'pair_crown', name: 'Crown', imageUrl: null, points: 100, iconName: 'Award', color: '#eab308', bgColor: 'rgba(234, 179, 8, 0.15)', borderColor: '#eab308' },
+    { id: 'pair_star', name: 'Star', imageUrl: null, points: 100, iconName: 'Star', color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.15)', borderColor: '#f59e0b' },
+    { id: 'pair_heart', name: 'Heart', imageUrl: null, points: 100, iconName: 'Gift', color: '#ec4899', bgColor: 'rgba(236, 72, 153, 0.15)', borderColor: '#ec4899' },
+    { id: 'pair_lightning', name: 'Lightning', imageUrl: null, points: 100, iconName: 'Zap', color: '#38bdf8', bgColor: 'rgba(56, 189, 248, 0.15)', borderColor: '#38bdf8' },
+    { id: 'pair_shield', name: 'Shield', imageUrl: null, points: 100, iconName: 'Medal', color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10b981' },
+    { id: 'pair_trophy', name: 'Trophy', imageUrl: null, points: 100, iconName: 'Trophy', color: '#a855f7', bgColor: 'rgba(168, 85, 247, 0.15)', borderColor: '#a855f7' },
+    { id: 'pair_rocket', name: 'Rocket', imageUrl: null, points: 100, iconName: 'Flame', color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.15)', borderColor: '#f97316' },
+  ],
+  grid: {
+    rows: 4,
+    cols: 4,
+  },
+  gameplay: {
+    gameDurationSeconds: 45,
+    mismatchDelayMs: 850,
+    matchPoints: 100,
+    comboPoints: 30,
+  },
+};
+
+/**
+ * Resolves the authoritative MemoryMatchGameConfig from theme.game_config,
+ * with safe fallback to legacy fields (items_config, visuals_config, physics_config)
+ * ONLY if game_config is missing or empty.
+ */
+export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryMatchGameConfig {
+  const gc = theme?.game_config as Partial<MemoryMatchGameConfig> | undefined;
+
+  const hasGameConfig =
+    gc &&
+    typeof gc === 'object' &&
+    (Array.isArray(gc.pairs) || gc.gameplay !== undefined || gc.cardBackUrl !== undefined);
+
+  if (hasGameConfig) {
+    return {
+      cardBackUrl: gc.cardBackUrl !== undefined ? gc.cardBackUrl : (theme?.visuals_config?.cardBackUrl || null),
+      pairs: Array.isArray(gc.pairs) && gc.pairs.length > 0
+        ? gc.pairs
+        : DEFAULT_MEMORY_MATCH_CONFIG.pairs,
+      grid: {
+        rows: gc.grid?.rows ?? 4,
+        cols: gc.grid?.cols ?? 4,
+      },
+      gameplay: {
+        gameDurationSeconds: gc.gameplay?.gameDurationSeconds ?? theme?.physics_config?.gameDurationSeconds ?? 45,
+        mismatchDelayMs: gc.gameplay?.mismatchDelayMs ?? theme?.physics_config?.spawnIntervalMin ?? 850,
+        matchPoints: gc.gameplay?.matchPoints ?? 100,
+        comboPoints: gc.gameplay?.comboPoints ?? 30,
+      },
+    };
+  }
+
+  // Legacy fallback: convert from items_config, visuals_config, physics_config
+  const legacyPairs = theme?.items_config && theme.items_config.length > 0
+    ? theme.items_config.slice(0, 8).map((item, idx) => ({
+        id: item.id || `pair_${idx + 1}`,
+        name: item.name || `Card Pair ${idx + 1}`,
+        imageUrl: item.imageUrl || null,
+        points: item.points || 100,
+        iconName: item.isBonus ? 'Star' : item.isHazard ? 'Flame' : 'Sparkles',
+        color: item.isBonus ? '#eab308' : item.isHazard ? '#f43f5e' : '#6366f1',
+        bgColor: item.isBonus ? 'rgba(234, 179, 8, 0.15)' : item.isHazard ? 'rgba(244, 63, 94, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+        borderColor: item.isBonus ? '#eab308' : item.isHazard ? '#f43f5e' : '#6366f1',
+      }))
+    : DEFAULT_MEMORY_MATCH_CONFIG.pairs;
+
+  return {
+    cardBackUrl: theme?.visuals_config?.cardBackUrl || null,
+    pairs: legacyPairs,
+    grid: {
+      rows: 4,
+      cols: 4,
+    },
+    gameplay: {
+      gameDurationSeconds: theme?.physics_config?.gameDurationSeconds ?? 45,
+      mismatchDelayMs: theme?.physics_config?.spawnIntervalMin ?? 850,
+      matchPoints: 100,
+      comboPoints: 30,
+    },
+  };
+}
+

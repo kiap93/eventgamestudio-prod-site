@@ -415,6 +415,29 @@ export const DEFAULT_MEMORY_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
     bgGradientVia: '#1e1b4b',
     bgGradientTo: '#0f172a',
   },
+  game_config: {
+    cardBackUrl: null,
+    pairs: [
+      { id: 'pair_diamond', name: 'Diamond', imageUrl: null, points: 100 },
+      { id: 'pair_crown', name: 'Crown', imageUrl: null, points: 100 },
+      { id: 'pair_star', name: 'Star', imageUrl: null, points: 100 },
+      { id: 'pair_heart', name: 'Heart', imageUrl: null, points: 100 },
+      { id: 'pair_lightning', name: 'Lightning', imageUrl: null, points: 100 },
+      { id: 'pair_shield', name: 'Shield', imageUrl: null, points: 100 },
+      { id: 'pair_trophy', name: 'Trophy', imageUrl: null, points: 100 },
+      { id: 'pair_rocket', name: 'Rocket', imageUrl: null, points: 100 },
+    ],
+    grid: {
+      rows: 4,
+      cols: 4,
+    },
+    gameplay: {
+      gameDurationSeconds: 45,
+      mismatchDelayMs: 850,
+      matchPoints: 100,
+      comboPoints: 30,
+    },
+  },
   sounds_config: {
     soundVolume: 0.8,
     soundEnabled: true,
@@ -1218,6 +1241,7 @@ export async function createTheme(
     visuals_config?: ThemeVisualsConfig;
     sounds_config?: ThemeSoundsConfig;
     layout?: any;
+    game_config?: any;
   },
   env?: Record<string, any>
 ): Promise<GameThemeRecord> {
@@ -1314,6 +1338,7 @@ export async function createTheme(
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
     sounds_config: params.sounds_config ?? defaultTemplate.sounds_config,
     layout: params.layout ?? defaultTemplate.layout,
+    game_config: params.game_config ?? {},
     created_at: now,
     updated_at: now,
   });
@@ -1384,7 +1409,7 @@ export async function duplicateTheme(
 
   return await createTheme(
     {
-      organization_id: existing.organization_id,
+      organization_id: existing.organization_id!,
       game_id: existing.game_id,
       name,
       slug,
@@ -1398,6 +1423,7 @@ export async function duplicateTheme(
       visuals_config: existing.visuals_config,
       sounds_config: existing.sounds_config,
       layout: existing.layout,
+      game_config: existing.game_config ?? {},
     },
     env
   );

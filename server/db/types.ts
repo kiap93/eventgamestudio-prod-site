@@ -232,6 +232,7 @@ export interface GameThemeRecord {
   visuals_config: ThemeVisualsConfig;
   sounds_config: ThemeSoundsConfig;
   layout?: GameLayoutConfig;
+  game_config?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
