@@ -26,17 +26,30 @@ import {
   Sliders,
   Play,
   RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import { memorySounds } from '../../../games/memory-match/memorySounds';
 
 const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 const ALLOWED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp'];
 
-export const PRESET_CARD_BACKS = [
-  { name: 'Carnival Gold', url: '/assets/basket.png' },
-  { name: 'Mystery Badge', url: '/assets/themes/carnival/item_bonus_01.png' },
-  { name: 'Golden Ticket', url: '/assets/themes/carnival/item_normal_01.png' },
-  { name: 'Brand Crest', url: '/assets/themes/carnival/item_hazard_01.png' },
+export const PRESET_CARD_BACKS: Array<{ name: string; url: string }> = [
+  {
+    name: 'Geometric Star',
+    url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="%23f59e0b"><polygon points="50,10 61,38 91,38 67,56 76,84 50,67 24,84 33,56 9,38 39,38"/></svg>',
+  },
+  {
+    name: 'Crown Emblem',
+    url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="%236366f1"><path d="M15,75 L85,75 L80,35 L60,55 L50,25 L40,55 L20,35 Z"/></svg>',
+  },
+  {
+    name: 'Diamond Shield',
+    url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="%2310b981"><polygon points="50,15 85,35 85,65 50,85 15,65 15,35"/></svg>',
+  },
+  {
+    name: 'Infinity Loop',
+    url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="%23ec4899"><circle cx="35" cy="50" r="18" fill="none" stroke="%23ec4899" stroke-width="8"/><circle cx="65" cy="50" r="18" fill="none" stroke="%23ec4899" stroke-width="8"/></svg>',
+  },
 ];
 
 const CARD_ICONS = [
@@ -73,7 +86,7 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const currentCardBackUrl = theme.visuals_config?.cardBackUrl || theme.basket_config?.imageUrl || '';
+  const currentCardBackUrl = theme.visuals_config?.cardBackUrl || '';
 
   const processCardBackFile = async (file: File) => {
     setCardBackUploadError(null);
@@ -106,11 +119,6 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
           ...theme.visuals_config,
           cardBackUrl: uploadedUrl,
         },
-        basket_config: {
-          ...theme.basket_config,
-          imageUrl: uploadedUrl,
-        },
-        catcher: uploadedUrl,
       });
     } catch (err: any) {
       setCardBackUploadError(err.message || 'Failed to upload card back artwork');
@@ -203,6 +211,22 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                   <RefreshCw className={`w-3.5 h-3.5 ${uploadingAsset === 'cardBack' ? 'animate-spin' : ''}`} />
                   <span>Replace Artwork</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange({
+                      ...theme,
+                      visuals_config: {
+                        ...theme.visuals_config,
+                        cardBackUrl: null,
+                      },
+                    });
+                  }}
+                  className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-rose-500/30"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Remove</span>
+                </button>
               </div>
             </div>
           </div>
@@ -272,12 +296,6 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
                       ...theme.visuals_config,
                       cardBackUrl: preset.url,
                     },
-                    basket_config: {
-                      ...theme.basket_config,
-                      name: preset.name,
-                      imageUrl: preset.url,
-                    },
-                    catcher: preset.url,
                   });
                 }}
                 className={`p-2.5 rounded-xl border text-left flex flex-col items-center gap-2 transition-all ${

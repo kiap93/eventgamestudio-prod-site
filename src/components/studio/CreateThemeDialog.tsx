@@ -57,6 +57,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
         const isMemoryGame =
           gameName?.toLowerCase().includes('memory') ||
           gameId === 'memory-match' ||
+          gameId === 'c782cc78-d2f6-4e70-ac90-bbf9824c62f9' ||
           false;
         const defaultBase = isMemoryGame ? memoryMatchTheme : carnivalTheme;
         const matchingExisting = existingThemes.find((t) =>
@@ -83,9 +84,9 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
             logoUrl: null,
             clientLogoUrl: null,
           },
-          background_url: defaultBase.background_url || base.background_url,
+          background_url: isMemoryGame ? null : (defaultBase.background_url || base.background_url),
           basket_config: isMemoryGame
-            ? JSON.parse(JSON.stringify(memoryMatchTheme.basket_config))
+            ? null
             : JSON.parse(JSON.stringify(base.basket_config || defaultBase.basket_config)),
           items_config: isMemoryGame
             ? JSON.parse(JSON.stringify(memoryMatchTheme.items_config))

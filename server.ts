@@ -1050,6 +1050,19 @@ app.get('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) =
 
     const themes = await getThemesByOrgId(organizationId, gameId);
 
+    const safefTheme = themes.find((t) => t.name?.toLowerCase() === 'safef' || t.slug?.toLowerCase() === 'safef' || t.id === 'dd423275-9ed8-457a-8f1e-2231af720e01');
+    if (safefTheme) {
+      console.log('[Theme API Assertion - safef in list]', {
+        theme_id: safefTheme.id,
+        name: safefTheme.name,
+        slug: safefTheme.slug,
+        game_id: safefTheme.game_id,
+        game_name: safefTheme.game_name,
+        game_slug: safefTheme.game_slug,
+        game_type: safefTheme.game_type,
+      });
+    }
+
     res.json({ themes });
   } catch (err: any) {
     console.error('Get themes error:', err);
@@ -1220,6 +1233,17 @@ app.get('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
     }
 
     console.log(`[Theme API] Successfully resolved theme "${theme.name}" (id: ${theme.id}, is_system: ${isSystemTheme})`);
+    if (theme.name?.toLowerCase() === 'safef' || theme.slug?.toLowerCase() === 'safef' || theme.id === 'dd423275-9ed8-457a-8f1e-2231af720e01') {
+      console.log('[Theme API Assertion - safef single theme]', {
+        theme_id: theme.id,
+        name: theme.name,
+        slug: theme.slug,
+        game_id: theme.game_id,
+        game_name: theme.game_name,
+        game_slug: theme.game_slug,
+        game_type: theme.game_type,
+      });
+    }
     res.json({ theme });
   } catch (err: any) {
     console.error('Get theme details error:', err);

@@ -12,83 +12,83 @@ interface CardPrototype {
   points: number;
 }
 
-// 8 Default Carnival themed card prototypes with rich colors and icons
+// 8 Default Memory Match card prototypes with geometric symbols and icons
 const DEFAULT_CARD_PROTOTYPES: CardPrototype[] = [
   {
-    pairId: 'pair_ticket',
-    name: 'Golden Ticket',
-    imageUrl: '/assets/themes/carnival/item_normal_01.png',
-    iconName: 'Ticket',
-    color: '#fbbf24', // amber-400
-    bgColor: 'rgba(245, 158, 11, 0.15)',
-    borderColor: '#f59e0b',
-    points: 100,
-  },
-  {
-    pairId: 'pair_mask',
-    name: 'Carnival Mask',
-    imageUrl: '/assets/themes/carnival/item_hazard_01.png',
+    pairId: 'pair_diamond',
+    name: 'Diamond',
+    imageUrl: null,
     iconName: 'Sparkles',
-    color: '#f43f5e', // rose-500
-    bgColor: 'rgba(244, 63, 94, 0.15)',
-    borderColor: '#f43f5e',
+    color: '#6366f1', // indigo-500
+    bgColor: 'rgba(99, 102, 241, 0.15)',
+    borderColor: '#6366f1',
     points: 100,
   },
   {
-    pairId: 'pair_star',
-    name: 'Cosmic Star',
-    imageUrl: '/assets/themes/carnival/item_bonus_01.png',
-    iconName: 'Star',
+    pairId: 'pair_crown',
+    name: 'Crown',
+    imageUrl: null,
+    iconName: 'Award',
     color: '#eab308', // yellow-500
     bgColor: 'rgba(234, 179, 8, 0.15)',
     borderColor: '#eab308',
     points: 100,
   },
   {
-    pairId: 'pair_cart',
-    name: 'Carnival Cart',
-    imageUrl: '/assets/themes/carnival/basket.png',
-    iconName: 'ShoppingBag',
-    color: '#10b981', // emerald-500
-    bgColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: '#10b981',
+    pairId: 'pair_star',
+    name: 'Star',
+    imageUrl: null,
+    iconName: 'Star',
+    color: '#f59e0b', // amber-500
+    bgColor: 'rgba(245, 158, 11, 0.15)',
+    borderColor: '#f59e0b',
     points: 100,
   },
   {
-    pairId: 'pair_circus',
-    name: 'Big Top Tent',
+    pairId: 'pair_heart',
+    name: 'Heart',
     imageUrl: null,
-    iconName: 'Tent',
-    color: '#8b5cf6', // violet-500
-    bgColor: 'rgba(139, 92, 246, 0.15)',
-    borderColor: '#8b5cf6',
-    points: 100,
-  },
-  {
-    pairId: 'pair_balloon',
-    name: 'Party Balloons',
-    imageUrl: null,
-    iconName: 'PartyPopper',
+    iconName: 'Gift',
     color: '#ec4899', // pink-500
     bgColor: 'rgba(236, 72, 153, 0.15)',
     borderColor: '#ec4899',
     points: 100,
   },
   {
-    pairId: 'pair_trophy',
-    name: 'Carnival Cup',
+    pairId: 'pair_lightning',
+    name: 'Lightning',
     imageUrl: null,
-    iconName: 'Trophy',
-    color: '#06b6d4', // cyan-500
-    bgColor: 'rgba(6, 182, 212, 0.15)',
-    borderColor: '#06b6d4',
+    iconName: 'Zap',
+    color: '#38bdf8', // sky-400
+    bgColor: 'rgba(56, 189, 248, 0.15)',
+    borderColor: '#38bdf8',
     points: 100,
   },
   {
-    pairId: 'pair_wheel',
-    name: 'Fortune Wheel',
+    pairId: 'pair_shield',
+    name: 'Shield',
     imageUrl: null,
-    iconName: 'Disc',
+    iconName: 'Medal',
+    color: '#10b981', // emerald-500
+    bgColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: '#10b981',
+    points: 100,
+  },
+  {
+    pairId: 'pair_trophy',
+    name: 'Trophy',
+    imageUrl: null,
+    iconName: 'Trophy',
+    color: '#a855f7', // purple-500
+    bgColor: 'rgba(168, 85, 247, 0.15)',
+    borderColor: '#a855f7',
+    points: 100,
+  },
+  {
+    pairId: 'pair_rocket',
+    name: 'Rocket',
+    imageUrl: null,
+    iconName: 'Flame',
     color: '#f97316', // orange-500
     bgColor: 'rgba(249, 115, 22, 0.15)',
     borderColor: '#f97316',
@@ -115,39 +115,25 @@ export function shuffleArray<T>(array: T[]): T[] {
 export function createShuffledDeck(theme?: GameTheme | null): MemoryCard[] {
   const prototypes: CardPrototype[] = [];
 
-  // If the active theme has custom drop items, prioritize them
+  // If the active theme has custom card pairs in items_config, use them
   if (theme?.items_config && theme.items_config.length > 0) {
     theme.items_config.forEach((item, index) => {
       if (prototypes.length < 8 && item.enabled !== false) {
         prototypes.push({
-          pairId: `pair_item_${item.id || index}`,
-          name: item.name || `Item ${index + 1}`,
+          pairId: `pair_${item.id || index}`,
+          name: item.name || `Pair ${index + 1}`,
           imageUrl: item.imageUrl || null,
-          iconName: item.isBonus ? 'Star' : item.isHazard ? 'Flame' : 'Gift',
-          color: item.isBonus ? '#eab308' : item.isHazard ? '#f43f5e' : '#10b981',
-          bgColor: item.isBonus ? 'rgba(234, 179, 8, 0.15)' : item.isHazard ? 'rgba(244, 63, 94, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-          borderColor: item.isBonus ? '#eab308' : item.isHazard ? '#f43f5e' : '#10b981',
-          points: 100,
+          iconName: item.isBonus ? 'Star' : item.isHazard ? 'Flame' : 'Sparkles',
+          color: item.isBonus ? '#eab308' : item.isHazard ? '#f43f5e' : '#6366f1',
+          bgColor: item.isBonus ? 'rgba(234, 179, 8, 0.15)' : item.isHazard ? 'rgba(244, 63, 94, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+          borderColor: item.isBonus ? '#eab308' : item.isHazard ? '#f43f5e' : '#6366f1',
+          points: item.points || 100,
         });
       }
     });
   }
 
-  // Include basket/catcher if we still need more pairs
-  if (prototypes.length < 8 && theme?.basket_config) {
-    prototypes.push({
-      pairId: 'pair_basket',
-      name: theme.basket_config.name || 'Catcher',
-      imageUrl: theme.basket_config.imageUrl || null,
-      iconName: 'ShoppingBag',
-      color: '#38bdf8',
-      bgColor: 'rgba(56, 189, 248, 0.15)',
-      borderColor: '#38bdf8',
-      points: 100,
-    });
-  }
-
-  // Backfill with default carnival prototypes to guarantee exactly 8 unique pairs
+  // Backfill with default Memory Match card prototypes to guarantee exactly 8 unique pairs
   for (const def of DEFAULT_CARD_PROTOTYPES) {
     if (prototypes.length >= 8) break;
     if (!prototypes.some((p) => p.name.toLowerCase() === def.name.toLowerCase())) {

@@ -1347,6 +1347,19 @@ export default {
         const gameId = url.searchParams.get('gameId') || undefined;
         const themes = await getThemesByOrgId(organizationId, gameId, env);
 
+        const safefTheme = themes.find((t) => t.name?.toLowerCase() === 'safef' || t.slug?.toLowerCase() === 'safef' || t.id === 'dd423275-9ed8-457a-8f1e-2231af720e01');
+        if (safefTheme) {
+          console.log('[Worker Theme API Assertion - safef in list]', {
+            theme_id: safefTheme.id,
+            name: safefTheme.name,
+            slug: safefTheme.slug,
+            game_id: safefTheme.game_id,
+            game_name: safefTheme.game_name,
+            game_slug: safefTheme.game_slug,
+            game_type: safefTheme.game_type,
+          });
+        }
+
         return jsonResponse({ themes }, 200, cors);
       }
 
@@ -1486,6 +1499,17 @@ export default {
         }
 
         console.log(`[Worker Theme API] Successfully resolved theme "${theme.name}" (id: ${theme.id}, is_system: ${isSystemTheme})`);
+        if (theme.name?.toLowerCase() === 'safef' || theme.slug?.toLowerCase() === 'safef' || theme.id === 'dd423275-9ed8-457a-8f1e-2231af720e01') {
+          console.log('[Worker Theme API Assertion - safef single theme]', {
+            theme_id: theme.id,
+            name: theme.name,
+            slug: theme.slug,
+            game_id: theme.game_id,
+            game_name: theme.game_name,
+            game_slug: theme.game_slug,
+            game_type: theme.game_type,
+          });
+        }
         return jsonResponse({ theme }, 200, cors);
       }
 

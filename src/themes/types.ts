@@ -134,7 +134,7 @@ export interface GameTheme {
   // Configuration groups
   branding: ThemeBrandingConfig;
   background_url: string;
-  basket_config: ThemeBasketConfig;
+  basket_config: ThemeBasketConfig | null;
   items_config: ThemeDropItem[];
   physics_config: ThemePhysicsConfig;
   visuals_config: ThemeVisualsConfig;

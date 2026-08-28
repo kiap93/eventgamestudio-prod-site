@@ -52,7 +52,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   const [activeTheme, setActiveThemeState] = useState<GameTheme>(() => {
     if (effectiveThemeProp) return effectiveThemeProp;
     if (contextActiveTheme) return contextActiveTheme;
-    if (resolvedGameType === 'memory-match') return getThemeById('memory-carnival');
+    if (resolvedGameType === 'memory-match') return getThemeById('memory-match');
     return initActiveTheme();
   });
 
@@ -71,7 +71,7 @@ export const GameShell: React.FC<GameShellProps> = ({
     } else if (contextActiveTheme) {
       setActiveThemeState(contextActiveTheme);
     } else if (resolvedGameType === 'memory-match') {
-      setActiveThemeState(getThemeById('memory-carnival'));
+      setActiveThemeState(getThemeById('memory-match'));
     }
   }, [effectiveThemeProp, contextActiveTheme, resolvedGameType]);
 

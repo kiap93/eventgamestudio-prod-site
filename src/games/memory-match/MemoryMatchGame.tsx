@@ -113,6 +113,24 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasEventContext = Boolean(publicToken || (eventId && eventId !== 'undefined' && eventId !== 'null'));
 
+  // Stable callback and state refs to prevent premature timer teardowns
+  const onGameStateChangeRef = useRef(onGameStateChange);
+  useEffect(() => {
+    onGameStateChangeRef.current = onGameStateChange;
+  }, [onGameStateChange]);
+
+  const onStatsChangeRef = useRef(onStatsChange);
+  useEffect(() => {
+    onStatsChangeRef.current = onStatsChange;
+  }, [onStatsChange]);
+
+  const timeRemainingRef = useRef(timeRemaining);
+  timeRemainingRef.current = timeRemaining;
+  const movesRef = useRef(moves);
+  movesRef.current = moves;
+  const matchedPairsCountRef = useRef(matchedPairsCount);
+  matchedPairsCountRef.current = matchedPairsCount;
+
   // Sync sound settings
   useEffect(() => {
     memorySounds.setMuted(isMuted || settings?.soundEnabled === false);
@@ -120,13 +138,10 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   }, [isMuted, settings]);
 
   // Sync game state to parent
-  const updateGameState = useCallback(
-    (newState: GameState) => {
-      setGameState(newState);
-      onGameStateChange?.(newState);
-    },
-    [onGameStateChange]
-  );
+  const updateGameState = useCallback((newState: GameState) => {
+    setGameState(newState);
+    onGameStateChangeRef.current?.(newState);
+  }, []);
 
   // Sync stats to parent
   useEffect(() => {
@@ -143,8 +158,8 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
         moves,
       },
     };
-    onStatsChange?.(stats);
-  }, [score, matchedPairsCount, moves, comboStreak, timeRemaining, onStatsChange]);
+    onStatsChangeRef.current?.(stats);
+  }, [score, matchedPairsCount, moves, comboStreak, timeRemaining]);
 
   // Initialize fresh card deck on theme change or mount
   const initBoard = useCallback(() => {
@@ -168,7 +183,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     initBoard();
   }, [initBoard]);
 
-  // Main countdown timer (3.. 2.. 1.. GO!)
+  // Main countdown trigger (3.. 2.. 1.. GO!)
   const startCountdown = useCallback(() => {
     initBoard();
     setCountdown(3);
@@ -177,34 +192,39 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
 
   // Dedicated countdown effect (3 -> 2 -> 1 -> PLAYING)
   useEffect(() => {
-    if (gameState !== 'COUNTDOWN') return;
+    if (gameState !== 'COUNTDOWN') {
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+      return;
+    }
 
     let current = 3;
     setCountdown(3);
     memorySounds.playTick(false);
 
-    countdownTimerRef.current = setInterval(() => {
+    const interval = setInterval(() => {
       current -= 1;
       if (current > 0) {
         setCountdown(current);
         memorySounds.playTick(false);
       } else {
-        if (countdownTimerRef.current) {
-          clearInterval(countdownTimerRef.current);
-          countdownTimerRef.current = null;
-        }
+        clearInterval(interval);
+        countdownTimerRef.current = null;
         memorySounds.playTick(true);
-        updateGameState('PLAYING');
+        setGameState('PLAYING');
+        onGameStateChangeRef.current?.('PLAYING');
       }
-    }, 900);
+    }, 1000);
+
+    countdownTimerRef.current = interval;
 
     return () => {
-      if (countdownTimerRef.current) {
-        clearInterval(countdownTimerRef.current);
-        countdownTimerRef.current = null;
-      }
+      clearInterval(interval);
+      countdownTimerRef.current = null;
     };
-  }, [gameState, updateGameState]);
+  }, [gameState]);
 
   // High score submission
   const fetchLeaderboard = useCallback(async () => {
@@ -246,12 +266,13 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
         timerRef.current = null;
       }
       setIsVictory(won);
-      updateGameState('GAME_OVER');
+      setGameState('GAME_OVER');
+      onGameStateChangeRef.current?.('GAME_OVER');
 
-      const finalDuration = Math.max(1, gameDuration - timeRemaining);
-      const finalPairs = won ? 8 : matchedPairsCount;
+      const finalDuration = Math.max(1, gameDuration - timeRemainingRef.current);
+      const finalPairs = won ? 8 : matchedPairsCountRef.current;
       const finalScore = calculateMemoryMatchScore({
-        moves,
+        moves: movesRef.current,
         duration: finalDuration,
         matchedPairs: finalPairs,
         totalPairs: 8,
@@ -267,40 +288,40 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
 
       fetchLeaderboard();
     },
-    [timeRemaining, moves, matchedPairsCount, gameDuration, updateGameState, fetchLeaderboard]
+    [gameDuration, fetchLeaderboard]
   );
 
-  // Playing state countdown timer
+  // Playing state game duration timer
   useEffect(() => {
-    if (gameState === 'PLAYING') {
-      timerRef.current = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            if (timerRef.current) {
-              clearInterval(timerRef.current);
-              timerRef.current = null;
-            }
-            handleGameOver(false);
-            return 0;
-          }
-          if (prev <= 6) {
-            memorySounds.playTick(false);
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
+    if (gameState !== 'PLAYING') {
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      return;
     }
 
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
+    const interval = setInterval(() => {
+      const current = timeRemainingRef.current;
+      if (current <= 1) {
+        clearInterval(interval);
         timerRef.current = null;
+        setTimeRemaining(0);
+        handleGameOver(false);
+      } else {
+        const next = current - 1;
+        setTimeRemaining(next);
+        if (next <= 5) {
+          memorySounds.playTick(false);
+        }
       }
+    }, 1000);
+
+    timerRef.current = interval;
+
+    return () => {
+      clearInterval(interval);
+      timerRef.current = null;
     };
   }, [gameState, handleGameOver]);
 
@@ -502,15 +523,22 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
 
   const accuracyPercent = moves > 0 ? Math.min(100, Math.round((matchedPairsCount / moves) * 100)) : 0;
   const gameTitle = activeTheme?.branding?.gameTitle || activeTheme?.name || 'MEMORY MATCH';
+  const customBgUrl = activeTheme?.background_url && activeTheme.background_url.trim() !== '' && !activeTheme.background_url.includes('carnival/background.png')
+    ? activeTheme.background_url
+    : null;
 
   return (
     <div
       className="relative w-full h-full min-h-0 flex flex-col items-center justify-between overflow-hidden select-none bg-[#07130b]"
       style={{
         backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
-        backgroundImage: `radial-gradient(circle at 50% 20%, ${
-          activeTheme?.visuals_config?.bgGradientFrom || 'rgba(30, 16, 53, 0.6)'
-        } 0%, ${activeTheme?.visuals_config?.bgGradientTo || '#07130b'} 100%)`,
+        backgroundImage: customBgUrl
+          ? `url(${customBgUrl})`
+          : `radial-gradient(circle at 50% 20%, ${
+              activeTheme?.visuals_config?.bgGradientFrom || 'rgba(30, 16, 53, 0.6)'
+            } 0%, ${activeTheme?.visuals_config?.bgGradientTo || '#07130b'} 100%)`,
+        backgroundSize: customBgUrl ? 'cover' : undefined,
+        backgroundPosition: customBgUrl ? 'center' : undefined,
       }}
     >
       {/* ========================================================================= */}
@@ -676,9 +704,9 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                       borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
                     }}
                   >
-                    {activeTheme?.visuals_config?.cardBackUrl || activeTheme?.basket_config?.imageUrl || activeTheme?.basketUrl ? (
+                    {activeTheme?.visuals_config?.cardBackUrl ? (
                       <img
-                        src={activeTheme?.visuals_config?.cardBackUrl || activeTheme?.basket_config?.imageUrl || activeTheme?.basketUrl}
+                        src={activeTheme.visuals_config.cardBackUrl}
                         alt="Card Back"
                         className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
                         referrerPolicy="no-referrer"

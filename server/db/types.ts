@@ -215,6 +215,7 @@ export interface GameThemeRecord {
   game_id?: string | null;
   game_name?: string;
   game_slug?: string;
+  game_type?: string | null;
   name: string;
   slug: string;
   description: string | null;
@@ -225,7 +226,7 @@ export interface GameThemeRecord {
   base_theme_id?: string | null;
   branding: ThemeBrandingConfig;
   background_url: string | null;
-  basket_config: ThemeBasketConfig;
+  basket_config: ThemeBasketConfig | null;
   items_config: ThemeDropItem[];
   physics_config: ThemePhysicsConfig;
   visuals_config: ThemeVisualsConfig;

@@ -8,6 +8,7 @@ import {
   ThemeVisualsConfig,
   ThemeSoundsConfig,
 } from './types.js';
+import { CATALOG_GAMES } from './games.js';
 import crypto from 'node:crypto';
 
 const localThemesCache = new Map<string, GameThemeRecord>();
@@ -286,111 +287,104 @@ export const DEFAULT_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organization_
 
 export const DEFAULT_DURIAN_THEME = DEFAULT_CARNIVAL_THEME;
 
-export const DEFAULT_MEMORY_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
-  name: 'Memory Carnival Pairs',
-  slug: 'memory-carnival',
-  description: 'Classic memory concentration card match with 8 carnival attraction pairs, time bonuses, and combo multipliers.',
+export const DEFAULT_MEMORY_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Brand Memory Match',
+  slug: 'memory-match',
+  description: 'Classic memory concentration card match with 8 pairs, custom card-back styling, and combo multipliers.',
   status: 'active',
   branding: {
-    gameTitle: 'MEMORY MATCH CARNIVAL',
-    subtitle: 'Flip cards, match 8 carnival pairs, and beat the clock!',
+    gameTitle: 'MEMORY MATCH',
+    subtitle: 'Flip cards, match 8 pairs, and beat the clock!',
     logoUrl: null,
     clientLogoUrl: null,
   },
-  background_url: '/assets/themes/carnival/background.png',
-  basket_config: {
-    name: 'Card Deck',
-    imageUrl: null,
-    width: 140,
-    height: 70,
-    catchAreaRatio: 0.75,
-    speed: 550,
-  },
+  background_url: null,
+  basket_config: null,
   items_config: [
     {
-      id: 'pair_ticket',
-      name: 'Golden Ticket',
-      imageUrl: '/assets/themes/carnival/item_normal_01.png',
+      id: 'pair_diamond',
+      name: 'Diamond',
+      imageUrl: null,
       points: 100,
       speedMultiplier: 1.0,
-      spawnWeight: 12,
+      spawnWeight: 1,
       enabled: true,
       isHazard: false,
       isBonus: false,
     },
     {
-      id: 'pair_mask',
-      name: 'Carnival Mask',
-      imageUrl: '/assets/themes/carnival/item_hazard_01.png',
+      id: 'pair_crown',
+      name: 'Crown',
+      imageUrl: null,
       points: 100,
       speedMultiplier: 1.0,
-      spawnWeight: 12,
+      spawnWeight: 1,
       enabled: true,
       isHazard: false,
       isBonus: false,
     },
     {
       id: 'pair_star',
-      name: 'Cosmic Star',
-      imageUrl: '/assets/themes/carnival/item_bonus_01.png',
+      name: 'Star',
+      imageUrl: null,
       points: 100,
       speedMultiplier: 1.0,
-      spawnWeight: 12,
-      enabled: true,
-      isHazard: false,
-      isBonus: true,
-    },
-    {
-      id: 'pair_cart',
-      name: 'Carnival Cart',
-      imageUrl: '/assets/themes/carnival/basket.png',
-      points: 100,
-      speedMultiplier: 1.0,
-      spawnWeight: 12,
+      spawnWeight: 1,
       enabled: true,
       isHazard: false,
       isBonus: false,
     },
     {
-      id: 'pair_tent',
-      name: 'Big Top Tent',
+      id: 'pair_heart',
+      name: 'Heart',
       imageUrl: null,
       points: 100,
       speedMultiplier: 1.0,
-      spawnWeight: 12,
+      spawnWeight: 1,
       enabled: true,
       isHazard: false,
       isBonus: false,
     },
     {
-      id: 'pair_balloons',
-      name: 'Party Balloons',
+      id: 'pair_lightning',
+      name: 'Lightning',
       imageUrl: null,
       points: 100,
       speedMultiplier: 1.0,
-      spawnWeight: 12,
+      spawnWeight: 1,
       enabled: true,
       isHazard: false,
       isBonus: false,
     },
     {
-      id: 'pair_cup',
-      name: 'Carnival Cup',
+      id: 'pair_shield',
+      name: 'Shield',
       imageUrl: null,
       points: 100,
       speedMultiplier: 1.0,
-      spawnWeight: 12,
+      spawnWeight: 1,
       enabled: true,
       isHazard: false,
       isBonus: false,
     },
     {
-      id: 'pair_wheel',
-      name: 'Fortune Wheel',
+      id: 'pair_trophy',
+      name: 'Trophy',
       imageUrl: null,
       points: 100,
       speedMultiplier: 1.0,
-      spawnWeight: 12,
+      spawnWeight: 1,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+    },
+    {
+      id: 'pair_rocket',
+      name: 'Rocket',
+      imageUrl: null,
+      points: 100,
+      speedMultiplier: 1.0,
+      spawnWeight: 1,
       enabled: true,
       isHazard: false,
       isBonus: false,
@@ -398,23 +392,25 @@ export const DEFAULT_MEMORY_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organi
   ],
   physics_config: {
     gameDurationSeconds: 45,
-    baseFallSpeed: 500,
+    baseFallSpeed: 0,
     fallSpeedMultiplier: 1.0,
-    spawnIntervalMin: 500,
-    spawnIntervalMax: 1000,
-    difficultyStages: [
-      { timeThreshold: 0, spawnInterval: 1000, speedMin: 350, speedMax: 500, hazardRatio: 0, bonusRatio: 0, stageName: 'Classic 4x4 Grid' },
-    ],
+    spawnIntervalMin: 0,
+    spawnIntervalMax: 0,
+    difficultyStages: [],
   },
   visuals_config: {
-    primaryColor: '#f59e0b',
+    cardBackUrl: null,
+    particleGood: 'particle_gold',
+    particleBad: 'particle_spike',
+    particleBonus: 'particle_star',
+    primaryColor: '#6366f1',
     secondaryColor: '#ec4899',
     accentColor: '#10b981',
     textColor: '#ffffff',
-    cardGoodBg: 'rgba(6, 78, 59, 0.85)',
-    cardGoodBorder: '#10b981',
+    cardGoodBg: 'rgba(99, 102, 241, 0.2)',
+    cardGoodBorder: '#6366f1',
     cardBadBg: 'rgba(15, 23, 42, 0.95)',
-    cardBadBorder: '#f59e0b',
+    cardBadBorder: '#334155',
     bgGradientFrom: '#0f172a',
     bgGradientVia: '#1e1b4b',
     bgGradientTo: '#0f172a',
@@ -426,6 +422,15 @@ export const DEFAULT_MEMORY_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organi
   },
   layout: DEFAULT_CARNIVAL_THEME.layout,
 };
+
+export const DEFAULT_MEMORY_CARNIVAL_THEME = DEFAULT_MEMORY_THEME;
+
+export function getDefaultThemeForGameType(gameType?: string | null): Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> {
+  if (gameType === 'memory-match') {
+    return DEFAULT_MEMORY_THEME;
+  }
+  return DEFAULT_CARNIVAL_THEME;
+}
 
 export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'>> = [
   DEFAULT_CARNIVAL_THEME,
@@ -769,6 +774,216 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
 ];
 
 // ============================================================================
+// THEME ENRICHMENT & METADATA RESOLUTION
+// ============================================================================
+
+export function isUUID(str: string | null | undefined): boolean {
+  if (!str || typeof str !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim());
+}
+
+/**
+ * Resolves and enriches theme records with accurate game metadata (game_id, game_name, game_slug).
+ *
+ * Enrichment resolution order:
+ * 1. Embedded PostgREST `games` object/array if present and has name/slug.
+ * 2. Database batch lookup on the `games` table for themes with valid `game_id` UUIDs.
+ * 3. Catalog lookup for known system games / slugs.
+ * 4. Fallback defaults only if `game_id` is genuinely missing / null.
+ */
+export async function enrichThemesWithGameData(
+  themes: any[],
+  env?: Record<string, any>,
+  fallbackDefaults?: {
+    fallbackGameId?: string | null;
+    fallbackGameName?: string;
+    fallbackGameSlug?: string;
+    fallbackGameType?: string;
+  }
+): Promise<GameThemeRecord[]> {
+  if (!themes || themes.length === 0) return [];
+
+  const supabase = getSupabaseServerClient(env);
+  const configured = isSupabaseConfigured(env);
+
+  // Map to store resolved game information by game ID (or slug)
+  const gameMap = new Map<string, { id: string; name: string; slug: string; game_type?: string }>();
+  const gameIdsToFetch = new Set<string>();
+
+  for (const item of themes) {
+    let embeddedGame: any = null;
+    if (item.games) {
+      if (Array.isArray(item.games)) {
+        if (item.games.length > 0) {
+          const match = item.games.find((g: any) => g && (g.id === item.game_id || g.name || g.slug));
+          if (match && (match.name || match.slug)) {
+            embeddedGame = match;
+          }
+        }
+      } else if (typeof item.games === 'object' && (item.games.name || item.games.slug || item.games.id)) {
+        embeddedGame = item.games;
+      }
+    }
+
+    if (embeddedGame && embeddedGame.id && (embeddedGame.name || embeddedGame.slug)) {
+      gameMap.set(embeddedGame.id, {
+        id: embeddedGame.id,
+        name: embeddedGame.name,
+        slug: embeddedGame.slug,
+        game_type: embeddedGame.game_type,
+      });
+    }
+
+    const gid = item.game_id || (embeddedGame && embeddedGame.id);
+    if (gid && typeof gid === 'string' && gid.trim().length > 0) {
+      if (!gameMap.has(gid)) {
+        gameIdsToFetch.add(gid.trim());
+      }
+    }
+  }
+
+  // Fetch missing games from database / catalog
+  if (gameIdsToFetch.size > 0) {
+    const idsArray = Array.from(gameIdsToFetch);
+    const uuidIds = idsArray.filter((id) => isUUID(id));
+    const nonUuidIds = idsArray.filter((id) => !isUUID(id));
+
+    if (configured && uuidIds.length > 0) {
+      try {
+        const { data: dbGames, error: fetchErr } = await supabase
+          .from('games')
+          .select('id, name, slug, game_type')
+          .in('id', uuidIds);
+
+        if (!fetchErr && dbGames) {
+          for (const g of dbGames) {
+            if (g && g.id) {
+              gameMap.set(g.id, {
+                id: g.id,
+                name: g.name,
+                slug: g.slug,
+                game_type: g.game_type,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Theme Enrichment] Error fetching games by id in batch:', err);
+      }
+    }
+
+    // Check CATALOG_GAMES or query by slug for any remaining IDs
+    for (const gid of idsArray) {
+      if (!gameMap.has(gid)) {
+        const catMatch = CATALOG_GAMES.find((cg) => cg.slug === gid || cg.game_type === gid);
+        if (catMatch) {
+          gameMap.set(gid, {
+            id: gid,
+            name: catMatch.name,
+            slug: catMatch.slug,
+            game_type: catMatch.game_type,
+          });
+        } else if (configured && !isUUID(gid)) {
+          try {
+            const { data: matchedBySlug } = await supabase
+              .from('games')
+              .select('id, name, slug, game_type')
+              .or(`slug.eq.${gid},game_type.eq.${gid}`)
+              .limit(1);
+            if (matchedBySlug && matchedBySlug.length > 0) {
+              const g = matchedBySlug[0];
+              gameMap.set(gid, {
+                id: g.id,
+                name: g.name,
+                slug: g.slug,
+                game_type: g.game_type,
+              });
+            }
+          } catch (err) {
+            // ignore
+          }
+        }
+      }
+    }
+  }
+
+  return themes.map((item) => {
+    let embeddedGame: any = null;
+    if (item.games) {
+      if (Array.isArray(item.games)) {
+        const match = item.games.find((g: any) => g && (g.id === item.game_id || g.name || g.slug));
+        if (match) embeddedGame = match;
+      } else if (typeof item.games === 'object') {
+        embeddedGame = item.games;
+      }
+    }
+
+    const resolvedGameId =
+      item.game_id ||
+      embeddedGame?.id ||
+      fallbackDefaults?.fallbackGameId ||
+      null;
+
+    let resolvedGameName: string | undefined;
+    let resolvedGameSlug: string | undefined;
+    let resolvedGameType: string | undefined;
+
+    if (resolvedGameId && gameMap.has(resolvedGameId)) {
+      const g = gameMap.get(resolvedGameId)!;
+      resolvedGameName = g.name;
+      resolvedGameSlug = g.slug;
+      resolvedGameType = g.game_type || (g.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+    } else if (embeddedGame && (embeddedGame.name || embeddedGame.slug)) {
+      resolvedGameName = embeddedGame.name;
+      resolvedGameSlug = embeddedGame.slug;
+      resolvedGameType = embeddedGame.game_type || (embeddedGame.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+    } else if (fallbackDefaults?.fallbackGameName || fallbackDefaults?.fallbackGameSlug || fallbackDefaults?.fallbackGameType) {
+      resolvedGameName = fallbackDefaults.fallbackGameName;
+      resolvedGameSlug = fallbackDefaults.fallbackGameSlug;
+      resolvedGameType = fallbackDefaults.fallbackGameType;
+    } else if (item.game_name && item.game_name !== 'Catch The Brand' && item.game_name !== 'Unknown Game') {
+      resolvedGameName = item.game_name;
+      resolvedGameSlug = item.game_slug;
+      resolvedGameType = item.game_type || (item.game_slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+    } else if (!resolvedGameId) {
+      // Genuinely has NO game_id - legacy fallback only
+      resolvedGameName = 'Catch The Brand';
+      resolvedGameSlug = 'catch-brand';
+      resolvedGameType = 'catch-brand';
+    } else {
+      // Has a game_id, but name wasn't found in DB/catalog - retain existing or generic name rather than misleading Catch The Brand
+      resolvedGameName = item.game_name || 'Game Theme';
+      resolvedGameSlug = item.game_slug || (item.game_id ? `game-${item.game_id.slice(0, 8)}` : 'game');
+      resolvedGameType = item.game_type || (resolvedGameSlug === 'memory-match' ? 'memory-match' : 'catch-brand');
+    }
+
+    const { games: _omittedGames, ...rest } = item;
+
+    return {
+      ...rest,
+      game_id: resolvedGameId,
+      game_name: resolvedGameName,
+      game_slug: resolvedGameSlug,
+      game_type: resolvedGameType,
+    } as GameThemeRecord;
+  });
+}
+
+export async function enrichThemeWithGameData(
+  theme: any,
+  env?: Record<string, any>,
+  fallbackDefaults?: {
+    fallbackGameId?: string | null;
+    fallbackGameName?: string;
+    fallbackGameSlug?: string;
+    fallbackGameType?: string;
+  }
+): Promise<GameThemeRecord> {
+  const [enriched] = await enrichThemesWithGameData([theme], env, fallbackDefaults);
+  return enriched;
+}
+
+// ============================================================================
 // THEME DATABASE OPERATIONS
 // ============================================================================
 
@@ -796,17 +1011,7 @@ export async function getThemesByOrgId(
   }
 
   const list = (data || []) as any[];
-  return list.map((item) => ({
-    ...item,
-    game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Catch The Brand',
-    game_slug: item.games?.slug || 'catch-brand',
-  })) as GameThemeRecord[];
-}
-
-export function isUUID(str: string | null | undefined): boolean {
-  if (!str || typeof str !== 'string') return false;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim());
+  return await enrichThemesWithGameData(list, env);
 }
 
 export async function getThemeById(
@@ -869,7 +1074,7 @@ export async function getThemeById(
       return {
         id: themeId,
         organization_id: null as any,
-        game_id: 'catch-brand',
+        game_id: null,
         name: 'Default Test Theme',
         slug: 'default-test-theme',
         status: 'active',
@@ -896,13 +1101,7 @@ export async function getThemeById(
     return null;
   }
 
-  const item = data as any;
-  return {
-    ...item,
-    game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Catch The Brand',
-    game_slug: item.games?.slug || 'catch-brand',
-  } as GameThemeRecord;
+  return await enrichThemeWithGameData(data, env);
 }
 
 export async function getActiveThemeForOrg(
@@ -929,13 +1128,7 @@ export async function getActiveThemeForOrg(
   }
 
   if (!data) return null;
-  const item = data as any;
-  return {
-    ...item,
-    game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Catch The Brand',
-    game_slug: item.games?.slug || 'catch-brand',
-  } as GameThemeRecord;
+  return await enrichThemeWithGameData(data, env);
 }
 
 /**
@@ -1034,16 +1227,48 @@ export async function createTheme(
   const slug = params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
   let resolvedGameId = params.game_id;
-  if (!resolvedGameId) {
+  let resolvedGameType = 'catch-brand';
+  let resolvedGameName = 'Catch The Brand';
+  let resolvedGameSlug = 'catch-brand';
+
+  if (resolvedGameId) {
+    const { data: g } = await supabase
+      .from('games')
+      .select('id, name, slug, game_type')
+      .eq('id', resolvedGameId)
+      .maybeSingle();
+    if (g) {
+      resolvedGameType = g.game_type || (g.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+      resolvedGameName = g.name;
+      resolvedGameSlug = g.slug;
+    } else if (resolvedGameId === 'c782cc78-d2f6-4e70-ac90-bbf9824c62f9' || resolvedGameId === 'memory-match') {
+      resolvedGameType = 'memory-match';
+      resolvedGameName = 'Brand Memory Match';
+      resolvedGameSlug = 'memory-match';
+    }
+  } else {
     const { data: games } = await supabase
       .from('games')
-      .select('id')
+      .select('id, name, slug, game_type')
       .eq('organization_id', params.organization_id)
       .limit(1);
     if (games && games.length > 0) {
       resolvedGameId = games[0].id;
+      resolvedGameType = games[0].game_type || (games[0].slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+      resolvedGameName = games[0].name;
+      resolvedGameSlug = games[0].slug;
     }
   }
+
+  const isMemory = resolvedGameType === 'memory-match';
+  const defaultTemplate = isMemory ? DEFAULT_MEMORY_THEME : DEFAULT_CARNIVAL_THEME;
+
+  const defaultBranding: ThemeBrandingConfig = {
+    gameTitle: params.name.toUpperCase(),
+    subtitle: params.description || (isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : 'Catch custom items, avoid hazards!'),
+    logoUrl: null,
+    clientLogoUrl: null,
+  };
 
   const newTheme: GameThemeRecord = {
     id,
@@ -1053,18 +1278,19 @@ export async function createTheme(
     slug,
     description: params.description ?? null,
     status: params.status || 'active',
-    branding: params.branding ?? DEFAULT_DURIAN_THEME.branding,
-    background_url: params.background_url ?? DEFAULT_DURIAN_THEME.background_url,
-    basket_config: params.basket_config ?? DEFAULT_DURIAN_THEME.basket_config,
-    items_config: params.items_config ?? DEFAULT_DURIAN_THEME.items_config,
-    physics_config: params.physics_config ?? DEFAULT_DURIAN_THEME.physics_config,
-    visuals_config: params.visuals_config ?? DEFAULT_DURIAN_THEME.visuals_config,
-    sounds_config: params.sounds_config ?? DEFAULT_DURIAN_THEME.sounds_config,
-    layout: params.layout ?? DEFAULT_DURIAN_THEME.layout,
+    branding: params.branding ?? (defaultTemplate.branding || defaultBranding),
+    background_url: params.background_url ?? defaultTemplate.background_url,
+    basket_config: isMemory ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
+    items_config: params.items_config ?? defaultTemplate.items_config,
+    physics_config: params.physics_config ?? defaultTemplate.physics_config,
+    visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
+    sounds_config: params.sounds_config ?? defaultTemplate.sounds_config,
+    layout: params.layout ?? defaultTemplate.layout,
     created_at: now,
     updated_at: now,
-    game_name: 'Catch The Brand',
-    game_slug: 'catch-brand',
+    game_name: resolvedGameName,
+    game_slug: resolvedGameSlug,
+    game_type: resolvedGameType,
   } as GameThemeRecord;
 
   if (!isSupabaseConfigured(env)) {
@@ -1080,14 +1306,14 @@ export async function createTheme(
     slug,
     description: params.description ?? null,
     status: params.status || 'active',
-    branding: params.branding ?? DEFAULT_DURIAN_THEME.branding,
-    background_url: params.background_url ?? DEFAULT_DURIAN_THEME.background_url,
-    basket_config: params.basket_config ?? DEFAULT_DURIAN_THEME.basket_config,
-    items_config: params.items_config ?? DEFAULT_DURIAN_THEME.items_config,
-    physics_config: params.physics_config ?? DEFAULT_DURIAN_THEME.physics_config,
-    visuals_config: params.visuals_config ?? DEFAULT_DURIAN_THEME.visuals_config,
-    sounds_config: params.sounds_config ?? DEFAULT_DURIAN_THEME.sounds_config,
-    layout: params.layout ?? DEFAULT_DURIAN_THEME.layout,
+    branding: params.branding ?? (defaultTemplate.branding || defaultBranding),
+    background_url: params.background_url ?? defaultTemplate.background_url,
+    basket_config: isMemory ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
+    items_config: params.items_config ?? defaultTemplate.items_config,
+    physics_config: params.physics_config ?? defaultTemplate.physics_config,
+    visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
+    sounds_config: params.sounds_config ?? defaultTemplate.sounds_config,
+    layout: params.layout ?? defaultTemplate.layout,
     created_at: now,
     updated_at: now,
   });
@@ -1102,12 +1328,12 @@ export async function createTheme(
   }
 
   const item = data as any;
-  return {
-    ...item,
-    game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Catch The Brand',
-    game_slug: item.games?.slug || 'catch-brand',
-  } as GameThemeRecord;
+  return await enrichThemeWithGameData(item, env, {
+    fallbackGameId: resolvedGameId,
+    fallbackGameName: resolvedGameName,
+    fallbackGameSlug: resolvedGameSlug,
+    fallbackGameType: resolvedGameType,
+  });
 }
 
 export async function updateTheme(
@@ -1136,12 +1362,11 @@ export async function updateTheme(
   }
 
   const item = data as any;
-  return {
-    ...item,
-    game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Catch The Brand',
-    game_slug: item.games?.slug || 'catch-brand',
-  } as GameThemeRecord;
+  return await enrichThemeWithGameData(item, env, {
+    fallbackGameId: existing?.game_id,
+    fallbackGameName: existing?.game_name,
+    fallbackGameSlug: existing?.game_slug,
+  });
 }
 
 export async function duplicateTheme(
@@ -1401,13 +1626,16 @@ export async function getSystemThemesByGameId(
     );
   }
 
-  return list.map((item) => ({
+  const enriched = await enrichThemesWithGameData(list, env, {
+    fallbackGameId: targetSystemGameId,
+    fallbackGameName: resolvedSystemGameName,
+    fallbackGameSlug: resolvedSystemGameSlug,
+  });
+
+  return enriched.map((item) => ({
     ...item,
     is_system: true,
     ownership_type: 'system',
-    game_id: item.game_id || item.games?.id || targetSystemGameId,
-    game_name: item.games?.name || resolvedSystemGameName,
-    game_slug: item.games?.slug || resolvedSystemGameSlug,
   })) as GameThemeRecord[];
 }
 
@@ -1426,7 +1654,7 @@ export async function getAllSystemThemes(env?: Record<string, any>): Promise<Gam
         {
           id: '8463ed7c-2b78-4285-8fdf-c0b18383fb3d',
           organization_id: null as any,
-          game_id: 'catch-brand',
+          game_id: null,
           name: 'Carnival',
           slug: 'carnival',
           description: 'Grand festive celebration theme: Catch golden carnival tickets and cosmic stars while dodging cursed hazard masks.',
@@ -1453,13 +1681,11 @@ export async function getAllSystemThemes(env?: Record<string, any>): Promise<Gam
   }
 
   const list = (data || []) as any[];
-  return list.map((item) => ({
+  const enriched = await enrichThemesWithGameData(list, env);
+  return enriched.map((item) => ({
     ...item,
     is_system: true,
     ownership_type: 'system',
-    game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Unknown Game',
-    game_slug: item.games?.slug || 'unknown-game',
   })) as GameThemeRecord[];
 }
 
@@ -1485,6 +1711,10 @@ export async function createSystemTheme(
   const supabase = getSupabaseServerClient(env);
   const { getGameById } = await import('./games.js');
 
+  let resolvedGameType = 'catch-brand';
+  let targetGameName = 'Platform Game';
+  let targetGameSlug = 'platform-game';
+
   // Verify the target game is a system game
   if (params.game_id) {
     const targetGame = await getGameById(params.game_id, env);
@@ -1493,7 +1723,15 @@ export async function createSystemTheme(
         'Cannot create a system theme for an organization game. Use the corresponding system game.'
       );
     }
+    if (targetGame) {
+      resolvedGameType = targetGame.game_type || (targetGame.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+      targetGameName = targetGame.name;
+      targetGameSlug = targetGame.slug;
+    }
   }
+
+  const isMemory = resolvedGameType === 'memory-match';
+  const defaultTemplate = isMemory ? DEFAULT_MEMORY_THEME : NEUTRAL_GAME_THEME_DEFAULTS;
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -1501,7 +1739,7 @@ export async function createSystemTheme(
 
   const defaultBranding: ThemeBrandingConfig = {
     gameTitle: params.name.toUpperCase(),
-    subtitle: params.description || 'Catch the falling items, avoid the hazards!',
+    subtitle: params.description || (isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : 'Catch the falling items, avoid the hazards!'),
     logoUrl: null,
     clientLogoUrl: null,
   };
@@ -1519,13 +1757,13 @@ export async function createSystemTheme(
     description: params.description ?? null,
     status: params.status || 'active',
     branding: params.branding ?? defaultBranding,
-    background_url: params.background_url ?? NEUTRAL_GAME_THEME_DEFAULTS.background_url,
-    basket_config: params.basket_config ?? NEUTRAL_GAME_THEME_DEFAULTS.basket_config,
-    items_config: params.items_config ?? NEUTRAL_GAME_THEME_DEFAULTS.items_config,
-    physics_config: params.physics_config ?? NEUTRAL_GAME_THEME_DEFAULTS.physics_config,
-    visuals_config: params.visuals_config ?? NEUTRAL_GAME_THEME_DEFAULTS.visuals_config,
-    sounds_config: params.sounds_config ?? NEUTRAL_GAME_THEME_DEFAULTS.sounds_config,
-    layout: params.layout ?? NEUTRAL_GAME_THEME_DEFAULTS.layout,
+    background_url: params.background_url ?? defaultTemplate.background_url,
+    basket_config: isMemory ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
+    items_config: params.items_config ?? defaultTemplate.items_config,
+    physics_config: params.physics_config ?? defaultTemplate.physics_config,
+    visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
+    sounds_config: params.sounds_config ?? defaultTemplate.sounds_config,
+    layout: params.layout ?? defaultTemplate.layout,
     created_at: now,
     updated_at: now,
   });
@@ -1546,15 +1784,9 @@ export async function createSystemTheme(
   }
 
   const item = data as any;
-  return {
-    ...item,
-    base_theme_id: null,
-    is_system: true,
-    ownership_type: 'system',
-    game_id: item.game_id || item.games?.id || params.game_id,
-    game_name: item.games?.name || 'Platform Game',
-    game_slug: item.games?.slug || 'platform-game',
-  } as GameThemeRecord;
+  return await enrichThemeWithGameData(item, env, {
+    fallbackGameId: params.game_id,
+  });
 }
 
 export async function setPrimaryDefaultSystemTheme(
@@ -1609,15 +1841,11 @@ export async function setPrimaryDefaultSystemTheme(
 
   // 6. Return the updated selected theme
   const item = updatedData as any;
-  return {
-    ...item,
-    is_default: true,
-    is_system: true,
-    ownership_type: 'system',
-    game_id: item.game_id || item.games?.id || gameId,
-    game_name: item.games?.name || existing.game_name || 'Platform Game',
-    game_slug: item.games?.slug || existing.game_slug || 'platform-game',
-  } as GameThemeRecord;
+  return await enrichThemeWithGameData(item, env, {
+    fallbackGameId: gameId,
+    fallbackGameName: existing.game_name,
+    fallbackGameSlug: existing.game_slug,
+  });
 }
 
 export async function unsetPrimaryDefaultSystemTheme(
@@ -1653,15 +1881,11 @@ export async function unsetPrimaryDefaultSystemTheme(
 
   // 4. Return the updated selected theme
   const item = updatedData as any;
-  return {
-    ...item,
-    is_default: false,
-    is_system: true,
-    ownership_type: 'system',
-    game_id: item.game_id || item.games?.id || existing.game_id,
-    game_name: item.games?.name || existing.game_name || 'Platform Game',
-    game_slug: item.games?.slug || existing.game_slug || 'platform-game',
-  } as GameThemeRecord;
+  return await enrichThemeWithGameData(item, env, {
+    fallbackGameId: existing.game_id,
+    fallbackGameName: existing.game_name,
+    fallbackGameSlug: existing.game_slug,
+  });
 }
 
 export async function updateSystemTheme(
@@ -1669,6 +1893,7 @@ export async function updateSystemTheme(
   updates: Partial<Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at'>>,
   env?: Record<string, any>
 ): Promise<GameThemeRecord> {
+  const existing = await getThemeById(themeId, env);
   const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
 
@@ -1687,14 +1912,11 @@ export async function updateSystemTheme(
   }
 
   const item = data as any;
-  return {
-    ...item,
-    is_system: true,
-    ownership_type: 'system',
-    game_id: item.game_id || item.games?.id || null,
-    game_name: item.games?.name || 'Catch The Brand',
-    game_slug: item.games?.slug || 'catch-brand',
-  } as GameThemeRecord;
+  return await enrichThemeWithGameData(item, env, {
+    fallbackGameId: existing?.game_id,
+    fallbackGameName: existing?.game_name,
+    fallbackGameSlug: existing?.game_slug,
+  });
 }
 
 export async function deleteSystemTheme(themeId: string, env?: Record<string, any>): Promise<void> {
@@ -1778,17 +2000,24 @@ export async function cloneSystemThemeToOrg(
   }
 
   const supabase = getSupabaseServerClient(env);
+  const isMemory =
+    systemTheme.game_type === 'memory-match' ||
+    systemTheme.game_slug === 'memory-match' ||
+    (systemTheme.slug || '').includes('memory') ||
+    (systemTheme.name || '').toLowerCase().includes('memory');
 
   let resolvedGameId = targetGameId;
   if (!resolvedGameId) {
-    // Find organization's corresponding game
+    // Find organization's corresponding game by game_type / slug
     const { data: orgGames } = await supabase
       .from('games')
-      .select('id')
-      .eq('organization_id', targetOrgId)
-      .limit(1);
+      .select('id, game_type, slug')
+      .eq('organization_id', targetOrgId);
     if (orgGames && orgGames.length > 0) {
-      resolvedGameId = orgGames[0].id;
+      const match = orgGames.find((g: any) =>
+        (g.game_type || g.slug) === (systemTheme.game_type || (isMemory ? 'memory-match' : 'catch-brand'))
+      );
+      resolvedGameId = match ? match.id : orgGames[0].id;
     }
   }
 
@@ -1819,11 +2048,11 @@ export async function cloneSystemThemeToOrg(
     description: systemTheme.description,
     status: 'active',
     branding: systemTheme.branding,
-    background_url: systemTheme.background_url,
-    basket_config: systemTheme.basket_config,
-    items_config: systemTheme.items_config,
-    physics_config: systemTheme.physics_config,
-    visuals_config: systemTheme.visuals_config,
+    background_url: isMemory ? (systemTheme.background_url || null) : systemTheme.background_url,
+    basket_config: isMemory ? null : systemTheme.basket_config,
+    items_config: systemTheme.items_config?.length ? systemTheme.items_config : (isMemory ? DEFAULT_MEMORY_THEME.items_config : DEFAULT_CARNIVAL_THEME.items_config),
+    physics_config: isMemory ? DEFAULT_MEMORY_THEME.physics_config : systemTheme.physics_config,
+    visuals_config: systemTheme.visuals_config || (isMemory ? DEFAULT_MEMORY_THEME.visuals_config : DEFAULT_CARNIVAL_THEME.visuals_config),
     sounds_config: systemTheme.sounds_config,
     layout: systemTheme.layout,
     created_at: now,
@@ -1836,12 +2065,11 @@ export async function cloneSystemThemeToOrg(
   }
 
   const item = data as any;
-  return {
-    ...item,
-    game_id: item.game_id || item.games?.id || resolvedGameId,
-    game_name: item.games?.name || 'Catch The Brand',
-    game_slug: item.games?.slug || 'catch-brand',
-  } as GameThemeRecord;
+  return await enrichThemeWithGameData(item, env, {
+    fallbackGameId: resolvedGameId || systemTheme.game_id,
+    fallbackGameName: systemTheme.game_name,
+    fallbackGameSlug: systemTheme.game_slug,
+  });
 }
 
 export async function cloneAllSystemThemesToOrg(
@@ -1864,7 +2092,7 @@ export async function cloneAllSystemThemesToOrg(
     .eq('organization_id', targetOrgId);
 
   const existingNames: string[] = (existingThemes || []).map((t: any) => t.name);
-  const clonedThemes: GameThemeRecord[] = [];
+  const clonedItems: any[] = [];
 
   for (const sysTheme of systemThemes) {
     const finalName = generateCloneThemeName(sysTheme.name, existingNames);
@@ -1873,6 +2101,12 @@ export async function cloneAllSystemThemesToOrg(
     const slug = `${sysTheme.slug}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`;
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
+
+    const isMemory =
+      sysTheme.game_type === 'memory-match' ||
+      sysTheme.game_slug === 'memory-match' ||
+      (sysTheme.slug || '').includes('memory') ||
+      (sysTheme.name || '').toLowerCase().includes('memory');
 
     const { data, error } = await safeInsertTheme(supabase, {
       id,
@@ -1886,11 +2120,11 @@ export async function cloneAllSystemThemesToOrg(
       description: sysTheme.description,
       status: 'active',
       branding: sysTheme.branding,
-      background_url: sysTheme.background_url,
-      basket_config: sysTheme.basket_config,
-      items_config: sysTheme.items_config,
-      physics_config: sysTheme.physics_config,
-      visuals_config: sysTheme.visuals_config,
+      background_url: isMemory ? (sysTheme.background_url || null) : sysTheme.background_url,
+      basket_config: isMemory ? null : sysTheme.basket_config,
+      items_config: sysTheme.items_config?.length ? sysTheme.items_config : (isMemory ? DEFAULT_MEMORY_THEME.items_config : DEFAULT_CARNIVAL_THEME.items_config),
+      physics_config: isMemory ? DEFAULT_MEMORY_THEME.physics_config : sysTheme.physics_config,
+      visuals_config: sysTheme.visuals_config || (isMemory ? DEFAULT_MEMORY_THEME.visuals_config : DEFAULT_CARNIVAL_THEME.visuals_config),
       sounds_config: sysTheme.sounds_config,
       layout: sysTheme.layout,
       created_at: now,
@@ -1902,16 +2136,18 @@ export async function cloneAllSystemThemesToOrg(
       throw new Error(`Failed to clone theme "${sysTheme.name}": ${error.message}`);
     }
 
-    const item = data as any;
-    clonedThemes.push({
-      ...item,
-      game_id: item.game_id || targetGameId,
-      game_name: item.games?.name || sysTheme.game_name || 'Platform Game',
-      game_slug: item.games?.slug || sysTheme.game_slug || 'platform-game',
-    } as GameThemeRecord);
+    if (data) {
+      clonedItems.push({
+        ...data,
+        game_name: sysTheme.game_name,
+        game_slug: sysTheme.game_slug,
+      });
+    }
   }
 
-  return clonedThemes;
+  return await enrichThemesWithGameData(clonedItems, env, {
+    fallbackGameId: targetGameId,
+  });
 }
 
 export async function ensureSystemDefaultThemesForGame(
@@ -1925,12 +2161,14 @@ export async function ensureSystemDefaultThemesForGame(
   // Filter presets based on gameType
   const relevantPresets = PRESET_THEMES.filter((p) => {
     if (gameType === 'memory-match') {
-      return p.slug.includes('memory') || p.slug === 'carnival';
+      return p.slug.includes('memory');
     }
     return !p.slug.includes('memory');
   });
 
-  const presetsToSeed = relevantPresets.length > 0 ? relevantPresets : PRESET_THEMES;
+  const presetsToSeed = relevantPresets.length > 0
+    ? relevantPresets
+    : (gameType === 'memory-match' ? [DEFAULT_MEMORY_THEME] : [DEFAULT_CARNIVAL_THEME]);
 
   for (let i = 0; i < presetsToSeed.length; i++) {
     const preset = presetsToSeed[i];
@@ -1939,6 +2177,7 @@ export async function ensureSystemDefaultThemesForGame(
     try {
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
+      const isMemory = gameType === 'memory-match';
       const { data } = await safeInsertTheme(supabase, {
         id,
         organization_id: null,
@@ -1952,12 +2191,12 @@ export async function ensureSystemDefaultThemesForGame(
         status: 'active',
         branding: preset.branding,
         background_url: preset.background_url,
-        basket_config: preset.basket_config,
+        basket_config: isMemory ? (preset.basket_config ?? null) : (preset.basket_config ?? DEFAULT_CARNIVAL_THEME.basket_config),
         items_config: preset.items_config,
         physics_config: preset.physics_config,
         visuals_config: preset.visuals_config,
         sounds_config: preset.sounds_config,
-        layout: (preset as any).layout ?? DEFAULT_DURIAN_THEME.layout,
+        layout: (preset as any).layout ?? DEFAULT_CARNIVAL_THEME.layout,
         created_at: now,
         updated_at: now,
       });
@@ -2022,6 +2261,7 @@ export async function ensureDefaultThemes(
       targetGameId = reflexGame.id;
     }
 
+    const isMemory = preset.slug.includes('memory');
     const theme = await createTheme(
       {
         organization_id: organizationId,
@@ -2031,13 +2271,13 @@ export async function ensureDefaultThemes(
         description: preset.description,
         status: preset.status,
         branding: preset.branding,
-        background_url: preset.background_url,
-        basket_config: preset.basket_config,
+        background_url: isMemory ? null : preset.background_url,
+        basket_config: isMemory ? null : preset.basket_config,
         items_config: preset.items_config,
-        physics_config: preset.physics_config,
-        visuals_config: preset.visuals_config,
+        physics_config: isMemory ? DEFAULT_MEMORY_THEME.physics_config : preset.physics_config,
+        visuals_config: isMemory ? DEFAULT_MEMORY_THEME.visuals_config : preset.visuals_config,
         sounds_config: preset.sounds_config,
-        layout: (preset as any).layout ?? DEFAULT_DURIAN_THEME.layout,
+        layout: isMemory ? DEFAULT_MEMORY_THEME.layout : ((preset as any).layout ?? DEFAULT_CARNIVAL_THEME.layout),
       },
       env
     );

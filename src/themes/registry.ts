@@ -45,7 +45,7 @@ export function resolveThemeBaseId(raw: any): string {
     gameSlug === 'memory-match' ||
     gameType === 'memory-match'
   ) {
-    return 'memory-carnival';
+    return 'memory-match';
   }
   if (id === 'carnival' || slug.includes('carnival') || name.includes('carnival')) {
     return 'carnival';
@@ -92,6 +92,10 @@ export function resolveThemeDefaultItemImage(
 ): string {
   const baseId = resolveThemeBaseId(theme);
 
+  if (baseId === 'memory-match' || baseId === 'memory-carnival') {
+    return '';
+  }
+
   const isHazard = item.isHazard || (item.points !== undefined && item.points < 0);
   const isBonus = item.isBonus || (item.points !== undefined && item.points >= 50);
 
@@ -126,6 +130,7 @@ export function resolveThemeDefaultItemImage(
  */
 export function resolveThemeDefaultBasketImage(theme: Partial<GameTheme> | any): string {
   const baseId = resolveThemeBaseId(theme);
+  if (baseId === 'memory-match' || baseId === 'memory-carnival') return '';
   if (baseId === 'christmas') return '/assets/santa_sack.png';
   if (baseId === 'chinese-new-year') return '/assets/fortune_basket.png';
   if (baseId === 'halloween') return '/assets/pumpkin_bucket.png';
@@ -138,6 +143,7 @@ export function resolveThemeDefaultBasketImage(theme: Partial<GameTheme> | any):
  */
 export function resolveThemeDefaultBgImage(theme: Partial<GameTheme> | any): string {
   const baseId = resolveThemeBaseId(theme);
+  if (baseId === 'memory-match' || baseId === 'memory-carnival') return '';
   if (baseId === 'christmas') return '/assets/christmas_bg.png';
   if (baseId === 'chinese-new-year') return '/assets/cny_bg.png';
   if (baseId === 'halloween') return '/assets/halloween_bg.png';
@@ -152,59 +158,83 @@ export function normalizeGameTheme(raw: any): GameTheme {
   if (!raw) return carnivalTheme;
 
   const base_theme_id = resolveThemeBaseId(raw);
-  const basePreset = THEME_REGISTRY[base_theme_id] || carnivalTheme;
+  const resolvedGameType =
+    raw.game_type ||
+    raw.game_slug ||
+    raw.games?.slug ||
+    raw.games?.game_type ||
+    (base_theme_id === 'memory-match' || base_theme_id === 'memory-carnival' || (raw.slug || '').includes('memory') || (raw.name || '').toLowerCase().includes('memory') ? 'memory-match' : 'catch-brand');
+
+  const isMemory = resolvedGameType === 'memory-match' || base_theme_id === 'memory-match' || base_theme_id === 'memory-carnival';
+  const basePreset = isMemory ? memoryMatchTheme : (THEME_REGISTRY[base_theme_id] || carnivalTheme);
 
   const id = raw.id || raw.slug || 'theme-' + Date.now();
-  const name = String(raw.name || raw.branding?.gameTitle || basePreset?.name || 'Custom Theme');
+  const name = String(raw.name || raw.branding?.gameTitle || basePreset?.name || (isMemory ? 'Brand Memory Match' : 'Custom Theme'));
   const slug = raw.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const description = raw.description ?? basePreset.description;
   const status = raw.status || 'active';
 
   const branding = {
-    gameTitle: raw.branding?.gameTitle || raw.gameTitle || name.toUpperCase(),
-    subtitle: raw.branding?.subtitle || raw.subtitle || basePreset.branding?.subtitle || 'Catch falling items, avoid hazards!',
+    gameTitle: raw.branding?.gameTitle || raw.gameTitle || (isMemory ? 'BRAND MEMORY MATCH' : name.toUpperCase()),
+    subtitle: raw.branding?.subtitle || raw.subtitle || basePreset.branding?.subtitle || (isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : 'Catch falling items, avoid hazards!'),
     logoUrl: raw.branding?.logoUrl ?? raw.logo ?? null,
     clientLogoUrl: raw.branding?.clientLogoUrl ?? raw.clientLogo ?? null,
   };
 
-  const background_url = raw.background_url || raw.background || basePreset.background_url || resolveThemeDefaultBgImage({ base_theme_id });
+  const background_url = isMemory
+    ? (raw.background_url || raw.background || null)
+    : (raw.background_url || raw.background || basePreset.background_url || resolveThemeDefaultBgImage({ base_theme_id }));
 
-  const basket_config = {
-    name: raw.basket_config?.name || raw.catcherName || basePreset.basket_config.name,
-    imageUrl: raw.basket_config?.imageUrl ?? raw.catcher ?? basePreset.basket_config.imageUrl,
-    width: raw.basket_config?.width || basePreset.basket_config.width || 140,
-    height: raw.basket_config?.height || basePreset.basket_config.height || 70,
-    catchAreaRatio: raw.basket_config?.catchAreaRatio || basePreset.basket_config.catchAreaRatio || 0.72,
-    speed: raw.basket_config?.speed || basePreset.basket_config.speed || 550,
-    collisionWidthRatio: raw.basket_config?.collisionWidthRatio || basePreset.basket_config.collisionWidthRatio || 0.7235,
-    collisionHeightRatio: raw.basket_config?.collisionHeightRatio || basePreset.basket_config.collisionHeightRatio || 0.13,
-    collisionOffsetYRatio: raw.basket_config?.collisionOffsetYRatio || basePreset.basket_config.collisionOffsetYRatio || 0.3394,
-  };
+  const basket_config = isMemory
+    ? null
+    : {
+        name: raw.basket_config?.name || raw.catcherName || basePreset.basket_config?.name || 'Catcher Basket',
+        imageUrl: raw.basket_config?.imageUrl ?? raw.catcher ?? basePreset.basket_config?.imageUrl ?? '/assets/basket.png',
+        width: raw.basket_config?.width || basePreset.basket_config?.width || 140,
+        height: raw.basket_config?.height || basePreset.basket_config?.height || 70,
+        catchAreaRatio: raw.basket_config?.catchAreaRatio || basePreset.basket_config?.catchAreaRatio || 0.72,
+        speed: raw.basket_config?.speed || basePreset.basket_config?.speed || 550,
+        collisionWidthRatio: raw.basket_config?.collisionWidthRatio || basePreset.basket_config?.collisionWidthRatio || 0.7235,
+        collisionHeightRatio: raw.basket_config?.collisionHeightRatio || basePreset.basket_config?.collisionHeightRatio || 0.13,
+        collisionOffsetYRatio: raw.basket_config?.collisionOffsetYRatio || basePreset.basket_config?.collisionOffsetYRatio || 0.3394,
+      };
 
   let rawItems = Array.isArray(raw.items_config) && raw.items_config.length > 0
     ? raw.items_config
     : basePreset.items_config;
 
-  const items_config: ThemeDropItem[] = rawItems.map((item: any, index: number) => {
-    const points = item.points !== undefined ? Number(item.points) : (index === 0 ? 10 : index === 1 ? -10 : 50);
-    const isHazard = item.isHazard !== undefined ? !!item.isHazard : points < 0;
-    const isBonus = item.isBonus !== undefined ? !!item.isBonus : points >= 50;
+  const items_config: ThemeDropItem[] = isMemory
+    ? rawItems.map((item: any, index: number) => ({
+        id: item.id || `pair_${index}`,
+        name: item.name || `Pair ${index + 1}`,
+        imageUrl: item.imageUrl || null,
+        points: item.points !== undefined ? Number(item.points) : 100,
+        speedMultiplier: 1.0,
+        spawnWeight: 1,
+        enabled: item.enabled !== false,
+        isHazard: false,
+        isBonus: false,
+      }))
+    : rawItems.map((item: any, index: number) => {
+        const points = item.points !== undefined ? Number(item.points) : (index === 0 ? 10 : index === 1 ? -10 : 50);
+        const isHazard = item.isHazard !== undefined ? !!item.isHazard : points < 0;
+        const isBonus = item.isBonus !== undefined ? !!item.isBonus : points >= 50;
 
-    return {
-      id: item.id || `item_${index}`,
-      name: item.name || (isHazard ? 'Hazard Item' : isBonus ? 'Bonus Item' : 'Good Item'),
-      imageUrl: item.imageUrl || null,
-      points,
-      speedMultiplier: item.speedMultiplier !== undefined ? Number(item.speedMultiplier) : 1.0,
-      spawnWeight: item.spawnWeight !== undefined ? Number(item.spawnWeight) : 10,
-      enabled: item.enabled !== false,
-      isHazard,
-      isBonus,
-      collisionRadiusRatio: item.collisionRadiusRatio,
-      collisionCenterXRatio: item.collisionCenterXRatio,
-      collisionCenterYRatio: item.collisionCenterYRatio,
-    };
-  });
+        return {
+          id: item.id || `item_${index}`,
+          name: item.name || (isHazard ? 'Hazard Item' : isBonus ? 'Bonus Item' : 'Good Item'),
+          imageUrl: item.imageUrl || null,
+          points,
+          speedMultiplier: item.speedMultiplier !== undefined ? Number(item.speedMultiplier) : 1.0,
+          spawnWeight: item.spawnWeight !== undefined ? Number(item.spawnWeight) : 10,
+          enabled: item.enabled !== false,
+          isHazard,
+          isBonus,
+          collisionRadiusRatio: item.collisionRadiusRatio,
+          collisionCenterXRatio: item.collisionCenterXRatio,
+          collisionCenterYRatio: item.collisionCenterYRatio,
+        };
+      });
 
   const physics_config = {
     gameDurationSeconds: raw.physics_config?.gameDurationSeconds || basePreset.physics_config.gameDurationSeconds || 20,
@@ -263,14 +293,7 @@ export function normalizeGameTheme(raw: any): GameTheme {
     ? firstBonus.imageUrl
     : resolveThemeDefaultItemImage({ base_theme_id }, { isHazard: false, isBonus: true });
 
-  const catcherEffectiveImg = basket_config.imageUrl || resolveThemeDefaultBasketImage({ base_theme_id });
-
-  const resolvedGameType =
-    raw.game_type ||
-    raw.game_slug ||
-    raw.games?.slug ||
-    raw.games?.game_type ||
-    (base_theme_id === 'memory-carnival' || base_theme_id === 'memory-match' || slug.includes('memory') || name.toLowerCase().includes('memory') ? 'memory-match' : 'catch-brand');
+  const catcherEffectiveImg = basket_config?.imageUrl || (isMemory ? '' : resolveThemeDefaultBasketImage({ base_theme_id }));
 
   return {
     id,
@@ -300,8 +323,8 @@ export function normalizeGameTheme(raw: any): GameTheme {
     gameTitle: branding.gameTitle,
     subtitle: branding.subtitle,
     background: background_url,
-    catcher: catcherEffectiveImg,
-    catcherName: basket_config.name,
+    catcher: catcherEffectiveImg || undefined,
+    catcherName: basket_config?.name || undefined,
     fallingObject: goodEffectiveImg,
     fallingObjectName: firstGood?.name || 'Good Item',
     badFallingObject: badEffectiveImg,

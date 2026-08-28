@@ -16,7 +16,7 @@ import {
   EventRefundDetermination,
   CancellationErrorCode,
 } from './types.js';
-import { getThemeById, isUUID } from './themes.js';
+import { getThemeById, isUUID, enrichThemesWithGameData } from './themes.js';
 import { getGameById } from './games.js';
 import { getShowcaseByEventId, getShowcasesByOrgId } from './showcases.js';
 import {
@@ -401,11 +401,10 @@ export async function getEventsByOrgId(
     .select('*, games(id, name, slug, game_type, status, description, icon_name)')
     .in('id', themeIds);
 
+  const enrichedThemes = await enrichThemesWithGameData(themesData || [], env);
   const themesMap = new Map<string, any>();
-  if (themesData) {
-    for (const t of themesData) {
-      themesMap.set(t.id, t);
-    }
+  for (const t of enrichedThemes) {
+    themesMap.set(t.id, t);
   }
 
   // Fetch games by direct event.game_id
@@ -1523,11 +1522,10 @@ export async function getAllAdminEvents(
     .select('*, games(id, name, slug, game_type)')
     .in('id', themeIds);
 
+  const enrichedThemes = await enrichThemesWithGameData(themesData || [], env);
   const themesMap = new Map<string, any>();
-  if (themesData) {
-    for (const t of themesData) {
-      themesMap.set(t.id, t);
-    }
+  for (const t of enrichedThemes) {
+    themesMap.set(t.id, t);
   }
 
   return events.map((event) => {
