@@ -1913,7 +1913,12 @@ export default {
             ...event,
             is_preview: true,
           },
-        }, 200, cors);
+        }, 200, {
+          ...cors,
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        });
       }
 
       const getEventParams = parseRoute('/api/events/:eventId', pathname);
@@ -2401,7 +2406,12 @@ export default {
             code: 'EVENT_CANCELLED',
             is_cancelled: true,
             cancel_reason: rawEvent.cancel_reason,
-          }, 403, cors);
+          }, 403, {
+            ...cors,
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          });
         }
 
         const isPaid = rawEvent.payment_status === 'PAID';
@@ -2414,10 +2424,24 @@ export default {
             payment_status: rawEvent.payment_status,
             event_id: rawEvent.id,
             event_name: rawEvent.name,
-          }, 403, cors);
+            organization_id: rawEvent.organization_id,
+            event_price: rawEvent.event_price,
+            event_currency: rawEvent.event_currency,
+            event: rawEvent,
+          }, 403, {
+            ...cors,
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          });
         }
 
-        return jsonResponse({ event: rawEvent }, 200, cors);
+        return jsonResponse({ event: rawEvent }, 200, {
+          ...cors,
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        });
       }
 
       // ==========================================

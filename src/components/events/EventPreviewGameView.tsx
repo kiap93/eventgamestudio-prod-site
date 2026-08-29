@@ -71,10 +71,23 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
     try {
       setLoading(true);
       setError(null);
-      const res = await apiFetch(`/api/events/${eventId}/preview`);
+      const cacheBuster = `_t=${Date.now()}`;
+      const res = await apiFetch(`/api/events/${eventId}/preview?${cacheBuster}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      });
       if (!res.ok) {
         // Fallback to /api/events/:id if /preview returns 404
-        const fallbackRes = await apiFetch(`/api/events/${eventId}`);
+        const fallbackRes = await apiFetch(`/api/events/${eventId}?${cacheBuster}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        });
         if (!fallbackRes.ok) {
           const errData = await fallbackRes.json().catch(() => ({}));
           throw new Error(errData.error || 'Failed to load event details for preview');
@@ -98,7 +111,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
     fetchEvent();
   }, [eventId]);
 
-  // Sync fullscreen state
+  // Sync fullscreen state strictly with browser events
   useEffect(() => {
     const handleFsChange = () => {
       setIsFullscreen(
@@ -113,25 +126,36 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
     };
   }, []);
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     const isCurrentlyFs =
       !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
-    if (!isCurrentlyFs && !isFullscreen) {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else if ((document.documentElement as any).webkitRequestFullscreen) {
-        (document.documentElement as any).webkitRequestFullscreen();
-      }
-      setIsFullscreen(true);
-    } else {
-      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        } else if ((document.exitFullscreen as any).webkitExitFullscreen) {
-          (document.exitFullscreen as any).webkitExitFullscreen();
+    if (!isCurrentlyFs) {
+      const el = document.documentElement;
+      const reqFs =
+        el.requestFullscreen ||
+        (el as any).webkitRequestFullscreen ||
+        (el as any).mozRequestFullScreen ||
+        (el as any).msRequestFullscreen;
+      if (reqFs) {
+        try {
+          await reqFs.call(el);
+        } catch (err) {
+          console.warn('Fullscreen request failed:', err);
         }
       }
-      setIsFullscreen(false);
+    } else {
+      const exitFs =
+        document.exitFullscreen ||
+        (document as any).webkitExitFullscreen ||
+        (document as any).mozCancelFullScreen ||
+        (document as any).msExitFullscreen;
+      if (exitFs) {
+        try {
+          await exitFs.call(document);
+        } catch (err) {
+          console.warn('Exit fullscreen failed:', err);
+        }
+      }
     }
   };
 

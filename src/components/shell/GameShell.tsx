@@ -103,7 +103,7 @@ export const GameShell: React.FC<GameShellProps> = ({
     };
   }, []);
 
-  const handleToggleFullscreen = () => {
+  const handleToggleFullscreen = async () => {
     if (controlledToggleFullscreen) {
       controlledToggleFullscreen();
       return;
@@ -111,22 +111,33 @@ export const GameShell: React.FC<GameShellProps> = ({
 
     const isCurrentlyFs =
       !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
-    if (!isCurrentlyFs && !isFullscreen) {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else if ((document.documentElement as any).webkitRequestFullscreen) {
-        (document.documentElement as any).webkitRequestFullscreen();
-      }
-      setInternalFullscreen(true);
-    } else {
-      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        } else if ((document as any).webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
+    if (!isCurrentlyFs) {
+      const el = document.documentElement;
+      const reqFs =
+        el.requestFullscreen ||
+        (el as any).webkitRequestFullscreen ||
+        (el as any).mozRequestFullScreen ||
+        (el as any).msRequestFullscreen;
+      if (reqFs) {
+        try {
+          await reqFs.call(el);
+        } catch (err) {
+          console.warn('Fullscreen request failed:', err);
         }
       }
-      setInternalFullscreen(false);
+    } else {
+      const exitFs =
+        document.exitFullscreen ||
+        (document as any).webkitExitFullscreen ||
+        (document as any).mozCancelFullScreen ||
+        (document as any).msExitFullscreen;
+      if (exitFs) {
+        try {
+          await exitFs.call(document);
+        } catch (err) {
+          console.warn('Exit fullscreen failed:', err);
+        }
+      }
     }
   };
 

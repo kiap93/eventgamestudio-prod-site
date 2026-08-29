@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouteContext } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
 import { GameContainer } from '../GameContainer';
@@ -17,6 +17,7 @@ import {
   LogIn,
   Gamepad2,
   X,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface PublicEventData {
@@ -54,13 +55,16 @@ export const PublicEventGameView: React.FC = () => {
   const [now, setNow] = useState(Date.now());
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   const [errorDetails, setErrorDetails] = useState<{
     code?: string;
     is_pending_payment?: boolean;
     is_cancelled?: boolean;
+    event_id?: string;
     event_name?: string;
+    organization_id?: string;
+    event_price?: number;
+    event_currency?: string;
   } | null>(null);
 
   // Poll current time every second for live countdown
@@ -71,99 +75,174 @@ export const PublicEventGameView: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const fetchEvent = async () => {
-    if (!publicToken) {
-      setError('Missing event token');
-      setLoading(false);
+  /**
+   * Authoritative Event Fetcher with cache-busting
+   * @param showLoadingSpinner When false, runs silently in background without flickering UI
+   */
+  const fetchEvent = useCallback(
+    async (showLoadingSpinner: boolean = true) => {
+      if (!publicToken) {
+        setError('Missing event token');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        if (showLoadingSpinner) {
+          setLoading(true);
+        }
+
+        // Cache buster parameter ensures freshest payment state
+        const cacheBuster = `_t=${Date.now()}`;
+        const res = await apiFetch(`/api/public/events/${publicToken}?${cacheBuster}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.is_pending_payment || data.code === 'PAYMENT_REQUIRED') {
+            setErrorDetails({
+              code: 'PAYMENT_REQUIRED',
+              is_pending_payment: true,
+              event_id: data.event_id,
+              event_name: data.event_name,
+              organization_id: data.organization_id,
+              event_price: data.event_price,
+              event_currency: data.event_currency,
+            });
+            setError(data.error || 'This event is currently awaiting payment and activation.');
+            setEventData(null);
+            return;
+          }
+          if (data.is_cancelled || data.code === 'EVENT_CANCELLED') {
+            setErrorDetails({
+              code: 'EVENT_CANCELLED',
+              is_cancelled: true,
+            });
+            setError(data.error || 'This event has been cancelled by the organizer.');
+            setEventData(null);
+            return;
+          }
+          if (res.status === 404) {
+            setErrorDetails(null);
+            throw new Error('Event not found or link has expired.');
+          }
+          setErrorDetails(null);
+          throw new Error(data.error || 'Failed to load event');
+        }
+
+        const data = await res.json();
+        setEventData(data.event);
+        setError(null);
+        setErrorDetails(null);
+      } catch (err: any) {
+        console.error('Error fetching public event:', err);
+        setError(err.message || 'Unable to load event game.');
+      } finally {
+        if (showLoadingSpinner) {
+          setLoading(false);
+        }
+      }
+    },
+    [publicToken]
+  );
+
+  // Initial fetch on mount / token change
+  useEffect(() => {
+    fetchEvent(true);
+  }, [fetchEvent]);
+
+  // Safe background polling while event is pending payment or awaiting activation
+  useEffect(() => {
+    if (!publicToken) return;
+
+    // Check if event is pending payment
+    const isAwaitingPayment =
+      errorDetails?.is_pending_payment ||
+      (eventData && eventData.payment_status !== 'PAID') ||
+      (!eventData && !errorDetails?.is_cancelled && !error);
+
+    // If event is already confirmed PAID, do not fast poll
+    if (!isAwaitingPayment && eventData?.payment_status === 'PAID') {
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
-      setErrorDetails(null);
-      const res = await apiFetch(`/api/public/events/${publicToken}`);
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.is_pending_payment || data.code === 'PAYMENT_REQUIRED') {
-          setErrorDetails({
-            code: 'PAYMENT_REQUIRED',
-            is_pending_payment: true,
-            event_name: data.event_name,
-          });
-          setError(data.error || 'This event is currently awaiting payment and activation.');
-          return;
-        }
-        if (data.is_cancelled || data.code === 'EVENT_CANCELLED') {
-          setErrorDetails({
-            code: 'EVENT_CANCELLED',
-            is_cancelled: true,
-          });
-          setError(data.error || 'This event has been cancelled by the organizer.');
-          return;
-        }
-        if (res.status === 404) {
-          throw new Error('Event not found or link has expired.');
-        }
-        throw new Error(data.error || 'Failed to load event');
-      }
+    const pollTimer = setInterval(() => {
+      fetchEvent(false); // Background fetch without full spinner
+    }, 3000);
 
-      const data = await res.json();
-      setEventData(data.event);
-    } catch (err: any) {
-      console.error('Error fetching public event:', err);
-      setError(err.message || 'Unable to load event game.');
-    } finally {
-      setLoading(false);
-    }
+    return () => clearInterval(pollTimer);
+  }, [publicToken, errorDetails?.is_pending_payment, errorDetails?.is_cancelled, eventData?.payment_status, error, fetchEvent]);
+
+  // Synchronize fullscreen state strictly with browser events
+  const getIsFullscreen = (): boolean => {
+    return !!(
+      document.fullscreenElement ||
+      (document as any).webkitFullscreenElement ||
+      (document as any).mozFullScreenElement ||
+      (document as any).msFullscreenElement
+    );
   };
 
   useEffect(() => {
-    fetchEvent();
-  }, [publicToken]);
-
-  // Sync fullscreen state
-  useEffect(() => {
     const handleFsChange = () => {
-      setIsFullscreen(
-        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
-      );
+      setIsFullscreen(getIsFullscreen());
     };
+
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('webkitfullscreenchange', handleFsChange);
+    document.addEventListener('mozfullscreenchange', handleFsChange);
+    document.addEventListener('MSFullscreenChange', handleFsChange);
+
+    // Initialize state
+    setIsFullscreen(getIsFullscreen());
+
     return () => {
       document.removeEventListener('fullscreenchange', handleFsChange);
       document.removeEventListener('webkitfullscreenchange', handleFsChange);
+      document.removeEventListener('mozfullscreenchange', handleFsChange);
+      document.removeEventListener('MSFullscreenChange', handleFsChange);
     };
   }, []);
 
-  const toggleFullscreen = () => {
-    const isCurrentlyFs =
-      !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
-    if (!isCurrentlyFs && !isFullscreen) {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else if ((document.documentElement as any).webkitRequestFullscreen) {
-        (document.documentElement as any).webkitRequestFullscreen();
-      }
-      setIsFullscreen(true);
-    } else {
-      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        } else if ((document.exitFullscreen as any).webkitExitFullscreen) {
-          (document.exitFullscreen as any).webkitExitFullscreen();
+  const toggleFullscreen = async () => {
+    const isCurrentlyFs = getIsFullscreen();
+    if (!isCurrentlyFs) {
+      const elem = document.documentElement;
+      const reqFs =
+        elem.requestFullscreen ||
+        (elem as any).webkitRequestFullscreen ||
+        (elem as any).mozRequestFullScreen ||
+        (elem as any).msRequestFullscreen;
+
+      if (reqFs) {
+        try {
+          await reqFs.call(elem);
+          // State will update via fullscreenchange event listener
+        } catch (err) {
+          console.warn('Fullscreen request failed or was rejected:', err);
+          // Do NOT optimistically toggle state
         }
       }
-      setIsFullscreen(false);
-    }
-  };
-
-  const handlePayAndActivateClick = () => {
-    if (user) {
-      setShowPaymentModal(true);
     } else {
-      setShowLoginPrompt(true);
+      const exitFs =
+        document.exitFullscreen ||
+        (document as any).webkitExitFullscreen ||
+        (document as any).mozCancelFullScreen ||
+        (document as any).msExitFullscreen;
+
+      if (exitFs) {
+        try {
+          await exitFs.call(document);
+          // State will update via fullscreenchange event listener
+        } catch (err) {
+          console.warn('Exit fullscreen failed:', err);
+        }
+      }
     }
   };
 
@@ -209,25 +288,59 @@ export const PublicEventGameView: React.FC = () => {
 
             <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl text-xs text-slate-400 space-y-3">
               <p className="text-[11px] text-slate-500">
-                Are you the event organizer? Sign in to your dashboard to test play or activate this event.
+                Are you the event organizer? Sign in or pay to activate this event now.
               </p>
-              <a
-                href="/login"
-                className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Organizer Sign In / Preview</span>
-              </a>
+
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(true)}
+                  className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Pay & Activate Event (Organizer)</span>
+                </button>
+              )}
+
+              {!user && (
+                <a
+                  href="/login"
+                  className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Organizer Sign In / Preview</span>
+                </a>
+              )}
             </div>
 
             <button
-              onClick={fetchEvent}
-              className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer w-full"
+              onClick={() => fetchEvent(true)}
+              className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-6 py-2.5 rounded-xl text-xs transition-all border border-slate-700 cursor-pointer w-full"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Check If Live</span>
             </button>
           </div>
+
+          {/* Pay & Activate Modal for logged-in organizer */}
+          {showPaymentModal && (
+            <EventPaymentModal
+              isOpen={showPaymentModal}
+              onClose={() => setShowPaymentModal(false)}
+              event={{
+                id: errorDetails.event_id,
+                name: errorDetails.event_name || 'Event Game',
+                public_token: publicToken,
+                organization_id: errorDetails.organization_id,
+                event_price: errorDetails.event_price || 1400,
+                event_currency: errorDetails.event_currency || 'MYR',
+              }}
+              onPaymentSuccess={async (updated) => {
+                setShowPaymentModal(false);
+                await fetchEvent(true);
+              }}
+            />
+          )}
         </div>
       );
     }
@@ -263,7 +376,7 @@ export const PublicEventGameView: React.FC = () => {
             </p>
           </div>
           <button
-            onClick={fetchEvent}
+            onClick={() => fetchEvent(true)}
             className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -325,7 +438,7 @@ export const PublicEventGameView: React.FC = () => {
 
           <div className="pt-2">
             <button
-              onClick={fetchEvent}
+              onClick={() => fetchEvent(true)}
               className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -361,22 +474,17 @@ export const PublicEventGameView: React.FC = () => {
 
   // Authoritative payment and status checks
   const isPaid = eventData.payment_status === 'PAID';
-  const isPendingPayment =
-    !isPaid ||
-    eventData.status === 'pending_payment' ||
-    eventData.calculated_status === 'pending_payment' ||
-    eventData.payment_status === 'PENDING_PAYMENT' ||
-    eventData.payment_status === 'UNPAID';
-
-  const canUseImmersiveFullscreen =
+  const isPlayable =
     isPaid &&
     (eventData.status === 'live' ||
       eventData.status === 'active' ||
       eventData.status === 'scheduled');
 
-  // For unpaid events, fullscreen mode must NOT hide the header.
-  // Only confirmed paid events may hide the header during fullscreen.
-  const showHeader = !isFullscreen || !canUseImmersiveFullscreen;
+  // Strict Header Visibility Rule:
+  // - In normal windowed mode: Header is ALWAYS visible.
+  // - In fullscreen mode: Header is completely HIDDEN ONLY IF the event is PAID and PLAYABLE.
+  // - If an event is NOT paid/playable: Header remains visible even in fullscreen.
+  const showHeader = !isFullscreen || !isPlayable;
 
   const theme = eventData.game_theme;
   const gameType = eventData.game?.game_type || 'catch-brand';
@@ -451,6 +559,19 @@ export const PublicEventGameView: React.FC = () => {
           />
         </div>
       </main>
+
+      {/* Pay & Activate Modal */}
+      {showPaymentModal && eventData && (
+        <EventPaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          event={eventData}
+          onPaymentSuccess={async (updated) => {
+            setShowPaymentModal(false);
+            await fetchEvent(true);
+          }}
+        />
+      )}
     </div>
   );
 };

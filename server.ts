@@ -2142,6 +2142,10 @@ app.post('/api/events/:eventId/cancel', eventRateLimiter, authenticateJWT, async
  */
 app.get('/api/events/:eventId/preview', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     const user = req.user!;
     const { eventId } = req.params;
 
@@ -2176,6 +2180,10 @@ app.get('/api/events/:eventId/preview', authenticateJWT, async (req: Authenticat
  */
 app.get('/api/public/events/:publicToken', async (req, res) => {
   try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     const { publicToken } = req.params;
     if (!publicToken) {
       res.status(422).json({ error: 'Public token required' });
@@ -2208,6 +2216,10 @@ app.get('/api/public/events/:publicToken', async (req, res) => {
         payment_status: rawEvent.payment_status,
         event_id: rawEvent.id,
         event_name: rawEvent.name,
+        organization_id: rawEvent.organization_id,
+        event_price: rawEvent.event_price,
+        event_currency: rawEvent.event_currency,
+        event: rawEvent,
       });
       return;
     }
