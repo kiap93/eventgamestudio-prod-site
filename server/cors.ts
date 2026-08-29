@@ -105,16 +105,25 @@ export function isOriginAllowed(
       return true;
     }
 
-    // 3. Development / staging environment exemptions (NOT in production)
+    const hostname = originUrl.hostname.toLowerCase();
+
+    // 3. Platform & domain matching (EventGameStudio subdomains, Workers, Pages, Cloud Run)
+    if (
+      hostname === 'eventgamestudio.com' ||
+      hostname.endsWith('.eventgamestudio.com') ||
+      hostname.endsWith('.workers.dev') ||
+      hostname.endsWith('.pages.dev') ||
+      hostname.endsWith('.run.app')
+    ) {
+      return true;
+    }
+
+    // 4. Development / staging environment exemptions (NOT in production)
     if (!isProduction) {
-      const hostname = originUrl.hostname;
       if (
         hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
-        hostname.endsWith('.localhost') ||
-        hostname.endsWith('.run.app') ||
-        hostname.endsWith('.pages.dev') ||
-        hostname.endsWith('.workers.dev')
+        hostname.endsWith('.localhost')
       ) {
         return true;
       }

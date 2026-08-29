@@ -170,6 +170,24 @@ async function runCorsTests() {
     assert(prodWithExplicitLocal === true, 'Allows localhost in production only if explicitly configured in ALLOWED_ORIGINS');
   }
 
+  // Test 9: Platform Domain Matching (Cloudflare Workers, Pages, Cloud Run, EventGameStudio subdomains)
+  {
+    console.log('\n[Test 9: Platform Domain Policy]');
+    const workerOrigin = 'https://eventgamestudio.kiap93-kmj.workers.dev';
+    const pagesOrigin = 'https://eventgamestudio.pages.dev';
+    const cloudRunOrigin = 'https://ais-dev-preview.asia-southeast1.run.app';
+    const subDomainOrigin = 'https://custom-org.eventgamestudio.com';
+
+    assert(isOriginAllowed(workerOrigin, { isProduction: true }) === true, 'Allows *.workers.dev origin in production');
+    assert(isOriginAllowed(pagesOrigin, { isProduction: true }) === true, 'Allows *.pages.dev origin in production');
+    assert(isOriginAllowed(cloudRunOrigin, { isProduction: true }) === true, 'Allows *.run.app origin in production');
+    assert(isOriginAllowed(subDomainOrigin, { isProduction: true }) === true, 'Allows *.eventgamestudio.com subdomains in production');
+
+    const headers = getCorsHeaders(workerOrigin, undefined, { isProduction: true });
+    assert(headers['Access-Control-Allow-Origin'] === workerOrigin, 'Sets exact Access-Control-Allow-Origin for *.workers.dev');
+    assert(headers['Access-Control-Allow-Credentials'] === 'true', 'Sets credentials for *.workers.dev');
+  }
+
   console.log('\n======================================================');
   console.log(`CORS Test Summary: ${passed} passed, ${failed} failed`);
   console.log('======================================================\n');

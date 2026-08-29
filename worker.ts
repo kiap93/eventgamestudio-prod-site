@@ -237,16 +237,25 @@ export function isAllowedOrigin(origin: string | null | undefined, requestUrl: s
       return true;
     }
 
-    // 3. In development mode only, permit localhost and preview sandbox domains
+    const hostname = originUrl.hostname.toLowerCase();
+
+    // 3. Platform & domain matching (EventGameStudio subdomains, Workers, Pages, Cloud Run)
+    if (
+      hostname === 'eventgamestudio.com' ||
+      hostname.endsWith('.eventgamestudio.com') ||
+      hostname.endsWith('.workers.dev') ||
+      hostname.endsWith('.pages.dev') ||
+      hostname.endsWith('.run.app')
+    ) {
+      return true;
+    }
+
+    // 4. In development mode only, permit localhost
     if (!isProduction) {
-      const hostname = originUrl.hostname;
       if (
         hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
-        hostname.endsWith('.localhost') ||
-        hostname.endsWith('.run.app') ||
-        hostname.endsWith('.pages.dev') ||
-        hostname.endsWith('.workers.dev')
+        hostname.endsWith('.localhost')
       ) {
         return true;
       }
