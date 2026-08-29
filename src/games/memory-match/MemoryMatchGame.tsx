@@ -33,7 +33,7 @@ import { createShuffledDeck } from './cardDeck';
 import { memorySounds } from './memorySounds';
 import { generateRandomCardPositions, CardPosition } from './memoryMatchBoardLayout';
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
-import { getMemoryMatchConfig, getCardFrontBg } from '../../themes/types';
+import { getMemoryMatchConfig, getCardFrontBg, getCardGoodBg } from '../../themes/types';
 import { normalizeGameLayout, GameLayoutConfig } from '../../themes/layout';
 import { GameLayoutHudOverlay } from '../../components/studio/GameLayoutHudOverlay';
 import { apiFetch } from '../../lib/api';
@@ -600,6 +600,13 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     );
   }, [activeTheme?.visuals_config?.cardFrontBg, activeTheme?.visuals_config?.cardFrontBgOpacity]);
 
+  const effectiveCardGoodBg = useMemo(() => {
+    return getCardGoodBg(
+      activeTheme?.visuals_config?.cardGoodBg,
+      activeTheme?.visuals_config?.cardGoodBgOpacity
+    );
+  }, [activeTheme?.visuals_config?.cardGoodBg, activeTheme?.visuals_config?.cardGoodBgOpacity]);
+
   const customBgUrl = activeTheme?.background_url && activeTheme.background_url.trim() !== ''
     ? activeTheme.background_url
     : null;
@@ -703,7 +710,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                         transform: 'rotateY(180deg)',
                         borderRadius: `${cardBorderRadius}px`,
                         backgroundColor: card.isMatched
-                          ? activeTheme?.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
+                          ? effectiveCardGoodBg
                           : effectiveCardFrontBg,
                         borderColor: card.isMatched
                           ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
@@ -830,7 +837,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                         transform: 'rotateY(180deg)',
                         borderRadius: `${cardBorderRadius}px`,
                         backgroundColor: card.isMatched
-                          ? activeTheme?.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
+                          ? effectiveCardGoodBg
                           : effectiveCardFrontBg,
                         borderColor: card.isMatched
                           ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'

@@ -1,5 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { GameTheme, isMemoryMatchTheme, getMemoryMatchConfig, CARD_FRONT_BG_PRESETS, getCardFrontBg } from '../../themes';
+import {
+  GameTheme,
+  isMemoryMatchTheme,
+  getMemoryMatchConfig,
+  CARD_FRONT_BG_PRESETS,
+  CARD_GOOD_BG_PRESETS,
+  getCardFrontBg,
+  getCardGoodBg,
+} from '../../themes';
 import {
   Layers,
   Sparkles,
@@ -766,6 +774,241 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
                           })
                         }
                         className="hover:text-amber-400"
+                      >
+                        100%
+                      </button>
+                    </div>
+                    <span>100% (Solid)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Match Success Background (Successfully Matched State) */}
+          <div className="bg-slate-950 border border-slate-800/90 rounded-2xl p-4 space-y-4 shadow-sm pt-4 border-t border-slate-800/80">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-200">Match Success Background</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                    Successfully Matched
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Solid or semi-transparent background color displayed on cards after they are successfully matched
+                </p>
+              </div>
+
+              {/* Reset to Default Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  onChange({
+                    ...theme,
+                    visuals_config: {
+                      ...theme.visuals_config,
+                      cardGoodBg: '#064E3B',
+                      cardGoodBgOpacity: 0.85,
+                    },
+                  });
+                }}
+                className="self-start sm:self-auto px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors flex items-center gap-1"
+                title="Reset Match Success Background to default (#064E3B at 85%)"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            </div>
+
+            {/* Main Interactive Controls & Live Mini Card Preview */}
+            <div className="flex flex-col md:flex-row items-center gap-4">
+              {/* Mini Matched Preview Card */}
+              <div
+                className="w-24 h-32 rounded-2xl border-2 flex flex-col items-center justify-between p-2 shadow-lg shrink-0 transition-all relative"
+                style={{
+                  backgroundColor: getCardGoodBg(
+                    theme.visuals_config?.cardGoodBg || '#064E3B',
+                    theme.visuals_config?.cardGoodBgOpacity ?? 0.85
+                  ),
+                  borderColor: theme.visuals_config?.cardGoodBorder || '#10b981',
+                }}
+              >
+                <div className="w-full flex justify-end">
+                  <div className="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow">
+                    <CheckCircle2 className="w-3 h-3" />
+                  </div>
+                </div>
+                <div className="flex flex-col items-center justify-center gap-1">
+                  <Sparkles className="w-6 h-6 text-emerald-400 animate-pulse" />
+                  <span className="text-[9px] font-bold text-emerald-200">Matched</span>
+                </div>
+                <span className="text-[8px] font-mono text-emerald-300/90">
+                  {Math.round((theme.visuals_config?.cardGoodBgOpacity ?? 0.85) * 100)}%
+                </span>
+              </div>
+
+              {/* Controls Column */}
+              <div className="flex-1 w-full space-y-3">
+                {/* Color Input & Hex Code */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300">Background Color</label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-9 h-9 rounded-xl border border-slate-700 overflow-hidden shrink-0 shadow-inner bg-slate-900">
+                      <input
+                        type="color"
+                        value={
+                          theme.visuals_config?.cardGoodBg?.startsWith('#') && theme.visuals_config.cardGoodBg.length === 7
+                            ? theme.visuals_config.cardGoodBg
+                            : '#064E3B'
+                        }
+                        onChange={(e) => {
+                          onChange({
+                            ...theme,
+                            visuals_config: {
+                              ...theme.visuals_config,
+                              cardGoodBg: e.target.value.toUpperCase(),
+                            },
+                          });
+                        }}
+                        className="absolute -top-2 -left-2 w-14 h-14 cursor-pointer border-0 bg-transparent"
+                      />
+                    </div>
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={theme.visuals_config?.cardGoodBg || '#064E3B'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          onChange({
+                            ...theme,
+                            visuals_config: {
+                              ...theme.visuals_config,
+                              cardGoodBg: val,
+                            },
+                          });
+                        }}
+                        placeholder="#064E3B"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 font-mono tracking-wider focus:outline-none focus:border-emerald-500/70"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preset Color Swatches */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Quick Color Presets
+                  </label>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {CARD_GOOD_BG_PRESETS.map((preset) => {
+                      const isSelected =
+                        (theme.visuals_config?.cardGoodBg || '#064E3B').toUpperCase() === preset.hex.toUpperCase();
+                      return (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => {
+                            onChange({
+                              ...theme,
+                              visuals_config: {
+                                ...theme.visuals_config,
+                                cardGoodBg: preset.hex,
+                              },
+                            });
+                          }}
+                          className={`group relative flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium transition-all ${
+                            isSelected
+                              ? 'border-emerald-400 bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-400/40'
+                              : 'border-slate-800 bg-slate-900/80 hover:bg-slate-800 text-slate-300'
+                          }`}
+                          title={`Set background to ${preset.name} (${preset.hex})`}
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full border border-white/20 shadow-sm shrink-0"
+                            style={{ backgroundColor: preset.hex }}
+                          />
+                          <span>{preset.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Opacity Slider */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-slate-300">Background Opacity</span>
+                    <span className="font-mono text-emerald-400 font-bold">
+                      {Math.round((theme.visuals_config?.cardGoodBgOpacity ?? 0.85) * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={theme.visuals_config?.cardGoodBgOpacity ?? 0.85}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      onChange({
+                        ...theme,
+                        visuals_config: {
+                          ...theme.visuals_config,
+                          cardGoodBgOpacity: isNaN(val) ? 0.85 : Math.max(0, Math.min(1, val)),
+                        },
+                      });
+                    }}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  />
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span>0% (Transparent)</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange({
+                            ...theme,
+                            visuals_config: { ...theme.visuals_config, cardGoodBgOpacity: 0.5 },
+                          })
+                        }
+                        className="hover:text-emerald-400"
+                      >
+                        50%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange({
+                            ...theme,
+                            visuals_config: { ...theme.visuals_config, cardGoodBgOpacity: 0.75 },
+                          })
+                        }
+                        className="hover:text-emerald-400"
+                      >
+                        75%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange({
+                            ...theme,
+                            visuals_config: { ...theme.visuals_config, cardGoodBgOpacity: 0.85 },
+                          })
+                        }
+                        className="hover:text-emerald-400"
+                      >
+                        85%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange({
+                            ...theme,
+                            visuals_config: { ...theme.visuals_config, cardGoodBgOpacity: 1.0 },
+                          })
+                        }
+                        className="hover:text-emerald-400"
                       >
                         100%
                       </button>

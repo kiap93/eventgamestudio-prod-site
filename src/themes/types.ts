@@ -70,6 +70,7 @@ export interface ThemeVisualsConfig {
   cardFrontBg?: string;
   cardFrontBgOpacity?: number;
   cardGoodBg?: string;
+  cardGoodBgOpacity?: number;
   cardGoodBorder?: string;
   cardBadBg?: string;
   cardBadBorder?: string;
@@ -410,6 +411,59 @@ export function getCardFrontBg(
   const rawColor = (cardFrontBg && cardFrontBg.trim() !== '') ? cardFrontBg.trim() : defaultBg;
   const opacity = typeof cardFrontBgOpacity === 'number' && !isNaN(cardFrontBgOpacity)
     ? Math.max(0, Math.min(1, cardFrontBgOpacity))
+    : defaultOpacity;
+
+  // Handle rgb / rgba string
+  if (rawColor.startsWith('rgba') || rawColor.startsWith('rgb')) {
+    const rgbaMatch = /^rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[\d.]+\s*)?\)$/i.exec(rawColor);
+    if (rgbaMatch) {
+      return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${opacity})`;
+    }
+    return rawColor;
+  }
+
+  let hex = rawColor.startsWith('#') ? rawColor.slice(1) : rawColor;
+  if (hex.length === 3) {
+    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+  }
+
+  const match = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (match) {
+    const r = parseInt(match[1], 16);
+    const g = parseInt(match[2], 16);
+    const b = parseInt(match[3], 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }
+
+  return rawColor;
+}
+
+export const CARD_GOOD_BG_PRESETS: Array<{ name: string; hex: string }> = [
+  { name: 'Emerald', hex: '#064E3B' },
+  { name: 'Forest', hex: '#052E16' },
+  { name: 'Teal', hex: '#134E4A' },
+  { name: 'Navy', hex: '#0F172A' },
+  { name: 'Black', hex: '#000000' },
+  { name: 'Gold', hex: '#78350F' },
+  { name: 'Purple', hex: '#581C87' },
+  { name: 'Rose', hex: '#881337' },
+  { name: 'Green', hex: '#10B981' },
+];
+
+/**
+ * Safely computes the CSS background color for a successfully matched Memory Match card
+ * from the theme's cardGoodBg (hex/rgb/rgba) and cardGoodBgOpacity (0 to 1).
+ */
+export function getCardGoodBg(
+  cardGoodBg?: string | null,
+  cardGoodBgOpacity?: number | null
+): string {
+  const defaultBg = '#064E3B';
+  const defaultOpacity = 0.85;
+
+  const rawColor = (cardGoodBg && cardGoodBg.trim() !== '') ? cardGoodBg.trim() : defaultBg;
+  const opacity = typeof cardGoodBgOpacity === 'number' && !isNaN(cardGoodBgOpacity)
+    ? Math.max(0, Math.min(1, cardGoodBgOpacity))
     : defaultOpacity;
 
   // Handle rgb / rgba string

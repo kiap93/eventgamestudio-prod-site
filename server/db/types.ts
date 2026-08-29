@@ -171,7 +171,9 @@ export interface ThemeVisualsConfig {
   textColor?: string;
   cardBackUrl?: string | null;
   cardFrontBg?: string;
+  cardFrontBgOpacity?: number;
   cardGoodBg?: string;
+  cardGoodBgOpacity?: number;
   cardGoodBorder?: string;
   cardBadBg?: string;
   cardBadBorder?: string;

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { GameTheme, ThemeDropItem, isMemoryMatchTheme, getMemoryMatchConfig, getCardFrontBg } from '../../themes';
+import { GameTheme, ThemeDropItem, isMemoryMatchTheme, getMemoryMatchConfig, getCardFrontBg, getCardGoodBg } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
 
 import { createShuffledDeck } from '../../games/memory-match/cardDeck';
@@ -235,6 +235,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
       theme.visuals_config?.cardFrontBgOpacity
     );
   }, [theme.visuals_config?.cardFrontBg, theme.visuals_config?.cardFrontBgOpacity]);
+
+  const effectiveCardGoodBg = useMemo(() => {
+    return getCardGoodBg(
+      theme.visuals_config?.cardGoodBg,
+      theme.visuals_config?.cardGoodBgOpacity
+    );
+  }, [theme.visuals_config?.cardGoodBg, theme.visuals_config?.cardGoodBgOpacity]);
 
   // Simulation physics state refs
   const simState = useRef({
@@ -840,7 +847,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                               transform: 'rotateY(180deg)',
                               borderRadius: `${cardBorderRadius}px`,
                               backgroundColor: card.isMatched
-                                ? theme.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
+                                ? effectiveCardGoodBg
                                 : effectiveCardFrontBg,
                               borderColor: card.isMatched
                                 ? theme.visuals_config?.cardGoodBorder || '#10b981'
@@ -941,7 +948,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                               transform: 'rotateY(180deg)',
                               borderRadius: `${cardBorderRadius}px`,
                               backgroundColor: card.isMatched
-                                ? theme.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
+                                ? effectiveCardGoodBg
                                 : effectiveCardFrontBg,
                               borderColor: card.isMatched
                                 ? theme.visuals_config?.cardGoodBorder || '#10b981'
