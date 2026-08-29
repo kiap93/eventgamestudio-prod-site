@@ -276,7 +276,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
           className={`flex-1 w-full flex flex-col items-center justify-center overflow-hidden ${
             isFullscreen
               ? 'p-0 m-0 bg-[#07130b] border-none rounded-none shadow-none h-full'
-              : 'bg-slate-950 border border-slate-800 rounded-3xl p-2 sm:p-4 md:p-6 shadow-2xl min-h-[600px]'
+              : 'bg-slate-950 border border-slate-800 rounded-3xl p-2 sm:p-4 md:p-6 shadow-2xl min-h-[580px] h-[calc(100vh-140px)]'
           }`}
         >
           <GameShell

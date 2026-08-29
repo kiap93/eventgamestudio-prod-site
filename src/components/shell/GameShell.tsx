@@ -157,8 +157,6 @@ export const GameShell: React.FC<GameShellProps> = ({
           className={
             useImmersiveLayout
               ? 'relative w-full h-full min-w-0 min-h-0 max-w-none max-h-none p-0 m-0 overflow-hidden flex items-center justify-center border-0 border-none rounded-none bg-[#07130b] shadow-none'
-              : resolvedGameType === 'memory-match'
-              ? 'relative w-full h-full max-w-5xl min-h-0 bg-[#0c2012] border-2 sm:border-4 border-[#1e4627] rounded-2xl sm:rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.15)] overflow-hidden flex flex-col items-center justify-center'
               : 'game-cabinet relative aspect-[16/9] bg-[#0c2012] border-2 sm:border-4 border-[#1e4627] rounded-2xl sm:rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.15)] overflow-hidden flex items-center justify-center'
           }
         >

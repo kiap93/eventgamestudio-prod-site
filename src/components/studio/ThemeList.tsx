@@ -346,7 +346,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
           className={
             isFullscreen
               ? 'flex-1 w-full h-full flex items-center justify-center p-0 m-0 overflow-hidden'
-              : 'flex-1 w-full flex flex-col items-center justify-center bg-slate-950 border border-slate-800 rounded-3xl p-2 sm:p-4 md:p-6 shadow-2xl overflow-hidden min-h-[600px]'
+              : 'flex-1 w-full flex flex-col items-center justify-center bg-slate-950 border border-slate-800 rounded-3xl p-2 sm:p-4 md:p-6 shadow-2xl overflow-hidden min-h-[580px] h-[calc(100vh-140px)]'
           }
         >
           <GameShell
