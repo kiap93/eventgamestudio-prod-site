@@ -35,6 +35,7 @@ import { generateRandomCardPositions, CardPosition } from './memoryMatchBoardLay
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
 import { getMemoryMatchConfig, getCardFrontBg } from '../../themes/types';
 import { normalizeGameLayout, GameLayoutConfig } from '../../themes/layout';
+import { GameLayoutHudOverlay } from '../../components/studio/GameLayoutHudOverlay';
 import { apiFetch } from '../../lib/api';
 
 import {
@@ -879,127 +880,12 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
       {/* 2. IN-GAME DYNAMIC UI LAYOUT (5 Positionable HUD Elements)                */}
       {/* ========================================================================= */}
       {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
-        <>
-          {/* 1. Client Logo Element */}
-          {layout.clientLogo?.visible && clientLogoUrl && (
-            <div
-              style={{
-                position: 'absolute',
-                left: `${layout.clientLogo.x}%`,
-                top: `${layout.clientLogo.y}%`,
-                width: `${layout.clientLogo.width || 14}%`,
-                zIndex: 35,
-              }}
-              className="pointer-events-none transition-all flex items-center justify-center"
-            >
-              <img
-                src={clientLogoUrl}
-                alt="Client Logo"
-                className="max-h-12 w-full object-contain drop-shadow"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-            </div>
-          )}
-
-          {/* 2. Score HUD Element */}
-          {layout.scoreHud?.visible && (
-            <div
-              style={{
-                position: 'absolute',
-                left: `${layout.scoreHud.x}%`,
-                top: `${layout.scoreHud.y}%`,
-                width: `${layout.scoreHud.width || 18}%`,
-                zIndex: 35,
-              }}
-              className="pointer-events-none transition-all"
-            >
-              <div className="bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between">
-                <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
-                  <Trophy className="w-3.5 h-3.5 text-amber-400" /> SCORE
-                </span>
-                <span
-                  style={{ color: hudColor }}
-                  className="text-base sm:text-lg font-mono font-black ml-2"
-                >
-                  {score}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* 3. Timer Element */}
-          {layout.timer?.visible && (
-            <div
-              style={{
-                position: 'absolute',
-                left: `${layout.timer.x}%`,
-                top: `${layout.timer.y}%`,
-                width: `${layout.timer.width || 18}%`,
-                zIndex: 35,
-              }}
-              className="pointer-events-none transition-all"
-            >
-              <div className="bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between">
-                <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-teal-400" /> TIME
-                </span>
-                <span
-                  className={`text-base sm:text-lg font-mono font-black ml-2 ${
-                    timeRemaining <= 10 ? 'text-rose-400 animate-pulse' : 'text-amber-400'
-                  }`}
-                >
-                  {timeRemaining}s
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* 4. Game Title Element */}
-          {layout.gameTitle?.visible && (
-            <div
-              style={{
-                position: 'absolute',
-                left: `${layout.gameTitle.x}%`,
-                top: `${layout.gameTitle.y}%`,
-                width: `${layout.gameTitle.width || 28}%`,
-                zIndex: 35,
-              }}
-              className="pointer-events-none transition-all"
-            >
-              <div className="bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-xl px-3 py-1 shadow-md text-center">
-                <div
-                  style={{ color: accentColor }}
-                  className="font-black text-xs sm:text-sm uppercase tracking-wider truncate"
-                >
-                  {gameTitle}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 5. Footer / Sponsor Element */}
-          {layout.footerSponsor?.visible && (
-            <div
-              style={{
-                position: 'absolute',
-                left: `${layout.footerSponsor.x}%`,
-                top: `${layout.footerSponsor.y}%`,
-                width: `${layout.footerSponsor.width || 36}%`,
-                zIndex: 35,
-              }}
-              className="pointer-events-none transition-all"
-            >
-              <div className="bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-full px-3 py-1 shadow-md text-center flex items-center justify-center gap-1.5">
-                <Megaphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="text-[10px] sm:text-xs text-slate-300 font-sans truncate">
-                  {sponsorSubtitle}
-                </span>
-              </div>
-            </div>
-          )}
-        </>
+        <GameLayoutHudOverlay
+          layout={layout}
+          theme={activeTheme}
+          score={score}
+          timeRemaining={timeRemaining}
+        />
       )}
 
       {/* ========================================================================= */}

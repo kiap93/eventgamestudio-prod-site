@@ -16,6 +16,7 @@ import {
   DESIGN_HEIGHT,
   useGameUiScale,
 } from '../../themes/layout';
+import { GameLayoutHudOverlay } from './GameLayoutHudOverlay';
 import {
   Volume2,
   VolumeX,
@@ -683,145 +684,6 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     }
   };
 
-  // Helper to render individual UI element overlay inside the 16:9 canvas
-  const renderLayoutElementOverlay = (key: LayoutElementKey) => {
-    const meta = LAYOUT_ELEMENTS_META[key];
-    const elem = layout[key] || DEFAULT_GAME_LAYOUT[key];
-    const isSelected = selectedElementKey === key;
-    const isVisible = elem.visible;
-    const widthPercent = elem.width || meta.defaultWidth;
-
-    // If not in edit mode and invisible, don't render
-    if (!editableLayout && !isVisible) return null;
-
-    const logoUrl =
-      theme.branding?.clientLogoUrl ||
-      theme.clientLogo ||
-      theme.branding?.logoUrl ||
-      theme.logo ||
-      '/logo.png';
-
-    const getElementContent = () => {
-      switch (key) {
-        case 'clientLogo':
-          return (
-            <div className="w-full h-full flex items-center justify-center p-1 pointer-events-none select-none">
-              <img
-                src={logoUrl}
-                alt="Client Logo"
-                draggable={false}
-                className="max-h-12 w-full object-contain drop-shadow pointer-events-none select-none"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-            </div>
-          );
-        case 'scoreHud':
-          return (
-            <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
-              <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
-                <Trophy className="w-3.5 h-3.5 text-amber-400" /> SCORE
-              </span>
-              <span
-                style={{ color: theme.branding?.hudColor || '#c8e038' }}
-                className="text-base sm:text-lg font-mono font-black ml-2"
-              >
-                {score}
-              </span>
-            </div>
-          );
-        case 'timer':
-          return (
-            <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
-              <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
-                <TimerIcon className="w-3.5 h-3.5 text-teal-400" /> TIME
-              </span>
-              <span className="text-base sm:text-lg font-mono font-black text-amber-400 ml-2">
-                {timeRemaining}s
-              </span>
-            </div>
-          );
-        case 'gameTitle':
-          return (
-            <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-xl px-3 py-1 shadow-md text-center pointer-events-none select-none">
-              <div
-                style={{ color: theme.branding?.accentColor || theme.visuals_config?.accentColor || '#10b981' }}
-                className="font-black text-xs sm:text-sm uppercase tracking-wider truncate"
-              >
-                {theme.branding?.gameTitle || theme.gameTitle || theme.name}
-              </div>
-            </div>
-          );
-        case 'footerSponsor':
-          return (
-            <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-full px-3 py-1 shadow-md text-center flex items-center justify-center gap-1.5 pointer-events-none select-none">
-              <Megaphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="text-[10px] sm:text-xs text-slate-300 font-sans truncate">
-                {theme.branding?.subtitle || theme.subtitle || 'Official Event Arcade Challenge'}
-              </span>
-            </div>
-          );
-        default:
-          return null;
-      }
-    };
-
-    return (
-      <div
-        key={key}
-        style={{
-          position: 'absolute',
-          left: `${elem.x}%`,
-          top: `${elem.y}%`,
-          width: `${widthPercent}%`,
-          zIndex: isSelected ? 40 : 20,
-          touchAction: 'none',
-        }}
-        onClick={(e) => {
-          if (editableLayout) {
-            e.stopPropagation();
-            onSelectElementKey?.(key);
-          }
-        }}
-        onPointerDown={(e) => handleElementPointerDown(key, false, e)}
-        className={`transition-shadow select-none group/elem ${
-          editableLayout
-            ? `cursor-move touch-none pointer-events-auto ${
-                isSelected
-                  ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 rounded-xl shadow-2xl'
-                  : 'hover:ring-1 hover:ring-slate-400/60 rounded-xl'
-              } ${!isVisible ? 'opacity-40 border border-dashed border-rose-400/70' : ''}`
-            : 'pointer-events-none'
-        }`}
-      >
-        {/* Render Element Body */}
-        {getElementContent()}
-
-        {/* Studio Edit Mode Badges and Resize Handles */}
-        {editableLayout && isSelected && (
-          <>
-            {/* Top Selection Label Tag */}
-            <div className="absolute -top-5 left-0 bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded text-[9px] font-mono font-black shadow pointer-events-none whitespace-nowrap z-50 flex items-center gap-1">
-              <Move className="w-2.5 h-2.5" />
-              <span>{meta.shortName}</span>
-              <span>({Math.round(elem.x)}%, {Math.round(elem.y)}%)</span>
-            </div>
-
-            {/* Right Resize Handle */}
-            <div
-              onPointerDown={(e) => handleElementPointerDown(key, true, e)}
-              className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-6 bg-amber-400 hover:bg-amber-300 border border-slate-900 rounded cursor-ew-resize flex items-center justify-center shadow-lg z-50 transition-transform active:scale-110"
-              title="Drag to resize width"
-            >
-              <div className="w-0.5 h-3 bg-slate-950 rounded-full" />
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div
       ref={containerRef}
@@ -895,7 +757,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         {isMemoryMatch ? (
           /* MEMORY MATCH LIVE BOARD PREVIEW */
           <div
-            className="w-full h-full relative flex items-center justify-center p-4 overflow-hidden"
+            className="w-full h-full relative flex items-center justify-center overflow-hidden"
             style={{
               backgroundImage: theme.background_url ? `url(${theme.background_url})` : undefined,
               backgroundSize: 'cover',
@@ -914,209 +776,211 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             />
 
             {/* Dynamic Interactive Card Board Centered (Grid vs Scattered) */}
-            {boardConfig.layoutMode === 'grid' ? (
-              <div
-                className="relative z-10 w-full max-w-[560px] max-h-[90%] p-2 sm:p-2.5 rounded-2xl bg-slate-950/70 backdrop-blur-md border border-slate-800/80 shadow-2xl overflow-hidden"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${boardConfig.cols}, minmax(0, 1fr))`,
-                  gridTemplateRows: `repeat(${boardConfig.rows}, minmax(0, 1fr))`,
-                  aspectRatio: `${previewGridAspect}`,
-                  gap: `${boardConfig.cardGap || 8}px`,
-                }}
-              >
-                {memoryDeck.map((card, idx) => {
-                  const isFlipped = card.isFlipped || card.isMatched;
-                  const rotationAngle = card.rotation ?? 0;
-                  return (
-                    <div
-                      key={card.id || idx}
-                      onClick={() => handleCardClick(idx)}
-                      className="relative w-full h-full cursor-pointer perspective-1000 group/card transition-transform active:scale-95"
-                      style={{ transform: `rotate(${rotationAngle}deg)` }}
-                      title={`Click to flip ${card.name}`}
-                    >
+            <div className="absolute inset-0 flex items-center justify-center p-3 sm:p-5 md:p-6 overflow-hidden z-10 pointer-events-auto">
+              {boardConfig.layoutMode === 'grid' ? (
+                <div
+                  className="w-full h-full max-h-[min(100%,680px)] max-w-[min(100%,680px)] m-auto"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${boardConfig.cols}, minmax(0, 1fr))`,
+                    gridTemplateRows: `repeat(${boardConfig.rows}, minmax(0, 1fr))`,
+                    aspectRatio: `${previewGridAspect}`,
+                    gap: `${boardConfig.cardGap || 8}px`,
+                  }}
+                >
+                  {memoryDeck.map((card, idx) => {
+                    const isFlipped = card.isFlipped || card.isMatched;
+                    const rotationAngle = card.rotation ?? 0;
+                    return (
                       <div
-                        className={`relative w-full h-full duration-300 transition-all [transform-style:preserve-3d] shadow-sm ${
-                          isFlipped ? '[transform:rotateY(180deg)]' : ''
-                        }`}
-                        style={{ borderRadius: `${cardBorderRadius}px` }}
+                        key={card.id || idx}
+                        onClick={() => handleCardClick(idx)}
+                        className="relative w-full h-full cursor-pointer perspective-1000 group/card transition-transform active:scale-95"
+                        style={{ transform: `rotate(${rotationAngle}deg)` }}
+                        title={`Click to flip ${card.name}`}
                       >
-                        {/* CARD BACK */}
                         <div
-                          className="absolute inset-0 w-full h-full flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors overflow-hidden p-1"
-                          style={{
-                            backfaceVisibility: 'hidden',
-                            backgroundColor: theme.visuals_config?.cardBadBg || '#0f172a',
-                            borderColor: theme.visuals_config?.cardBadBorder || '#334155',
-                            borderRadius: `${cardBorderRadius}px`,
-                          }}
+                          className={`relative w-full h-full duration-300 transition-all [transform-style:preserve-3d] shadow-sm ${
+                            isFlipped ? '[transform:rotateY(180deg)]' : ''
+                          }`}
+                          style={{ borderRadius: `${cardBorderRadius}px` }}
                         >
-                          {getMemoryMatchConfig(theme).cardBackUrl ? (
-                            <img
-                              src={getMemoryMatchConfig(theme).cardBackUrl!}
-                              alt="Card Back"
-                              className="max-h-full max-w-full object-contain filter drop-shadow-sm pointer-events-none"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <>
-                              <Grid3X3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 group-hover/card:text-amber-400 transition-colors" />
-                              <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 mt-0.5 font-bold">
-                                {idx + 1}
-                              </span>
-                            </>
-                          )}
-                        </div>
-
-                        {/* CARD FRONT FACE */}
-                        <div
-                          className="absolute inset-0 w-full h-full flex flex-col items-center justify-between p-1 sm:p-1.5 border-2 shadow-lg"
-                          style={{
-                            backfaceVisibility: 'hidden',
-                            transform: 'rotateY(180deg)',
-                            borderRadius: `${cardBorderRadius}px`,
-                            backgroundColor: card.isMatched
-                              ? theme.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
-                              : effectiveCardFrontBg,
-                            borderColor: card.isMatched
-                              ? theme.visuals_config?.cardGoodBorder || '#10b981'
-                              : theme.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
-                          }}
-                        >
-                          {card.isMatched && (
-                            <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow">
-                              <CheckCircle2 className="w-2.5 h-2.5" />
-                            </div>
-                          )}
-                          <div className="flex-1 w-full flex items-center justify-center p-0.5">
-                            {card.imageUrl ? (
+                          {/* CARD BACK */}
+                          <div
+                            className="absolute inset-0 w-full h-full flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors overflow-hidden p-1"
+                            style={{
+                              backfaceVisibility: 'hidden',
+                              backgroundColor: theme.visuals_config?.cardBadBg || '#0f172a',
+                              borderColor: theme.visuals_config?.cardBadBorder || '#334155',
+                              borderRadius: `${cardBorderRadius}px`,
+                            }}
+                          >
+                            {getMemoryMatchConfig(theme).cardBackUrl ? (
                               <img
-                                src={card.imageUrl}
-                                alt={card.name}
-                                className="max-h-[80%] max-w-[80%] object-contain drop-shadow"
+                                src={getMemoryMatchConfig(theme).cardBackUrl!}
+                                alt="Card Back"
+                                className="max-h-full max-w-full object-contain filter drop-shadow-sm pointer-events-none"
                                 referrerPolicy="no-referrer"
                               />
                             ) : (
-                              <div
-                                className="p-1 rounded-lg flex items-center justify-center"
-                                style={{ color: card.color || '#fbbf24' }}
-                              >
-                                {renderCardIcon(card.iconName, 'w-5 h-5 sm:w-7 sm:h-7')}
-                              </div>
+                              <>
+                                <Grid3X3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 group-hover/card:text-amber-400 transition-colors" />
+                                <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 mt-0.5 font-bold">
+                                  {idx + 1}
+                                </span>
+                              </>
                             )}
                           </div>
-                          <span className="text-[8px] sm:text-[10px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-0.5">
-                            {card.name}
-                          </span>
+
+                          {/* CARD FRONT FACE */}
+                          <div
+                            className="absolute inset-0 w-full h-full flex flex-col items-center justify-between p-1 sm:p-1.5 border-2 shadow-lg"
+                            style={{
+                              backfaceVisibility: 'hidden',
+                              transform: 'rotateY(180deg)',
+                              borderRadius: `${cardBorderRadius}px`,
+                              backgroundColor: card.isMatched
+                                ? theme.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
+                                : effectiveCardFrontBg,
+                              borderColor: card.isMatched
+                                ? theme.visuals_config?.cardGoodBorder || '#10b981'
+                                : theme.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
+                            }}
+                          >
+                            {card.isMatched && (
+                              <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow">
+                                <CheckCircle2 className="w-2.5 h-2.5" />
+                              </div>
+                            )}
+                            <div className="flex-1 w-full flex items-center justify-center p-0.5">
+                              {card.imageUrl ? (
+                                <img
+                                  src={card.imageUrl}
+                                  alt={card.name}
+                                  className="max-h-[80%] max-w-[80%] object-contain drop-shadow"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div
+                                  className="p-1 rounded-lg flex items-center justify-center"
+                                  style={{ color: card.color || '#fbbf24' }}
+                                >
+                                  {renderCardIcon(card.iconName, 'w-5 h-5 sm:w-7 sm:h-7')}
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-[8px] sm:text-[10px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-0.5">
+                              {card.name}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              /* RANDOM / SCATTERED CARD BOARD */
-              <div className="relative z-10 w-full max-w-[560px] h-[340px] sm:h-[420px] max-h-[92%] p-3 rounded-2xl bg-slate-950/70 backdrop-blur-md border border-slate-800/80 shadow-2xl overflow-hidden">
-                {memoryDeck.map((card, idx) => {
-                  const pos = randomPositions[idx] || { x: 50, y: 50, rotation: 0, widthPercent: 18, heightPercent: 24, zIndex: idx + 1 };
-                  const isFlipped = card.isFlipped || card.isMatched;
-                  return (
-                    <div
-                      key={card.id || idx}
-                      onClick={() => handleCardClick(idx)}
-                      style={{
-                        position: 'absolute',
-                        left: `${pos.x}%`,
-                        top: `${pos.y}%`,
-                        width: `${pos.widthPercent}%`,
-                        height: `${pos.heightPercent}%`,
-                        transform: `translate(-50%, -50%) rotate(${pos.rotation}deg)`,
-                        zIndex: isFlipped ? 60 : pos.zIndex,
-                      }}
-                      className="cursor-pointer perspective-1000 group/card transition-all active:scale-95 duration-200"
-                      title={`Click to flip ${card.name}`}
-                    >
+                    );
+                  })}
+                </div>
+              ) : (
+                /* RANDOM / SCATTERED CARD BOARD */
+                <div className="relative w-full h-full max-h-[min(100%,660px)] max-w-[min(100%,660px)] m-auto overflow-hidden">
+                  {memoryDeck.map((card, idx) => {
+                    const pos = randomPositions[idx] || { x: 50, y: 50, rotation: 0, widthPercent: 18, heightPercent: 24, zIndex: idx + 1 };
+                    const isFlipped = card.isFlipped || card.isMatched;
+                    return (
                       <div
-                        className={`relative w-full h-full duration-300 transition-all [transform-style:preserve-3d] shadow-md hover:shadow-xl hover:scale-105 ${
-                          isFlipped ? '[transform:rotateY(180deg)]' : ''
-                        }`}
-                        style={{ borderRadius: `${cardBorderRadius}px` }}
+                        key={card.id || idx}
+                        onClick={() => handleCardClick(idx)}
+                        style={{
+                          position: 'absolute',
+                          left: `${pos.x}%`,
+                          top: `${pos.y}%`,
+                          width: `${pos.widthPercent}%`,
+                          height: `${pos.heightPercent}%`,
+                          transform: `translate(-50%, -50%) rotate(${pos.rotation}deg)`,
+                          zIndex: isFlipped ? 60 : pos.zIndex,
+                        }}
+                        className="cursor-pointer perspective-1000 group/card transition-all active:scale-95 duration-200"
+                        title={`Click to flip ${card.name}`}
                       >
-                        {/* CARD BACK */}
                         <div
-                          className="absolute inset-0 w-full h-full flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors overflow-hidden p-1"
-                          style={{
-                            backfaceVisibility: 'hidden',
-                            backgroundColor: theme.visuals_config?.cardBadBg || '#0f172a',
-                            borderColor: theme.visuals_config?.cardBadBorder || '#334155',
-                            borderRadius: `${cardBorderRadius}px`,
-                          }}
+                          className={`relative w-full h-full duration-300 transition-all [transform-style:preserve-3d] shadow-md hover:shadow-xl hover:scale-105 ${
+                            isFlipped ? '[transform:rotateY(180deg)]' : ''
+                          }`}
+                          style={{ borderRadius: `${cardBorderRadius}px` }}
                         >
-                          {getMemoryMatchConfig(theme).cardBackUrl ? (
-                            <img
-                              src={getMemoryMatchConfig(theme).cardBackUrl!}
-                              alt="Card Back"
-                              className="max-h-full max-w-full object-contain filter drop-shadow-sm pointer-events-none"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <>
-                              <Grid3X3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 group-hover/card:text-amber-400 transition-colors" />
-                              <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 mt-0.5 font-bold">
-                                {idx + 1}
-                              </span>
-                            </>
-                          )}
-                        </div>
-
-                        {/* CARD FRONT FACE */}
-                        <div
-                          className="absolute inset-0 w-full h-full flex flex-col items-center justify-between p-1 sm:p-1.5 border-2 shadow-lg"
-                          style={{
-                            backfaceVisibility: 'hidden',
-                            transform: 'rotateY(180deg)',
-                            borderRadius: `${cardBorderRadius}px`,
-                            backgroundColor: card.isMatched
-                              ? theme.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
-                              : effectiveCardFrontBg,
-                            borderColor: card.isMatched
-                              ? theme.visuals_config?.cardGoodBorder || '#10b981'
-                              : theme.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
-                          }}
-                        >
-                          {card.isMatched && (
-                            <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow">
-                              <CheckCircle2 className="w-2.5 h-2.5" />
-                            </div>
-                          )}
-                          <div className="flex-1 w-full flex items-center justify-center p-0.5">
-                            {card.imageUrl ? (
+                          {/* CARD BACK */}
+                          <div
+                            className="absolute inset-0 w-full h-full flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors overflow-hidden p-1"
+                            style={{
+                              backfaceVisibility: 'hidden',
+                              backgroundColor: theme.visuals_config?.cardBadBg || '#0f172a',
+                              borderColor: theme.visuals_config?.cardBadBorder || '#334155',
+                              borderRadius: `${cardBorderRadius}px`,
+                            }}
+                          >
+                            {getMemoryMatchConfig(theme).cardBackUrl ? (
                               <img
-                                src={card.imageUrl}
-                                alt={card.name}
-                                className="max-h-[80%] max-w-[80%] object-contain drop-shadow"
+                                src={getMemoryMatchConfig(theme).cardBackUrl!}
+                                alt="Card Back"
+                                className="max-h-full max-w-full object-contain filter drop-shadow-sm pointer-events-none"
                                 referrerPolicy="no-referrer"
                               />
                             ) : (
-                              <div
-                                className="p-1 rounded-lg flex items-center justify-center"
-                                style={{ color: card.color || '#fbbf24' }}
-                              >
-                                {renderCardIcon(card.iconName, 'w-5 h-5 sm:w-7 sm:h-7')}
-                              </div>
+                              <>
+                                <Grid3X3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 group-hover/card:text-amber-400 transition-colors" />
+                                <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 mt-0.5 font-bold">
+                                  {idx + 1}
+                                </span>
+                              </>
                             )}
                           </div>
-                          <span className="text-[8px] sm:text-[10px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-0.5">
-                            {card.name}
-                          </span>
+
+                          {/* CARD FRONT FACE */}
+                          <div
+                            className="absolute inset-0 w-full h-full flex flex-col items-center justify-between p-1 sm:p-1.5 border-2 shadow-lg"
+                            style={{
+                              backfaceVisibility: 'hidden',
+                              transform: 'rotateY(180deg)',
+                              borderRadius: `${cardBorderRadius}px`,
+                              backgroundColor: card.isMatched
+                                ? theme.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
+                                : effectiveCardFrontBg,
+                              borderColor: card.isMatched
+                                ? theme.visuals_config?.cardGoodBorder || '#10b981'
+                                : theme.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
+                            }}
+                          >
+                            {card.isMatched && (
+                              <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow">
+                                <CheckCircle2 className="w-2.5 h-2.5" />
+                              </div>
+                            )}
+                            <div className="flex-1 w-full flex items-center justify-center p-0.5">
+                              {card.imageUrl ? (
+                                <img
+                                  src={card.imageUrl}
+                                  alt={card.name}
+                                  className="max-h-[80%] max-w-[80%] object-contain drop-shadow"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div
+                                  className="p-1 rounded-lg flex items-center justify-center"
+                                  style={{ color: card.color || '#fbbf24' }}
+                                >
+                                  {renderCardIcon(card.iconName, 'w-5 h-5 sm:w-7 sm:h-7')}
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-[8px] sm:text-[10px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-0.5">
+                              {card.name}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           /* CATCH BRAND FALLING CANVAS SIMULATION */
@@ -1131,25 +995,17 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           />
         )}
 
-        {/* RESPONSIVE SCALED LOGICAL LAYOUT OVERLAYS (1024x576) */}
-        <div
-          className="game-ui-layer pointer-events-none select-none overflow-hidden"
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            width: `${DESIGN_WIDTH}px`,
-            height: `${DESIGN_HEIGHT}px`,
-            minWidth: `${DESIGN_WIDTH}px`,
-            minHeight: `${DESIGN_HEIGHT}px`,
-            maxWidth: `${DESIGN_WIDTH}px`,
-            maxHeight: `${DESIGN_HEIGHT}px`,
-            transform: `translate(-50%, -50%) scale(${uiScale})`,
-            transformOrigin: 'center center',
-          }}
-        >
-          {LAYOUT_ELEMENT_KEYS.map((k) => renderLayoutElementOverlay(k))}
-        </div>
+        {/* SHARED WYSIWYG GAME HUD OVERLAY (5 CONFIGURABLE ELEMENTS) */}
+        <GameLayoutHudOverlay
+          layout={layout}
+          theme={theme}
+          score={score}
+          timeRemaining={timeRemaining}
+          editableLayout={editableLayout}
+          selectedElementKey={selectedElementKey}
+          onSelectElementKey={onSelectElementKey}
+          onElementPointerDown={handleElementPointerDown}
+        />
 
         {isInteractive && !isMemoryMatch && (
           <div className="absolute bottom-2 inset-x-0 mx-auto w-fit bg-amber-500/90 text-slate-950 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-lg pointer-events-none animate-bounce z-30">
