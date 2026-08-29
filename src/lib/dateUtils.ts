@@ -139,3 +139,70 @@ export function addDaysToDateString(dateStr: string, days: number): string {
 export function calculateSetupDayString(startDateStr: string): string {
   return addDaysToDateString(startDateStr, -1);
 }
+
+/**
+ * Returns the current date formatted as 'YYYY-MM-DD' in Asia/Singapore timezone (UTC+8).
+ * Ensures exact Singapore calendar date without client browser timezone skew.
+ */
+export function getSingaporeCalendarDate(date: Date = new Date()): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Singapore',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(date);
+  } catch (e) {
+    const utcTime = date.getTime();
+    const sgTime = new Date(utcTime + 8 * 60 * 60 * 1000);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${sgTime.getUTCFullYear()}-${pad(sgTime.getUTCMonth() + 1)}-${pad(sgTime.getUTCDate())}`;
+  }
+}
+
+/**
+ * Returns formatted string of current date & time in Asia/Singapore timezone (UTC+8).
+ * Format: DD/MM/YYYY, HH:mm:ss
+ */
+export function getSingaporeDateTime(date: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Singapore',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(date);
+  } catch (e) {
+    const utcTime = date.getTime();
+    const sgTime = new Date(utcTime + 8 * 60 * 60 * 1000);
+    return sgTime.toISOString().replace('T', ' ').slice(0, 19);
+  }
+}
+
+/**
+ * Checks whether the current date/time (in Asia/Singapore timezone) falls within
+ * the immersive fullscreen window for the given event date.
+ *
+ * Rule: ONE DAY BEFORE THE EVENT DATE through THE ENTIRE EVENT DATE (Singapore calendar days).
+ * Example:
+ * If eventDate is '2026-08-30',
+ * window is Singapore calendar dates '2026-08-29' and '2026-08-30'.
+ */
+export function isWithinImmersiveFullscreenWindow(
+  eventDate: string | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!eventDate) return false;
+  const eventDateStr = extractDateString(eventDate);
+  if (!eventDateStr) return false;
+
+  const currentSingaporeDate = getSingaporeCalendarDate(now);
+  const oneDayBefore = addDaysToDateString(eventDateStr, -1);
+
+  return currentSingaporeDate >= oneDayBefore && currentSingaporeDate <= eventDateStr;
+}

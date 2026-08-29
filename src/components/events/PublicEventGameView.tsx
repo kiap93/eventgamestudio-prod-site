@@ -5,6 +5,11 @@ import { GameContainer } from '../GameContainer';
 import { EventPaymentModal } from './EventPaymentModal';
 import { apiFetch } from '../../lib/api';
 import {
+  isWithinImmersiveFullscreenWindow,
+  getSingaporeDateTime,
+  getSingaporeCalendarDate,
+} from '../../lib/dateUtils';
+import {
   Calendar,
   Clock,
   AlertTriangle,
@@ -55,6 +60,8 @@ export const PublicEventGameView: React.FC = () => {
   const [now, setNow] = useState(Date.now());
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [singaporeDateKey, setSingaporeDateKey] = useState<string>(() => getSingaporeCalendarDate());
+  const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [errorDetails, setErrorDetails] = useState<{
     code?: string;
@@ -73,6 +80,15 @@ export const PublicEventGameView: React.FC = () => {
       setNow(Date.now());
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Periodic check for Singapore date boundary change (midnight transition)
+  useEffect(() => {
+    const dateTimer = setInterval(() => {
+      const todaySg = getSingaporeCalendarDate();
+      setSingaporeDateKey((prev) => (prev !== todaySg ? todaySg : prev));
+    }, 15000);
+    return () => clearInterval(dateTimer);
   }, []);
 
   /**
@@ -212,7 +228,20 @@ export const PublicEventGameView: React.FC = () => {
   const toggleFullscreen = async () => {
     const isCurrentlyFs = getIsFullscreen();
     if (!isCurrentlyFs) {
-      const elem = document.documentElement;
+      // Guard: Only allow entering immersive fullscreen if paid and within event date window
+      if (!canUseImmersiveFullscreen) {
+        console.warn(
+          '[IMMERSIVE FULLSCREEN] Entry blocked: requires payment_status === "PAID" and current Singapore date within event date window.',
+          {
+            paymentStatus: eventData?.payment_status,
+            eventDate: eventData?.event_date,
+            singaporeNow: getSingaporeDateTime(),
+          }
+        );
+        return;
+      }
+
+      const elem = fullscreenContainerRef.current || document.documentElement;
       const reqFs =
         elem.requestFullscreen ||
         (elem as any).webkitRequestFullscreen ||
@@ -229,6 +258,7 @@ export const PublicEventGameView: React.FC = () => {
         }
       }
     } else {
+      // Exit fullscreen must ALWAYS work regardless of payment/date status
       const exitFs =
         document.exitFullscreen ||
         (document as any).webkitExitFullscreen ||
@@ -472,19 +502,50 @@ export const PublicEventGameView: React.FC = () => {
     );
   }
 
-  // Authoritative payment and status checks
-  const isPaid = eventData.payment_status === 'PAID';
-  const isPlayable =
-    isPaid &&
-    (eventData.status === 'live' ||
-      eventData.status === 'active' ||
-      eventData.status === 'scheduled');
+  // Authoritative payment and Singapore date window checks
+  // CONDITION 1 — Payment: eventData.payment_status === 'PAID'
+  const isPaidEvent =
+    String(eventData.payment_status || '').toUpperCase() === 'PAID';
 
-  // Strict Header Visibility Rule:
-  // - In normal windowed mode: Header is ALWAYS visible.
-  // - In fullscreen mode: Header is completely HIDDEN ONLY IF the event is PAID and PLAYABLE.
-  // - If an event is NOT paid/playable: Header remains visible even in fullscreen.
-  const showHeader = !isFullscreen || !isPlayable;
+  // CONDITION 2 — Event date window: ONE DAY BEFORE THE EVENT DATE through THE ENTIRE EVENT DATE (Singapore timezone)
+  const isWithinEventDateWindow =
+    isWithinImmersiveFullscreenWindow(eventData.event_date);
+
+  // Exact Eligibility Formula:
+  // Immersive fullscreen requires BOTH payment confirmation and current date within event window
+  const canUseImmersiveFullscreen =
+    isPaidEvent && isWithinEventDateWindow;
+
+  // Immersive Fullscreen State
+  const isImmersiveFullscreen =
+    isFullscreen && canUseImmersiveFullscreen;
+
+  // Event Header Visibility Rule: The Event Header is hidden ONLY in active immersive fullscreen
+  const showEventHeader =
+    !isImmersiveFullscreen;
+
+  // Development debug logging
+  useEffect(() => {
+    console.log('[IMMERSIVE FULLSCREEN]', {
+      eventDate: eventData.event_date,
+      paymentStatus: eventData.payment_status,
+      singaporeNow: getSingaporeDateTime(),
+      isPaidEvent,
+      isWithinEventDateWindow,
+      canUseImmersiveFullscreen,
+      isFullscreen,
+      showEventHeader,
+    });
+  }, [
+    eventData.event_date,
+    eventData.payment_status,
+    isPaidEvent,
+    isWithinEventDateWindow,
+    canUseImmersiveFullscreen,
+    isFullscreen,
+    showEventHeader,
+    singaporeDateKey,
+  ]);
 
   const theme = eventData.game_theme;
   const gameType = eventData.game?.game_type || 'catch-brand';
@@ -492,15 +553,16 @@ export const PublicEventGameView: React.FC = () => {
 
   return (
     <div
-      className={`h-screen h-[100dvh] w-screen max-w-[100vw] bg-[#07130b] text-slate-100 flex flex-col font-sans select-none overflow-hidden ${
-        isFullscreen ? 'p-0 m-0' : ''
+      ref={fullscreenContainerRef}
+      className={`public-event-game-root h-screen h-[100dvh] w-screen max-w-[100vw] bg-[#07130b] text-slate-100 flex flex-col font-sans select-none overflow-hidden ${
+        isImmersiveFullscreen ? 'p-0 m-0' : ''
       }`}
     >
-      {/* Event Header Banner (Shown in normal mode, and always kept in fullscreen for unpaid events) */}
-      {showHeader && (
+      {/* Event Header Banner (Hidden ONLY in active immersive fullscreen) */}
+      {showEventHeader && (
         <header className="h-12 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-2 flex items-center justify-between z-40 shrink-0">
           <div className="flex items-center gap-3 min-w-0 truncate">
-            {isPaid ? (
+            {isPaidEvent ? (
               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold shrink-0">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
                 <span>LIVE EVENT</span>
@@ -517,7 +579,7 @@ export const PublicEventGameView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {isPaid && (
+            {isPaidEvent && (
               <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-mono">
                 <Clock className="w-3.5 h-3.5 text-amber-400" />
                 <span>Ends in: {formatCountdown(remainingTime)}</span>
@@ -526,8 +588,19 @@ export const PublicEventGameView: React.FC = () => {
 
             <button
               onClick={toggleFullscreen}
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
-              title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
+              disabled={!canUseImmersiveFullscreen && !isFullscreen}
+              className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                !canUseImmersiveFullscreen && !isFullscreen
+                  ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/50'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+              }`}
+              title={
+                isFullscreen
+                  ? 'Exit Fullscreen'
+                  : !canUseImmersiveFullscreen
+                  ? 'Fullscreen is available on event day and 1 day prior for paid events'
+                  : 'Enter Immersive Fullscreen'
+              }
             >
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>
@@ -538,9 +611,7 @@ export const PublicEventGameView: React.FC = () => {
       {/* Main Play Area */}
       <main
         className={`flex-1 w-full min-h-0 min-w-0 max-w-full overflow-hidden flex flex-col items-center justify-center ${
-          isFullscreen && !showHeader
-            ? 'p-0 m-0 h-full w-full min-w-0 min-h-0 max-w-none max-h-none'
-            : isFullscreen
+          isImmersiveFullscreen
             ? 'p-0 m-0 h-full w-full min-w-0 min-h-0 max-w-none max-h-none'
             : 'p-1 sm:p-2 sm:px-3'
         }`}
@@ -551,9 +622,9 @@ export const PublicEventGameView: React.FC = () => {
             customTheme={theme}
             eventId={eventData.id}
             publicToken={eventData.public_token}
-            showCabinetFooter={!isFullscreen}
+            showCabinetFooter={!isImmersiveFullscreen}
             allowImmersiveFullscreen={true}
-            isFullscreen={isFullscreen}
+            isFullscreen={isImmersiveFullscreen}
             onToggleFullscreen={toggleFullscreen}
             className="w-full h-full max-w-full max-h-full"
           />

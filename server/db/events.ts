@@ -63,8 +63,8 @@ export function calculateEventStatus(
 
   // If unpaid or pending payment:
   if (payStatus !== 'PAID') {
-    // If event start time has already passed without payment, it is timed out / cancelled
-    if (nowTime >= startsAt) {
+    // If event expiration time has passed without payment, it is timed out / cancelled
+    if (nowTime >= expiresAt) {
       return 'cancelled';
     }
     if (eventStatus === 'DRAFT' || rawStatus === 'draft') {
@@ -766,8 +766,8 @@ export async function getEventByPublicToken(
     .maybeSingle();
 
   if (error) {
-    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
-      eventRecord = Array.from(localEventsCache.values()).find((e) => e.public_token === publicToken.trim().toUpperCase()) || null;
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      eventRecord = Array.from(localEventsCache.values()).find((e) => e.public_token?.trim().toUpperCase() === publicToken.trim().toUpperCase()) || null;
     } else {
       console.error('Error in getEventByPublicToken:', error);
       throw new Error(`Failed to get public event: ${error.message}`);
@@ -793,12 +793,16 @@ export async function getEventByPublicToken(
       if (isLocalFallbackAllowed(env)) {
         localEventsCache.set(raw.id, eventRecord);
       }
+    } else if (isLocalFallbackAllowed(env)) {
+      eventRecord = Array.from(localEventsCache.values()).find((e) => e.public_token?.trim().toUpperCase() === publicToken.trim().toUpperCase()) || null;
     } else {
       eventRecord = null;
     }
   }
 
-  if (!eventRecord) return null;
+  if (!eventRecord) {
+    return null;
+  }
 
   const derivedLifecycle = deriveEventLifecycleStatus(eventRecord);
   const paymentStatus = (eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID')).toUpperCase();
