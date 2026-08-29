@@ -132,6 +132,8 @@ export const memoryMatchTheme: GameTheme = {
 
   visuals_config: {
     cardBackUrl: null,
+    cardFrontBg: '#0f172a',
+    cardFrontBgOpacity: 0.95,
     particleGood: 'particle_gold',
     particleBad: 'particle_spike',
     particleBonus: 'particle_star',

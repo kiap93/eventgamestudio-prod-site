@@ -33,7 +33,7 @@ import { createShuffledDeck } from './cardDeck';
 import { memorySounds } from './memorySounds';
 import { generateRandomCardPositions, CardPosition } from './memoryMatchBoardLayout';
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
-import { getMemoryMatchConfig } from '../../themes/types';
+import { getMemoryMatchConfig, getCardFrontBg } from '../../themes/types';
 import { normalizeGameLayout, GameLayoutConfig } from '../../themes/layout';
 import { apiFetch } from '../../lib/api';
 
@@ -592,6 +592,13 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     activeTheme?.visuals_config?.accentColor ||
     '#10b981';
 
+  const effectiveCardFrontBg = useMemo(() => {
+    return getCardFrontBg(
+      activeTheme?.visuals_config?.cardFrontBg,
+      activeTheme?.visuals_config?.cardFrontBgOpacity
+    );
+  }, [activeTheme?.visuals_config?.cardFrontBg, activeTheme?.visuals_config?.cardFrontBgOpacity]);
+
   const customBgUrl = activeTheme?.background_url && activeTheme.background_url.trim() !== ''
     ? activeTheme.background_url
     : null;
@@ -696,10 +703,10 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                         borderRadius: `${cardBorderRadius}px`,
                         backgroundColor: card.isMatched
                           ? activeTheme?.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
-                          : card.bgColor || activeTheme?.visuals_config?.cardFrontBg || 'rgba(15, 23, 42, 0.95)',
+                          : effectiveCardFrontBg,
                         borderColor: card.isMatched
                           ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
-                          : card.borderColor || activeTheme?.visuals_config?.cardBadBorder || '#f59e0b',
+                          : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
                       }}
                     >
                       {/* Top Right Matched Checkmark Badge */}
@@ -823,10 +830,10 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                         borderRadius: `${cardBorderRadius}px`,
                         backgroundColor: card.isMatched
                           ? activeTheme?.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
-                          : card.bgColor || activeTheme?.visuals_config?.cardFrontBg || 'rgba(15, 23, 42, 0.95)',
+                          : effectiveCardFrontBg,
                         borderColor: card.isMatched
                           ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
-                          : card.borderColor || activeTheme?.visuals_config?.cardBadBorder || '#f59e0b',
+                          : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
                       }}
                     >
                       {/* Top Right Matched Checkmark Badge */}

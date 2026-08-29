@@ -1,5 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { GameTheme, ThemeDropItem, getMemoryMatchConfig, DEFAULT_CARD_CONFIG } from '../../../themes/types';
+import {
+  GameTheme,
+  ThemeDropItem,
+  getMemoryMatchConfig,
+  DEFAULT_CARD_CONFIG,
+  CARD_FRONT_BG_PRESETS,
+  getCardFrontBg,
+} from '../../../themes/types';
 import { MemoryMatchGameConfig, MemoryMatchPairConfig, MemoryMatchCardConfig, MemoryMatchUiConfig } from '../../../games/memory-match/types';
 import { ensureRequiredPairs, DEFAULT_CARD_PROTOTYPES } from '../../../games/memory-match/cardDeck';
 import {
@@ -336,11 +343,246 @@ export const MemoryMatchVisualsCustomizer: React.FC<MemoryMatchVisualsCustomizer
         </div>
 
         {/* Card Style & Glow Accents */}
-        <div className="pt-4 border-t border-slate-800/80 space-y-3">
+        <div className="pt-4 border-t border-slate-800/80 space-y-4">
           <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
             <Sliders className="w-3.5 h-3.5 text-amber-400" />
             Card Theme & Accent Colors
           </h4>
+
+          {/* Card Front Background (Face-Up Opened State) */}
+          <div className="bg-slate-950 border border-slate-800/90 rounded-2xl p-4 space-y-4 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-200">Card Front Background</span>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-bold">
+                    Face-Up Cards
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Solid or semi-transparent background color shown when cards are flipped open
+                </p>
+              </div>
+
+              {/* Reset to Default Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  onChange({
+                    ...theme,
+                    visuals_config: {
+                      ...theme.visuals_config,
+                      cardFrontBg: '#0F172A',
+                      cardFrontBgOpacity: 0.95,
+                    },
+                  });
+                }}
+                className="self-start sm:self-auto px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors flex items-center gap-1"
+                title="Reset Card Front Background to default (#0F172A at 95%)"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            </div>
+
+            {/* Main Interactive Controls & Live Mini Card Preview */}
+            <div className="flex flex-col md:flex-row items-center gap-4">
+              {/* Mini Face-Up Preview Card */}
+              <div
+                className="w-24 h-32 rounded-2xl border-2 flex flex-col items-center justify-between p-2 shadow-lg shrink-0 transition-all"
+                style={{
+                  backgroundColor: getCardFrontBg(
+                    theme.visuals_config?.cardFrontBg || '#0F172A',
+                    theme.visuals_config?.cardFrontBgOpacity ?? 0.95
+                  ),
+                  borderColor: theme.visuals_config?.cardBadBorder || '#f59e0b',
+                }}
+              >
+                <div className="w-full flex justify-end">
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-400/80" />
+                </div>
+                <div className="flex flex-col items-center justify-center gap-1">
+                  <Sparkles className="w-6 h-6 text-amber-400 animate-pulse" />
+                  <span className="text-[9px] font-bold text-slate-200">Face-Up</span>
+                </div>
+                <span className="text-[8px] font-mono text-slate-400/90">
+                  {Math.round((theme.visuals_config?.cardFrontBgOpacity ?? 0.95) * 100)}%
+                </span>
+              </div>
+
+              {/* Controls Column */}
+              <div className="flex-1 w-full space-y-3">
+                {/* Color Input & Hex Code */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300">Background Color</label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-9 h-9 rounded-xl border border-slate-700 overflow-hidden shrink-0 shadow-inner bg-slate-900">
+                      <input
+                        type="color"
+                        value={
+                          theme.visuals_config?.cardFrontBg?.startsWith('#') && theme.visuals_config.cardFrontBg.length === 7
+                            ? theme.visuals_config.cardFrontBg
+                            : '#0F172A'
+                        }
+                        onChange={(e) => {
+                          onChange({
+                            ...theme,
+                            visuals_config: {
+                              ...theme.visuals_config,
+                              cardFrontBg: e.target.value.toUpperCase(),
+                            },
+                          });
+                        }}
+                        className="absolute -top-2 -left-2 w-14 h-14 cursor-pointer border-0 bg-transparent"
+                      />
+                    </div>
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={theme.visuals_config?.cardFrontBg || '#0F172A'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          onChange({
+                            ...theme,
+                            visuals_config: {
+                              ...theme.visuals_config,
+                              cardFrontBg: val,
+                            },
+                          });
+                        }}
+                        placeholder="#0F172A"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 font-mono tracking-wider focus:outline-none focus:border-amber-500/70"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preset Color Swatches */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Quick Color Presets
+                  </label>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {CARD_FRONT_BG_PRESETS.map((preset) => {
+                      const isSelected =
+                        (theme.visuals_config?.cardFrontBg || '#0F172A').toUpperCase() === preset.hex.toUpperCase();
+                      return (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => {
+                            onChange({
+                              ...theme,
+                              visuals_config: {
+                                ...theme.visuals_config,
+                                cardFrontBg: preset.hex,
+                              },
+                            });
+                          }}
+                          className={`group relative flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium transition-all ${
+                            isSelected
+                              ? 'border-amber-400 bg-amber-500/10 text-amber-300 ring-1 ring-amber-400/40'
+                              : 'border-slate-800 bg-slate-900/80 hover:bg-slate-800 text-slate-300'
+                          }`}
+                          title={`Set background to ${preset.name} (${preset.hex})`}
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full border border-white/20 shadow-sm shrink-0"
+                            style={{ backgroundColor: preset.hex }}
+                          />
+                          <span>{preset.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Opacity Slider */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-slate-300">Background Opacity</span>
+                    <span className="font-mono text-amber-400 font-bold">
+                      {Math.round((theme.visuals_config?.cardFrontBgOpacity ?? 0.95) * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={theme.visuals_config?.cardFrontBgOpacity ?? 0.95}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      onChange({
+                        ...theme,
+                        visuals_config: {
+                          ...theme.visuals_config,
+                          cardFrontBgOpacity: isNaN(val) ? 0.95 : Math.max(0, Math.min(1, val)),
+                        },
+                      });
+                    }}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                  />
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span>0% (Transparent)</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange({
+                            ...theme,
+                            visuals_config: { ...theme.visuals_config, cardFrontBgOpacity: 0.5 },
+                          })
+                        }
+                        className="hover:text-amber-400"
+                      >
+                        50%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange({
+                            ...theme,
+                            visuals_config: { ...theme.visuals_config, cardFrontBgOpacity: 0.8 },
+                          })
+                        }
+                        className="hover:text-amber-400"
+                      >
+                        80%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange({
+                            ...theme,
+                            visuals_config: { ...theme.visuals_config, cardFrontBgOpacity: 0.95 },
+                          })
+                        }
+                        className="hover:text-amber-400"
+                      >
+                        95%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange({
+                            ...theme,
+                            visuals_config: { ...theme.visuals_config, cardFrontBgOpacity: 1.0 },
+                          })
+                        }
+                        className="hover:text-amber-400"
+                      >
+                        100%
+                      </button>
+                    </div>
+                    <span>100% (Solid)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Border Accents Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             {/* Card Matched Border Color */}
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 space-y-1.5">

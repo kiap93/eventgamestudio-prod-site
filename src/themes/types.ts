@@ -68,6 +68,7 @@ export interface ThemeVisualsConfig {
   textColor?: string;
   cardBackUrl?: string | null;
   cardFrontBg?: string;
+  cardFrontBgOpacity?: number;
   cardGoodBg?: string;
   cardGoodBorder?: string;
   cardBadBg?: string;
@@ -381,5 +382,58 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
       showLeaderboard: true,
     },
   };
+}
+
+export const CARD_FRONT_BG_PRESETS: Array<{ name: string; hex: string }> = [
+  { name: 'Navy', hex: '#0F172A' },
+  { name: 'Black', hex: '#000000' },
+  { name: 'White', hex: '#FFFFFF' },
+  { name: 'Gold', hex: '#F59E0B' },
+  { name: 'Red', hex: '#EF4444' },
+  { name: 'Green', hex: '#10B981' },
+  { name: 'Blue', hex: '#3B82F6' },
+  { name: 'Purple', hex: '#8B5CF6' },
+  { name: 'Teal', hex: '#14B8A6' },
+];
+
+/**
+ * Safely computes the CSS background color for a face-up unmatched Memory Match card
+ * from the theme's cardFrontBg (hex/rgb/rgba) and cardFrontBgOpacity (0 to 1).
+ */
+export function getCardFrontBg(
+  cardFrontBg?: string | null,
+  cardFrontBgOpacity?: number | null
+): string {
+  const defaultBg = '#0F172A';
+  const defaultOpacity = 0.95;
+
+  const rawColor = (cardFrontBg && cardFrontBg.trim() !== '') ? cardFrontBg.trim() : defaultBg;
+  const opacity = typeof cardFrontBgOpacity === 'number' && !isNaN(cardFrontBgOpacity)
+    ? Math.max(0, Math.min(1, cardFrontBgOpacity))
+    : defaultOpacity;
+
+  // Handle rgb / rgba string
+  if (rawColor.startsWith('rgba') || rawColor.startsWith('rgb')) {
+    const rgbaMatch = /^rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[\d.]+\s*)?\)$/i.exec(rawColor);
+    if (rgbaMatch) {
+      return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${opacity})`;
+    }
+    return rawColor;
+  }
+
+  let hex = rawColor.startsWith('#') ? rawColor.slice(1) : rawColor;
+  if (hex.length === 3) {
+    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+  }
+
+  const match = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (match) {
+    const r = parseInt(match[1], 16);
+    const g = parseInt(match[2], 16);
+    const b = parseInt(match[3], 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }
+
+  return rawColor;
 }
 
