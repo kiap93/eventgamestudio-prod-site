@@ -2172,7 +2172,8 @@ app.get('/api/public/events/:publicToken', async (req, res) => {
       return;
     }
 
-    if (rawEvent.payment_status !== 'PAID' || rawEvent.event_status !== 'LIVE' || rawEvent.status === 'pending_payment' || rawEvent.status === 'draft') {
+    const isPaid = rawEvent.payment_status === 'PAID';
+    if (!isPaid || rawEvent.status === 'pending_payment') {
       res.status(403).json({
         error: 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
         code: 'PAYMENT_REQUIRED',

@@ -1748,6 +1748,7 @@ export async function processEventPayment(
       const cachedEvent = localEventsCache.get(eventId);
       if (cachedEvent) {
         cachedEvent.status = 'scheduled';
+        cachedEvent.event_status = 'LIVE';
         cachedEvent.payment_status = 'PAID';
         cachedEvent.payment_mode = mode;
         cachedEvent.paid_amount = calculation.paidAmount;

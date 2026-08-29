@@ -2369,7 +2369,8 @@ export default {
           }, 403, cors);
         }
 
-        if (rawEvent.payment_status !== 'PAID' || rawEvent.event_status !== 'LIVE' || rawEvent.status === 'pending_payment' || rawEvent.status === 'draft') {
+        const isPaid = rawEvent.payment_status === 'PAID';
+        if (!isPaid || rawEvent.status === 'pending_payment') {
           return jsonResponse({
             error: 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
             code: 'PAYMENT_REQUIRED',

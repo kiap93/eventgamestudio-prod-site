@@ -97,19 +97,21 @@ export function deriveEventLifecycleStatus(
   },
   now: Date = new Date()
 ): 'DRAFT' | 'PAYMENT_PENDING' | 'LIVE' | 'COMPLETED' | 'CANCELLED' {
+  const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
   if (event.event_status) {
     const s = event.event_status.toUpperCase();
-    if (['DRAFT', 'PAYMENT_PENDING', 'LIVE', 'COMPLETED', 'CANCELLED'].includes(s)) {
-      if (s === 'CANCELLED') return 'CANCELLED';
-      if (s === 'COMPLETED') return 'COMPLETED';
-    }
+    if (s === 'CANCELLED') return 'CANCELLED';
+    if (s === 'COMPLETED') return 'COMPLETED';
+    if (isPaid) return 'LIVE';
   }
 
   const calculated = calculateEventStatus(event, now);
   if (calculated === 'cancelled') return 'CANCELLED';
   if (calculated === 'expired') return 'COMPLETED';
-  if (calculated === 'draft') return 'DRAFT';
-  if (calculated === 'pending_payment') return 'PAYMENT_PENDING';
+  if (!isPaid) {
+    if (calculated === 'draft') return 'DRAFT';
+    return 'PAYMENT_PENDING';
+  }
   return 'LIVE';
 }
 
@@ -654,13 +656,15 @@ export async function getEventByPublicToken(
   if (!eventRecord) return null;
 
   const derivedLifecycle = deriveEventLifecycleStatus(eventRecord);
-  const eventLifecycleStatus = (eventRecord.event_status || derivedLifecycle).toUpperCase();
   const paymentStatus = (eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID')).toUpperCase();
   const isPaid = paymentStatus === 'PAID';
+  const eventLifecycleStatus = isPaid
+    ? (eventRecord.event_status === 'COMPLETED' ? 'COMPLETED' : (eventRecord.event_status === 'CANCELLED' ? 'CANCELLED' : 'LIVE'))
+    : derivedLifecycle;
 
-  // Strict Public Guard: Do NOT resolve unpaid, non-LIVE, draft, or cancelled events on public routes unless explicitly permitted (e.g. preview)
+  // Strict Public Guard: Do NOT resolve unpaid, draft, or cancelled events on public routes unless explicitly permitted (e.g. preview)
   if (!options?.allowUnpaid) {
-    if (!isPaid || eventLifecycleStatus !== 'LIVE' || eventRecord.status === 'cancelled' || eventRecord.status === 'draft' || eventRecord.status === 'pending_payment') {
+    if (!isPaid || eventLifecycleStatus === 'CANCELLED' || eventRecord.status === 'cancelled' || eventRecord.status === 'pending_payment') {
       return null;
     }
   }

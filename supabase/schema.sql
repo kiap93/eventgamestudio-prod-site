@@ -1082,6 +1082,7 @@ BEGIN
         event_price = v_event_price,
         event_currency = 'MYR',
         status = CASE WHEN status = 'pending_payment' THEN 'scheduled' ELSE status END,
+        event_status = 'LIVE',
         updated_at = v_now
     WHERE id = p_event_id;
   END IF;
