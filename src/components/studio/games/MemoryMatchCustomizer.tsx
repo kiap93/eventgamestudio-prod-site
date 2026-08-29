@@ -1361,7 +1361,10 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
 
   return (
     <div className="space-y-6">
-      {/* 1. Session Timing & Mismatch Delay Section */}
+      {/* 1. Card Board Layout & Dimensions Section */}
+      <MemoryMatchGameLayoutCustomizer theme={theme} onChange={onChange} />
+
+      {/* 2. Session Timing & Mismatch Delay Section */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

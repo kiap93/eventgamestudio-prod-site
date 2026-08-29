@@ -477,115 +477,57 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               <span>{isMemoryMatchTheme(draftTheme) ? '2. Card Pairs' : '2. Items'}</span>
             </button>
 
-            {isMemoryMatchTheme(draftTheme) ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('layout')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                    activeTab === 'layout'
-                      ? 'bg-amber-500 text-slate-950 shadow-md'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Grid className="w-3.5 h-3.5" />
-                  <span>3. Game Layout</span>
-                </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('gameplay')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'gameplay'
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>3. Gameplay</span>
+            </button>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('gameplay')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                    activeTab === 'gameplay'
-                      ? 'bg-amber-500 text-slate-950 shadow-md'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>4. Gameplay</span>
-                </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('audio')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'audio'
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              <span>4. Audio</span>
+            </button>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('audio')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                    activeTab === 'audio'
-                      ? 'bg-amber-500 text-slate-950 shadow-md'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Volume2 className="w-3.5 h-3.5" />
-                  <span>5. Audio</span>
-                </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('branding')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'branding'
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <Palette className="w-3.5 h-3.5" />
+              <span>5. Branding</span>
+            </button>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('branding')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                    activeTab === 'branding'
-                      ? 'bg-amber-500 text-slate-950 shadow-md'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Palette className="w-3.5 h-3.5" />
-                  <span>6. Branding</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('gameplay')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                    activeTab === 'gameplay'
-                      ? 'bg-amber-500 text-slate-950 shadow-md'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>3. Gameplay</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('audio')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                    activeTab === 'audio'
-                      ? 'bg-amber-500 text-slate-950 shadow-md'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Volume2 className="w-3.5 h-3.5" />
-                  <span>4. Audio</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('branding')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                    activeTab === 'branding'
-                      ? 'bg-amber-500 text-slate-950 shadow-md'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Palette className="w-3.5 h-3.5" />
-                  <span>5. Branding</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('layout')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                    activeTab === 'layout'
-                      ? 'bg-amber-500 text-slate-950 shadow-md'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Grid className="w-3.5 h-3.5" />
-                  <span>6. Layout</span>
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={() => setActiveTab('layout')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'layout'
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <Grid className="w-3.5 h-3.5" />
+              <span>6. Layout</span>
+            </button>
           </nav>
 
           {/* ACTIVE TAB CONTENT */}

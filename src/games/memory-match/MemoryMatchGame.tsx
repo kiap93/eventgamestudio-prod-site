@@ -25,6 +25,7 @@ import {
   Gift,
   HelpCircle,
   Medal,
+  Megaphone,
 } from 'lucide-react';
 import { GameComponentProps } from '../types';
 import { MemoryCard, MemoryMatchConfig } from './types';
@@ -33,6 +34,7 @@ import { memorySounds } from './memorySounds';
 import { generateRandomCardPositions, CardPosition } from './memoryMatchBoardLayout';
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
 import { getMemoryMatchConfig } from '../../themes/types';
+import { normalizeGameLayout, GameLayoutConfig } from '../../themes/layout';
 import { apiFetch } from '../../lib/api';
 
 import {
@@ -560,14 +562,43 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   };
 
   const accuracyPercent = moves > 0 ? Math.min(100, Math.round((matchedPairsCount / moves) * 100)) : 0;
-  const gameTitle = activeTheme?.branding?.gameTitle || activeTheme?.name || 'MEMORY MATCH';
+
+  const layout: GameLayoutConfig = useMemo(
+    () => normalizeGameLayout(activeTheme?.layout),
+    [activeTheme?.layout]
+  );
+
+  const clientLogoUrl =
+    activeTheme?.clientLogo ||
+    activeTheme?.logo ||
+    activeTheme?.branding?.clientLogo ||
+    (activeTheme as any)?.branding?.clientLogoUrl ||
+    (activeTheme as any)?.branding?.logoUrl;
+
+  const gameTitle =
+    activeTheme?.branding?.gameTitle ||
+    activeTheme?.gameTitle ||
+    activeTheme?.name ||
+    'MEMORY MATCH';
+
+  const sponsorSubtitle =
+    activeTheme?.branding?.subtitle ||
+    activeTheme?.subtitle ||
+    'Official Event Arcade Challenge';
+
+  const hudColor = activeTheme?.branding?.hudColor || '#c8e038';
+  const accentColor =
+    activeTheme?.branding?.accentColor ||
+    activeTheme?.visuals_config?.accentColor ||
+    '#10b981';
+
   const customBgUrl = activeTheme?.background_url && activeTheme.background_url.trim() !== ''
     ? activeTheme.background_url
     : null;
 
   return (
     <div
-      className="relative w-full h-full min-w-0 min-h-0 flex flex-col items-center justify-between overflow-hidden select-none bg-[#07130b]"
+      className="relative w-full h-full min-w-0 min-h-0 overflow-hidden select-none bg-[#07130b]"
       style={{
         backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
         backgroundImage: customBgUrl
@@ -581,137 +612,12 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
       }}
     >
       {/* ========================================================================= */}
-      {/* 1. TOP HUD / HEADER BAR                                                   */}
+      {/* 1. MAIN CARD BOARD AREA (Grid vs Random / Scattered Layout)               */}
       {/* ========================================================================= */}
-      <header className="w-full h-11 sm:h-13 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-5 flex items-center justify-between z-20 shadow-md shrink-0">
-        {/* Game Title & Theme Badge */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
-            <Grid3X3 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xs sm:text-sm font-black text-slate-100 uppercase tracking-wide truncate max-w-[120px] sm:max-w-[200px]">
-              {gameTitle}
-            </h1>
-            <span className="hidden sm:inline-block text-[10px] text-amber-400 font-bold uppercase tracking-wider">
-              {boardConfig.layoutMode === 'random' ? `${totalCards} Cards Scattered` : `${rows}×${cols} Grid`}
-            </span>
-          </div>
-        </div>
-
-        {/* Core HUD Metrics (Pairs Matched, Moves, Timer, Score) */}
-        <div className="flex items-center gap-1.5 sm:gap-3 font-mono">
-          {/* Pairs Matched */}
-          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] sm:text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-slate-400 hidden xs:inline">Pairs:</span>
-            <span className="font-bold text-emerald-400">
-              {matchedPairsCount}
-              <span className="text-slate-600">/{totalPairs}</span>
-            </span>
-          </div>
-
-          {/* Moves */}
-          <div className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] sm:text-xs">
-            <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-slate-400 hidden xs:inline">Moves:</span>
-            <span className="font-bold text-cyan-300">{moves}</span>
-          </div>
-
-          {/* Timer */}
-          <div
-            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl border text-[11px] sm:text-xs font-bold transition-colors ${
-              timeRemaining <= 10
-                ? 'bg-rose-500/20 border-rose-500/50 text-rose-400 animate-pulse'
-                : 'bg-slate-950/70 border-slate-800 text-amber-400'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>{timeRemaining}s</span>
-          </div>
-
-          {/* Score */}
-          <div className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/40 text-[11px] sm:text-xs font-bold text-amber-300">
-            <Trophy className="w-3.5 h-3.5 text-amber-400" />
-            <span>{score}</span>
-          </div>
-
-          {/* Combo Streak Indicator */}
-          {comboStreak > 1 && (
-            <div className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded-lg bg-orange-500/20 border border-orange-500/40 text-[10px] font-bold text-orange-400 animate-bounce">
-              <Flame className="w-3 h-3 text-orange-400" />
-              <span>{comboStreak}x</span>
-            </div>
-          )}
-        </div>
-
-        {/* Quick Controls (Mute, Pause, Restart, Fullscreen) */}
-        <div className="flex items-center gap-1 sm:gap-1.5">
-          {gameState === 'PLAYING' && (
-            <button
-              onClick={handlePause}
-              className="p-1.5 sm:p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors cursor-pointer"
-              title="Pause Game"
-            >
-              <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          )}
-
-          {gameState === 'PAUSED' && (
-            <button
-              onClick={handleResume}
-              className="p-1.5 sm:p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs transition-colors cursor-pointer"
-              title="Resume Game"
-            >
-              <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          )}
-
-          {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
-            <button
-              onClick={handleRestart}
-              className="p-1.5 sm:p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors cursor-pointer"
-              title="Restart Board"
-            >
-              <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          )}
-
-          <button
-            onClick={onToggleMute}
-            className="p-1.5 sm:p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors cursor-pointer"
-            title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
-          >
-            {isMuted ? (
-              <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400" />
-            ) : (
-              <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
-            )}
-          </button>
-
-          {onToggleFullscreen && (
-            <button
-              onClick={onToggleFullscreen}
-              className="p-1.5 sm:p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors cursor-pointer"
-              title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-            >
-              {isFullscreen ? (
-                <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              ) : (
-                <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              )}
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* ========================================================================= */}
-      {/* 2. MAIN CARD BOARD AREA (Grid vs Random / Scattered Layout)               */}
-      {/* ========================================================================= */}
-      <main className="flex-1 w-full min-h-0 flex items-center justify-center p-2 sm:p-4 md:p-6 relative overflow-hidden">
+      <div className="absolute inset-0 flex items-center justify-center p-3 sm:p-6 md:p-8 overflow-hidden z-10 pointer-events-auto">
         {boardConfig.layoutMode === 'grid' ? (
           <div
-            className="w-full h-full max-h-[min(100%,660px)] max-w-[min(100%,660px)] m-auto"
+            className="w-full h-full max-h-[min(100%,680px)] max-w-[min(100%,680px)] m-auto"
             style={{
               display: 'grid',
               gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
@@ -960,10 +866,213 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
             })}
           </div>
         )}
+      </div>
 
-        {/* ======================================================================= */}
-        {/* 3. START GAME OVERLAY                                                   */}
-        {/* ======================================================================= */}
+      {/* ========================================================================= */}
+      {/* 2. IN-GAME DYNAMIC UI LAYOUT (5 Positionable HUD Elements)                */}
+      {/* ========================================================================= */}
+      {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
+        <>
+          {/* 1. Client Logo Element */}
+          {layout.clientLogo?.visible && clientLogoUrl && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${layout.clientLogo.x}%`,
+                top: `${layout.clientLogo.y}%`,
+                width: `${layout.clientLogo.width || 14}%`,
+                zIndex: 35,
+              }}
+              className="pointer-events-none transition-all flex items-center justify-center"
+            >
+              <img
+                src={clientLogoUrl}
+                alt="Client Logo"
+                className="max-h-12 w-full object-contain drop-shadow"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            </div>
+          )}
+
+          {/* 2. Score HUD Element */}
+          {layout.scoreHud?.visible && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${layout.scoreHud.x}%`,
+                top: `${layout.scoreHud.y}%`,
+                width: `${layout.scoreHud.width || 18}%`,
+                zIndex: 35,
+              }}
+              className="pointer-events-none transition-all"
+            >
+              <div className="bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between">
+                <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+                  <Trophy className="w-3.5 h-3.5 text-amber-400" /> SCORE
+                </span>
+                <span
+                  style={{ color: hudColor }}
+                  className="text-base sm:text-lg font-mono font-black ml-2"
+                >
+                  {score}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* 3. Timer Element */}
+          {layout.timer?.visible && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${layout.timer.x}%`,
+                top: `${layout.timer.y}%`,
+                width: `${layout.timer.width || 18}%`,
+                zIndex: 35,
+              }}
+              className="pointer-events-none transition-all"
+            >
+              <div className="bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between">
+                <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-teal-400" /> TIME
+                </span>
+                <span
+                  className={`text-base sm:text-lg font-mono font-black ml-2 ${
+                    timeRemaining <= 10 ? 'text-rose-400 animate-pulse' : 'text-amber-400'
+                  }`}
+                >
+                  {timeRemaining}s
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* 4. Game Title Element */}
+          {layout.gameTitle?.visible && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${layout.gameTitle.x}%`,
+                top: `${layout.gameTitle.y}%`,
+                width: `${layout.gameTitle.width || 28}%`,
+                zIndex: 35,
+              }}
+              className="pointer-events-none transition-all"
+            >
+              <div className="bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-xl px-3 py-1 shadow-md text-center">
+                <div
+                  style={{ color: accentColor }}
+                  className="font-black text-xs sm:text-sm uppercase tracking-wider truncate"
+                >
+                  {gameTitle}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5. Footer / Sponsor Element */}
+          {layout.footerSponsor?.visible && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${layout.footerSponsor.x}%`,
+                top: `${layout.footerSponsor.y}%`,
+                width: `${layout.footerSponsor.width || 36}%`,
+                zIndex: 35,
+              }}
+              className="pointer-events-none transition-all"
+            >
+              <div className="bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-full px-3 py-1 shadow-md text-center flex items-center justify-center gap-1.5">
+                <Megaphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="text-[10px] sm:text-xs text-slate-300 font-sans truncate">
+                  {sponsorSubtitle}
+                </span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. PERSISTENT IN-GAME CONTROLS DOCK (Top-Right)                           */}
+      {/* ========================================================================= */}
+      <div className="absolute top-3 right-3 z-40 pointer-events-auto flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-sm p-1.5 rounded-xl border border-slate-700/80 shadow-lg">
+        {gameState === 'PLAYING' && (
+          <button
+            onClick={handlePause}
+            className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all font-mono text-xs font-bold"
+            title="Pause Game"
+          >
+            <Pause className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {gameState === 'PAUSED' && (
+          <button
+            onClick={handleResume}
+            className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all font-mono text-xs font-bold"
+            title="Resume Game"
+          >
+            <Play className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
+          <button
+            onClick={handleRestart}
+            className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-all font-mono text-xs font-bold"
+            title="Restart Board"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        <button
+          onClick={onToggleMute}
+          className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
+          title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+        >
+          {isMuted ? (
+            <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+          ) : (
+            <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+          )}
+        </button>
+
+        {onToggleFullscreen && (
+          <button
+            onClick={onToggleFullscreen}
+            className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all font-mono text-xs font-bold"
+            title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
+          >
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 4. SECONDARY GAMEPLAY INFO BADGE (Pairs matched & combo streak)           */}
+      {/* ========================================================================= */}
+      {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
+        <div className="absolute bottom-3 left-3 z-30 pointer-events-none flex items-center gap-2">
+          <div className="bg-slate-950/80 backdrop-blur-sm border border-slate-800/80 rounded-xl px-2.5 py-1 text-slate-300 text-xs font-mono flex items-center gap-1.5 shadow-md">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-slate-400">Pairs:</span>
+            <span className="font-bold text-emerald-400">
+              {matchedPairsCount}/{totalPairs}
+            </span>
+          </div>
+
+          {comboStreak > 1 && (
+            <div className="bg-orange-500/20 backdrop-blur-sm border border-orange-500/40 rounded-xl px-2.5 py-1 text-orange-400 text-xs font-mono font-bold flex items-center gap-1 shadow-md animate-bounce">
+              <Flame className="w-3.5 h-3.5 text-orange-400" />
+              <span>{comboStreak}x Combo</span>
+            </div>
+          )}
+        </div>
+      )}
         {gameState === 'START' && (
           <div className="absolute inset-0 w-full h-full bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-6 z-30 animate-in fade-in duration-200">
             <div className="max-w-sm w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
@@ -1150,7 +1259,6 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
             </div>
           </div>
         )}
-      </main>
     </div>
   );
 };

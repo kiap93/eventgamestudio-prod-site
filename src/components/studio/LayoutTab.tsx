@@ -1,6 +1,5 @@
 import React from 'react';
-import { GameTheme, isMemoryMatchTheme } from '../../themes/types';
-import { MemoryMatchGameLayoutCustomizer } from './games/MemoryMatchCustomizer';
+import { GameTheme } from '../../themes/types';
 import {
   GameLayoutConfig,
   LayoutElementKey,
@@ -41,12 +40,6 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
   selectedElementKey = 'clientLogo',
   onSelectElementKey,
 }) => {
-  const isMemoryMatch = isMemoryMatchTheme(theme);
-
-  if (isMemoryMatch) {
-    return <MemoryMatchGameLayoutCustomizer theme={theme} onChange={onChange} />;
-  }
-
   const layout: GameLayoutConfig = normalizeGameLayout(theme.layout);
   const activeKey: LayoutElementKey = (selectedElementKey as LayoutElementKey) || 'clientLogo';
   const activeMeta = LAYOUT_ELEMENTS_META[activeKey];
