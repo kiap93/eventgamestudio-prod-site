@@ -13,6 +13,7 @@ export interface MemoryCard {
   isFlipped: boolean;
   isMatched: boolean;
   isShaking?: boolean;
+  rotation?: number; // Deterministic rotation angle in degrees
 }
 
 export interface MemoryMatchPairConfig {
@@ -27,6 +28,16 @@ export interface MemoryMatchPairConfig {
 }
 
 export type MemoryMatchLayoutMode = 'grid' | 'random';
+export type MemoryMatchCardRotationMode = 'none' | 'fixed' | 'random';
+
+export interface MemoryMatchCardConfig {
+  width: number; // Card width in pixels (e.g. 60 - 240, default: 120)
+  height: number; // Card height in pixels (e.g. 60 - 240, default: 120)
+  borderRadius: number; // Corner radius in pixels (e.g. 0 - 36, default: 16)
+  rotationMode: MemoryMatchCardRotationMode; // 'none' | 'fixed' | 'random'
+  rotation: number; // Fixed rotation angle in degrees (e.g. -45 to 45 deg, default: 0)
+  rotationRange?: number; // Random tilt range in degrees (e.g. 0 to 25 deg, default: 8)
+}
 
 export interface MemoryMatchRandomLayoutConfig {
   minSpacing: number; // default: 12 (range: 0-40 px)
@@ -40,6 +51,7 @@ export interface MemoryMatchBoardConfig {
   cols: number; // default: 4 (range: 2 to 6)
   cardGap: number; // default: 12 px
   randomLayout: MemoryMatchRandomLayoutConfig;
+  card?: MemoryMatchCardConfig;
 }
 
 export interface MemoryMatchGridConfig {
@@ -54,12 +66,18 @@ export interface MemoryMatchGameplayConfig {
   comboPoints: number; // default: 30
 }
 
+export interface MemoryMatchUiConfig {
+  showLeaderboard?: boolean; // default: true
+}
+
 export interface MemoryMatchGameConfig {
   cardBackUrl?: string | null;
+  card?: MemoryMatchCardConfig;
   pairs: MemoryMatchPairConfig[];
   board: MemoryMatchBoardConfig;
   grid?: MemoryMatchGridConfig;
   gameplay: MemoryMatchGameplayConfig;
+  ui?: MemoryMatchUiConfig;
 }
 
 export interface MemoryMatchConfig extends BaseGameConfig {

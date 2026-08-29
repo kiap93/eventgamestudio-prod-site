@@ -1,9 +1,14 @@
-import { MemoryMatchBoardConfig, MemoryMatchGridConfig, MemoryMatchRandomLayoutConfig } from './types';
+import {
+  MemoryMatchBoardConfig,
+  MemoryMatchGridConfig,
+  MemoryMatchRandomLayoutConfig,
+  MemoryMatchCardConfig,
+} from './types';
 
 export interface CardLayoutPosition {
   x: number; // Center X percentage (0 - 100%)
   y: number; // Center Y percentage (0 - 100%)
-  rotation: number; // Rotation in degrees (e.g. -8 to 8)
+  rotation: number; // Rotation in degrees
   widthPercent: number; // Responsive width %
   heightPercent: number; // Responsive height %
   zIndex: number;
@@ -20,6 +25,15 @@ export interface BoardDimensionResult {
   warning?: string;
 }
 
+export const DEFAULT_CARD_CONFIG: MemoryMatchCardConfig = {
+  width: 120,
+  height: 120,
+  borderRadius: 16,
+  rotationMode: 'none',
+  rotation: 0,
+  rotationRange: 8,
+};
+
 export const DEFAULT_RANDOM_LAYOUT_CONFIG: MemoryMatchRandomLayoutConfig = {
   minSpacing: 12,
   rotationMin: -8,
@@ -32,7 +46,33 @@ export const DEFAULT_BOARD_CONFIG: MemoryMatchBoardConfig = {
   cols: 4,
   cardGap: 12,
   randomLayout: DEFAULT_RANDOM_LAYOUT_CONFIG,
+  card: DEFAULT_CARD_CONFIG,
 };
+
+/**
+ * Normalizes card dimension, corner radius, and rotation parameters safely.
+ */
+export function normalizeCardConfig(
+  rawCard?: Partial<MemoryMatchCardConfig> | null
+): MemoryMatchCardConfig {
+  const width = typeof rawCard?.width === 'number' ? Math.max(50, Math.min(300, rawCard.width)) : DEFAULT_CARD_CONFIG.width;
+  const height = typeof rawCard?.height === 'number' ? Math.max(50, Math.min(300, rawCard.height)) : DEFAULT_CARD_CONFIG.height;
+  const borderRadius = typeof rawCard?.borderRadius === 'number' ? Math.max(0, Math.min(48, rawCard.borderRadius)) : DEFAULT_CARD_CONFIG.borderRadius;
+  const rotationMode = rawCard?.rotationMode === 'fixed' || rawCard?.rotationMode === 'random' || rawCard?.rotationMode === 'none'
+    ? rawCard.rotationMode
+    : DEFAULT_CARD_CONFIG.rotationMode;
+  const rotation = typeof rawCard?.rotation === 'number' ? Math.max(-45, Math.min(45, rawCard.rotation)) : DEFAULT_CARD_CONFIG.rotation;
+  const rotationRange = typeof rawCard?.rotationRange === 'number' ? Math.max(0, Math.min(30, rawCard.rotationRange)) : DEFAULT_CARD_CONFIG.rotationRange;
+
+  return {
+    width,
+    height,
+    borderRadius,
+    rotationMode,
+    rotation,
+    rotationRange,
+  };
+}
 
 /**
  * Calculates total card count and matching pairs from rows and cols.
@@ -88,6 +128,8 @@ export function normalizeBoardConfig(
     [rotationMin, rotationMax] = [rotationMax, rotationMin];
   }
 
+  const card = normalizeCardConfig(rawBoard?.card);
+
   return {
     layoutMode,
     rows: Math.max(2, Math.min(6, rows)),
@@ -98,6 +140,7 @@ export function normalizeBoardConfig(
       rotationMin,
       rotationMax,
     },
+    card,
   };
 }
 
@@ -130,16 +173,26 @@ export function validateBoardLayout(board?: Partial<MemoryMatchBoardConfig> | nu
 }
 
 /**
- * Calculates CSS Grid layout styles for Grid mode.
+ * Calculates CSS Grid layout styles for Grid mode, adapting to non-square card dimensions.
  */
-export function calculateGridLayout(rows: number, cols: number, cardGap = 12) {
+export function calculateGridLayout(
+  rows: number,
+  cols: number,
+  cardGap = 12,
+  cardConfig?: Partial<MemoryMatchCardConfig> | null
+) {
   const safeRows = Math.max(2, Math.min(6, rows));
   const safeCols = Math.max(2, Math.min(6, cols));
+  const card = normalizeCardConfig(cardConfig);
+
+  const containerAspect = (safeCols * card.width) / (safeRows * card.height);
+  const cardAspect = card.width / card.height;
 
   return {
     gridTemplateColumns: `repeat(${safeCols}, minmax(0, 1fr))`,
     gridTemplateRows: `repeat(${safeRows}, minmax(0, 1fr))`,
-    aspectRatio: `${safeCols} / ${safeRows}`,
+    aspectRatio: `${containerAspect}`,
+    cardAspectRatio: `${cardAspect}`,
     gap: `${cardGap}px`,
   };
 }
@@ -153,23 +206,32 @@ export function calculateGridLayout(rows: number, cols: number, cardGap = 12) {
  * - Cards are always 100% inside board boundaries [margin, 100 - margin]
  * - Uses bounded random placement attempts with minimum spacing constraint
  * - Falls back to a deterministic jittered cell distribution if random placement cannot fit all cards
- * - Accounts for rotation range and card dimensions
+ * - Accounts for card width/height proportions and rotation settings
  */
 export function generateRandomCardPositions(
   cardCount: number,
-  boardConfig?: Partial<MemoryMatchBoardConfig> | null
+  boardConfig?: Partial<MemoryMatchBoardConfig> | null,
+  cardConfigInput?: Partial<MemoryMatchCardConfig> | null
 ): CardLayoutPosition[] {
   const count = Math.max(2, cardCount);
   const normalized = normalizeBoardConfig(boardConfig);
+  const card = normalizeCardConfig(cardConfigInput || normalized.card);
   const { minSpacing, rotationMin, rotationMax } = normalized.randomLayout;
 
-  // Approximate optimal card size based on total card count
+  // Approximate optimal card size based on total card count and card aspect ratio
   const colsApprox = Math.ceil(Math.sqrt(count * 1.15));
   const rowsApprox = Math.ceil(count / colsApprox);
 
-  // Card dimension percentages scaled for comfortable visibility and interaction
-  const cardWidthPercent = Math.min(23, Math.max(9.5, Math.floor(76 / colsApprox)));
-  const cardHeightPercent = Math.min(28, Math.max(12, Math.floor(80 / rowsApprox)));
+  // Compute proportional percentage dimensions based on card.width and card.height
+  const baseDim = Math.max(card.width, card.height);
+  const widthFactor = card.width / baseDim;
+  const heightFactor = card.height / baseDim;
+
+  const basePercentX = Math.min(23, Math.max(10, Math.floor(76 / colsApprox)));
+  const basePercentY = Math.min(28, Math.max(12, Math.floor(80 / rowsApprox)));
+
+  const cardWidthPercent = Math.min(26, Math.max(9, Math.round(basePercentX * widthFactor * 10) / 10));
+  const cardHeightPercent = Math.min(32, Math.max(10, Math.round(basePercentY * heightFactor * 10) / 10));
 
   // Bounding margins to keep cards strictly inside container
   const halfW = cardWidthPercent / 2;
@@ -187,6 +249,22 @@ export function generateRandomCardPositions(
 
   const positions: CardLayoutPosition[] = [];
   const maxAttempts = 80;
+
+  // Determine rotation range from card config or random layout config
+  let rotMin = rotationMin;
+  let rotMax = rotationMax;
+
+  if (card.rotationMode === 'none') {
+    rotMin = 0;
+    rotMax = 0;
+  } else if (card.rotationMode === 'fixed') {
+    rotMin = card.rotation;
+    rotMax = card.rotation;
+  } else if (card.rotationMode === 'random') {
+    const range = card.rotationRange ?? 8;
+    rotMin = -range;
+    rotMax = range;
+  }
 
   for (let i = 0; i < count; i++) {
     let placed = false;
@@ -208,9 +286,9 @@ export function generateRandomCardPositions(
       }
 
       if (!overlaps) {
-        const rotSpan = rotationMax - rotationMin;
+        const rotSpan = rotMax - rotMin;
         const candidateRot =
-          rotSpan > 0 ? rotationMin + Math.random() * rotSpan : (rotationMin + rotationMax) / 2;
+          rotSpan > 0 ? rotMin + Math.random() * rotSpan : (rotMin + rotMax) / 2;
 
         positions.push({
           x: Math.round(candidateX * 10) / 10,
@@ -244,8 +322,8 @@ export function generateRandomCardPositions(
       const jitterX = (Math.random() - 0.5) * 2 * jitterRangeX;
       const jitterY = (Math.random() - 0.5) * 2 * jitterRangeY;
 
-      const rotSpan = rotationMax - rotationMin;
-      const rot = rotSpan > 0 ? rotationMin + Math.random() * rotSpan : 0;
+      const rotSpan = rotMax - rotMin;
+      const rot = rotSpan > 0 ? rotMin + Math.random() * rotSpan : (rotMin + rotMax) / 2;
 
       positions.push({
         x: Math.min(maxX, Math.max(minX, Math.round((baseX + jitterX) * 10) / 10)),
@@ -260,3 +338,4 @@ export function generateRandomCardPositions(
 
   return positions;
 }
+

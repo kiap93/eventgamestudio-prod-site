@@ -82,6 +82,8 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
 }) => {
   const memoryConfig = useMemo(() => getMemoryMatchConfig(activeTheme), [activeTheme]);
   const boardConfig = memoryConfig.board;
+  const cardConfig = memoryConfig.card || boardConfig.card;
+  const showLeaderboard = memoryConfig.ui?.showLeaderboard ?? true;
   const rows = boardConfig.rows;
   const cols = boardConfig.cols;
   const totalCards = (rows * cols) % 2 === 0 ? rows * cols : 16;
@@ -98,7 +100,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   const [countdown, setCountdown] = useState<number>(3);
   const [cards, setCards] = useState<MemoryCard[]>(() => createShuffledDeck(activeTheme));
   const [randomPositions, setRandomPositions] = useState<CardPosition[]>(() =>
-    generateRandomCardPositions(createShuffledDeck(activeTheme).length, boardConfig)
+    generateRandomCardPositions(createShuffledDeck(activeTheme).length, boardConfig, cardConfig)
   );
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [isLocked, setIsLocked] = useState<boolean>(false);
@@ -177,13 +179,19 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   }, [score, matchedPairsCount, moves, comboStreak, timeRemaining]);
 
   const themeId = activeTheme?.id;
-  const boardLayoutKey = `${boardConfig.layoutMode}_${boardConfig.rows}_${boardConfig.cols}_${boardConfig.cardGap}_${boardConfig.randomLayout.minSpacing}_${boardConfig.randomLayout.rotationMin}_${boardConfig.randomLayout.rotationMax}`;
+  const cardBorderRadius = cardConfig?.borderRadius ?? 16;
+  const cardWidth = cardConfig?.width ?? 120;
+  const cardHeight = cardConfig?.height ?? 120;
+  const cardAspect = cardWidth / cardHeight;
+  const gridContainerAspect = (cols * cardWidth) / (rows * cardHeight);
+
+  const boardLayoutKey = `${boardConfig.layoutMode}_${boardConfig.rows}_${boardConfig.cols}_${boardConfig.cardGap}_${cardWidth}_${cardHeight}_${cardBorderRadius}_${cardConfig?.rotationMode}_${cardConfig?.rotation}_${cardConfig?.rotationRange}`;
 
   // Initialize fresh card deck on theme change or mount
   const initBoard = useCallback(() => {
     const newDeck = createShuffledDeck(activeTheme);
     setCards(newDeck);
-    setRandomPositions(generateRandomCardPositions(newDeck.length, boardConfig));
+    setRandomPositions(generateRandomCardPositions(newDeck.length, boardConfig, cardConfig));
     setFlippedIndices([]);
     setIsLocked(false);
     setScore(0);
@@ -196,7 +204,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     setScoreSubmitted(false);
     setSubmittedRank(null);
     setSessionId(`mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
-  }, [activeTheme, boardConfig, gameDuration]);
+  }, [activeTheme, boardConfig, cardConfig, gameDuration]);
 
   // Only re-initialize board on mount or when theme/layout configuration changes
   useEffect(() => {
@@ -249,6 +257,8 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
 
   // High score submission
   const fetchLeaderboard = useCallback(async () => {
+    if (!showLeaderboard) return;
+
     if (!hasEventContext) {
       try {
         const raw = localStorage.getItem('arcade_local_leaderboard');
@@ -277,7 +287,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     } finally {
       setLoadingLeaderboard(false);
     }
-  }, [hasEventContext, publicToken, eventId]);
+  }, [showLeaderboard, hasEventContext, publicToken, eventId]);
 
   // Handle Game Over / Victory
   const handleGameOver = useCallback(
@@ -307,9 +317,11 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
         memorySounds.playMismatch();
       }
 
-      fetchLeaderboard();
+      if (showLeaderboard) {
+        fetchLeaderboard();
+      }
     },
-    [gameDuration, totalPairs, fetchLeaderboard]
+    [gameDuration, totalPairs, fetchLeaderboard, showLeaderboard]
   );
 
   const handleGameOverRef = useRef(handleGameOver);
@@ -704,12 +716,13 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
               display: 'grid',
               gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
               gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-              aspectRatio: `${cols} / ${rows}`,
+              aspectRatio: `${gridContainerAspect}`,
               gap: `${boardConfig.cardGap ?? 12}px`,
             }}
           >
             {cards.map((card, index) => {
               const isFaceUp = card.isFlipped || card.isMatched;
+              const cardRotationAngle = card.rotation ?? 0;
 
               return (
                 <div
@@ -718,25 +731,30 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                   className={`relative w-full h-full cursor-pointer perspective-1000 select-none group transition-transform ${
                     card.isShaking ? 'animate-wobble' : ''
                   }`}
-                  style={{ perspective: '1000px' }}
+                  style={{
+                    perspective: '1000px',
+                    transform: `rotate(${cardRotationAngle}deg)`,
+                  }}
                 >
                   {/* Card 3D Inner Wrapper */}
                   <div
-                    className={`relative w-full h-full rounded-xl sm:rounded-2xl transition-transform duration-350 ease-out shadow-md ${
+                    className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md ${
                       isFaceUp ? 'rotate-y-180' : 'hover:scale-[1.02] active:scale-[0.98]'
                     }`}
                     style={{
                       transformStyle: 'preserve-3d',
                       transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                      borderRadius: `${cardBorderRadius}px`,
                     }}
                   >
                     {/* BACK FACE (Default Face-Down State) */}
                     <div
-                      className="absolute inset-0 w-full h-full rounded-xl sm:rounded-2xl border p-1.5 sm:p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
+                      className="absolute inset-0 w-full h-full border p-1.5 sm:p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
                       style={{
                         backfaceVisibility: 'hidden',
                         backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
                         borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
+                        borderRadius: `${cardBorderRadius}px`,
                       }}
                     >
                       {cardBackUrl ? (
@@ -748,7 +766,10 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                         />
                       ) : (
                         <>
-                          <div className="absolute inset-1 rounded-lg border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none" />
+                          <div
+                            className="absolute inset-1 border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none"
+                            style={{ borderRadius: `${Math.max(4, cardBorderRadius - 4)}px` }}
+                          />
                           <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400/80 group-hover:text-amber-300 group-hover:scale-110 transition-transform">
                             <Grid3X3 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                           </div>
@@ -758,7 +779,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
 
                     {/* FRONT FACE (Flipped Face-Up / Matched State) */}
                     <div
-                      className={`absolute inset-0 w-full h-full rounded-xl sm:rounded-2xl border flex flex-col items-center justify-between p-1 sm:p-2 transition-all ${
+                      className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1 sm:p-2 transition-all ${
                         card.isMatched
                           ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
                           : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
@@ -766,6 +787,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                       style={{
                         backfaceVisibility: 'hidden',
                         transform: 'rotateY(180deg)',
+                        borderRadius: `${cardBorderRadius}px`,
                         backgroundColor: card.isMatched
                           ? activeTheme?.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
                           : card.bgColor || activeTheme?.visuals_config?.cardFrontBg || 'rgba(15, 23, 42, 0.95)',
@@ -843,21 +865,23 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                 >
                   {/* Card 3D Inner Wrapper */}
                   <div
-                    className={`relative w-full h-full rounded-xl sm:rounded-2xl transition-transform duration-350 ease-out shadow-md hover:shadow-xl hover:scale-105 ${
+                    className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md hover:shadow-xl hover:scale-105 ${
                       isFaceUp ? 'rotate-y-180' : ''
                     }`}
                     style={{
                       transformStyle: 'preserve-3d',
                       transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                      borderRadius: `${cardBorderRadius}px`,
                     }}
                   >
                     {/* BACK FACE (Default Face-Down State) */}
                     <div
-                      className="absolute inset-0 w-full h-full rounded-xl sm:rounded-2xl border p-1.5 sm:p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
+                      className="absolute inset-0 w-full h-full border p-1.5 sm:p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
                       style={{
                         backfaceVisibility: 'hidden',
                         backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
                         borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
+                        borderRadius: `${cardBorderRadius}px`,
                       }}
                     >
                       {cardBackUrl ? (
@@ -869,7 +893,10 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                         />
                       ) : (
                         <>
-                          <div className="absolute inset-1 rounded-lg border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none" />
+                          <div
+                            className="absolute inset-1 border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none"
+                            style={{ borderRadius: `${Math.max(4, cardBorderRadius - 4)}px` }}
+                          />
                           <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400/80 group-hover:text-amber-300 group-hover:scale-110 transition-transform">
                             <Grid3X3 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                           </div>
@@ -879,7 +906,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
 
                     {/* FRONT FACE (Flipped Face-Up / Matched State) */}
                     <div
-                      className={`absolute inset-0 w-full h-full rounded-xl sm:rounded-2xl border flex flex-col items-center justify-between p-1 sm:p-2 transition-all ${
+                      className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1 sm:p-2 transition-all ${
                         card.isMatched
                           ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
                           : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
@@ -887,6 +914,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
                       style={{
                         backfaceVisibility: 'hidden',
                         transform: 'rotateY(180deg)',
+                        borderRadius: `${cardBorderRadius}px`,
                         backgroundColor: card.isMatched
                           ? activeTheme?.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
                           : card.bgColor || activeTheme?.visuals_config?.cardFrontBg || 'rgba(15, 23, 42, 0.95)',
@@ -1079,32 +1107,34 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
               </div>
 
               {/* High Score Submission or Success Notice */}
-              {!scoreSubmitted ? (
-                <form onSubmit={handleSubmitScore} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
-                    placeholder="Enter Player Name..."
-                    maxLength={20}
-                    className="flex-1 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isSubmittingScore}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 shrink-0 cursor-pointer"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{isSubmittingScore ? 'Saving...' : 'Submit'}</span>
-                  </button>
-                </form>
-              ) : (
-                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center gap-2 text-emerald-400 text-xs font-semibold">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>
-                    Score submitted! Ranked #{submittedRank || 1}
-                  </span>
-                </div>
+              {showLeaderboard && (
+                !scoreSubmitted ? (
+                  <form onSubmit={handleSubmitScore} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={playerName}
+                      onChange={(e) => setPlayerName(e.target.value)}
+                      placeholder="Enter Player Name..."
+                      maxLength={20}
+                      className="flex-1 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubmittingScore}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{isSubmittingScore ? 'Saving...' : 'Submit'}</span>
+                    </button>
+                  </form>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center gap-2 text-emerald-400 text-xs font-semibold">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>
+                      Score submitted! Ranked #{submittedRank || 1}
+                    </span>
+                  </div>
+                )
               )}
 
               {/* Primary Action Buttons */}

@@ -321,6 +321,11 @@ export function createShuffledDeck(theme?: GameTheme | null): MemoryCard[] {
 
   // Duplicate each prototype into 2 card instances (totalCards total)
   const cards: MemoryCard[] = [];
+  const cardConfig = memoryConfig.card || memoryConfig.board?.card;
+  const rotationMode = cardConfig?.rotationMode || 'none';
+  const fixedAngle = cardConfig?.rotation || 0;
+  const randomAngleRange = cardConfig?.rotationRange ?? 8;
+
   activePrototypes.forEach((proto, index) => {
     // Card A
     cards.push({
@@ -355,6 +360,20 @@ export function createShuffledDeck(theme?: GameTheme | null): MemoryCard[] {
     });
   });
 
-  return shuffleArray(cards);
+  const shuffled = shuffleArray(cards);
+
+  // Assign deterministic, stable rotation angles per card
+  return shuffled.map((card) => {
+    let rotation = 0;
+    if (rotationMode === 'fixed') {
+      rotation = fixedAngle;
+    } else if (rotationMode === 'random') {
+      rotation = Math.round(((Math.random() * 2 - 1) * randomAngleRange) * 10) / 10;
+    }
+    return {
+      ...card,
+      rotation,
+    };
+  });
 }
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { GameTheme, ThemeDropItem, getMemoryMatchConfig } from '../../../themes/types';
-import { MemoryMatchGameConfig, MemoryMatchPairConfig } from '../../../games/memory-match/types';
+import { GameTheme, ThemeDropItem, getMemoryMatchConfig, DEFAULT_CARD_CONFIG } from '../../../themes/types';
+import { MemoryMatchGameConfig, MemoryMatchPairConfig, MemoryMatchCardConfig, MemoryMatchUiConfig } from '../../../games/memory-match/types';
 import { ensureRequiredPairs, DEFAULT_CARD_PROTOTYPES } from '../../../games/memory-match/cardDeck';
 import {
   Grid3X3,
@@ -34,11 +34,25 @@ import {
   Check,
   AlertTriangle,
   Shuffle,
+  Maximize2,
+  RotateCw,
+  Square,
+  RectangleHorizontal,
+  RectangleVertical,
+  Award,
 } from 'lucide-react';
 import { memorySounds } from '../../../games/memory-match/memorySounds';
 
 const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 const ALLOWED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp'];
+
+export const CARD_SHAPE_PRESETS = [
+  { label: 'Square', width: 120, height: 120, borderRadius: 16, desc: '120 × 120 (Standard Classic)' },
+  { label: 'Portrait', width: 100, height: 140, borderRadius: 14, desc: '100 × 140 (Playing Card)' },
+  { label: 'Landscape', width: 150, height: 105, borderRadius: 14, desc: '150 × 105 (Wide / Film)' },
+  { label: 'Tall Card', width: 90, height: 150, borderRadius: 12, desc: '90 × 150 (Slim Portrait)' },
+  { label: 'Banner Card', width: 160, height: 95, borderRadius: 12, desc: '160 × 95 (Banner / Ticket)' },
+];
 
 export const PRESET_CARD_BACKS: Array<{ name: string; url: string }> = [
   {
@@ -557,9 +571,9 @@ export const MemoryMatchCardsCustomizer: React.FC<MemoryMatchCardsCustomizerProp
 };
 
 /* ==========================================================================
- * MEMORY MATCH - GAMEPLAY CUSTOMIZER (BOARD, RANDOM/GRID, TIMER & SCORING)
+ * MEMORY MATCH - GAME LAYOUT CUSTOMIZER (BOARD, GRID / RANDOM, CARD SHAPES)
  * ========================================================================== */
-interface MemoryMatchGameplayCustomizerProps {
+interface MemoryMatchGameLayoutCustomizerProps {
   theme: GameTheme;
   onChange: (updated: GameTheme) => void;
 }
@@ -582,13 +596,13 @@ const RANDOM_PRESETS = [
   { label: '30 Cards', rows: 5, cols: 6, desc: '15 Pairs (Scattered Expert)' },
 ];
 
-export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomizerProps> = ({
+export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCustomizerProps> = ({
   theme,
   onChange,
 }) => {
   const memoryConfig = getMemoryMatchConfig(theme);
-  const gameplay = memoryConfig.gameplay;
   const board = memoryConfig.board;
+  const cardConfig = memoryConfig.card || board.card || DEFAULT_CARD_CONFIG;
 
   const currentLayoutMode = board.layoutMode;
   const currentRows = board.rows;
@@ -597,6 +611,13 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
   const currentMinSpacing = board.randomLayout.minSpacing ?? 12;
   const currentRotationMin = board.randomLayout.rotationMin ?? -8;
   const currentRotationMax = board.randomLayout.rotationMax ?? 8;
+
+  const cardWidth = cardConfig.width ?? 120;
+  const cardHeight = cardConfig.height ?? 120;
+  const cardBorderRadius = cardConfig.borderRadius ?? 16;
+  const cardRotationMode = cardConfig.rotationMode ?? 'none';
+  const cardRotation = cardConfig.rotation ?? 0;
+  const cardRotationRange = cardConfig.rotationRange ?? 8;
 
   const [rowsInput, setRowsInput] = useState<number>(currentRows);
   const [colsInput, setColsInput] = useState<number>(currentCols);
@@ -609,7 +630,26 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
 
   const totalCards = rowsInput * colsInput;
   const isOdd = totalCards % 2 !== 0;
-  const pairCount = Math.floor(totalCards / 2);
+
+  const handleUpdateCardConfig = (updates: Partial<MemoryMatchCardConfig>) => {
+    const nextCardConfig: MemoryMatchCardConfig = {
+      ...cardConfig,
+      ...updates,
+    };
+    const nextBoard = {
+      ...board,
+      card: nextCardConfig,
+    };
+    const nextMemoryConfig: MemoryMatchGameConfig = {
+      ...memoryConfig,
+      card: nextCardConfig,
+      board: nextBoard,
+    };
+    onChange({
+      ...theme,
+      game_config: nextMemoryConfig,
+    });
+  };
 
   const handleUpdateBoard = (updates: Partial<typeof board>) => {
     const nextBoard = {
@@ -662,30 +702,6 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
       ...theme,
       game_config: nextMemoryConfig,
       items_config: nextItemsConfig,
-    });
-  };
-
-  const handleUpdateGameplay = (updates: Partial<typeof gameplay>) => {
-    const nextGameplay = {
-      ...gameplay,
-      ...updates,
-    };
-    const nextMemoryConfig: MemoryMatchGameConfig = {
-      ...memoryConfig,
-      gameplay: nextGameplay,
-    };
-
-    // Mirror to physics_config for backward-compatibility
-    const nextPhysics = {
-      ...(theme.physics_config || {}),
-      gameDurationSeconds: nextGameplay.gameDurationSeconds,
-      spawnIntervalMin: nextGameplay.mismatchDelayMs,
-    };
-
-    onChange({
-      ...theme,
-      game_config: nextMemoryConfig,
-      physics_config: nextPhysics as any,
     });
   };
 
@@ -872,7 +888,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-300">
-                Grid Card Gap (4 – 24 px)
+                Grid Card Gap (4 – 32 px)
               </span>
               <span className="text-emerald-400 font-bold font-mono text-sm">
                 {currentCardGap} px
@@ -881,7 +897,7 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
             <input
               type="range"
               min="4"
-              max="24"
+              max="32"
               step="2"
               value={currentCardGap}
               onChange={(e) => handleUpdateBoard({ cardGap: parseInt(e.target.value) || 12 })}
@@ -983,7 +999,369 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
         </div>
       </div>
 
-      {/* 2. Timing & Delays Section */}
+      {/* 2. Card Dimensions, Shape & Rotation Section */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
+              <Layers className="w-4 h-4" />
+            </span>
+            <div>
+              <h3 className="text-sm font-bold text-slate-100">Card Dimensions, Shape & Rotation</h3>
+              <p className="text-xs text-slate-400">
+                Configure card width, height, corner roundness, and individual card rotation
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-indigo-400 font-bold font-mono text-sm block">
+              {cardWidth} × {cardHeight} px
+            </span>
+            <span className="text-[11px] text-slate-400 font-mono">
+              {(cardWidth / cardHeight).toFixed(2)} : 1 •{' '}
+              {cardWidth === cardHeight ? 'Square' : cardWidth > cardHeight ? 'Landscape' : 'Portrait'}
+            </span>
+          </div>
+        </div>
+
+        {/* Shape Presets */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-slate-300 block">
+            Card Shape Presets
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            {CARD_SHAPE_PRESETS.map((preset) => {
+              const isSelected =
+                cardWidth === preset.width &&
+                cardHeight === preset.height &&
+                cardBorderRadius === preset.borderRadius;
+
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() =>
+                    handleUpdateCardConfig({
+                      width: preset.width,
+                      height: preset.height,
+                      borderRadius: preset.borderRadius,
+                    })
+                  }
+                  className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-indigo-500/15 border-indigo-500/60 shadow-md shadow-indigo-500/10'
+                      : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-xs text-slate-100">
+                      {preset.label}
+                    </span>
+                    {isSelected && <Check className="w-3.5 h-3.5 text-indigo-400" />}
+                  </div>
+                  <span className="text-[10px] text-slate-400 block mt-1">
+                    {preset.desc}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Independent Width and Height Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+          {/* Card Width */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <RectangleHorizontal className="w-3.5 h-3.5 text-indigo-400" />
+                Card Width (60 – 240 px)
+              </span>
+              <span className="text-indigo-400 font-bold font-mono text-sm">
+                {cardWidth} px
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={cardWidth <= 60}
+                onClick={() => handleUpdateCardConfig({ width: Math.max(60, cardWidth - 10) })}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <input
+                type="range"
+                min="60"
+                max="240"
+                step="5"
+                value={cardWidth}
+                onChange={(e) => handleUpdateCardConfig({ width: parseInt(e.target.value) || 120 })}
+                className="flex-1 accent-indigo-500 cursor-pointer"
+              />
+              <button
+                type="button"
+                disabled={cardWidth >= 240}
+                onClick={() => handleUpdateCardConfig({ width: Math.min(240, cardWidth + 10) })}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Card Height */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <RectangleVertical className="w-3.5 h-3.5 text-indigo-400" />
+                Card Height (60 – 240 px)
+              </span>
+              <span className="text-indigo-400 font-bold font-mono text-sm">
+                {cardHeight} px
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={cardHeight <= 60}
+                onClick={() => handleUpdateCardConfig({ height: Math.max(60, cardHeight - 10) })}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <input
+                type="range"
+                min="60"
+                max="240"
+                step="5"
+                value={cardHeight}
+                onChange={(e) => handleUpdateCardConfig({ height: parseInt(e.target.value) || 120 })}
+                className="flex-1 accent-indigo-500 cursor-pointer"
+              />
+              <button
+                type="button"
+                disabled={cardHeight >= 240}
+                onClick={() => handleUpdateCardConfig({ height: Math.min(240, cardHeight + 10) })}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Card Border Radius Control */}
+        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-300">
+              Corner Border Radius (0 – 36 px)
+            </span>
+            <span className="text-indigo-400 font-bold font-mono text-sm">
+              {cardBorderRadius} px
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              disabled={cardBorderRadius <= 0}
+              onClick={() => handleUpdateCardConfig({ borderRadius: Math.max(0, cardBorderRadius - 2) })}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="36"
+              step="2"
+              value={cardBorderRadius}
+              onChange={(e) => handleUpdateCardConfig({ borderRadius: parseInt(e.target.value) || 0 })}
+              className="flex-1 accent-indigo-500 cursor-pointer"
+            />
+            <button
+              type="button"
+              disabled={cardBorderRadius >= 36}
+              onClick={() => handleUpdateCardConfig({ borderRadius: Math.min(36, cardBorderRadius + 2) })}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Card Rotation Mode Selector & Controls */}
+        <div className="space-y-3 pt-2 border-t border-slate-800/80">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+            <RotateCw className="w-3.5 h-3.5 text-indigo-400" />
+            Card Rotation Mode
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => handleUpdateCardConfig({ rotationMode: 'none', rotation: 0 })}
+              className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                cardRotationMode === 'none'
+                  ? 'bg-indigo-500/20 border-indigo-500/60 text-indigo-300 font-bold shadow-md shadow-indigo-500/10'
+                  : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
+              }`}
+            >
+              <span className="text-xs block">Upright (0°)</span>
+              <span className="text-[10px] text-slate-500">No rotation</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleUpdateCardConfig({ rotationMode: 'fixed' })}
+              className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                cardRotationMode === 'fixed'
+                  ? 'bg-indigo-500/20 border-indigo-500/60 text-indigo-300 font-bold shadow-md shadow-indigo-500/10'
+                  : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
+              }`}
+            >
+              <span className="text-xs block">Fixed Angle</span>
+              <span className="text-[10px] text-slate-500">Uniform angle</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleUpdateCardConfig({ rotationMode: 'random' })}
+              className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                cardRotationMode === 'random'
+                  ? 'bg-indigo-500/20 border-indigo-500/60 text-indigo-300 font-bold shadow-md shadow-indigo-500/10'
+                  : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
+              }`}
+            >
+              <span className="text-xs block">Random Tilt</span>
+              <span className="text-[10px] text-slate-500">Stable per card</span>
+            </button>
+          </div>
+
+          {/* Fixed Rotation Slider */}
+          {cardRotationMode === 'fixed' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-300">
+                  Fixed Card Angle (-45° to +45°)
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateCardConfig({ rotation: 0 })}
+                    className="px-2 py-0.5 text-[10px] rounded bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  >
+                    Reset (0°)
+                  </button>
+                  <span className="text-indigo-400 font-bold font-mono text-sm">
+                    {cardRotation}°
+                  </span>
+                </div>
+              </div>
+              <input
+                type="range"
+                min="-45"
+                max="45"
+                step="1"
+                value={cardRotation}
+                onChange={(e) => handleUpdateCardConfig({ rotation: parseInt(e.target.value) || 0 })}
+                className="w-full accent-indigo-500 cursor-pointer"
+              />
+              <p className="text-[10px] text-slate-500">
+                Rotates each card on the board uniformly by {cardRotation}° without rotating the entire board container.
+              </p>
+            </div>
+          )}
+
+          {/* Random Rotation Range Slider */}
+          {cardRotationMode === 'random' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-300">
+                  Random Tilt Range (±1° to ±30°)
+                </span>
+                <span className="text-indigo-400 font-bold font-mono text-sm">
+                  ±{cardRotationRange}°
+                </span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="30"
+                step="1"
+                value={cardRotationRange}
+                onChange={(e) => handleUpdateCardConfig({ rotationRange: parseInt(e.target.value) || 8 })}
+                className="w-full accent-indigo-500 cursor-pointer"
+              />
+              <p className="text-[10px] text-slate-500">
+                Each card gets a stable, deterministic random rotation angle within [-{cardRotationRange}°, +{cardRotationRange}°] assigned at shuffle time.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ==========================================================================
+ * MEMORY MATCH - GAMEPLAY CUSTOMIZER (TIMER, SCORING, LEADERBOARD TOGGLE)
+ * ========================================================================== */
+interface MemoryMatchGameplayCustomizerProps {
+  theme: GameTheme;
+  onChange: (updated: GameTheme) => void;
+}
+
+export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomizerProps> = ({
+  theme,
+  onChange,
+}) => {
+  const memoryConfig = getMemoryMatchConfig(theme);
+  const gameplay = memoryConfig.gameplay;
+  const showLeaderboard = memoryConfig.ui?.showLeaderboard !== false;
+
+  const handleUpdateGameplay = (updates: Partial<typeof gameplay>) => {
+    const nextGameplay = {
+      ...gameplay,
+      ...updates,
+    };
+    const nextMemoryConfig: MemoryMatchGameConfig = {
+      ...memoryConfig,
+      gameplay: nextGameplay,
+    };
+
+    // Mirror to physics_config for backward-compatibility
+    const nextPhysics = {
+      ...(theme.physics_config || {}),
+      gameDurationSeconds: nextGameplay.gameDurationSeconds,
+      spawnIntervalMin: nextGameplay.mismatchDelayMs,
+    };
+
+    onChange({
+      ...theme,
+      game_config: nextMemoryConfig,
+      physics_config: nextPhysics as any,
+    });
+  };
+
+  const handleUpdateUi = (updates: Partial<MemoryMatchUiConfig>) => {
+    const nextUi: MemoryMatchUiConfig = {
+      showLeaderboard: memoryConfig.ui?.showLeaderboard !== false,
+      ...updates,
+    };
+    const nextMemoryConfig: MemoryMatchGameConfig = {
+      ...memoryConfig,
+      ui: nextUi,
+    };
+
+    onChange({
+      ...theme,
+      game_config: nextMemoryConfig,
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 1. Session Timing & Mismatch Delay Section */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1043,6 +1421,119 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
               className="w-full accent-amber-500 cursor-pointer"
             />
           </div>
+        </div>
+      </div>
+
+      {/* 2. Points & Combo Bonuses */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+              <Sparkles className="w-4 h-4" />
+            </span>
+            <div>
+              <h3 className="text-sm font-bold text-slate-100">Scoring & Combo Multipliers</h3>
+              <p className="text-xs text-slate-400">
+                Reward players for swift matching and consecutive combos
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Match Base Points */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-300">Base Match Points</span>
+              <span className="text-emerald-400 font-bold font-mono text-sm">
+                +{gameplay.matchPoints || 100} pts
+              </span>
+            </div>
+            <input
+              type="range"
+              min="50"
+              max="500"
+              step="25"
+              value={gameplay.matchPoints || 100}
+              onChange={(e) => handleUpdateGameplay({ matchPoints: parseInt(e.target.value) || 100 })}
+              className="w-full accent-emerald-500 cursor-pointer"
+            />
+          </div>
+
+          {/* Combo Streak Bonus */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-300">Combo Streak Bonus</span>
+              <span className="text-emerald-400 font-bold font-mono text-sm">
+                +{gameplay.comboPoints || 30} pts/streak
+              </span>
+            </div>
+            <input
+              type="range"
+              min="10"
+              max="100"
+              step="5"
+              value={gameplay.comboPoints || 30}
+              onChange={(e) => handleUpdateGameplay({ comboPoints: parseInt(e.target.value) || 30 })}
+              className="w-full accent-emerald-500 cursor-pointer"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Leaderboard & End Screen Settings */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
+              <Award className="w-4 h-4" />
+            </span>
+            <div>
+              <h3 className="text-sm font-bold text-slate-100">Leaderboard & Social Display</h3>
+              <p className="text-xs text-slate-400">
+                Control whether the arcade high-score board and player submission prompt appear
+              </p>
+            </div>
+          </div>
+          <span
+            className={`px-3 py-1 rounded-full text-[11px] font-bold border transition-all ${
+              showLeaderboard
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
+                : 'bg-slate-800 border-slate-700 text-slate-400'
+            }`}
+          >
+            {showLeaderboard ? 'Leaderboard Enabled' : 'Leaderboard Hidden'}
+          </span>
+        </div>
+
+        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-4">
+          <div className="space-y-1 max-w-md">
+            <label htmlFor="showLeaderboardToggle" className="text-sm font-bold text-slate-200 cursor-pointer flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-amber-400" />
+              Show Leaderboard
+            </label>
+            <p className="text-xs text-slate-400">
+              Display the high-score leaderboard and submission prompt at the end of the game.
+              When disabled, only the game summary and replay button are shown.
+            </p>
+          </div>
+
+          <button
+            id="showLeaderboardToggle"
+            type="button"
+            role="switch"
+            aria-checked={showLeaderboard}
+            onClick={() => handleUpdateUi({ showLeaderboard: !showLeaderboard })}
+            className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+              showLeaderboard ? 'bg-emerald-500' : 'bg-slate-800'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                showLeaderboard ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import type { MemoryMatchGameConfig, MemoryMatchBoardConfig } from '../games/memory-match/types';
+import type { MemoryMatchGameConfig, MemoryMatchBoardConfig, MemoryMatchCardConfig } from '../games/memory-match/types';
 
 export interface ThemeBrandingConfig {
 
@@ -200,8 +200,18 @@ export function isMemoryMatchTheme(theme?: Partial<GameTheme> | null, fallbackGa
   return getThemeGameType(theme, fallbackGameType) === 'memory-match';
 }
 
+export const DEFAULT_CARD_CONFIG: MemoryMatchCardConfig = {
+  width: 120,
+  height: 120,
+  borderRadius: 16,
+  rotationMode: 'none',
+  rotation: 0,
+  rotationRange: 8,
+};
+
 export const DEFAULT_MEMORY_MATCH_CONFIG: MemoryMatchGameConfig = {
   cardBackUrl: null,
+  card: DEFAULT_CARD_CONFIG,
   pairs: [
     { id: 'pair_diamond', name: 'Diamond', imageUrl: null, points: 100, iconName: 'Sparkles', color: '#6366f1', bgColor: 'rgba(99, 102, 241, 0.15)', borderColor: '#6366f1' },
     { id: 'pair_crown', name: 'Crown', imageUrl: null, points: 100, iconName: 'Award', color: '#eab308', bgColor: 'rgba(234, 179, 8, 0.15)', borderColor: '#eab308' },
@@ -222,6 +232,7 @@ export const DEFAULT_MEMORY_MATCH_CONFIG: MemoryMatchGameConfig = {
       rotationMin: -8,
       rotationMax: 8,
     },
+    card: DEFAULT_CARD_CONFIG,
   },
   grid: {
     rows: 4,
@@ -233,12 +244,15 @@ export const DEFAULT_MEMORY_MATCH_CONFIG: MemoryMatchGameConfig = {
     matchPoints: 100,
     comboPoints: 30,
   },
+  ui: {
+    showLeaderboard: true,
+  },
 };
 
 /**
  * Resolves the authoritative MemoryMatchGameConfig from theme.game_config,
  * with safe fallback to legacy fields (items_config, visuals_config, physics_config)
- * and backward-compatible normalization for board layout settings.
+ * and backward-compatible normalization for board layout and card dimension settings.
  */
 export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryMatchGameConfig {
   const gc = theme?.game_config as Partial<MemoryMatchGameConfig> | undefined;
@@ -246,11 +260,14 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
   const hasGameConfig =
     gc &&
     typeof gc === 'object' &&
-    (Array.isArray(gc.pairs) || gc.gameplay !== undefined || gc.cardBackUrl !== undefined || gc.board !== undefined || gc.grid !== undefined);
+    (Array.isArray(gc.pairs) || gc.gameplay !== undefined || gc.cardBackUrl !== undefined || gc.board !== undefined || gc.grid !== undefined || gc.card !== undefined || gc.ui !== undefined);
 
   if (hasGameConfig) {
     const rawBoard = gc.board;
     const rawGrid = gc.grid;
+    const rawCard = gc.card || rawBoard?.card;
+    const rawUi = gc.ui;
+    const showLeaderboard = rawUi?.showLeaderboard !== undefined ? Boolean(rawUi.showLeaderboard) : true;
 
     const rows = Math.max(2, Math.min(6, Number(rawBoard?.rows) || Number(rawGrid?.rows) || 4));
     const cols = Math.max(2, Math.min(6, Number(rawBoard?.cols) || Number(rawGrid?.cols) || 4));
@@ -265,6 +282,25 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
       [rotationMin, rotationMax] = [rotationMax, rotationMin];
     }
 
+    // Resolve card dimensions and rotation configuration
+    const cardWidth = typeof rawCard?.width === 'number' ? Math.max(50, Math.min(300, rawCard.width)) : DEFAULT_CARD_CONFIG.width;
+    const cardHeight = typeof rawCard?.height === 'number' ? Math.max(50, Math.min(300, rawCard.height)) : DEFAULT_CARD_CONFIG.height;
+    const cardBorderRadius = typeof rawCard?.borderRadius === 'number' ? Math.max(0, Math.min(48, rawCard.borderRadius)) : DEFAULT_CARD_CONFIG.borderRadius;
+    const rotationMode = rawCard?.rotationMode === 'fixed' || rawCard?.rotationMode === 'random' || rawCard?.rotationMode === 'none'
+      ? rawCard.rotationMode
+      : DEFAULT_CARD_CONFIG.rotationMode;
+    const cardRotation = typeof rawCard?.rotation === 'number' ? Math.max(-45, Math.min(45, rawCard.rotation)) : DEFAULT_CARD_CONFIG.rotation;
+    const cardRotationRange = typeof rawCard?.rotationRange === 'number' ? Math.max(0, Math.min(30, rawCard.rotationRange)) : DEFAULT_CARD_CONFIG.rotationRange;
+
+    const resolvedCardConfig: MemoryMatchCardConfig = {
+      width: cardWidth,
+      height: cardHeight,
+      borderRadius: cardBorderRadius,
+      rotationMode,
+      rotation: cardRotation,
+      rotationRange: cardRotationRange,
+    };
+
     const resolvedBoard: MemoryMatchBoardConfig = {
       layoutMode: rawBoard?.layoutMode === 'random' ? 'random' : 'grid',
       rows,
@@ -275,10 +311,12 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
         rotationMin,
         rotationMax,
       },
+      card: resolvedCardConfig,
     };
 
     return {
       cardBackUrl: gc.cardBackUrl !== undefined ? gc.cardBackUrl : (theme?.visuals_config?.cardBackUrl || null),
+      card: resolvedCardConfig,
       pairs: Array.isArray(gc.pairs) && gc.pairs.length > 0
         ? gc.pairs
         : DEFAULT_MEMORY_MATCH_CONFIG.pairs,
@@ -292,6 +330,9 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
         mismatchDelayMs: gc.gameplay?.mismatchDelayMs ?? theme?.physics_config?.spawnIntervalMin ?? 850,
         matchPoints: gc.gameplay?.matchPoints ?? 100,
         comboPoints: gc.gameplay?.comboPoints ?? 30,
+      },
+      ui: {
+        showLeaderboard,
       },
     };
   }
@@ -312,6 +353,7 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
 
   return {
     cardBackUrl: theme?.visuals_config?.cardBackUrl || null,
+    card: DEFAULT_CARD_CONFIG,
     pairs: legacyPairs,
     board: {
       layoutMode: 'grid',
@@ -323,6 +365,7 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
         rotationMin: -8,
         rotationMax: 8,
       },
+      card: DEFAULT_CARD_CONFIG,
     },
     grid: {
       rows: 4,
@@ -333,6 +376,9 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
       mismatchDelayMs: theme?.physics_config?.spawnIntervalMin ?? 850,
       matchPoints: 100,
       comboPoints: 30,
+    },
+    ui: {
+      showLeaderboard: true,
     },
   };
 }

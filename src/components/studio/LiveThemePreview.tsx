@@ -114,11 +114,16 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   const isMemoryMatch = isMemoryMatchTheme(theme);
   const memoryConfig = useMemo(() => getMemoryMatchConfig(theme), [theme]);
   const boardConfig = memoryConfig.board;
+  const cardConfig = memoryConfig.card || boardConfig.card;
+  const cardBorderRadius = cardConfig?.borderRadius ?? 16;
+  const cardWidth = cardConfig?.width ?? 120;
+  const cardHeight = cardConfig?.height ?? 120;
+  const previewGridAspect = (boardConfig.cols * cardWidth) / (boardConfig.rows * cardHeight);
 
   // Memory match interactive preview state
   const [memoryDeck, setMemoryDeck] = useState<MemoryCard[]>(() => createShuffledDeck(theme));
   const [randomPositions, setRandomPositions] = useState<CardPosition[]>(() =>
-    generateRandomCardPositions(createShuffledDeck(theme).length, boardConfig)
+    generateRandomCardPositions(createShuffledDeck(theme).length, boardConfig, cardConfig)
   );
   const [memoryFlippedIndices, setMemoryFlippedIndices] = useState<number[]>([]);
   const [matchedPairCount, setMatchedPairCount] = useState<number>(0);
@@ -128,7 +133,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     if (isMemoryMatch) {
       const nextDeck = createShuffledDeck(theme);
       setMemoryDeck(nextDeck);
-      setRandomPositions(generateRandomCardPositions(nextDeck.length, boardConfig));
+      setRandomPositions(generateRandomCardPositions(nextDeck.length, boardConfig, cardConfig));
       setMemoryFlippedIndices([]);
       setMatchedPairCount(0);
     }
@@ -142,6 +147,12 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     boardConfig.randomLayout.minSpacing,
     boardConfig.randomLayout.rotationMin,
     boardConfig.randomLayout.rotationMax,
+    cardConfig?.width,
+    cardConfig?.height,
+    cardConfig?.borderRadius,
+    cardConfig?.rotationMode,
+    cardConfig?.rotation,
+    cardConfig?.rotationRange,
   ]);
 
   const handleCardClick = (index: number) => {
@@ -903,31 +914,35 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                   display: 'grid',
                   gridTemplateColumns: `repeat(${boardConfig.cols}, minmax(0, 1fr))`,
                   gridTemplateRows: `repeat(${boardConfig.rows}, minmax(0, 1fr))`,
-                  aspectRatio: `${boardConfig.cols} / ${boardConfig.rows}`,
+                  aspectRatio: `${previewGridAspect}`,
                   gap: `${boardConfig.cardGap || 8}px`,
                 }}
               >
                 {memoryDeck.map((card, idx) => {
                   const isFlipped = card.isFlipped || card.isMatched;
+                  const rotationAngle = card.rotation ?? 0;
                   return (
                     <div
                       key={card.id || idx}
                       onClick={() => handleCardClick(idx)}
                       className="relative w-full h-full cursor-pointer perspective-1000 group/card transition-transform active:scale-95"
+                      style={{ transform: `rotate(${rotationAngle}deg)` }}
                       title={`Click to flip ${card.name}`}
                     >
                       <div
-                        className={`relative w-full h-full duration-300 rounded-xl transition-all [transform-style:preserve-3d] shadow-sm ${
+                        className={`relative w-full h-full duration-300 transition-all [transform-style:preserve-3d] shadow-sm ${
                           isFlipped ? '[transform:rotateY(180deg)]' : ''
                         }`}
+                        style={{ borderRadius: `${cardBorderRadius}px` }}
                       >
                         {/* CARD BACK */}
                         <div
-                          className="absolute inset-0 w-full h-full rounded-xl flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors overflow-hidden p-1"
+                          className="absolute inset-0 w-full h-full flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors overflow-hidden p-1"
                           style={{
                             backfaceVisibility: 'hidden',
                             backgroundColor: theme.visuals_config?.cardBadBg || '#0f172a',
                             borderColor: theme.visuals_config?.cardBadBorder || '#334155',
+                            borderRadius: `${cardBorderRadius}px`,
                           }}
                         >
                           {getMemoryMatchConfig(theme).cardBackUrl ? (
@@ -949,10 +964,11 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
                         {/* CARD FRONT FACE */}
                         <div
-                          className="absolute inset-0 w-full h-full rounded-xl flex flex-col items-center justify-between p-1 sm:p-1.5 border-2 shadow-lg"
+                          className="absolute inset-0 w-full h-full flex flex-col items-center justify-between p-1 sm:p-1.5 border-2 shadow-lg"
                           style={{
                             backfaceVisibility: 'hidden',
                             transform: 'rotateY(180deg)',
+                            borderRadius: `${cardBorderRadius}px`,
                             backgroundColor: card.isMatched
                               ? theme.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
                               : card.bgColor || 'rgba(15, 23, 42, 0.95)',
@@ -1015,17 +1031,19 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                       title={`Click to flip ${card.name}`}
                     >
                       <div
-                        className={`relative w-full h-full duration-300 rounded-xl transition-all [transform-style:preserve-3d] shadow-md hover:shadow-xl hover:scale-105 ${
+                        className={`relative w-full h-full duration-300 transition-all [transform-style:preserve-3d] shadow-md hover:shadow-xl hover:scale-105 ${
                           isFlipped ? '[transform:rotateY(180deg)]' : ''
                         }`}
+                        style={{ borderRadius: `${cardBorderRadius}px` }}
                       >
                         {/* CARD BACK */}
                         <div
-                          className="absolute inset-0 w-full h-full rounded-xl flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors overflow-hidden p-1"
+                          className="absolute inset-0 w-full h-full flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors overflow-hidden p-1"
                           style={{
                             backfaceVisibility: 'hidden',
                             backgroundColor: theme.visuals_config?.cardBadBg || '#0f172a',
                             borderColor: theme.visuals_config?.cardBadBorder || '#334155',
+                            borderRadius: `${cardBorderRadius}px`,
                           }}
                         >
                           {getMemoryMatchConfig(theme).cardBackUrl ? (
@@ -1047,10 +1065,11 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
                         {/* CARD FRONT FACE */}
                         <div
-                          className="absolute inset-0 w-full h-full rounded-xl flex flex-col items-center justify-between p-1 sm:p-1.5 border-2 shadow-lg"
+                          className="absolute inset-0 w-full h-full flex flex-col items-center justify-between p-1 sm:p-1.5 border-2 shadow-lg"
                           style={{
                             backfaceVisibility: 'hidden',
                             transform: 'rotateY(180deg)',
+                            borderRadius: `${cardBorderRadius}px`,
                             backgroundColor: card.isMatched
                               ? theme.visuals_config?.cardGoodBg || 'rgba(6, 78, 59, 0.85)'
                               : card.bgColor || 'rgba(15, 23, 42, 0.95)',
