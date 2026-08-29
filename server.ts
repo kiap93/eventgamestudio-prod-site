@@ -1830,6 +1830,10 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       game_id,
       game_theme_id,
       event_date,
+      start_date,
+      end_date,
+      startDate,
+      endDate,
       starts_at,
       expires_at,
       event_price,
@@ -1845,8 +1849,11 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       return;
     }
 
-    if (!starts_at || !expires_at) {
-      res.status(422).json({ error: 'Start time and Expiry time are required' });
+    const resolvedStart = start_date || startDate || event_date || (starts_at ? starts_at.slice(0, 10) : null);
+    const resolvedEnd = end_date || endDate || (expires_at ? expires_at.slice(0, 10) : resolvedStart);
+
+    if (!resolvedStart || !resolvedEnd) {
+      res.status(422).json({ error: 'Start date and End date are required' });
       return;
     }
 
@@ -1856,7 +1863,11 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       game_id,
       game_theme_id,
       name,
-      event_date,
+      event_date: resolvedStart,
+      start_date: resolvedStart,
+      end_date: resolvedEnd,
+      startDate: resolvedStart,
+      endDate: resolvedEnd,
       starts_at,
       expires_at,
       status: 'draft',
@@ -1978,12 +1989,27 @@ app.put('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       return;
     }
 
-    const { name, game_theme_id, event_date, starts_at, expires_at, status } = req.body;
+    const {
+      name,
+      game_theme_id,
+      event_date,
+      start_date,
+      end_date,
+      startDate,
+      endDate,
+      starts_at,
+      expires_at,
+      status,
+    } = req.body;
 
     const updated = await updateEvent(eventId, {
       name,
       game_theme_id,
       event_date,
+      start_date,
+      end_date,
+      startDate,
+      endDate,
       starts_at,
       expires_at,
       status,

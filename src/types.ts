@@ -176,6 +176,8 @@ export interface EventRecord {
   game_theme_id: string;
   name: string;
   event_date?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
   starts_at: string;
   expires_at: string;
   status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active' | 'completed';
@@ -209,6 +211,7 @@ export interface GameRecord {
 
 export type CancellationErrorCode =
   | 'ELIGIBLE_FOR_CANCELLATION'
+  | 'PAYMENT_COMMITTED'
   | 'SETUP_DAY_STARTED'
   | 'EVENT_ACTIVE'
   | 'EVENT_COMPLETED'

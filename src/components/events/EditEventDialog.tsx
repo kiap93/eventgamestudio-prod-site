@@ -2,9 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../lib/api';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
+  formatDateOnly,
+  formatEventDateRange,
+  getTodayDateString,
+} from '../../lib/dateUtils';
+import {
   X,
   Calendar,
-  Clock,
   Sparkles,
   Gamepad2,
   Check,
@@ -40,8 +44,8 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [selectedThemeId, setSelectedThemeId] = useState<string>('');
-  const [startsAt, setStartsAt] = useState('');
-  const [expiresAt, setExpiresAt] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [status, setStatus] = useState<'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled'>('scheduled');
 
   const [themes, setThemes] = useState<GameThemeOption[]>([]);
@@ -49,16 +53,10 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const formatForInput = (d: Date | string) => {
-    const dateObj = new Date(d);
-    if (isNaN(dateObj.getTime())) return '';
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const year = dateObj.getFullYear();
-    const month = pad(dateObj.getMonth() + 1);
-    const day = pad(dateObj.getDate());
-    const hours = pad(dateObj.getHours());
-    const mins = pad(dateObj.getMinutes());
-    return `${year}-${month}-${day}T${hours}:${mins}`;
+  const extractDateOnly = (val?: string | null) => {
+    if (!val) return '';
+    if (val.length === 10 && val.includes('-')) return val;
+    return val.split('T')[0] || '';
   };
 
   useEffect(() => {
@@ -66,8 +64,10 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
 
     setName(event.name || '');
     setSelectedThemeId(event.game_theme_id || '');
-    setStartsAt(formatForInput(event.starts_at));
-    setExpiresAt(formatForInput(event.expires_at));
+    const start = event.start_date || extractDateOnly(event.starts_at) || getTodayDateString();
+    const end = event.end_date || extractDateOnly(event.expires_at) || start;
+    setStartDate(start);
+    setEndDate(end);
     setStatus(event.status || 'scheduled');
   }, [event, isOpen]);
 
@@ -129,16 +129,13 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
       return;
     }
 
-    const startTime = new Date(startsAt).getTime();
-    const expiryTime = new Date(expiresAt).getTime();
-
-    if (isNaN(startTime) || isNaN(expiryTime)) {
-      setError('Please provide valid start and expiry dates/times');
+    if (!startDate || !endDate) {
+      setError('Please select both Start Date and End Date');
       return;
     }
 
-    if (expiryTime <= startTime) {
-      setError('Expiry time must be later than Start time');
+    if (endDate < startDate) {
+      setError('End date must be on or after Start date');
       return;
     }
 
@@ -149,9 +146,11 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
         body: JSON.stringify({
           name: name.trim(),
           game_theme_id: selectedThemeId,
-          event_date: startsAt.split('T')[0],
-          starts_at: new Date(startsAt).toISOString(),
-          expires_at: new Date(expiresAt).toISOString(),
+          start_date: startDate,
+          end_date: endDate,
+          event_date: startDate,
+          starts_at: `${startDate}T00:00:00.000Z`,
+          expires_at: `${endDate}T23:59:59.999Z`,
           status,
         }),
       });
@@ -325,35 +324,50 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
               )}
             </div>
 
-            {/* Time Windows */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Starts At</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  value={startsAt}
-                  onChange={(e) => setStartsAt(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all"
-                />
+            {/* Date Windows (Date Only) */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Start Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      setStartDate(newStart);
+                      if (endDate < newStart) {
+                        setEndDate(newStart);
+                      }
+                    }}
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                    <span>End Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    min={startDate}
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all cursor-pointer"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-orange-400" />
-                  <span>Expires At</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  value={expiresAt}
-                  onChange={(e) => setExpiresAt(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all"
-                />
-              </div>
+              {startDate && endDate && (
+                <p className="text-[11px] text-slate-400 font-medium">
+                  Active for whole calendar day{startDate === endDate ? '' : 's'}: <span className="text-amber-300 font-bold">{formatEventDateRange(startDate, endDate)}</span>
+                </p>
+              )}
             </div>
 
             {/* Manual Status Override */}

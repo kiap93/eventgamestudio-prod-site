@@ -6,7 +6,6 @@ import { EventPaymentModal } from './EventPaymentModal';
 import { apiFetch } from '../../lib/api';
 import {
   ArrowLeft,
-  Clock,
   Sparkles,
   RefreshCw,
   Maximize2,

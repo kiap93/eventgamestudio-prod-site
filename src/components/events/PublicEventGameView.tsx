@@ -319,7 +319,7 @@ export const PublicEventGameView: React.FC = () => {
               {formatCountdown(timeUntilStart)}
             </div>
             <p className="text-[11px] text-slate-500">
-              Starts on {new Date(eventData.starts_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+              Starts on {new Date(eventData.starts_at).toLocaleDateString([], { dateStyle: 'medium' })}
             </p>
           </div>
 

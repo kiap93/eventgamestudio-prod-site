@@ -134,20 +134,147 @@ export async function getPendingEventsCountByOrgId(
 }
 
 /**
+ * Normalizes user-supplied event dates into authoritative calendar date boundaries.
+ *
+ * Rules:
+ * 1. Start Date and End Date are calendar dates (YYYY-MM-DD).
+ * 2. An event is active for the WHOLE calendar day range (inclusive).
+ *    Start: ${startDate}T00:00:00.000Z
+ *    End:   ${endDate}T23:59:59.999Z
+ * 3. Setup Day is the calendar day immediately preceding the Start Date (00:00:00.000Z).
+ * 4. End Date must be on or after Start Date (startDate <= endDate).
+ * 5. One-day events (startDate === endDate) are valid.
+ */
+export function normalizeEventDateBoundaries(params: {
+  start_date?: string | null;
+  end_date?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  event_date?: string | null;
+  starts_at?: string | null;
+  expires_at?: string | null;
+}): {
+  startDate: string;
+  endDate: string;
+  event_date: string;
+  start_date: string;
+  end_date: string;
+  starts_at: string;
+  expires_at: string;
+  setup_starts_at: string;
+} {
+  const extractDateOnly = (val: string | null | undefined): string => {
+    if (!val) return '';
+    const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[1]}-${match[2]}-${match[3]}`;
+    }
+    const dt = new Date(val);
+    if (isNaN(dt.getTime())) return '';
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+  };
+
+  let rawStart = params.start_date || params.startDate || params.event_date;
+  if (!rawStart && params.starts_at) {
+    rawStart = params.starts_at;
+  }
+
+  let rawEnd = params.end_date || params.endDate;
+  if (!rawEnd && params.expires_at) {
+    rawEnd = params.expires_at;
+  }
+
+  const startDate = extractDateOnly(rawStart);
+  let endDate = extractDateOnly(rawEnd);
+
+  if (!startDate) {
+    const err: any = new Error('Start Date is required');
+    err.status = 422;
+    err.code = 'INVALID_START_DATE';
+    throw err;
+  }
+
+  if (!endDate) {
+    endDate = startDate;
+  }
+
+  const [startY, startM, startD] = startDate.split('-').map(Number);
+  const [endY, endM, endD] = endDate.split('-').map(Number);
+
+  const startUtc = new Date(Date.UTC(startY, startM - 1, startD, 0, 0, 0, 0));
+  const endUtc = new Date(Date.UTC(endY, endM - 1, endD, 23, 59, 59, 999));
+
+  if (isNaN(startUtc.getTime()) || isNaN(endUtc.getTime())) {
+    const err: any = new Error('Invalid Start Date or End Date');
+    err.status = 422;
+    err.code = 'INVALID_DATE_FORMAT';
+    throw err;
+  }
+
+  if (endDate < startDate) {
+    const err: any = new Error('End Date must be on or after Start Date');
+    err.status = 422;
+    err.code = 'INVALID_DATE_RANGE';
+    throw err;
+  }
+
+  // Setup Day begins at 00:00:00 UTC on the calendar day immediately preceding the Start Date
+  const setupUtc = new Date(Date.UTC(startY, startM - 1, startD - 1, 0, 0, 0, 0));
+
+  return {
+    startDate,
+    endDate,
+    event_date: startDate,
+    start_date: startDate,
+    end_date: endDate,
+    starts_at: startUtc.toISOString(),
+    expires_at: endUtc.toISOString(),
+    setup_starts_at: setupUtc.toISOString(),
+  };
+}
+
+/**
  * Calculates the exact start time of Setup Day / Preparation window.
- * Default specification: Setup Day starts at 00:00:00 (beginning of the day) 1 calendar day before the event starts (or 24 hours prior).
+ * Business Rule:
+ * The Setup Day is the calendar day immediately before the event starts (00:00:00 UTC).
+ * For an event scheduled for:
+ * Event date: 2 September – 3 September (e.g. 2026-09-02)
+ * the Setup Day / Payment Deduction Day = 1 September 00:00:00 (2026-09-01T00:00:00.000Z)
  */
 export function getSetupDayStartTime(event: {
-  starts_at: string;
+  starts_at?: string | null;
   event_date?: string | null;
+  start_date?: string | null;
   setup_starts_at?: string | null;
 }): Date {
   if (event.setup_starts_at) {
     return new Date(event.setup_starts_at);
   }
-  const startDate = new Date(event.starts_at);
-  // 24 hours prior to event starts_at
-  return new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
+
+  // Derive calendar date from start_date, event_date, or starts_at
+  let dateStr = event.start_date || event.event_date;
+  if (!dateStr && event.starts_at) {
+    const match = event.starts_at.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      dateStr = `${match[1]}-${match[2]}-${match[3]}`;
+    } else {
+      dateStr = event.starts_at.split('T')[0];
+    }
+  }
+
+  if (dateStr) {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1; // 0-indexed (0 = Jan)
+      const day = parseInt(parts[2], 10);
+      return new Date(Date.UTC(year, month, day - 1, 0, 0, 0, 0));
+    }
+  }
+
+  const startDate = new Date(event.starts_at || Date.now());
+  return new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate() - 1, 0, 0, 0, 0));
 }
 
 /**
@@ -168,15 +295,37 @@ export function isSetupDayStarted(
 
 /**
  * Dedicated engine to determine whether refund is allowed for an event and calculates refund amounts.
+ *
+ * Rules:
+ * 1. Before Setup Day: Cancellation is allowed (Unpaid events need no refund; paid events receive 100% full refund).
+ * 2. On/After Setup Day starts or After successful payment:
+ *    - Cancellation is strictly NOT allowed
+ *    - Refund is strictly NOT allowed
+ *    - Credit reversal is strictly NOT allowed
+ *    - Wallet balance is NOT returned
  */
 export function determineEventRefund(
   event: EventRecord | EventWithDetails,
   now: Date = new Date()
 ): EventRefundDetermination {
-  const paymentStatus = event.payment_status || 'UNPAID';
+  const paymentStatus = (event.payment_status || 'UNPAID').toUpperCase();
   const paidAmount = Number(event.paid_amount || 0);
   const discountAmount = Number(event.discount_amount || 0);
   const paymentMode = event.payment_mode || null;
+
+  // After successful payment deduction or on/after Setup Day:
+  if (paymentStatus === 'PAID' || isSetupDayStarted(event, now)) {
+    return {
+      canRefund: false,
+      refundPaidAmount: 0,
+      creditReversalAmount: 0,
+      creditType: paymentMode,
+      paymentStatus,
+      reason: paymentStatus === 'PAID'
+        ? 'After successful payment deduction, cancellation and refunds are disabled.'
+        : 'Once Setup Day starts, cancellation and refunds are not allowed.',
+    };
+  }
 
   if (paymentStatus !== 'PAID' || (paidAmount === 0 && discountAmount === 0)) {
     return {
@@ -191,19 +340,7 @@ export function determineEventRefund(
     };
   }
 
-  // Once Setup Day starts, ordinary cancellation/refund is not allowed.
-  if (isSetupDayStarted(event, now)) {
-    return {
-      canRefund: false,
-      refundPaidAmount: 0,
-      creditReversalAmount: 0,
-      creditType: paymentMode,
-      paymentStatus,
-      reason: 'Once Setup Day / Testing starts, ordinary refund is not allowed.',
-    };
-  }
-
-  // Prior to Setup Day: 100% full refund of paid balance & credit reversal
+  // Prior to Setup Day with paid balance: full refund
   const safePaid = Number(paidAmount) || 0;
   const safeDiscount = Number(discountAmount) || 0;
   return {
@@ -222,19 +359,21 @@ export function determineEventRefund(
  * Dedicated cancellation policy engine: evaluates event cancellation rules.
  *
  * Cancellation Matrix:
- * DRAFT        → YES
- * READY        → YES (if before Setup Day)
- * TESTING      → depends on Setup Day (NO once Setup Day started)
- * SCHEDULED    → depends on Setup Day (NO once Setup Day started)
- * ACTIVE / LIVE → NO
- * COMPLETED / EXPIRED → NO
- * CANCELLED    → NO
+ * DRAFT (before Setup Day, unpaid)   → YES
+ * SCHEDULED (before Setup Day, unpaid) → YES
+ * PAID (any time)                   → NO
+ * ON / AFTER SETUP DAY              → NO
+ * ACTIVE / LIVE                     → NO
+ * COMPLETED / EXPIRED               → NO
+ * CANCELLED                         → NO
  */
 export function canCancelEvent(
   event: EventRecord | EventWithDetails,
   now: Date = new Date()
 ): EventCancellationEligibility {
   const rawStatus = (event.status || '').toLowerCase();
+  const eventStatus = (event.event_status || '').toUpperCase();
+  const payStatus = (event.payment_status || 'UNPAID').toUpperCase();
   const startsAtTime = new Date(event.starts_at).getTime();
   const expiresAtTime = new Date(event.expires_at).getTime();
   const nowTime = now.getTime();
@@ -245,13 +384,13 @@ export function canCancelEvent(
 
   // Derive calculated status
   let calculatedStatus = rawStatus;
-  if (rawStatus === 'cancelled') {
+  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED') {
     calculatedStatus = 'cancelled';
-  } else if (rawStatus === 'draft') {
+  } else if (rawStatus === 'draft' || eventStatus === 'DRAFT') {
     calculatedStatus = 'draft';
-  } else if (nowTime >= expiresAtTime || rawStatus === 'expired' || rawStatus === 'completed') {
+  } else if (nowTime >= expiresAtTime || rawStatus === 'expired' || rawStatus === 'completed' || eventStatus === 'COMPLETED') {
     calculatedStatus = 'expired';
-  } else if (nowTime >= startsAtTime || rawStatus === 'live' || rawStatus === 'active') {
+  } else if (nowTime >= startsAtTime || rawStatus === 'live' || rawStatus === 'active' || eventStatus === 'LIVE') {
     calculatedStatus = 'live';
   } else if (setupDayStarted || rawStatus === 'testing') {
     calculatedStatus = 'testing';
@@ -266,7 +405,7 @@ export function canCancelEvent(
     setupStartsAt: setupStartTime.toISOString(),
     startsAt: event.starts_at,
     expiresAt: event.expires_at,
-    paymentStatus: event.payment_status || 'UNPAID',
+    paymentStatus: payStatus,
     refundPaidAmount: refundInfo.refundPaidAmount,
     creditReversalAmount: refundInfo.creditReversalAmount,
     creditType: refundInfo.creditType,
@@ -274,7 +413,7 @@ export function canCancelEvent(
   };
 
   // 1. CANCELLED -> NO
-  if (rawStatus === 'cancelled') {
+  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED') {
     return {
       ...baseResult,
       canCancel: false,
@@ -295,7 +434,18 @@ export function canCancelEvent(
     };
   }
 
-  // 3. ACTIVE / LIVE -> NO
+  // 3. AFTER SUCCESSFUL PAYMENT -> NO (Once paid, cancellation and refund are strictly disabled)
+  if (payStatus === 'PAID') {
+    return {
+      ...baseResult,
+      canCancel: false,
+      canRefund: false,
+      reason: 'After successful payment deduction, cancellation and refunds are disabled.',
+      code: 'PAYMENT_COMMITTED',
+    };
+  }
+
+  // 4. ACTIVE / LIVE -> NO
   if (calculatedStatus === 'live' || rawStatus === 'live' || rawStatus === 'active' || (nowTime >= startsAtTime && nowTime < expiresAtTime)) {
     return {
       ...baseResult,
@@ -306,30 +456,18 @@ export function canCancelEvent(
     };
   }
 
-  // 4. DRAFT -> YES
-  if (rawStatus === 'draft') {
-    return {
-      ...baseResult,
-      canCancel: true,
-      canRefund: refundInfo.canRefund,
-      reason: 'Draft events can be cancelled at any time.',
-      code: 'ELIGIBLE_FOR_CANCELLATION',
-    };
-  }
-
-  // 5. READY / TESTING / SCHEDULED -> Depends on Setup Day
-  // "Once Setup Day starts, ordinary cancellation/refund is not allowed."
+  // 5. ONCE SETUP DAY STARTS -> NO
   if (setupDayStarted) {
     return {
       ...baseResult,
       canCancel: false,
       canRefund: false,
-      reason: 'Once Setup Day starts, ordinary cancellation/refund is not allowed.',
+      reason: 'Once Setup Day starts, cancellation and refunds are not allowed.',
       code: 'SETUP_DAY_STARTED',
     };
   }
 
-  // Prior to Setup Day:
+  // 6. BEFORE SETUP DAY (DRAFT or SCHEDULED without payment) -> YES
   return {
     ...baseResult,
     canCancel: true,
@@ -377,25 +515,34 @@ export async function getEventsByOrgId(
     }
   } else {
     events = ((eventsData || []) as EventRecord[]).map((ev) => {
-      if (isLocalFallbackAllowed(env)) {
-        localEventsCache.set(ev.id, ev);
-      }
       const cached = isLocalFallbackAllowed(env) ? localEventsCache.get(ev.id) : undefined;
-      return {
-        ...(cached || {}),
+      const merged: EventRecord = {
         ...ev,
-        // Database values MUST take absolute precedence over cache
-        game_id: ev.game_id || cached?.game_id,
-        status: ev.status || cached?.status,
-        event_status: ev.event_status || cached?.event_status,
-        payment_status: ev.payment_status || cached?.payment_status,
-        payment_mode: ev.payment_mode || cached?.payment_mode,
-        paid_amount: ev.paid_amount !== undefined && ev.paid_amount !== null ? ev.paid_amount : cached?.paid_amount,
-        event_price: ev.event_price !== undefined && ev.event_price !== null ? ev.event_price : cached?.event_price,
-        event_currency: ev.event_currency || cached?.event_currency || 'MYR',
-        cancel_reason: ev.cancel_reason !== undefined ? ev.cancel_reason : cached?.cancel_reason,
+        ...(cached || {}),
+        game_id: cached?.game_id || ev.game_id,
+        status: cached?.status || ev.status,
+        event_status: cached?.event_status || ev.event_status,
+        payment_status: cached?.payment_status || ev.payment_status,
+        payment_mode: cached?.payment_mode || ev.payment_mode,
+        paid_amount: cached?.paid_amount !== undefined && cached.paid_amount !== null ? cached.paid_amount : ev.paid_amount,
+        event_price: cached?.event_price !== undefined && cached.event_price !== null ? cached.event_price : ev.event_price,
+        event_currency: cached?.event_currency || ev.event_currency || 'MYR',
+        cancel_reason: cached?.cancel_reason !== undefined ? cached.cancel_reason : ev.cancel_reason,
       };
+      if (isLocalFallbackAllowed(env)) {
+        localEventsCache.set(merged.id, merged);
+      }
+      return merged;
     });
+    if (isLocalFallbackAllowed(env)) {
+      const seenIds = new Set(events.map((e) => e.id));
+      for (const cached of localEventsCache.values()) {
+        if (cached.organization_id === organizationId && !seenIds.has(cached.id)) {
+          events.push(cached);
+          seenIds.add(cached.id);
+        }
+      }
+    }
   }
   if (events.length === 0) return [];
 
@@ -517,24 +664,23 @@ export async function getEventById(
   } else {
     const raw = (event as EventRecord) || null;
     if (raw) {
-      if (isLocalFallbackAllowed(env)) {
-        localEventsCache.set(raw.id, raw);
-      }
       const cached = isLocalFallbackAllowed(env) ? localEventsCache.get(eventId) : undefined;
       eventRecord = {
-        ...(cached || {}),
         ...raw,
-        // Database values MUST take absolute precedence over cache
-        game_id: raw.game_id || cached?.game_id,
-        status: raw.status || cached?.status,
-        event_status: raw.event_status || cached?.event_status,
-        payment_status: raw.payment_status || cached?.payment_status,
-        cancel_reason: raw.cancel_reason !== undefined ? raw.cancel_reason : cached?.cancel_reason,
-        payment_mode: raw.payment_mode || cached?.payment_mode,
-        paid_amount: raw.paid_amount !== undefined && raw.paid_amount !== null ? raw.paid_amount : cached?.paid_amount,
-        event_price: raw.event_price !== undefined && raw.event_price !== null ? raw.event_price : cached?.event_price,
-        event_currency: raw.event_currency || cached?.event_currency || 'MYR',
+        ...(cached || {}),
+        game_id: cached?.game_id || raw.game_id,
+        status: cached?.status || raw.status,
+        event_status: cached?.event_status || raw.event_status,
+        payment_status: cached?.payment_status || raw.payment_status,
+        cancel_reason: cached?.cancel_reason !== undefined ? cached.cancel_reason : raw.cancel_reason,
+        payment_mode: cached?.payment_mode || raw.payment_mode,
+        paid_amount: cached?.paid_amount !== undefined && cached.paid_amount !== null ? cached.paid_amount : raw.paid_amount,
+        event_price: cached?.event_price !== undefined && cached.event_price !== null ? cached.event_price : raw.event_price,
+        event_currency: cached?.event_currency || raw.event_currency || 'MYR',
       };
+      if (isLocalFallbackAllowed(env)) {
+        localEventsCache.set(raw.id, eventRecord);
+      }
     } else {
       eventRecord = null;
     }
@@ -629,25 +775,24 @@ export async function getEventByPublicToken(
   } else {
     const raw = (event as EventRecord) || null;
     if (raw) {
-      if (isLocalFallbackAllowed(env)) {
-        localEventsCache.set(raw.id, raw);
-      }
       const cached = isLocalFallbackAllowed(env)
         ? (localEventsCache.get(raw.id) || Array.from(localEventsCache.values()).find((e) => e.public_token === publicToken.trim().toUpperCase()))
         : undefined;
       eventRecord = {
-        ...(cached || {}),
         ...raw,
-        // Database values MUST take absolute precedence over cache
-        status: raw.status || cached?.status,
-        event_status: raw.event_status || cached?.event_status,
-        payment_status: raw.payment_status || cached?.payment_status,
-        cancel_reason: raw.cancel_reason !== undefined ? raw.cancel_reason : cached?.cancel_reason,
-        payment_mode: raw.payment_mode || cached?.payment_mode,
-        paid_amount: raw.paid_amount !== undefined && raw.paid_amount !== null ? raw.paid_amount : cached?.paid_amount,
-        event_price: raw.event_price !== undefined && raw.event_price !== null ? raw.event_price : cached?.event_price,
-        event_currency: raw.event_currency || cached?.event_currency || 'MYR',
+        ...(cached || {}),
+        status: cached?.status || raw.status,
+        event_status: cached?.event_status || raw.event_status,
+        payment_status: cached?.payment_status || raw.payment_status,
+        cancel_reason: cached?.cancel_reason !== undefined ? cached.cancel_reason : raw.cancel_reason,
+        payment_mode: cached?.payment_mode || raw.payment_mode,
+        paid_amount: cached?.paid_amount !== undefined && cached.paid_amount !== null ? cached.paid_amount : raw.paid_amount,
+        event_price: cached?.event_price !== undefined && cached.event_price !== null ? cached.event_price : raw.event_price,
+        event_currency: cached?.event_currency || raw.event_currency || 'MYR',
       };
+      if (isLocalFallbackAllowed(env)) {
+        localEventsCache.set(raw.id, eventRecord);
+      }
     } else {
       eventRecord = null;
     }
@@ -662,11 +807,9 @@ export async function getEventByPublicToken(
     ? (eventRecord.event_status === 'COMPLETED' ? 'COMPLETED' : (eventRecord.event_status === 'CANCELLED' ? 'CANCELLED' : 'LIVE'))
     : derivedLifecycle;
 
-  // Strict Public Guard: Do NOT resolve unpaid, draft, or cancelled events on public routes unless explicitly permitted (e.g. preview)
-  if (!options?.allowUnpaid) {
-    if (!isPaid || eventLifecycleStatus === 'CANCELLED' || eventRecord.status === 'cancelled' || eventRecord.status === 'pending_payment') {
-      return null;
-    }
+  // Strict Public Guard: Do NOT resolve cancelled events on public routes
+  if (eventLifecycleStatus === 'CANCELLED' || eventRecord.status === 'cancelled') {
+    return null;
   }
 
   const theme = await getThemeById(eventRecord.game_theme_id, env);
@@ -732,8 +875,12 @@ export async function createEvent(
     game_theme_id: string;
     name: string;
     event_date?: string | null;
-    starts_at: string;
-    expires_at: string;
+    start_date?: string | null;
+    end_date?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    starts_at?: string;
+    expires_at?: string;
     status?: EventStatus;
     event_status?: EventLifecycleStatus;
     payment_status?: PaymentLifecycleStatus | 'PENDING_PAYMENT';
@@ -802,21 +949,19 @@ export async function createEvent(
     throw err;
   }
 
-  // 3. Validate time boundaries
-  const startsAtTime = new Date(params.starts_at).getTime();
-  const expiresAtTime = new Date(params.expires_at).getTime();
-
-  if (isNaN(startsAtTime) || isNaN(expiresAtTime)) {
-    throw new Error('Invalid start or expiry date/time');
-  }
-
-  if (expiresAtTime <= startsAtTime) {
-    throw new Error('Expiry time must be later than start time');
-  }
+  // 3. Normalize calendar date boundaries (Start Date to End Date)
+  const norm = normalizeEventDateBoundaries({
+    start_date: params.start_date || params.startDate,
+    end_date: params.end_date || params.endDate,
+    event_date: params.event_date,
+    starts_at: params.starts_at,
+    expires_at: params.expires_at,
+  });
 
   // 4. Enforce maximum 2 PENDING_PAYMENT events limit per organization
-  const isPending = (params.payment_status || 'UNPAID') === 'PENDING_PAYMENT' ||
-    params.payment_status === 'UNPAID' ||
+  const effectivePaymentStatus = ((params.payment_status as string) || 'UNPAID').toUpperCase();
+  const isPending = effectivePaymentStatus === 'PENDING_PAYMENT' ||
+    effectivePaymentStatus === 'UNPAID' ||
     params.status === 'pending_payment';
 
   if (isPending && !params.skipPendingLimitCheck) {
@@ -866,9 +1011,11 @@ export async function createEvent(
     game_id: targetGameId,
     game_theme_id: params.game_theme_id,
     name: params.name.trim(),
-    event_date: params.event_date || params.starts_at.split('T')[0],
-    starts_at: new Date(params.starts_at).toISOString(),
-    expires_at: new Date(params.expires_at).toISOString(),
+    event_date: norm.event_date,
+    start_date: norm.start_date,
+    end_date: norm.end_date,
+    starts_at: norm.starts_at,
+    expires_at: norm.expires_at,
     status: initialStatus,
     event_status: initialEventStatus,
     payment_status: initialPaymentStatus,
@@ -902,9 +1049,9 @@ export async function createEvent(
         game_id: targetGameId,
         game_theme_id: params.game_theme_id,
         name: params.name.trim(),
-        event_date: params.event_date || params.starts_at.split('T')[0],
-        starts_at: new Date(params.starts_at).toISOString(),
-        expires_at: new Date(params.expires_at).toISOString(),
+        event_date: norm.event_date,
+        starts_at: norm.starts_at,
+        expires_at: norm.expires_at,
         status: (initialStatus === 'pending_payment' ? 'draft' : initialStatus) as any,
         public_token: token,
         created_by: params.created_by || null,
@@ -1166,6 +1313,10 @@ export async function updateEvent(
     name?: string;
     game_theme_id?: string;
     event_date?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
     starts_at?: string;
     expires_at?: string;
     status?: EventStatus;
@@ -1192,16 +1343,28 @@ export async function updateEvent(
     payload.name = updates.name.trim();
   }
 
-  if (updates.event_date !== undefined) {
-    payload.event_date = updates.event_date;
-  }
+  const hasDateUpdate =
+    updates.start_date !== undefined ||
+    updates.end_date !== undefined ||
+    updates.startDate !== undefined ||
+    updates.endDate !== undefined ||
+    updates.event_date !== undefined ||
+    updates.starts_at !== undefined ||
+    updates.expires_at !== undefined;
 
-  if (updates.starts_at !== undefined) {
-    payload.starts_at = new Date(updates.starts_at).toISOString();
-  }
-
-  if (updates.expires_at !== undefined) {
-    payload.expires_at = new Date(updates.expires_at).toISOString();
+  if (hasDateUpdate) {
+    const norm = normalizeEventDateBoundaries({
+      start_date: updates.start_date || updates.startDate,
+      end_date: updates.end_date || updates.endDate,
+      event_date: updates.event_date,
+      starts_at: updates.starts_at || existing.starts_at,
+      expires_at: updates.expires_at || existing.expires_at,
+    });
+    payload.event_date = norm.event_date;
+    payload.start_date = norm.start_date;
+    payload.end_date = norm.end_date;
+    payload.starts_at = norm.starts_at;
+    payload.expires_at = norm.expires_at;
   }
 
   if (updates.status !== undefined) {
@@ -1404,20 +1567,38 @@ export async function reactivateEvent(
 
 /**
  * Scheduled Worker Maintenance Job:
- * 1. Automatically cancels unpaid events when event start time passes (cancel_reason = 'PAYMENT_TIMEOUT').
- * 2. Marks expired paid events as COMPLETED.
+ * 1. Checks events on / approaching Setup Day (now >= setup_starts_at):
+ *    - If event is unpaid (payment_status !== 'PAID') and not cancelled:
+ *      - If event start time has already passed (now >= starts_at):
+ *        - Auto-cancel event with cancel_reason = 'PAYMENT_TIMEOUT'.
+ *      - Else (now >= setup_starts_at and now < starts_at):
+ *        - Attempt automated atomic payment deduction (Setup Day Payment).
+ *        - If wallet balance is sufficient:
+ *          - processEventPayment succeeds atomically
+ *          - Event payment_status becomes 'PAID'
+ *          - Event status becomes 'scheduled' / 'live'
+ *        - If wallet balance is insufficient:
+ *          - Payment fails, event remains UNPAID / PENDING_PAYMENT
+ *          - Event is not cancelled yet (until starts_at)
+ * 2. Marks expired paid events as COMPLETED (now >= expires_at).
  */
 export async function runEventLifecycleMaintenance(
   env?: Record<string, any>,
   now: Date = new Date()
 ): Promise<{
+  paidCount: number;
+  paymentFailedCount: number;
   cancelledCount: number;
   completedCount: number;
+  paidEvents: string[];
+  paymentFailedEvents: string[];
   cancelledEvents: string[];
   completedEvents: string[];
 }> {
   const supabase = getSupabaseServerClient(env);
   const nowIso = now.toISOString();
+  const paidEvents: string[] = [];
+  const paymentFailedEvents: string[] = [];
   const cancelledEvents: string[] = [];
   const completedEvents: string[] = [];
 
@@ -1427,6 +1608,11 @@ export async function runEventLifecycleMaintenance(
     allEvents = Array.from(localEventsCache.values());
   } else {
     allEvents = data as EventRecord[];
+    if (isLocalFallbackAllowed(env)) {
+      for (const ev of allEvents) {
+        localEventsCache.set(ev.id, ev);
+      }
+    }
   }
 
   for (const ev of allEvents) {
@@ -1435,10 +1621,17 @@ export async function runEventLifecycleMaintenance(
     const rawStatus = (ev.status || '').toLowerCase();
     const startsAtTime = new Date(ev.starts_at).getTime();
     const expiresAtTime = new Date(ev.expires_at).getTime();
+    const setupStartTime = getSetupDayStartTime(ev);
     const nowTime = now.getTime();
 
-    // 1. Unpaid events whose start time has arrived/passed -> Auto-cancel with PAYMENT_TIMEOUT
-    if (payStatus !== 'PAID' && evStatus !== 'CANCELLED' && rawStatus !== 'cancelled') {
+    // Skip already cancelled events
+    if (evStatus === 'CANCELLED' || rawStatus === 'cancelled') {
+      continue;
+    }
+
+    // 1. Unpaid events
+    if (payStatus !== 'PAID') {
+      // 1a. If event start time has arrived/passed without payment -> Auto-cancel with PAYMENT_TIMEOUT
       if (nowTime >= startsAtTime) {
         cancelledEvents.push(ev.id);
         const payload = {
@@ -1453,11 +1646,49 @@ export async function runEventLifecycleMaintenance(
           localEventsCache.set(ev.id, { ...cached, ...payload });
         }
       }
+      // 1b. If Setup Day has started (now >= setup_starts_at) -> Attempt automated atomic payment deduction
+      else if (nowTime >= setupStartTime.getTime()) {
+        try {
+          const paymentResult = await processEventPayment(
+            {
+              organizationId: ev.organization_id,
+              eventId: ev.id,
+              paymentMode: ev.payment_mode || 'FULL_PAID',
+              eventPrice: ev.event_price || undefined,
+              eventName: ev.name,
+              description: `Automated Setup-Day payment for event "${ev.name}"`,
+            },
+            env
+          );
+
+          if (paymentResult && paymentResult.success) {
+            paidEvents.push(ev.id);
+            const updatePayload = {
+              payment_status: 'PAID' as PaymentLifecycleStatus,
+              event_status: 'LIVE' as EventLifecycleStatus,
+              status: (nowTime >= startsAtTime ? 'live' : 'scheduled') as EventStatus,
+              paid_amount: paymentResult.paymentCalculation.paidAmount,
+              discount_amount: paymentResult.paymentCalculation.totalDiscount,
+              payment_mode: (ev.payment_mode || 'FULL_PAID') as PaymentMode,
+              updated_at: nowIso,
+            };
+            await supabase.from('events').update(updatePayload).eq('id', ev.id);
+            const cached = localEventsCache.get(ev.id);
+            if (cached) {
+              localEventsCache.set(ev.id, { ...cached, ...updatePayload });
+            }
+          }
+        } catch (paymentErr: any) {
+          console.warn(`[Maintenance] Setup-day automated payment failed for event ${ev.id} (${ev.name}):`, paymentErr?.message || paymentErr);
+          paymentFailedEvents.push(ev.id);
+        }
+      }
+      continue;
     }
 
     // 2. Paid events whose expiry time has passed -> Mark COMPLETED
-    if (payStatus === 'PAID' && evStatus !== 'CANCELLED' && evStatus !== 'COMPLETED' && rawStatus !== 'cancelled' && rawStatus !== 'expired') {
-      if (nowTime >= expiresAtTime) {
+    if (payStatus === 'PAID') {
+      if (nowTime >= expiresAtTime && evStatus !== 'COMPLETED' && rawStatus !== 'expired') {
         completedEvents.push(ev.id);
         const payload = {
           event_status: 'COMPLETED' as EventLifecycleStatus,
@@ -1474,8 +1705,12 @@ export async function runEventLifecycleMaintenance(
   }
 
   return {
+    paidCount: paidEvents.length,
+    paymentFailedCount: paymentFailedEvents.length,
     cancelledCount: cancelledEvents.length,
     completedCount: completedEvents.length,
+    paidEvents,
+    paymentFailedEvents,
     cancelledEvents,
     completedEvents,
   };

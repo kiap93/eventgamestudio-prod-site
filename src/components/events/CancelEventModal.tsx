@@ -169,20 +169,20 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                 <div className="flex items-center justify-between text-slate-400 pb-2 border-b border-slate-900">
                   <span className="flex items-center gap-1.5 font-medium">
                     <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                    Event Starts:
+                    Event Start Date:
                   </span>
                   <span className="font-mono text-slate-200">
-                    {startsAtDate.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                    {startsAtDate.toLocaleDateString([], { dateStyle: 'medium' })}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-slate-400">
                   <span className="flex items-center gap-1.5 font-medium">
-                    <Clock className="w-3.5 h-3.5 text-amber-400" />
-                    Setup Day / Testing Window:
+                    <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                    Setup Day (Start Date - 1 Day):
                   </span>
                   <span className={`font-mono font-semibold ${eligibility?.setupDayStarted ? 'text-red-400' : 'text-emerald-400'}`}>
-                    {setupDate.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                    {setupDate.toLocaleDateString([], { dateStyle: 'medium' })}
                     {eligibility?.setupDayStarted ? ' (Started)' : ' (Upcoming)'}
                   </span>
                 </div>

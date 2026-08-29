@@ -1,4 +1,4 @@
-import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
+import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed } from '../supabase.js';
 import { GameRecord, BasketConfig, ItemConfig, SettingsConfig } from './types.js';
 import crypto from 'node:crypto';
 
@@ -527,12 +527,41 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
     .or('is_system.eq.true,organization_id.is.null')
     .order('created_at', { ascending: true });
 
-  if (error) {
-    console.error('Error in getAllPlatformGames:', error);
-    throw new Error(`Failed to list platform games: ${error.message}`);
-  }
-
   let games = (gamesData || []) as GameRecord[];
+
+  if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      games = Array.from(localGamesCache.values());
+      if (games.length === 0) {
+        for (const catalogGame of CATALOG_GAMES) {
+          const id = `game-${catalogGame.slug}`;
+          const g: GameRecord = {
+            id,
+            organization_id: null,
+            is_system: true,
+            ownership_type: 'system',
+            name: catalogGame.name,
+            slug: catalogGame.slug,
+            game_type: catalogGame.game_type,
+            description: catalogGame.description,
+            icon_name: catalogGame.icon_name,
+            status: 'active',
+            background_url: '/assets/themes/carnival/background.png',
+            basket_config: DEFAULT_BASKET_CONFIG,
+            items_config: DEFAULT_ITEMS_CONFIG,
+            settings_config: DEFAULT_SETTINGS_CONFIG,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          localGamesCache.set(id, g);
+          games.push(g);
+        }
+      }
+    } else {
+      console.error('Error in getAllPlatformGames:', error);
+      throw new Error(`Failed to list platform games: ${error.message}`);
+    }
+  }
   const existingTypes = new Set(games.map((g) => g.game_type || g.slug));
 
   // If any catalog game is missing, initialize it

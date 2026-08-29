@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Calendar,
-  Clock,
   ExternalLink,
   Copy,
   Check,
@@ -16,6 +15,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { formatEventDateRange, formatDateOnly } from '../../lib/dateUtils';
 import { EventLeaderboardModal } from './EventLeaderboardModal';
 import { EventPaymentModal } from './EventPaymentModal';
 
@@ -86,7 +86,7 @@ export const EventCard: React.FC<EventCardProps> = ({
       case 'scheduled':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 border border-blue-500/30 text-blue-400">
-            <Clock className="w-3 h-3" />
+            <Calendar className="w-3 h-3" />
             Scheduled
           </span>
         );
@@ -123,19 +123,10 @@ export const EventCard: React.FC<EventCardProps> = ({
   const gameName = event.game?.name || 'Catch The Brand';
   const themeName = event.game_theme?.name || 'Theme';
 
-  const startDateFormatted = new Date(event.starts_at).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  const expireDateFormatted = new Date(event.expires_at).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const dateRangeFormatted = formatEventDateRange(
+    event.start_date || event.starts_at,
+    event.end_date || event.expires_at
+  );
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-lg hover:border-slate-700 transition-all flex flex-col justify-between space-y-4">
@@ -162,21 +153,14 @@ export const EventCard: React.FC<EventCardProps> = ({
         </div>
       </div>
 
-      {/* Schedule Window Details */}
+      {/* Schedule Window Details (Date-Only) */}
       <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3 space-y-1.5 text-[11px]">
         <div className="flex items-center justify-between text-slate-400">
           <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3 text-slate-500" />
-            Starts:
+            <Calendar className="w-3 h-3 text-amber-400" />
+            Event Dates:
           </span>
-          <span className="text-slate-200 font-mono">{startDateFormatted}</span>
-        </div>
-        <div className="flex items-center justify-between text-slate-400">
-          <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3 text-slate-500" />
-            Expires:
-          </span>
-          <span className="text-slate-200 font-mono">{expireDateFormatted}</span>
+          <span className="text-slate-200 font-bold">{dateRangeFormatted}</span>
         </div>
 
         {event.payment_status && (

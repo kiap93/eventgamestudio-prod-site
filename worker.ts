@@ -2100,6 +2100,10 @@ export default {
           game_id,
           game_theme_id,
           event_date,
+          start_date,
+          end_date,
+          startDate,
+          endDate,
           starts_at,
           expires_at,
           event_price,
@@ -2113,8 +2117,11 @@ export default {
           return errorResponse('Game Theme selection is required', 422, cors);
         }
 
-        if (!starts_at || !expires_at) {
-          return errorResponse('Start time and Expiry time are required', 422, cors);
+        const resolvedStart = start_date || startDate || event_date || (starts_at ? starts_at.slice(0, 10) : null);
+        const resolvedEnd = end_date || endDate || (expires_at ? expires_at.slice(0, 10) : resolvedStart);
+
+        if (!resolvedStart || !resolvedEnd) {
+          return errorResponse('Start date and End date are required', 422, cors);
         }
 
         try {
@@ -2125,7 +2132,11 @@ export default {
               game_id,
               game_theme_id,
               name,
-              event_date,
+              event_date: resolvedStart,
+              start_date: resolvedStart,
+              end_date: resolvedEnd,
+              startDate: resolvedStart,
+              endDate: resolvedEnd,
               starts_at,
               expires_at,
               status: 'draft',
@@ -2246,7 +2257,18 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const { name, game_theme_id, event_date, starts_at, expires_at, status } = body;
+        const {
+          name,
+          game_theme_id,
+          event_date,
+          start_date,
+          end_date,
+          startDate,
+          endDate,
+          starts_at,
+          expires_at,
+          status,
+        } = body;
 
         const updated = await updateEvent(
           eventId,
@@ -2254,6 +2276,10 @@ export default {
             name,
             game_theme_id,
             event_date,
+            start_date,
+            end_date,
+            startDate,
+            endDate,
             starts_at,
             expires_at,
             status,

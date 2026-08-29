@@ -3,7 +3,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
-  Clock,
   Gamepad2,
   Sparkles,
   Plus,
@@ -16,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
+import { formatEventDateRange, formatDateOnly } from '../../lib/dateUtils';
 
 export type CalendarViewType = 'month' | 'week' | 'day';
 
@@ -300,7 +300,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
       case 'scheduled':
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/40">
-            <Clock className="w-2.5 h-2.5" />
+            <CalendarIcon className="w-2.5 h-2.5" />
             Scheduled
           </span>
         );
@@ -343,18 +343,11 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
     }
   };
 
-  const formatEventTimes = (startsAt: string, expiresAt: string) => {
-    const s = new Date(startsAt);
-    const e = new Date(expiresAt);
-    const sTime = s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const eTime = e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const sDate = s.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    const eDate = e.toLocaleDateString([], { month: 'short', day: 'numeric' });
-
-    if (sDate === eDate) {
-      return `${sTime} – ${eTime}`;
-    }
-    return `${sDate} ${sTime} – ${eDate} ${eTime}`;
+  const formatEventDates = (event: any) => {
+    return formatEventDateRange(
+      event.start_date || event.starts_at,
+      event.end_date || event.expires_at
+    );
   };
 
   // Check if active filters exist
@@ -651,10 +644,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                               }`}
                               title={`${ev.name} (${ev.game?.name || 'Game'} · ${
                                 ev.game_theme?.name || 'Theme'
-                              })\nStatus: ${effectiveStatus}\n${formatEventTimes(
-                                ev.starts_at,
-                                ev.expires_at
-                              )}`}
+                              })\nStatus: ${effectiveStatus}\n${formatEventDates(ev)}`}
                             >
                               <div className="flex items-center justify-between gap-1">
                                 <span className="text-[11px] font-bold truncate leading-tight block">
@@ -765,9 +755,9 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                                 </div>
 
                                 <div className="flex items-center gap-1.5 opacity-75 font-mono text-[9px] pt-1 border-t border-slate-700/40">
-                                  <Clock className="w-2.5 h-2.5 shrink-0" />
+                                  <CalendarIcon className="w-2.5 h-2.5 shrink-0" />
                                   <span className="truncate">
-                                    {formatEventTimes(ev.starts_at, ev.expires_at)}
+                                    {formatEventDates(ev)}
                                   </span>
                                 </div>
                               </div>
@@ -817,7 +807,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
               return (
                 <div className="py-16 text-center space-y-3">
                   <div className="w-12 h-12 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center mx-auto text-slate-500">
-                    <Clock className="w-6 h-6" />
+                    <CalendarIcon className="w-6 h-6" />
                   </div>
                   <h4 className="text-sm font-bold text-slate-300">
                     No events scheduled for this day
@@ -888,11 +878,11 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
 
                         <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-800">
                           <span className="text-slate-400 flex items-center gap-1.5 font-medium">
-                            <Clock className="w-3.5 h-3.5 text-blue-400" />
+                            <CalendarIcon className="w-3.5 h-3.5 text-blue-400" />
                             Schedule:
                           </span>
                           <span className="font-mono text-[10px] text-slate-300">
-                            {formatEventTimes(ev.starts_at, ev.expires_at)}
+                            {formatEventDates(ev)}
                           </span>
                         </div>
                       </div>

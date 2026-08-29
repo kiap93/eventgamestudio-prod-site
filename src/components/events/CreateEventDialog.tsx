@@ -8,11 +8,16 @@ import {
   TopupOrderRecord,
   PaymentCheckoutSession,
 } from '../../types';
+import {
+  getTodayDateString,
+  addDaysToDateString,
+  formatDateOnly,
+  formatEventDateRange,
+} from '../../lib/dateUtils';
 import { PaymentCheckoutModal } from '../wallet/PaymentCheckoutModal';
 import {
   X,
   Calendar,
-  Clock,
   Sparkles,
   Gamepad2,
   Check,
@@ -79,31 +84,10 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const [themes, setThemes] = useState<GameThemeOption[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
 
-  // Duration & Dates
+  // Date-Only Schedule (Calendar Days)
   const [durationPreset, setDurationPreset] = useState<DurationPreset>('1day');
-  const getInitialDates = () => {
-    const start = new Date();
-    start.setMinutes(Math.ceil(start.getMinutes() / 5) * 5, 0, 0);
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-
-    const formatForInput = (d: Date) => {
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      const year = d.getFullYear();
-      const month = pad(d.getMonth() + 1);
-      const day = pad(d.getDate());
-      const hours = pad(d.getHours());
-      const mins = pad(d.getMinutes());
-      return `${year}-${month}-${day}T${hours}:${mins}`;
-    };
-
-    return {
-      startsAt: formatForInput(start),
-      expiresAt: formatForInput(end),
-    };
-  };
-
-  const [startsAt, setStartsAt] = useState(() => getInitialDates().startsAt);
-  const [expiresAt, setExpiresAt] = useState(() => getInitialDates().expiresAt);
+  const [startDate, setStartDate] = useState<string>(() => getTodayDateString());
+  const [endDate, setEndDate] = useState<string>(() => getTodayDateString());
 
   // Creation State
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
@@ -141,27 +125,19 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     return `${prefix}${formatted}`;
   };
 
-  // Handle Duration Preset selection
-  const handleDurationPresetChange = (preset: DurationPreset) => {
+  // Handle Duration Preset selection for date ranges
+  const handleDurationPresetChange = (preset: DurationPreset, baseStart?: string) => {
     setDurationPreset(preset);
-    const start = new Date(startsAt);
-    if (isNaN(start.getTime())) return;
-
-    let hoursToAdd = 24;
-    if (preset === '1day') hoursToAdd = 24;
-    else if (preset === '2days') hoursToAdd = 48;
-    else if (preset === '3days') hoursToAdd = 72;
-    else if (preset === '7days') hoursToAdd = 168;
-    else return; // Custom keeps existing expiresAt
-
-    const end = new Date(start.getTime() + hoursToAdd * 60 * 60 * 1000);
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const year = end.getFullYear();
-    const month = pad(end.getMonth() + 1);
-    const day = pad(end.getDate());
-    const hours = pad(end.getHours());
-    const mins = pad(end.getMinutes());
-    setExpiresAt(`${year}-${month}-${day}T${hours}:${mins}`);
+    const start = baseStart || startDate || getTodayDateString();
+    if (preset === '1day') {
+      setEndDate(start);
+    } else if (preset === '2days') {
+      setEndDate(addDaysToDateString(start, 1));
+    } else if (preset === '3days') {
+      setEndDate(addDaysToDateString(start, 2));
+    } else if (preset === '7days') {
+      setEndDate(addDaysToDateString(start, 6));
+    }
   };
 
   // Fetch Available Registered Games & Game Themes on dialog open
@@ -344,16 +320,13 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     const themeIdToUse = currentTheme?.id || selectedThemeId;
     const gameIdToUse = selectedGameId || currentTheme?.game_id || games[0]?.id;
 
-    const startTime = new Date(startsAt).getTime();
-    const expiryTime = new Date(expiresAt).getTime();
-
-    if (isNaN(startTime) || isNaN(expiryTime)) {
-      setCreationError('Please provide valid start and expiry dates/times');
+    if (!startDate || !endDate) {
+      setCreationError('Please select both Start Date and End Date');
       return;
     }
 
-    if (expiryTime <= startTime) {
-      setCreationError('Expiry date must be after Start date');
+    if (endDate < startDate) {
+      setCreationError('End date must be on or after Start date');
       return;
     }
 
@@ -367,9 +340,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
           name: name.trim(),
           game_id: gameIdToUse || undefined,
           game_theme_id: themeIdToUse,
-          event_date: startsAt.split('T')[0],
-          starts_at: new Date(startsAt).toISOString(),
-          expires_at: new Date(expiresAt).toISOString(),
+          start_date: startDate,
+          end_date: endDate,
+          event_date: startDate,
+          starts_at: `${startDate}T00:00:00.000Z`,
+          expires_at: `${endDate}T23:59:59.999Z`,
           status: 'pending_payment',
         }),
       });
@@ -729,7 +704,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               {/* 3. Event Schedule & Duration */}
               <div className="space-y-3">
                 <label className="text-xs font-bold text-slate-300">
-                  Event Duration & Date <span className="text-amber-400">*</span>
+                  Event Schedule (Date Only) <span className="text-amber-400">*</span>
                 </label>
 
                 {/* Duration Presets */}
@@ -760,42 +735,52 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   })}
                 </div>
 
-                {/* Starts & Expires Inputs */}
+                {/* Start Date & End Date Inputs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div className="space-y-1.5">
                     <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-amber-400" /> Start Date & Time
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> Start Date
                     </span>
                     <input
-                      type="datetime-local"
+                      type="date"
                       required
-                      value={startsAt}
+                      value={startDate}
                       onChange={(e) => {
-                        setStartsAt(e.target.value);
+                        const newStart = e.target.value;
+                        setStartDate(newStart);
                         if (durationPreset !== 'custom') {
-                          handleDurationPresetChange(durationPreset);
+                          handleDurationPresetChange(durationPreset, newStart);
+                        } else if (endDate < newStart) {
+                          setEndDate(newStart);
                         }
                       }}
-                      className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-slate-100 text-xs focus:outline-none"
+                      className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-slate-100 text-xs focus:outline-none cursor-pointer"
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-amber-400" /> End Date & Time
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> End Date
                     </span>
                     <input
-                      type="datetime-local"
+                      type="date"
                       required
+                      min={startDate}
                       disabled={durationPreset !== 'custom'}
-                      value={expiresAt}
-                      onChange={(e) => setExpiresAt(e.target.value)}
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
                       className={`w-full px-3 py-2.5 bg-slate-950 border ${
-                        durationPreset === 'custom' ? 'border-slate-800 focus:border-amber-500 text-slate-100' : 'border-slate-800/60 text-slate-400 opacity-80 cursor-not-allowed'
+                        durationPreset === 'custom' ? 'border-slate-800 focus:border-amber-500 text-slate-100 cursor-pointer' : 'border-slate-800/60 text-slate-400 opacity-80 cursor-not-allowed'
                       } rounded-xl text-xs focus:outline-none`}
                     />
                   </div>
                 </div>
+
+                {startDate && endDate && (
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Active for whole calendar day{startDate === endDate ? '' : 's'}: <span className="text-amber-300 font-bold">{formatEventDateRange(startDate, endDate)}</span>
+                  </p>
+                )}
               </div>
 
               {/* Informative Note */}

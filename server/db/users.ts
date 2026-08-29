@@ -1,5 +1,8 @@
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isLocalFallbackAllowed } from '../supabase.js';
 import { UserRecord } from './types.js';
+import crypto from 'node:crypto';
+
+export const localUsersCache = new Map<string, UserRecord>();
 
 export async function getUserById(id: string, env?: Record<string, any>): Promise<UserRecord | null> {
   const supabase = getSupabaseServerClient(env);
@@ -10,11 +13,17 @@ export async function getUserById(id: string, env?: Record<string, any>): Promis
     .maybeSingle();
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      return localUsersCache.get(id) || null;
+    }
     console.error('Error in getUserById:', error);
     throw new Error(`Failed to get user by id: ${error.message}`);
   }
 
-  return data as UserRecord | null;
+  if (data) {
+    localUsersCache.set(data.id, data as UserRecord);
+  }
+  return (data as UserRecord) || localUsersCache.get(id) || null;
 }
 
 export async function getUserByGoogleId(googleId: string, env?: Record<string, any>): Promise<UserRecord | null> {
@@ -26,26 +35,45 @@ export async function getUserByGoogleId(googleId: string, env?: Record<string, a
     .maybeSingle();
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      for (const u of localUsersCache.values()) {
+        if (u.google_id === googleId) return u;
+      }
+      return null;
+    }
     console.error('Error in getUserByGoogleId:', error);
     throw new Error(`Failed to get user by google_id: ${error.message}`);
   }
 
+  if (data) {
+    localUsersCache.set(data.id, data as UserRecord);
+  }
   return data as UserRecord | null;
 }
 
 export async function getUserByEmail(email: string, env?: Record<string, any>): Promise<UserRecord | null> {
+  const normalized = email.trim().toLowerCase();
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('users')
     .select('*')
-    .ilike('email', email.trim().toLowerCase())
+    .ilike('email', normalized)
     .maybeSingle();
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      for (const u of localUsersCache.values()) {
+        if (u.email.toLowerCase() === normalized) return u;
+      }
+      return null;
+    }
     console.error('Error in getUserByEmail:', error);
     throw new Error(`Failed to get user by email: ${error.message}`);
   }
 
+  if (data) {
+    localUsersCache.set(data.id, data as UserRecord);
+  }
   return data as UserRecord | null;
 }
 
@@ -78,11 +106,26 @@ export async function createUser(
     .single();
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      const user: UserRecord = {
+        id,
+        google_id: userData.google_id || null,
+        email: userData.email.trim().toLowerCase(),
+        name: userData.name,
+        avatar_url: userData.avatar_url || null,
+        created_at: now,
+        updated_at: now,
+      };
+      localUsersCache.set(id, user);
+      return user;
+    }
     console.error('Error in createUser:', error);
     throw new Error(`Failed to create user: ${error.message}`);
   }
 
-  return data as UserRecord;
+  const user = data as UserRecord;
+  localUsersCache.set(user.id, user);
+  return user;
 }
 
 export async function updateUser(
@@ -104,11 +147,25 @@ export async function updateUser(
     .single();
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      const existing = localUsersCache.get(id);
+      if (existing) {
+        const updated: UserRecord = {
+          ...existing,
+          ...updates,
+          updated_at: now,
+        };
+        localUsersCache.set(id, updated);
+        return updated;
+      }
+    }
     console.error('Error in updateUser:', error);
     throw new Error(`Failed to update user: ${error.message}`);
   }
 
-  return data as UserRecord;
+  const user = data as UserRecord;
+  localUsersCache.set(user.id, user);
+  return user;
 }
 
 export async function upsertGoogleUser(
