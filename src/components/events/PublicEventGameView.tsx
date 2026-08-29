@@ -91,6 +91,54 @@ export const PublicEventGameView: React.FC = () => {
     return () => clearInterval(dateTimer);
   }, []);
 
+  // Authoritative payment and Singapore date window checks
+  // CONDITION 1 — Payment: eventData.payment_status === 'PAID'
+  const isPaidEvent =
+    String(eventData?.payment_status || '').toUpperCase() === 'PAID';
+
+  // CONDITION 2 — Event date window: ONE DAY BEFORE THE EVENT DATE through THE ENTIRE EVENT DATE (Singapore timezone)
+  const isWithinEventDateWindow = eventData?.event_date
+    ? isWithinImmersiveFullscreenWindow(eventData.event_date)
+    : false;
+
+  // Exact Eligibility Formula:
+  // Immersive fullscreen requires BOTH payment confirmation and current date within event window
+  const canUseImmersiveFullscreen =
+    isPaidEvent && isWithinEventDateWindow;
+
+  // Immersive Fullscreen State
+  const isImmersiveFullscreen =
+    isFullscreen && canUseImmersiveFullscreen;
+
+  // Event Header Visibility Rule: The Event Header is hidden ONLY in active immersive fullscreen
+  const showEventHeader =
+    !isImmersiveFullscreen;
+
+  // Development debug logging
+  useEffect(() => {
+    if (eventData) {
+      console.log('[IMMERSIVE FULLSCREEN]', {
+        eventDate: eventData.event_date,
+        paymentStatus: eventData.payment_status,
+        singaporeNow: getSingaporeDateTime(),
+        isPaidEvent,
+        isWithinEventDateWindow,
+        canUseImmersiveFullscreen,
+        isFullscreen,
+        showEventHeader,
+      });
+    }
+  }, [
+    eventData?.event_date,
+    eventData?.payment_status,
+    isPaidEvent,
+    isWithinEventDateWindow,
+    canUseImmersiveFullscreen,
+    isFullscreen,
+    showEventHeader,
+    singaporeDateKey,
+  ]);
+
   /**
    * Authoritative Event Fetcher with cache-busting
    * @param showLoadingSpinner When false, runs silently in background without flickering UI
@@ -501,51 +549,6 @@ export const PublicEventGameView: React.FC = () => {
       </div>
     );
   }
-
-  // Authoritative payment and Singapore date window checks
-  // CONDITION 1 — Payment: eventData.payment_status === 'PAID'
-  const isPaidEvent =
-    String(eventData.payment_status || '').toUpperCase() === 'PAID';
-
-  // CONDITION 2 — Event date window: ONE DAY BEFORE THE EVENT DATE through THE ENTIRE EVENT DATE (Singapore timezone)
-  const isWithinEventDateWindow =
-    isWithinImmersiveFullscreenWindow(eventData.event_date);
-
-  // Exact Eligibility Formula:
-  // Immersive fullscreen requires BOTH payment confirmation and current date within event window
-  const canUseImmersiveFullscreen =
-    isPaidEvent && isWithinEventDateWindow;
-
-  // Immersive Fullscreen State
-  const isImmersiveFullscreen =
-    isFullscreen && canUseImmersiveFullscreen;
-
-  // Event Header Visibility Rule: The Event Header is hidden ONLY in active immersive fullscreen
-  const showEventHeader =
-    !isImmersiveFullscreen;
-
-  // Development debug logging
-  useEffect(() => {
-    console.log('[IMMERSIVE FULLSCREEN]', {
-      eventDate: eventData.event_date,
-      paymentStatus: eventData.payment_status,
-      singaporeNow: getSingaporeDateTime(),
-      isPaidEvent,
-      isWithinEventDateWindow,
-      canUseImmersiveFullscreen,
-      isFullscreen,
-      showEventHeader,
-    });
-  }, [
-    eventData.event_date,
-    eventData.payment_status,
-    isPaidEvent,
-    isWithinEventDateWindow,
-    canUseImmersiveFullscreen,
-    isFullscreen,
-    showEventHeader,
-    singaporeDateKey,
-  ]);
 
   const theme = eventData.game_theme;
   const gameType = eventData.game?.game_type || 'catch-brand';
