@@ -1317,6 +1317,7 @@ export async function createTheme(
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
     sounds_config: params.sounds_config ?? defaultTemplate.sounds_config,
     layout: params.layout ?? defaultTemplate.layout,
+    game_config: params.game_config ?? (defaultTemplate as any).game_config ?? {},
     created_at: now,
     updated_at: now,
     game_name: resolvedGameName,
@@ -2006,6 +2007,7 @@ export async function duplicateSystemTheme(
       visuals_config: existing.visuals_config,
       sounds_config: existing.sounds_config,
       layout: existing.layout,
+      game_config: existing.game_config ?? {},
     },
     env
   );
@@ -2090,6 +2092,7 @@ export async function cloneSystemThemeToOrg(
     visuals_config: systemTheme.visuals_config || (isMemory ? DEFAULT_MEMORY_THEME.visuals_config : DEFAULT_CARNIVAL_THEME.visuals_config),
     sounds_config: systemTheme.sounds_config,
     layout: systemTheme.layout,
+    game_config: systemTheme.game_config ?? (isMemory ? DEFAULT_MEMORY_THEME.game_config : {}),
     created_at: now,
     updated_at: now,
   });
@@ -2162,6 +2165,7 @@ export async function cloneAllSystemThemesToOrg(
       visuals_config: sysTheme.visuals_config || (isMemory ? DEFAULT_MEMORY_THEME.visuals_config : DEFAULT_CARNIVAL_THEME.visuals_config),
       sounds_config: sysTheme.sounds_config,
       layout: sysTheme.layout,
+      game_config: sysTheme.game_config ?? (isMemory ? DEFAULT_MEMORY_THEME.game_config : {}),
       created_at: now,
       updated_at: now,
     });
@@ -2232,6 +2236,7 @@ export async function ensureSystemDefaultThemesForGame(
         visuals_config: preset.visuals_config,
         sounds_config: preset.sounds_config,
         layout: (preset as any).layout ?? DEFAULT_CARNIVAL_THEME.layout,
+        game_config: (preset as any).game_config ?? (isMemory ? DEFAULT_MEMORY_THEME.game_config : {}),
         created_at: now,
         updated_at: now,
       });

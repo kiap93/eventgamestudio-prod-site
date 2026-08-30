@@ -185,6 +185,61 @@ export function normalizeGameTheme(raw: any): GameTheme {
     ? (raw.background_url || raw.background || null)
     : (raw.background_url || raw.background || basePreset.background_url || resolveThemeDefaultBgImage({ base_theme_id }));
 
+  let rawGameConfig = raw.game_config;
+  if (typeof rawGameConfig === 'string') {
+    try {
+      rawGameConfig = JSON.parse(rawGameConfig);
+    } catch {
+      rawGameConfig = undefined;
+    }
+  }
+
+  let game_config: Record<string, any> | undefined = undefined;
+  if (rawGameConfig && typeof rawGameConfig === 'object') {
+    game_config = {
+      ...(basePreset.game_config || {}),
+      ...rawGameConfig,
+    };
+    if (Array.isArray(rawGameConfig.pairs)) {
+      game_config.pairs = rawGameConfig.pairs;
+    }
+    if (rawGameConfig.cardBackUrl !== undefined) {
+      game_config.cardBackUrl = rawGameConfig.cardBackUrl;
+    }
+    if (rawGameConfig.board !== undefined) {
+      game_config.board = rawGameConfig.board;
+    } else if (rawGameConfig.grid && basePreset.game_config?.board) {
+      game_config.board = {
+        ...basePreset.game_config.board,
+        rows: rawGameConfig.grid.rows ?? basePreset.game_config.board.rows,
+        cols: rawGameConfig.grid.cols ?? basePreset.game_config.board.cols,
+      };
+    }
+    if (rawGameConfig.grid !== undefined) {
+      game_config.grid = rawGameConfig.grid;
+    }
+    if (rawGameConfig.gameplay !== undefined) {
+      game_config.gameplay = rawGameConfig.gameplay;
+    }
+    if (rawGameConfig.ui !== undefined) {
+      game_config.ui = rawGameConfig.ui;
+    }
+    if (rawGameConfig.card !== undefined) {
+      game_config.card = rawGameConfig.card;
+    }
+  } else if (basePreset.game_config) {
+    game_config = { ...basePreset.game_config };
+  }
+
+  const cardBackUrl =
+    game_config?.cardBackUrl !== undefined
+      ? game_config.cardBackUrl
+      : (raw.visuals_config?.cardBackUrl ?? basePreset.visuals_config?.cardBackUrl ?? null);
+
+  if (game_config && game_config.cardBackUrl === undefined && cardBackUrl !== undefined) {
+    game_config.cardBackUrl = cardBackUrl;
+  }
+
   const basket_config = isMemory
     ? null
     : {
@@ -199,9 +254,11 @@ export function normalizeGameTheme(raw: any): GameTheme {
         collisionOffsetYRatio: raw.basket_config?.collisionOffsetYRatio || basePreset.basket_config?.collisionOffsetYRatio || 0.3394,
       };
 
-  let rawItems = Array.isArray(raw.items_config) && raw.items_config.length > 0
-    ? raw.items_config
-    : basePreset.items_config;
+  let rawItems = (isMemory && Array.isArray(game_config?.pairs) && game_config.pairs.length > 0)
+    ? game_config.pairs
+    : (Array.isArray(raw.items_config) && raw.items_config.length > 0
+        ? raw.items_config
+        : basePreset.items_config);
 
   const items_config: ThemeDropItem[] = isMemory
     ? rawItems.map((item: any, index: number) => ({
@@ -236,6 +293,15 @@ export function normalizeGameTheme(raw: any): GameTheme {
         };
       });
 
+  if (isMemory && game_config && (!Array.isArray(game_config.pairs) || game_config.pairs.length === 0)) {
+    game_config.pairs = items_config.map((item) => ({
+      id: item.id,
+      name: item.name,
+      imageUrl: item.imageUrl,
+      points: item.points,
+    }));
+  }
+
   const physics_config = {
     gameDurationSeconds: raw.physics_config?.gameDurationSeconds || basePreset.physics_config.gameDurationSeconds || 20,
     baseFallSpeed: raw.physics_config?.baseFallSpeed || basePreset.physics_config.baseFallSpeed || 500,
@@ -255,7 +321,7 @@ export function normalizeGameTheme(raw: any): GameTheme {
     secondaryColor: raw.visuals_config?.secondaryColor || raw.colors?.secondary || basePreset.visuals_config.secondaryColor,
     accentColor: raw.visuals_config?.accentColor || raw.colors?.accent || basePreset.visuals_config.accentColor,
     textColor: raw.visuals_config?.textColor || raw.colors?.text || '#ffffff',
-    cardBackUrl: raw.visuals_config?.cardBackUrl ?? basePreset.visuals_config.cardBackUrl ?? null,
+    cardBackUrl,
     cardFrontBg: raw.visuals_config?.cardFrontBg || raw.colors?.cardFrontBg || basePreset.visuals_config.cardFrontBg || '#0F172A',
     cardFrontBgOpacity: raw.visuals_config?.cardFrontBgOpacity ?? raw.colors?.cardFrontBgOpacity ?? basePreset.visuals_config.cardFrontBgOpacity ?? 0.95,
     cardGoodBg: raw.visuals_config?.cardGoodBg || raw.colors?.cardGoodBg || basePreset.visuals_config.cardGoodBg,
@@ -321,6 +387,7 @@ export function normalizeGameTheme(raw: any): GameTheme {
     visuals_config,
     sounds_config,
     layout: normalizeGameLayout(raw.layout ?? raw.layout_config ?? basePreset.layout),
+    game_config,
 
     // Backward-compat props resolved with theme defaults
     gameTitle: branding.gameTitle,

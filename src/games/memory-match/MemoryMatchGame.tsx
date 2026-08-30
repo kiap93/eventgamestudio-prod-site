@@ -189,6 +189,22 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   const gridContainerAspect = (cols * cardWidth) / (rows * cardHeight);
 
   const boardLayoutKey = `${boardConfig.layoutMode}_${boardConfig.rows}_${boardConfig.cols}_${boardConfig.cardGap}_${cardWidth}_${cardHeight}_${cardBorderRadius}_${cardConfig?.rotationMode}_${cardConfig?.rotation}_${cardConfig?.rotationRange}`;
+  const cardConfigSignature = `${memoryConfig.cardBackUrl || ''}_${(memoryConfig.pairs || []).map((p) => `${p.id}:${p.imageUrl || ''}:${p.name || ''}`).join('|')}`;
+
+  // Log active memory match card configuration for verification
+  useEffect(() => {
+    console.log('[MEMORY MATCH CARD CONFIG]', {
+      themeId: activeTheme?.id,
+      hasGameConfig: Boolean(activeTheme?.game_config),
+      gameConfig: activeTheme?.game_config,
+      cardBackUrl: memoryConfig.cardBackUrl,
+      pairs: memoryConfig.pairs?.map((pair) => ({
+        id: pair.id,
+        name: pair.name,
+        imageUrl: pair.imageUrl,
+      })),
+    });
+  }, [activeTheme, memoryConfig]);
 
   // Initialize fresh card deck on theme change or mount
   const initBoard = useCallback(() => {
@@ -209,11 +225,11 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     setSessionId(`mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
   }, [activeTheme, boardConfig, cardConfig, gameDuration]);
 
-  // Only re-initialize board on mount or when theme/layout configuration changes
+  // Only re-initialize board on mount or when theme/layout/card configuration changes
   useEffect(() => {
     initBoard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [themeId, boardLayoutKey]);
+  }, [themeId, boardLayoutKey, cardConfigSignature]);
 
   // Main countdown trigger (3.. 2.. 1.. GO!)
   const startCountdown = useCallback(() => {
