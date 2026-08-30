@@ -92,10 +92,36 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   const totalCards = (rows * cols) % 2 === 0 ? rows * cols : 16;
   const totalPairs = Math.floor(totalCards / 2);
 
-  const gameDuration = config?.gameDurationSeconds ?? settings?.gameDurationSeconds ?? memoryConfig.gameplay.gameDurationSeconds ?? 45;
-  const mismatchDelay = config?.mismatchDelayMs ?? memoryConfig.gameplay.mismatchDelayMs ?? 850;
-  const matchPoints = config?.matchPoints ?? memoryConfig.gameplay.matchPoints ?? 100;
-  const comboPoints = config?.comboPoints ?? memoryConfig.gameplay.comboPoints ?? 30;
+  const hasMemoryGameConfig =
+    activeTheme?.game_config &&
+    typeof activeTheme.game_config === 'object' &&
+    activeTheme.game_config.gameplay &&
+    typeof activeTheme.game_config.gameplay.gameDurationSeconds === 'number';
+
+  const gameDuration = hasMemoryGameConfig
+    ? memoryConfig.gameplay.gameDurationSeconds
+    : (
+        activeTheme?.physics_config?.gameDurationSeconds ??
+        settings?.gameDurationSeconds ??
+        config?.gameDurationSeconds ??
+        memoryConfig.gameplay.gameDurationSeconds ??
+        45
+      );
+  const mismatchDelay =
+    memoryConfig.gameplay.mismatchDelayMs ??
+    settings?.mismatchDelayMs ??
+    config?.mismatchDelayMs ??
+    850;
+  const matchPoints =
+    memoryConfig.gameplay.matchPoints ??
+    settings?.matchPoints ??
+    config?.matchPoints ??
+    100;
+  const comboPoints =
+    memoryConfig.gameplay.comboPoints ??
+    settings?.comboPoints ??
+    config?.comboPoints ??
+    30;
   const cardBackUrl = memoryConfig.cardBackUrl;
 
   const [gameState, setGameState] = useState<GameState>('START');
@@ -191,7 +217,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   const boardLayoutKey = `${boardConfig.layoutMode}_${boardConfig.rows}_${boardConfig.cols}_${boardConfig.cardGap}_${cardWidth}_${cardHeight}_${cardBorderRadius}_${cardConfig?.rotationMode}_${cardConfig?.rotation}_${cardConfig?.rotationRange}`;
   const cardConfigSignature = `${memoryConfig.cardBackUrl || ''}_${(memoryConfig.pairs || []).map((p) => `${p.id}:${p.imageUrl || ''}:${p.name || ''}`).join('|')}`;
 
-  // Log active memory match card configuration for verification
+  // Log active memory match card configuration and duration for verification
   useEffect(() => {
     console.log('[MEMORY MATCH CARD CONFIG]', {
       themeId: activeTheme?.id,
@@ -204,7 +230,21 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
         imageUrl: pair.imageUrl,
       })),
     });
-  }, [activeTheme, memoryConfig]);
+
+    console.log('[MEMORY MATCH DURATION]', {
+      themeId: activeTheme?.id,
+      themeGameConfigDuration:
+        activeTheme?.game_config?.gameplay?.gameDurationSeconds,
+      resolvedMemoryDuration:
+        memoryConfig.gameplay.gameDurationSeconds,
+      settingsDuration:
+        settings?.gameDurationSeconds,
+      registryConfigDuration:
+        config?.gameDurationSeconds,
+      finalGameDuration:
+        gameDuration,
+    });
+  }, [activeTheme, memoryConfig, settings, config, gameDuration]);
 
   // Initialize fresh card deck on theme change or mount
   const initBoard = useCallback(() => {
@@ -225,11 +265,11 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     setSessionId(`mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
   }, [activeTheme, boardConfig, cardConfig, gameDuration]);
 
-  // Only re-initialize board on mount or when theme/layout/card configuration changes
+  // Only re-initialize board on mount or when theme/layout/card/duration configuration changes
   useEffect(() => {
     initBoard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [themeId, boardLayoutKey, cardConfigSignature]);
+  }, [themeId, boardLayoutKey, cardConfigSignature, gameDuration]);
 
   // Main countdown trigger (3.. 2.. 1.. GO!)
   const startCountdown = useCallback(() => {

@@ -107,14 +107,17 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   const [isPlaying] = useState<boolean>(true);
   const [isInteractive, setIsInteractive] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [score, setScore] = useState<number>(0);
-  const [timeRemaining, setTimeRemaining] = useState<number>(
-    theme.physics_config?.gameDurationSeconds || 20
-  );
-  const [currentStageName, setCurrentStageName] = useState<string>('Stage 1: Calm');
-
   const isMemoryMatch = isMemoryMatchTheme(theme);
   const memoryConfig = useMemo(() => getMemoryMatchConfig(theme), [theme]);
+  const resolvedPreviewDuration = isMemoryMatch
+    ? (memoryConfig.gameplay.gameDurationSeconds ?? 45)
+    : (theme.physics_config?.gameDurationSeconds || 20);
+
+  const [score, setScore] = useState<number>(0);
+  const [timeRemaining, setTimeRemaining] = useState<number>(
+    () => resolvedPreviewDuration
+  );
+  const [currentStageName, setCurrentStageName] = useState<string>('Stage 1: Calm');
   const boardConfig = memoryConfig.board;
   const cardConfig = memoryConfig.card || boardConfig.card;
   const cardBorderRadius = cardConfig?.borderRadius ?? 16;
@@ -259,7 +262,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     basketBounce: 0,
     score: 0,
     caughtCount: 0,
-    timeRemaining: theme.physics_config?.gameDurationSeconds || 20,
+    timeRemaining: resolvedPreviewDuration,
     cachedImages: new Map<string, HTMLImageElement>(),
   });
 
@@ -314,21 +317,21 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     simState.current.score = 0;
     simState.current.caughtCount = 0;
     simState.current.timeElapsed = 0;
-    simState.current.timeRemaining = theme.physics_config?.gameDurationSeconds || 20;
+    simState.current.timeRemaining = resolvedPreviewDuration;
     simState.current.basketX = 512;
     simState.current.basketTargetX = 512;
     simState.current.redFlashAlpha = 0;
     simState.current.basketBounce = 0;
 
     setScore(0);
-    setTimeRemaining(theme.physics_config?.gameDurationSeconds || 20);
+    setTimeRemaining(resolvedPreviewDuration);
     setCurrentStageName('Stage 1: Calm');
-  }, [theme]);
+  }, [resolvedPreviewDuration]);
 
   // Reset when theme duration changes
   useEffect(() => {
     handleResetSimulation();
-  }, [theme.id, theme.physics_config?.gameDurationSeconds, handleResetSimulation]);
+  }, [theme.id, resolvedPreviewDuration, handleResetSimulation]);
 
   // Main 60 FPS Canvas Simulation Loop
   useEffect(() => {
