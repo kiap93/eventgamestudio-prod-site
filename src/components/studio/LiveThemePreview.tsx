@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { GameTheme, ThemeDropItem, isMemoryMatchTheme, getMemoryMatchConfig, getCardFrontBg, getCardGoodBg } from '../../themes';
+import { GameTheme, ThemeDropItem, isMemoryMatchTheme, getThemeGameType, getMemoryMatchConfig, getCardFrontBg, getCardGoodBg } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
 
 import { createShuffledDeck } from '../../games/memory-match/cardDeck';
@@ -12,6 +12,7 @@ import {
   LAYOUT_ELEMENTS_META,
   DEFAULT_GAME_LAYOUT,
   normalizeGameLayout,
+  getDefaultUILayout,
   DESIGN_WIDTH,
   DESIGN_HEIGHT,
   useGameUiScale,
@@ -226,8 +227,11 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   // Dragging and resizing state for layout elements
   const [dragState, setDragState] = useState<DragState | null>(null);
 
+  const gameType = getThemeGameType(theme);
+  const defaultLayout = getDefaultUILayout(gameType);
+
   // Normalized layout
-  const layout: GameLayoutConfig = normalizeGameLayout(theme.layout);
+  const layout: GameLayoutConfig = normalizeGameLayout(theme.layout, gameType);
 
   const effectiveCardFrontBg = useMemo(() => {
     return getCardFrontBg(
@@ -626,7 +630,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
     onSelectElementKey?.(key);
 
-    const elem = layout[key] || DEFAULT_GAME_LAYOUT[key];
+    const elem = layout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
     const meta = LAYOUT_ELEMENTS_META[key];
 
     setDragState({
@@ -651,7 +655,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
     const key = dragState.elementKey;
     const meta = LAYOUT_ELEMENTS_META[key];
-    const currentElem = layout[key] || DEFAULT_GAME_LAYOUT[key];
+    const currentElem = layout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
 
     if (dragState.isDragging) {
       const elemWidth = currentElem.width || meta.defaultWidth;
@@ -1002,11 +1006,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           />
         )}
 
-        {/* SHARED WYSIWYG GAME HUD OVERLAY (5 CONFIGURABLE ELEMENTS) */}
+        {/* SHARED WYSIWYG GAME HUD OVERLAY (5 or 6 CONFIGURABLE ELEMENTS) */}
         <GameLayoutHudOverlay
           layout={layout}
           theme={theme}
+          gameType={gameType}
           score={score}
+          moves={isMemoryMatch ? 7 : 0}
           timeRemaining={timeRemaining}
           editableLayout={editableLayout}
           selectedElementKey={selectedElementKey}

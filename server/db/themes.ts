@@ -443,7 +443,14 @@ export const DEFAULT_MEMORY_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
     soundEnabled: true,
     bgmEnabled: true,
   },
-  layout: DEFAULT_CARNIVAL_THEME.layout,
+  layout: {
+    clientLogo: { visible: true, x: 4, y: 4, width: 14 },
+    scoreHud: { visible: true, x: 4, y: 15, width: 18 },
+    movesHud: { visible: true, x: 41, y: 15, width: 18 },
+    timer: { visible: true, x: 78, y: 15, width: 18 },
+    gameTitle: { visible: true, x: 36, y: 4, width: 28 },
+    footerSponsor: { visible: true, x: 32, y: 92, width: 36 },
+  },
 };
 
 export const DEFAULT_MEMORY_CARNIVAL_THEME = DEFAULT_MEMORY_THEME;
@@ -1731,6 +1738,7 @@ export async function createSystemTheme(
     visuals_config?: ThemeVisualsConfig;
     sounds_config?: ThemeSoundsConfig;
     layout?: any;
+    game_config?: any;
   },
   env?: Record<string, any>
 ): Promise<GameThemeRecord> {
@@ -1790,6 +1798,7 @@ export async function createSystemTheme(
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
     sounds_config: params.sounds_config ?? defaultTemplate.sounds_config,
     layout: params.layout ?? defaultTemplate.layout,
+    game_config: params.game_config ?? (defaultTemplate as any).game_config ?? {},
     created_at: now,
     updated_at: now,
   });

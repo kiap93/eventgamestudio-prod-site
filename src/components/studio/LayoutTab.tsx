@@ -1,14 +1,15 @@
 import React from 'react';
-import { GameTheme } from '../../themes/types';
+import { GameTheme, getThemeGameType } from '../../themes/types';
 import {
   GameLayoutConfig,
   LayoutElementKey,
-  LAYOUT_ELEMENT_KEYS,
   LAYOUT_ELEMENTS_META,
   DEFAULT_GAME_LAYOUT,
   normalizeGameLayout,
   getQuickPositionCoords,
   QuickPositionAnchor,
+  getLayoutElementKeys,
+  getDefaultUILayout,
 } from '../../themes/layout';
 import {
   Image,
@@ -25,6 +26,7 @@ import {
   Sparkles,
   Info,
   Grid,
+  Footprints,
 } from 'lucide-react';
 
 interface LayoutTabProps {
@@ -40,10 +42,18 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
   selectedElementKey = 'clientLogo',
   onSelectElementKey,
 }) => {
-  const layout: GameLayoutConfig = normalizeGameLayout(theme.layout);
-  const activeKey: LayoutElementKey = (selectedElementKey as LayoutElementKey) || 'clientLogo';
+  const gameType = getThemeGameType(theme);
+  const elementKeys = getLayoutElementKeys(gameType);
+  const defaultLayout = getDefaultUILayout(gameType);
+  const layout: GameLayoutConfig = normalizeGameLayout(theme.layout, gameType);
+
+  const activeKey: LayoutElementKey =
+    selectedElementKey && elementKeys.includes(selectedElementKey as LayoutElementKey)
+      ? (selectedElementKey as LayoutElementKey)
+      : 'clientLogo';
+
   const activeMeta = LAYOUT_ELEMENTS_META[activeKey];
-  const activeElement = layout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey];
+  const activeElement = layout[activeKey] || defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey];
 
   // Helper to update layout configuration
   const handleUpdateLayout = (updater: (prev: GameLayoutConfig) => GameLayoutConfig) => {
@@ -62,7 +72,7 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
     handleUpdateLayout((prev) => ({
       ...prev,
       [activeKey]: {
-        ...prev[activeKey],
+        ...(prev[activeKey] || defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey]),
         [field]: value,
       },
     }));
@@ -71,29 +81,37 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
   // Toggle visibility
   const handleToggleVisibility = (key: LayoutElementKey, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    handleUpdateLayout((prev) => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        visible: !prev[key].visible,
-      },
-    }));
+    handleUpdateLayout((prev) => {
+      const currentEl = prev[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
+      return {
+        ...prev,
+        [key]: {
+          ...currentEl,
+          visible: !currentEl.visible,
+        },
+      };
+    });
   };
 
   // Reset active element to default
   const handleResetActiveElement = () => {
     handleUpdateLayout((prev) => ({
       ...prev,
-      [activeKey]: { ...DEFAULT_GAME_LAYOUT[activeKey] },
+      [activeKey]: { ...(defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey]) },
     }));
   };
 
   // Reset entire layout to default
   const handleResetAllLayout = () => {
-    if (window.confirm('Reset all UI elements (Logo, Score, Timer, Title, Footer) to standard arcade defaults?')) {
+    const isMemory = gameType === 'memory-match';
+    const message = isMemory
+      ? 'Reset all Memory Match UI elements (Logo, Score, Moves, Timer, Title, Footer) to standard defaults?'
+      : 'Reset all UI elements (Logo, Score, Timer, Title, Footer) to standard arcade defaults?';
+
+    if (window.confirm(message)) {
       onChange({
         ...theme,
-        layout: JSON.parse(JSON.stringify(DEFAULT_GAME_LAYOUT)),
+        layout: getDefaultUILayout(gameType),
       });
     }
   };
@@ -105,7 +123,7 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
     handleUpdateLayout((prev) => ({
       ...prev,
       [activeKey]: {
-        ...prev[activeKey],
+        ...(prev[activeKey] || defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey]),
         x: coords.x,
         y: coords.y,
       },
@@ -118,6 +136,8 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
         return <Image className="w-4 h-4 text-emerald-400" />;
       case 'scoreHud':
         return <Trophy className="w-4 h-4 text-amber-400" />;
+      case 'movesHud':
+        return <Footprints className="w-4 h-4 text-sky-400" />;
       case 'timer':
         return <Timer className="w-4 h-4 text-teal-400" />;
       case 'gameTitle':
@@ -159,9 +179,9 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
           Select UI Element to Position
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-          {LAYOUT_ELEMENT_KEYS.map((key) => {
+          {elementKeys.map((key) => {
             const meta = LAYOUT_ELEMENTS_META[key];
-            const elem = layout[key] || DEFAULT_GAME_LAYOUT[key];
+            const elem = layout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
             const isSelected = activeKey === key;
             const isVisible = elem.visible;
 

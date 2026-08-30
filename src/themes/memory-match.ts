@@ -1,5 +1,5 @@
 import { GameTheme, DEFAULT_MEMORY_MATCH_CONFIG } from './types';
-import { DEFAULT_GAME_LAYOUT } from './layout';
+import { DEFAULT_MEMORY_MATCH_LAYOUT } from './layout';
 
 export const memoryMatchTheme: GameTheme = {
   id: 'memory-match',
@@ -157,5 +157,5 @@ export const memoryMatchTheme: GameTheme = {
     bgmEnabled: true,
   },
 
-  layout: DEFAULT_GAME_LAYOUT,
+  layout: DEFAULT_MEMORY_MATCH_LAYOUT,
 };

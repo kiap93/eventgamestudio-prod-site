@@ -208,6 +208,7 @@ export interface GameLayoutConfig {
   timer: GameLayoutElement;
   gameTitle: GameLayoutElement;
   footerSponsor: GameLayoutElement;
+  movesHud?: GameLayoutElement;
   [key: string]: GameLayoutElement | undefined;
 }
 

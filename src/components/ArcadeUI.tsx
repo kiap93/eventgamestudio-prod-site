@@ -103,7 +103,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [gameOverTab, setGameOverTab] = useState<'summary' | 'leaderboard'>('summary');
 
-  const layout: GameLayoutConfig = normalizeGameLayout(activeTheme?.layout);
+  const layout: GameLayoutConfig = normalizeGameLayout(activeTheme?.layout, 'catch-brand');
 
   const goodItem =
     activeTheme?.items_config?.find((i) => !i.isHazard && !i.isBonus) ||

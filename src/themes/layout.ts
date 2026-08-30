@@ -88,7 +88,7 @@ export function useGameUiScale(containerRef: RefObject<HTMLElement | null>): num
 /**
  * Standard default layout configuration (percentages 0-100 relative to viewport)
  */
-export const DEFAULT_GAME_LAYOUT: GameLayoutConfig = {
+export const DEFAULT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
   clientLogo: {
     visible: true,
     x: 4,
@@ -121,15 +121,72 @@ export const DEFAULT_GAME_LAYOUT: GameLayoutConfig = {
   },
 };
 
+export const DEFAULT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
+  clientLogo: {
+    visible: true,
+    x: 4,
+    y: 4,
+    width: 14,
+  },
+  scoreHud: {
+    visible: true,
+    x: 4,
+    y: 15,
+    width: 18,
+  },
+  movesHud: {
+    visible: true,
+    x: 24,
+    y: 15,
+    width: 18,
+  },
+  timer: {
+    visible: true,
+    x: 78,
+    y: 15,
+    width: 18,
+  },
+  gameTitle: {
+    visible: true,
+    x: 36,
+    y: 4,
+    width: 28,
+  },
+  footerSponsor: {
+    visible: true,
+    x: 32,
+    y: 92,
+    width: 36,
+  },
+};
+
+export const DEFAULT_GAME_LAYOUT: GameLayoutConfig = DEFAULT_CATCH_BRAND_LAYOUT;
+
 /**
- * Returns a fresh, deep-copied default GameLayoutConfig instance.
+ * Returns a fresh, deep-copied default GameLayoutConfig instance for a given game type.
  * Shared across Admin developer theme creation and User studio theme creation flows.
  */
-export function getDefaultUILayout(): GameLayoutConfig {
-  return JSON.parse(JSON.stringify(DEFAULT_GAME_LAYOUT));
+export function getDefaultUILayout(gameType?: string): GameLayoutConfig {
+  if (gameType === 'memory-match') {
+    return JSON.parse(JSON.stringify(DEFAULT_MEMORY_MATCH_LAYOUT));
+  }
+  return JSON.parse(JSON.stringify(DEFAULT_CATCH_BRAND_LAYOUT));
 }
 
-export type LayoutElementKey = 'clientLogo' | 'scoreHud' | 'timer' | 'gameTitle' | 'footerSponsor';
+export type CommonLayoutElementKey =
+  | 'clientLogo'
+  | 'scoreHud'
+  | 'timer'
+  | 'gameTitle'
+  | 'footerSponsor';
+
+export type MemoryMatchLayoutElementKey =
+  | CommonLayoutElementKey
+  | 'movesHud';
+
+export type CatchBrandLayoutElementKey = CommonLayoutElementKey;
+
+export type LayoutElementKey = CommonLayoutElementKey | 'movesHud';
 
 export interface LayoutElementMeta {
   key: LayoutElementKey;
@@ -159,6 +216,16 @@ export const LAYOUT_ELEMENTS_META: Record<LayoutElementKey, LayoutElementMeta> =
     shortName: 'Score',
     description: 'Current player score and point tally display',
     iconName: 'Trophy',
+    defaultWidth: 18,
+    minWidth: 10,
+    maxWidth: 35,
+  },
+  movesHud: {
+    key: 'movesHud',
+    label: 'Moves HUD',
+    shortName: 'Moves',
+    description: 'Number of card pair attempts taken by the player',
+    iconName: 'Footprints',
     defaultWidth: 18,
     minWidth: 10,
     maxWidth: 35,
@@ -195,7 +262,7 @@ export const LAYOUT_ELEMENTS_META: Record<LayoutElementKey, LayoutElementMeta> =
   },
 };
 
-export const LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = [
+export const CATCH_BRAND_LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = [
   'clientLogo',
   'scoreHud',
   'timer',
@@ -203,31 +270,60 @@ export const LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = [
   'footerSponsor',
 ];
 
+export const MEMORY_MATCH_LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = [
+  'clientLogo',
+  'scoreHud',
+  'movesHud',
+  'timer',
+  'gameTitle',
+  'footerSponsor',
+];
+
+export const LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = CATCH_BRAND_LAYOUT_ELEMENT_KEYS;
+
+/**
+ * Returns the exact list of configurable HUD element keys for a given game type.
+ * Catch The Brand -> 5 elements (no Moves)
+ * Memory Match -> 6 elements (including Moves)
+ */
+export function getLayoutElementKeys(gameType?: string): LayoutElementKey[] {
+  if (gameType === 'memory-match') {
+    return MEMORY_MATCH_LAYOUT_ELEMENT_KEYS;
+  }
+  return CATCH_BRAND_LAYOUT_ELEMENT_KEYS;
+}
+
 /**
  * Normalizes a raw layout object (or undefined) into a full, valid GameLayoutConfig
+ * based on the target game type.
+ * For Memory Match, automatically provides a safe default movesHud if missing from old themes.
  */
-export function normalizeGameLayout(raw: any): GameLayoutConfig {
+export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConfig {
+  const isMemory = gameType === 'memory-match';
+  const defaults = isMemory ? DEFAULT_MEMORY_MATCH_LAYOUT : DEFAULT_CATCH_BRAND_LAYOUT;
+
   if (!raw || typeof raw !== 'object') {
-    return JSON.parse(JSON.stringify(DEFAULT_GAME_LAYOUT));
+    return JSON.parse(JSON.stringify(defaults));
   }
 
-  const normalizeElement = (key: LayoutElementKey, defaultEl: GameLayoutElement): GameLayoutElement => {
+  const normalizeElement = (key: LayoutElementKey, defaultEl?: GameLayoutElement): GameLayoutElement => {
+    const fallback = defaultEl || { visible: true, x: 0, y: 0, width: 20 };
     const el = raw[key];
     if (!el || typeof el !== 'object') {
-      return { ...defaultEl };
+      return { ...fallback };
     }
 
-    const visible = el.visible !== undefined ? !!el.visible : defaultEl.visible;
-    const x = typeof el.x === 'number' && !isNaN(el.x) ? Math.max(0, Math.min(100, el.x)) : defaultEl.x;
-    const y = typeof el.y === 'number' && !isNaN(el.y) ? Math.max(0, Math.min(100, el.y)) : defaultEl.y;
+    const visible = el.visible !== undefined ? !!el.visible : fallback.visible;
+    const x = typeof el.x === 'number' && !isNaN(el.x) ? Math.max(0, Math.min(100, el.x)) : fallback.x;
+    const y = typeof el.y === 'number' && !isNaN(el.y) ? Math.max(0, Math.min(100, el.y)) : fallback.y;
     const width =
       typeof el.width === 'number' && !isNaN(el.width)
         ? Math.max(4, Math.min(100, el.width))
-        : defaultEl.width;
+        : fallback.width;
     const height =
       typeof el.height === 'number' && !isNaN(el.height)
         ? Math.max(2, Math.min(100, el.height))
-        : defaultEl.height;
+        : fallback.height;
 
     return {
       visible,
@@ -238,13 +334,19 @@ export function normalizeGameLayout(raw: any): GameLayoutConfig {
     };
   };
 
-  return {
-    clientLogo: normalizeElement('clientLogo', DEFAULT_GAME_LAYOUT.clientLogo),
-    scoreHud: normalizeElement('scoreHud', DEFAULT_GAME_LAYOUT.scoreHud),
-    timer: normalizeElement('timer', DEFAULT_GAME_LAYOUT.timer),
-    gameTitle: normalizeElement('gameTitle', DEFAULT_GAME_LAYOUT.gameTitle),
-    footerSponsor: normalizeElement('footerSponsor', DEFAULT_GAME_LAYOUT.footerSponsor),
+  const res: GameLayoutConfig = {
+    clientLogo: normalizeElement('clientLogo', defaults.clientLogo),
+    scoreHud: normalizeElement('scoreHud', defaults.scoreHud),
+    timer: normalizeElement('timer', defaults.timer),
+    gameTitle: normalizeElement('gameTitle', defaults.gameTitle),
+    footerSponsor: normalizeElement('footerSponsor', defaults.footerSponsor),
   };
+
+  if (isMemory || raw.movesHud) {
+    res.movesHud = normalizeElement('movesHud', DEFAULT_MEMORY_MATCH_LAYOUT.movesHud);
+  }
+
+  return res;
 }
 
 export type QuickPositionAnchor =

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { GameTheme } from '../../themes/types';
+import { GameTheme, getThemeGameType } from '../../themes/types';
 import {
   GameLayoutConfig,
   LayoutElementKey,
-  LAYOUT_ELEMENT_KEYS,
   LAYOUT_ELEMENTS_META,
   DEFAULT_GAME_LAYOUT,
   normalizeGameLayout,
+  getLayoutElementKeys,
+  getDefaultUILayout,
 } from '../../themes/layout';
 import {
   Trophy,
@@ -14,12 +15,15 @@ import {
   Megaphone,
   Image as ImageIcon,
   Move,
+  Footprints,
 } from 'lucide-react';
 
 export interface GameLayoutHudOverlayProps {
   layout?: GameLayoutConfig;
   theme: GameTheme;
+  gameType?: string;
   score?: number;
+  moves?: number;
   timeRemaining?: number;
   editableLayout?: boolean;
   selectedElementKey?: LayoutElementKey | null;
@@ -35,7 +39,9 @@ export interface GameLayoutHudOverlayProps {
 export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
   layout: rawLayout,
   theme,
+  gameType: explicitGameType,
   score = 0,
+  moves = 0,
   timeRemaining = 20,
   editableLayout = false,
   selectedElementKey = null,
@@ -43,7 +49,10 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
   onElementPointerDown,
   className = '',
 }) => {
-  const layout = normalizeGameLayout(rawLayout || theme?.layout);
+  const resolvedGameType = explicitGameType || getThemeGameType(theme);
+  const layout = normalizeGameLayout(rawLayout || theme?.layout, resolvedGameType);
+  const defaultLayout = getDefaultUILayout(resolvedGameType);
+  const activeElementKeys = getLayoutElementKeys(resolvedGameType);
   const [logoLoadError, setLogoLoadError] = useState(false);
 
   const clientLogoUrl =
@@ -68,7 +77,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
     theme?.branding?.gameTitle ||
     theme?.gameTitle ||
     theme?.name ||
-    'MEMORY MATCH';
+    (resolvedGameType === 'memory-match' ? 'MEMORY MATCH' : 'CATCH THE BRAND');
 
   const sponsorSubtitle =
     theme?.branding?.subtitle ||
@@ -123,6 +132,21 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
           </div>
         );
 
+      case 'movesHud':
+        return (
+          <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
+            <span className="text-[11px] sm:text-xs md:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+              <Footprints className="w-3.5 h-3.5 text-sky-400 shrink-0" /> MOVES
+            </span>
+            <span
+              style={{ color: hudColor }}
+              className="text-sm sm:text-base md:text-lg font-mono font-black ml-1.5 shrink-0"
+            >
+              {moves}
+            </span>
+          </div>
+        );
+
       case 'timer':
         return (
           <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
@@ -170,9 +194,10 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
     <div
       className={`absolute inset-0 pointer-events-none select-none z-35 overflow-visible ${className}`}
     >
-      {LAYOUT_ELEMENT_KEYS.map((key) => {
+      {activeElementKeys.map((key) => {
         const meta = LAYOUT_ELEMENTS_META[key];
-        const elem = layout[key] || DEFAULT_GAME_LAYOUT[key];
+        const elem = layout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
+        if (!elem) return null;
         const isSelected = selectedElementKey === key;
         const isVisible = elem.visible;
         const widthPercent = elem.width || meta.defaultWidth;

@@ -1285,6 +1285,7 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
       visuals_config,
       sounds_config,
       layout,
+      game_config,
     } = req.body;
 
     if (!name || typeof name !== 'string') {
@@ -1307,6 +1308,7 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
       visuals_config,
       sounds_config,
       layout,
+      game_config,
     });
 
     res.status(201).json({ theme });
@@ -1360,6 +1362,7 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       visuals_config,
       sounds_config,
       layout,
+      game_config,
     } = req.body;
 
     const updatedTheme = await updateTheme(themeId, {
@@ -1375,6 +1378,7 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       visuals_config,
       sounds_config,
       layout,
+      game_config,
     });
 
     res.json({ theme: updatedTheme });
@@ -3468,6 +3472,7 @@ app.post('/api/developer/games/:gameId/themes', authenticateDeveloperAdmin, asyn
       visuals_config,
       sounds_config,
       layout,
+      game_config,
     } = req.body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
@@ -3498,6 +3503,7 @@ app.post('/api/developer/games/:gameId/themes', authenticateDeveloperAdmin, asyn
       visuals_config,
       sounds_config,
       layout,
+      game_config,
     });
 
     res.status(201).json({ theme });

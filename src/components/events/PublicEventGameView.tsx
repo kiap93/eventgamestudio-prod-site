@@ -101,40 +101,35 @@ export const PublicEventGameView: React.FC = () => {
     ? isWithinImmersiveFullscreenWindow(eventData.event_date)
     : false;
 
-  // Exact Eligibility Formula:
-  // Immersive fullscreen requires BOTH payment confirmation and current date within event window
-  const canUseImmersiveFullscreen =
-    isPaidEvent && isWithinEventDateWindow;
+  // Header Visibility Rule: Event Header is hidden ONLY when browser is fullscreen, event is PAID, and within date window
+  const shouldHideEventHeader =
+    isFullscreen && isPaidEvent && isWithinEventDateWindow;
 
-  // Immersive Fullscreen State
-  const isImmersiveFullscreen =
-    isFullscreen && canUseImmersiveFullscreen;
-
-  // Event Header Visibility Rule: The Event Header is hidden ONLY in active immersive fullscreen
-  const showEventHeader =
-    !isImmersiveFullscreen;
+  const showEventHeader = !shouldHideEventHeader;
 
   // Development debug logging
   useEffect(() => {
     if (eventData) {
-      console.log('[IMMERSIVE FULLSCREEN]', {
+      console.log('[FULLSCREEN & HEADER STATE]', {
         eventDate: eventData.event_date,
         paymentStatus: eventData.payment_status,
+        eventStatus: eventData.status,
         singaporeNow: getSingaporeDateTime(),
         isPaidEvent,
         isWithinEventDateWindow,
-        canUseImmersiveFullscreen,
         isFullscreen,
+        shouldHideEventHeader,
         showEventHeader,
       });
     }
   }, [
     eventData?.event_date,
     eventData?.payment_status,
+    eventData?.status,
     isPaidEvent,
     isWithinEventDateWindow,
-    canUseImmersiveFullscreen,
     isFullscreen,
+    shouldHideEventHeader,
     showEventHeader,
     singaporeDateKey,
   ]);
@@ -276,19 +271,6 @@ export const PublicEventGameView: React.FC = () => {
   const toggleFullscreen = async () => {
     const isCurrentlyFs = getIsFullscreen();
     if (!isCurrentlyFs) {
-      // Guard: Only allow entering immersive fullscreen if paid and within event date window
-      if (!canUseImmersiveFullscreen) {
-        console.warn(
-          '[IMMERSIVE FULLSCREEN] Entry blocked: requires payment_status === "PAID" and current Singapore date within event date window.',
-          {
-            paymentStatus: eventData?.payment_status,
-            eventDate: eventData?.event_date,
-            singaporeNow: getSingaporeDateTime(),
-          }
-        );
-        return;
-      }
-
       const elem = fullscreenContainerRef.current || document.documentElement;
       const reqFs =
         elem.requestFullscreen ||
@@ -302,11 +284,9 @@ export const PublicEventGameView: React.FC = () => {
           // State will update via fullscreenchange event listener
         } catch (err) {
           console.warn('Fullscreen request failed or was rejected:', err);
-          // Do NOT optimistically toggle state
         }
       }
     } else {
-      // Exit fullscreen must ALWAYS work regardless of payment/date status
       const exitFs =
         document.exitFullscreen ||
         (document as any).webkitExitFullscreen ||
@@ -558,10 +538,10 @@ export const PublicEventGameView: React.FC = () => {
     <div
       ref={fullscreenContainerRef}
       className={`public-event-game-root h-screen h-[100dvh] w-screen max-w-[100vw] bg-[#07130b] text-slate-100 flex flex-col font-sans select-none overflow-hidden ${
-        isImmersiveFullscreen ? 'p-0 m-0' : ''
+        isFullscreen ? 'p-0 m-0' : ''
       }`}
     >
-      {/* Event Header Banner (Hidden ONLY in active immersive fullscreen) */}
+      {/* Event Header Banner (Hidden ONLY when isFullscreen && isPaidEvent && isWithinEventDateWindow) */}
       {showEventHeader && (
         <header className="h-12 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-2 flex items-center justify-between z-40 shrink-0">
           <div className="flex items-center gap-3 min-w-0 truncate">
@@ -591,19 +571,9 @@ export const PublicEventGameView: React.FC = () => {
 
             <button
               onClick={toggleFullscreen}
-              disabled={!canUseImmersiveFullscreen && !isFullscreen}
-              className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                !canUseImmersiveFullscreen && !isFullscreen
-                  ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/50'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-              }`}
-              title={
-                isFullscreen
-                  ? 'Exit Fullscreen'
-                  : !canUseImmersiveFullscreen
-                  ? 'Fullscreen is available on event day and 1 day prior for paid events'
-                  : 'Enter Immersive Fullscreen'
-              }
+              className="p-1.5 rounded-lg text-xs transition-colors cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-300 active:scale-95"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+              aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
             >
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>
@@ -614,7 +584,7 @@ export const PublicEventGameView: React.FC = () => {
       {/* Main Play Area */}
       <main
         className={`flex-1 w-full min-h-0 min-w-0 max-w-full overflow-hidden flex flex-col items-center justify-center ${
-          isImmersiveFullscreen
+          isFullscreen
             ? 'p-0 m-0 h-full w-full min-w-0 min-h-0 max-w-none max-h-none'
             : 'p-1 sm:p-2 sm:px-3'
         }`}
@@ -625,9 +595,9 @@ export const PublicEventGameView: React.FC = () => {
             customTheme={theme}
             eventId={eventData.id}
             publicToken={eventData.public_token}
-            showCabinetFooter={!isImmersiveFullscreen}
+            showCabinetFooter={!isFullscreen}
             allowImmersiveFullscreen={true}
-            isFullscreen={isImmersiveFullscreen}
+            isFullscreen={isFullscreen}
             onToggleFullscreen={toggleFullscreen}
             className="w-full h-full max-w-full max-h-full"
           />

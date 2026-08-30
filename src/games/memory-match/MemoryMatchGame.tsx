@@ -565,7 +565,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   const accuracyPercent = moves > 0 ? Math.min(100, Math.round((matchedPairsCount / moves) * 100)) : 0;
 
   const layout: GameLayoutConfig = useMemo(
-    () => normalizeGameLayout(activeTheme?.layout),
+    () => normalizeGameLayout(activeTheme?.layout, 'memory-match'),
     [activeTheme?.layout]
   );
 
@@ -884,13 +884,15 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. IN-GAME DYNAMIC UI LAYOUT (5 Positionable HUD Elements)                */}
+      {/* 2. IN-GAME DYNAMIC UI LAYOUT (6 Positionable HUD Elements for Memory Match) */}
       {/* ========================================================================= */}
       {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
         <GameLayoutHudOverlay
           layout={layout}
           theme={activeTheme}
+          gameType="memory-match"
           score={score}
+          moves={moves}
           timeRemaining={timeRemaining}
         />
       )}

@@ -18,6 +18,20 @@ body,
   background-color: #07130b !important;
 }
 
+.public-event-game-root:fullscreen,
+.public-event-game-root:-webkit-full-screen,
+.public-event-game-root:-moz-full-screen,
+.public-event-game-root:-ms-fullscreen {
+  width: 100vw;
+  height: 100vh;
+  width: 100dvw;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #07130b !important;
+}
+
 /* ================= FULLSCREEN GAME CONTAINER & 16:9 PROPORTIONAL STAGE ================= */
 .game-viewport {
   position: relative;

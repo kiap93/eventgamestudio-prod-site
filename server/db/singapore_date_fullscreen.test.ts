@@ -77,69 +77,85 @@ console.log('\n--- Test Group 2: Combined Business Formula Matrix ---');
 interface TestCase {
   name: string;
   payment_status: string;
+  event_status?: string;
   simulatedDate: Date;
-  expectedCanUseImmersive: boolean;
+  expectedShouldHideHeader: boolean;
   expectedHeaderVisibleInFullscreen: boolean;
 }
 
 const matrix: TestCase[] = [
   {
-    name: 'TEST A: PAID + Aug 29 (One day before)',
-    payment_status: 'PAID',
-    simulatedDate: dAug29_1530,
-    expectedCanUseImmersive: true,
-    expectedHeaderVisibleInFullscreen: false, // Header hidden
-  },
-  {
-    name: 'TEST B: PAID + Aug 30 (Event date)',
-    payment_status: 'PAID',
-    simulatedDate: dAug30_0000,
-    expectedCanUseImmersive: true,
-    expectedHeaderVisibleInFullscreen: false, // Header hidden
-  },
-  {
-    name: 'TEST C: PAID + Aug 28 (Two days before)',
-    payment_status: 'PAID',
-    simulatedDate: dAug28_2359,
-    expectedCanUseImmersive: false,
-    expectedHeaderVisibleInFullscreen: true, // Header visible
-  },
-  {
-    name: 'TEST D: PAID + Aug 31 (One day after)',
-    payment_status: 'PAID',
-    simulatedDate: dAug31_0000,
-    expectedCanUseImmersive: false,
-    expectedHeaderVisibleInFullscreen: true, // Header visible
-  },
-  {
-    name: 'TEST E: UNPAID + Aug 29 (Valid date window)',
+    name: 'TEST 1: UNPAID + Aug 29 (Valid date window)',
     payment_status: 'UNPAID',
+    event_status: 'active',
     simulatedDate: dAug29_1530,
-    expectedCanUseImmersive: false,
-    expectedHeaderVisibleInFullscreen: true, // Header visible
+    expectedShouldHideHeader: false,
+    expectedHeaderVisibleInFullscreen: true, // Header visible in fullscreen
   },
   {
-    name: 'TEST E2: PENDING_PAYMENT + Aug 30 (Valid date window)',
-    payment_status: 'PENDING_PAYMENT',
+    name: 'TEST 2: PAID + Aug 28 (Two days before)',
+    payment_status: 'PAID',
+    event_status: 'scheduled',
+    simulatedDate: dAug28_2359,
+    expectedShouldHideHeader: false,
+    expectedHeaderVisibleInFullscreen: true, // Header visible in fullscreen
+  },
+  {
+    name: 'TEST 3: PAID + Aug 29 (One day before)',
+    payment_status: 'PAID',
+    event_status: 'live',
+    simulatedDate: dAug29_1530,
+    expectedShouldHideHeader: true,
+    expectedHeaderVisibleInFullscreen: false, // Header hidden
+  },
+  {
+    name: 'TEST 4: PAID + Aug 30 (Event date)',
+    payment_status: 'PAID',
+    event_status: 'live',
     simulatedDate: dAug30_0000,
-    expectedCanUseImmersive: false,
-    expectedHeaderVisibleInFullscreen: true, // Header visible
+    expectedShouldHideHeader: true,
+    expectedHeaderVisibleInFullscreen: false, // Header hidden
+  },
+  {
+    name: 'TEST 5: PAID + Aug 31 (One day after)',
+    payment_status: 'PAID',
+    event_status: 'completed',
+    simulatedDate: dAug31_0000,
+    expectedShouldHideHeader: false,
+    expectedHeaderVisibleInFullscreen: true, // Header visible in fullscreen
+  },
+  {
+    name: 'TEST 6: PENDING_PAYMENT + Aug 30 (Valid date window)',
+    payment_status: 'PENDING_PAYMENT',
+    event_status: 'pending_payment',
+    simulatedDate: dAug30_0000,
+    expectedShouldHideHeader: false,
+    expectedHeaderVisibleInFullscreen: true, // Header visible in fullscreen
+  },
+  {
+    name: 'TEST 7: CANCELLED + Aug 30',
+    payment_status: 'REFUNDED',
+    event_status: 'cancelled',
+    simulatedDate: dAug30_0000,
+    expectedShouldHideHeader: false,
+    expectedHeaderVisibleInFullscreen: true, // Header visible in fullscreen
   },
 ];
 
 for (const tc of matrix) {
+  const isFullscreen = true; // Browser fullscreen ALWAYS allowed for all statuses
   const isPaidEvent = String(tc.payment_status || '').toUpperCase() === 'PAID';
   const isWithinEventDateWindow = isWithinImmersiveFullscreenWindow(eventDate, tc.simulatedDate);
-  const canUseImmersiveFullscreen = isPaidEvent && isWithinEventDateWindow;
+  const shouldHideEventHeader = isFullscreen && isPaidEvent && isWithinEventDateWindow;
+  const showEventHeader = !shouldHideEventHeader;
+  const showCabinetFooter = !isFullscreen;
+  const gameFullscreen = isFullscreen;
 
-  // In fullscreen (isFullscreen = true):
-  const isFullscreen = true;
-  const isImmersiveFullscreen = isFullscreen && canUseImmersiveFullscreen;
-  const showEventHeader = !isImmersiveFullscreen;
-
-  assert.strictEqual(canUseImmersiveFullscreen, tc.expectedCanUseImmersive, `${tc.name}: canUseImmersiveFullscreen`);
+  assert.strictEqual(gameFullscreen, true, `${tc.name}: Game receives true fullscreen`);
+  assert.strictEqual(showCabinetFooter, false, `${tc.name}: Cabinet footer hidden in fullscreen`);
+  assert.strictEqual(shouldHideEventHeader, tc.expectedShouldHideHeader, `${tc.name}: shouldHideEventHeader`);
   assert.strictEqual(showEventHeader, tc.expectedHeaderVisibleInFullscreen, `${tc.name}: showEventHeader in fullscreen`);
-  console.log(`  ✓ PASS: ${tc.name} -> canUseImmersive=${canUseImmersiveFullscreen}, headerVisible=${showEventHeader}`);
+  console.log(`  ✓ PASS: ${tc.name} -> isFullscreen=true, shouldHideHeader=${shouldHideEventHeader}, showHeader=${showEventHeader}`);
 }
 
 console.log('\n--- Test Group 3: Month Boundary Transitions ---');

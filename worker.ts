@@ -1553,6 +1553,7 @@ export default {
           visuals_config,
           sounds_config,
           layout,
+          game_config,
         } = body;
 
         if (!name || typeof name !== 'string') {
@@ -1576,6 +1577,7 @@ export default {
               visuals_config,
               sounds_config,
               layout,
+              game_config,
             },
             env
           );
@@ -1627,6 +1629,7 @@ export default {
           visuals_config,
           sounds_config,
           layout,
+          game_config,
         } = body;
 
         try {
@@ -1645,6 +1648,7 @@ export default {
               visuals_config,
               sounds_config,
               layout,
+              game_config,
             },
             env
           );
@@ -3486,6 +3490,7 @@ export default {
           visuals_config,
           sounds_config,
           layout,
+          game_config,
         } = body;
 
         if (!name || typeof name !== 'string' || !name.trim()) {
@@ -3518,6 +3523,7 @@ export default {
               visuals_config,
               sounds_config,
               layout,
+              game_config,
             },
             env
           );
