@@ -140,6 +140,12 @@ export const DEFAULT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
     y: 15,
     width: 18,
   },
+  pairsHud: {
+    visible: true,
+    x: 44,
+    y: 15,
+    width: 18,
+  },
   timer: {
     visible: true,
     x: 78,
@@ -182,11 +188,12 @@ export type CommonLayoutElementKey =
 
 export type MemoryMatchLayoutElementKey =
   | CommonLayoutElementKey
-  | 'movesHud';
+  | 'movesHud'
+  | 'pairsHud';
 
 export type CatchBrandLayoutElementKey = CommonLayoutElementKey;
 
-export type LayoutElementKey = CommonLayoutElementKey | 'movesHud';
+export type LayoutElementKey = CommonLayoutElementKey | 'movesHud' | 'pairsHud';
 
 export interface LayoutElementMeta {
   key: LayoutElementKey;
@@ -226,6 +233,16 @@ export const LAYOUT_ELEMENTS_META: Record<LayoutElementKey, LayoutElementMeta> =
     shortName: 'Moves',
     description: 'Number of card pair attempts taken by the player',
     iconName: 'Footprints',
+    defaultWidth: 18,
+    minWidth: 10,
+    maxWidth: 35,
+  },
+  pairsHud: {
+    key: 'pairsHud',
+    label: 'Pairs HUD',
+    shortName: 'Pairs',
+    description: 'Current matched card pairs tally display',
+    iconName: 'Sparkles',
     defaultWidth: 18,
     minWidth: 10,
     maxWidth: 35,
@@ -274,6 +291,7 @@ export const MEMORY_MATCH_LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = [
   'clientLogo',
   'scoreHud',
   'movesHud',
+  'pairsHud',
   'timer',
   'gameTitle',
   'footerSponsor',
@@ -283,8 +301,8 @@ export const LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = CATCH_BRAND_LAYOUT_ELEMEN
 
 /**
  * Returns the exact list of configurable HUD element keys for a given game type.
- * Catch The Brand -> 5 elements (no Moves)
- * Memory Match -> 6 elements (including Moves)
+ * Catch The Brand -> 5 elements (no Moves, no Pairs)
+ * Memory Match -> 7 elements (including Moves, Pairs)
  */
 export function getLayoutElementKeys(gameType?: string): LayoutElementKey[] {
   if (gameType === 'memory-match') {
@@ -296,7 +314,7 @@ export function getLayoutElementKeys(gameType?: string): LayoutElementKey[] {
 /**
  * Normalizes a raw layout object (or undefined) into a full, valid GameLayoutConfig
  * based on the target game type.
- * For Memory Match, automatically provides a safe default movesHud if missing from old themes.
+ * For Memory Match, automatically provides safe default movesHud and pairsHud if missing from old themes.
  */
 export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConfig {
   const isMemory = gameType === 'memory-match';
@@ -344,6 +362,10 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
 
   if (isMemory || raw.movesHud) {
     res.movesHud = normalizeElement('movesHud', DEFAULT_MEMORY_MATCH_LAYOUT.movesHud);
+  }
+
+  if (isMemory || raw.pairsHud) {
+    res.pairsHud = normalizeElement('pairsHud', DEFAULT_MEMORY_MATCH_LAYOUT.pairsHud);
   }
 
   return res;

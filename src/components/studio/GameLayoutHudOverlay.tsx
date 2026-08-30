@@ -16,6 +16,7 @@ import {
   Image as ImageIcon,
   Move,
   Footprints,
+  Sparkles,
 } from 'lucide-react';
 
 export interface GameLayoutHudOverlayProps {
@@ -24,6 +25,8 @@ export interface GameLayoutHudOverlayProps {
   gameType?: string;
   score?: number;
   moves?: number;
+  pairs?: number;
+  totalPairs?: number;
   timeRemaining?: number;
   editableLayout?: boolean;
   selectedElementKey?: LayoutElementKey | null;
@@ -42,6 +45,8 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
   gameType: explicitGameType,
   score = 0,
   moves = 0,
+  pairs = 0,
+  totalPairs = 8,
   timeRemaining = 20,
   editableLayout = false,
   selectedElementKey = null,
@@ -143,6 +148,21 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
               className="text-sm sm:text-base md:text-lg font-mono font-black ml-1.5 shrink-0"
             >
               {moves}
+            </span>
+          </div>
+        );
+
+      case 'pairsHud':
+        return (
+          <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
+            <span className="text-[11px] sm:text-xs md:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> PAIRS
+            </span>
+            <span
+              style={{ color: hudColor }}
+              className="text-sm sm:text-base md:text-lg font-mono font-black ml-1.5 shrink-0"
+            >
+              {pairs}/{totalPairs}
             </span>
           </div>
         );

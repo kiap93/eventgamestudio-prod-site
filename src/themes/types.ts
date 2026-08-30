@@ -1,4 +1,19 @@
-import type { MemoryMatchGameConfig, MemoryMatchBoardConfig, MemoryMatchCardConfig } from '../games/memory-match/types';
+import type {
+  MemoryMatchGameConfig,
+  MemoryMatchBoardConfig,
+  MemoryMatchCardConfig,
+  ScreenBackgroundType,
+  MemoryMatchStartScreenConfig,
+  MemoryMatchResultScreenConfig,
+  MemoryMatchScreensConfig,
+} from '../games/memory-match/types';
+
+export type {
+  ScreenBackgroundType,
+  MemoryMatchStartScreenConfig,
+  MemoryMatchResultScreenConfig,
+  MemoryMatchScreensConfig,
+};
 
 export interface ThemeBrandingConfig {
 
@@ -115,6 +130,7 @@ export interface GameLayoutConfig {
   gameTitle: GameLayoutElement;
   footerSponsor: GameLayoutElement;
   movesHud?: GameLayoutElement;
+  pairsHud?: GameLayoutElement;
   [key: string]: GameLayoutElement | undefined;
 }
 
@@ -212,6 +228,35 @@ export const DEFAULT_CARD_CONFIG: MemoryMatchCardConfig = {
   rotationRange: 8,
 };
 
+export const DEFAULT_START_SCREEN_CONFIG: MemoryMatchStartScreenConfig = {
+  backgroundType: 'theme',
+  backgroundColor: '#0f172a',
+  backgroundImageUrl: null,
+  backgroundOverlayOpacity: 0.3,
+
+  showIcon: true,
+  showGridInfo: true,
+  showPairsInfo: true,
+  showTimerInfo: true,
+};
+
+export const DEFAULT_RESULT_SCREEN_CONFIG: MemoryMatchResultScreenConfig = {
+  backgroundType: 'theme',
+  backgroundColor: '#0f172a',
+  backgroundImageUrl: null,
+  backgroundOverlayOpacity: 0.3,
+
+  showScore: true,
+  showMoves: true,
+  showPairs: true,
+  showAccuracy: true,
+};
+
+export const DEFAULT_SCREENS_CONFIG: MemoryMatchScreensConfig = {
+  start: DEFAULT_START_SCREEN_CONFIG,
+  result: DEFAULT_RESULT_SCREEN_CONFIG,
+};
+
 export const DEFAULT_MEMORY_MATCH_CONFIG: MemoryMatchGameConfig = {
   cardBackUrl: null,
   card: DEFAULT_CARD_CONFIG,
@@ -250,12 +295,13 @@ export const DEFAULT_MEMORY_MATCH_CONFIG: MemoryMatchGameConfig = {
   ui: {
     showLeaderboard: true,
   },
+  screens: DEFAULT_SCREENS_CONFIG,
 };
 
 /**
  * Resolves the authoritative MemoryMatchGameConfig from theme.game_config,
  * with safe fallback to legacy fields (items_config, visuals_config, physics_config)
- * and backward-compatible normalization for board layout and card dimension settings.
+ * and backward-compatible normalization for board layout, card dimension, and screen settings.
  */
 export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryMatchGameConfig {
   const gc = theme?.game_config as Partial<MemoryMatchGameConfig> | undefined;
@@ -263,7 +309,7 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
   const hasGameConfig =
     gc &&
     typeof gc === 'object' &&
-    (Array.isArray(gc.pairs) || gc.gameplay !== undefined || gc.cardBackUrl !== undefined || gc.board !== undefined || gc.grid !== undefined || gc.card !== undefined || gc.ui !== undefined);
+    (Array.isArray(gc.pairs) || gc.gameplay !== undefined || gc.cardBackUrl !== undefined || gc.board !== undefined || gc.grid !== undefined || gc.card !== undefined || gc.ui !== undefined || gc.screens !== undefined);
 
   if (hasGameConfig) {
     const rawBoard = gc.board;
@@ -317,6 +363,45 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
       card: resolvedCardConfig,
     };
 
+    const rawScreens = gc.screens;
+    const rawStart = rawScreens?.start;
+    const rawResult = rawScreens?.result;
+
+    const resolvedScreens: MemoryMatchScreensConfig = {
+      start: {
+        backgroundType: rawStart?.backgroundType === 'color' || rawStart?.backgroundType === 'image' || rawStart?.backgroundType === 'theme'
+          ? rawStart.backgroundType
+          : 'theme',
+        backgroundColor: (rawStart?.backgroundColor && typeof rawStart.backgroundColor === 'string')
+          ? rawStart.backgroundColor
+          : '#0f172a',
+        backgroundImageUrl: rawStart?.backgroundImageUrl ?? null,
+        backgroundOverlayOpacity: typeof rawStart?.backgroundOverlayOpacity === 'number'
+          ? Math.max(0, Math.min(1, rawStart.backgroundOverlayOpacity))
+          : 0.3,
+        showIcon: rawStart?.showIcon !== false,
+        showGridInfo: rawStart?.showGridInfo !== false,
+        showPairsInfo: rawStart?.showPairsInfo !== false,
+        showTimerInfo: rawStart?.showTimerInfo !== false,
+      },
+      result: {
+        backgroundType: rawResult?.backgroundType === 'color' || rawResult?.backgroundType === 'image' || rawResult?.backgroundType === 'theme'
+          ? rawResult.backgroundType
+          : 'theme',
+        backgroundColor: (rawResult?.backgroundColor && typeof rawResult.backgroundColor === 'string')
+          ? rawResult.backgroundColor
+          : '#0f172a',
+        backgroundImageUrl: rawResult?.backgroundImageUrl ?? null,
+        backgroundOverlayOpacity: typeof rawResult?.backgroundOverlayOpacity === 'number'
+          ? Math.max(0, Math.min(1, rawResult.backgroundOverlayOpacity))
+          : 0.3,
+        showScore: rawResult?.showScore !== false,
+        showMoves: rawResult?.showMoves !== false,
+        showPairs: rawResult?.showPairs !== false,
+        showAccuracy: rawResult?.showAccuracy !== false,
+      },
+    };
+
     return {
       cardBackUrl: gc.cardBackUrl !== undefined ? gc.cardBackUrl : (theme?.visuals_config?.cardBackUrl || null),
       card: resolvedCardConfig,
@@ -337,6 +422,7 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
       ui: {
         showLeaderboard,
       },
+      screens: resolvedScreens,
     };
   }
 
@@ -383,6 +469,7 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
     ui: {
       showLeaderboard: true,
     },
+    screens: DEFAULT_SCREENS_CONFIG,
   };
 }
 

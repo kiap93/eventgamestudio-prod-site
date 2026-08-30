@@ -8,6 +8,7 @@ import { GameplayTab } from './GameplayTab';
 import { AudioTab } from './AudioTab';
 import { BrandingTab } from './BrandingTab';
 import { LayoutTab } from './LayoutTab';
+import { ScreensTab } from './ScreensTab';
 import { GameShell } from '../shell/GameShell';
 import { LayoutElementKey, GameLayoutConfig } from '../../themes/layout';
 import {
@@ -28,6 +29,7 @@ import {
   Grid,
   Maximize2,
   Minimize2,
+  Tv,
 } from 'lucide-react';
 
 interface ThemeEditorProps {
@@ -48,7 +50,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
   const role = currentOrganization?.role || 'viewer';
   const isViewer = role === 'viewer';
 
-  const [activeTab, setActiveTab] = useState<'visuals' | 'items' | 'gameplay' | 'audio' | 'branding' | 'layout'>('visuals');
+  const [activeTab, setActiveTab] = useState<'visuals' | 'items' | 'gameplay' | 'audio' | 'branding' | 'layout' | 'screens'>('visuals');
   const [selectedLayoutElement, setSelectedLayoutElement] = useState<LayoutElementKey>('clientLogo');
 
   // Dedicated Play Live Game state
@@ -528,6 +530,19 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               <Grid className="w-3.5 h-3.5" />
               <span>6. Layout</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('screens')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === 'screens'
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <Tv className="w-3.5 h-3.5" />
+              <span>7. Game Screens</span>
+            </button>
           </nav>
 
           {/* ACTIVE TAB CONTENT */}
@@ -579,6 +594,15 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
                 onChange={setDraftTheme}
                 selectedElementKey={selectedLayoutElement}
                 onSelectElementKey={setSelectedLayoutElement}
+              />
+            )}
+
+            {activeTab === 'screens' && (
+              <ScreensTab
+                theme={draftTheme}
+                onChange={setDraftTheme}
+                onUploadAsset={handleUploadAssetFile}
+                uploadingAsset={uploadingAsset}
               />
             )}
           </div>

@@ -227,6 +227,9 @@ export function normalizeGameTheme(raw: any): GameTheme {
     if (rawGameConfig.card !== undefined) {
       game_config.card = rawGameConfig.card;
     }
+    if (rawGameConfig.screens !== undefined) {
+      game_config.screens = rawGameConfig.screens;
+    }
   } else if (basePreset.game_config) {
     game_config = { ...basePreset.game_config };
   }

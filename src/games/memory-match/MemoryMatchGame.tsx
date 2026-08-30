@@ -33,7 +33,7 @@ import { createShuffledDeck } from './cardDeck';
 import { memorySounds } from './memorySounds';
 import { generateRandomCardPositions, CardPosition } from './memoryMatchBoardLayout';
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
-import { getMemoryMatchConfig, getCardFrontBg, getCardGoodBg } from '../../themes/types';
+import { getMemoryMatchConfig, getCardFrontBg, getCardGoodBg, resolveScreenBackground } from '../../themes';
 import { normalizeGameLayout, GameLayoutConfig } from '../../themes/layout';
 import { GameLayoutHudOverlay } from '../../components/studio/GameLayoutHudOverlay';
 import { apiFetch } from '../../lib/api';
@@ -940,7 +940,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. IN-GAME DYNAMIC UI LAYOUT (6 Positionable HUD Elements for Memory Match) */}
+      {/* 2. IN-GAME DYNAMIC UI LAYOUT (Positionable HUD Elements for Memory Match) */}
       {/* ========================================================================= */}
       {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
         <GameLayoutHudOverlay
@@ -949,6 +949,8 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
           gameType="memory-match"
           score={score}
           moves={moves}
+          pairs={matchedPairsCount}
+          totalPairs={totalPairs}
           timeRemaining={timeRemaining}
         />
       )}
@@ -1011,67 +1013,104 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
       </div>
 
       {/* ========================================================================= */}
-      {/* 4. SECONDARY GAMEPLAY INFO BADGE (Pairs matched & combo streak)           */}
+      {/* 4. SECONDARY GAMEPLAY COMBO BADGE                                         */}
       {/* ========================================================================= */}
-      {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
+      {(gameState === 'PLAYING' || gameState === 'PAUSED') && comboStreak > 1 && (
         <div className="absolute bottom-3 left-3 z-30 pointer-events-none flex items-center gap-2">
-          <div className="bg-slate-950/80 backdrop-blur-sm border border-slate-800/80 rounded-xl px-2.5 py-1 text-slate-300 text-xs font-mono flex items-center gap-1.5 shadow-md">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-slate-400">Pairs:</span>
-            <span className="font-bold text-emerald-400">
-              {matchedPairsCount}/{totalPairs}
-            </span>
+          <div className="bg-orange-500/20 backdrop-blur-sm border border-orange-500/40 rounded-xl px-2.5 py-1 text-orange-400 text-xs font-mono font-bold flex items-center gap-1 shadow-md animate-bounce">
+            <Flame className="w-3.5 h-3.5 text-orange-400" />
+            <span>{comboStreak}x Combo</span>
           </div>
-
-          {comboStreak > 1 && (
-            <div className="bg-orange-500/20 backdrop-blur-sm border border-orange-500/40 rounded-xl px-2.5 py-1 text-orange-400 text-xs font-mono font-bold flex items-center gap-1 shadow-md animate-bounce">
-              <Flame className="w-3.5 h-3.5 text-orange-400" />
-              <span>{comboStreak}x Combo</span>
-            </div>
-          )}
         </div>
       )}
-        {gameState === 'START' && (
-          <div className="absolute inset-0 w-full h-full bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-6 z-30 animate-in fade-in duration-200">
-            <div className="max-w-sm w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
-              <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mx-auto text-amber-400">
-                <Grid3X3 className="w-7 h-7" />
-              </div>
-              <div className="space-y-1">
-                <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-wide">
-                  {gameTitle}
-                </h2>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Flip cards, find all {totalPairs} matching pairs, and score max bonus points before time expires!
-                </p>
-              </div>
+        {gameState === 'START' && (() => {
+          const startConfig = memoryConfig.screens?.start;
+          const bg = resolveScreenBackground(startConfig, activeTheme);
+          const showIcon = startConfig?.showIcon !== false;
 
-              {/* Rules Summary Pills */}
-              <div className="grid grid-cols-3 gap-2 py-2 text-[11px] font-mono">
-                <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300">
-                  <span className="block text-[10px] text-slate-500 uppercase">Grid</span>
-                  <span className="font-bold text-amber-400">{totalCards} Cards</span>
-                </div>
-                <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300">
-                  <span className="block text-[10px] text-slate-500 uppercase">Pairs</span>
-                  <span className="font-bold text-emerald-400">{totalPairs} Pairs</span>
-                </div>
-                <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300">
-                  <span className="block text-[10px] text-slate-500 uppercase">Timer</span>
-                  <span className="font-bold text-cyan-400">{gameDuration}s</span>
-                </div>
-              </div>
+          const startPills = [
+            startConfig?.showGridInfo !== false && {
+              id: 'grid',
+              label: 'Grid',
+              value: `${totalCards} Cards`,
+              colorClass: 'text-amber-400',
+            },
+            startConfig?.showPairsInfo !== false && {
+              id: 'pairs',
+              label: 'Pairs',
+              value: `${totalPairs} Pairs`,
+              colorClass: 'text-emerald-400',
+            },
+            startConfig?.showTimerInfo !== false && {
+              id: 'timer',
+              label: 'Timer',
+              value: `${gameDuration}s`,
+              colorClass: 'text-cyan-400',
+            },
+          ].filter(Boolean) as Array<{
+            id: string;
+            label: string;
+            value: string;
+            colorClass: string;
+          }>;
 
-              <button
-                onClick={startCountdown}
-                className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Play className="w-4 h-4 fill-current" />
-                <span>Start Match</span>
-              </button>
+          return (
+            <div
+              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-4 sm:p-6 z-30 animate-in fade-in duration-200"
+              style={bg.containerStyle}
+            >
+              {/* Dark Overlay Layer */}
+              <div
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                style={bg.overlayStyle}
+              />
+
+              <div className="relative z-10 max-w-sm w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl backdrop-blur-md">
+                {showIcon && (
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mx-auto text-amber-400">
+                    <Grid3X3 className="w-7 h-7" />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-wide">
+                    {gameTitle}
+                  </h2>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Flip cards, find all {totalPairs} matching pairs, and score max bonus points before time expires!
+                  </p>
+                </div>
+
+                {/* Rules Summary Pills with dynamic reflow */}
+                {startPills.length > 0 && (
+                  <div
+                    className="grid gap-2 py-2 text-[11px] font-mono"
+                    style={{
+                      gridTemplateColumns: `repeat(${startPills.length}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {startPills.map((pill) => (
+                      <div
+                        key={pill.id}
+                        className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300 text-center"
+                      >
+                        <span className="block text-[10px] text-slate-500 uppercase">{pill.label}</span>
+                        <span className={`font-bold ${pill.colorClass}`}>{pill.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  onClick={startCountdown}
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Start Match</span>
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ======================================================================= */}
         {/* 4. COUNTDOWN OVERLAY                                                    */}
@@ -1117,61 +1156,101 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
         {/* ======================================================================= */}
         {/* 6. GAME OVER / VICTORY COMPLETION MODAL                                 */}
         {/* ======================================================================= */}
-        {gameState === 'GAME_OVER' && (
-          <div className="absolute inset-0 w-full h-full bg-slate-950/90 backdrop-blur-lg flex flex-col items-center justify-center p-3 sm:p-6 z-30 animate-in zoom-in-95 duration-200">
-            <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 text-center space-y-4 shadow-2xl relative overflow-hidden">
-              {/* Result Status Banner */}
-              <div className="space-y-1">
-                {isVictory ? (
-                  <>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
-                      <Trophy className="w-3.5 h-3.5" />
-                      <span>VICTORY! ALL {totalPairs} PAIRS MATCHED</span>
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                      Brilliant Memory!
-                    </h2>
-                  </>
-                ) : (
-                  <>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>TIME EXPIRED</span>
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                      Good Effort!
-                    </h2>
-                  </>
-                )}
-              </div>
+        {gameState === 'GAME_OVER' && (() => {
+          const resultConfig = memoryConfig.screens?.result;
+          const bg = resolveScreenBackground(resultConfig, activeTheme);
 
-              {/* Score & Summary Grid */}
-              <div className="grid grid-cols-4 gap-2 bg-slate-950/80 border border-slate-800 rounded-2xl p-3 text-center">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold">Score</span>
-                  <span className="block text-base sm:text-lg font-black text-amber-400 font-mono">
-                    {score}
-                  </span>
+          const visibleStats = [
+            resultConfig?.showScore !== false && {
+              id: 'score',
+              label: 'Score',
+              value: score,
+              colorClass: 'text-amber-400',
+            },
+            resultConfig?.showMoves !== false && {
+              id: 'moves',
+              label: 'Moves',
+              value: moves,
+              colorClass: 'text-cyan-300',
+            },
+            resultConfig?.showPairs !== false && {
+              id: 'pairs',
+              label: 'Pairs',
+              value: `${matchedPairsCount}/${totalPairs}`,
+              colorClass: 'text-emerald-400',
+            },
+            resultConfig?.showAccuracy !== false && {
+              id: 'accuracy',
+              label: 'Accuracy',
+              value: `${accuracyPercent}%`,
+              colorClass: 'text-purple-400',
+            },
+          ].filter(Boolean) as Array<{
+            id: string;
+            label: string;
+            value: string | number;
+            colorClass: string;
+          }>;
+
+          return (
+            <div
+              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-3 sm:p-6 z-30 animate-in zoom-in-95 duration-200"
+              style={bg.containerStyle}
+            >
+              {/* Dark Overlay Layer */}
+              <div
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                style={bg.overlayStyle}
+              />
+
+              <div className="relative z-10 max-w-md w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-5 sm:p-6 text-center space-y-4 shadow-2xl overflow-hidden backdrop-blur-md">
+                {/* Result Status Banner */}
+                <div className="space-y-1">
+                  {isVictory ? (
+                    <>
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+                        <Trophy className="w-3.5 h-3.5" />
+                        <span>VICTORY! ALL {totalPairs} PAIRS MATCHED</span>
+                      </div>
+                      <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                        Brilliant Memory!
+                      </h2>
+                    </>
+                  ) : (
+                    <>
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>TIME EXPIRED</span>
+                      </div>
+                      <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                        Good Effort!
+                      </h2>
+                    </>
+                  )}
                 </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold">Moves</span>
-                  <span className="block text-base sm:text-lg font-black text-cyan-300 font-mono">
-                    {moves}
-                  </span>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold">Pairs</span>
-                  <span className="block text-base sm:text-lg font-black text-emerald-400 font-mono">
-                    {matchedPairsCount}/{totalPairs}
-                  </span>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold">Accuracy</span>
-                  <span className="block text-base sm:text-lg font-black text-purple-400 font-mono">
-                    {accuracyPercent}%
-                  </span>
-                </div>
-              </div>
+
+                {/* Score & Summary Grid with Dynamic Reflow respecting Result Screen Config */}
+                {visibleStats.length > 0 && (
+                  <div
+                    className="grid gap-2 bg-slate-950/80 border border-slate-800 rounded-2xl p-3 text-center"
+                    style={{
+                      gridTemplateColumns: `repeat(${visibleStats.length}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {visibleStats.map((stat) => (
+                      <div key={stat.id} className="space-y-0.5 min-w-0">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider truncate block">
+                          {stat.label}
+                        </span>
+                        <span
+                          className={`block text-base sm:text-lg font-black font-mono truncate ${stat.colorClass}`}
+                        >
+                          {stat.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
               {/* High Score Submission or Success Notice */}
               {showLeaderboard && (
@@ -1216,7 +1295,8 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
               </div>
             </div>
           </div>
-        )}
+        );
+      })()}
     </div>
   );
 };

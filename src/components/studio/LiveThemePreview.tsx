@@ -1009,13 +1009,15 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           />
         )}
 
-        {/* SHARED WYSIWYG GAME HUD OVERLAY (5 or 6 CONFIGURABLE ELEMENTS) */}
+        {/* SHARED WYSIWYG GAME HUD OVERLAY (5, 6, or 7 CONFIGURABLE ELEMENTS) */}
         <GameLayoutHudOverlay
           layout={layout}
           theme={theme}
           gameType={gameType}
           score={score}
           moves={isMemoryMatch ? 7 : 0}
+          pairs={isMemoryMatch ? matchedPairCount : 0}
+          totalPairs={isMemoryMatch ? (memoryConfig.pairs?.length || 8) : 8}
           timeRemaining={timeRemaining}
           editableLayout={editableLayout}
           selectedElementKey={selectedElementKey}

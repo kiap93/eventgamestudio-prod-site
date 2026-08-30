@@ -70,6 +70,37 @@ export interface MemoryMatchUiConfig {
   showLeaderboard?: boolean; // default: true
 }
 
+export type ScreenBackgroundType = 'color' | 'theme' | 'image';
+
+export interface MemoryMatchStartScreenConfig {
+  backgroundType: ScreenBackgroundType;
+  backgroundColor: string; // default '#0f172a'
+  backgroundImageUrl?: string | null;
+  backgroundOverlayOpacity?: number; // 0 to 1, default 0.3
+
+  showIcon: boolean;
+  showGridInfo: boolean;
+  showPairsInfo: boolean;
+  showTimerInfo: boolean;
+}
+
+export interface MemoryMatchResultScreenConfig {
+  backgroundType: ScreenBackgroundType;
+  backgroundColor: string; // default '#0f172a'
+  backgroundImageUrl?: string | null;
+  backgroundOverlayOpacity?: number; // 0 to 1, default 0.3
+
+  showScore: boolean;
+  showMoves: boolean;
+  showPairs: boolean;
+  showAccuracy: boolean;
+}
+
+export interface MemoryMatchScreensConfig {
+  start: MemoryMatchStartScreenConfig;
+  result: MemoryMatchResultScreenConfig;
+}
+
 export interface MemoryMatchGameConfig {
   cardBackUrl?: string | null;
   card?: MemoryMatchCardConfig;
@@ -78,6 +109,7 @@ export interface MemoryMatchGameConfig {
   grid?: MemoryMatchGridConfig;
   gameplay: MemoryMatchGameplayConfig;
   ui?: MemoryMatchUiConfig;
+  screens?: MemoryMatchScreensConfig;
 }
 
 export interface MemoryMatchConfig extends BaseGameConfig {

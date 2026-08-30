@@ -138,6 +138,8 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
         return <Trophy className="w-4 h-4 text-amber-400" />;
       case 'movesHud':
         return <Footprints className="w-4 h-4 text-sky-400" />;
+      case 'pairsHud':
+        return <Sparkles className="w-4 h-4 text-emerald-400" />;
       case 'timer':
         return <Timer className="w-4 h-4 text-teal-400" />;
       case 'gameTitle':

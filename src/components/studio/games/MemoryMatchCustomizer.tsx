@@ -4,12 +4,25 @@ import {
   ThemeDropItem,
   getMemoryMatchConfig,
   DEFAULT_CARD_CONFIG,
+  DEFAULT_START_SCREEN_CONFIG,
+  DEFAULT_RESULT_SCREEN_CONFIG,
+  DEFAULT_SCREENS_CONFIG,
   CARD_FRONT_BG_PRESETS,
   CARD_GOOD_BG_PRESETS,
   getCardFrontBg,
   getCardGoodBg,
-} from '../../../themes/types';
-import { MemoryMatchGameConfig, MemoryMatchPairConfig, MemoryMatchCardConfig, MemoryMatchUiConfig } from '../../../games/memory-match/types';
+  resolveScreenBackground,
+} from '../../../themes';
+import {
+  MemoryMatchGameConfig,
+  MemoryMatchPairConfig,
+  MemoryMatchCardConfig,
+  MemoryMatchUiConfig,
+  MemoryMatchStartScreenConfig,
+  MemoryMatchResultScreenConfig,
+  MemoryMatchScreensConfig,
+  ScreenBackgroundType,
+} from '../../../games/memory-match/types';
 import { ensureRequiredPairs, DEFAULT_CARD_PROTOTYPES } from '../../../games/memory-match/cardDeck';
 import {
   Grid3X3,
@@ -49,6 +62,10 @@ import {
   RectangleHorizontal,
   RectangleVertical,
   Award,
+  Tv,
+  Palette,
+  Layout,
+  Layers2,
 } from 'lucide-react';
 import { memorySounds } from '../../../games/memory-match/memorySounds';
 
@@ -2023,6 +2040,1124 @@ export const MemoryMatchGameplayCustomizer: React.FC<MemoryMatchGameplayCustomiz
 };
 
 /* ==========================================================================
+ * MEMORY MATCH - SCREENS CUSTOMIZER (START SCREEN & RESULT SCREEN)
+ * ========================================================================== */
+interface MemoryMatchScreensCustomizerProps {
+  theme: GameTheme;
+  onChange: (updated: GameTheme) => void;
+  onUploadAsset?: (file: File, fieldKey: string) => Promise<string>;
+  uploadingAsset?: string | null;
+}
+
+const BG_COLOR_PRESETS = [
+  { name: 'Midnight Navy', hex: '#0f172a' },
+  { name: 'Abyss Black', hex: '#020617' },
+  { name: 'Deep Indigo', hex: '#1e1b4b' },
+  { name: 'Emerald Forest', hex: '#064e3b' },
+  { name: 'Royal Purple', hex: '#3b0764' },
+  { name: 'Warm Charcoal', hex: '#1c1917' },
+  { name: 'True Black', hex: '#000000' },
+];
+
+export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizerProps> = ({
+  theme,
+  onChange,
+  onUploadAsset,
+  uploadingAsset,
+}) => {
+  const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
+  const [startDragActive, setStartDragActive] = useState(false);
+  const [resultDragActive, setResultDragActive] = useState(false);
+  const [startUploadError, setStartUploadError] = useState<string | null>(null);
+  const [resultUploadError, setResultUploadError] = useState<string | null>(null);
+
+  const startFileInputRef = useRef<HTMLInputElement | null>(null);
+  const resultFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const memoryConfig = getMemoryMatchConfig(theme);
+  const screens = memoryConfig.screens || DEFAULT_SCREENS_CONFIG;
+  const startConfig = screens.start || DEFAULT_START_SCREEN_CONFIG;
+  const resultConfig = screens.result || DEFAULT_RESULT_SCREEN_CONFIG;
+
+  const rows = Math.max(2, memoryConfig.board?.rows ?? memoryConfig.grid?.rows ?? 4);
+  const cols = Math.max(2, memoryConfig.board?.cols ?? memoryConfig.grid?.cols ?? 4);
+  const totalCards = (rows * cols) % 2 === 0 ? rows * cols : 16;
+  const totalPairs = Math.floor(totalCards / 2);
+  const duration = memoryConfig.gameplay?.gameDurationSeconds ?? 45;
+
+  const handleUpdateStartScreen = (updates: Partial<MemoryMatchStartScreenConfig>) => {
+    const nextStart: MemoryMatchStartScreenConfig = {
+      ...startConfig,
+      ...updates,
+    };
+    const nextScreens: MemoryMatchScreensConfig = {
+      ...screens,
+      start: nextStart,
+    };
+    const nextMemoryConfig: MemoryMatchGameConfig = {
+      ...memoryConfig,
+      screens: nextScreens,
+    };
+    onChange({
+      ...theme,
+      game_config: nextMemoryConfig,
+    });
+  };
+
+  const handleUpdateResultScreen = (updates: Partial<MemoryMatchResultScreenConfig>) => {
+    const nextResult: MemoryMatchResultScreenConfig = {
+      ...resultConfig,
+      ...updates,
+    };
+    const nextScreens: MemoryMatchScreensConfig = {
+      ...screens,
+      result: nextResult,
+    };
+    const nextMemoryConfig: MemoryMatchGameConfig = {
+      ...memoryConfig,
+      screens: nextScreens,
+    };
+    onChange({
+      ...theme,
+      game_config: nextMemoryConfig,
+    });
+  };
+
+  const handleUploadStartBg = async (file: File) => {
+    setStartUploadError(null);
+    if (!onUploadAsset) return;
+
+    const extension = '.' + (file.name.split('.').pop() || '').toLowerCase();
+    const isValid =
+      ALLOWED_MIME_TYPES.includes(file.type.toLowerCase()) ||
+      ALLOWED_EXTENSIONS.includes(extension);
+
+    if (!isValid) {
+      setStartUploadError(`Unsupported format "${file.name}". Please upload a PNG, JPG, or WebP.`);
+      return;
+    }
+
+    try {
+      const url = await onUploadAsset(file, 'memory_start_screen_bg');
+      handleUpdateStartScreen({ backgroundType: 'image', backgroundImageUrl: url });
+    } catch (err: any) {
+      setStartUploadError(err.message || 'Failed to upload start screen background');
+    }
+  };
+
+  const handleUploadResultBg = async (file: File) => {
+    setResultUploadError(null);
+    if (!onUploadAsset) return;
+
+    const extension = '.' + (file.name.split('.').pop() || '').toLowerCase();
+    const isValid =
+      ALLOWED_MIME_TYPES.includes(file.type.toLowerCase()) ||
+      ALLOWED_EXTENSIONS.includes(extension);
+
+    if (!isValid) {
+      setResultUploadError(`Unsupported format "${file.name}". Please upload a PNG, JPG, or WebP.`);
+      return;
+    }
+
+    try {
+      const url = await onUploadAsset(file, 'memory_result_screen_bg');
+      handleUpdateResultScreen({ backgroundType: 'image', backgroundImageUrl: url });
+    } catch (err: any) {
+      setResultUploadError(err.message || 'Failed to upload result screen background');
+    }
+  };
+
+  // Resolve styles for live previews
+  const startBgStyles = resolveScreenBackground(startConfig, theme);
+  const resultBgStyles = resolveScreenBackground(resultConfig, theme);
+
+  return (
+    <div className="space-y-6">
+      {/* 1. Header Banner */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="p-2.5 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20 shrink-0">
+            <Tv className="w-5 h-5" />
+          </span>
+          <div>
+            <h3 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
+              <span>Game Screens Customization</span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Independently customize backgrounds, overlays, and visibility for the Start and Game Over screens
+            </p>
+          </div>
+        </div>
+
+        {/* Sub-Navigation Switcher */}
+        <div className="flex items-center bg-slate-950 border border-slate-800 p-1 rounded-2xl shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('start')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              activeSubTab === 'start'
+                ? 'bg-amber-500 text-slate-950 shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Start Screen</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('result')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              activeSubTab === 'result'
+                ? 'bg-amber-500 text-slate-950 shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span>Result Screen</span>
+          </button>
+        </div>
+      </div>
+
+      {/* =========================================================================
+       * 2. START SCREEN SUB-SECTION
+       * ========================================================================= */}
+      {activeSubTab === 'start' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* A. Background Selection */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+                  <Palette className="w-4 h-4" />
+                </span>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-100">Start Screen Background</h4>
+                  <p className="text-xs text-slate-400">Choose between theme background, solid color, or custom image</p>
+                </div>
+              </div>
+
+              {/* Reset to Theme Default */}
+              <button
+                type="button"
+                onClick={() =>
+                  handleUpdateStartScreen({
+                    backgroundType: 'theme',
+                    backgroundColor: '#0f172a',
+                    backgroundImageUrl: null,
+                    backgroundOverlayOpacity: 0.3,
+                  })
+                }
+                className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-200 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors flex items-center gap-1"
+                title="Reset Start Screen background to Theme defaults"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            </div>
+
+            {/* Background Type Mode Selector */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleUpdateStartScreen({ backgroundType: 'theme' })}
+                className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                  startConfig.backgroundType === 'theme'
+                    ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 shadow-md shadow-amber-500/10 font-bold'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
+                }`}
+              >
+                <Layers className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-xs block">Active Theme BG</span>
+                  <span className="text-[10px] text-slate-500 block truncate">Uses theme wallpaper</span>
+                </div>
+                {startConfig.backgroundType === 'theme' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleUpdateStartScreen({ backgroundType: 'color' })}
+                className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                  startConfig.backgroundType === 'color'
+                    ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 shadow-md shadow-amber-500/10 font-bold'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
+                }`}
+              >
+                <Palette className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-xs block">Solid Color</span>
+                  <span className="text-[10px] text-slate-500 block truncate">Custom backdrop color</span>
+                </div>
+                {startConfig.backgroundType === 'color' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleUpdateStartScreen({ backgroundType: 'image' })}
+                className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                  startConfig.backgroundType === 'image'
+                    ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 shadow-md shadow-amber-500/10 font-bold'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
+                }`}
+              >
+                <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-xs block">Custom Image</span>
+                  <span className="text-[10px] text-slate-500 block truncate">Independent artwork upload</span>
+                </div>
+                {startConfig.backgroundType === 'image' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
+              </button>
+            </div>
+
+            {/* Sub-Panel: Solid Color Picker */}
+            {startConfig.backgroundType === 'color' && (
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={startConfig.backgroundColor || '#0f172a'}
+                      onChange={(e) => handleUpdateStartScreen({ backgroundColor: e.target.value })}
+                      className="w-9 h-9 rounded-xl cursor-pointer bg-transparent border-0"
+                    />
+                    <div>
+                      <label className="text-xs font-semibold text-slate-300 block">Custom Color</label>
+                      <input
+                        type="text"
+                        value={startConfig.backgroundColor || '#0f172a'}
+                        onChange={(e) => handleUpdateStartScreen({ backgroundColor: e.target.value })}
+                        className="font-mono text-xs text-amber-400 font-bold bg-slate-900 border border-slate-700 rounded px-2 py-0.5 mt-0.5 uppercase"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Swatches */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {BG_COLOR_PRESETS.map((preset) => (
+                      <button
+                        key={preset.hex}
+                        type="button"
+                        onClick={() => handleUpdateStartScreen({ backgroundColor: preset.hex })}
+                        className={`w-6 h-6 rounded-lg border transition-all ${
+                          startConfig.backgroundColor?.toLowerCase() === preset.hex.toLowerCase()
+                            ? 'ring-2 ring-amber-400 scale-110 border-white'
+                            : 'border-white/20 hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: preset.hex }}
+                        title={preset.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-Panel: Custom Image Upload */}
+            {startConfig.backgroundType === 'image' && (
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-4">
+                <input
+                  ref={startFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUploadStartBg(f);
+                  }}
+                />
+
+                {startConfig.backgroundImageUrl ? (
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="relative w-full sm:w-48 aspect-video rounded-xl overflow-hidden border border-slate-700 bg-slate-900 shrink-0">
+                      <img
+                        src={startConfig.backgroundImageUrl}
+                        alt="Start Screen Background"
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+
+                    <div className="space-y-2 flex-1 w-full text-center sm:text-left">
+                      <p className="text-xs font-semibold text-slate-200">Custom Start Screen Background Loaded</p>
+                      <p className="text-[11px] text-slate-400">16:9 recommended aspect ratio (1024×576px or higher)</p>
+
+                      <div className="flex items-center justify-center sm:justify-start gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => startFileInputRef.current?.click()}
+                          disabled={uploadingAsset === 'memory_start_screen_bg'}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-all flex items-center gap-1.5"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Replace Image</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateStartScreen({ backgroundImageUrl: null, backgroundType: 'theme' })}
+                          className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-bold rounded-xl border border-rose-500/30 transition-all flex items-center gap-1.5"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setStartDragActive(true);
+                    }}
+                    onDragLeave={() => setStartDragActive(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setStartDragActive(false);
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) handleUploadStartBg(f);
+                    }}
+                    onClick={() => startFileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                      startDragActive
+                        ? 'border-amber-400 bg-amber-500/10'
+                        : 'border-slate-800 hover:border-amber-500/50 bg-slate-900/50 hover:bg-slate-900'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto mb-2">
+                      <Upload className="w-5 h-5" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-200">Drag & Drop Start Screen Image here or click to browse</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Supports PNG, JPG, WebP (Max 10MB)</p>
+                  </div>
+                )}
+
+                {startUploadError && (
+                  <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 px-3 py-2 rounded-xl text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{startUploadError}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Dark Overlay Opacity Slider */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-slate-300 block">Dark Backdrop Overlay</span>
+                  <span className="text-[10px] text-slate-500">Darkens background for optimal card text contrast</span>
+                </div>
+                <span className="text-amber-400 font-bold font-mono text-xs">
+                  {Math.round((startConfig.backgroundOverlayOpacity ?? 0.3) * 100)}%
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={startConfig.backgroundOverlayOpacity ?? 0.3}
+                  onChange={(e) => handleUpdateStartScreen({ backgroundOverlayOpacity: parseFloat(e.target.value) })}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                <button type="button" onClick={() => handleUpdateStartScreen({ backgroundOverlayOpacity: 0 })} className="hover:text-amber-400">0% (Clear)</button>
+                <button type="button" onClick={() => handleUpdateStartScreen({ backgroundOverlayOpacity: 0.3 })} className="hover:text-amber-400">30% (Default)</button>
+                <button type="button" onClick={() => handleUpdateStartScreen({ backgroundOverlayOpacity: 0.5 })} className="hover:text-amber-400">50%</button>
+                <button type="button" onClick={() => handleUpdateStartScreen({ backgroundOverlayOpacity: 0.75 })} className="hover:text-amber-400">75%</button>
+                <button type="button" onClick={() => handleUpdateStartScreen({ backgroundOverlayOpacity: 0.9 })} className="hover:text-amber-400">90%</button>
+              </div>
+            </div>
+          </div>
+
+          {/* B. Visibility Controls */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg">
+            <div className="flex items-center gap-2">
+              <span className="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
+                <Eye className="w-4 h-4" />
+              </span>
+              <div>
+                <h4 className="text-sm font-bold text-slate-100">Start Screen Element Visibility</h4>
+                <p className="text-xs text-slate-400">Toggle header icons and gameplay information pills</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Show Icon */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Game Header Icon</span>
+                    <span className="text-[10px] text-slate-400">Grid symbol badge at the top</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={startConfig.showIcon !== false}
+                  onClick={() => handleUpdateStartScreen({ showIcon: startConfig.showIcon === false })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    startConfig.showIcon !== false ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      startConfig.showIcon !== false ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Show Grid Info */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400">
+                    <Grid3X3 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Grid Dimensions Pill</span>
+                    <span className="text-[10px] text-slate-400">Shows "{rows}×{cols} ({totalCards} Cards)"</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={startConfig.showGridInfo !== false}
+                  onClick={() => handleUpdateStartScreen({ showGridInfo: startConfig.showGridInfo === false })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    startConfig.showGridInfo !== false ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      startConfig.showGridInfo !== false ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Show Pairs Info */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-purple-400">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Pairs Count Pill</span>
+                    <span className="text-[10px] text-slate-400">Shows "{totalPairs} Pairs to Match"</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={startConfig.showPairsInfo !== false}
+                  onClick={() => handleUpdateStartScreen({ showPairsInfo: startConfig.showPairsInfo === false })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    startConfig.showPairsInfo !== false ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      startConfig.showPairsInfo !== false ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Show Timer Info */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Timer Duration Pill</span>
+                    <span className="text-[10px] text-slate-400">Shows "{duration}s Timer"</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={startConfig.showTimerInfo !== false}
+                  onClick={() => handleUpdateStartScreen({ showTimerInfo: startConfig.showTimerInfo === false })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    startConfig.showTimerInfo !== false ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      startConfig.showTimerInfo !== false ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* C. Live Miniature Start Screen Preview Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-3 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <Play className="w-3.5 h-3.5 text-amber-400 fill-current" />
+                <span>Start Screen Live Simulation</span>
+              </h4>
+              <span className="text-[11px] text-slate-500 font-mono">16:9 Scale Preview</span>
+            </div>
+
+            <div
+              className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col items-center justify-center p-4 text-center select-none"
+              style={startBgStyles.containerStyle}
+            >
+              {/* Overlay */}
+              <div className="absolute inset-0" style={startBgStyles.overlayStyle} />
+
+              <div className="relative z-10 max-w-sm w-full space-y-3 px-3">
+                {/* Icon */}
+                {startConfig.showIcon !== false && (
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center mx-auto shadow-lg">
+                    <Grid3X3 className="w-5 h-5" />
+                  </div>
+                )}
+
+                <div className="space-y-0.5">
+                  <h3 className="text-base sm:text-lg font-black text-slate-100 tracking-tight">
+                    {theme.name || 'Memory Match'}
+                  </h3>
+                  <p className="text-[11px] text-slate-300 line-clamp-1">
+                    {theme.description || 'Flip cards, match identical pairs, and beat the clock!'}
+                  </p>
+                </div>
+
+                {/* Pills */}
+                <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                  {startConfig.showGridInfo !== false && (
+                    <span className="px-2.5 py-0.5 bg-slate-900/80 border border-slate-700/80 text-slate-200 text-[10px] font-bold rounded-full">
+                      {rows}×{cols} ({totalCards} Cards)
+                    </span>
+                  )}
+                  {startConfig.showPairsInfo !== false && (
+                    <span className="px-2.5 py-0.5 bg-slate-900/80 border border-slate-700/80 text-slate-200 text-[10px] font-bold rounded-full">
+                      {totalPairs} Pairs
+                    </span>
+                  )}
+                  {startConfig.showTimerInfo !== false && (
+                    <span className="px-2.5 py-0.5 bg-slate-900/80 border border-slate-700/80 text-amber-400 text-[10px] font-bold rounded-full">
+                      {duration}s
+                    </span>
+                  )}
+                </div>
+
+                {/* Start Button Simulation */}
+                <div className="pt-2">
+                  <div className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs shadow-lg">
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>START GAME</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+       * 3. RESULT / GAME OVER SCREEN SUB-SECTION
+       * ========================================================================= */}
+      {activeSubTab === 'result' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* A. Background Selection */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
+                  <Palette className="w-4 h-4" />
+                </span>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-100">Result Screen Background</h4>
+                  <p className="text-xs text-slate-400">Choose between theme background, solid color, or custom image</p>
+                </div>
+              </div>
+
+              {/* Reset to Theme Default */}
+              <button
+                type="button"
+                onClick={() =>
+                  handleUpdateResultScreen({
+                    backgroundType: 'theme',
+                    backgroundColor: '#0f172a',
+                    backgroundImageUrl: null,
+                    backgroundOverlayOpacity: 0.3,
+                  })
+                }
+                className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-200 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors flex items-center gap-1"
+                title="Reset Result Screen background to Theme defaults"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            </div>
+
+            {/* Background Type Mode Selector */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleUpdateResultScreen({ backgroundType: 'theme' })}
+                className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                  resultConfig.backgroundType === 'theme'
+                    ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 shadow-md shadow-amber-500/10 font-bold'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
+                }`}
+              >
+                <Layers className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-xs block">Active Theme BG</span>
+                  <span className="text-[10px] text-slate-500 block truncate">Uses theme wallpaper</span>
+                </div>
+                {resultConfig.backgroundType === 'theme' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleUpdateResultScreen({ backgroundType: 'color' })}
+                className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                  resultConfig.backgroundType === 'color'
+                    ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 shadow-md shadow-amber-500/10 font-bold'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
+                }`}
+              >
+                <Palette className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-xs block">Solid Color</span>
+                  <span className="text-[10px] text-slate-500 block truncate">Custom backdrop color</span>
+                </div>
+                {resultConfig.backgroundType === 'color' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleUpdateResultScreen({ backgroundType: 'image' })}
+                className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                  resultConfig.backgroundType === 'image'
+                    ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 shadow-md shadow-amber-500/10 font-bold'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
+                }`}
+              >
+                <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-xs block">Custom Image</span>
+                  <span className="text-[10px] text-slate-500 block truncate">Independent artwork upload</span>
+                </div>
+                {resultConfig.backgroundType === 'image' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
+              </button>
+            </div>
+
+            {/* Sub-Panel: Solid Color Picker */}
+            {resultConfig.backgroundType === 'color' && (
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={resultConfig.backgroundColor || '#0f172a'}
+                      onChange={(e) => handleUpdateResultScreen({ backgroundColor: e.target.value })}
+                      className="w-9 h-9 rounded-xl cursor-pointer bg-transparent border-0"
+                    />
+                    <div>
+                      <label className="text-xs font-semibold text-slate-300 block">Custom Color</label>
+                      <input
+                        type="text"
+                        value={resultConfig.backgroundColor || '#0f172a'}
+                        onChange={(e) => handleUpdateResultScreen({ backgroundColor: e.target.value })}
+                        className="font-mono text-xs text-amber-400 font-bold bg-slate-900 border border-slate-700 rounded px-2 py-0.5 mt-0.5 uppercase"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Swatches */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {BG_COLOR_PRESETS.map((preset) => (
+                      <button
+                        key={preset.hex}
+                        type="button"
+                        onClick={() => handleUpdateResultScreen({ backgroundColor: preset.hex })}
+                        className={`w-6 h-6 rounded-lg border transition-all ${
+                          resultConfig.backgroundColor?.toLowerCase() === preset.hex.toLowerCase()
+                            ? 'ring-2 ring-amber-400 scale-110 border-white'
+                            : 'border-white/20 hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: preset.hex }}
+                        title={preset.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-Panel: Custom Image Upload */}
+            {resultConfig.backgroundType === 'image' && (
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-4">
+                <input
+                  ref={resultFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUploadResultBg(f);
+                  }}
+                />
+
+                {resultConfig.backgroundImageUrl ? (
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="relative w-full sm:w-48 aspect-video rounded-xl overflow-hidden border border-slate-700 bg-slate-900 shrink-0">
+                      <img
+                        src={resultConfig.backgroundImageUrl}
+                        alt="Result Screen Background"
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+
+                    <div className="space-y-2 flex-1 w-full text-center sm:text-left">
+                      <p className="text-xs font-semibold text-slate-200">Custom Result Screen Background Loaded</p>
+                      <p className="text-[11px] text-slate-400">16:9 recommended aspect ratio (1024×576px or higher)</p>
+
+                      <div className="flex items-center justify-center sm:justify-start gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => resultFileInputRef.current?.click()}
+                          disabled={uploadingAsset === 'memory_result_screen_bg'}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-all flex items-center gap-1.5"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Replace Image</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateResultScreen({ backgroundImageUrl: null, backgroundType: 'theme' })}
+                          className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-bold rounded-xl border border-rose-500/30 transition-all flex items-center gap-1.5"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setResultDragActive(true);
+                    }}
+                    onDragLeave={() => setResultDragActive(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setResultDragActive(false);
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) handleUploadResultBg(f);
+                    }}
+                    onClick={() => resultFileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                      resultDragActive
+                        ? 'border-amber-400 bg-amber-500/10'
+                        : 'border-slate-800 hover:border-amber-500/50 bg-slate-900/50 hover:bg-slate-900'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto mb-2">
+                      <Upload className="w-5 h-5" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-200">Drag & Drop Result Screen Image here or click to browse</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Supports PNG, JPG, WebP (Max 10MB)</p>
+                  </div>
+                )}
+
+                {resultUploadError && (
+                  <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 px-3 py-2 rounded-xl text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{resultUploadError}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Dark Overlay Opacity Slider */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-slate-300 block">Dark Backdrop Overlay</span>
+                  <span className="text-[10px] text-slate-500">Provides contrast for final score and statistics cards</span>
+                </div>
+                <span className="text-amber-400 font-bold font-mono text-xs">
+                  {Math.round((resultConfig.backgroundOverlayOpacity ?? 0.3) * 100)}%
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={resultConfig.backgroundOverlayOpacity ?? 0.3}
+                  onChange={(e) => handleUpdateResultScreen({ backgroundOverlayOpacity: parseFloat(e.target.value) })}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                <button type="button" onClick={() => handleUpdateResultScreen({ backgroundOverlayOpacity: 0 })} className="hover:text-amber-400">0% (Clear)</button>
+                <button type="button" onClick={() => handleUpdateResultScreen({ backgroundOverlayOpacity: 0.3 })} className="hover:text-amber-400">30% (Default)</button>
+                <button type="button" onClick={() => handleUpdateResultScreen({ backgroundOverlayOpacity: 0.5 })} className="hover:text-amber-400">50%</button>
+                <button type="button" onClick={() => handleUpdateResultScreen({ backgroundOverlayOpacity: 0.75 })} className="hover:text-amber-400">75%</button>
+                <button type="button" onClick={() => handleUpdateResultScreen({ backgroundOverlayOpacity: 0.9 })} className="hover:text-amber-400">90%</button>
+              </div>
+            </div>
+          </div>
+
+          {/* B. Result Screen Statistics Visibility Toggles */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
+                  <Award className="w-4 h-4" />
+                </span>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-100">Result Statistics Visibility</h4>
+                  <p className="text-xs text-slate-400">
+                    Control which statistics are shown on Game Over. Layout automatically reflows to fill available space!
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Show Score */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400">
+                    <Trophy className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Final Score</span>
+                    <span className="text-[10px] text-slate-400">Total match score and combo points</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={resultConfig.showScore !== false}
+                  onClick={() => handleUpdateResultScreen({ showScore: resultConfig.showScore === false })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    resultConfig.showScore !== false ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      resultConfig.showScore !== false ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Show Moves */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-cyan-400">
+                    <RotateCw className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Moves Count</span>
+                    <span className="text-[10px] text-slate-400">Total card pair flip attempts</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={resultConfig.showMoves !== false}
+                  onClick={() => handleUpdateResultScreen({ showMoves: resultConfig.showMoves === false })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    resultConfig.showMoves !== false ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      resultConfig.showMoves !== false ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Show Pairs */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Pairs Matched</span>
+                    <span className="text-[10px] text-slate-400">Number of completed matches</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={resultConfig.showPairs !== false}
+                  onClick={() => handleUpdateResultScreen({ showPairs: resultConfig.showPairs === false })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    resultConfig.showPairs !== false ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      resultConfig.showPairs !== false ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Show Accuracy */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-violet-400">
+                    <Zap className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Accuracy Rate</span>
+                    <span className="text-[10px] text-slate-400">Percentage accuracy calculation</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={resultConfig.showAccuracy !== false}
+                  onClick={() => handleUpdateResultScreen({ showAccuracy: resultConfig.showAccuracy === false })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    resultConfig.showAccuracy !== false ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      resultConfig.showAccuracy !== false ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3.5 flex items-center gap-2.5 text-xs text-slate-400">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                <strong>Dynamic Reflow Guarantee:</strong> If any statistic is disabled, remaining statistics automatically reflow into a clean balanced grid without leaving empty gaps.
+              </span>
+            </div>
+          </div>
+
+          {/* C. Live Miniature Result Screen Preview Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-3 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                <span>Result Screen Live Simulation (Dynamic Reflow)</span>
+              </h4>
+              <span className="text-[11px] text-slate-500 font-mono">16:9 Scale Preview</span>
+            </div>
+
+            <div
+              className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col items-center justify-center p-4 text-center select-none"
+              style={resultBgStyles.containerStyle}
+            >
+              {/* Overlay */}
+              <div className="absolute inset-0" style={resultBgStyles.overlayStyle} />
+
+              <div className="relative z-10 max-w-sm w-full space-y-3 px-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto shadow-lg">
+                  <Trophy className="w-5 h-5" />
+                </div>
+
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-100 tracking-tight">
+                    Board Cleared!
+                  </h3>
+                  <p className="text-[11px] text-slate-400">All matching pairs discovered</p>
+                </div>
+
+                {/* Reflowed Stats Simulation */}
+                {(() => {
+                  const previewStats: { label: string; value: string; color: string }[] = [];
+                  if (resultConfig.showScore !== false) {
+                    previewStats.push({ label: 'SCORE', value: '1,250', color: 'text-amber-400' });
+                  }
+                  if (resultConfig.showMoves !== false) {
+                    previewStats.push({ label: 'MOVES', value: '14', color: 'text-cyan-400' });
+                  }
+                  if (resultConfig.showPairs !== false) {
+                    previewStats.push({ label: 'PAIRS', value: `${totalPairs}/${totalPairs}`, color: 'text-emerald-400' });
+                  }
+                  if (resultConfig.showAccuracy !== false) {
+                    previewStats.push({ label: 'ACCURACY', value: '88%', color: 'text-violet-400' });
+                  }
+
+                  if (previewStats.length === 0) return null;
+
+                  return (
+                    <div
+                      className="grid gap-1.5 max-w-xs mx-auto"
+                      style={{
+                        gridTemplateColumns: `repeat(${previewStats.length}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      {previewStats.map((stat, idx) => (
+                        <div
+                          key={idx}
+                          className="bg-slate-900/90 border border-slate-800 rounded-xl p-2 text-center"
+                        >
+                          <span className="text-[9px] font-bold text-slate-400 block tracking-wider">
+                            {stat.label}
+                          </span>
+                          <span className={`text-xs sm:text-sm font-black font-mono mt-0.5 block ${stat.color}`}>
+                            {stat.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* Play Again Simulation Button */}
+                <div className="pt-1">
+                  <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs shadow-lg">
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>PLAY AGAIN</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ==========================================================================
  * MEMORY MATCH - AUDIO SOUND TESTER
  * ========================================================================== */
 export const MemoryMatchAudioTester: React.FC = () => {
@@ -2080,4 +3215,5 @@ export const MemoryMatchAudioTester: React.FC = () => {
     </div>
   );
 };
+
 
