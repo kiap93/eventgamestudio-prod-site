@@ -5,7 +5,8 @@ import { GameContainer } from '../GameContainer';
 import { EventPaymentModal } from './EventPaymentModal';
 import { apiFetch } from '../../lib/api';
 import {
-  isWithinImmersiveFullscreenWindow,
+  isCurrentSingaporeDateWithinEventRange,
+  extractDateString,
   getSingaporeDateTime,
   getSingaporeCalendarDate,
 } from '../../lib/dateUtils';
@@ -30,6 +31,12 @@ interface PublicEventData {
   name: string;
   public_token: string;
   event_date: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  event_start_date?: string | null;
+  event_end_date?: string | null;
   starts_at: string;
   expires_at: string;
   status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
@@ -91,46 +98,55 @@ export const PublicEventGameView: React.FC = () => {
     return () => clearInterval(dateTimer);
   }, []);
 
-  // Authoritative payment and Singapore date window checks
-  // CONDITION 1 — Payment: eventData.payment_status === 'PAID'
+  // Authoritative payment and Singapore date range checks
   const isPaidEvent =
     String(eventData?.payment_status || '').toUpperCase() === 'PAID';
 
-  // CONDITION 2 — Event date window: ONE DAY BEFORE THE EVENT DATE through THE ENTIRE EVENT DATE (Singapore timezone)
-  const isWithinEventDateWindow = eventData?.event_date
-    ? isWithinImmersiveFullscreenWindow(eventData.event_date)
-    : false;
+  const eventStartDate =
+    eventData?.start_date ||
+    eventData?.startDate ||
+    eventData?.event_start_date ||
+    eventData?.event_date ||
+    (eventData?.starts_at ? extractDateString(eventData.starts_at) : null);
 
-  // Header Visibility Rule: Event Header is hidden ONLY when browser is fullscreen, event is PAID, and within date window
+  const eventEndDate =
+    eventData?.end_date ||
+    eventData?.endDate ||
+    eventData?.event_end_date ||
+    (eventData?.expires_at ? extractDateString(eventData.expires_at) : null) ||
+    eventStartDate;
+
+  const isWithinEventDateRange =
+    isCurrentSingaporeDateWithinEventRange(eventStartDate, eventEndDate);
+
+  // Header Visibility Rule: Event Header is hidden ONLY when browser is fullscreen, event is PAID, and within event date range
   const shouldHideEventHeader =
-    isFullscreen && isPaidEvent && isWithinEventDateWindow;
+    isFullscreen && isPaidEvent && isWithinEventDateRange;
 
   const showEventHeader = !shouldHideEventHeader;
 
   // Development debug logging
   useEffect(() => {
     if (eventData) {
-      console.log('[FULLSCREEN & HEADER STATE]', {
-        eventDate: eventData.event_date,
+      console.log('[EVENT HEADER]', {
         paymentStatus: eventData.payment_status,
-        eventStatus: eventData.status,
+        eventStartDate,
+        eventEndDate,
         singaporeNow: getSingaporeDateTime(),
         isPaidEvent,
-        isWithinEventDateWindow,
+        isWithinEventDateRange,
         isFullscreen,
         shouldHideEventHeader,
-        showEventHeader,
       });
     }
   }, [
-    eventData?.event_date,
     eventData?.payment_status,
-    eventData?.status,
+    eventStartDate,
+    eventEndDate,
     isPaidEvent,
-    isWithinEventDateWindow,
+    isWithinEventDateRange,
     isFullscreen,
     shouldHideEventHeader,
-    showEventHeader,
     singaporeDateKey,
   ]);
 

@@ -185,6 +185,29 @@ export function getSingaporeDateTime(date: Date = new Date()): string {
 }
 
 /**
+ * Checks whether the current date/time (in Asia/Singapore timezone UTC+8) falls within
+ * the event date range (from Start Date to End Date, inclusive).
+ *
+ * Example:
+ * If startDate is '2026-08-29' and endDate is '2026-09-07',
+ * returns true for Singapore calendar dates from '2026-08-29' through '2026-09-07' inclusive.
+ */
+export function isCurrentSingaporeDateWithinEventRange(
+  startDateVal: string | Date | null | undefined,
+  endDateVal: string | Date | null | undefined,
+  now: Date = new Date()
+): boolean {
+  const startStr = extractDateString(startDateVal);
+  const endStr = extractDateString(endDateVal) || startStr;
+
+  if (!startStr) return false;
+  const currentSingaporeDate = getSingaporeCalendarDate(now);
+
+  const effectiveEndStr = endStr >= startStr ? endStr : startStr;
+  return currentSingaporeDate >= startStr && currentSingaporeDate <= effectiveEndStr;
+}
+
+/**
  * Checks whether the current date/time (in Asia/Singapore timezone) falls within
  * the immersive fullscreen window for the given event date.
  *

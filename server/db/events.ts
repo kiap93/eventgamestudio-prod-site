@@ -596,8 +596,15 @@ export async function getEventsByOrgId(
     const isPaid = paymentStatus === 'PAID';
     const eventLifecycle = event.event_status || deriveEventLifecycleStatus(event);
 
+    const rawStartDate = event.start_date || (event.starts_at ? event.starts_at.split('T')[0] : event.event_date) || null;
+    const rawEndDate = event.end_date || (event.expires_at ? event.expires_at.split('T')[0] : rawStartDate) || rawStartDate;
+    const rawEventDate = event.event_date || rawStartDate;
+
     return {
       ...event,
+      start_date: rawStartDate,
+      end_date: rawEndDate,
+      event_date: rawEventDate,
       game_id: event.game_id || theme?.game_id || resolvedGame?.id || null,
       event_price: storedPrice,
       event_currency: event.event_currency || 'MYR',
@@ -711,8 +718,15 @@ export async function getEventById(
   const isPaid = paymentStatus === 'PAID';
   const eventLifecycle = eventRecord.event_status || deriveEventLifecycleStatus(eventRecord);
 
+  const rawStartDate = eventRecord.start_date || (eventRecord.starts_at ? eventRecord.starts_at.split('T')[0] : eventRecord.event_date) || null;
+  const rawEndDate = eventRecord.end_date || (eventRecord.expires_at ? eventRecord.expires_at.split('T')[0] : rawStartDate) || rawStartDate;
+  const rawEventDate = eventRecord.event_date || rawStartDate;
+
   return {
     ...eventRecord,
+    start_date: rawStartDate,
+    end_date: rawEndDate,
+    event_date: rawEventDate,
     game_id: eventRecord.game_id || theme?.game_id || game?.id || null,
     event_price: storedPrice,
     event_currency: eventRecord.event_currency || 'MYR',
@@ -841,8 +855,15 @@ export async function getEventByPublicToken(
     ? Number(eventRecord.event_price)
     : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : 1400.00);
 
+  const rawStartDate = eventRecord.start_date || (eventRecord.starts_at ? eventRecord.starts_at.split('T')[0] : eventRecord.event_date) || null;
+  const rawEndDate = eventRecord.end_date || (eventRecord.expires_at ? eventRecord.expires_at.split('T')[0] : rawStartDate) || rawStartDate;
+  const rawEventDate = eventRecord.event_date || rawStartDate;
+
   return {
     ...eventRecord,
+    start_date: rawStartDate,
+    end_date: rawEndDate,
+    event_date: rawEventDate,
     event_price: storedPrice,
     event_currency: eventRecord.event_currency || 'MYR',
     event_status: eventLifecycleStatus as EventLifecycleStatus,
