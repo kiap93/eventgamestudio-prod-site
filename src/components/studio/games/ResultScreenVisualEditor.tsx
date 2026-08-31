@@ -44,6 +44,12 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignCenterHorizontal,
+  AlignStartVertical,
+  AlignCenterVertical,
+  AlignEndVertical,
+  AlignHorizontalDistributeCenter,
+  AlignVerticalDistributeCenter,
   Upload,
   SlidersHorizontal,
   Palette,
@@ -54,6 +60,7 @@ import {
   CornerDownRight,
   LogOut,
   FolderPlus,
+  Grid,
 } from 'lucide-react';
 
 interface ResultScreenVisualEditorProps {
@@ -76,8 +83,13 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
   const canvasWidth = resultConfig.canvas?.width || 1000;
   const canvasHeight = resultConfig.canvas?.height || 1000;
 
-  // Selected element ID
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Selected element IDs (supports multi-selection of sibling elements)
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selectedId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
+  const setSelectedId = useCallback((id: string | null) => {
+    setSelectedIds(id ? [id] : []);
+  }, []);
+
   const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [activeChildAddContainerId, setActiveChildAddContainerId] = useState<string | null>(null);
@@ -110,6 +122,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     centerX?: number;
     centerY?: number;
     startAngle?: number;
+    initialPositions?: Record<string, { x: number; y: number; width: number; height: number }>;
   } | null>(null);
 
   // Elements array guarantee
@@ -473,15 +486,93 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     [isDescendantOf]
   );
 
+  // Selected elements derivation
+  const selectedItemsInfo = selectedIds
+    .map((id) => findElementAndParent(id, elements))
+    .filter(
+      (res): res is { element: ResultScreenElement; parent: ResultCardElement | ResultGroupElement | null } =>
+        res !== null
+    );
+
+  const selectedElements = selectedItemsInfo.map((info) => info.element);
+  const commonParent = selectedItemsInfo.length > 0 ? selectedItemsInfo[0].parent : null;
+
   const selectedResult = selectedId ? findElementAndParent(selectedId, elements) : null;
   const selectedElement = selectedResult?.element || null;
   const selectedParentElement = selectedResult?.parent || null;
+
+  // Selection toggle helper (preserves sibling constraint for multi-selection)
+  const handleSelectElement = (
+    id: string,
+    e?: React.MouseEvent,
+    elementsList: ResultScreenElement[] = elements
+  ) => {
+    const isToggle = e ? e.shiftKey || e.metaKey || e.ctrlKey : false;
+    if (!isToggle) {
+      setSelectedIds([id]);
+      return;
+    }
+
+    const clickedInfo = findElementAndParent(id, elementsList);
+    if (!clickedInfo) return;
+
+    if (selectedIds.length === 0) {
+      setSelectedIds([id]);
+      return;
+    }
+
+    // Sibling constraint: multi-selection is allowed only among elements sharing the same container
+    const firstSelectedInfo = findElementAndParent(selectedIds[0], elementsList);
+    const firstParentId = firstSelectedInfo?.parent?.id || 'root';
+    const clickedParentId = clickedInfo?.parent?.id || 'root';
+
+    if (firstParentId !== clickedParentId) {
+      setSelectedIds([id]);
+      return;
+    }
+
+    if (selectedIds.includes(id)) {
+      const next = selectedIds.filter((item) => item !== id);
+      setSelectedIds(next);
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
 
   // Update elements helper
   const updateElements = (newElements: ResultScreenElement[]) => {
     onChange({
       elements: newElements,
     });
+  };
+
+  // Mutate multiple elements at once (clean single tree pass)
+  const updateMultipleElements = (
+    updates: Record<string, Partial<ResultScreenElement>>
+  ) => {
+    const recursiveUpdate = (list: ResultScreenElement[]): ResultScreenElement[] => {
+      return list.map((item) => {
+        let updatedItem = item;
+        if (updates[item.id]) {
+          updatedItem = { ...item, ...updates[item.id] } as ResultScreenElement;
+        }
+        if (updatedItem.type === 'card' && (updatedItem as ResultCardElement).children) {
+          return {
+            ...updatedItem,
+            children: recursiveUpdate((updatedItem as ResultCardElement).children || []),
+          } as ResultCardElement;
+        }
+        if (updatedItem.type === 'group' && (updatedItem as ResultGroupElement).children) {
+          return {
+            ...updatedItem,
+            children: recursiveUpdate((updatedItem as ResultGroupElement).children || []),
+          } as ResultGroupElement;
+        }
+        return updatedItem;
+      });
+    };
+
+    updateElements(recursiveUpdate(elements));
   };
 
   // Mutate a specific element
@@ -676,9 +767,36 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     };
 
     updateElements(recursiveDelete(elements));
-    if (selectedId === id || (selectedId && isDescendantOf(selectedId, id, elements))) {
-      setSelectedId(null);
-    }
+    setSelectedIds((prev) => prev.filter((item) => item !== id && !isDescendantOf(item, id, elements)));
+  };
+
+  // Delete all currently selected elements
+  const handleDeleteSelected = () => {
+    if (selectedIds.length === 0) return;
+    const idsToDelete = new Set(selectedIds);
+
+    const recursiveDelete = (list: ResultScreenElement[]): ResultScreenElement[] => {
+      return list
+        .filter((item) => !idsToDelete.has(item.id))
+        .map((item) => {
+          if (item.type === 'card' && (item as ResultCardElement).children) {
+            return {
+              ...item,
+              children: recursiveDelete((item as ResultCardElement).children || []),
+            } as ResultCardElement;
+          }
+          if (item.type === 'group' && (item as ResultGroupElement).children) {
+            return {
+              ...item,
+              children: recursiveDelete((item as ResultGroupElement).children || []),
+            } as ResultGroupElement;
+          }
+          return item;
+        });
+    };
+
+    updateElements(recursiveDelete(elements));
+    setSelectedIds([]);
   };
 
   // Deep Duplicate Element (Duplicating a Card duplicates its entire child subtree with unique IDs)
@@ -719,7 +837,59 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
       updateElements([...elements, duplicated]);
     }
 
-    setSelectedId(duplicated.id);
+    setSelectedIds([duplicated.id]);
+  };
+
+  // Duplicate all currently selected elements
+  const handleDuplicateSelected = () => {
+    if (selectedElements.length === 0) return;
+
+    const duplicateDeep = (el: ResultScreenElement): ResultScreenElement => {
+      const clonedId = `${el.type}-${Date.now().toString(36)}-${Math.floor(Math.random() * 10000)}`;
+      const cloned: any = {
+        ...el,
+        id: clonedId,
+        style: (el as any).style ? { ...(el as any).style } : undefined,
+      };
+      if (el.type === 'card' && (el as ResultCardElement).children) {
+        cloned.children = (el as ResultCardElement).children?.map(duplicateDeep);
+      }
+      if (el.type === 'group' && (el as ResultGroupElement).children) {
+        cloned.children = (el as ResultGroupElement).children?.map(duplicateDeep);
+      }
+      return cloned;
+    };
+
+    const newSelectedIds: string[] = [];
+    const parentContainerW = commonParent ? commonParent.width : canvasWidth;
+    const parentContainerH = commonParent ? commonParent.height : canvasHeight;
+
+    if (commonParent) {
+      const newChildren = [...(commonParent.children || [])];
+      selectedElements.forEach((el) => {
+        const dup = duplicateDeep(el);
+        dup.x = Math.min(el.x + 30, Math.max(0, parentContainerW - dup.width));
+        dup.y = Math.min(el.y + 30, Math.max(0, parentContainerH - dup.height));
+        newChildren.push(dup);
+        newSelectedIds.push(dup.id);
+      });
+      updateElementById(commonParent.id, (prev) => ({
+        ...prev,
+        children: newChildren,
+      }));
+    } else {
+      const newRootElements = [...elements];
+      selectedElements.forEach((el) => {
+        const dup = duplicateDeep(el);
+        dup.x = Math.min(el.x + 30, Math.max(0, parentContainerW - dup.width));
+        dup.y = Math.min(el.y + 30, Math.max(0, parentContainerH - dup.height));
+        newRootElements.push(dup);
+        newSelectedIds.push(dup.id);
+      });
+      updateElements(newRootElements);
+    }
+
+    setSelectedIds(newSelectedIds);
   };
 
   // Move Layer Ordering (Up = higher z / forward, Down = lower z / backward)
@@ -776,7 +946,41 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     parentHeight: number
   ) => {
     e.stopPropagation();
-    setSelectedId(el.id);
+
+    let currentSelectedIds = selectedIds;
+    if (e.shiftKey || e.metaKey || e.ctrlKey) {
+      handleSelectElement(el.id, e);
+      currentSelectedIds = selectedIds.includes(el.id)
+        ? selectedIds.filter((id) => id !== el.id)
+        : [...selectedIds, el.id];
+    } else {
+      if (!selectedIds.includes(el.id)) {
+        setSelectedIds([el.id]);
+        currentSelectedIds = [el.id];
+      }
+    }
+
+    // Capture initial positions for multi-drag
+    const initialPositions: Record<string, { x: number; y: number; width: number; height: number }> = {};
+    for (const id of currentSelectedIds) {
+      const found = findElementAndParent(id, elements);
+      if (found) {
+        initialPositions[id] = {
+          x: found.element.x,
+          y: found.element.y,
+          width: found.element.width,
+          height: found.element.height,
+        };
+      }
+    }
+    if (!initialPositions[el.id]) {
+      initialPositions[el.id] = {
+        x: el.x,
+        y: el.y,
+        width: el.width,
+        height: el.height,
+      };
+    }
 
     setInteractionMode('drag');
     interactionRef.current = {
@@ -791,6 +995,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
       initialRotation: el.rotation || 0,
       parentWidth,
       parentHeight,
+      initialPositions,
     };
   };
 
@@ -802,7 +1007,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     handle: ResizeHandle
   ) => {
     e.stopPropagation();
-    setSelectedId(el.id);
+    setSelectedIds([el.id]);
 
     setInteractionMode('resize');
     interactionRef.current = {
@@ -828,7 +1033,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     parentHeight: number
   ) => {
     e.stopPropagation();
-    setSelectedId(el.id);
+    setSelectedIds([el.id]);
 
     const elDom = document.getElementById(`canvas-el-${el.id}`);
     let centerX = e.clientX;
@@ -875,9 +1080,12 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
         initialWidth,
         initialHeight,
         initialRotation,
+        parentWidth,
+        parentHeight,
         centerX,
         centerY,
         startAngle,
+        initialPositions,
       } = interactionRef.current;
 
       const canvasRect = canvasRef.current.getBoundingClientRect();
@@ -893,14 +1101,21 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
       const deltaLogicalY = deltaScreenY * scaleFactorY;
 
       if (mode === 'drag') {
-        const nextX = Math.round(initialX + deltaLogicalX);
-        const nextY = Math.round(initialY + deltaLogicalY);
+        const positions: Record<string, { x: number; y: number; width: number; height: number }> =
+          initialPositions || {
+            [elementId]: { x: initialX, y: initialY, width: initialWidth, height: initialHeight },
+          };
+        const updates: Record<string, Partial<ResultScreenElement>> = {};
 
-        updateElementById(elementId, (prev) => ({
-          ...prev,
-          x: nextX,
-          y: nextY,
-        } as ResultScreenElement));
+        for (const [id, pos] of Object.entries(positions)) {
+          const nextX = Math.round(pos.x + deltaLogicalX);
+          const nextY = Math.round(pos.y + deltaLogicalY);
+          const clampedX = Math.max(0, Math.min(parentWidth - pos.width, nextX));
+          const clampedY = Math.max(0, Math.min(parentHeight - pos.height, nextY));
+          updates[id] = { x: clampedX, y: clampedY };
+        }
+
+        updateMultipleElements(updates);
       } else if (mode === 'resize' && handle) {
         // Project screen delta to element's local unrotated coordinate space if rotated
         const rad = ((initialRotation || 0) * Math.PI) / 180;
@@ -1000,40 +1215,33 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
         activeTag === 'select' ||
         (document.activeElement as HTMLElement)?.isContentEditable;
 
-      if (isEditingText || !selectedId) return;
+      if (isEditingText || selectedIds.length === 0) return;
 
       const step = e.shiftKey ? 10 : 1;
 
-      if (e.key === 'ArrowLeft') {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault();
-        updateElementById(selectedId, (prev) => ({
-          ...prev,
-          x: Math.round(prev.x - step),
-        } as ResultScreenElement));
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        updateElementById(selectedId, (prev) => ({
-          ...prev,
-          x: Math.round(prev.x + step),
-        } as ResultScreenElement));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        updateElementById(selectedId, (prev) => ({
-          ...prev,
-          y: Math.round(prev.y - step),
-        } as ResultScreenElement));
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        updateElementById(selectedId, (prev) => ({
-          ...prev,
-          y: Math.round(prev.y + step),
-        } as ResultScreenElement));
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+
+        const parentContainerW = commonParent ? commonParent.width : canvasWidth;
+        const parentContainerH = commonParent ? commonParent.height : canvasHeight;
+
+        const updates: Record<string, Partial<ResultScreenElement>> = {};
+        for (const el of selectedElements) {
+          const nextX = Math.round(el.x + dx);
+          const nextY = Math.round(el.y + dy);
+          const clampedX = Math.max(0, Math.min(parentContainerW - el.width, nextX));
+          const clampedY = Math.max(0, Math.min(parentContainerH - el.height, nextY));
+          updates[el.id] = { x: clampedX, y: clampedY };
+        }
+        updateMultipleElements(updates);
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
-        handleDeleteElement(selectedId);
+        handleDeleteSelected();
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        setSelectedId(null);
+        setSelectedIds([]);
       }
     };
 
@@ -1041,7 +1249,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedId, elements]);
+  }, [selectedIds, selectedElements, commonParent, canvasWidth, canvasHeight, elements]);
 
   const bg = resolveScreenBackground(resultConfig, theme);
 
@@ -1079,7 +1287,9 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     parentWidth: number,
     parentHeight: number
   ): React.ReactNode => {
-    const isSelected = selectedId === el.id;
+    const isSelected = selectedIds.includes(el.id);
+    const isSingleSelected = selectedIds.length === 1 && selectedIds[0] === el.id;
+    const isMultiSelected = selectedIds.length > 1 && isSelected;
     const isVisible = el.visible !== false;
     const isParentOfSelected = selectedParentElement?.id === el.id;
 
@@ -1473,6 +1683,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
         id={`canvas-el-${el.id}`}
         style={commonStyle}
         onMouseDown={(e) => handleMouseDown(e, el, parentWidth, parentHeight)}
+        onClick={(e) => e.stopPropagation()}
         className="group relative"
       >
         {innerContent}
@@ -1480,80 +1691,101 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
         {/* Selection bounding box, 8 resize handles, and rotation stalk */}
         {isSelected && (
           <div className="absolute -inset-0.5 border-2 border-amber-400 pointer-events-none z-50">
-            {/* Rotation Stalk and Knob */}
-            <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
-              <div
-                onMouseDown={(e) => handleRotateMouseDown(e, el, parentWidth, parentHeight)}
-                className="w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-300 border-2 border-slate-950 flex items-center justify-center cursor-grab active:cursor-grabbing shadow-md hover:scale-125 transition-transform"
-                title="Drag to Rotate (Degrees)"
-              >
-                <RotateCw className="w-2.5 h-2.5 text-slate-950 stroke-[3]" />
-              </div>
-              <div className="w-0.5 h-2 bg-amber-400" />
-            </div>
+            {isSingleSelected ? (
+              <>
+                {/* Rotation Stalk and Knob */}
+                <div
+                  className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div
+                    onMouseDown={(e) => handleRotateMouseDown(e, el, parentWidth, parentHeight)}
+                    className="w-5 h-5 rounded-full bg-amber-400 hover:bg-amber-300 border-2 border-slate-950 flex items-center justify-center cursor-grab active:cursor-grabbing shadow-md hover:scale-125 transition-transform"
+                    title="Drag to Rotate (Degrees)"
+                  >
+                    <RotateCw className="w-2.5 h-2.5 text-slate-950 stroke-[3]" />
+                  </div>
+                  <div className="w-0.5 h-2 bg-amber-400" />
+                </div>
 
-            {/* Corner Resize Handles */}
-            <div
-              onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'tl')}
-              className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nwse-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-              title="Resize Top-Left"
-            />
-            <div
-              onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'tr')}
-              className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nesw-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-              title="Resize Top-Right"
-            />
-            <div
-              onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'bl')}
-              className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nesw-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-              title="Resize Bottom-Left"
-            />
-            <div
-              onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'br')}
-              className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nwse-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-              title="Resize Bottom-Right"
-            />
+                {/* Corner Resize Handles */}
+                <div
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'tl')}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nwse-resize pointer-events-auto hover:scale-125 transition-transform shadow"
+                  title="Resize Top-Left"
+                />
+                <div
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'tr')}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nesw-resize pointer-events-auto hover:scale-125 transition-transform shadow"
+                  title="Resize Top-Right"
+                />
+                <div
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'bl')}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nesw-resize pointer-events-auto hover:scale-125 transition-transform shadow"
+                  title="Resize Bottom-Left"
+                />
+                <div
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'br')}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-nwse-resize pointer-events-auto hover:scale-125 transition-transform shadow"
+                  title="Resize Bottom-Right"
+                />
 
-            {/* Edge Resize Handles */}
-            <div
-              onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 't')}
-              className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ns-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-              title="Resize Top Edge"
-            />
-            <div
-              onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'b')}
-              className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ns-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-              title="Resize Bottom Edge"
-            />
-            <div
-              onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'l')}
-              className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ew-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-              title="Resize Left Edge"
-            />
-            <div
-              onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'r')}
-              className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ew-resize pointer-events-auto hover:scale-125 transition-transform shadow"
-              title="Resize Right Edge"
-            />
+                {/* Edge Resize Handles */}
+                <div
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 't')}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ns-resize pointer-events-auto hover:scale-125 transition-transform shadow"
+                  title="Resize Top Edge"
+                />
+                <div
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'b')}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ns-resize pointer-events-auto hover:scale-125 transition-transform shadow"
+                  title="Resize Bottom Edge"
+                />
+                <div
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'l')}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ew-resize pointer-events-auto hover:scale-125 transition-transform shadow"
+                  title="Resize Left Edge"
+                />
+                <div
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, parentWidth, parentHeight, 'r')}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-3 bg-amber-400 border border-slate-950 rounded-sm cursor-ew-resize pointer-events-auto hover:scale-125 transition-transform shadow"
+                  title="Resize Right Edge"
+                />
 
-            {/* Live Manipulation HUD Badge */}
-            <div className="absolute -top-7 right-0 bg-slate-950/95 border border-amber-500/70 text-amber-300 font-mono text-[9px] px-2 py-0.5 rounded shadow-lg flex items-center gap-1.5 whitespace-nowrap pointer-events-none z-50">
-              <span className="font-bold uppercase text-amber-400">{el.type}</span>
-              <span>•</span>
-              <span>
-                ({Math.round(el.x)}, {Math.round(el.y)})
-              </span>
-              <span>•</span>
-              <span>
-                {Math.round(el.width)}×{Math.round(el.height)}
-              </span>
-              {typeof el.rotation === 'number' && el.rotation !== 0 ? (
-                <>
+                {/* Live Manipulation HUD Badge */}
+                <div className="absolute -top-7 right-0 bg-slate-950/95 border border-amber-500/70 text-amber-300 font-mono text-[9px] px-2 py-0.5 rounded shadow-lg flex items-center gap-1.5 whitespace-nowrap pointer-events-none z-50">
+                  <span className="font-bold uppercase text-amber-400">{el.type}</span>
                   <span>•</span>
-                  <span>{Math.round(el.rotation)}°</span>
-                </>
-              ) : null}
-            </div>
+                  <span>
+                    ({Math.round(el.x)}, {Math.round(el.y)})
+                  </span>
+                  <span>•</span>
+                  <span>
+                    {Math.round(el.width)}×{Math.round(el.height)}
+                  </span>
+                  {typeof el.rotation === 'number' && el.rotation !== 0 ? (
+                    <>
+                      <span>•</span>
+                      <span>{Math.round(el.rotation)}°</span>
+                    </>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              /* Multi-Selection Overlay Badge */
+              <div className="absolute -top-5 left-0 bg-amber-500 text-slate-950 font-mono text-[9px] font-black px-1.5 py-0.2 rounded shadow flex items-center gap-1 uppercase tracking-wider">
+                <span>{el.type}</span>
+                <span className="opacity-75">({Math.round(el.x)}, {Math.round(el.y)})</span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1567,7 +1799,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     parentEl: ResultCardElement | ResultGroupElement | null = null,
     isLastChild = false
   ) => {
-    const isSelected = selectedId === el.id;
+    const isSelected = selectedIds.includes(el.id);
     const isVisible = el.visible !== false;
     const isCardOrGroup = el.type === 'card' || el.type === 'group';
     const isExpanded = expandedCardIds[el.id] !== false; // expanded by default
@@ -1584,7 +1816,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     return (
       <div key={el.id} className="space-y-0.5 relative">
         <div
-          onClick={() => setSelectedId(el.id)}
+          onClick={(e) => handleSelectElement(el.id, e)}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           className={`flex items-center justify-between py-1.5 pr-2 rounded-xl cursor-pointer transition-colors text-xs font-semibold select-none group relative ${
             isSelected
@@ -1812,18 +2044,260 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     }
   };
 
-  const handleAlignCenterX = () => {
-    if (!selectedElement) return;
-    const parentW = selectedParentElement ? selectedParentElement.width : canvasWidth;
-    const newX = Math.max(0, Math.round((parentW - selectedElement.width) / 2));
-    updateElementById(selectedElement.id, (prev) => ({ ...prev, x: newX }));
+  // ----------------------------------------------------
+  // Phase 8.1 Professional Alignment & Layout Functions
+  // ----------------------------------------------------
+
+  // 1. Center Horizontally (Canvas or Parent)
+  const handleCenterHorizontally = () => {
+    if (selectedElements.length === 0) return;
+    const containerW = commonParent ? commonParent.width : canvasWidth;
+
+    if (selectedElements.length === 1) {
+      const el = selectedElements[0];
+      const newX = Math.max(0, Math.round((containerW - el.width) / 2));
+      updateElementById(el.id, (prev) => ({ ...prev, x: newX }));
+    } else {
+      const minX = Math.min(...selectedElements.map((e) => e.x));
+      const maxX = Math.max(...selectedElements.map((e) => e.x + e.width));
+      const bboxW = maxX - minX;
+      const targetMinX = Math.round((containerW - bboxW) / 2);
+      const deltaX = targetMinX - minX;
+
+      const updates: Record<string, Partial<ResultScreenElement>> = {};
+      for (const el of selectedElements) {
+        const newX = Math.max(0, Math.min(containerW - el.width, Math.round(el.x + deltaX)));
+        updates[el.id] = { x: newX };
+      }
+      updateMultipleElements(updates);
+    }
   };
 
-  const handleAlignCenterY = () => {
-    if (!selectedElement) return;
-    const parentH = selectedParentElement ? selectedParentElement.height : canvasHeight;
-    const newY = Math.max(0, Math.round((parentH - selectedElement.height) / 2));
-    updateElementById(selectedElement.id, (prev) => ({ ...prev, y: newY }));
+  // 2. Center Vertically (Canvas or Parent)
+  const handleCenterVertically = () => {
+    if (selectedElements.length === 0) return;
+    const containerH = commonParent ? commonParent.height : canvasHeight;
+
+    if (selectedElements.length === 1) {
+      const el = selectedElements[0];
+      const newY = Math.max(0, Math.round((containerH - el.height) / 2));
+      updateElementById(el.id, (prev) => ({ ...prev, y: newY }));
+    } else {
+      const minY = Math.min(...selectedElements.map((e) => e.y));
+      const maxY = Math.max(...selectedElements.map((e) => e.y + e.height));
+      const bboxH = maxY - minY;
+      const targetMinY = Math.round((containerH - bboxH) / 2);
+      const deltaY = targetMinY - minY;
+
+      const updates: Record<string, Partial<ResultScreenElement>> = {};
+      for (const el of selectedElements) {
+        const newY = Math.max(0, Math.min(containerH - el.height, Math.round(el.y + deltaY)));
+        updates[el.id] = { y: newY };
+      }
+      updateMultipleElements(updates);
+    }
+  };
+
+  // 3. Center Both (Horizontally and Vertically)
+  const handleCenterBoth = () => {
+    if (selectedElements.length === 0) return;
+    const containerW = commonParent ? commonParent.width : canvasWidth;
+    const containerH = commonParent ? commonParent.height : canvasHeight;
+
+    if (selectedElements.length === 1) {
+      const el = selectedElements[0];
+      const newX = Math.max(0, Math.round((containerW - el.width) / 2));
+      const newY = Math.max(0, Math.round((containerH - el.height) / 2));
+      updateElementById(el.id, (prev) => ({ ...prev, x: newX, y: newY }));
+    } else {
+      const minX = Math.min(...selectedElements.map((e) => e.x));
+      const maxX = Math.max(...selectedElements.map((e) => e.x + e.width));
+      const bboxW = maxX - minX;
+      const targetMinX = Math.round((containerW - bboxW) / 2);
+      const deltaX = targetMinX - minX;
+
+      const minY = Math.min(...selectedElements.map((e) => e.y));
+      const maxY = Math.max(...selectedElements.map((e) => e.y + e.height));
+      const bboxH = maxY - minY;
+      const targetMinY = Math.round((containerH - bboxH) / 2);
+      const deltaY = targetMinY - minY;
+
+      const updates: Record<string, Partial<ResultScreenElement>> = {};
+      for (const el of selectedElements) {
+        const newX = Math.max(0, Math.min(containerW - el.width, Math.round(el.x + deltaX)));
+        const newY = Math.max(0, Math.min(containerH - el.height, Math.round(el.y + deltaY)));
+        updates[el.id] = { x: newX, y: newY };
+      }
+      updateMultipleElements(updates);
+    }
+  };
+
+  // 4. Align Left
+  const handleAlignLeft = () => {
+    if (selectedElements.length === 0) return;
+    if (selectedElements.length === 1) {
+      updateElementById(selectedElements[0].id, (prev) => ({ ...prev, x: 0 }));
+    } else {
+      const minX = Math.min(...selectedElements.map((e) => e.x));
+      const updates: Record<string, Partial<ResultScreenElement>> = {};
+      for (const el of selectedElements) {
+        updates[el.id] = { x: minX };
+      }
+      updateMultipleElements(updates);
+    }
+  };
+
+  // 5. Align Center (Horizontally)
+  const handleAlignCenter = () => {
+    if (selectedElements.length === 0) return;
+    const containerW = commonParent ? commonParent.width : canvasWidth;
+    if (selectedElements.length === 1) {
+      handleCenterHorizontally();
+    } else {
+      const minX = Math.min(...selectedElements.map((e) => e.x));
+      const maxX = Math.max(...selectedElements.map((e) => e.x + e.width));
+      const centerX = (minX + maxX) / 2;
+      const updates: Record<string, Partial<ResultScreenElement>> = {};
+      for (const el of selectedElements) {
+        const newX = Math.max(0, Math.min(containerW - el.width, Math.round(centerX - el.width / 2)));
+        updates[el.id] = { x: newX };
+      }
+      updateMultipleElements(updates);
+    }
+  };
+
+  // 6. Align Right
+  const handleAlignRight = () => {
+    if (selectedElements.length === 0) return;
+    const containerW = commonParent ? commonParent.width : canvasWidth;
+    if (selectedElements.length === 1) {
+      updateElementById(selectedElements[0].id, (prev) => ({ ...prev, x: Math.max(0, containerW - prev.width) }));
+    } else {
+      const maxX = Math.max(...selectedElements.map((e) => e.x + e.width));
+      const updates: Record<string, Partial<ResultScreenElement>> = {};
+      for (const el of selectedElements) {
+        const newX = Math.max(0, Math.min(containerW - el.width, Math.round(maxX - el.width)));
+        updates[el.id] = { x: newX };
+      }
+      updateMultipleElements(updates);
+    }
+  };
+
+  // 7. Align Top
+  const handleAlignTop = () => {
+    if (selectedElements.length === 0) return;
+    if (selectedElements.length === 1) {
+      updateElementById(selectedElements[0].id, (prev) => ({ ...prev, y: 0 }));
+    } else {
+      const minY = Math.min(...selectedElements.map((e) => e.y));
+      const updates: Record<string, Partial<ResultScreenElement>> = {};
+      for (const el of selectedElements) {
+        updates[el.id] = { y: minY };
+      }
+      updateMultipleElements(updates);
+    }
+  };
+
+  // 8. Align Middle (Vertically)
+  const handleAlignMiddle = () => {
+    if (selectedElements.length === 0) return;
+    const containerH = commonParent ? commonParent.height : canvasHeight;
+    if (selectedElements.length === 1) {
+      handleCenterVertically();
+    } else {
+      const minY = Math.min(...selectedElements.map((e) => e.y));
+      const maxY = Math.max(...selectedElements.map((e) => e.y + e.height));
+      const centerY = (minY + maxY) / 2;
+      const updates: Record<string, Partial<ResultScreenElement>> = {};
+      for (const el of selectedElements) {
+        const newY = Math.max(0, Math.min(containerH - el.height, Math.round(centerY - el.height / 2)));
+        updates[el.id] = { y: newY };
+      }
+      updateMultipleElements(updates);
+    }
+  };
+
+  // 9. Align Bottom
+  const handleAlignBottom = () => {
+    if (selectedElements.length === 0) return;
+    const containerH = commonParent ? commonParent.height : canvasHeight;
+    if (selectedElements.length === 1) {
+      updateElementById(selectedElements[0].id, (prev) => ({ ...prev, y: Math.max(0, containerH - prev.height) }));
+    } else {
+      const maxY = Math.max(...selectedElements.map((e) => e.y + e.height));
+      const updates: Record<string, Partial<ResultScreenElement>> = {};
+      for (const el of selectedElements) {
+        const newY = Math.max(0, Math.min(containerH - el.height, Math.round(maxY - el.height)));
+        updates[el.id] = { y: newY };
+      }
+      updateMultipleElements(updates);
+    }
+  };
+
+  // 10. Distribute Horizontally (3+ elements)
+  const handleDistributeHorizontally = () => {
+    if (selectedElements.length < 3) return;
+    const containerW = commonParent ? commonParent.width : canvasWidth;
+    const sorted = [...selectedElements].sort((a, b) => a.x - b.x);
+    const minX = sorted[0].x;
+    const lastEl = sorted[sorted.length - 1];
+    const maxX = lastEl.x + lastEl.width;
+    const totalItemWidths = sorted.reduce((sum, item) => sum + item.width, 0);
+    const totalGap = (maxX - minX) - totalItemWidths;
+    const gap = totalGap / (sorted.length - 1);
+
+    let currentX = minX;
+    const updates: Record<string, Partial<ResultScreenElement>> = {};
+
+    for (let i = 0; i < sorted.length; i++) {
+      const el = sorted[i];
+      if (i === 0) {
+        updates[el.id] = { x: minX };
+        currentX += el.width + gap;
+      } else if (i === sorted.length - 1) {
+        const newX = Math.max(0, Math.min(containerW - el.width, Math.round(maxX - el.width)));
+        updates[el.id] = { x: newX };
+      } else {
+        const newX = Math.max(0, Math.min(containerW - el.width, Math.round(currentX)));
+        updates[el.id] = { x: newX };
+        currentX += el.width + gap;
+      }
+    }
+
+    updateMultipleElements(updates);
+  };
+
+  // 11. Distribute Vertically (3+ elements)
+  const handleDistributeVertically = () => {
+    if (selectedElements.length < 3) return;
+    const containerH = commonParent ? commonParent.height : canvasHeight;
+    const sorted = [...selectedElements].sort((a, b) => a.y - b.y);
+    const minY = sorted[0].y;
+    const lastEl = sorted[sorted.length - 1];
+    const maxY = lastEl.y + lastEl.height;
+    const totalItemHeights = sorted.reduce((sum, item) => sum + item.height, 0);
+    const totalGap = (maxY - minY) - totalItemHeights;
+    const gap = totalGap / (sorted.length - 1);
+
+    let currentY = minY;
+    const updates: Record<string, Partial<ResultScreenElement>> = {};
+
+    for (let i = 0; i < sorted.length; i++) {
+      const el = sorted[i];
+      if (i === 0) {
+        updates[el.id] = { y: minY };
+        currentY += el.height + gap;
+      } else if (i === sorted.length - 1) {
+        const newY = Math.max(0, Math.min(containerH - el.height, Math.round(maxY - el.height)));
+        updates[el.id] = { y: newY };
+      } else {
+        const newY = Math.max(0, Math.min(containerH - el.height, Math.round(currentY)));
+        updates[el.id] = { y: newY };
+        currentY += el.height + gap;
+      }
+    }
+
+    updateMultipleElements(updates);
   };
 
   return (
@@ -1989,11 +2463,148 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           </div>
         </div>
 
-        {/* CENTER PANEL: Visual 1000x1000 Design Canvas */}
-        <div className="lg:col-span-5 flex flex-col items-center justify-center">
+        {/* CENTER PANEL: Visual 1000x1000 Design Canvas & Layout Toolbar */}
+        <div className="lg:col-span-5 flex flex-col items-center justify-center space-y-2.5">
+          {/* Quick Layout & Alignment Floating Toolbar */}
+          <div className="w-full max-w-[480px] bg-slate-950/95 border border-slate-800/90 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-1 shadow-lg backdrop-blur-md">
+            {/* Centering Group */}
+            <div className="flex items-center gap-0.5">
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-1 mr-0.5 select-none hidden sm:inline">
+                Center
+              </span>
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={handleCenterHorizontally}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Center Horizontally (X)"
+              >
+                <AlignCenterHorizontal className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={handleCenterVertically}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Center Vertically (Y)"
+              >
+                <AlignCenterVertical className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={handleCenterBoth}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors text-[10px] font-bold"
+                title="Center Both (X & Y)"
+              >
+                <Box className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="w-px h-4 bg-slate-800/80 mx-0.5" />
+
+            {/* Alignment Group */}
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={handleAlignLeft}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Align Left"
+              >
+                <AlignLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={handleAlignCenter}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Align Center"
+              >
+                <AlignCenter className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={handleAlignRight}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Align Right"
+              >
+                <AlignRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={handleAlignTop}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Align Top"
+              >
+                <AlignStartVertical className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={handleAlignMiddle}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Align Middle"
+              >
+                <AlignCenterVertical className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={handleAlignBottom}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Align Bottom"
+              >
+                <AlignEndVertical className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="w-px h-4 bg-slate-800/80 mx-0.5" />
+
+            {/* Distribution Group */}
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                disabled={selectedElements.length < 3}
+                onClick={handleDistributeHorizontally}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title={selectedElements.length < 3 ? 'Distribute Horizontally (Requires 3+ items)' : 'Distribute Horizontally'}
+              >
+                <AlignHorizontalDistributeCenter className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={selectedElements.length < 3}
+                onClick={handleDistributeVertically}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title={selectedElements.length < 3 ? 'Distribute Vertically (Requires 3+ items)' : 'Distribute Vertically'}
+              >
+                <AlignVerticalDistributeCenter className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {selectedElements.length > 0 && (
+              <div className="flex items-center gap-1 pl-1">
+                <span className="text-[10px] font-mono text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
+                  {selectedElements.length} sel
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds([])}
+                  className="text-[10px] text-slate-500 hover:text-slate-300 px-1 py-0.5 rounded"
+                  title="Clear Selection (Esc)"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+
           <div
             ref={canvasRef}
-            onClick={() => setSelectedId(null)}
+            onClick={() => setSelectedIds([])}
             className="relative w-full aspect-square max-w-[480px] rounded-2xl border-2 border-slate-700/80 shadow-2xl overflow-hidden select-none"
             style={{
               ...bg.containerStyle,
@@ -2007,8 +2618,10 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
             {elements.map((el) => renderCanvasElement(el, canvasWidth, canvasHeight))}
           </div>
 
-          <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-500 font-mono">
+          <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 font-mono">
             <span>Canvas: 1000 × 1000 px</span>
+            <span>•</span>
+            <span>Shift+Click to Multi-Select</span>
             <span>•</span>
             <span>Drag items to move</span>
           </div>
@@ -2021,14 +2634,212 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
               <Sliders className="w-3.5 h-3.5 text-amber-400" />
               <span>Property Inspector</span>
             </span>
-            {selectedElement && (
+            {selectedElements.length > 1 ? (
+              <span className="text-[10px] font-mono text-amber-400 font-bold uppercase bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                {selectedElements.length} Selected
+              </span>
+            ) : selectedElement ? (
               <span className="text-[10px] font-mono text-amber-400/80 font-bold uppercase">
                 {selectedElement.type}
               </span>
-            )}
+            ) : null}
           </div>
 
-          {selectedElement ? (
+          {/* MULTI-ELEMENT SELECTION INSPECTOR */}
+          {selectedElements.length > 1 ? (
+            <div className="space-y-3.5 text-xs">
+              {/* Header card */}
+              <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Grid className="w-4 h-4 text-amber-400" />
+                    <span className="font-bold text-slate-100 uppercase tracking-wider">
+                      Multi-Selection ({selectedElements.length} Items)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds([])}
+                    className="text-[10px] text-slate-400 hover:text-slate-200 px-2 py-0.5 rounded bg-slate-800 border border-slate-700"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+
+                {/* Common container info */}
+                <div className="text-[11px] pt-1 border-t border-slate-800/80 flex items-center justify-between">
+                  <span className="text-slate-400">Target Container:</span>
+                  <span className="font-mono text-amber-400/90 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                    {commonParent ? `${commonParent.type.toUpperCase()} (${commonParent.id.slice(0, 6)})` : 'Root Canvas (1000×1000)'}
+                  </span>
+                </div>
+
+                {/* Selected items chips */}
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Selected Items:
+                  </span>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+                    {selectedElements.map((el) => (
+                      <div
+                        key={el.id}
+                        onClick={() => setSelectedIds([el.id])}
+                        className="flex items-center gap-1 bg-slate-950 hover:bg-slate-800 border border-slate-700/80 px-2 py-1 rounded-lg text-[10px] cursor-pointer transition-colors"
+                        title="Click to isolate this element"
+                      >
+                        {getElementIcon(el.type)}
+                        <span className="font-bold text-slate-300 capitalize">{el.type}</span>
+                        <span className="text-slate-500 font-mono text-[9px]">({Math.round(el.x)}, {Math.round(el.y)})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Centering Tools */}
+              <div className="space-y-1.5 p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <AlignCenterHorizontal className="w-3 h-3 text-amber-400" />
+                  <span>Container Centering (Bounded)</span>
+                </span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleCenterHorizontally}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    title="Center group horizontally in container"
+                  >
+                    <AlignCenterHorizontal className="w-3 h-3 text-amber-400" />
+                    <span>Center X</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCenterVertically}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    title="Center group vertically in container"
+                  >
+                    <AlignCenterVertical className="w-3 h-3 text-amber-400" />
+                    <span>Center Y</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCenterBoth}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    title="Center group both horizontally and vertically"
+                  >
+                    <Box className="w-3 h-3 text-amber-400" />
+                    <span>Center Both</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Relative Alignment Tools */}
+              <div className="space-y-1.5 p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <SlidersHorizontal className="w-3 h-3 text-amber-400" />
+                  <span>Align Relative to Selection</span>
+                </span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleAlignLeft}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                  >
+                    <AlignLeft className="w-3 h-3 text-amber-400" />
+                    <span>Align Left</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAlignCenter}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                  >
+                    <AlignCenter className="w-3 h-3 text-amber-400" />
+                    <span>Align Center</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAlignRight}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                  >
+                    <AlignRight className="w-3 h-3 text-amber-400" />
+                    <span>Align Right</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAlignTop}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                  >
+                    <AlignStartVertical className="w-3 h-3 text-amber-400" />
+                    <span>Align Top</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAlignMiddle}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                  >
+                    <AlignCenterVertical className="w-3 h-3 text-amber-400" />
+                    <span>Align Middle</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAlignBottom}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                  >
+                    <AlignEndVertical className="w-3 h-3 text-amber-400" />
+                    <span>Align Bottom</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Distribution Tools */}
+              <div className="space-y-1.5 p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <AlignHorizontalDistributeCenter className="w-3 h-3 text-amber-400" />
+                  <span>Distribute Spacing (3+ Items)</span>
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    disabled={selectedElements.length < 3}
+                    onClick={handleDistributeHorizontally}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 disabled:opacity-30 transition-colors"
+                  >
+                    <AlignHorizontalDistributeCenter className="w-3 h-3 text-amber-400" />
+                    <span>Distribute Horizontally</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selectedElements.length < 3}
+                    onClick={handleDistributeVertically}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 disabled:opacity-30 transition-colors"
+                  >
+                    <AlignVerticalDistributeCenter className="w-3 h-3 text-amber-400" />
+                    <span>Distribute Vertically</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Batch Actions (Duplicate / Delete) */}
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={handleDuplicateSelected}
+                  className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center gap-1.5 font-bold text-slate-200 text-xs transition-colors cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Duplicate ({selectedElements.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteSelected}
+                  className="flex-1 py-2 bg-rose-950/40 hover:bg-rose-950/80 border border-rose-900/60 rounded-xl flex items-center justify-center gap-1.5 font-bold text-rose-300 text-xs transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete ({selectedElements.length})</span>
+                </button>
+              </div>
+            </div>
+          ) : selectedElement ? (
             <div className="space-y-3.5 text-xs">
               {/* Element Header Badge & Hierarchy */}
               <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-xl space-y-2">
@@ -2291,26 +3102,99 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 );
               })()}
 
-              {/* Quick Alignment Helpers */}
-              <div className="space-y-1.5">
+              {/* Complete Alignment & Centering Tools */}
+              <div className="space-y-2 p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                   <SlidersHorizontal className="w-3 h-3 text-amber-400" />
-                  <span>Alignment</span>
+                  <span>Alignment & Centering</span>
                 </span>
-                <div className="grid grid-cols-2 gap-1.5">
+
+                {/* Centering buttons */}
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
-                    onClick={handleAlignCenterX}
-                    className="py-1.5 px-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-300 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    onClick={handleCenterHorizontally}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    title="Center element horizontally in parent container"
                   >
-                    <span>Center Horizontally</span>
+                    <AlignCenterHorizontal className="w-3 h-3 text-amber-400" />
+                    <span>Center X</span>
                   </button>
                   <button
                     type="button"
-                    onClick={handleAlignCenterY}
-                    className="py-1.5 px-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-300 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    onClick={handleCenterVertically}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    title="Center element vertically in parent container"
                   >
-                    <span>Center Vertically</span>
+                    <AlignCenterVertical className="w-3 h-3 text-amber-400" />
+                    <span>Center Y</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCenterBoth}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    title="Center element horizontally & vertically"
+                  >
+                    <Box className="w-3 h-3 text-amber-400" />
+                    <span>Both</span>
+                  </button>
+                </div>
+
+                {/* Edge alignment buttons */}
+                <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-slate-800/60">
+                  <button
+                    type="button"
+                    onClick={handleAlignLeft}
+                    className="py-1 px-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-[10px] font-medium flex items-center justify-center gap-1 transition-colors"
+                    title="Snap to Left Edge"
+                  >
+                    <AlignLeft className="w-2.5 h-2.5" />
+                    <span>Left</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAlignCenter}
+                    className="py-1 px-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-[10px] font-medium flex items-center justify-center gap-1 transition-colors"
+                    title="Center Horizontally"
+                  >
+                    <AlignCenter className="w-2.5 h-2.5" />
+                    <span>Center</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAlignRight}
+                    className="py-1 px-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-[10px] font-medium flex items-center justify-center gap-1 transition-colors"
+                    title="Snap to Right Edge"
+                  >
+                    <AlignRight className="w-2.5 h-2.5" />
+                    <span>Right</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAlignTop}
+                    className="py-1 px-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-[10px] font-medium flex items-center justify-center gap-1 transition-colors"
+                    title="Snap to Top Edge"
+                  >
+                    <AlignStartVertical className="w-2.5 h-2.5" />
+                    <span>Top</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAlignMiddle}
+                    className="py-1 px-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-[10px] font-medium flex items-center justify-center gap-1 transition-colors"
+                    title="Center Vertically"
+                  >
+                    <AlignCenterVertical className="w-2.5 h-2.5" />
+                    <span>Middle</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAlignBottom}
+                    className="py-1 px-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-[10px] font-medium flex items-center justify-center gap-1 transition-colors"
+                    title="Snap to Bottom Edge"
+                  >
+                    <AlignEndVertical className="w-2.5 h-2.5" />
+                    <span>Bottom</span>
                   </button>
                 </div>
               </div>
