@@ -142,10 +142,15 @@ export interface ResultTextStyle {
   fontFamily?: string;
   fontSize?: number;
   fontWeight?: string | number;
+  fontStyle?: 'normal' | 'italic';
   color?: string;
-  textAlign?: 'left' | 'center' | 'right';
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  verticalAlign?: 'top' | 'center' | 'bottom';
   lineHeight?: number;
   letterSpacing?: number;
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+  textDecoration?: 'none' | 'underline' | 'line-through';
+  textShadow?: string;
 }
 
 export interface ResultTextElement extends ResultScreenBaseElement {
@@ -159,10 +164,31 @@ export interface ResultStatStyle {
   valueColor?: string;
   backgroundColor?: string;
   borderColor?: string;
+  borderWidth?: number;
   borderRadius?: number;
   fontSize?: number;
   showLabel?: boolean;
   textAlign?: 'left' | 'center' | 'right';
+  verticalAlign?: 'top' | 'center' | 'bottom';
+  layout?: 'vertical' | 'horizontal';
+  gap?: number;
+
+  // Granular Label Typography
+  labelFontFamily?: string;
+  labelFontSize?: number;
+  labelFontWeight?: string | number;
+  labelFontStyle?: 'normal' | 'italic';
+  labelLetterSpacing?: number;
+  labelTextTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+
+  // Granular Value Typography
+  valueFontFamily?: string;
+  valueFontSize?: number;
+  valueFontWeight?: string | number;
+  valueFontStyle?: 'normal' | 'italic';
+  valueLetterSpacing?: number;
+  valueTextTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+  valueLineHeight?: number;
 }
 
 export interface ResultScoreElement extends ResultScreenBaseElement {
@@ -198,8 +224,12 @@ export interface ResultAccuracyElement extends ResultScreenBaseElement {
 export interface ResultButtonStyle {
   backgroundColor?: string;
   textColor?: string;
+  fontFamily?: string;
   fontSize?: number;
   fontWeight?: string | number;
+  fontStyle?: 'normal' | 'italic';
+  letterSpacing?: number;
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
   borderRadius?: number;
   borderWidth?: number;
   borderColor?: string;
