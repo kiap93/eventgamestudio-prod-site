@@ -71,7 +71,20 @@ import {
   LogOut,
   FolderPlus,
   Grid,
+  Maximize2,
+  Magnet,
+  Ruler,
 } from 'lucide-react';
+import { ResultScreenVisualEditorModal } from './result-editor/ResultScreenVisualEditorModal';
+import {
+  calculateSnap,
+  calculateResizeSnap,
+  AlignmentGuide,
+  calculateMeasurements,
+  SpacingMeasurement,
+  GRID_SIZE_PRESETS,
+  GridSizePreset,
+} from './result-editor';
 
 interface ResultScreenVisualEditorProps {
   resultConfig: MemoryMatchResultScreenConfig;
@@ -95,6 +108,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
 
   // Selected element IDs (supports multi-selection of sibling elements)
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const selectedId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
   const setSelectedId = useCallback((id: string | null) => {
     setSelectedIds(id ? [id] : []);
@@ -116,6 +130,17 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
   type ResizeHandle = 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r';
 
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('idle');
+  const [snapEnabled, setSnapEnabled] = useState<boolean>(true);
+  const [showGrid, setShowGrid] = useState<boolean>(true);
+  const [gridSize, setGridSize] = useState<GridSizePreset>(50);
+  const [showMeasurements, setShowMeasurements] = useState<boolean>(true);
+  const [isAltHeld, setIsAltHeld] = useState<boolean>(false);
+  const [mouseLogicalCoords, setMouseLogicalCoords] = useState<{ x: number; y: number } | null>(null);
+  const [activeGuides, setActiveGuides] = useState<{
+    containerId: string | 'root';
+    guides: AlignmentGuide[];
+  } | null>(null);
+
   const interactionRef = useRef<{
     mode: InteractionMode;
     elementId: string;
@@ -1256,11 +1281,53 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           initialPositions || {
             [elementId]: { x: initialX, y: initialY, width: initialWidth, height: initialHeight },
           };
-        const updates: Record<string, Partial<ResultScreenElement>> = {};
 
+        const targetInfo = findElementAndParent(elementId, elements);
+        const parentElement = targetInfo?.parent;
+        const isRoot = !parentElement;
+        const containerId = parentElement ? parentElement.id : 'root';
+        const siblings = parentElement ? parentElement.children || [] : elements;
+
+        let effectiveDeltaX = deltaLogicalX;
+        let effectiveDeltaY = deltaLogicalY;
+
+        if (snapEnabled && !e.altKey) {
+          const proposedBox = {
+            x: initialX + deltaLogicalX,
+            y: initialY + deltaLogicalY,
+            width: initialWidth,
+            height: initialHeight,
+          };
+
+          const snapResult = calculateSnap(
+            proposedBox,
+            parentWidth,
+            parentHeight,
+            siblings,
+            Object.keys(positions),
+            8,
+            isRoot
+          );
+
+          effectiveDeltaX = snapResult.x - initialX;
+          effectiveDeltaY = snapResult.y - initialY;
+
+          if (snapResult.guides.length > 0) {
+            setActiveGuides({
+              containerId,
+              guides: snapResult.guides,
+            });
+          } else {
+            setActiveGuides(null);
+          }
+        } else {
+          setActiveGuides(null);
+        }
+
+        const updates: Record<string, Partial<ResultScreenElement>> = {};
         for (const [id, pos] of Object.entries(positions)) {
-          const nextX = Math.round(pos.x + deltaLogicalX);
-          const nextY = Math.round(pos.y + deltaLogicalY);
+          const nextX = Math.round(pos.x + effectiveDeltaX);
+          const nextY = Math.round(pos.y + effectiveDeltaY);
           const clampedX = Math.max(0, Math.min(parentWidth - pos.width, nextX));
           const clampedY = Math.max(0, Math.min(parentHeight - pos.height, nextY));
           updates[id] = { x: clampedX, y: clampedY };
@@ -1311,6 +1378,39 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           }
         }
 
+        // Apply resize snapping if unrotated
+        if (snapEnabled && !initialRotation && !e.altKey) {
+          const targetInfo = findElementAndParent(elementId, elements);
+          const parentElement = targetInfo?.parent;
+          const isRoot = !parentElement;
+          const containerId = parentElement ? parentElement.id : 'root';
+          const siblings = parentElement ? parentElement.children || [] : elements;
+
+          const resizeSnap = calculateResizeSnap(
+            { x: nextX, y: nextY, width: nextWidth, height: nextHeight },
+            handle,
+            parentWidth,
+            parentHeight,
+            siblings,
+            [elementId],
+            8,
+            isRoot
+          );
+
+          nextX = resizeSnap.box.x;
+          nextY = resizeSnap.box.y;
+          nextWidth = resizeSnap.box.width;
+          nextHeight = resizeSnap.box.height;
+
+          if (resizeSnap.guides.length > 0) {
+            setActiveGuides({ containerId, guides: resizeSnap.guides });
+          } else {
+            setActiveGuides(null);
+          }
+        } else {
+          setActiveGuides(null);
+        }
+
         updateElementById(elementId, (prev) => ({
           ...prev,
           x: nextX,
@@ -1341,6 +1441,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     };
 
     const handleMouseUp = () => {
+      setActiveGuides(null);
       setInteractionMode('idle');
       interactionRef.current = null;
     };
@@ -1396,13 +1497,35 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Alt') {
+        setIsAltHeld(false);
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
     };
   }, [selectedIds, selectedElements, commonParent, canvasWidth, canvasHeight, elements]);
 
   const bg = resolveScreenBackground(resultConfig, theme);
+
+  // Active Spacing Measurements (Editor-only overlay)
+  const activeMeasurements = (showMeasurements || isAltHeld) && selectedElement
+    ? {
+        containerId: selectedParentElement ? selectedParentElement.id : 'root',
+        measurements: calculateMeasurements(
+          selectedElement,
+          selectedParentElement ? selectedParentElement.width : canvasWidth,
+          selectedParentElement ? selectedParentElement.height : canvasHeight,
+          selectedParentElement ? selectedParentElement.children || [] : elements,
+          selectedElement.id
+        ),
+      }
+    : null;
 
   // Layer Row Icon Resolver
   const getElementIcon = (type: ResultScreenElementType) => {
@@ -1432,6 +1555,151 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     }
   };
 
+  // Render Alignment Guides Overlay
+  const renderGuides = (guides: AlignmentGuide[], pW: number, pH: number) => {
+    return guides.map((g) => {
+      if (g.type === 'vertical') {
+        const leftPercent = `${(g.position / pW) * 100}%`;
+        const topPercent = `${(g.start / pH) * 100}%`;
+        const heightPercent = `${((g.end - g.start) / pH) * 100}%`;
+        return (
+          <div
+            key={g.id}
+            className="absolute pointer-events-none z-50 transition-opacity duration-75"
+            style={{
+              left: leftPercent,
+              top: topPercent,
+              height: heightPercent,
+              width: '1.5px',
+              transform: 'translateX(-50%)',
+            }}
+          >
+            <div className="w-full h-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)] opacity-95" />
+            {g.label && (
+              <div className="absolute top-1 left-1.5 -translate-y-1/2 bg-slate-950/90 border border-amber-400/80 text-amber-300 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap">
+                {g.label}
+              </div>
+            )}
+          </div>
+        );
+      } else {
+        const topPercent = `${(g.position / pH) * 100}%`;
+        const leftPercent = `${(g.start / pW) * 100}%`;
+        const widthPercent = `${((g.end - g.start) / pW) * 100}%`;
+        return (
+          <div
+            key={g.id}
+            className="absolute pointer-events-none z-50 transition-opacity duration-75"
+            style={{
+              top: topPercent,
+              left: leftPercent,
+              width: widthPercent,
+              height: '1.5px',
+              transform: 'translateY(-50%)',
+            }}
+          >
+            <div className="w-full h-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)] opacity-95" />
+            {g.label && (
+              <div className="absolute left-1 top-1.5 -translate-x-1/2 bg-slate-950/90 border border-amber-400/80 text-amber-300 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap">
+                {g.label}
+              </div>
+            )}
+          </div>
+        );
+      }
+    });
+  };
+
+  // Render Spacing and Distance Measurements Overlay (Editor-only)
+  const renderMeasurements = (
+    measurements: SpacingMeasurement[],
+    pW: number,
+    pH: number
+  ) => {
+    return measurements.map((m) => {
+      const isHorizontal = m.direction === 'left' || m.direction === 'right';
+      const x1Percent = `${(m.x1 / pW) * 100}%`;
+      const y1Percent = `${(m.y1 / pH) * 100}%`;
+      const x2Percent = `${(m.x2 / pW) * 100}%`;
+      const y2Percent = `${(m.y2 / pH) * 100}%`;
+
+      const midX = (m.x1 + m.x2) / 2;
+      const midY = (m.y1 + m.y2) / 2;
+      const midXPercent = `${(midX / pW) * 100}%`;
+      const midYPercent = `${(midY / pH) * 100}%`;
+
+      return (
+        <React.Fragment key={m.id}>
+          {/* Measurement Line & Endcaps */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none z-40 overflow-visible"
+            style={{ width: '100%', height: '100%' }}
+          >
+            <line
+              x1={x1Percent}
+              y1={y1Percent}
+              x2={x2Percent}
+              y2={y2Percent}
+              stroke="#f43f5e"
+              strokeWidth="1.5"
+              strokeDasharray="3 3"
+            />
+            {isHorizontal ? (
+              <>
+                <line
+                  x1={x1Percent}
+                  y1={`${((m.y1 - 5) / pH) * 100}%`}
+                  x2={x1Percent}
+                  y2={`${((m.y1 + 5) / pH) * 100}%`}
+                  stroke="#f43f5e"
+                  strokeWidth="1.5"
+                />
+                <line
+                  x1={x2Percent}
+                  y1={`${((m.y2 - 5) / pH) * 100}%`}
+                  x2={x2Percent}
+                  y2={`${((m.y2 + 5) / pH) * 100}%`}
+                  stroke="#f43f5e"
+                  strokeWidth="1.5"
+                />
+              </>
+            ) : (
+              <>
+                <line
+                  x1={`${((m.x1 - 5) / pW) * 100}%`}
+                  y1={y1Percent}
+                  x2={`${((m.x1 + 5) / pW) * 100}%`}
+                  y2={y1Percent}
+                  stroke="#f43f5e"
+                  strokeWidth="1.5"
+                />
+                <line
+                  x1={`${((m.x2 - 5) / pW) * 100}%`}
+                  y1={y2Percent}
+                  x2={`${((m.x2 + 5) / pW) * 100}%`}
+                  y2={y2Percent}
+                  stroke="#f43f5e"
+                  strokeWidth="1.5"
+                />
+              </>
+            )}
+          </svg>
+
+          {/* Distance Badge Chip */}
+          <div
+            className="absolute pointer-events-none z-50 -translate-x-1/2 -translate-y-1/2 bg-rose-950/95 border border-rose-500/80 text-rose-200 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap"
+            style={{
+              left: midXPercent,
+              top: midYPercent,
+            }}
+          >
+            {m.label}
+          </div>
+        </React.Fragment>
+      );
+    });
+  };
+
   // Render an element on the canvas with interactive selection bounds & drag handles
   const renderCanvasElement = (
     el: ResultScreenElement,
@@ -1443,6 +1711,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     const isMultiSelected = selectedIds.length > 1 && isSelected;
     const isVisible = el.visible !== false;
     const isParentOfSelected = selectedParentElement?.id === el.id;
+    const isContainer = el.type === 'card' || el.type === 'group';
 
     const leftPercent = `${(el.x / parentWidth) * 100}%`;
     const topPercent = `${(el.y / parentHeight) * 100}%`;
@@ -1484,6 +1753,20 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
         className="group relative"
       >
         {innerContent}
+
+        {/* Alignment Guides for nested container children */}
+        {isContainer && activeGuides?.containerId === el.id && (
+          <div className="absolute inset-0 pointer-events-none z-50 overflow-visible">
+            {renderGuides(activeGuides.guides, el.width, el.height)}
+          </div>
+        )}
+
+        {/* Spacing & Distance Measurements for nested container children */}
+        {isContainer && activeMeasurements?.containerId === el.id && (
+          <div className="absolute inset-0 pointer-events-none z-40 overflow-visible">
+            {renderMeasurements(activeMeasurements.measurements, el.width, el.height)}
+          </div>
+        )}
 
         {/* Selection bounding box, 8 resize handles, and rotation stalk */}
         {isSelected && (
@@ -2162,16 +2445,28 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           </div>
         </div>
 
-        {/* Quick Add Menu */}
-        <div className="relative">
+        <div className="flex items-center gap-2">
+          {/* Open Pro Fullscreen Studio Modal */}
           <button
             type="button"
-            onClick={() => setAddMenuOpen(!addMenuOpen)}
-            className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer transition-all"
+            onClick={() => setIsModalOpen(true)}
+            className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-xl shadow flex items-center gap-1.5 cursor-pointer transition-all"
+            title="Open Fullscreen Studio Modal"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Element</span>
+            <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+            <span>Fullscreen Studio</span>
           </button>
+
+          {/* Quick Add Menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setAddMenuOpen(!addMenuOpen)}
+              className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Element</span>
+            </button>
 
           {addMenuOpen && (
             <div className="absolute right-0 top-full mt-2 w-52 bg-slate-950 border border-slate-800 rounded-2xl p-2 shadow-2xl z-50 space-y-1">
@@ -2274,6 +2569,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           )}
         </div>
       </div>
+    </div>
 
       {/* 3-Panel Workspace Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
@@ -2459,6 +2755,69 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
               </button>
             </div>
 
+            <div className="w-px h-4 bg-slate-800/80 mx-0.5" />
+
+            {/* Grid Controls (Toggle + Size selector) */}
+            <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowGrid(!showGrid)}
+                className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-[10px] font-semibold ${
+                  showGrid
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'hover:bg-slate-800/80 text-slate-400 border border-transparent'
+                }`}
+                title="Toggle Grid (Design Space 1000×1000)"
+              >
+                <Grid className="w-3.5 h-3.5" />
+                <span>Grid</span>
+              </button>
+              {showGrid && (
+                <select
+                  value={gridSize}
+                  onChange={(e) => setGridSize(parseInt(e.target.value, 10) as GridSizePreset)}
+                  className="bg-slate-950 border border-slate-700/80 text-amber-300 text-[10px] font-mono rounded px-1 py-0.5 focus:outline-none cursor-pointer"
+                  title="Grid Unit Size"
+                >
+                  {GRID_SIZE_PRESETS.map((sz) => (
+                    <option key={sz} value={sz}>
+                      {sz}px
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Measurement / Spacing Tools Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowMeasurements(!showMeasurements)}
+              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-[10px] font-semibold ${
+                showMeasurements
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  : 'hover:bg-slate-800/80 text-slate-400 border border-transparent'
+              }`}
+              title="Toggle Spacing & Measurement Indicators (or hold Alt)"
+            >
+              <Ruler className="w-3.5 h-3.5" />
+              <span>Measure</span>
+            </button>
+
+            {/* Smart Snap Toggle */}
+            <button
+              type="button"
+              onClick={() => setSnapEnabled(!snapEnabled)}
+              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-[10px] font-semibold ${
+                snapEnabled
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'hover:bg-slate-800/80 text-slate-400 border border-transparent'
+              }`}
+              title="Toggle Smart Snapping & Alignment Guides (Hold Alt to bypass)"
+            >
+              <Magnet className="w-3.5 h-3.5" />
+              <span>Snap</span>
+            </button>
+
             {selectedElements.length > 0 && (
               <div className="flex items-center gap-1 pl-1">
                 <span className="text-[10px] font-mono text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
@@ -2479,6 +2838,19 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           <div
             ref={canvasRef}
             onClick={() => setSelectedIds([])}
+            onMouseMove={(e) => {
+              if (!canvasRef.current) return;
+              const rect = canvasRef.current.getBoundingClientRect();
+              const relX = e.clientX - rect.left;
+              const relY = e.clientY - rect.top;
+              const logicalX = Math.round((relX / rect.width) * canvasWidth);
+              const logicalY = Math.round((relY / rect.height) * canvasHeight);
+              setMouseLogicalCoords({
+                x: Math.max(0, Math.min(canvasWidth, logicalX)),
+                y: Math.max(0, Math.min(canvasHeight, logicalY)),
+              });
+            }}
+            onMouseLeave={() => setMouseLogicalCoords(null)}
             className="relative w-full aspect-square max-w-[480px] rounded-2xl border-2 border-slate-700/80 shadow-2xl overflow-hidden select-none"
             style={{
               ...bg.containerStyle,
@@ -2488,16 +2860,71 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
             {/* Background Overlay */}
             <div className="absolute inset-0 pointer-events-none" style={bg.overlayStyle} />
 
+            {/* Grid lines overlay (dynamic logical design grid 1000x1000) */}
+            {showGrid && (
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                {/* Minor grid subdivisions */}
+                {gridSize >= 20 && (
+                  <div
+                    className="absolute inset-0 opacity-[0.04]"
+                    style={{
+                      backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.7) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.7) 1px, transparent 1px)',
+                      backgroundSize: `${gridSize / 2}px ${gridSize / 2}px`,
+                    }}
+                  />
+                )}
+                {/* Major grid lines based on selected gridSize */}
+                <div
+                  className="absolute inset-0 opacity-[0.14]"
+                  style={{
+                    backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.9) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.9) 1px, transparent 1px)',
+                    backgroundSize: `${gridSize}px ${gridSize}px`,
+                  }}
+                />
+                {/* Canvas Center Axis Markers (500, 500) */}
+                <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-cyan-400/30 pointer-events-none" />
+                <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-cyan-400/30 pointer-events-none" />
+              </div>
+            )}
+
             {/* Canvas Elements */}
             {elements.map((el) => renderCanvasElement(el, canvasWidth, canvasHeight))}
+
+            {/* Root Canvas Alignment Guides */}
+            {activeGuides?.containerId === 'root' && (
+              <div className="absolute inset-0 pointer-events-none z-50 overflow-visible">
+                {renderGuides(activeGuides.guides, canvasWidth, canvasHeight)}
+              </div>
+            )}
+
+            {/* Root Canvas Spacing & Distance Measurements */}
+            {activeMeasurements?.containerId === 'root' && (
+              <div className="absolute inset-0 pointer-events-none z-40 overflow-visible">
+                {renderMeasurements(activeMeasurements.measurements, canvasWidth, canvasHeight)}
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 font-mono">
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-1 text-[11px] text-slate-400 font-mono">
             <span>Canvas: 1000 × 1000 px</span>
+            {mouseLogicalCoords && (
+              <>
+                <span>•</span>
+                <span className="text-amber-300">
+                  Cursor: {mouseLogicalCoords.x}, {mouseLogicalCoords.y}
+                </span>
+              </>
+            )}
+            {selectedElement && (
+              <>
+                <span>•</span>
+                <span className="text-slate-300">
+                  {selectedElement.type} ({Math.round(selectedElement.x)}, {Math.round(selectedElement.y)}) {Math.round(selectedElement.width)}×{Math.round(selectedElement.height)}
+                </span>
+              </>
+            )}
             <span>•</span>
-            <span>Shift+Click to Multi-Select</span>
-            <span>•</span>
-            <span>Drag items to move</span>
+            <span className="text-slate-500">Alt to measure / bypass snap</span>
           </div>
         </div>
 
@@ -5532,6 +5959,18 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           )}
         </div>
       </div>
+
+      {/* Pro Fullscreen Studio Modal */}
+      {isModalOpen && (
+        <ResultScreenVisualEditorModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          resultConfig={resultConfig}
+          theme={theme}
+          onChange={onChange}
+          onUploadAsset={onUploadAsset}
+        />
+      )}
     </div>
   );
 };

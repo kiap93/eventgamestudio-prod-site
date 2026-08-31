@@ -111,6 +111,7 @@ export interface ResultScreenBaseElement {
   visible?: boolean; // Visibility toggle (default: true)
   opacity?: number; // 0 to 1 (default: 1)
   zIndex?: number; // Stacking order (default: 1)
+  locked?: boolean; // Lock toggle (default: false)
 }
 
 export interface ResultCardStyle {
