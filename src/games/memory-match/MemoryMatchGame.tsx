@@ -34,7 +34,14 @@ import { memorySounds } from './memorySounds';
 import { generateRandomCardPositions, CardPosition } from './memoryMatchBoardLayout';
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
 import { getMemoryMatchConfig, getCardFrontBg, getCardGoodBg, resolveScreenBackground } from '../../themes';
-import { normalizeGameLayout, GameLayoutConfig, LayoutElementKey } from '../../themes/layout';
+import {
+  normalizeGameLayout,
+  GameLayoutConfig,
+  LayoutElementKey,
+  DESIGN_WIDTH,
+  DESIGN_HEIGHT,
+  useGameUiScale,
+} from '../../themes/layout';
 import { GameLayoutHudOverlay } from '../../components/studio/GameLayoutHudOverlay';
 import { apiFetch } from '../../lib/api';
 
@@ -71,6 +78,7 @@ const renderCardIcon = (iconName?: string, className: string = 'w-8 h-8') => {
 };
 
 export interface MemoryMatchGameProps extends GameComponentProps<MemoryMatchConfig> {
+  className?: string;
   isStudioPreview?: boolean;
   initialGameState?: GameState;
   autoStart?: boolean;
@@ -85,6 +93,7 @@ export interface MemoryMatchGameProps extends GameComponentProps<MemoryMatchConf
 }
 
 export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
+  className = '',
   activeTheme,
   settings,
   config,
@@ -104,6 +113,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   onSelectElementKey,
   onElementPointerDown,
 }) => {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const uiScale = useGameUiScale(viewportRef);
+
   const memoryConfig = useMemo(() => getMemoryMatchConfig(activeTheme), [activeTheme]);
   const boardConfig = memoryConfig.board;
   const cardConfig = memoryConfig.card || boardConfig.card;
@@ -692,364 +704,393 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
   return (
     <div
-      className="relative w-full h-full min-w-0 min-h-0 overflow-hidden select-none bg-[#07130b]"
+      ref={viewportRef}
+      className={`game-viewport relative w-full h-full min-w-0 min-h-0 overflow-hidden flex items-center justify-center select-none bg-[#07130b] ${className}`}
       style={{
         backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
-        backgroundImage: customBgUrl
-          ? `url(${customBgUrl})`
-          : `radial-gradient(circle at 50% 20%, ${
-              activeTheme?.visuals_config?.bgGradientFrom || 'rgba(30, 16, 53, 0.6)'
-            } 0%, ${activeTheme?.visuals_config?.bgGradientTo || '#07130b'} 100%)`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center center',
-        backgroundRepeat: 'no-repeat',
       }}
     >
       {/* ========================================================================= */}
-      {/* 1. MAIN CARD BOARD AREA (Grid vs Random / Scattered Layout)               */}
+      {/* CANONICAL GAME SCALE WRAPPER: EXACT 1024x576 COORDINATE SPACE            */}
       {/* ========================================================================= */}
-      <div className="absolute inset-0 flex items-center justify-center p-3 sm:p-6 md:p-8 overflow-hidden z-10 pointer-events-auto">
-        {boardConfig.layoutMode === 'grid' ? (
-          <div
-            className="w-full h-full max-h-[min(100%,680px)] max-w-[min(100%,680px)] m-auto"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-              aspectRatio: `${gridContainerAspect}`,
-              gap: `${boardConfig.cardGap ?? 12}px`,
-            }}
-          >
-            {cards.map((card, index) => {
-              const isFaceUp = card.isFlipped || card.isMatched;
-              const cardRotationAngle = card.rotation ?? 0;
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: `${DESIGN_WIDTH}px`,
+          height: `${DESIGN_HEIGHT}px`,
+          minWidth: `${DESIGN_WIDTH}px`,
+          minHeight: `${DESIGN_HEIGHT}px`,
+          maxWidth: `${DESIGN_WIDTH}px`,
+          maxHeight: `${DESIGN_HEIGHT}px`,
+          transform: `translate(-50%, -50%) scale(${uiScale})`,
+          transformOrigin: 'center center',
+          backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
+          backgroundImage: customBgUrl
+            ? `url(${customBgUrl})`
+            : `radial-gradient(circle at 50% 20%, ${
+                activeTheme?.visuals_config?.bgGradientFrom || 'rgba(30, 16, 53, 0.6)'
+              } 0%, ${activeTheme?.visuals_config?.bgGradientTo || '#07130b'} 100%)`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center center',
+          backgroundRepeat: 'no-repeat',
+        }}
+        className="relative overflow-hidden select-none"
+      >
+        {/* ========================================================================= */}
+        {/* 1. MAIN CARD BOARD AREA (Grid vs Random / Scattered Layout)               */}
+        {/* ========================================================================= */}
+        <div className="absolute inset-0 pt-[86px] pb-[46px] px-8 flex items-center justify-center pointer-events-auto z-10">
+          {boardConfig.layoutMode === 'grid' ? (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                maxWidth: `${Math.min(540, Math.round(410 * gridContainerAspect))}px`,
+                maxHeight: `${Math.min(410, Math.round(540 / gridContainerAspect))}px`,
+                display: 'grid',
+                gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+                aspectRatio: `${gridContainerAspect}`,
+                gap: `${boardConfig.cardGap ?? 10}px`,
+                margin: 'auto',
+              }}
+            >
+              {cards.map((card, index) => {
+                const isFaceUp = card.isFlipped || card.isMatched;
+                const cardRotationAngle = card.rotation ?? 0;
 
-              return (
-                <div
-                  key={card.id}
-                  onClick={() => handleCardClick(index)}
-                  className={`relative w-full h-full cursor-pointer perspective-1000 select-none group transition-transform ${
-                    card.isShaking ? 'animate-wobble' : ''
-                  }`}
-                  style={{
-                    perspective: '1000px',
-                    transform: `rotate(${cardRotationAngle}deg)`,
-                  }}
-                >
-                  {/* Card 3D Inner Wrapper */}
+                return (
                   <div
-                    className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md ${
-                      isFaceUp ? 'rotate-y-180' : 'hover:scale-[1.02] active:scale-[0.98]'
+                    key={card.id}
+                    onClick={() => handleCardClick(index)}
+                    className={`relative w-full h-full cursor-pointer perspective-1000 select-none group transition-transform ${
+                      card.isShaking ? 'animate-wobble' : ''
                     }`}
                     style={{
-                      transformStyle: 'preserve-3d',
-                      transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
-                      borderRadius: `${cardBorderRadius}px`,
+                      perspective: '1000px',
+                      transform: `rotate(${cardRotationAngle}deg)`,
                     }}
                   >
-                    {/* BACK FACE (Default Face-Down State) */}
+                    {/* Card 3D Inner Wrapper */}
                     <div
-                      className="absolute inset-0 w-full h-full border p-1.5 sm:p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
-                      style={{
-                        backfaceVisibility: 'hidden',
-                        backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
-                        borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
-                        borderRadius: `${cardBorderRadius}px`,
-                      }}
-                    >
-                      {cardBackUrl ? (
-                        <img
-                          src={cardBackUrl}
-                          alt="Card Back"
-                          className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <>
-                          <div
-                            className="absolute inset-1 border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none"
-                            style={{ borderRadius: `${Math.max(4, cardBorderRadius - 4)}px` }}
-                          />
-                          <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400/80 group-hover:text-amber-300 group-hover:scale-110 transition-transform">
-                            <Grid3X3 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* FRONT FACE (Flipped Face-Up / Matched State) */}
-                    <div
-                      className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1 sm:p-2 transition-all ${
-                        card.isMatched
-                          ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
-                          : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                      className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md ${
+                        isFaceUp ? 'rotate-y-180' : 'hover:scale-[1.02] active:scale-[0.98]'
                       }`}
                       style={{
-                        backfaceVisibility: 'hidden',
-                        transform: 'rotateY(180deg)',
+                        transformStyle: 'preserve-3d',
+                        transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
                         borderRadius: `${cardBorderRadius}px`,
-                        backgroundColor: card.isMatched
-                          ? effectiveCardGoodBg
-                          : effectiveCardFrontBg,
-                        borderColor: card.isMatched
-                          ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
-                          : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
                       }}
                     >
-                      {/* Top Right Matched Checkmark Badge */}
-                      {card.isMatched && (
-                        <div className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md animate-bounce">
-                          <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                        </div>
-                      )}
-
-                      {/* Card Image or Vector Icon */}
-                      <div className="flex-1 w-full min-h-0 flex items-center justify-center p-0.5 sm:p-1">
-                        {card.imageUrl ? (
+                      {/* BACK FACE (Default Face-Down State) */}
+                      <div
+                        className="absolute inset-0 w-full h-full border p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
+                        style={{
+                          backfaceVisibility: 'hidden',
+                          backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
+                          borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
+                          borderRadius: `${cardBorderRadius}px`,
+                        }}
+                      >
+                        {cardBackUrl ? (
                           <img
-                            src={card.imageUrl}
-                            alt={card.name}
-                            className="max-h-[85%] max-w-[85%] object-contain drop-shadow-md transition-transform"
+                            src={cardBackUrl}
+                            alt="Card Back"
+                            className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <div
-                            className="p-1.5 sm:p-2 rounded-xl flex items-center justify-center"
-                            style={{ color: card.color || '#fbbf24' }}
-                          >
-                            {renderCardIcon(card.iconName, 'w-6 h-6 sm:w-9 sm:h-9')}
-                          </div>
+                          <>
+                            <div
+                              className="absolute inset-1 border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none"
+                              style={{ borderRadius: `${Math.max(4, cardBorderRadius - 4)}px` }}
+                            />
+                            <div className="w-8 h-8 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400/80 group-hover:text-amber-300 group-hover:scale-110 transition-transform">
+                              <Grid3X3 className="w-4 h-4" />
+                            </div>
+                          </>
                         )}
                       </div>
 
-                      {/* Card Title Label */}
-                      <span className="text-[9px] sm:text-[11px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-1">
-                        {card.name}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          /* RANDOM / SCATTERED BOARD */
-          <div className="relative w-full h-full max-h-[min(100%,660px)] max-w-[min(100%,660px)] m-auto overflow-hidden">
-            {cards.map((card, index) => {
-              const pos = randomPositions[index] || {
-                x: 50,
-                y: 50,
-                rotation: 0,
-                widthPercent: 18,
-                heightPercent: 24,
-                zIndex: index + 1,
-              };
-              const isFaceUp = card.isFlipped || card.isMatched;
-
-              return (
-                <div
-                  key={card.id}
-                  onClick={() => handleCardClick(index)}
-                  style={{
-                    position: 'absolute',
-                    left: `${pos.x}%`,
-                    top: `${pos.y}%`,
-                    width: `${pos.widthPercent}%`,
-                    height: `${pos.heightPercent}%`,
-                    transform: `translate(-50%, -50%) rotate(${pos.rotation}deg)`,
-                    zIndex: isFaceUp ? 60 : pos.zIndex,
-                  }}
-                  className={`cursor-pointer perspective-1000 select-none group transition-all duration-200 active:scale-95 ${
-                    card.isShaking ? 'animate-wobble' : ''
-                  }`}
-                >
-                  {/* Card 3D Inner Wrapper */}
-                  <div
-                    className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md hover:shadow-xl hover:scale-105 ${
-                      isFaceUp ? 'rotate-y-180' : ''
-                    }`}
-                    style={{
-                      transformStyle: 'preserve-3d',
-                      transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
-                      borderRadius: `${cardBorderRadius}px`,
-                    }}
-                  >
-                    {/* BACK FACE (Default Face-Down State) */}
-                    <div
-                      className="absolute inset-0 w-full h-full border p-1.5 sm:p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
-                      style={{
-                        backfaceVisibility: 'hidden',
-                        backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
-                        borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
-                        borderRadius: `${cardBorderRadius}px`,
-                      }}
-                    >
-                      {cardBackUrl ? (
-                        <img
-                          src={cardBackUrl}
-                          alt="Card Back"
-                          className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <>
-                          <div
-                            className="absolute inset-1 border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none"
-                            style={{ borderRadius: `${Math.max(4, cardBorderRadius - 4)}px` }}
-                          />
-                          <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400/80 group-hover:text-amber-300 group-hover:scale-110 transition-transform">
-                            <Grid3X3 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
+                      {/* FRONT FACE (Flipped Face-Up / Matched State) */}
+                      <div
+                        className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1.5 transition-all ${
+                          card.isMatched
+                            ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
+                            : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                        }`}
+                        style={{
+                          backfaceVisibility: 'hidden',
+                          transform: 'rotateY(180deg)',
+                          borderRadius: `${cardBorderRadius}px`,
+                          backgroundColor: card.isMatched
+                            ? effectiveCardGoodBg
+                            : effectiveCardFrontBg,
+                          borderColor: card.isMatched
+                            ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
+                            : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
+                        }}
+                      >
+                        {/* Top Right Matched Checkmark Badge */}
+                        {card.isMatched && (
+                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md animate-bounce">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
                           </div>
-                        </>
-                      )}
-                    </div>
+                        )}
 
-                    {/* FRONT FACE (Flipped Face-Up / Matched State) */}
-                    <div
-                      className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1 sm:p-2 transition-all ${
-                        card.isMatched
-                          ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
-                          : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                      }`}
-                      style={{
-                        backfaceVisibility: 'hidden',
-                        transform: 'rotateY(180deg)',
-                        borderRadius: `${cardBorderRadius}px`,
-                        backgroundColor: card.isMatched
-                          ? effectiveCardGoodBg
-                          : effectiveCardFrontBg,
-                        borderColor: card.isMatched
-                          ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
-                          : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
-                      }}
-                    >
-                      {/* Top Right Matched Checkmark Badge */}
-                      {card.isMatched && (
-                        <div className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md animate-bounce">
-                          <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        {/* Card Image or Vector Icon */}
+                        <div className="flex-1 w-full min-h-0 flex items-center justify-center p-1">
+                          {card.imageUrl ? (
+                            <img
+                              src={card.imageUrl}
+                              alt={card.name}
+                              className="max-h-[85%] max-w-[85%] object-contain drop-shadow-md transition-transform"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div
+                              className="p-1 rounded-xl flex items-center justify-center"
+                              style={{ color: card.color || '#fbbf24' }}
+                            >
+                              {renderCardIcon(card.iconName, 'w-7 h-7')}
+                            </div>
+                          )}
                         </div>
-                      )}
 
-                      {/* Card Image or Vector Icon */}
-                      <div className="flex-1 w-full min-h-0 flex items-center justify-center p-0.5 sm:p-1">
-                        {card.imageUrl ? (
-                          <img
-                            src={card.imageUrl}
-                            alt={card.name}
-                            className="max-h-[85%] max-w-[85%] object-contain drop-shadow-md transition-transform"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <div
-                            className="p-1.5 sm:p-2 rounded-xl flex items-center justify-center"
-                            style={{ color: card.color || '#fbbf24' }}
-                          >
-                            {renderCardIcon(card.iconName, 'w-6 h-6 sm:w-9 sm:h-9')}
-                          </div>
-                        )}
+                        {/* Card Title Label */}
+                        <span className="text-[11px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-1">
+                          {card.name}
+                        </span>
                       </div>
-
-                      {/* Card Title Label */}
-                      <span className="text-[9px] sm:text-[11px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-1">
-                        {card.name}
-                      </span>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 2. IN-GAME DYNAMIC UI LAYOUT (Positionable HUD Elements for Memory Match) */}
-      {/* ========================================================================= */}
-      {(gameState === 'PLAYING' || gameState === 'PAUSED' || editableLayout) && (
-        <GameLayoutHudOverlay
-          layout={layout}
-          theme={activeTheme}
-          gameType="memory-match"
-          score={score}
-          moves={moves}
-          pairs={matchedPairsCount}
-          totalPairs={totalPairs}
-          timeRemaining={timeRemaining}
-          editableLayout={editableLayout}
-          selectedElementKey={selectedElementKey}
-          onSelectElementKey={onSelectElementKey}
-          onElementPointerDown={onElementPointerDown}
-        />
-      )}
-
-      {/* ========================================================================= */}
-      {/* 3. PERSISTENT IN-GAME CONTROLS DOCK (Top-Right)                           */}
-      {/* ========================================================================= */}
-      <div className="absolute top-3 right-3 z-40 pointer-events-auto flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-sm p-1.5 rounded-xl border border-slate-700/80 shadow-lg">
-        {gameState === 'PLAYING' && (
-          <button
-            onClick={handlePause}
-            className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all font-mono text-xs font-bold"
-            title="Pause Game"
-          >
-            <Pause className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {gameState === 'PAUSED' && (
-          <button
-            onClick={handleResume}
-            className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all font-mono text-xs font-bold"
-            title="Resume Game"
-          >
-            <Play className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
-          <button
-            onClick={handleRestart}
-            className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-all font-mono text-xs font-bold"
-            title="Restart Board"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        <button
-          onClick={onToggleMute}
-          className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
-          title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
-        >
-          {isMuted ? (
-            <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+                );
+              })}
+            </div>
           ) : (
-            <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+            /* RANDOM / SCATTERED BOARD */
+            <div className="relative w-full h-full max-h-[410px] max-w-[540px] m-auto overflow-hidden">
+              {cards.map((card, index) => {
+                const pos = randomPositions[index] || {
+                  x: 50,
+                  y: 50,
+                  rotation: 0,
+                  widthPercent: 18,
+                  heightPercent: 24,
+                  zIndex: index + 1,
+                };
+                const isFaceUp = card.isFlipped || card.isMatched;
+
+                return (
+                  <div
+                    key={card.id}
+                    onClick={() => handleCardClick(index)}
+                    style={{
+                      position: 'absolute',
+                      left: `${pos.x}%`,
+                      top: `${pos.y}%`,
+                      width: `${pos.widthPercent}%`,
+                      height: `${pos.heightPercent}%`,
+                      transform: `translate(-50%, -50%) rotate(${pos.rotation}deg)`,
+                      zIndex: isFaceUp ? 60 : pos.zIndex,
+                    }}
+                    className={`cursor-pointer perspective-1000 select-none group transition-all duration-200 active:scale-95 ${
+                      card.isShaking ? 'animate-wobble' : ''
+                    }`}
+                  >
+                    {/* Card 3D Inner Wrapper */}
+                    <div
+                      className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md hover:shadow-xl hover:scale-105 ${
+                        isFaceUp ? 'rotate-y-180' : ''
+                      }`}
+                      style={{
+                        transformStyle: 'preserve-3d',
+                        transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                        borderRadius: `${cardBorderRadius}px`,
+                      }}
+                    >
+                      {/* BACK FACE (Default Face-Down State) */}
+                      <div
+                        className="absolute inset-0 w-full h-full border p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
+                        style={{
+                          backfaceVisibility: 'hidden',
+                          backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
+                          borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
+                          borderRadius: `${cardBorderRadius}px`,
+                        }}
+                      >
+                        {cardBackUrl ? (
+                          <img
+                            src={cardBackUrl}
+                            alt="Card Back"
+                            className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <>
+                            <div
+                              className="absolute inset-1 border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none"
+                              style={{ borderRadius: `${Math.max(4, cardBorderRadius - 4)}px` }}
+                            />
+                            <div className="w-8 h-8 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400/80 group-hover:text-amber-300 group-hover:scale-110 transition-transform">
+                              <Grid3X3 className="w-4 h-4" />
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* FRONT FACE (Flipped Face-Up / Matched State) */}
+                      <div
+                        className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1.5 transition-all ${
+                          card.isMatched
+                            ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
+                            : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                        }`}
+                        style={{
+                          backfaceVisibility: 'hidden',
+                          transform: 'rotateY(180deg)',
+                          borderRadius: `${cardBorderRadius}px`,
+                          backgroundColor: card.isMatched
+                            ? effectiveCardGoodBg
+                            : effectiveCardFrontBg,
+                          borderColor: card.isMatched
+                            ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
+                            : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
+                        }}
+                      >
+                        {/* Top Right Matched Checkmark Badge */}
+                        {card.isMatched && (
+                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md animate-bounce">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          </div>
+                        )}
+
+                        {/* Card Image or Vector Icon */}
+                        <div className="flex-1 w-full min-h-0 flex items-center justify-center p-1">
+                          {card.imageUrl ? (
+                            <img
+                              src={card.imageUrl}
+                              alt={card.name}
+                              className="max-h-[85%] max-w-[85%] object-contain drop-shadow-md transition-transform"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div
+                              className="p-1 rounded-xl flex items-center justify-center"
+                              style={{ color: card.color || '#fbbf24' }}
+                            >
+                              {renderCardIcon(card.iconName, 'w-7 h-7')}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Card Title Label */}
+                        <span className="text-[11px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-1">
+                          {card.name}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
-        </button>
-
-        {onToggleFullscreen && (
-          <button
-            onClick={onToggleFullscreen}
-            className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all font-mono text-xs font-bold"
-            title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
-          >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          </button>
-        )}
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 4. SECONDARY GAMEPLAY COMBO BADGE                                         */}
-      {/* ========================================================================= */}
-      {(gameState === 'PLAYING' || gameState === 'PAUSED') && comboStreak > 1 && (
-        <div className="absolute bottom-3 left-3 z-30 pointer-events-none flex items-center gap-2">
-          <div className="bg-orange-500/20 backdrop-blur-sm border border-orange-500/40 rounded-xl px-2.5 py-1 text-orange-400 text-xs font-mono font-bold flex items-center gap-1 shadow-md animate-bounce">
-            <Flame className="w-3.5 h-3.5 text-orange-400" />
-            <span>{comboStreak}x Combo</span>
-          </div>
         </div>
-      )}
+
+        {/* ========================================================================= */}
+        {/* 2. IN-GAME DYNAMIC UI LAYOUT (Positionable HUD Elements for Memory Match) */}
+        {/* ========================================================================= */}
+        {(gameState === 'PLAYING' || gameState === 'PAUSED' || editableLayout) && (
+          <GameLayoutHudOverlay
+            layout={layout}
+            theme={activeTheme}
+            gameType="memory-match"
+            score={score}
+            moves={moves}
+            pairs={matchedPairsCount}
+            totalPairs={totalPairs}
+            timeRemaining={timeRemaining}
+            editableLayout={editableLayout}
+            selectedElementKey={selectedElementKey}
+            onSelectElementKey={onSelectElementKey}
+            onElementPointerDown={onElementPointerDown}
+          />
+        )}
+
+        {/* ========================================================================= */}
+        {/* 3. PERSISTENT IN-GAME CONTROLS DOCK (Top-Right)                           */}
+        {/* ========================================================================= */}
+        <div className="absolute top-3.5 right-4 z-40 pointer-events-auto flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-sm p-1.5 rounded-xl border border-slate-700/80 shadow-lg">
+          {gameState === 'PLAYING' && (
+            <button
+              onClick={handlePause}
+              className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all font-mono text-xs font-bold"
+              title="Pause Game"
+            >
+              <Pause className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {gameState === 'PAUSED' && (
+            <button
+              onClick={handleResume}
+              className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all font-mono text-xs font-bold"
+              title="Resume Game"
+            >
+              <Play className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
+            <button
+              onClick={handleRestart}
+              className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-all font-mono text-xs font-bold"
+              title="Restart Board"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          <button
+            onClick={onToggleMute}
+            className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
+            title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+          >
+            {isMuted ? (
+              <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+            ) : (
+              <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+            )}
+          </button>
+
+          {onToggleFullscreen && (
+            <button
+              onClick={onToggleFullscreen}
+              className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all font-mono text-xs font-bold"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </div>
+
+        {/* ========================================================================= */}
+        {/* 4. SECONDARY GAMEPLAY COMBO BADGE                                         */}
+        {/* ========================================================================= */}
+        {(gameState === 'PLAYING' || gameState === 'PAUSED') && comboStreak > 1 && (
+          <div className="absolute bottom-3.5 left-4 z-30 pointer-events-none flex items-center gap-2">
+            <div className="bg-orange-500/20 backdrop-blur-sm border border-orange-500/40 rounded-xl px-2.5 py-1 text-orange-400 text-xs font-mono font-bold flex items-center gap-1 shadow-md animate-bounce">
+              <Flame className="w-3.5 h-3.5 text-orange-400" />
+              <span>{comboStreak}x Combo</span>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================================= */}
+        {/* 5. START MATCH SCREEN MODAL                                             */}
+        {/* ======================================================================= */}
         {gameState === 'START' && (() => {
           const startConfig = memoryConfig.screens?.start;
           const bg = resolveScreenBackground(startConfig, activeTheme);
@@ -1083,7 +1124,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
           return (
             <div
-              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-4 sm:p-6 z-30 animate-in fade-in duration-200"
+              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 z-30 animate-in fade-in duration-200"
               style={bg.containerStyle}
             >
               {/* Dark Overlay Layer */}
@@ -1099,7 +1140,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                   </div>
                 )}
                 <div className="space-y-1">
-                  <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-wide">
+                  <h2 className="text-2xl font-black text-white uppercase tracking-wide">
                     {gameTitle}
                   </h2>
                   <p className="text-xs text-slate-400 leading-relaxed">
@@ -1140,11 +1181,11 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         })()}
 
         {/* ======================================================================= */}
-        {/* 4. COUNTDOWN OVERLAY                                                    */}
+        {/* 6. COUNTDOWN OVERLAY                                                    */}
         {/* ======================================================================= */}
         {gameState === 'COUNTDOWN' && (
           <div className="absolute inset-0 w-full h-full bg-slate-950/75 backdrop-blur-sm flex flex-col items-center justify-center z-30 animate-in fade-in duration-150">
-            <div className="text-6xl sm:text-8xl font-black text-amber-400 font-mono tracking-wider animate-ping">
+            <div className="text-7xl font-black text-amber-400 font-mono tracking-wider animate-ping">
               {countdown}
             </div>
             <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mt-4">
@@ -1154,7 +1195,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         )}
 
         {/* ======================================================================= */}
-        {/* 5. PAUSED OVERLAY                                                       */}
+        {/* 7. PAUSED OVERLAY                                                       */}
         {/* ======================================================================= */}
         {gameState === 'PAUSED' && (
           <div className="absolute inset-0 w-full h-full bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-4 z-30 animate-in fade-in duration-150">
@@ -1181,7 +1222,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         )}
 
         {/* ======================================================================= */}
-        {/* 6. GAME OVER / VICTORY COMPLETION MODAL                                 */}
+        {/* 8. GAME OVER / VICTORY COMPLETION MODAL                                 */}
         {/* ======================================================================= */}
         {gameState === 'GAME_OVER' && (() => {
           const resultConfig = memoryConfig.screens?.result;
@@ -1221,7 +1262,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
           return (
             <div
-              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-3 sm:p-6 z-30 animate-in zoom-in-95 duration-200"
+              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 z-30 animate-in zoom-in-95 duration-200"
               style={bg.containerStyle}
             >
               {/* Dark Overlay Layer */}
@@ -1230,7 +1271,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                 style={bg.overlayStyle}
               />
 
-              <div className="relative z-10 max-w-md w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-5 sm:p-6 text-center space-y-4 shadow-2xl overflow-hidden backdrop-blur-md">
+              <div className="relative z-10 max-w-md w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl overflow-hidden backdrop-blur-md">
                 {/* Result Status Banner */}
                 <div className="space-y-1">
                   {isVictory ? (
@@ -1239,7 +1280,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                         <Trophy className="w-3.5 h-3.5" />
                         <span>VICTORY! ALL {totalPairs} PAIRS MATCHED</span>
                       </div>
-                      <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                      <h2 className="text-3xl font-black text-white tracking-tight">
                         Brilliant Memory!
                       </h2>
                     </>
@@ -1249,7 +1290,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                         <Clock className="w-3.5 h-3.5" />
                         <span>TIME EXPIRED</span>
                       </div>
-                      <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                      <h2 className="text-3xl font-black text-white tracking-tight">
                         Good Effort!
                       </h2>
                     </>
@@ -1270,7 +1311,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                           {stat.label}
                         </span>
                         <span
-                          className={`block text-base sm:text-lg font-black font-mono truncate ${stat.colorClass}`}
+                          className={`block text-lg font-black font-mono truncate ${stat.colorClass}`}
                         >
                           {stat.value}
                         </span>
@@ -1279,51 +1320,52 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                   </div>
                 )}
 
-              {/* High Score Submission or Success Notice */}
-              {showLeaderboard && (
-                !scoreSubmitted ? (
-                  <form onSubmit={handleSubmitScore} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={playerName}
-                      onChange={(e) => setPlayerName(e.target.value)}
-                      placeholder="Enter Player Name..."
-                      maxLength={20}
-                      className="flex-1 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 outline-none"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isSubmittingScore}
-                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 shrink-0 cursor-pointer"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>{isSubmittingScore ? 'Saving...' : 'Submit'}</span>
-                    </button>
-                  </form>
-                ) : (
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center gap-2 text-emerald-400 text-xs font-semibold">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>
-                      Score submitted! Ranked #{submittedRank || 1}
-                    </span>
-                  </div>
-                )
-              )}
+                {/* High Score Submission or Success Notice */}
+                {showLeaderboard && (
+                  !scoreSubmitted ? (
+                    <form onSubmit={handleSubmitScore} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={playerName}
+                        onChange={(e) => setPlayerName(e.target.value)}
+                        placeholder="Enter Player Name..."
+                        maxLength={20}
+                        className="flex-1 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isSubmittingScore}
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 shrink-0 cursor-pointer"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>{isSubmittingScore ? 'Saving...' : 'Submit'}</span>
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center gap-2 text-emerald-400 text-xs font-semibold">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>
+                        Score submitted! Ranked #{submittedRank || 1}
+                      </span>
+                    </div>
+                  )
+                )}
 
-              {/* Primary Action Buttons */}
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  onClick={startCountdown}
-                  className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Play Again</span>
-                </button>
+                {/* Primary Action Buttons */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={startCountdown}
+                    className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Play Again</span>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
+      </div>
     </div>
   );
 };

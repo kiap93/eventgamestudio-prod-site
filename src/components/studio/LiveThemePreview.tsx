@@ -675,37 +675,24 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
       >
         {isMemoryMatch ? (
           /* MEMORY MATCH LIVE GAME SIMULATION - TRUE PROPORTIONAL SCALING */
-          <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
-            {/* Game Scale Wrapper: Exact 1024x576 Design Coordinates, Scaled as ONE unit */}
-            <div
-              style={{
-                width: `${DESIGN_WIDTH}px`,
-                height: `${DESIGN_HEIGHT}px`,
-                transform: `scale(${uiScale})`,
-                transformOrigin: 'center center',
-                flexShrink: 0,
-              }}
-              className="relative overflow-hidden select-none shadow-2xl"
-            >
-              <MemoryMatchGame
-                key={`sim-mm-${theme.id}-${restartKey}`}
-                activeTheme={theme}
-                settings={{
-                  soundEnabled: !isMuted,
-                  gameDurationSeconds: resolvedPreviewDuration,
-                  mismatchDelayMs: memoryConfig.gameplay?.mismatchDelayMs ?? 850,
-                }}
-                isMuted={isMuted}
-                isFullscreen={false}
-                isStudioPreview={true}
-                editableLayout={editableLayout}
-                selectedElementKey={selectedElementKey}
-                onSelectElementKey={onSelectElementKey}
-                onElementPointerDown={handleElementPointerDown}
-                onToggleMute={() => setIsMuted(!isMuted)}
-              />
-            </div>
-          </div>
+          <MemoryMatchGame
+            key={`sim-mm-${theme.id}-${restartKey}`}
+            className="w-full h-full"
+            activeTheme={theme}
+            settings={{
+              soundEnabled: !isMuted,
+              gameDurationSeconds: resolvedPreviewDuration,
+              mismatchDelayMs: memoryConfig.gameplay?.mismatchDelayMs ?? 850,
+            }}
+            isMuted={isMuted}
+            isFullscreen={false}
+            isStudioPreview={true}
+            editableLayout={editableLayout}
+            selectedElementKey={selectedElementKey}
+            onSelectElementKey={onSelectElementKey}
+            onElementPointerDown={handleElementPointerDown}
+            onToggleMute={() => setIsMuted(!isMuted)}
+          />
         ) : (
           /* CATCH BRAND FALLING CANVAS SIMULATION */
           <canvas

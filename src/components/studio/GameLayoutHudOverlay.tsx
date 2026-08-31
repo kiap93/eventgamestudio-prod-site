@@ -100,7 +100,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
                 src={clientLogoUrl!}
                 alt="Client Logo"
                 draggable={false}
-                className="max-h-8 sm:max-h-11 md:max-h-12 w-full object-contain drop-shadow pointer-events-none select-none"
+                className="max-h-11 w-full object-contain drop-shadow pointer-events-none select-none"
                 onError={() => setLogoLoadError(true)}
               />
             </div>
@@ -124,13 +124,13 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
 
       case 'scoreHud':
         return (
-          <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
-            <span className="text-[11px] sm:text-xs md:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+          <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3 py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
+            <span className="text-xs font-mono font-bold text-slate-300 flex items-center gap-1">
               <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" /> SCORE
             </span>
             <span
               style={{ color: hudColor }}
-              className="text-sm sm:text-base md:text-lg font-mono font-black ml-1.5 shrink-0"
+              className="text-base font-mono font-black ml-1.5 shrink-0"
             >
               {score}
             </span>
@@ -139,13 +139,13 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
 
       case 'movesHud':
         return (
-          <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
-            <span className="text-[11px] sm:text-xs md:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+          <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3 py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
+            <span className="text-xs font-mono font-bold text-slate-300 flex items-center gap-1">
               <Footprints className="w-3.5 h-3.5 text-sky-400 shrink-0" /> MOVES
             </span>
             <span
               style={{ color: hudColor }}
-              className="text-sm sm:text-base md:text-lg font-mono font-black ml-1.5 shrink-0"
+              className="text-base font-mono font-black ml-1.5 shrink-0"
             >
               {moves}
             </span>
@@ -154,13 +154,13 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
 
       case 'pairsHud':
         return (
-          <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
-            <span className="text-[11px] sm:text-xs md:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+          <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3 py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
+            <span className="text-xs font-mono font-bold text-slate-300 flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> PAIRS
             </span>
             <span
               style={{ color: hudColor }}
-              className="text-sm sm:text-base md:text-lg font-mono font-black ml-1.5 shrink-0"
+              className="text-base font-mono font-black ml-1.5 shrink-0"
             >
               {pairs}/{totalPairs}
             </span>
@@ -169,12 +169,12 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
 
       case 'timer':
         return (
-          <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
-            <span className="text-[11px] sm:text-xs md:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+          <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3 py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none">
+            <span className="text-xs font-mono font-bold text-slate-300 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-teal-400 shrink-0" /> TIME
             </span>
             <span
-              className={`text-sm sm:text-base md:text-lg font-mono font-black ml-1.5 shrink-0 ${
+              className={`text-base font-mono font-black ml-1.5 shrink-0 ${
                 timeRemaining <= 10 ? 'text-rose-400 animate-pulse' : 'text-amber-400'
               }`}
             >
@@ -185,10 +185,10 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
 
       case 'gameTitle':
         return (
-          <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-xl px-2.5 sm:px-3 py-0.5 sm:py-1 shadow-md text-center pointer-events-none select-none">
+          <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-xl px-3 py-1 shadow-md text-center pointer-events-none select-none">
             <div
               style={{ color: accentColor }}
-              className="font-black text-[11px] sm:text-xs md:text-sm uppercase tracking-wider truncate"
+              className="font-black text-xs uppercase tracking-wider truncate"
             >
               {gameTitle}
             </div>
@@ -197,9 +197,9 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
 
       case 'footerSponsor':
         return (
-          <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-full px-2.5 sm:px-3 py-0.5 sm:py-1 shadow-md text-center flex items-center justify-center gap-1.5 pointer-events-none select-none">
+          <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-full px-3 py-1 shadow-md text-center flex items-center justify-center gap-1.5 pointer-events-none select-none">
             <Megaphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-[9px] sm:text-[10px] md:text-xs text-slate-300 font-sans truncate">
+            <span className="text-[11px] text-slate-300 font-sans truncate">
               {sponsorSubtitle}
             </span>
           </div>
