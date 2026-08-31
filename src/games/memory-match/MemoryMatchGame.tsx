@@ -34,7 +34,7 @@ import { memorySounds } from './memorySounds';
 import { generateRandomCardPositions, CardPosition } from './memoryMatchBoardLayout';
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
 import { getMemoryMatchConfig, getCardFrontBg, getCardGoodBg, resolveScreenBackground } from '../../themes';
-import { normalizeGameLayout, GameLayoutConfig } from '../../themes/layout';
+import { normalizeGameLayout, GameLayoutConfig, LayoutElementKey } from '../../themes/layout';
 import { GameLayoutHudOverlay } from '../../components/studio/GameLayoutHudOverlay';
 import { apiFetch } from '../../lib/api';
 
@@ -70,7 +70,21 @@ const renderCardIcon = (iconName?: string, className: string = 'w-8 h-8') => {
   }
 };
 
-export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = ({
+export interface MemoryMatchGameProps extends GameComponentProps<MemoryMatchConfig> {
+  isStudioPreview?: boolean;
+  initialGameState?: GameState;
+  autoStart?: boolean;
+  editableLayout?: boolean;
+  selectedElementKey?: LayoutElementKey | null;
+  onSelectElementKey?: (key: LayoutElementKey) => void;
+  onElementPointerDown?: (
+    key: LayoutElementKey,
+    isResize: boolean,
+    e: React.PointerEvent<HTMLDivElement>
+  ) => void;
+}
+
+export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   activeTheme,
   settings,
   config,
@@ -82,6 +96,13 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
   isFullscreen = false,
   onToggleFullscreen,
   onToggleMute,
+  isStudioPreview = false,
+  initialGameState,
+  autoStart,
+  editableLayout = false,
+  selectedElementKey = null,
+  onSelectElementKey,
+  onElementPointerDown,
 }) => {
   const memoryConfig = useMemo(() => getMemoryMatchConfig(activeTheme), [activeTheme]);
   const boardConfig = memoryConfig.board;
@@ -124,7 +145,9 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
     30;
   const cardBackUrl = memoryConfig.cardBackUrl;
 
-  const [gameState, setGameState] = useState<GameState>('START');
+  const [gameState, setGameState] = useState<GameState>(
+    initialGameState || (autoStart ? 'PLAYING' : 'START')
+  );
 
   const [countdown, setCountdown] = useState<number>(3);
   const [cards, setCards] = useState<MemoryCard[]>(() => createShuffledDeck(activeTheme));
@@ -942,7 +965,7 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
       {/* ========================================================================= */}
       {/* 2. IN-GAME DYNAMIC UI LAYOUT (Positionable HUD Elements for Memory Match) */}
       {/* ========================================================================= */}
-      {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
+      {(gameState === 'PLAYING' || gameState === 'PAUSED' || editableLayout) && (
         <GameLayoutHudOverlay
           layout={layout}
           theme={activeTheme}
@@ -952,6 +975,10 @@ export const MemoryMatchGame: React.FC<GameComponentProps<MemoryMatchConfig>> = 
           pairs={matchedPairsCount}
           totalPairs={totalPairs}
           timeRemaining={timeRemaining}
+          editableLayout={editableLayout}
+          selectedElementKey={selectedElementKey}
+          onSelectElementKey={onSelectElementKey}
+          onElementPointerDown={onElementPointerDown}
         />
       )}
 

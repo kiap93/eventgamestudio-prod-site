@@ -1,14 +1,16 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { GameTheme, ThemeDropItem, isMemoryMatchTheme, getThemeGameType, getMemoryMatchConfig, getCardFrontBg, getCardGoodBg } from '../../themes';
+import {
+  GameTheme,
+  ThemeDropItem,
+  isMemoryMatchTheme,
+  getThemeGameType,
+  getMemoryMatchConfig,
+} from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
-
-import { createShuffledDeck } from '../../games/memory-match/cardDeck';
-import { MemoryCard } from '../../games/memory-match/types';
-import { generateRandomCardPositions, CardPosition } from '../../games/memory-match/memoryMatchBoardLayout';
+import { MemoryMatchGame } from '../../games/memory-match/MemoryMatchGame';
 import {
   GameLayoutConfig,
   LayoutElementKey,
-  LAYOUT_ELEMENT_KEYS,
   LAYOUT_ELEMENTS_META,
   DEFAULT_GAME_LAYOUT,
   normalizeGameLayout,
@@ -26,22 +28,6 @@ import {
   Gamepad2,
   Flame,
   Star,
-  Move,
-  Maximize2,
-  Eye,
-  EyeOff,
-  Image as ImageIcon,
-  Trophy,
-  Timer as TimerIcon,
-  Type,
-  Megaphone,
-  Ticket,
-  CheckCircle2,
-  Grid3X3,
-  ShoppingBag,
-  Tent,
-  PartyPopper,
-  Disc,
 } from 'lucide-react';
 
 interface LiveThemePreviewProps {
@@ -107,6 +93,8 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   const [isPlaying] = useState<boolean>(true);
   const [isInteractive, setIsInteractive] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [restartKey, setRestartKey] = useState<number>(0);
+
   const isMemoryMatch = isMemoryMatchTheme(theme);
   const memoryConfig = useMemo(() => getMemoryMatchConfig(theme), [theme]);
   const resolvedPreviewDuration = isMemoryMatch
@@ -118,114 +106,6 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     () => resolvedPreviewDuration
   );
   const [currentStageName, setCurrentStageName] = useState<string>('Stage 1: Calm');
-  const boardConfig = memoryConfig.board;
-  const cardConfig = memoryConfig.card || boardConfig.card;
-  const cardBorderRadius = cardConfig?.borderRadius ?? 16;
-  const cardWidth = cardConfig?.width ?? 120;
-  const cardHeight = cardConfig?.height ?? 120;
-  const previewGridAspect = (boardConfig.cols * cardWidth) / (boardConfig.rows * cardHeight);
-
-  // Memory match interactive preview state
-  const [memoryDeck, setMemoryDeck] = useState<MemoryCard[]>(() => createShuffledDeck(theme));
-  const [randomPositions, setRandomPositions] = useState<CardPosition[]>(() =>
-    generateRandomCardPositions(createShuffledDeck(theme).length, boardConfig, cardConfig)
-  );
-  const [memoryFlippedIndices, setMemoryFlippedIndices] = useState<number[]>([]);
-  const [matchedPairCount, setMatchedPairCount] = useState<number>(0);
-
-  // Sync memory deck when theme items or branding change
-  useEffect(() => {
-    if (isMemoryMatch) {
-      const nextDeck = createShuffledDeck(theme);
-      setMemoryDeck(nextDeck);
-      setRandomPositions(generateRandomCardPositions(nextDeck.length, boardConfig, cardConfig));
-      setMemoryFlippedIndices([]);
-      setMatchedPairCount(0);
-    }
-  }, [
-    theme,
-    isMemoryMatch,
-    boardConfig.layoutMode,
-    boardConfig.rows,
-    boardConfig.cols,
-    boardConfig.cardGap,
-    boardConfig.randomLayout.minSpacing,
-    boardConfig.randomLayout.rotationMin,
-    boardConfig.randomLayout.rotationMax,
-    cardConfig?.width,
-    cardConfig?.height,
-    cardConfig?.borderRadius,
-    cardConfig?.rotationMode,
-    cardConfig?.rotation,
-    cardConfig?.rotationRange,
-  ]);
-
-  const handleCardClick = (index: number) => {
-    if (!memoryDeck[index] || memoryDeck[index].isMatched || memoryDeck[index].isFlipped) return;
-    if (memoryFlippedIndices.length >= 2) return;
-
-    const nextDeck = [...memoryDeck];
-    nextDeck[index] = { ...nextDeck[index], isFlipped: true };
-    setMemoryDeck(nextDeck);
-
-    const nextFlipped = [...memoryFlippedIndices, index];
-    setMemoryFlippedIndices(nextFlipped);
-
-    if (nextFlipped.length === 2) {
-      const [firstIdx, secondIdx] = nextFlipped;
-      const firstCard = nextDeck[firstIdx];
-      const secondCard = nextDeck[secondIdx];
-
-      if (firstCard.pairId === secondCard.pairId) {
-        setTimeout(() => {
-          setMemoryDeck((prev) =>
-            prev.map((c, i) =>
-              i === firstIdx || i === secondIdx ? { ...c, isMatched: true } : c
-            )
-          );
-          setScore((s) => s + (firstCard.points || 100));
-          setMatchedPairCount((m) => m + 1);
-          setMemoryFlippedIndices([]);
-        }, 400);
-      } else {
-        setTimeout(() => {
-          setMemoryDeck((prev) =>
-            prev.map((c, i) =>
-              i === firstIdx || i === secondIdx ? { ...c, isFlipped: false } : c
-            )
-          );
-          setMemoryFlippedIndices([]);
-        }, 800);
-      }
-    }
-  };
-
-  const renderCardIcon = (iconName?: string, className: string = 'w-6 h-6') => {
-    switch (iconName) {
-      case 'Ticket':
-        return <Ticket className={className} />;
-      case 'Sparkles':
-        return <Sparkles className={className} />;
-      case 'Star':
-        return <Star className={className} />;
-      case 'ShoppingBag':
-        return <ShoppingBag className={className} />;
-      case 'Tent':
-        return <Tent className={className} />;
-      case 'PartyPopper':
-        return <PartyPopper className={className} />;
-      case 'Trophy':
-        return <Trophy className={className} />;
-      case 'Disc':
-        return <Disc className={className} />;
-      case 'CheckCircle2':
-        return <CheckCircle2 className={className} />;
-      case 'Flame':
-        return <Flame className={className} />;
-      default:
-        return <Sparkles className={className} />;
-    }
-  };
 
   // Dragging and resizing state for layout elements
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -236,21 +116,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   // Normalized layout
   const layout: GameLayoutConfig = normalizeGameLayout(theme.layout, gameType);
 
-  const effectiveCardFrontBg = useMemo(() => {
-    return getCardFrontBg(
-      theme.visuals_config?.cardFrontBg,
-      theme.visuals_config?.cardFrontBgOpacity
-    );
-  }, [theme.visuals_config?.cardFrontBg, theme.visuals_config?.cardFrontBgOpacity]);
-
-  const effectiveCardGoodBg = useMemo(() => {
-    return getCardGoodBg(
-      theme.visuals_config?.cardGoodBg,
-      theme.visuals_config?.cardGoodBgOpacity
-    );
-  }, [theme.visuals_config?.cardGoodBg, theme.visuals_config?.cardGoodBgOpacity]);
-
-  // Simulation physics state refs
+  // Simulation physics state refs (Catch The Brand)
   const simState = useRef({
     basketX: 512,
     basketTargetX: 512,
@@ -312,6 +178,8 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
   // Reset simulation
   const handleResetSimulation = useCallback(() => {
+    setRestartKey((prev) => prev + 1);
+
     simState.current.items = [];
     simState.current.particles = [];
     simState.current.score = 0;
@@ -333,8 +201,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     handleResetSimulation();
   }, [theme.id, resolvedPreviewDuration, handleResetSimulation]);
 
-  // Main 60 FPS Canvas Simulation Loop
+  // Main 60 FPS Canvas Simulation Loop (Catch The Brand)
   useEffect(() => {
+    if (isMemoryMatch) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -448,54 +318,69 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           item.rotation += item.rotSpeed * dt;
 
           // Check Catch Collision
-          if (
-            !item.collected &&
-            item.y >= basketY - basketH / 2 - 10 &&
-            item.y <= basketY + basketH / 2 &&
-            Math.abs(item.x - state.basketX) <= catchHalfW + item.radius * 0.4
-          ) {
-            item.collected = true;
-            state.score = Math.max(0, state.score + item.config.points);
-            state.caughtCount++;
-            setScore(state.score);
-            state.basketBounce = 1.0;
+          if (!item.collected && item.y >= basketY - 10 && item.y <= basketY + 30) {
+            if (Math.abs(item.x - state.basketX) <= catchHalfW + item.radius) {
+              item.collected = true;
+              state.basketBounce = 1;
 
-            if (item.config.isHazard) {
-              state.redFlashAlpha = 0.45;
-              if (!isMuted) soundManager.playOrangeCatch();
-            } else if (item.config.isBonus) {
-              if (!isMuted) soundManager.playGoldenCatch();
-            } else {
-              if (!isMuted) soundManager.playGreenCatch();
-            }
+              if (item.config.isHazard) {
+                state.score = Math.max(0, state.score + (item.config.points || -50));
+                state.redFlashAlpha = 0.45;
+                if (!isMuted) soundManager.playOrangeCatch();
 
-            // Spawn catch burst particles
-            const pCount = item.config.isHazard ? 12 : item.config.isBonus ? 20 : 10;
-            const pColor = item.config.isHazard
-              ? '#ef4444'
-              : item.config.isBonus
-              ? '#facc15'
-              : theme.visuals_config?.primaryColor || '#10b981';
+                // Hazard explosion particles
+                for (let p = 0; p < 18; p++) {
+                  const ang = Math.random() * Math.PI * 2;
+                  const spd = Math.random() * 220 + 80;
+                  state.particles.push({
+                    x: item.x,
+                    y: item.y,
+                    vx: Math.cos(ang) * spd,
+                    vy: Math.sin(ang) * spd,
+                    alpha: 1,
+                    size: Math.random() * 5 + 3,
+                    color: '#f43f5e',
+                    life: 0,
+                    maxLife: 0.6,
+                  });
+                }
+              } else {
+                state.score += item.config.points || 100;
+                state.caughtCount++;
+                if (!isMuted) {
+                  if (item.config.isBonus) {
+                    soundManager.playGoldenCatch();
+                  } else {
+                    soundManager.playGreenCatch();
+                  }
+                }
 
-            for (let p = 0; p < pCount; p++) {
-              const angle = Math.random() * Math.PI * 2;
-              const speed = Math.random() * 200 + 80;
-              state.particles.push({
-                x: item.x,
-                y: item.y,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 60,
-                alpha: 1,
-                size: Math.random() * 5 + 3,
-                color: pColor,
-                life: 0,
-                maxLife: Math.random() * 0.4 + 0.3,
-              });
+                // Sparkle particles
+                const pColor = item.config.isBonus
+                  ? '#fbbf24'
+                  : theme.visuals_config?.accentColor || '#10b981';
+                for (let p = 0; p < 14; p++) {
+                  const ang = Math.random() * Math.PI * 2;
+                  const spd = Math.random() * 180 + 60;
+                  state.particles.push({
+                    x: item.x,
+                    y: item.y,
+                    vx: Math.cos(ang) * spd,
+                    vy: Math.sin(ang) * spd - 40,
+                    alpha: 1,
+                    size: Math.random() * 4 + 2,
+                    color: pColor,
+                    life: 0,
+                    maxLife: 0.5,
+                  });
+                }
+              }
+              setScore(state.score);
             }
           }
 
-          // Remove out of bounds or collected
-          if (item.y > V_HEIGHT + 60 || item.collected) {
+          // Off screen removal
+          if (item.y > V_HEIGHT + 60 || (item.collected && item.y > basketY + 40)) {
             state.items.splice(i, 1);
           }
         }
@@ -503,10 +388,9 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         // Update particles
         for (let i = state.particles.length - 1; i >= 0; i--) {
           const p = state.particles[i];
+          p.life += dt;
           p.x += p.vx * dt;
           p.y += p.vy * dt;
-          p.vy += 350 * dt; // gravity
-          p.life += dt;
           p.alpha = Math.max(0, 1 - p.life / p.maxLife);
           if (p.life >= p.maxLife) {
             state.particles.splice(i, 1);
@@ -514,51 +398,72 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         }
       }
 
-      // ================= DRAWING ROUTINE =================
+      // -------------------------------------------------------------
+      // RENDERING CANVAS (Catch The Brand)
+      // -------------------------------------------------------------
       ctx.clearRect(0, 0, V_WIDTH, V_HEIGHT);
 
-      // Background
-      const bgImg = getOrLoadImage(theme.background_url || theme.background);
+      // 1. Background
+      const bgImg = getOrLoadImage(theme.background_url);
       if (bgImg) {
         ctx.drawImage(bgImg, 0, 0, V_WIDTH, V_HEIGHT);
       } else {
-        // Fallback gradient background
-        const grad = ctx.createLinearGradient(0, 0, 0, V_HEIGHT);
-        grad.addColorStop(0, theme.visuals_config?.bgGradientFrom || '#064e3b');
-        grad.addColorStop(1, theme.visuals_config?.bgGradientTo || '#022c22');
-        ctx.fillStyle = grad;
+        const bgGrad = ctx.createLinearGradient(0, 0, V_WIDTH, V_HEIGHT);
+        bgGrad.addColorStop(0, theme.visuals_config?.bgGradientFrom || '#0f172a');
+        bgGrad.addColorStop(0.5, theme.visuals_config?.bgGradientVia || '#1e1b4b');
+        bgGrad.addColorStop(1, theme.visuals_config?.bgGradientTo || '#0f172a');
+        ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
       }
 
-      // Draw Items
+      // Background Darkening Tint
+      if (theme.background_url) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
+        ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+      }
+
+      // 2. Hazard Red Flash
+      if (state.redFlashAlpha > 0) {
+        ctx.fillStyle = `rgba(244, 63, 94, ${state.redFlashAlpha})`;
+        ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+      }
+
+      // 3. Falling Items
       for (const item of state.items) {
+        if (item.collected) continue;
         ctx.save();
         ctx.translate(item.x, item.y);
         ctx.rotate(item.rotation);
 
         const itemImg = getOrLoadImage(item.config.imageUrl);
         if (itemImg) {
-          const s = item.radius * 2;
-          ctx.drawImage(itemImg, -s / 2, -s / 2, s, s);
+          const sz = item.radius * 2;
+          ctx.drawImage(itemImg, -sz / 2, -sz / 2, sz, sz);
         } else {
-          // Fallback item circle
+          // Draw high fidelity vector circle
           ctx.beginPath();
           ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
           ctx.fillStyle = item.config.isHazard
-            ? '#ef4444'
+            ? '#e11d48'
             : item.config.isBonus
-            ? '#facc15'
-            : theme.visuals_config?.primaryColor || '#10b981';
+            ? '#f59e0b'
+            : '#10b981';
           ctx.fill();
           ctx.lineWidth = 3;
           ctx.strokeStyle = '#ffffff';
           ctx.stroke();
-        }
 
+          // Text Initial
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 14px system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(item.config.name.substring(0, 3).toUpperCase(), 0, 0);
+        }
         ctx.restore();
       }
 
-      // Draw Particles
+      // 4. Particles
       for (const p of state.particles) {
         ctx.save();
         ctx.globalAlpha = p.alpha;
@@ -569,37 +474,37 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         ctx.restore();
       }
 
-      // Draw Basket / Catcher
-      const basketY = V_HEIGHT - 65;
-      const basketW = theme.basket_config?.width || 140;
-      const basketH = theme.basket_config?.height || 70;
-      const bounceScale = 1 + state.basketBounce * 0.18;
+      // 5. Basket
+      const bW = theme.basket_config?.width || 140;
+      const bH = theme.basket_config?.height || 70;
+      const bX = state.basketX - bW / 2;
+      const bY = V_HEIGHT - 65 - state.basketBounce * 8;
 
       ctx.save();
-      ctx.translate(state.basketX, basketY);
-      ctx.scale(bounceScale, 2 - bounceScale);
-
-      const basketImg = getOrLoadImage(theme.basket_config?.imageUrl || theme.catcher);
+      const basketImg = getOrLoadImage(theme.basket_config?.imageUrl);
       if (basketImg) {
-        ctx.drawImage(basketImg, -basketW / 2, -basketH / 2, basketW, basketH);
+        ctx.drawImage(basketImg, bX, bY, bW, bH);
       } else {
-        // Fallback basket box
-        ctx.fillStyle = theme.visuals_config?.secondaryColor || '#f59e0b';
+        // High quality fallback basket
+        const cornerR = 16;
         ctx.beginPath();
-        ctx.roundRect(-basketW / 2, -basketH / 2, basketW, basketH, 12);
+        ctx.roundRect(bX, bY, bW, bH, cornerR);
+        const bGrad = ctx.createLinearGradient(bX, bY, bX, bY + bH);
+        bGrad.addColorStop(0, theme.visuals_config?.accentColor || '#10b981');
+        bGrad.addColorStop(1, '#064e3b');
+        ctx.fillStyle = bGrad;
         ctx.fill();
         ctx.lineWidth = 3;
         ctx.strokeStyle = '#ffffff';
         ctx.stroke();
-      }
 
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 12px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(theme.basket_config?.label || 'CATCH', state.basketX, bY + bH / 2);
+      }
       ctx.restore();
-
-      // Red Flash
-      if (state.redFlashAlpha > 0) {
-        ctx.fillStyle = `rgba(239, 68, 68, ${state.redFlashAlpha})`;
-        ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
-      }
 
       animationFrameId = requestAnimationFrame(render);
     };
@@ -609,29 +514,28 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [isPlaying, isInteractive, isMuted, theme, getOrLoadImage]);
+  }, [isPlaying, isInteractive, isMuted, isMemoryMatch, theme, getOrLoadImage]);
 
-  // Interactive basket movement via pointer
+  // Interactive mouse / touch move on canvas (Catch The Brand)
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isInteractive || !canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
+    if (!isInteractive || isMemoryMatch) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
     const scaleX = 1024 / rect.width;
-    const mouseX = (e.clientX - rect.left) * scaleX;
-    simState.current.basketTargetX = mouseX;
+    const clientX = e.clientX - rect.left;
+    simState.current.basketTargetX = clientX * scaleX;
   };
 
-  // ================= DRAG & RESIZE HANDLERS FOR LAYOUT ELEMENTS =================
+  // Dragging and resizing for Layout tab
   const handleElementPointerDown = (
     key: LayoutElementKey,
     isResize: boolean,
     e: React.PointerEvent<HTMLDivElement>
   ) => {
     if (!editableLayout) return;
-    e.preventDefault();
     e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-
-    onSelectElementKey?.(key);
+    e.preventDefault();
 
     const elem = layout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
     const meta = LAYOUT_ELEMENTS_META[key];
@@ -646,6 +550,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
       startY: elem.y,
       startWidth: elem.width || meta.defaultWidth,
     });
+    onSelectElementKey?.(key);
   };
 
   const handleContainerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -760,7 +665,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         </div>
       </div>
 
-      {/* Main 16:9 Canvas Viewport with Scaled Layout Overlays */}
+      {/* Main 16:9 Viewport with Scaled Layout Overlays */}
       <div
         ref={viewportRef}
         onPointerMove={handleContainerPointerMove}
@@ -769,231 +674,36 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none flex items-center justify-center"
       >
         {isMemoryMatch ? (
-          /* MEMORY MATCH LIVE BOARD PREVIEW */
-          <div
-            className="w-full h-full relative flex items-center justify-center overflow-hidden"
-            style={{
-              backgroundImage: theme.background_url ? `url(${theme.background_url})` : undefined,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-            }}
-          >
-            {/* Background Gradient Fallback / Tint */}
+          /* MEMORY MATCH LIVE GAME SIMULATION - TRUE PROPORTIONAL SCALING */
+          <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+            {/* Game Scale Wrapper: Exact 1024x576 Design Coordinates, Scaled as ONE unit */}
             <div
-              className="absolute inset-0 z-0 pointer-events-none"
               style={{
-                background: theme.background_url
-                  ? 'rgba(15, 23, 42, 0.65)'
-                  : `linear-gradient(135deg, ${theme.visuals_config?.bgGradientFrom || '#0f172a'} 0%, ${theme.visuals_config?.bgGradientVia || '#1e1b4b'} 50%, ${theme.visuals_config?.bgGradientTo || '#0f172a'} 100%)`,
+                width: `${DESIGN_WIDTH}px`,
+                height: `${DESIGN_HEIGHT}px`,
+                transform: `scale(${uiScale})`,
+                transformOrigin: 'center center',
+                flexShrink: 0,
               }}
-            />
-
-            {/* Dynamic Interactive Card Board Centered (Grid vs Scattered) */}
-            <div className="absolute inset-0 flex items-center justify-center p-3 sm:p-5 md:p-6 overflow-hidden z-10 pointer-events-auto">
-              {boardConfig.layoutMode === 'grid' ? (
-                <div
-                  className="w-full h-full max-h-[min(100%,680px)] max-w-[min(100%,680px)] m-auto"
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(${boardConfig.cols}, minmax(0, 1fr))`,
-                    gridTemplateRows: `repeat(${boardConfig.rows}, minmax(0, 1fr))`,
-                    aspectRatio: `${previewGridAspect}`,
-                    gap: `${boardConfig.cardGap || 8}px`,
-                  }}
-                >
-                  {memoryDeck.map((card, idx) => {
-                    const isFlipped = card.isFlipped || card.isMatched;
-                    const rotationAngle = card.rotation ?? 0;
-                    return (
-                      <div
-                        key={card.id || idx}
-                        onClick={() => handleCardClick(idx)}
-                        className="relative w-full h-full cursor-pointer perspective-1000 group/card transition-transform active:scale-95"
-                        style={{ transform: `rotate(${rotationAngle}deg)` }}
-                        title={`Click to flip ${card.name}`}
-                      >
-                        <div
-                          className={`relative w-full h-full duration-300 transition-all [transform-style:preserve-3d] shadow-sm ${
-                            isFlipped ? '[transform:rotateY(180deg)]' : ''
-                          }`}
-                          style={{ borderRadius: `${cardBorderRadius}px` }}
-                        >
-                          {/* CARD BACK */}
-                          <div
-                            className="absolute inset-0 w-full h-full flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors overflow-hidden p-1"
-                            style={{
-                              backfaceVisibility: 'hidden',
-                              backgroundColor: theme.visuals_config?.cardBadBg || '#0f172a',
-                              borderColor: theme.visuals_config?.cardBadBorder || '#334155',
-                              borderRadius: `${cardBorderRadius}px`,
-                            }}
-                          >
-                            {getMemoryMatchConfig(theme).cardBackUrl ? (
-                              <img
-                                src={getMemoryMatchConfig(theme).cardBackUrl!}
-                                alt="Card Back"
-                                className="max-h-full max-w-full object-contain filter drop-shadow-sm pointer-events-none"
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              <>
-                                <Grid3X3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 group-hover/card:text-amber-400 transition-colors" />
-                                <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 mt-0.5 font-bold">
-                                  {idx + 1}
-                                </span>
-                              </>
-                            )}
-                          </div>
-
-                          {/* CARD FRONT FACE */}
-                          <div
-                            className="absolute inset-0 w-full h-full flex flex-col items-center justify-between p-1 sm:p-1.5 border-2 shadow-lg"
-                            style={{
-                              backfaceVisibility: 'hidden',
-                              transform: 'rotateY(180deg)',
-                              borderRadius: `${cardBorderRadius}px`,
-                              backgroundColor: card.isMatched
-                                ? effectiveCardGoodBg
-                                : effectiveCardFrontBg,
-                              borderColor: card.isMatched
-                                ? theme.visuals_config?.cardGoodBorder || '#10b981'
-                                : theme.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
-                            }}
-                          >
-                            {card.isMatched && (
-                              <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow">
-                                <CheckCircle2 className="w-2.5 h-2.5" />
-                              </div>
-                            )}
-                            <div className="flex-1 w-full flex items-center justify-center p-0.5">
-                              {card.imageUrl ? (
-                                <img
-                                  src={card.imageUrl}
-                                  alt={card.name}
-                                  className="max-h-[80%] max-w-[80%] object-contain drop-shadow"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                <div
-                                  className="p-1 rounded-lg flex items-center justify-center"
-                                  style={{ color: card.color || '#fbbf24' }}
-                                >
-                                  {renderCardIcon(card.iconName, 'w-5 h-5 sm:w-7 sm:h-7')}
-                                </div>
-                              )}
-                            </div>
-                            <span className="text-[8px] sm:text-[10px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-0.5">
-                              {card.name}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* RANDOM / SCATTERED CARD BOARD */
-                <div className="relative w-full h-full max-h-[min(100%,660px)] max-w-[min(100%,660px)] m-auto overflow-hidden">
-                  {memoryDeck.map((card, idx) => {
-                    const pos = randomPositions[idx] || { x: 50, y: 50, rotation: 0, widthPercent: 18, heightPercent: 24, zIndex: idx + 1 };
-                    const isFlipped = card.isFlipped || card.isMatched;
-                    return (
-                      <div
-                        key={card.id || idx}
-                        onClick={() => handleCardClick(idx)}
-                        style={{
-                          position: 'absolute',
-                          left: `${pos.x}%`,
-                          top: `${pos.y}%`,
-                          width: `${pos.widthPercent}%`,
-                          height: `${pos.heightPercent}%`,
-                          transform: `translate(-50%, -50%) rotate(${pos.rotation}deg)`,
-                          zIndex: isFlipped ? 60 : pos.zIndex,
-                        }}
-                        className="cursor-pointer perspective-1000 group/card transition-all active:scale-95 duration-200"
-                        title={`Click to flip ${card.name}`}
-                      >
-                        <div
-                          className={`relative w-full h-full duration-300 transition-all [transform-style:preserve-3d] shadow-md hover:shadow-xl hover:scale-105 ${
-                            isFlipped ? '[transform:rotateY(180deg)]' : ''
-                          }`}
-                          style={{ borderRadius: `${cardBorderRadius}px` }}
-                        >
-                          {/* CARD BACK */}
-                          <div
-                            className="absolute inset-0 w-full h-full flex flex-col items-center justify-center border-2 border-slate-700/80 bg-slate-900 shadow-md group-hover/card:border-amber-500/80 transition-colors overflow-hidden p-1"
-                            style={{
-                              backfaceVisibility: 'hidden',
-                              backgroundColor: theme.visuals_config?.cardBadBg || '#0f172a',
-                              borderColor: theme.visuals_config?.cardBadBorder || '#334155',
-                              borderRadius: `${cardBorderRadius}px`,
-                            }}
-                          >
-                            {getMemoryMatchConfig(theme).cardBackUrl ? (
-                              <img
-                                src={getMemoryMatchConfig(theme).cardBackUrl!}
-                                alt="Card Back"
-                                className="max-h-full max-w-full object-contain filter drop-shadow-sm pointer-events-none"
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              <>
-                                <Grid3X3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 group-hover/card:text-amber-400 transition-colors" />
-                                <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 mt-0.5 font-bold">
-                                  {idx + 1}
-                                </span>
-                              </>
-                            )}
-                          </div>
-
-                          {/* CARD FRONT FACE */}
-                          <div
-                            className="absolute inset-0 w-full h-full flex flex-col items-center justify-between p-1 sm:p-1.5 border-2 shadow-lg"
-                            style={{
-                              backfaceVisibility: 'hidden',
-                              transform: 'rotateY(180deg)',
-                              borderRadius: `${cardBorderRadius}px`,
-                              backgroundColor: card.isMatched
-                                ? effectiveCardGoodBg
-                                : effectiveCardFrontBg,
-                              borderColor: card.isMatched
-                                ? theme.visuals_config?.cardGoodBorder || '#10b981'
-                                : theme.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
-                            }}
-                          >
-                            {card.isMatched && (
-                              <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow">
-                                <CheckCircle2 className="w-2.5 h-2.5" />
-                              </div>
-                            )}
-                            <div className="flex-1 w-full flex items-center justify-center p-0.5">
-                              {card.imageUrl ? (
-                                <img
-                                  src={card.imageUrl}
-                                  alt={card.name}
-                                  className="max-h-[80%] max-w-[80%] object-contain drop-shadow"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                <div
-                                  className="p-1 rounded-lg flex items-center justify-center"
-                                  style={{ color: card.color || '#fbbf24' }}
-                                >
-                                  {renderCardIcon(card.iconName, 'w-5 h-5 sm:w-7 sm:h-7')}
-                                </div>
-                              )}
-                            </div>
-                            <span className="text-[8px] sm:text-[10px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-0.5">
-                              {card.name}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              className="relative overflow-hidden select-none shadow-2xl"
+            >
+              <MemoryMatchGame
+                key={`sim-mm-${theme.id}-${restartKey}`}
+                activeTheme={theme}
+                settings={{
+                  soundEnabled: !isMuted,
+                  gameDurationSeconds: resolvedPreviewDuration,
+                  mismatchDelayMs: memoryConfig.gameplay?.mismatchDelayMs ?? 850,
+                }}
+                isMuted={isMuted}
+                isFullscreen={false}
+                isStudioPreview={true}
+                editableLayout={editableLayout}
+                selectedElementKey={selectedElementKey}
+                onSelectElementKey={onSelectElementKey}
+                onElementPointerDown={handleElementPointerDown}
+                onToggleMute={() => setIsMuted(!isMuted)}
+              />
             </div>
           </div>
         ) : (
@@ -1009,21 +719,23 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           />
         )}
 
-        {/* SHARED WYSIWYG GAME HUD OVERLAY (5, 6, or 7 CONFIGURABLE ELEMENTS) */}
-        <GameLayoutHudOverlay
-          layout={layout}
-          theme={theme}
-          gameType={gameType}
-          score={score}
-          moves={isMemoryMatch ? 7 : 0}
-          pairs={isMemoryMatch ? matchedPairCount : 0}
-          totalPairs={isMemoryMatch ? (memoryConfig.pairs?.length || 8) : 8}
-          timeRemaining={timeRemaining}
-          editableLayout={editableLayout}
-          selectedElementKey={selectedElementKey}
-          onSelectElementKey={onSelectElementKey}
-          onElementPointerDown={handleElementPointerDown}
-        />
+        {/* SHARED WYSIWYG GAME HUD OVERLAY FOR CATCH BRAND */}
+        {!isMemoryMatch && (
+          <GameLayoutHudOverlay
+            layout={layout}
+            theme={theme}
+            gameType={gameType}
+            score={score}
+            moves={0}
+            pairs={0}
+            totalPairs={8}
+            timeRemaining={timeRemaining}
+            editableLayout={editableLayout}
+            selectedElementKey={selectedElementKey}
+            onSelectElementKey={onSelectElementKey}
+            onElementPointerDown={handleElementPointerDown}
+          />
+        )}
 
         {isInteractive && !isMemoryMatch && (
           <div className="absolute bottom-2 inset-x-0 mx-auto w-fit bg-amber-500/90 text-slate-950 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-lg pointer-events-none animate-bounce z-30">
@@ -1039,40 +751,62 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             <Sparkles className="w-3 h-3 text-amber-400" />{' '}
             {isMemoryMatch ? 'Memory Match Card Pairs' : 'Instant Item Drop Tester'}
           </span>
-          <span>{isMemoryMatch ? 'Configured theme pairs' : 'Click to spawn item'}</span>
+          <span>{isMemoryMatch ? `${memoryConfig.pairs?.length || 8} configured pairs` : 'Click to spawn item'}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          {(theme.items_config || []).map((item, idx) => (
-            <button
-              key={item.id || idx}
-              onClick={() => {
-                if (!isMemoryMatch) {
-                  dropItemInstantly(item);
-                }
-              }}
-              className={`px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 border transition-all ${
-                item.isHazard
-                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20'
-                  : item.isBonus
-                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
-                  : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
-              }`}
-            >
-              {item.isHazard ? (
-                <Flame className="w-3 h-3 text-rose-400" />
-              ) : item.isBonus ? (
-                <Star className="w-3 h-3 text-amber-400" />
-              ) : (
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              )}
-              <span className="truncate max-w-[90px]">{item.name}</span>
-              <span className="text-[10px] opacity-75">
-                ({item.points > 0 ? `+${item.points}` : item.points})
-              </span>
-            </button>
-          ))}
-        </div>
+        {isMemoryMatch ? (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            {(memoryConfig.pairs || []).map((pair, idx) => (
+              <div
+                key={pair.id || idx}
+                className="px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 border bg-slate-950/80 border-slate-800 text-slate-300"
+              >
+                {pair.imageUrl ? (
+                  <img
+                    src={pair.imageUrl}
+                    alt={pair.name}
+                    className="w-4 h-4 object-contain rounded"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-amber-400" />
+                )}
+                <span className="truncate max-w-[100px]">{pair.name || `Pair ${idx + 1}`}</span>
+                <span className="text-[10px] text-amber-400 font-mono">
+                  {pair.points ? `+${pair.points}` : '+100'}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            {(theme.items_config || []).map((item, idx) => (
+              <button
+                key={item.id || idx}
+                onClick={() => dropItemInstantly(item)}
+                className={`px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 border transition-all ${
+                  item.isHazard
+                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20'
+                    : item.isBonus
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
+                    : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
+                }`}
+              >
+                {item.isHazard ? (
+                  <Flame className="w-3 h-3 text-rose-400" />
+                ) : item.isBonus ? (
+                  <Star className="w-3 h-3 text-amber-400" />
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                )}
+                <span className="truncate max-w-[90px]">{item.name}</span>
+                <span className="text-[10px] opacity-75">
+                  ({item.points > 0 ? `+${item.points}` : item.points})
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
