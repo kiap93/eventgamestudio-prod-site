@@ -45,6 +45,7 @@ import {
 } from '../../themes/layout';
 import { GameLayoutHudOverlay } from '../../components/studio/GameLayoutHudOverlay';
 import { apiFetch } from '../../lib/api';
+import { ResultScreenRenderer } from './ResultScreenRenderer';
 
 import {
   calculateMemoryMatchScore,
@@ -1325,147 +1326,60 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         {/* ======================================================================= */}
         {/* 8. GAME OVER / VICTORY COMPLETION MODAL                                 */}
         {/* ======================================================================= */}
-        {gameState === 'GAME_OVER' && (() => {
-          const resultConfig = memoryConfig.screens?.result;
-          const bg = resolveScreenBackground(resultConfig, activeTheme);
-
-          const visibleStats = [
-            resultConfig?.showScore !== false && {
-              id: 'score',
-              label: 'Score',
-              value: score,
-              colorClass: 'text-amber-400',
-            },
-            resultConfig?.showMoves !== false && {
-              id: 'moves',
-              label: 'Moves',
-              value: moves,
-              colorClass: 'text-cyan-300',
-            },
-            resultConfig?.showPairs !== false && {
-              id: 'pairs',
-              label: 'Pairs',
-              value: `${matchedPairsCount}/${totalPairs}`,
-              colorClass: 'text-emerald-400',
-            },
-            resultConfig?.showAccuracy !== false && {
-              id: 'accuracy',
-              label: 'Accuracy',
-              value: `${accuracyPercent}%`,
-              colorClass: 'text-purple-400',
-            },
-          ].filter(Boolean) as Array<{
-            id: string;
-            label: string;
-            value: string | number;
-            colorClass: string;
-          }>;
-
-          return (
-            <div
-              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 z-30 animate-in zoom-in-95 duration-200"
-              style={bg.containerStyle}
-            >
-              {/* Dark Overlay Layer */}
-              <div
-                className="absolute inset-0 w-full h-full pointer-events-none"
-                style={bg.overlayStyle}
-              />
-
-              <div className="relative z-10 max-w-md w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl overflow-hidden backdrop-blur-md">
-                {/* Result Status Banner */}
-                <div className="space-y-1">
-                  {isVictory ? (
-                    <>
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
-                        <Trophy className="w-3.5 h-3.5" />
-                        <span>VICTORY! ALL {totalPairs} PAIRS MATCHED</span>
-                      </div>
-                      <h2 className="text-3xl font-black text-white tracking-tight">
-                        Brilliant Memory!
-                      </h2>
-                    </>
-                  ) : (
-                    <>
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>TIME EXPIRED</span>
-                      </div>
-                      <h2 className="text-3xl font-black text-white tracking-tight">
-                        Good Effort!
-                      </h2>
-                    </>
-                  )}
-                </div>
-
-                {/* Score & Summary Grid with Dynamic Reflow respecting Result Screen Config */}
-                {visibleStats.length > 0 && (
-                  <div
-                    className="grid gap-2 bg-slate-950/80 border border-slate-800 rounded-2xl p-3 text-center"
-                    style={{
-                      gridTemplateColumns: `repeat(${visibleStats.length}, minmax(0, 1fr))`,
-                    }}
-                  >
-                    {visibleStats.map((stat) => (
-                      <div key={stat.id} className="space-y-0.5 min-w-0">
-                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider truncate block">
-                          {stat.label}
-                        </span>
-                        <span
-                          className={`block text-lg font-black font-mono truncate ${stat.colorClass}`}
-                        >
-                          {stat.value}
-                        </span>
-                      </div>
-                    ))}
+        {gameState === 'GAME_OVER' && (
+          <ResultScreenRenderer
+            resultConfig={memoryConfig.screens?.result}
+            stats={{
+              score,
+              moves,
+              matchedPairsCount,
+              totalPairs,
+              accuracyPercent,
+              timeElapsedSeconds: Math.max(0, (memoryConfig.gameplay.gameDurationSeconds || 45) - timeRemaining),
+              isVictory,
+            }}
+            theme={activeTheme}
+            onAction={(action) => {
+              if (action === 'playAgain') {
+                startCountdown();
+              } else if (action === 'exit') {
+                initBoard();
+                updateGameState('START');
+              }
+            }}
+            leaderboardSlot={
+              showLeaderboard ? (
+                !scoreSubmitted ? (
+                  <form onSubmit={handleSubmitScore} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={playerName}
+                      onChange={(e) => setPlayerName(e.target.value)}
+                      placeholder="Enter Player Name..."
+                      maxLength={20}
+                      className="flex-1 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubmittingScore}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{isSubmittingScore ? 'Saving...' : 'Submit'}</span>
+                    </button>
+                  </form>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center gap-2 text-emerald-400 text-xs font-semibold">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>
+                      Score submitted! Ranked #{submittedRank || 1}
+                    </span>
                   </div>
-                )}
-
-                {/* High Score Submission or Success Notice */}
-                {showLeaderboard && (
-                  !scoreSubmitted ? (
-                    <form onSubmit={handleSubmitScore} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={playerName}
-                        onChange={(e) => setPlayerName(e.target.value)}
-                        placeholder="Enter Player Name..."
-                        maxLength={20}
-                        className="flex-1 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 outline-none"
-                      />
-                      <button
-                        type="submit"
-                        disabled={isSubmittingScore}
-                        className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 shrink-0 cursor-pointer"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        <span>{isSubmittingScore ? 'Saving...' : 'Submit'}</span>
-                      </button>
-                    </form>
-                  ) : (
-                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center gap-2 text-emerald-400 text-xs font-semibold">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>
-                        Score submitted! Ranked #{submittedRank || 1}
-                      </span>
-                    </div>
-                  )
-                )}
-
-                {/* Primary Action Buttons */}
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    onClick={startCountdown}
-                    className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Play Again</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+                )
+              ) : undefined
+            }
+          />
+        )}
       </div>
     </div>
   );

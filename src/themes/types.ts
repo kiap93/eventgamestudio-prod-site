@@ -6,6 +6,30 @@ import type {
   MemoryMatchStartScreenConfig,
   MemoryMatchResultScreenConfig,
   MemoryMatchScreensConfig,
+  ResultScreenElementType,
+  ResultScreenBaseElement,
+  ResultCardStyle,
+  ResultCardElement,
+  ResultImageElement,
+  ResultTextStyle,
+  ResultTextElement,
+  ResultStatStyle,
+  ResultScoreElement,
+  ResultMovesElement,
+  ResultPairsElement,
+  ResultTimeElement,
+  ResultAccuracyElement,
+  ResultButtonStyle,
+  ResultButtonElement,
+  ResultGroupElement,
+  ResultScreenElement,
+  ResultScreenCanvasConfig,
+  ResultScreenBackgroundConfig,
+} from '../games/memory-match/types';
+
+import {
+  generateDefaultResultScreenElements,
+  DEFAULT_RESULT_CANVAS_CONFIG,
 } from '../games/memory-match/types';
 
 export type {
@@ -13,6 +37,30 @@ export type {
   MemoryMatchStartScreenConfig,
   MemoryMatchResultScreenConfig,
   MemoryMatchScreensConfig,
+  ResultScreenElementType,
+  ResultScreenBaseElement,
+  ResultCardStyle,
+  ResultCardElement,
+  ResultImageElement,
+  ResultTextStyle,
+  ResultTextElement,
+  ResultStatStyle,
+  ResultScoreElement,
+  ResultMovesElement,
+  ResultPairsElement,
+  ResultTimeElement,
+  ResultAccuracyElement,
+  ResultButtonStyle,
+  ResultButtonElement,
+  ResultGroupElement,
+  ResultScreenElement,
+  ResultScreenCanvasConfig,
+  ResultScreenBackgroundConfig,
+};
+
+export {
+  generateDefaultResultScreenElements,
+  DEFAULT_RESULT_CANVAS_CONFIG,
 };
 
 export interface ThemeBrandingConfig {
@@ -251,6 +299,20 @@ export const DEFAULT_RESULT_SCREEN_CONFIG: MemoryMatchResultScreenConfig = {
   showMoves: true,
   showPairs: true,
   showAccuracy: true,
+
+  canvas: DEFAULT_RESULT_CANVAS_CONFIG,
+  background: {
+    type: 'theme',
+    imageUrl: null,
+    color: '#0f172a',
+    overlayOpacity: 0.3,
+  },
+  elements: generateDefaultResultScreenElements({
+    showScore: true,
+    showMoves: true,
+    showPairs: true,
+    showAccuracy: true,
+  }),
 };
 
 export const DEFAULT_SCREENS_CONFIG: MemoryMatchScreensConfig = {
@@ -388,18 +450,36 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
       result: {
         backgroundType: rawResult?.backgroundType === 'color' || rawResult?.backgroundType === 'image' || rawResult?.backgroundType === 'theme'
           ? rawResult.backgroundType
-          : 'theme',
+          : (rawResult?.background?.type || 'theme'),
         backgroundColor: (rawResult?.backgroundColor && typeof rawResult.backgroundColor === 'string')
           ? rawResult.backgroundColor
-          : '#0f172a',
-        backgroundImageUrl: rawResult?.backgroundImageUrl ?? null,
+          : (rawResult?.background?.color || '#0f172a'),
+        backgroundImageUrl: rawResult?.backgroundImageUrl ?? rawResult?.background?.imageUrl ?? null,
         backgroundOverlayOpacity: typeof rawResult?.backgroundOverlayOpacity === 'number'
           ? Math.max(0, Math.min(1, rawResult.backgroundOverlayOpacity))
+          : typeof rawResult?.background?.overlayOpacity === 'number'
+          ? Math.max(0, Math.min(1, rawResult.background.overlayOpacity))
           : 0.3,
         showScore: rawResult?.showScore !== false,
         showMoves: rawResult?.showMoves !== false,
         showPairs: rawResult?.showPairs !== false,
         showAccuracy: rawResult?.showAccuracy !== false,
+        canvas: rawResult?.canvas?.width && rawResult?.canvas?.height
+          ? { width: rawResult.canvas.width, height: rawResult.canvas.height }
+          : DEFAULT_RESULT_CANVAS_CONFIG,
+        background: {
+          type: rawResult?.background?.type || (rawResult?.backgroundType === 'color' || rawResult?.backgroundType === 'image' || rawResult?.backgroundType === 'theme' ? rawResult.backgroundType : 'theme'),
+          imageUrl: rawResult?.background?.imageUrl ?? rawResult?.backgroundImageUrl ?? null,
+          color: rawResult?.background?.color ?? rawResult?.backgroundColor ?? '#0f172a',
+          overlayOpacity: typeof rawResult?.background?.overlayOpacity === 'number'
+            ? Math.max(0, Math.min(1, rawResult.background.overlayOpacity))
+            : typeof rawResult?.backgroundOverlayOpacity === 'number'
+            ? Math.max(0, Math.min(1, rawResult.backgroundOverlayOpacity))
+            : 0.3,
+        },
+        elements: Array.isArray(rawResult?.elements) && rawResult.elements.length > 0
+          ? rawResult.elements
+          : generateDefaultResultScreenElements(rawResult),
       },
     };
 

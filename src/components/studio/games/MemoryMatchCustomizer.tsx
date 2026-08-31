@@ -22,7 +22,10 @@ import {
   MemoryMatchResultScreenConfig,
   MemoryMatchScreensConfig,
   ScreenBackgroundType,
+  generateDefaultResultScreenElements,
 } from '../../../games/memory-match/types';
+import { ResultScreenRenderer } from '../../../games/memory-match/ResultScreenRenderer';
+import { ResultScreenVisualEditor } from './ResultScreenVisualEditor';
 import { ensureRequiredPairs, DEFAULT_CARD_PROTOTYPES } from '../../../games/memory-match/cardDeck';
 import {
   Grid3X3,
@@ -2109,6 +2112,22 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
       ...resultConfig,
       ...updates,
     };
+    nextResult.background = {
+      type: nextResult.backgroundType,
+      imageUrl: nextResult.backgroundImageUrl ?? null,
+      color: nextResult.backgroundColor,
+      overlayOpacity: nextResult.backgroundOverlayOpacity ?? 0.3,
+    };
+    if (
+      updates.showScore !== undefined ||
+      updates.showMoves !== undefined ||
+      updates.showPairs !== undefined ||
+      updates.showAccuracy !== undefined ||
+      !nextResult.elements ||
+      nextResult.elements.length === 0
+    ) {
+      nextResult.elements = generateDefaultResultScreenElements(nextResult);
+    }
     const nextScreens: MemoryMatchScreensConfig = {
       ...screens,
       result: nextResult,
@@ -3070,7 +3089,15 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
             </div>
           </div>
 
-          {/* C. Live Miniature Result Screen Preview Card */}
+          {/* C. Interactive Visual Layout Canvas Editor */}
+          <ResultScreenVisualEditor
+            resultConfig={resultConfig}
+            theme={theme}
+            onChange={(updates) => handleUpdateResultScreen(updates)}
+            onUploadAsset={onUploadAsset}
+          />
+
+          {/* D. Live Miniature Result Screen Preview Card */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-3 shadow-lg">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
@@ -3080,75 +3107,21 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
               <span className="text-[11px] text-slate-500 font-mono">16:9 Scale Preview</span>
             </div>
 
-            <div
-              className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col items-center justify-center p-4 text-center select-none"
-              style={resultBgStyles.containerStyle}
-            >
-              {/* Overlay */}
-              <div className="absolute inset-0" style={resultBgStyles.overlayStyle} />
-
-              <div className="relative z-10 max-w-sm w-full space-y-3 px-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto shadow-lg">
-                  <Trophy className="w-5 h-5" />
-                </div>
-
-                <div>
-                  <h3 className="text-base sm:text-lg font-black text-slate-100 tracking-tight">
-                    Board Cleared!
-                  </h3>
-                  <p className="text-[11px] text-slate-400">All matching pairs discovered</p>
-                </div>
-
-                {/* Reflowed Stats Simulation */}
-                {(() => {
-                  const previewStats: { label: string; value: string; color: string }[] = [];
-                  if (resultConfig.showScore !== false) {
-                    previewStats.push({ label: 'SCORE', value: '1,250', color: 'text-amber-400' });
-                  }
-                  if (resultConfig.showMoves !== false) {
-                    previewStats.push({ label: 'MOVES', value: '14', color: 'text-cyan-400' });
-                  }
-                  if (resultConfig.showPairs !== false) {
-                    previewStats.push({ label: 'PAIRS', value: `${totalPairs}/${totalPairs}`, color: 'text-emerald-400' });
-                  }
-                  if (resultConfig.showAccuracy !== false) {
-                    previewStats.push({ label: 'ACCURACY', value: '88%', color: 'text-violet-400' });
-                  }
-
-                  if (previewStats.length === 0) return null;
-
-                  return (
-                    <div
-                      className="grid gap-1.5 max-w-xs mx-auto"
-                      style={{
-                        gridTemplateColumns: `repeat(${previewStats.length}, minmax(0, 1fr))`,
-                      }}
-                    >
-                      {previewStats.map((stat, idx) => (
-                        <div
-                          key={idx}
-                          className="bg-slate-900/90 border border-slate-800 rounded-xl p-2 text-center"
-                        >
-                          <span className="text-[9px] font-bold text-slate-400 block tracking-wider">
-                            {stat.label}
-                          </span>
-                          <span className={`text-xs sm:text-sm font-black font-mono mt-0.5 block ${stat.color}`}>
-                            {stat.value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-
-                {/* Play Again Simulation Button */}
-                <div className="pt-1">
-                  <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs shadow-lg">
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>PLAY AGAIN</span>
-                  </div>
-                </div>
-              </div>
+            <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col items-center justify-center select-none">
+              <ResultScreenRenderer
+                resultConfig={resultConfig}
+                stats={{
+                  score: 1250,
+                  moves: 14,
+                  matchedPairsCount: totalPairs,
+                  totalPairs: totalPairs,
+                  accuracyPercent: 88,
+                  timeElapsedSeconds: 24,
+                  isVictory: true,
+                }}
+                theme={theme}
+                isSimulation={true}
+              />
             </div>
           </div>
         </div>
