@@ -132,10 +132,22 @@ export interface ResultCardElement extends ResultScreenBaseElement {
   children?: ResultScreenElement[];
 }
 
+export interface ResultImageStyle {
+  objectFit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down';
+  objectPosition?: string;
+  borderRadius?: number;
+  borderWidth?: number;
+  borderColor?: string;
+  shadow?: boolean;
+  opacity?: number;
+}
+
 export interface ResultImageElement extends ResultScreenBaseElement {
   type: 'image';
   imageUrl: string | null;
-  objectFit?: 'contain' | 'cover' | 'fill';
+  objectFit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down';
+  objectPosition?: string;
+  style?: ResultImageStyle;
 }
 
 export interface ResultTextStyle {
@@ -181,6 +193,7 @@ export interface ResultStatStyle {
   labelFontStyle?: 'normal' | 'italic';
   labelLetterSpacing?: number;
   labelTextTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+  labelTextShadow?: string;
 
   // Granular Value Typography
   valueFontFamily?: string;
@@ -190,6 +203,7 @@ export interface ResultStatStyle {
   valueLetterSpacing?: number;
   valueTextTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
   valueLineHeight?: number;
+  valueTextShadow?: string;
 }
 
 export interface ResultScoreElement extends ResultScreenBaseElement {
@@ -235,6 +249,8 @@ export interface ResultButtonStyle {
   borderWidth?: number;
   borderColor?: string;
   shadow?: boolean;
+  textShadow?: string;
+  opacity?: number;
 }
 
 export interface ResultButtonElement extends ResultScreenBaseElement {

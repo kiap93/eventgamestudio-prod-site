@@ -66,13 +66,14 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
             backgroundPosition: style?.backgroundPosition || 'center',
             backgroundRepeat: style?.backgroundRepeat || 'no-repeat',
             borderWidth: typeof style?.borderWidth === 'number' ? `${(style.borderWidth / parentWidth) * 100}cqi` : '1px',
-            borderStyle: 'solid',
+            borderStyle: (style?.borderWidth ?? 1) > 0 ? 'solid' : 'none',
             borderColor: style?.borderColor || '#334155',
             borderRadius: typeof style?.borderRadius === 'number' ? `${(style.borderRadius / parentWidth) * 100}cqi` : '24px',
             boxShadow:
               style?.shadow !== false
                 ? '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)'
                 : undefined,
+            opacity: typeof style?.opacity === 'number' ? style.opacity : undefined,
             backdropFilter: 'blur(12px)',
             position: 'relative',
             overflow: 'hidden',
@@ -123,8 +124,13 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
           : 'center';
 
       const fontSize = textStyle?.fontSize
-        ? `clamp(8px, ${(textStyle.fontSize / parentWidth) * 100}cqi, ${textStyle.fontSize * 1.8}px)`
-        : 'clamp(11px, 3.2cqi, 40px)';
+        ? `clamp(6px, ${(textStyle.fontSize / parentWidth) * 100}cqi, 200px)`
+        : 'clamp(10px, 3.2cqi, 48px)';
+
+      const letterSpacing =
+        typeof textStyle?.letterSpacing === 'number'
+          ? `${(textStyle.letterSpacing / parentWidth) * 100}cqi`
+          : undefined;
 
       return (
         <div
@@ -150,7 +156,7 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
               fontWeight: textStyle?.fontWeight || 'bold',
               fontStyle: textStyle?.fontStyle || 'normal',
               lineHeight: textStyle?.lineHeight ?? 1.2,
-              letterSpacing: textStyle?.letterSpacing ? `${textStyle.letterSpacing}px` : undefined,
+              letterSpacing,
               textTransform: textStyle?.textTransform || 'none',
               textDecoration: textStyle?.textDecoration || 'none',
               textShadow: textStyle?.textShadow || undefined,
@@ -169,14 +175,48 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
 
     case 'image': {
       const imgEl = el as ResultImageElement;
+      const style = imgEl.style;
+      const objectFit = style?.objectFit || imgEl.objectFit || 'contain';
+      const objectPosition = style?.objectPosition || imgEl.objectPosition || 'center';
+      const borderRadius =
+        typeof style?.borderRadius === 'number'
+          ? `${(style.borderRadius / parentWidth) * 100}cqi`
+          : undefined;
+      const borderWidth =
+        typeof style?.borderWidth === 'number'
+          ? `${(style.borderWidth / parentWidth) * 100}cqi`
+          : undefined;
+      const borderColor = style?.borderColor || undefined;
+      const shadow = style?.shadow
+        ? '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)'
+        : undefined;
+      const opacity = typeof style?.opacity === 'number' ? style.opacity : undefined;
+
       return (
-        <div className="w-full h-full flex items-center justify-center overflow-hidden pointer-events-none select-none">
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            borderRadius,
+            borderWidth,
+            borderColor,
+            borderStyle: borderWidth ? 'solid' : undefined,
+            boxShadow: shadow,
+            opacity,
+            overflow: 'hidden',
+          }}
+          className="w-full h-full flex items-center justify-center pointer-events-none select-none"
+        >
           {imgEl.imageUrl ? (
             <img
               src={imgEl.imageUrl}
               alt=""
               className="w-full h-full select-none pointer-events-none"
-              style={{ objectFit: imgEl.objectFit || 'contain' }}
+              style={{
+                objectFit,
+                objectPosition,
+                borderRadius,
+              }}
               referrerPolicy="no-referrer"
             />
           ) : (
@@ -272,29 +312,31 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
       // Label Typography
       const labelFontFamily = style?.labelFontFamily || 'inherit';
       const labelFontSize = style?.labelFontSize
-        ? `clamp(8px, ${(style.labelFontSize / parentWidth) * 100}cqi, 32px)`
-        : 'clamp(9px, 1.2cqi, 16px)';
+        ? `clamp(6px, ${(style.labelFontSize / parentWidth) * 100}cqi, 80px)`
+        : 'clamp(8px, 1.2cqi, 24px)';
       const labelFontWeight = style?.labelFontWeight || 'bold';
       const labelFontStyle = style?.labelFontStyle || 'normal';
       const labelColor = style?.labelColor || '#94a3b8';
-      const labelLetterSpacing = style?.labelLetterSpacing
-        ? `${style.labelLetterSpacing}px`
-        : '0.05em';
+      const labelLetterSpacing =
+        typeof style?.labelLetterSpacing === 'number'
+          ? `${(style.labelLetterSpacing / parentWidth) * 100}cqi`
+          : '0.05em';
       const labelTextTransform = style?.labelTextTransform || 'uppercase';
 
       // Value Typography
       const valueFontFamily = style?.valueFontFamily || 'monospace';
       const valueFontSize = style?.valueFontSize
-        ? `clamp(10px, ${(style.valueFontSize / parentWidth) * 100}cqi, 64px)`
+        ? `clamp(8px, ${(style.valueFontSize / parentWidth) * 100}cqi, 160px)`
         : style?.fontSize
-        ? `clamp(10px, ${(style.fontSize / parentWidth) * 100}cqi, 64px)`
-        : 'clamp(14px, 2.2cqi, 48px)';
+        ? `clamp(8px, ${(style.fontSize / parentWidth) * 100}cqi, 160px)`
+        : 'clamp(12px, 2.2cqi, 64px)';
       const valueFontWeight = style?.valueFontWeight || '900';
       const valueFontStyle = style?.valueFontStyle || 'normal';
       const valueColor = style?.valueColor || defaultValueColor;
-      const valueLetterSpacing = style?.valueLetterSpacing
-        ? `${style.valueLetterSpacing}px`
-        : undefined;
+      const valueLetterSpacing =
+        typeof style?.valueLetterSpacing === 'number'
+          ? `${(style.valueLetterSpacing / parentWidth) * 100}cqi`
+          : undefined;
       const valueTextTransform = style?.valueTextTransform || 'none';
       const valueLineHeight = style?.valueLineHeight ?? 1;
 
@@ -312,7 +354,7 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
             borderStyle: style?.borderWidth === 0 ? 'none' : 'solid',
             borderRadius:
               typeof style?.borderRadius === 'number'
-                ? `${(style.borderRadius / parentHeight) * 100}%`
+                ? `${(style.borderRadius / parentWidth) * 100}cqi`
                 : '16px',
             display: 'flex',
             flexDirection: isHorizontal ? 'row' : 'column',
@@ -340,6 +382,7 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
                 fontStyle: labelFontStyle,
                 letterSpacing: labelLetterSpacing,
                 textTransform: labelTextTransform,
+                textShadow: style?.labelTextShadow || undefined,
                 textAlign,
                 lineHeight: 1.2,
                 whiteSpace: 'pre-wrap',
@@ -362,6 +405,7 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
               letterSpacing: valueLetterSpacing,
               textTransform: valueTextTransform,
               lineHeight: valueLineHeight,
+              textShadow: style?.valueTextShadow || undefined,
               textAlign,
               whiteSpace: 'nowrap',
               wordBreak: 'break-word',
@@ -381,8 +425,13 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
       const style = btnEl.style;
 
       const fontSize = style?.fontSize
-        ? `clamp(10px, ${(style.fontSize / parentWidth) * 100}cqi, 36px)`
-        : 'clamp(11px, 1.3cqi, 26px)';
+        ? `clamp(8px, ${(style.fontSize / parentWidth) * 100}cqi, 100px)`
+        : 'clamp(10px, 1.4cqi, 32px)';
+
+      const letterSpacing =
+        typeof style?.letterSpacing === 'number'
+          ? `${(style.letterSpacing / parentWidth) * 100}cqi`
+          : '0.05em';
 
       return (
         <button
@@ -395,21 +444,26 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
             backgroundColor: style?.backgroundColor || '#f59e0b',
             color: style?.textColor || '#020617',
             borderColor: style?.borderColor,
-            borderWidth: typeof style?.borderWidth === 'number' ? `${style.borderWidth}px` : undefined,
+            borderWidth:
+              typeof style?.borderWidth === 'number'
+                ? `${(style.borderWidth / parentWidth) * 100}cqi`
+                : undefined,
             borderStyle:
               typeof style?.borderWidth === 'number' && style.borderWidth > 0 ? 'solid' : undefined,
             borderRadius:
               typeof style?.borderRadius === 'number'
-                ? `${(style.borderRadius / parentHeight) * 100}%`
+                ? `${(style.borderRadius / parentWidth) * 100}cqi`
                 : '18px',
             fontFamily: style?.fontFamily || 'inherit',
             fontSize,
             fontWeight: style?.fontWeight || '900',
             fontStyle: style?.fontStyle || 'normal',
-            letterSpacing: style?.letterSpacing ? `${style.letterSpacing}px` : '0.05em',
+            letterSpacing,
             textTransform: style?.textTransform || 'uppercase',
+            textShadow: style?.textShadow || undefined,
             boxShadow:
               style?.shadow !== false ? '0 10px 25px -5px rgba(245, 158, 11, 0.4)' : undefined,
+            opacity: typeof style?.opacity === 'number' ? style.opacity : undefined,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

@@ -15,6 +15,10 @@ import {
   MemoryMatchResultScreenConfig,
   generateDefaultResultScreenElements,
 } from '../../../games/memory-match/types';
+import {
+  ResultElementContent,
+  FONT_FAMILY_PRESETS,
+} from '../../../games/memory-match/ResultElementContent';
 import { GameTheme } from '../../../themes/types';
 import { resolveScreenBackground } from '../../../themes/screenBackground';
 import {
@@ -44,6 +48,10 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignJustify,
+  Italic,
+  Underline,
+  Strikethrough,
   AlignCenterHorizontal,
   AlignStartVertical,
   AlignCenterVertical,
@@ -57,6 +65,8 @@ import {
   RefreshCw,
   ArrowUp,
   ArrowDown,
+  ChevronsUp,
+  ChevronsDown,
   CornerDownRight,
   LogOut,
   FolderPlus,
@@ -663,15 +673,23 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
 
     // Step 2: Insert into new target location
     if (targetContainerId === 'root') {
-      updateElements([...listWithoutElement, updatedElement]);
+      const nextRoot = [...listWithoutElement, updatedElement].map((el, idx) => ({
+        ...el,
+        zIndex: idx + 1,
+      }));
+      updateElements(nextRoot);
     } else {
       const insertRecursive = (list: ResultScreenElement[]): ResultScreenElement[] => {
         return list.map((item) => {
           if (item.id === targetContainerId) {
             const children = (item as ResultCardElement | ResultGroupElement).children || [];
+            const nextChildren = [...children, updatedElement].map((c, idx) => ({
+              ...c,
+              zIndex: idx + 1,
+            }));
             return {
               ...item,
-              children: [...children, updatedElement],
+              children: nextChildren,
             } as ResultCardElement | ResultGroupElement;
           }
           if (item.type === 'card' && (item as ResultCardElement).children) {
@@ -710,10 +728,17 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     newChild.x = Math.max(0, Math.floor((parentContainer.width - newChild.width) / 2));
     newChild.y = Math.max(0, Math.floor((parentContainer.height - newChild.height) / 2));
 
-    updateElementById(parentId, (prev) => ({
-      ...prev,
-      children: [...((prev as ResultCardElement | ResultGroupElement).children || []), newChild],
-    }));
+    updateElementById(parentId, (prev) => {
+      const currentChildren = (prev as ResultCardElement | ResultGroupElement).children || [];
+      const nextChildren = [...currentChildren, newChild].map((c, idx) => ({
+        ...c,
+        zIndex: idx + 1,
+      }));
+      return {
+        ...prev,
+        children: nextChildren,
+      };
+    });
 
     setExpandedCardIds((prev) => ({ ...prev, [parentId]: true }));
     setSelectedId(newId);
@@ -730,14 +755,25 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
       newElement.x = Math.max(0, Math.floor((parentEl.width - newElement.width) / 2));
       newElement.y = Math.max(0, Math.floor((parentEl.height - newElement.height) / 2));
 
-      updateElementById(parentEl.id, (prev) => ({
-        ...prev,
-        children: [...((prev as ResultCardElement | ResultGroupElement).children || []), newElement],
-      }));
+      updateElementById(parentEl.id, (prev) => {
+        const currentChildren = (prev as ResultCardElement | ResultGroupElement).children || [];
+        const nextChildren = [...currentChildren, newElement].map((c, idx) => ({
+          ...c,
+          zIndex: idx + 1,
+        }));
+        return {
+          ...prev,
+          children: nextChildren,
+        };
+      });
       setExpandedCardIds((prev) => ({ ...prev, [parentEl.id]: true }));
     } else {
       // Add at root level
-      updateElements([...elements, newElement]);
+      const nextElements = [...elements, newElement].map((el, idx) => ({
+        ...el,
+        zIndex: idx + 1,
+      }));
+      updateElements(nextElements);
     }
 
     setSelectedId(newId);
@@ -747,23 +783,23 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
   // Delete Element (Removes container and its entire subtree cleanly)
   const handleDeleteElement = (id: string) => {
     const recursiveDelete = (list: ResultScreenElement[]): ResultScreenElement[] => {
-      return list
-        .filter((item) => item.id !== id)
-        .map((item) => {
-          if (item.type === 'card' && (item as ResultCardElement).children) {
-            return {
-              ...item,
-              children: recursiveDelete((item as ResultCardElement).children || []),
-            } as ResultCardElement;
-          }
-          if (item.type === 'group' && (item as ResultGroupElement).children) {
-            return {
-              ...item,
-              children: recursiveDelete((item as ResultGroupElement).children || []),
-            } as ResultGroupElement;
-          }
-          return item;
-        });
+      const filtered = list.filter((item) => item.id !== id);
+      return filtered.map((item, idx) => {
+        const withZ = { ...item, zIndex: idx + 1 };
+        if (withZ.type === 'card' && (withZ as ResultCardElement).children) {
+          return {
+            ...withZ,
+            children: recursiveDelete((withZ as ResultCardElement).children || []),
+          } as ResultCardElement;
+        }
+        if (withZ.type === 'group' && (withZ as ResultGroupElement).children) {
+          return {
+            ...withZ,
+            children: recursiveDelete((withZ as ResultGroupElement).children || []),
+          } as ResultGroupElement;
+        }
+        return withZ;
+      });
     };
 
     updateElements(recursiveDelete(elements));
@@ -776,23 +812,23 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     const idsToDelete = new Set(selectedIds);
 
     const recursiveDelete = (list: ResultScreenElement[]): ResultScreenElement[] => {
-      return list
-        .filter((item) => !idsToDelete.has(item.id))
-        .map((item) => {
-          if (item.type === 'card' && (item as ResultCardElement).children) {
-            return {
-              ...item,
-              children: recursiveDelete((item as ResultCardElement).children || []),
-            } as ResultCardElement;
-          }
-          if (item.type === 'group' && (item as ResultGroupElement).children) {
-            return {
-              ...item,
-              children: recursiveDelete((item as ResultGroupElement).children || []),
-            } as ResultGroupElement;
-          }
-          return item;
-        });
+      const filtered = list.filter((item) => !idsToDelete.has(item.id));
+      return filtered.map((item, idx) => {
+        const withZ = { ...item, zIndex: idx + 1 };
+        if (withZ.type === 'card' && (withZ as ResultCardElement).children) {
+          return {
+            ...withZ,
+            children: recursiveDelete((withZ as ResultCardElement).children || []),
+          } as ResultCardElement;
+        }
+        if (withZ.type === 'group' && (withZ as ResultGroupElement).children) {
+          return {
+            ...withZ,
+            children: recursiveDelete((withZ as ResultGroupElement).children || []),
+          } as ResultGroupElement;
+        }
+        return withZ;
+      });
     };
 
     updateElements(recursiveDelete(elements));
@@ -829,12 +865,25 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     duplicated.y = Math.min(found.element.y + 30, Math.max(0, parentH - duplicated.height));
 
     if (found.parent) {
-      updateElementById(found.parent.id, (prev) => ({
-        ...prev,
-        children: [...((prev as ResultCardElement | ResultGroupElement).children || []), duplicated],
-      }));
+      updateElementById(found.parent.id, (prev) => {
+        const currentChildren = (prev as ResultCardElement | ResultGroupElement).children || [];
+        const originalIdx = currentChildren.findIndex((c) => c.id === id);
+        const insertIdx = originalIdx !== -1 ? originalIdx + 1 : currentChildren.length;
+        const newChildren = [...currentChildren];
+        newChildren.splice(insertIdx, 0, duplicated);
+        const normalizedChildren = newChildren.map((c, idx) => ({ ...c, zIndex: idx + 1 }));
+        return {
+          ...prev,
+          children: normalizedChildren,
+        };
+      });
     } else {
-      updateElements([...elements, duplicated]);
+      const originalIdx = elements.findIndex((el) => el.id === id);
+      const insertIdx = originalIdx !== -1 ? originalIdx + 1 : elements.length;
+      const newElements = [...elements];
+      newElements.splice(insertIdx, 0, duplicated);
+      const normalizedElements = newElements.map((el, idx) => ({ ...el, zIndex: idx + 1 }));
+      updateElements(normalizedElements);
     }
 
     setSelectedIds([duplicated.id]);
@@ -865,68 +914,170 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     const parentContainerH = commonParent ? commonParent.height : canvasHeight;
 
     if (commonParent) {
-      const newChildren = [...(commonParent.children || [])];
+      const currentChildren = [...(commonParent.children || [])];
       selectedElements.forEach((el) => {
         const dup = duplicateDeep(el);
         dup.x = Math.min(el.x + 30, Math.max(0, parentContainerW - dup.width));
         dup.y = Math.min(el.y + 30, Math.max(0, parentContainerH - dup.height));
-        newChildren.push(dup);
+        const originalIdx = currentChildren.findIndex((c) => c.id === el.id);
+        const insertIdx = originalIdx !== -1 ? originalIdx + 1 : currentChildren.length;
+        currentChildren.splice(insertIdx, 0, dup);
         newSelectedIds.push(dup.id);
       });
+      const normalizedChildren = currentChildren.map((c, idx) => ({ ...c, zIndex: idx + 1 }));
       updateElementById(commonParent.id, (prev) => ({
         ...prev,
-        children: newChildren,
+        children: normalizedChildren,
       }));
     } else {
-      const newRootElements = [...elements];
+      const currentElements = [...elements];
       selectedElements.forEach((el) => {
         const dup = duplicateDeep(el);
         dup.x = Math.min(el.x + 30, Math.max(0, parentContainerW - dup.width));
         dup.y = Math.min(el.y + 30, Math.max(0, parentContainerH - dup.height));
-        newRootElements.push(dup);
+        const originalIdx = currentElements.findIndex((c) => c.id === el.id);
+        const insertIdx = originalIdx !== -1 ? originalIdx + 1 : currentElements.length;
+        currentElements.splice(insertIdx, 0, dup);
         newSelectedIds.push(dup.id);
       });
-      updateElements(newRootElements);
+      const normalizedElements = currentElements.map((el, idx) => ({ ...el, zIndex: idx + 1 }));
+      updateElements(normalizedElements);
     }
 
     setSelectedIds(newSelectedIds);
   };
 
-  // Move Layer Ordering (Up = higher z / forward, Down = lower z / backward)
-  const handleMoveLayer = (id: string, direction: 'up' | 'down') => {
-    const reorderList = (list: ResultScreenElement[]): ResultScreenElement[] => {
-      const index = list.findIndex((item) => item.id === id);
-      if (index !== -1) {
-        const newList = [...list];
-        if (direction === 'up' && index < newList.length - 1) {
-          const temp = newList[index];
-          newList[index] = newList[index + 1];
-          newList[index + 1] = temp;
-        } else if (direction === 'down' && index > 0) {
-          const temp = newList[index];
-          newList[index] = newList[index - 1];
-          newList[index - 1] = temp;
+  // Move Layer Ordering: Single Source of Truth with Sibling Scoping
+  // Supports 'forward' | 'backward' | 'front' | 'back' | 'up' | 'down'
+  const handleMoveLayer = (
+    target: string | string[],
+    direction: 'forward' | 'backward' | 'front' | 'back' | 'up' | 'down'
+  ) => {
+    const targetIds = Array.isArray(target) ? target : [target];
+    if (targetIds.length === 0) return;
+
+    const isForward = direction === 'forward' || direction === 'up';
+    const isBackward = direction === 'backward' || direction === 'down';
+    const isFront = direction === 'front';
+    const isBack = direction === 'back';
+
+    const reorderSiblings = (list: ResultScreenElement[]): ResultScreenElement[] => {
+      const hasTarget = list.some((item) => targetIds.includes(item.id));
+
+      if (hasTarget) {
+        let newList = [...list];
+
+        if (isForward) {
+          // Bring Forward: move towards higher index (front)
+          for (let i = newList.length - 2; i >= 0; i--) {
+            if (targetIds.includes(newList[i].id) && !targetIds.includes(newList[i + 1].id)) {
+              const temp = newList[i];
+              newList[i] = newList[i + 1];
+              newList[i + 1] = temp;
+            }
+          }
+        } else if (isBackward) {
+          // Send Backward: move towards lower index (back)
+          for (let i = 1; i < newList.length; i++) {
+            if (targetIds.includes(newList[i].id) && !targetIds.includes(newList[i - 1].id)) {
+              const temp = newList[i];
+              newList[i] = newList[i - 1];
+              newList[i - 1] = temp;
+            }
+          }
+        } else if (isFront) {
+          // Bring To Front: move targets to the end of list
+          const nonTargets = newList.filter((item) => !targetIds.includes(item.id));
+          const targets = newList.filter((item) => targetIds.includes(item.id));
+          newList = [...nonTargets, ...targets];
+        } else if (isBack) {
+          // Send To Back: move targets to the start of list
+          const nonTargets = newList.filter((item) => !targetIds.includes(item.id));
+          const targets = newList.filter((item) => targetIds.includes(item.id));
+          newList = [...targets, ...nonTargets];
         }
-        return newList;
+
+        // Normalize zIndex strictly to 1, 2, 3... to maintain single source of truth
+        const normalized = newList.map((item, idx) => ({
+          ...item,
+          zIndex: idx + 1,
+        }));
+
+        // Traverse children of any container in this list
+        return normalized.map((item) => {
+          if (item.type === 'card' && (item as ResultCardElement).children) {
+            return {
+              ...item,
+              children: reorderSiblings((item as ResultCardElement).children || []),
+            } as ResultCardElement;
+          }
+          if (item.type === 'group' && (item as ResultGroupElement).children) {
+            return {
+              ...item,
+              children: reorderSiblings((item as ResultGroupElement).children || []),
+            } as ResultGroupElement;
+          }
+          return item;
+        });
       }
+
+      // Check nested children if targets were not in this level
       return list.map((item) => {
         if (item.type === 'card' && (item as ResultCardElement).children) {
           return {
             ...item,
-            children: reorderList((item as ResultCardElement).children || []),
+            children: reorderSiblings((item as ResultCardElement).children || []),
           } as ResultCardElement;
         }
         if (item.type === 'group' && (item as ResultGroupElement).children) {
           return {
             ...item,
-            children: reorderList((item as ResultGroupElement).children || []),
+            children: reorderSiblings((item as ResultGroupElement).children || []),
           } as ResultGroupElement;
         }
         return item;
       });
     };
 
-    updateElements(reorderList(elements));
+    updateElements(reorderSiblings(elements));
+  };
+
+  // Direct Z-Index value modification: updates stacking and normalizes sibling order
+  const handleUpdateZIndex = (id: string, newZIndex: number) => {
+    const updateZInList = (list: ResultScreenElement[]): ResultScreenElement[] => {
+      const targetIndex = list.findIndex((item) => item.id === id);
+      if (targetIndex !== -1) {
+        // Update element with requested zIndex
+        const updatedList = list.map((item) =>
+          item.id === id ? { ...item, zIndex: Number(newZIndex) || 1 } : item
+        );
+        // Stable sort siblings by zIndex (ties preserve current relative order)
+        const sortedList = [...updatedList].sort((a, b) => (a.zIndex ?? 1) - (b.zIndex ?? 1));
+        // Normalize sequential zIndex
+        return sortedList.map((item, idx) => ({
+          ...item,
+          zIndex: idx + 1,
+        }));
+      }
+
+      return list.map((item) => {
+        if (item.type === 'card' && (item as ResultCardElement).children) {
+          return {
+            ...item,
+            children: updateZInList((item as ResultCardElement).children || []),
+          } as ResultCardElement;
+        }
+        if (item.type === 'group' && (item as ResultGroupElement).children) {
+          return {
+            ...item,
+            children: updateZInList((item as ResultGroupElement).children || []),
+          } as ResultGroupElement;
+        }
+        return item;
+      });
+    };
+
+    updateElements(updateZInList(elements));
   };
 
   // Toggle Visibility
@@ -1313,369 +1464,15 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
       outlineOffset: isParentOfSelected ? '2px' : undefined,
     };
 
-    let innerContent: React.ReactNode = null;
-
-    switch (el.type) {
-      case 'card': {
-        const cardEl = el as ResultCardElement;
-        const style = cardEl.style;
-        innerContent = (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: style?.backgroundColor || 'rgba(15, 23, 42, 0.95)',
-              backgroundImage: style?.backgroundImageUrl ? `url(${style.backgroundImageUrl})` : undefined,
-              backgroundSize: style?.backgroundSize || 'cover',
-              backgroundPosition: style?.backgroundPosition || 'center',
-              backgroundRepeat: style?.backgroundRepeat || 'no-repeat',
-              borderWidth: typeof style?.borderWidth === 'number' ? `${(style.borderWidth / parentWidth) * 100}cqi` : '1px',
-              borderStyle: 'solid',
-              borderColor: style?.borderColor || '#334155',
-              borderRadius: typeof style?.borderRadius === 'number' ? `${(style.borderRadius / parentWidth) * 100}cqi` : '24px',
-              boxShadow: style?.shadow !== false ? '0 25px 50px -12px rgba(0, 0, 0, 0.5)' : undefined,
-              backdropFilter: 'blur(12px)',
-              position: 'relative',
-              overflow: 'hidden',
-              containerType: 'inline-size',
-            }}
-          >
-            {Array.isArray(cardEl.children) &&
-              cardEl.children.map((child) => renderCanvasElement(child, cardEl.width, cardEl.height))}
-          </div>
-        );
-        break;
-      }
-
-      case 'group': {
-        const groupEl = el as ResultGroupElement;
-        innerContent = (
-          <div className="w-full h-full relative">
-            {Array.isArray(groupEl.children) &&
-              groupEl.children.map((child) => renderCanvasElement(child, groupEl.width, groupEl.height))}
-          </div>
-        );
-        break;
-      }
-
-      case 'text': {
-        const textEl = el as ResultTextElement;
-        const textStyle = textEl.style;
-        innerContent = (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent:
-                textStyle?.textAlign === 'left'
-                  ? 'flex-start'
-                  : textStyle?.textAlign === 'right'
-                  ? 'flex-end'
-                  : 'center',
-              color: textStyle?.color || '#ffffff',
-              fontSize: textStyle?.fontSize ? `clamp(11px, ${textStyle.fontSize * 0.55}cqi, 40px)` : '1.5cqi',
-              fontWeight: textStyle?.fontWeight || 'bold',
-              lineHeight: textStyle?.lineHeight ?? 1.2,
-              userSelect: 'none',
-            }}
-            className="truncate select-none pointer-events-none"
-          >
-            <span className="truncate w-full">{textEl.text}</span>
-          </div>
-        );
-        break;
-      }
-
-      case 'image': {
-        const imgEl = el as ResultImageElement;
-        innerContent = (
-          <div className="w-full h-full flex items-center justify-center overflow-hidden pointer-events-none select-none">
-            {imgEl.imageUrl ? (
-              <img
-                src={imgEl.imageUrl}
-                alt=""
-                className="w-full h-full select-none"
-                style={{ objectFit: imgEl.objectFit || 'contain' }}
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-slate-800/40 rounded-xl text-slate-500 border border-slate-700/50">
-                <ImageIcon className="w-8 h-8 opacity-40" />
-              </div>
-            )}
-          </div>
-        );
-        break;
-      }
-
-      case 'score': {
-        const statEl = el as ResultScoreElement;
-        const style = statEl.style;
-        innerContent = (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: style?.backgroundColor || 'rgba(2, 6, 23, 0.85)',
-              borderColor: style?.borderColor || '#334155',
-              borderWidth: '1px',
-              borderStyle: 'solid',
-              borderRadius: typeof style?.borderRadius === 'number' ? `${(style.borderRadius / parentHeight) * 100}%` : '16px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '4px 8px',
-            }}
-            className="shadow-inner text-center overflow-hidden pointer-events-none select-none"
-          >
-            {style?.showLabel !== false && (
-              <span
-                style={{
-                  color: style?.labelColor || '#94a3b8',
-                  textAlign: style?.textAlign || 'center',
-                }}
-                className="text-[10px] font-bold uppercase tracking-wider block truncate w-full"
-              >
-                {statEl.label || 'SCORE'}
-              </span>
-            )}
-            <span
-              style={{
-                color: style?.valueColor || '#fbbf24',
-                fontSize: style?.fontSize ? `clamp(11px, ${style.fontSize * 0.55}cqi, 48px)` : undefined,
-                textAlign: style?.textAlign || 'center',
-              }}
-              className="text-base sm:text-2xl font-black font-mono block tracking-tight truncate w-full"
-            >
-              1,250
-            </span>
-          </div>
-        );
-        break;
-      }
-
-      case 'moves': {
-        const statEl = el as ResultMovesElement;
-        const style = statEl.style;
-        innerContent = (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: style?.backgroundColor || 'rgba(2, 6, 23, 0.85)',
-              borderColor: style?.borderColor || '#334155',
-              borderWidth: '1px',
-              borderStyle: 'solid',
-              borderRadius: typeof style?.borderRadius === 'number' ? `${(style.borderRadius / parentHeight) * 100}%` : '16px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '4px 8px',
-            }}
-            className="shadow-inner text-center overflow-hidden pointer-events-none select-none"
-          >
-            {style?.showLabel !== false && (
-              <span
-                style={{
-                  color: style?.labelColor || '#94a3b8',
-                  textAlign: style?.textAlign || 'center',
-                }}
-                className="text-[10px] font-bold uppercase tracking-wider block truncate w-full"
-              >
-                {statEl.label || 'MOVES'}
-              </span>
-            )}
-            <span
-              style={{
-                color: style?.valueColor || '#67e8f9',
-                fontSize: style?.fontSize ? `clamp(11px, ${style.fontSize * 0.55}cqi, 48px)` : undefined,
-                textAlign: style?.textAlign || 'center',
-              }}
-              className="text-base sm:text-2xl font-black font-mono block tracking-tight truncate w-full"
-            >
-              14
-            </span>
-          </div>
-        );
-        break;
-      }
-
-      case 'pairs': {
-        const statEl = el as ResultPairsElement;
-        const style = statEl.style;
-        innerContent = (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: style?.backgroundColor || 'rgba(2, 6, 23, 0.85)',
-              borderColor: style?.borderColor || '#334155',
-              borderWidth: '1px',
-              borderStyle: 'solid',
-              borderRadius: typeof style?.borderRadius === 'number' ? `${(style.borderRadius / parentHeight) * 100}%` : '16px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '4px 8px',
-            }}
-            className="shadow-inner text-center overflow-hidden pointer-events-none select-none"
-          >
-            {style?.showLabel !== false && (
-              <span
-                style={{
-                  color: style?.labelColor || '#94a3b8',
-                  textAlign: style?.textAlign || 'center',
-                }}
-                className="text-[10px] font-bold uppercase tracking-wider block truncate w-full"
-              >
-                {statEl.label || 'PAIRS'}
-              </span>
-            )}
-            <span
-              style={{
-                color: style?.valueColor || '#34d399',
-                fontSize: style?.fontSize ? `clamp(11px, ${style.fontSize * 0.55}cqi, 48px)` : undefined,
-                textAlign: style?.textAlign || 'center',
-              }}
-              className="text-base sm:text-2xl font-black font-mono block tracking-tight truncate w-full"
-            >
-              8/8
-            </span>
-          </div>
-        );
-        break;
-      }
-
-      case 'time': {
-        const statEl = el as ResultTimeElement;
-        const style = statEl.style;
-        innerContent = (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: style?.backgroundColor || 'rgba(2, 6, 23, 0.85)',
-              borderColor: style?.borderColor || '#334155',
-              borderWidth: '1px',
-              borderStyle: 'solid',
-              borderRadius: typeof style?.borderRadius === 'number' ? `${(style.borderRadius / parentHeight) * 100}%` : '16px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '4px 8px',
-            }}
-            className="shadow-inner text-center overflow-hidden pointer-events-none select-none"
-          >
-            {style?.showLabel !== false && (
-              <span
-                style={{
-                  color: style?.labelColor || '#94a3b8',
-                  textAlign: style?.textAlign || 'center',
-                }}
-                className="text-[10px] font-bold uppercase tracking-wider block truncate w-full"
-              >
-                {statEl.label || 'TIME'}
-              </span>
-            )}
-            <span
-              style={{
-                color: style?.valueColor || '#38bdf8',
-                fontSize: style?.fontSize ? `clamp(11px, ${style.fontSize * 0.55}cqi, 48px)` : undefined,
-                textAlign: style?.textAlign || 'center',
-              }}
-              className="text-base sm:text-2xl font-black font-mono block tracking-tight truncate w-full"
-            >
-              24s
-            </span>
-          </div>
-        );
-        break;
-      }
-
-      case 'accuracy': {
-        const statEl = el as ResultAccuracyElement;
-        const style = statEl.style;
-        innerContent = (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: style?.backgroundColor || 'rgba(2, 6, 23, 0.85)',
-              borderColor: style?.borderColor || '#334155',
-              borderWidth: '1px',
-              borderStyle: 'solid',
-              borderRadius: typeof style?.borderRadius === 'number' ? `${(style.borderRadius / parentHeight) * 100}%` : '16px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '4px 8px',
-            }}
-            className="shadow-inner text-center overflow-hidden pointer-events-none select-none"
-          >
-            {style?.showLabel !== false && (
-              <span
-                style={{
-                  color: style?.labelColor || '#94a3b8',
-                  textAlign: style?.textAlign || 'center',
-                }}
-                className="text-[10px] font-bold uppercase tracking-wider block truncate w-full"
-              >
-                {statEl.label || 'ACCURACY'}
-              </span>
-            )}
-            <span
-              style={{
-                color: style?.valueColor || '#c084fc',
-                fontSize: style?.fontSize ? `clamp(11px, ${style.fontSize * 0.55}cqi, 48px)` : undefined,
-                textAlign: style?.textAlign || 'center',
-              }}
-              className="text-base sm:text-2xl font-black font-mono block tracking-tight truncate w-full"
-            >
-              88%
-            </span>
-          </div>
-        );
-        break;
-      }
-
-      case 'button': {
-        const btnEl = el as ResultButtonElement;
-        const style = btnEl.style;
-        innerContent = (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: style?.backgroundColor || '#f59e0b',
-              color: style?.textColor || '#020617',
-              borderColor: style?.borderColor,
-              borderWidth: typeof style?.borderWidth === 'number' ? `${style.borderWidth}px` : undefined,
-              borderStyle: typeof style?.borderWidth === 'number' && style.borderWidth > 0 ? 'solid' : undefined,
-              borderRadius: typeof style?.borderRadius === 'number' ? `${(style.borderRadius / parentHeight) * 100}%` : '18px',
-              fontSize: style?.fontSize ? `clamp(12px, ${style.fontSize * 0.55}cqi, 26px)` : '1.3cqi',
-              fontWeight: style?.fontWeight || '900',
-              boxShadow: style?.shadow !== false ? '0 10px 25px -5px rgba(245, 158, 11, 0.4)' : undefined,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-            }}
-            className="uppercase tracking-wider pointer-events-none select-none"
-          >
-            <RotateCcw className="w-4 h-4 shrink-0" />
-            <span className="truncate">{btnEl.text}</span>
-          </div>
-        );
-        break;
-      }
-    }
+    const innerContent = (
+      <ResultElementContent
+        element={el}
+        parentWidth={parentWidth}
+        parentHeight={parentHeight}
+        isSimulation={true}
+        renderChild={(child, pW, pH) => renderCanvasElement(child, pW, pH)}
+      />
+    );
 
     return (
       <div
@@ -1868,33 +1665,68 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 {children?.length || 0}
               </span>
             )}
+
+            {/* Z-Index / Layer order badge */}
+            <span
+              className="text-[9px] font-mono text-slate-400 bg-slate-850 px-1 py-0.2 rounded border border-slate-700/60 shrink-0 select-none"
+              title={`Layer Stacking Order: Z-${el.zIndex ?? 1}`}
+            >
+              z:{el.zIndex ?? 1}
+            </span>
           </div>
 
           {/* Action buttons on hover / active */}
           <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-            {/* Move Layer Up / Down */}
+            {/* Bring To Front */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleMoveLayer(el.id, 'up');
+                handleMoveLayer(el.id, 'front');
+              }}
+              className="p-1 rounded hover:bg-slate-700/80 text-slate-400 hover:text-amber-300"
+              title="Bring To Front"
+            >
+              <ChevronsUp className="w-3 h-3" />
+            </button>
+
+            {/* Move Layer Forward / Up */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMoveLayer(el.id, 'forward');
               }}
               className="p-1 rounded hover:bg-slate-700/80 text-slate-400 hover:text-slate-200"
-              title="Move Forward / Up"
+              title="Bring Forward (1 step)"
             >
               <ArrowUp className="w-3 h-3" />
             </button>
 
+            {/* Move Layer Backward / Down */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleMoveLayer(el.id, 'down');
+                handleMoveLayer(el.id, 'backward');
               }}
               className="p-1 rounded hover:bg-slate-700/80 text-slate-400 hover:text-slate-200"
-              title="Move Backward / Down"
+              title="Send Backward (1 step)"
             >
               <ArrowDown className="w-3 h-3" />
+            </button>
+
+            {/* Send To Back */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMoveLayer(el.id, 'back');
+              }}
+              className="p-1 rounded hover:bg-slate-700/80 text-slate-400 hover:text-amber-300"
+              title="Send To Back"
+            >
+              <ChevronsDown className="w-3 h-3" />
             </button>
 
             {/* Add Child button for Card/Group */}
@@ -2585,6 +2417,48 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
               </button>
             </div>
 
+            <div className="w-px h-4 bg-slate-800/80 mx-0.5" />
+
+            {/* Layer Stacking Group */}
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={() => handleMoveLayer(selectedIds, 'front')}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Bring To Front"
+              >
+                <ChevronsUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={() => handleMoveLayer(selectedIds, 'forward')}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Bring Forward (1 step)"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={() => handleMoveLayer(selectedIds, 'backward')}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Send Backward (1 step)"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={selectedElements.length === 0}
+                onClick={() => handleMoveLayer(selectedIds, 'back')}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors"
+                title="Send To Back"
+              >
+                <ChevronsDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
             {selectedElements.length > 0 && (
               <div className="flex items-center gap-1 pl-1">
                 <span className="text-[10px] font-mono text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
@@ -2820,6 +2694,52 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
               </div>
 
               {/* Batch Actions (Duplicate / Delete) */}
+              <div className="space-y-1.5 p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <Layers className="w-3 h-3 text-amber-400" />
+                  <span>Layer Stacking ({selectedElements.length} Items)</span>
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleMoveLayer(selectedIds, 'front')}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    title="Bring selected elements to the very front"
+                  >
+                    <ChevronsUp className="w-3 h-3 text-amber-400" />
+                    <span>Bring To Front</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMoveLayer(selectedIds, 'forward')}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    title="Bring selected elements forward 1 step"
+                  >
+                    <ArrowUp className="w-3 h-3 text-amber-400" />
+                    <span>Bring Forward</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMoveLayer(selectedIds, 'backward')}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    title="Send selected elements backward 1 step"
+                  >
+                    <ArrowDown className="w-3 h-3 text-amber-400" />
+                    <span>Send Backward</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMoveLayer(selectedIds, 'back')}
+                    className="py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1 transition-colors"
+                    title="Send selected elements to the very back"
+                  >
+                    <ChevronsDown className="w-3 h-3 text-amber-400" />
+                    <span>Send To Back</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Batch Actions (Duplicate / Delete) */}
               <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
                 <button
                   type="button"
@@ -2964,21 +2884,39 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => handleMoveLayer(selectedElement.id, 'up')}
-                        className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 text-[11px] font-medium flex items-center gap-1 transition-colors"
-                        title="Bring Forward / Up in Layer Stack"
+                        onClick={() => handleMoveLayer(selectedElement.id, 'front')}
+                        className="px-1.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 text-[10px] font-medium flex items-center gap-0.5 transition-colors"
+                        title="Bring To Front"
                       >
-                        <ArrowUp className="w-3 h-3" />
-                        <span>Bring Forward</span>
+                        <ChevronsUp className="w-3 h-3 text-amber-400" />
+                        <span className="hidden sm:inline">Front</span>
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleMoveLayer(selectedElement.id, 'down')}
-                        className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 text-[11px] font-medium flex items-center gap-1 transition-colors"
-                        title="Send Backward / Down in Layer Stack"
+                        onClick={() => handleMoveLayer(selectedElement.id, 'forward')}
+                        className="px-1.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 text-[10px] font-medium flex items-center gap-0.5 transition-colors"
+                        title="Bring Forward (1 step)"
                       >
-                        <ArrowDown className="w-3 h-3" />
-                        <span>Send Backward</span>
+                        <ArrowUp className="w-3 h-3 text-amber-400" />
+                        <span className="hidden sm:inline">Forward</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveLayer(selectedElement.id, 'backward')}
+                        className="px-1.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 text-[10px] font-medium flex items-center gap-0.5 transition-colors"
+                        title="Send Backward (1 step)"
+                      >
+                        <ArrowDown className="w-3 h-3 text-amber-400" />
+                        <span className="hidden sm:inline">Backward</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveLayer(selectedElement.id, 'back')}
+                        className="px-1.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-200 text-[10px] font-medium flex items-center gap-0.5 transition-colors"
+                        title="Send To Back"
+                      >
+                        <ChevronsDown className="w-3 h-3 text-amber-400" />
+                        <span className="hidden sm:inline">Back</span>
                       </button>
                     </div>
                   </div>
@@ -3048,15 +2986,26 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-0.5">
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleMoveLayer(child.id, 'up');
+                                  handleMoveLayer(child.id, 'front');
+                                }}
+                                className="p-0.5 rounded text-slate-500 hover:text-amber-300"
+                                title="Bring To Front"
+                              >
+                                <ChevronsUp className="w-2.5 h-2.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveLayer(child.id, 'forward');
                                 }}
                                 className="p-0.5 rounded text-slate-500 hover:text-slate-200"
-                                title="Move Up"
+                                title="Bring Forward"
                               >
                                 <ArrowUp className="w-2.5 h-2.5" />
                               </button>
@@ -3064,12 +3013,23 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleMoveLayer(child.id, 'down');
+                                  handleMoveLayer(child.id, 'backward');
                                 }}
                                 className="p-0.5 rounded text-slate-500 hover:text-slate-200"
-                                title="Move Down"
+                                title="Send Backward"
                               >
                                 <ArrowDown className="w-2.5 h-2.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveLayer(child.id, 'back');
+                                }}
+                                className="p-0.5 rounded text-slate-500 hover:text-amber-300"
+                                title="Send To Back"
+                              >
+                                <ChevronsDown className="w-2.5 h-2.5" />
                               </button>
                               <button
                                 type="button"
@@ -3321,41 +3281,84 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 </div>
 
                 {/* Z-Index & Visibility */}
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
-                  <div>
-                    <span className="text-[10px] text-slate-500 block mb-1">Z-Index</span>
-                    <input
-                      type="number"
-                      value={selectedElement.zIndex ?? 1}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        updateElementById(selectedElement.id, (prev) => ({ ...prev, zIndex: val }));
-                      }}
-                      className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs"
-                    />
+                <div className="space-y-2 pt-1 border-t border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                      Layer Position
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleMoveLayer(selectedElement.id, 'front')}
+                        className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
+                        title="Bring To Front"
+                      >
+                        <ChevronsUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveLayer(selectedElement.id, 'forward')}
+                        className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
+                        title="Bring Forward (1 step)"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveLayer(selectedElement.id, 'backward')}
+                        className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
+                        title="Send Backward (1 step)"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveLayer(selectedElement.id, 'back')}
+                        className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
+                        title="Send To Back"
+                      >
+                        <ChevronsDown className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex flex-col justify-end">
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleVisibility(selectedElement.id, e)}
-                      className={`w-full py-1.5 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
-                        selectedElement.visible !== false
-                          ? 'bg-slate-900 border-slate-700 text-slate-200'
-                          : 'bg-rose-950/40 border-rose-900/60 text-rose-400'
-                      }`}
-                    >
-                      {selectedElement.visible !== false ? (
-                        <>
-                          <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Visible</span>
-                        </>
-                      ) : (
-                        <>
-                          <EyeOff className="w-3.5 h-3.5" />
-                          <span>Hidden</span>
-                        </>
-                      )}
-                    </button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[10px] text-slate-500 block mb-1">Z-Index (1 - N)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={selectedElement.zIndex ?? 1}
+                        onChange={(e) => {
+                          const val = Math.max(1, Math.round(Number(e.target.value)));
+                          handleUpdateZIndex(selectedElement.id, val);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs"
+                      />
+                    </div>
+                    <div className="flex flex-col justify-end">
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleVisibility(selectedElement.id, e)}
+                        className={`w-full py-1.5 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                          selectedElement.visible !== false
+                            ? 'bg-slate-900 border-slate-700 text-slate-200'
+                            : 'bg-rose-950/40 border-rose-900/60 text-rose-400'
+                        }`}
+                      >
+                        {selectedElement.visible !== false ? (
+                          <>
+                            <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Visible</span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-3.5 h-3.5" />
+                            <span>Hidden</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3453,6 +3456,21 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                           }}
                           className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 text-xs font-mono"
                         />
+                        {cardStyle.backgroundImageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultCardElement).style, backgroundImageUrl: undefined },
+                              } as ResultScreenElement));
+                            }}
+                            className="p-1.5 bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded-lg transition-colors"
+                            title="Remove Background Image"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         {onUploadAsset && (
                           <button
                             type="button"
@@ -3481,7 +3499,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                                 updateElementById(selectedElement.id, (prev) => ({
                                   ...prev,
                                   style: { ...(prev as ResultCardElement).style, backgroundSize: val },
-                                } as ResultScreenElement));
+                                }));
                               }}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-[11px] mt-0.5"
                             >
@@ -3500,7 +3518,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                                 updateElementById(selectedElement.id, (prev) => ({
                                   ...prev,
                                   style: { ...(prev as ResultCardElement).style, backgroundPosition: val },
-                                } as ResultScreenElement));
+                                }));
                               }}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-[11px] mt-0.5"
                             >
@@ -3521,7 +3539,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                                 updateElementById(selectedElement.id, (prev) => ({
                                   ...prev,
                                   style: { ...(prev as ResultCardElement).style, backgroundRepeat: val },
-                                } as ResultScreenElement));
+                                }));
                               }}
                               className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-[11px] mt-0.5"
                             >
@@ -3634,22 +3652,27 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                       </div>
                     </div>
 
-                    {/* Drop Shadow Toggle */}
-                    <label className="flex items-center gap-2 cursor-pointer pt-1">
-                      <input
-                        type="checkbox"
-                        checked={cardStyle.shadow !== false}
-                        onChange={(e) => {
-                          const val = e.target.checked;
-                          updateElementById(selectedElement.id, (prev) => ({
-                            ...prev,
-                            style: { ...(prev as ResultCardElement).style, shadow: val },
-                          } as ResultScreenElement));
-                        }}
-                        className="rounded border-slate-700 text-amber-500 accent-amber-500"
-                      />
-                      <span className="text-slate-300 text-xs font-medium">Enable Soft Drop Shadow</span>
-                    </label>
+                    {/* Drop Shadow Toggle & Clipping Note */}
+                    <div className="pt-1 border-t border-slate-800 space-y-1.5">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cardStyle.shadow !== false}
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultCardElement).style, shadow: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="rounded border-slate-700 text-amber-500 accent-amber-500"
+                        />
+                        <span className="text-slate-300 text-xs font-medium">Enable Soft Drop Shadow</span>
+                      </label>
+                      <span className="text-[10px] text-slate-500 block leading-tight">
+                        Background images and nested elements are automatically clipped to rounded corners.
+                      </span>
+                    </div>
                   </div>
                 );
               })()}
@@ -3657,20 +3680,116 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
               {/* 2. IMAGE ELEMENT */}
               {selectedElement.type === 'image' && (() => {
                 const imgEl = selectedElement as ResultImageElement;
-                return (
-                  <div className="space-y-3 bg-slate-900/80 border border-slate-800 rounded-xl p-3">
-                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
-                      Image Properties
-                    </span>
+                const imgStyle = imgEl.style || {};
+                const currentFit = imgStyle.objectFit || imgEl.objectFit || 'contain';
+                const currentPos = imgStyle.objectPosition || imgEl.objectPosition || 'center';
 
-                    {/* Image URL with Upload Button */}
-                    <div className="space-y-1">
-                      <span className="text-[11px] text-slate-400 block">Image Source URL</span>
+                // Curated game & theme assets library presets for instant selection
+                const PRESET_IMAGE_ASSETS = [
+                  { label: 'Theme Background', url: '/assets/themes/carnival/background.png', category: 'Carnival' },
+                  { label: 'Carnival Cart / Basket', url: '/assets/themes/carnival/basket.png', category: 'Carnival' },
+                  { label: 'Golden Ticket Item', url: '/assets/themes/carnival/item_normal_01.png', category: 'Carnival' },
+                  { label: 'Cursed Mask Item', url: '/assets/themes/carnival/item_hazard_01.png', category: 'Carnival' },
+                  { label: 'Bonus Star Item', url: '/assets/themes/carnival/item_bonus_01.png', category: 'Carnival' },
+                  { label: 'Green Durian Badge', url: '/assets/durian_green.png', category: 'Durian' },
+                  { label: 'Brown Durian Badge', url: '/assets/durian_brown.png', category: 'Durian' },
+                  { label: 'Studio Logo', url: '/logo.png', category: 'Branding' },
+                  { label: 'Default Background', url: '/assets/background.png', category: 'General' },
+                ];
+
+                const POSITION_ANCHOR_GRID = [
+                  { label: 'TL', value: 'top left', title: 'Top Left' },
+                  { label: 'T', value: 'top center', title: 'Top Center' },
+                  { label: 'TR', value: 'top right', title: 'Top Right' },
+                  { label: 'L', value: 'center left', title: 'Center Left' },
+                  { label: 'C', value: 'center', title: 'Center' },
+                  { label: 'R', value: 'center right', title: 'Center Right' },
+                  { label: 'BL', value: 'bottom left', title: 'Bottom Left' },
+                  { label: 'B', value: 'bottom center', title: 'Bottom Center' },
+                  { label: 'BR', value: 'bottom right', title: 'Bottom Right' },
+                ];
+
+                const isAnchorActive = (anchorVal: string) => {
+                  const normalizedCurrent = (currentPos || '').toLowerCase().trim();
+                  if (anchorVal === 'center' && (normalizedCurrent === 'center' || normalizedCurrent === '50% 50%' || normalizedCurrent === 'center center')) return true;
+                  if (anchorVal === 'top left' && (normalizedCurrent === 'top left' || normalizedCurrent === '0% 0%' || normalizedCurrent === 'left top')) return true;
+                  if (anchorVal === 'top center' && (normalizedCurrent === 'top center' || normalizedCurrent === 'top' || normalizedCurrent === '50% 0%')) return true;
+                  if (anchorVal === 'top right' && (normalizedCurrent === 'top right' || normalizedCurrent === '100% 0%' || normalizedCurrent === 'right top')) return true;
+                  if (anchorVal === 'center left' && (normalizedCurrent === 'center left' || normalizedCurrent === 'left' || normalizedCurrent === '0% 50%')) return true;
+                  if (anchorVal === 'center right' && (normalizedCurrent === 'center right' || normalizedCurrent === 'right' || normalizedCurrent === '100% 50%')) return true;
+                  if (anchorVal === 'bottom left' && (normalizedCurrent === 'bottom left' || normalizedCurrent === '0% 100%' || normalizedCurrent === 'left bottom')) return true;
+                  if (anchorVal === 'bottom center' && (normalizedCurrent === 'bottom center' || normalizedCurrent === 'bottom' || normalizedCurrent === '50% 100%')) return true;
+                  if (anchorVal === 'bottom right' && (normalizedCurrent === 'bottom right' || normalizedCurrent === '100% 100%' || normalizedCurrent === 'right bottom')) return true;
+                  return normalizedCurrent === anchorVal;
+                };
+
+                return (
+                  <div className="space-y-3.5 bg-slate-900/80 border border-slate-800 rounded-xl p-3.5">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span>Image Asset & Position Controls</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {imgEl.width}×{imgEl.height} px
+                      </span>
+                    </div>
+
+                    {/* Image Preview & Asset Management */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-slate-300">Asset Source</span>
+                        {imgEl.imageUrl ? (
+                          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                            Asset Loaded
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">
+                            No Asset
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Image Preview Thumbnail */}
+                      <div className="relative w-full h-24 bg-slate-950/80 rounded-xl border border-slate-800 overflow-hidden flex items-center justify-center p-2 group">
+                        {imgEl.imageUrl ? (
+                          <img
+                            src={imgEl.imageUrl}
+                            alt=""
+                            className="max-h-full max-w-full rounded object-contain transition-transform group-hover:scale-105"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="text-center space-y-1">
+                            <ImageIcon className="w-6 h-6 text-slate-600 mx-auto" />
+                            <span className="text-[11px] text-slate-500 block">No image selected</span>
+                          </div>
+                        )}
+                        {imgEl.imageUrl && (
+                          <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-slate-950/80 p-1 rounded-lg border border-slate-700">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  imageUrl: null,
+                                } as ResultScreenElement));
+                              }}
+                              className="p-1 text-rose-400 hover:bg-rose-950/50 rounded transition-colors"
+                              title="Remove Image"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* URL Input & Quick Actions */}
                       <div className="flex items-center gap-1.5">
                         <input
                           type="text"
                           value={imgEl.imageUrl || ''}
-                          placeholder="https://..."
+                          placeholder="https://... or /assets/..."
                           onChange={(e) => {
                             const val = e.target.value;
                             updateElementById(selectedElement.id, (prev) => ({
@@ -3678,8 +3797,23 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                               imageUrl: val || null,
                             } as ResultScreenElement));
                           }}
-                          className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 text-xs font-mono"
+                          className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs font-mono placeholder:text-slate-600"
                         />
+                        {imgEl.imageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                imageUrl: null,
+                              } as ResultScreenElement));
+                            }}
+                            className="p-1.5 bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded-lg transition-colors shrink-0"
+                            title="Remove Image"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                         {onUploadAsset && (
                           <button
                             type="button"
@@ -3688,39 +3822,359 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                               fileInputRef.current?.click();
                             }}
                             disabled={isUploadingAsset}
-                            className="p-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg transition-colors"
-                            title="Upload Image"
+                            className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5 shrink-0"
+                            title={imgEl.imageUrl ? 'Replace Image' : 'Upload Image'}
                           >
-                            {isUploadingAsset ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                            {isUploadingAsset ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Upload className="w-3.5 h-3.5" />
+                            )}
+                            <span>{imgEl.imageUrl ? 'Replace' : 'Upload'}</span>
                           </button>
                         )}
                       </div>
+
+                      {/* Preset Game / Theme Asset Library */}
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[10px] text-slate-400 font-semibold block uppercase tracking-wider">
+                          Select from Built-in Assets:
+                        </span>
+                        <div className="grid grid-cols-3 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                          {PRESET_IMAGE_ASSETS.map((preset) => (
+                            <button
+                              key={preset.url}
+                              type="button"
+                              onClick={() => {
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  imageUrl: preset.url,
+                                } as ResultScreenElement));
+                              }}
+                              className={`p-1.5 rounded-lg border text-left flex flex-col items-center gap-1 transition-all ${
+                                imgEl.imageUrl === preset.url
+                                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-sm'
+                                  : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              <div className="w-8 h-8 rounded bg-slate-900 flex items-center justify-center overflow-hidden border border-slate-800/80">
+                                <img
+                                  src={preset.url}
+                                  alt={preset.label}
+                                  className="w-full h-full object-contain"
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+                              <span className="text-[9px] font-medium truncate w-full text-center leading-tight">
+                                {preset.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Object Fit */}
-                    <div className="space-y-1">
-                      <span className="text-[11px] text-slate-400 block">Object Fit Mode</span>
-                      <div className="grid grid-cols-3 gap-1">
-                        {(['contain', 'cover', 'fill'] as const).map((fit) => (
+                    {/* Object Fit Controls */}
+                    <div className="space-y-2 pt-2 border-t border-slate-800">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-slate-300">Object Fit Mode</span>
+                        <span className="text-[10px] font-mono text-emerald-400 capitalize">{currentFit}</span>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1">
+                        {[
+                          { id: 'contain', label: 'Contain', desc: 'Preserve aspect ratio, fit within bounds' },
+                          { id: 'cover', label: 'Cover', desc: 'Fill container completely, crop overflow' },
+                          { id: 'fill', label: 'Fill', desc: 'Stretch to exact element width and height' },
+                          { id: 'none', label: 'None', desc: 'Natural size without scaling' },
+                          { id: 'scale-down', label: 'Scale', desc: 'Downscale if larger, else original' },
+                        ].map((fit) => (
                           <button
-                            key={fit}
+                            key={fit.id}
                             type="button"
                             onClick={() => {
                               updateElementById(selectedElement.id, (prev) => ({
                                 ...prev,
-                                objectFit: fit,
+                                objectFit: fit.id as any,
+                                style: { ...(prev as ResultImageElement).style, objectFit: fit.id as any },
                               } as ResultScreenElement));
                             }}
-                            className={`py-1 rounded-lg text-xs font-semibold uppercase transition-colors ${
-                              (imgEl.objectFit || 'contain') === fit
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
-                                : 'bg-slate-950 text-slate-400 border border-slate-800 hover:bg-slate-800'
+                            title={fit.desc}
+                            className={`py-1.5 px-1 rounded-lg text-[10px] font-bold uppercase truncate border transition-all text-center ${
+                              currentFit === fit.id
+                                ? 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50 shadow-sm'
+                                : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200'
                             }`}
                           >
-                            {fit}
+                            {fit.label}
                           </button>
                         ))}
                       </div>
+                    </div>
+
+                    {/* Object Position Controls (9-Point Anchor Grid + Custom) */}
+                    <div className="space-y-2 pt-2 border-t border-slate-800">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-slate-300">Object Position Alignment</span>
+                        <span className="text-[10px] font-mono text-emerald-400">{currentPos}</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 items-center">
+                        {/* 9-Point Visual Anchor Grid */}
+                        <div className="bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+                          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block text-center mb-1">
+                            9-Point Anchor Grid
+                          </span>
+                          <div className="grid grid-cols-3 gap-1">
+                            {POSITION_ANCHOR_GRID.map((anchor) => {
+                              const active = isAnchorActive(anchor.value);
+                              return (
+                                <button
+                                  key={anchor.value}
+                                  type="button"
+                                  onClick={() => {
+                                    updateElementById(selectedElement.id, (prev) => ({
+                                      ...prev,
+                                      objectPosition: anchor.value,
+                                      style: { ...(prev as ResultImageElement).style, objectPosition: anchor.value },
+                                    } as ResultScreenElement));
+                                  }}
+                                  title={anchor.title}
+                                  className={`py-1 rounded text-[10px] font-mono font-bold transition-all border ${
+                                    active
+                                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm scale-105'
+                                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200'
+                                  }`}
+                                >
+                                  {anchor.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Dropdown & Custom Position Input */}
+                        <div className="space-y-2">
+                          <div>
+                            <span className="text-[10px] text-slate-400 block mb-0.5">Preset Anchor</span>
+                            <select
+                              value={currentPos}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  objectPosition: val,
+                                  style: { ...(prev as ResultImageElement).style, objectPosition: val },
+                                } as ResultScreenElement));
+                              }}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 text-xs font-mono"
+                            >
+                              <option value="center">Center</option>
+                              <option value="top">Top</option>
+                              <option value="bottom">Bottom</option>
+                              <option value="left">Left</option>
+                              <option value="right">Right</option>
+                              <option value="top left">Top Left</option>
+                              <option value="top right">Top Right</option>
+                              <option value="bottom left">Bottom Left</option>
+                              <option value="bottom right">Bottom Right</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] text-slate-400 block mb-0.5">Custom (e.g. 50% 50%)</span>
+                            <input
+                              type="text"
+                              value={currentPos}
+                              placeholder="50% 50%"
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  objectPosition: val,
+                                  style: { ...(prev as ResultImageElement).style, objectPosition: val },
+                                } as ResultScreenElement));
+                              }}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Transform & Sizing Helpers */}
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase tracking-wider">
+                        Quick Sizing & Alignment
+                      </span>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const side = Math.max(selectedElement.width, selectedElement.height);
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              width: side,
+                              height: side,
+                            }));
+                          }}
+                          className="px-2 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-[10px] font-mono transition-colors text-center"
+                          title="Make 1:1 Square"
+                        >
+                          Square (1:1)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const parentW = commonParent ? commonParent.width : canvasWidth;
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              x: 0,
+                              width: parentW,
+                            }));
+                          }}
+                          className="px-2 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-[10px] font-mono transition-colors text-center"
+                          title="Fit Container Width"
+                        >
+                          Fit Width
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const containerW = commonParent ? commonParent.width : canvasWidth;
+                            const containerH = commonParent ? commonParent.height : canvasHeight;
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              x: Math.max(0, Math.round((containerW - prev.width) / 2)),
+                              y: Math.max(0, Math.round((containerH - prev.height) / 2)),
+                            }));
+                          }}
+                          className="px-2 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-[10px] font-mono transition-colors text-center"
+                          title="Center in Parent"
+                        >
+                          Center Frame
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Border & Radius Framing */}
+                    <div className="space-y-2 pt-2 border-t border-slate-800">
+                      <span className="text-[11px] font-semibold text-slate-300 block">Frame & Border Styling</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[11px] text-slate-400 block">Border Width (px)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={20}
+                            value={imgStyle.borderWidth ?? 0}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultImageElement).style, borderWidth: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 font-mono text-xs mt-1"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[11px] text-slate-400 block">Border Radius (px)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={9999}
+                            value={imgStyle.borderRadius ?? 0}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultImageElement).style, borderRadius: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-slate-100 font-mono text-xs mt-1"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Radius Presets */}
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <span className="text-[10px] text-slate-400">Presets:</span>
+                        {[
+                          { label: '0px', val: 0 },
+                          { label: '8px', val: 8 },
+                          { label: '16px', val: 16 },
+                          { label: '24px', val: 24 },
+                          { label: 'Circle', val: 9999 },
+                        ].map((r) => (
+                          <button
+                            key={r.label}
+                            type="button"
+                            onClick={() => {
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultImageElement).style, borderRadius: r.val },
+                              } as ResultScreenElement));
+                            }}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-mono border transition-colors ${
+                              (imgStyle.borderRadius ?? 0) === r.val
+                                ? 'bg-emerald-600 border-emerald-500 text-white font-bold'
+                                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            {r.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Border Color */}
+                      {(imgStyle.borderWidth ?? 0) > 0 && (
+                        <div className="space-y-1 pt-1">
+                          <span className="text-[11px] text-slate-400 block">Border Color</span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={imgStyle.borderColor?.startsWith('#') ? imgStyle.borderColor : '#10b981'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  style: { ...(prev as ResultImageElement).style, borderColor: val },
+                                } as ResultScreenElement));
+                              }}
+                              className="w-7 h-7 rounded border border-slate-700 cursor-pointer bg-transparent"
+                            />
+                            <input
+                              type="text"
+                              value={imgStyle.borderColor || '#10b981'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  style: { ...(prev as ResultImageElement).style, borderColor: val },
+                                } as ResultScreenElement));
+                              }}
+                              className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Image Drop Shadow */}
+                      <label className="flex items-center gap-2 cursor-pointer pt-1">
+                        <input
+                          type="checkbox"
+                          checked={imgStyle.shadow === true}
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultImageElement).style, shadow: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="rounded border-slate-700 text-emerald-500 accent-emerald-500 cursor-pointer"
+                        />
+                        <span className="text-slate-300 text-xs font-medium">Enable Soft Drop Shadow</span>
+                      </label>
                     </div>
                   </div>
                 );
@@ -3732,15 +4186,18 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 const textStyle = textEl.style || {};
                 return (
                   <div className="space-y-3 bg-slate-900/80 border border-slate-800 rounded-xl p-3">
-                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">
-                      Text Properties
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                        Text & Typography
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">1000×1000 scaled</span>
+                    </div>
 
                     {/* Content Text */}
                     <div className="space-y-1">
                       <span className="text-[11px] text-slate-400 block">Text Content</span>
-                      <input
-                        type="text"
+                      <textarea
+                        rows={2}
                         value={textEl.text}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -3749,8 +4206,31 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                             text: val,
                           } as ResultScreenElement));
                         }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs font-semibold"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs font-semibold resize-none"
                       />
+                    </div>
+
+                    {/* Font Family */}
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-slate-400 block">Font Family</span>
+                      <select
+                        value={textStyle.fontFamily || 'inherit'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateElementById(selectedElement.id, (prev) => ({
+                            ...prev,
+                            style: { ...(prev as ResultTextElement).style, fontFamily: val },
+                          } as ResultScreenElement));
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 text-xs"
+                      >
+                        <option value="inherit">Inherit / Default</option>
+                        {FONT_FAMILY_PRESETS.map((preset) => (
+                          <option key={preset.label} value={preset.value}>
+                            {preset.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     {/* Font Size & Weight */}
@@ -3759,8 +4239,8 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         <span className="text-[11px] text-slate-400 block">Font Size (px)</span>
                         <input
                           type="number"
-                          min={8}
-                          max={120}
+                          min={6}
+                          max={160}
                           value={textStyle.fontSize ?? 32}
                           onChange={(e) => {
                             const val = Number(e.target.value);
@@ -3775,7 +4255,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                       <div>
                         <span className="text-[11px] text-slate-400 block">Font Weight</span>
                         <select
-                          value={textStyle.fontWeight || 'bold'}
+                          value={String(textStyle.fontWeight || 'bold')}
                           onChange={(e) => {
                             const val = e.target.value;
                             updateElementById(selectedElement.id, (prev) => ({
@@ -3785,70 +4265,261 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                           }}
                           className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 text-xs mt-1"
                         >
-                          <option value="normal">Normal</option>
-                          <option value="600">Semi Bold</option>
-                          <option value="bold">Bold</option>
+                          <option value="400">Normal (400)</option>
+                          <option value="500">Medium (500)</option>
+                          <option value="600">Semi Bold (600)</option>
+                          <option value="bold">Bold (700)</option>
+                          <option value="800">Extra Bold (800)</option>
                           <option value="900">Black (900)</option>
                         </select>
                       </div>
                     </div>
 
-                    {/* Text Alignment */}
+                    {/* Horizontal & Vertical Alignment */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <span className="text-[11px] text-slate-400 block">Align H</span>
+                        <div className="grid grid-cols-4 gap-0.5">
+                          {(['left', 'center', 'right', 'justify'] as const).map((align) => (
+                            <button
+                              key={align}
+                              type="button"
+                              title={align}
+                              onClick={() => {
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  style: { ...(prev as ResultTextElement).style, textAlign: align },
+                                } as ResultScreenElement));
+                              }}
+                              className={`py-1 rounded text-xs font-semibold flex items-center justify-center transition-colors ${
+                                (textStyle.textAlign || 'center') === align
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                  : 'bg-slate-950 text-slate-400 border border-slate-800 hover:bg-slate-800'
+                              }`}
+                            >
+                              {align === 'left' && <AlignLeft className="w-3.5 h-3.5" />}
+                              {align === 'center' && <AlignCenter className="w-3.5 h-3.5" />}
+                              {align === 'right' && <AlignRight className="w-3.5 h-3.5" />}
+                              {align === 'justify' && <AlignJustify className="w-3.5 h-3.5" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[11px] text-slate-400 block">Align V</span>
+                        <div className="grid grid-cols-3 gap-0.5">
+                          {(['top', 'center', 'bottom'] as const).map((valign) => (
+                            <button
+                              key={valign}
+                              type="button"
+                              title={valign}
+                              onClick={() => {
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  style: { ...(prev as ResultTextElement).style, verticalAlign: valign },
+                                } as ResultScreenElement));
+                              }}
+                              className={`py-1 rounded text-[10px] font-semibold flex items-center justify-center uppercase transition-colors ${
+                                (textStyle.verticalAlign || 'center') === valign
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                  : 'bg-slate-950 text-slate-400 border border-slate-800 hover:bg-slate-800'
+                              }`}
+                            >
+                              {valign === 'top' ? 'Top' : valign === 'center' ? 'Mid' : 'Bot'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Font Style, Transform & Decoration */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block mb-0.5">Style</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = textStyle.fontStyle === 'italic' ? 'normal' : 'italic';
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultTextElement).style, fontStyle: next },
+                            } as ResultScreenElement));
+                          }}
+                          className={`w-full py-1 rounded text-xs flex items-center justify-center gap-1 border ${
+                            textStyle.fontStyle === 'italic'
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-slate-950 text-slate-400 border-slate-800'
+                          }`}
+                        >
+                          <Italic className="w-3.5 h-3.5" />
+                          <span>Italic</span>
+                        </button>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 block mb-0.5">Case</span>
+                        <select
+                          value={textStyle.textTransform || 'none'}
+                          onChange={(e) => {
+                            const val = e.target.value as any;
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultTextElement).style, textTransform: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-100 text-[11px]"
+                        >
+                          <option value="none">Normal</option>
+                          <option value="uppercase">UPPER</option>
+                          <option value="lowercase">lower</option>
+                          <option value="capitalize">Capital</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 block mb-0.5">Decoration</span>
+                        <select
+                          value={textStyle.textDecoration || 'none'}
+                          onChange={(e) => {
+                            const val = e.target.value as any;
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultTextElement).style, textDecoration: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-100 text-[11px]"
+                        >
+                          <option value="none">None</option>
+                          <option value="underline">Underline</option>
+                          <option value="line-through">Strike</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Line Height & Letter Spacing */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-[11px] text-slate-400 block">Line Height</span>
+                        <input
+                          type="number"
+                          step={0.1}
+                          min={0.6}
+                          max={3.0}
+                          value={textStyle.lineHeight ?? 1.2}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultTextElement).style, lineHeight: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-400 block">Letter Spacing (px)</span>
+                        <input
+                          type="number"
+                          step={1}
+                          min={-4}
+                          max={30}
+                          value={textStyle.letterSpacing ?? 0}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultTextElement).style, letterSpacing: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs mt-1"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Text Shadow Presets */}
                     <div className="space-y-1">
-                      <span className="text-[11px] text-slate-400 block">Text Alignment</span>
+                      <span className="text-[11px] text-slate-400 block">Text Shadow</span>
                       <div className="grid grid-cols-3 gap-1">
-                        {(['left', 'center', 'right'] as const).map((align) => (
+                        {[
+                          { label: 'None', val: '' },
+                          { label: 'Subtle Drop', val: '0 2px 4px rgba(0, 0, 0, 0.6)' },
+                          { label: 'Deep Drop', val: '0 4px 12px rgba(0, 0, 0, 0.9)' },
+                          { label: 'Amber Glow', val: '0 0 16px rgba(245, 158, 11, 0.75)' },
+                          { label: 'Cyan Glow', val: '0 0 16px rgba(6, 182, 212, 0.75)' },
+                          { label: 'Retro Outline', val: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' },
+                        ].map((preset) => (
                           <button
-                            key={align}
+                            key={preset.label}
                             type="button"
                             onClick={() => {
                               updateElementById(selectedElement.id, (prev) => ({
                                 ...prev,
-                                style: { ...(prev as ResultTextElement).style, textAlign: align },
+                                style: { ...(prev as ResultTextElement).style, textShadow: preset.val || undefined },
                               } as ResultScreenElement));
                             }}
-                            className={`py-1 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors ${
-                              (textStyle.textAlign || 'center') === align
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold'
-                                : 'bg-slate-950 text-slate-400 border border-slate-800 hover:bg-slate-800'
+                            className={`py-1 px-1.5 rounded text-[10px] font-medium truncate border transition-colors ${
+                              (textStyle.textShadow || '') === preset.val
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
+                                : 'bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800'
                             }`}
                           >
-                            {align === 'left' && <AlignLeft className="w-3.5 h-3.5" />}
-                            {align === 'center' && <AlignCenter className="w-3.5 h-3.5" />}
-                            {align === 'right' && <AlignRight className="w-3.5 h-3.5" />}
-                            <span className="capitalize text-[11px]">{align}</span>
+                            {preset.label}
                           </button>
                         ))}
                       </div>
                     </div>
 
-                    {/* Text Color */}
-                    <div className="space-y-1">
-                      <span className="text-[11px] text-slate-400 block">Text Color</span>
-                      <div className="flex items-center gap-2">
+                    {/* Text Color & Opacity */}
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+                      <div>
+                        <span className="text-[11px] text-slate-400 block">Text Color</span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <input
+                            type="color"
+                            value={textStyle.color?.startsWith('#') ? textStyle.color : '#ffffff'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultTextElement).style, color: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
+                          />
+                          <input
+                            type="text"
+                            value={textStyle.color || '#ffffff'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultTextElement).style, color: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="w-20 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200 text-[11px] font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[11px] text-slate-400 block">
+                          Opacity ({Math.round((textStyle.opacity ?? 1) * 100)}%)
+                        </span>
                         <input
-                          type="color"
-                          value={textStyle.color?.startsWith('#') ? textStyle.color : '#ffffff'}
+                          type="range"
+                          min={0.1}
+                          max={1}
+                          step={0.05}
+                          value={textStyle.opacity ?? 1}
                           onChange={(e) => {
-                            const val = e.target.value;
+                            const val = Number(e.target.value);
                             updateElementById(selectedElement.id, (prev) => ({
                               ...prev,
-                              style: { ...(prev as ResultTextElement).style, color: val },
+                              style: { ...(prev as ResultTextElement).style, opacity: val },
                             } as ResultScreenElement));
                           }}
-                          className="w-7 h-7 rounded border border-slate-700 cursor-pointer bg-transparent"
-                        />
-                        <input
-                          type="text"
-                          value={textStyle.color || '#ffffff'}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            updateElementById(selectedElement.id, (prev) => ({
-                              ...prev,
-                              style: { ...(prev as ResultTextElement).style, color: val },
-                            } as ResultScreenElement));
-                          }}
-                          className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs font-mono"
+                          className="w-full mt-2 accent-amber-500 cursor-pointer"
                         />
                       </div>
                     </div>
@@ -3872,154 +4543,466 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
 
                 return (
                   <div className="space-y-3 bg-slate-900/80 border border-slate-800 rounded-xl p-3">
-                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
-                      Stat Widget Settings
-                    </span>
-
-                    {/* Label Text */}
-                    <div className="space-y-1">
-                      <span className="text-[11px] text-slate-400 block">Label Text</span>
-                      <input
-                        type="text"
-                        value={statEl.label || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateElementById(selectedElement.id, (prev) => ({
-                            ...prev,
-                            label: val,
-                          } as ResultScreenElement));
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs font-semibold"
-                      />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                        Dynamic Stat: {selectedElement.type}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">Live Data</span>
                     </div>
 
-                    {/* Show Label Toggle */}
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={statStyle.showLabel !== false}
-                        onChange={(e) => {
-                          const val = e.target.checked;
-                          updateElementById(selectedElement.id, (prev) => ({
-                            ...prev,
-                            style: { ...(prev as any).style, showLabel: val },
-                          } as ResultScreenElement));
-                        }}
-                        className="rounded border-slate-700 text-amber-500 accent-amber-500"
-                      />
-                      <span className="text-slate-300 text-xs font-medium">Show Label Text</span>
-                    </label>
-
-                    {/* Font Size & Alignment */}
+                    {/* Layout Mode (Stack vs Row) & Alignment */}
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <span className="text-[11px] text-slate-400 block">Font Size (px)</span>
-                        <input
-                          type="number"
-                          min={10}
-                          max={80}
-                          value={statStyle.fontSize ?? 24}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            updateElementById(selectedElement.id, (prev) => ({
-                              ...prev,
-                              style: { ...(prev as any).style, fontSize: val },
-                            } as ResultScreenElement));
-                          }}
-                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs mt-1"
-                        />
-                      </div>
-                      <div>
-                        <span className="text-[11px] text-slate-400 block">Border Radius (px)</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={60}
-                          value={statStyle.borderRadius ?? 16}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            updateElementById(selectedElement.id, (prev) => ({
-                              ...prev,
-                              style: { ...(prev as any).style, borderRadius: val },
-                            } as ResultScreenElement));
-                          }}
-                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs mt-1"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Text Alignment */}
-                    <div className="space-y-1">
-                      <span className="text-[11px] text-slate-400 block">Alignment</span>
-                      <div className="grid grid-cols-3 gap-1">
-                        {(['left', 'center', 'right'] as const).map((align) => (
+                        <span className="text-[11px] text-slate-400 block">Layout Direction</span>
+                        <div className="grid grid-cols-2 gap-1 mt-1">
                           <button
-                            key={align}
                             type="button"
                             onClick={() => {
                               updateElementById(selectedElement.id, (prev) => ({
                                 ...prev,
-                                style: { ...(prev as any).style, textAlign: align },
+                                style: { ...(prev as any).style, layout: 'vertical' },
                               } as ResultScreenElement));
                             }}
-                            className={`py-1 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors ${
-                              (statStyle.textAlign || 'center') === align
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold'
-                                : 'bg-slate-950 text-slate-400 border border-slate-800 hover:bg-slate-800'
+                            className={`py-1 rounded text-[11px] font-semibold border ${
+                              (statStyle.layout || 'vertical') === 'vertical'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                : 'bg-slate-950 text-slate-400 border-slate-800'
                             }`}
                           >
-                            <span className="capitalize text-[11px]">{align}</span>
+                            Column
                           </button>
-                        ))}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as any).style, layout: 'horizontal' },
+                              } as ResultScreenElement));
+                            }}
+                            className={`py-1 rounded text-[11px] font-semibold border ${
+                              statStyle.layout === 'horizontal'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                : 'bg-slate-950 text-slate-400 border-slate-800'
+                            }`}
+                          >
+                            Row
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[11px] text-slate-400 block">Alignment</span>
+                        <div className="grid grid-cols-3 gap-1 mt-1">
+                          {(['left', 'center', 'right'] as const).map((align) => (
+                            <button
+                              key={align}
+                              type="button"
+                              onClick={() => {
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  style: { ...(prev as any).style, textAlign: align },
+                                } as ResultScreenElement));
+                              }}
+                              className={`py-1 rounded text-[10px] font-semibold flex items-center justify-center transition-colors ${
+                                (statStyle.textAlign || 'center') === align
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                  : 'bg-slate-950 text-slate-400 border border-slate-800 hover:bg-slate-800'
+                              }`}
+                            >
+                              <span className="capitalize">{align}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Colors: Value Color, Label Color, Background */}
-                    <div className="space-y-2 pt-1 border-t border-slate-800">
+                    {/* Gap */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-[11px] text-slate-400">Label/Value Gap (px)</span>
+                        <span className="font-mono text-[10px] text-slate-300">{statStyle.gap ?? 4}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={30}
+                        value={statStyle.gap ?? 4}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          updateElementById(selectedElement.id, (prev) => ({
+                            ...prev,
+                            style: { ...(prev as any).style, gap: val },
+                          } as ResultScreenElement));
+                        }}
+                        className="w-full accent-amber-500 cursor-pointer"
+                      />
+                    </div>
+
+                    {/* SECTION: LABEL TYPOGRAPHY */}
+                    <div className="p-2.5 bg-slate-950/70 border border-slate-800/80 rounded-lg space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-slate-400">Value Color</span>
-                        <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                          Label Typography
+                        </span>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
                           <input
-                            type="color"
-                            value={statStyle.valueColor?.startsWith('#') ? statStyle.valueColor : '#fbbf24'}
+                            type="checkbox"
+                            checked={statStyle.showLabel !== false}
+                            onChange={(e) => {
+                              const val = e.target.checked;
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as any).style, showLabel: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="rounded border-slate-700 text-amber-500 accent-amber-500 w-3.5 h-3.5"
+                          />
+                          <span className="text-[11px] text-slate-300">Show</span>
+                        </label>
+                      </div>
+
+                      {statStyle.showLabel !== false && (
+                        <>
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-slate-400 block">Custom Label</span>
+                            <input
+                              type="text"
+                              value={statEl.label || ''}
+                              placeholder="Default Stat Label"
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  label: val,
+                                } as ResultScreenElement));
+                              }}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 text-xs"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-slate-400 block">Label Font Family</span>
+                            <select
+                              value={statStyle.labelFontFamily || 'inherit'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  style: { ...(prev as any).style, labelFontFamily: val },
+                                } as ResultScreenElement));
+                              }}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 text-xs"
+                            >
+                              <option value="inherit">Inherit / Default</option>
+                              {FONT_FAMILY_PRESETS.map((preset) => (
+                                <option key={preset.label} value={preset.value}>
+                                  {preset.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Size (px)</span>
+                              <input
+                                type="number"
+                                min={6}
+                                max={48}
+                                value={statStyle.labelFontSize ?? 12}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  updateElementById(selectedElement.id, (prev) => ({
+                                    ...prev,
+                                    style: { ...(prev as any).style, labelFontSize: val },
+                                  } as ResultScreenElement));
+                                }}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs"
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Weight</span>
+                              <select
+                                value={String(statStyle.labelFontWeight || 'bold')}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  updateElementById(selectedElement.id, (prev) => ({
+                                    ...prev,
+                                    style: { ...(prev as any).style, labelFontWeight: val },
+                                  } as ResultScreenElement));
+                                }}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 text-xs"
+                              >
+                                <option value="400">Normal (400)</option>
+                                <option value="600">Semi Bold (600)</option>
+                                <option value="bold">Bold (700)</option>
+                                <option value="900">Black (900)</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Transform</span>
+                              <select
+                                value={statStyle.labelTextTransform || 'uppercase'}
+                                onChange={(e) => {
+                                  const val = e.target.value as any;
+                                  updateElementById(selectedElement.id, (prev) => ({
+                                    ...prev,
+                                    style: { ...(prev as any).style, labelTextTransform: val },
+                                  } as ResultScreenElement));
+                                }}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-slate-100 text-[11px]"
+                              >
+                                <option value="uppercase">UPPERCASE</option>
+                                <option value="none">None</option>
+                                <option value="capitalize">Capitalize</option>
+                                <option value="lowercase">lowercase</option>
+                              </select>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-400 block">Label Color</span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <input
+                                  type="color"
+                                  value={statStyle.labelColor?.startsWith('#') ? statStyle.labelColor : '#94a3b8'}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    updateElementById(selectedElement.id, (prev) => ({
+                                      ...prev,
+                                      style: { ...(prev as any).style, labelColor: val },
+                                    } as ResultScreenElement));
+                                  }}
+                                  className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
+                                />
+                                <span className="font-mono text-[10px] text-slate-300 truncate">
+                                  {statStyle.labelColor || '#94a3b8'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* SECTION: VALUE TYPOGRAPHY */}
+                    <div className="p-2.5 bg-slate-950/70 border border-slate-800/80 rounded-lg space-y-2">
+                      <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block">
+                        Value (Number) Typography
+                      </span>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-slate-400 block">Value Font Family</span>
+                        <select
+                          value={statStyle.valueFontFamily || 'monospace'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as any).style, valueFontFamily: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 text-xs"
+                        >
+                          <option value="monospace">Monospace (Default Data)</option>
+                          {FONT_FAMILY_PRESETS.map((preset) => (
+                            <option key={preset.label} value={preset.value}>
+                              {preset.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Value Size (px)</span>
+                          <input
+                            type="number"
+                            min={10}
+                            max={100}
+                            value={statStyle.valueFontSize ?? statStyle.fontSize ?? 26}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as any).style, valueFontSize: val, fontSize: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Value Weight</span>
+                          <select
+                            value={String(statStyle.valueFontWeight || '900')}
                             onChange={(e) => {
                               const val = e.target.value;
                               updateElementById(selectedElement.id, (prev) => ({
                                 ...prev,
-                                style: { ...(prev as any).style, valueColor: val },
+                                style: { ...(prev as any).style, valueFontWeight: val },
                               } as ResultScreenElement));
                             }}
-                            className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
-                          />
-                          <span className="font-mono text-[11px] text-slate-300">
-                            {statStyle.valueColor || '#fbbf24'}
-                          </span>
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 text-xs"
+                          >
+                            <option value="400">Normal (400)</option>
+                            <option value="600">Semi Bold (600)</option>
+                            <option value="bold">Bold (700)</option>
+                            <option value="900">Black (900)</option>
+                          </select>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-slate-400">Label Color</span>
-                        <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Value Color</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <input
+                              type="color"
+                              value={statStyle.valueColor?.startsWith('#') ? statStyle.valueColor : '#fbbf24'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  style: { ...(prev as any).style, valueColor: val },
+                                } as ResultScreenElement));
+                              }}
+                              className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
+                            />
+                            <span className="font-mono text-[10px] text-slate-300 truncate">
+                              {statStyle.valueColor || '#fbbf24'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Letter Spacing</span>
                           <input
-                            type="color"
-                            value={statStyle.labelColor?.startsWith('#') ? statStyle.labelColor : '#94a3b8'}
+                            type="number"
+                            step={1}
+                            min={-2}
+                            max={20}
+                            value={statStyle.valueLetterSpacing ?? 0}
                             onChange={(e) => {
-                              const val = e.target.value;
+                              const val = Number(e.target.value);
                               updateElementById(selectedElement.id, (prev) => ({
                                 ...prev,
-                                style: { ...(prev as any).style, labelColor: val },
+                                style: { ...(prev as any).style, valueLetterSpacing: val },
                               } as ResultScreenElement));
                             }}
-                            className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs"
                           />
-                          <span className="font-mono text-[11px] text-slate-300">
-                            {statStyle.labelColor || '#94a3b8'}
-                          </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-slate-400">Card Background</span>
+                      {/* Value Shadow Presets */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-slate-400 block">Value Text Shadow</span>
+                        <div className="grid grid-cols-3 gap-1">
+                          {[
+                            { label: 'None', val: '' },
+                            { label: 'Subtle Drop', val: '0 2px 4px rgba(0, 0, 0, 0.6)' },
+                            { label: 'Deep Drop', val: '0 4px 12px rgba(0, 0, 0, 0.9)' },
+                            { label: 'Gold Glow', val: '0 0 14px rgba(251, 191, 36, 0.75)' },
+                            { label: 'Cyan Glow', val: '0 0 14px rgba(103, 232, 249, 0.75)' },
+                            { label: 'Emerald Glow', val: '0 0 14px rgba(52, 211, 153, 0.75)' },
+                          ].map((preset) => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => {
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  style: { ...(prev as any).style, valueTextShadow: preset.val || undefined },
+                                } as ResultScreenElement));
+                              }}
+                              className={`py-0.5 px-1 rounded text-[9px] font-medium truncate border transition-colors ${
+                                (statStyle.valueTextShadow || '') === preset.val
+                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
+                                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SECTION: CONTAINER BOX STYLING */}
+                    <div className="space-y-2.5 pt-2 border-t border-slate-800">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Widget Card Frame
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Radius (px)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={50}
+                            value={statStyle.borderRadius ?? 16}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as any).style, borderRadius: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs mt-0.5"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Border Width (px)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={20}
+                            value={statStyle.borderWidth ?? 0}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as any).style, borderWidth: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs mt-0.5"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Radius Presets */}
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <span className="text-[10px] text-slate-400">Radius:</span>
+                        {[
+                          { label: '0px', val: 0 },
+                          { label: '8px', val: 8 },
+                          { label: '16px', val: 16 },
+                          { label: '24px', val: 24 },
+                        ].map((r) => (
+                          <button
+                            key={r.label}
+                            type="button"
+                            onClick={() => {
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as any).style, borderRadius: r.val },
+                              } as ResultScreenElement));
+                            }}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-mono border transition-colors ${
+                              (statStyle.borderRadius ?? 16) === r.val
+                                ? 'bg-amber-600 border-amber-500 text-white'
+                                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            {r.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Card Background Color */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-slate-400 block">Card Background</span>
                         <div className="flex items-center gap-2">
                           <input
                             type="color"
@@ -4033,11 +5016,54 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                             }}
                             className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
                           />
-                          <span className="font-mono text-[11px] text-slate-300">
-                            {statStyle.backgroundColor || 'Dark'}
-                          </span>
+                          <input
+                            type="text"
+                            value={statStyle.backgroundColor || ''}
+                            placeholder="e.g. rgba(2, 6, 23, 0.6) or #020617"
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as any).style, backgroundColor: val || undefined },
+                              } as ResultScreenElement));
+                            }}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs font-mono"
+                          />
                         </div>
                       </div>
+
+                      {/* Border Color */}
+                      {(statStyle.borderWidth ?? 0) > 0 && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] text-slate-400 block">Border Color</span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={statStyle.borderColor?.startsWith('#') ? statStyle.borderColor : '#334155'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  style: { ...(prev as any).style, borderColor: val },
+                                } as ResultScreenElement));
+                              }}
+                              className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
+                            />
+                            <input
+                              type="text"
+                              value={statStyle.borderColor || '#334155'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateElementById(selectedElement.id, (prev) => ({
+                                  ...prev,
+                                  style: { ...(prev as any).style, borderColor: val },
+                                } as ResultScreenElement));
+                              }}
+                              className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -4050,25 +5076,11 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
 
                 return (
                   <div className="space-y-3 bg-slate-900/80 border border-slate-800 rounded-xl p-3">
-                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
-                      Button Settings
-                    </span>
-
-                    {/* Button Text */}
-                    <div className="space-y-1">
-                      <span className="text-[11px] text-slate-400 block">Button Text</span>
-                      <input
-                        type="text"
-                        value={btnEl.text}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateElementById(selectedElement.id, (prev) => ({
-                            ...prev,
-                            text: val,
-                          } as ResultScreenElement));
-                        }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs font-semibold"
-                      />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                        Action Button Settings
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">Interactive</span>
                     </div>
 
                     {/* Action Type */}
@@ -4090,51 +5102,47 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                       </select>
                     </div>
 
-                    {/* Background Color & Text Color */}
-                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
-                      <div>
-                        <span className="text-[11px] text-slate-400 block">Background</span>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <input
-                            type="color"
-                            value={btnStyle.backgroundColor?.startsWith('#') ? btnStyle.backgroundColor : '#f59e0b'}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              updateElementById(selectedElement.id, (prev) => ({
-                                ...prev,
-                                style: { ...(prev as ResultButtonElement).style, backgroundColor: val },
-                              } as ResultScreenElement));
-                            }}
-                            className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
-                          />
-                          <span className="font-mono text-[10px] text-slate-300">
-                            {btnStyle.backgroundColor || '#f59e0b'}
-                          </span>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-[11px] text-slate-400 block">Text Color</span>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <input
-                            type="color"
-                            value={btnStyle.textColor?.startsWith('#') ? btnStyle.textColor : '#020617'}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              updateElementById(selectedElement.id, (prev) => ({
-                                ...prev,
-                                style: { ...(prev as ResultButtonElement).style, textColor: val },
-                              } as ResultScreenElement));
-                            }}
-                            className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
-                          />
-                          <span className="font-mono text-[10px] text-slate-300">
-                            {btnStyle.textColor || '#020617'}
-                          </span>
-                        </div>
-                      </div>
+                    {/* Button Text */}
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-slate-400 block">Button Label Text</span>
+                      <input
+                        type="text"
+                        value={btnEl.text}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateElementById(selectedElement.id, (prev) => ({
+                            ...prev,
+                            text: val,
+                          } as ResultScreenElement));
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs font-semibold"
+                      />
                     </div>
 
-                    {/* Font Size & Radius */}
+                    {/* Button Font Family */}
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-slate-400 block">Font Family</span>
+                      <select
+                        value={btnStyle.fontFamily || 'inherit'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateElementById(selectedElement.id, (prev) => ({
+                            ...prev,
+                            style: { ...(prev as ResultButtonElement).style, fontFamily: val },
+                          } as ResultScreenElement));
+                        }}
+                        className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 text-xs"
+                      >
+                        <option value="inherit">Inherit / Default</option>
+                        {FONT_FAMILY_PRESETS.map((preset) => (
+                          <option key={preset.label} value={preset.value}>
+                            {preset.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Font Size & Weight */}
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <span className="text-[11px] text-slate-400 block">Font Size (px)</span>
@@ -4154,11 +5162,237 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         />
                       </div>
                       <div>
+                        <span className="text-[11px] text-slate-400 block">Font Weight</span>
+                        <select
+                          value={String(btnStyle.fontWeight || '900')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultButtonElement).style, fontWeight: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 text-xs mt-1"
+                        >
+                          <option value="500">Medium (500)</option>
+                          <option value="600">Semi Bold (600)</option>
+                          <option value="bold">Bold (700)</option>
+                          <option value="800">Extra Bold (800)</option>
+                          <option value="900">Black (900)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Font Style & Case & Letter Spacing */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">Style</span>
+                        <select
+                          value={btnStyle.fontStyle || 'normal'}
+                          onChange={(e) => {
+                            const val = e.target.value as 'normal' | 'italic';
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultButtonElement).style, fontStyle: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-1 py-1 text-slate-100 text-xs mt-0.5"
+                        >
+                          <option value="normal">Normal</option>
+                          <option value="italic">Italic</option>
+                        </select>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">Case</span>
+                        <select
+                          value={btnStyle.textTransform || 'uppercase'}
+                          onChange={(e) => {
+                            const val = e.target.value as any;
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultButtonElement).style, textTransform: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-1 py-1 text-slate-100 text-xs mt-0.5"
+                        >
+                          <option value="uppercase">UPPER</option>
+                          <option value="none">Normal</option>
+                          <option value="capitalize">Capital</option>
+                        </select>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">Spacing (px)</span>
+                        <input
+                          type="number"
+                          step={1}
+                          min={-2}
+                          max={20}
+                          value={btnStyle.letterSpacing ?? 1}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultButtonElement).style, letterSpacing: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-slate-100 font-mono text-xs mt-0.5"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Background Color & Text Color */}
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+                      <div>
+                        <span className="text-[11px] text-slate-400 block">Background</span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <input
+                            type="color"
+                            value={btnStyle.backgroundColor?.startsWith('#') ? btnStyle.backgroundColor : '#f59e0b'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultButtonElement).style, backgroundColor: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
+                          />
+                          <input
+                            type="text"
+                            value={btnStyle.backgroundColor || '#f59e0b'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultButtonElement).style, backgroundColor: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-400 block">Text Color</span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <input
+                            type="color"
+                            value={btnStyle.textColor?.startsWith('#') ? btnStyle.textColor : '#020617'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultButtonElement).style, textColor: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
+                          />
+                          <input
+                            type="text"
+                            value={btnStyle.textColor || '#020617'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultButtonElement).style, textColor: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Button Color Presets */}
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <span className="text-[10px] text-slate-400">Presets:</span>
+                      {[
+                        { label: 'Amber Gold', bg: '#f59e0b', text: '#020617', border: '#b45309' },
+                        { label: 'Emerald', bg: '#10b981', text: '#ffffff', border: '#047857' },
+                        { label: 'Indigo', bg: '#6366f1', text: '#ffffff', border: '#4338ca' },
+                        { label: 'Rose', bg: '#f43f5e', text: '#ffffff', border: '#be123c' },
+                        { label: 'Cyan', bg: '#06b6d4', text: '#020617', border: '#0e7490' },
+                        { label: 'White Light', bg: '#f8fafc', text: '#0f172a', border: '#cbd5e1' },
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: {
+                                ...(prev as ResultButtonElement).style,
+                                backgroundColor: preset.bg,
+                                textColor: preset.text,
+                                borderColor: preset.border,
+                              },
+                            } as ResultScreenElement));
+                          }}
+                          title={preset.label}
+                          className="w-4 h-4 rounded-full border border-slate-600 hover:scale-110 transition-transform"
+                          style={{ backgroundColor: preset.bg }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Border Width & Border Color */}
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+                      <div>
+                        <span className="text-[11px] text-slate-400 block">Border Width (px)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={10}
+                          value={btnStyle.borderWidth ?? 0}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultButtonElement).style, borderWidth: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-400 block">Border Color</span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <input
+                            type="color"
+                            value={btnStyle.borderColor?.startsWith('#') ? btnStyle.borderColor : '#b45309'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultButtonElement).style, borderColor: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="w-6 h-6 rounded border border-slate-700 cursor-pointer bg-transparent"
+                          />
+                          <input
+                            type="text"
+                            value={btnStyle.borderColor || ''}
+                            placeholder="#b45309"
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultButtonElement).style, borderColor: val || undefined },
+                              } as ResultScreenElement));
+                            }}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Radius & Presets */}
+                    <div className="space-y-1 pt-1">
+                      <div className="flex items-center justify-between">
                         <span className="text-[11px] text-slate-400 block">Border Radius (px)</span>
                         <input
                           type="number"
                           min={0}
-                          max={60}
+                          max={9999}
                           value={btnStyle.borderRadius ?? 18}
                           onChange={(e) => {
                             const val = Number(e.target.value);
@@ -4167,27 +5401,90 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                               style: { ...(prev as ResultButtonElement).style, borderRadius: val },
                             } as ResultScreenElement));
                           }}
-                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono text-xs mt-1"
+                          className="w-20 bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-slate-100 font-mono text-xs text-right"
                         />
+                      </div>
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <span className="text-[10px] text-slate-400">Radius:</span>
+                        {[
+                          { label: '0px', val: 0 },
+                          { label: '8px', val: 8 },
+                          { label: '18px', val: 18 },
+                          { label: '24px', val: 24 },
+                          { label: 'Pill', val: 9999 },
+                        ].map((r) => (
+                          <button
+                            key={r.label}
+                            type="button"
+                            onClick={() => {
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultButtonElement).style, borderRadius: r.val },
+                              } as ResultScreenElement));
+                            }}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-mono border transition-colors ${
+                              (btnStyle.borderRadius ?? 18) === r.val
+                                ? 'bg-amber-600 border-amber-500 text-white'
+                                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            {r.label}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
-                    {/* Shadow Toggle */}
-                    <label className="flex items-center gap-2 cursor-pointer pt-1">
-                      <input
-                        type="checkbox"
-                        checked={btnStyle.shadow !== false}
-                        onChange={(e) => {
-                          const val = e.target.checked;
-                          updateElementById(selectedElement.id, (prev) => ({
-                            ...prev,
-                            style: { ...(prev as ResultButtonElement).style, shadow: val },
-                          } as ResultScreenElement));
-                        }}
-                        className="rounded border-slate-700 text-amber-500 accent-amber-500"
-                      />
-                      <span className="text-slate-300 text-xs font-medium">Button Glow & Shadow</span>
-                    </label>
+                    {/* Text Shadow Presets */}
+                    <div className="space-y-1 pt-1 border-t border-slate-800">
+                      <span className="text-[10px] text-slate-400 block">Button Text Shadow</span>
+                      <div className="grid grid-cols-3 gap-1">
+                        {[
+                          { label: 'None', val: '' },
+                          { label: 'Subtle Drop', val: '0 1px 2px rgba(0, 0, 0, 0.5)' },
+                          { label: 'Deep Drop', val: '0 2px 4px rgba(0, 0, 0, 0.8)' },
+                          { label: 'Gold Glow', val: '0 0 10px rgba(251, 191, 36, 0.8)' },
+                          { label: 'Cyan Glow', val: '0 0 10px rgba(103, 232, 249, 0.8)' },
+                          { label: 'Dark Outline', val: '0 0 2px #000, 0 0 2px #000' },
+                        ].map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              updateElementById(selectedElement.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultButtonElement).style, textShadow: preset.val || undefined },
+                              } as ResultScreenElement));
+                            }}
+                            className={`py-0.5 px-1 rounded text-[9px] font-medium truncate border transition-colors ${
+                              (btnStyle.textShadow || '') === preset.val
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
+                                : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Glow & Shadow Toggle */}
+                    <div className="pt-2 border-t border-slate-800">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={btnStyle.shadow !== false}
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            updateElementById(selectedElement.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultButtonElement).style, shadow: val },
+                            } as ResultScreenElement));
+                          }}
+                          className="rounded border-slate-700 text-amber-500 accent-amber-500"
+                        />
+                        <span className="text-slate-300 text-xs font-medium">Enable Button Glow & Shadow</span>
+                      </label>
+                    </div>
                   </div>
                 );
               })()}
