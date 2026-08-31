@@ -57,7 +57,9 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
   const resolvedGameType = explicitGameType || getThemeGameType(theme);
   const layout = normalizeGameLayout(rawLayout || theme?.layout, resolvedGameType);
   const defaultLayout = getDefaultUILayout(resolvedGameType);
-  const activeElementKeys = getLayoutElementKeys(resolvedGameType);
+  const activeElementKeys = getLayoutElementKeys(resolvedGameType).filter(
+    (k) => k !== 'memoryCardBoard'
+  );
   const [logoLoadError, setLogoLoadError] = useState(false);
 
   const clientLogoUrl =

@@ -164,6 +164,11 @@ export const DEFAULT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
     y: 92,
     width: 36,
   },
+  memoryCardBoard: {
+    visible: true,
+    x: 50,
+    y: 50,
+  },
 };
 
 export const DEFAULT_GAME_LAYOUT: GameLayoutConfig = DEFAULT_CATCH_BRAND_LAYOUT;
@@ -189,11 +194,16 @@ export type CommonLayoutElementKey =
 export type MemoryMatchLayoutElementKey =
   | CommonLayoutElementKey
   | 'movesHud'
-  | 'pairsHud';
+  | 'pairsHud'
+  | 'memoryCardBoard';
 
 export type CatchBrandLayoutElementKey = CommonLayoutElementKey;
 
-export type LayoutElementKey = CommonLayoutElementKey | 'movesHud' | 'pairsHud';
+export type LayoutElementKey =
+  | CommonLayoutElementKey
+  | 'movesHud'
+  | 'pairsHud'
+  | 'memoryCardBoard';
 
 export interface LayoutElementMeta {
   key: LayoutElementKey;
@@ -204,6 +214,7 @@ export interface LayoutElementMeta {
   defaultWidth: number;
   minWidth: number;
   maxWidth: number;
+  allowResize?: boolean;
 }
 
 export const LAYOUT_ELEMENTS_META: Record<LayoutElementKey, LayoutElementMeta> = {
@@ -277,6 +288,17 @@ export const LAYOUT_ELEMENTS_META: Record<LayoutElementKey, LayoutElementMeta> =
     minWidth: 15,
     maxWidth: 80,
   },
+  memoryCardBoard: {
+    key: 'memoryCardBoard',
+    label: 'Memory Card Board',
+    shortName: 'Board',
+    description: 'The 4×4 card grid board area (center-positioned)',
+    iconName: 'Grid',
+    defaultWidth: 50,
+    minWidth: 20,
+    maxWidth: 90,
+    allowResize: false,
+  },
 };
 
 export const CATCH_BRAND_LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = [
@@ -295,6 +317,7 @@ export const MEMORY_MATCH_LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = [
   'timer',
   'gameTitle',
   'footerSponsor',
+  'memoryCardBoard',
 ];
 
 export const LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = CATCH_BRAND_LAYOUT_ELEMENT_KEYS;
@@ -302,7 +325,7 @@ export const LAYOUT_ELEMENT_KEYS: LayoutElementKey[] = CATCH_BRAND_LAYOUT_ELEMEN
 /**
  * Returns the exact list of configurable HUD element keys for a given game type.
  * Catch The Brand -> 5 elements (no Moves, no Pairs)
- * Memory Match -> 7 elements (including Moves, Pairs)
+ * Memory Match -> 8 elements (including Moves, Pairs, Memory Card Board)
  */
 export function getLayoutElementKeys(gameType?: string): LayoutElementKey[] {
   if (gameType === 'memory-match') {
@@ -314,7 +337,7 @@ export function getLayoutElementKeys(gameType?: string): LayoutElementKey[] {
 /**
  * Normalizes a raw layout object (or undefined) into a full, valid GameLayoutConfig
  * based on the target game type.
- * For Memory Match, automatically provides safe default movesHud and pairsHud if missing from old themes.
+ * For Memory Match, automatically provides safe default movesHud, pairsHud, and memoryCardBoard if missing from old themes.
  */
 export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConfig {
   const isMemory = gameType === 'memory-match';
@@ -366,6 +389,13 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
 
   if (isMemory || raw.pairsHud) {
     res.pairsHud = normalizeElement('pairsHud', DEFAULT_MEMORY_MATCH_LAYOUT.pairsHud);
+  }
+
+  if (isMemory || raw.memoryCardBoard) {
+    res.memoryCardBoard = normalizeElement(
+      'memoryCardBoard',
+      DEFAULT_MEMORY_MATCH_LAYOUT.memoryCardBoard
+    );
   }
 
   return res;
@@ -425,5 +455,33 @@ export function getQuickPositionCoords(
       };
     default:
       return { x: pad, y: pad };
+  }
+}
+
+/**
+ * Calculates center percentage X & Y for quick 9-point board placement
+ */
+export function getBoardQuickPositionCoords(anchor: QuickPositionAnchor): { x: number; y: number } {
+  switch (anchor) {
+    case 'top-left':
+      return { x: 30, y: 30 };
+    case 'top-center':
+      return { x: 50, y: 30 };
+    case 'top-right':
+      return { x: 70, y: 30 };
+    case 'center-left':
+      return { x: 30, y: 50 };
+    case 'center':
+      return { x: 50, y: 50 };
+    case 'center-right':
+      return { x: 70, y: 50 };
+    case 'bottom-left':
+      return { x: 30, y: 70 };
+    case 'bottom-center':
+      return { x: 50, y: 70 };
+    case 'bottom-right':
+      return { x: 70, y: 70 };
+    default:
+      return { x: 50, y: 50 };
   }
 }

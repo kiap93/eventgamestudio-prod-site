@@ -131,6 +131,7 @@ export interface GameLayoutConfig {
   footerSponsor: GameLayoutElement;
   movesHud?: GameLayoutElement;
   pairsHud?: GameLayoutElement;
+  memoryCardBoard?: GameLayoutElement;
   [key: string]: GameLayoutElement | undefined;
 }
 

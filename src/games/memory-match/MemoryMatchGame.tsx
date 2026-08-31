@@ -26,6 +26,7 @@ import {
   HelpCircle,
   Medal,
   Megaphone,
+  Move,
 } from 'lucide-react';
 import { GameComponentProps } from '../types';
 import { MemoryCard, MemoryMatchConfig } from './types';
@@ -702,6 +703,12 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     ? activeTheme.background_url
     : null;
 
+  const boardLayout = layout.memoryCardBoard || { visible: true, x: 50, y: 50 };
+  const boardX =
+    typeof boardLayout.x === 'number' && !isNaN(boardLayout.x) ? boardLayout.x : 50;
+  const boardY =
+    typeof boardLayout.y === 'number' && !isNaN(boardLayout.y) ? boardLayout.y : 50;
+
   return (
     <div
       ref={viewportRef}
@@ -741,263 +748,357 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         {/* ========================================================================= */}
         {/* 1. MAIN CARD BOARD AREA (Grid vs Random / Scattered Layout)               */}
         {/* ========================================================================= */}
-        <div className="absolute inset-0 pt-[86px] pb-[46px] px-8 flex items-center justify-center pointer-events-auto z-10">
-          {boardConfig.layoutMode === 'grid' ? (
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                maxWidth: `${Math.min(540, Math.round(410 * gridContainerAspect))}px`,
-                maxHeight: `${Math.min(410, Math.round(540 / gridContainerAspect))}px`,
-                display: 'grid',
-                gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-                gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-                aspectRatio: `${gridContainerAspect}`,
-                gap: `${boardConfig.cardGap ?? 10}px`,
-                margin: 'auto',
-              }}
-            >
-              {cards.map((card, index) => {
-                const isFaceUp = card.isFlipped || card.isMatched;
-                const cardRotationAngle = card.rotation ?? 0;
+        {boardConfig.layoutMode === 'grid' ? (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${boardX}%`,
+              top: `${boardY}%`,
+              transform: 'translate(-50%, -50%)',
+              width: `${Math.min(540, Math.round(410 * gridContainerAspect))}px`,
+              height: `${Math.min(410, Math.round(540 / gridContainerAspect))}px`,
+              maxWidth: '100%',
+              maxHeight: '100%',
+              display: 'grid',
+              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+              gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+              aspectRatio: `${gridContainerAspect}`,
+              gap: `${boardConfig.cardGap ?? 10}px`,
+              zIndex: editableLayout && selectedElementKey === 'memoryCardBoard' ? 45 : 10,
+              touchAction: editableLayout ? 'none' : 'auto',
+            }}
+            onClick={(e) => {
+              if (editableLayout) {
+                e.stopPropagation();
+                onSelectElementKey?.('memoryCardBoard');
+              }
+            }}
+            onPointerDown={(e) => {
+              if (editableLayout && onElementPointerDown) {
+                e.stopPropagation();
+                onElementPointerDown('memoryCardBoard', false, e);
+              }
+            }}
+            className={`pointer-events-auto select-none ${
+              editableLayout
+                ? `cursor-move ${
+                    selectedElementKey === 'memoryCardBoard'
+                      ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 rounded-2xl shadow-2xl'
+                      : 'hover:ring-1 hover:ring-slate-400/60 rounded-2xl'
+                  }`
+                : ''
+            }`}
+          >
+            {/* Studio Selection Badge */}
+            {editableLayout && selectedElementKey === 'memoryCardBoard' && (
+              <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 px-2 py-0.5 rounded text-[10px] font-mono font-black shadow pointer-events-none whitespace-nowrap z-50 flex items-center gap-1">
+                <Move className="w-3 h-3" />
+                <span>Memory Card Board</span>
+                <span>
+                  ({Math.round(boardX)}%, {Math.round(boardY)}%)
+                </span>
+              </div>
+            )}
 
-                return (
+            {cards.map((card, index) => {
+              const isFaceUp = card.isFlipped || card.isMatched;
+              const cardRotationAngle = card.rotation ?? 0;
+
+              return (
+                <div
+                  key={card.id}
+                  onClick={(e) => {
+                    if (editableLayout) {
+                      e.stopPropagation();
+                      onSelectElementKey?.('memoryCardBoard');
+                      return;
+                    }
+                    handleCardClick(index);
+                  }}
+                  className={`relative w-full h-full cursor-pointer perspective-1000 select-none group transition-transform ${
+                    card.isShaking ? 'animate-wobble' : ''
+                  }`}
+                  style={{
+                    perspective: '1000px',
+                    transform: `rotate(${cardRotationAngle}deg)`,
+                  }}
+                >
+                  {/* Card 3D Inner Wrapper */}
                   <div
-                    key={card.id}
-                    onClick={() => handleCardClick(index)}
-                    className={`relative w-full h-full cursor-pointer perspective-1000 select-none group transition-transform ${
-                      card.isShaking ? 'animate-wobble' : ''
+                    className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md ${
+                      isFaceUp ? 'rotate-y-180' : 'hover:scale-[1.02] active:scale-[0.98]'
                     }`}
                     style={{
-                      perspective: '1000px',
-                      transform: `rotate(${cardRotationAngle}deg)`,
+                      transformStyle: 'preserve-3d',
+                      transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                      borderRadius: `${cardBorderRadius}px`,
                     }}
                   >
-                    {/* Card 3D Inner Wrapper */}
+                    {/* BACK FACE (Default Face-Down State) */}
                     <div
-                      className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md ${
-                        isFaceUp ? 'rotate-y-180' : 'hover:scale-[1.02] active:scale-[0.98]'
-                      }`}
+                      className="absolute inset-0 w-full h-full border p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
                       style={{
-                        transformStyle: 'preserve-3d',
-                        transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                        backfaceVisibility: 'hidden',
+                        backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
+                        borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
                         borderRadius: `${cardBorderRadius}px`,
                       }}
                     >
-                      {/* BACK FACE (Default Face-Down State) */}
-                      <div
-                        className="absolute inset-0 w-full h-full border p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
-                        style={{
-                          backfaceVisibility: 'hidden',
-                          backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
-                          borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
-                          borderRadius: `${cardBorderRadius}px`,
-                        }}
-                      >
-                        {cardBackUrl ? (
+                      {cardBackUrl ? (
+                        <img
+                          src={cardBackUrl}
+                          alt="Card Back"
+                          className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <>
+                          <div
+                            className="absolute inset-1 border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none"
+                            style={{ borderRadius: `${Math.max(4, cardBorderRadius - 4)}px` }}
+                          />
+                          <div className="w-8 h-8 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400/80 group-hover:text-amber-300 group-hover:scale-110 transition-transform">
+                            <Grid3X3 className="w-4 h-4" />
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* FRONT FACE (Flipped Face-Up / Matched State) */}
+                    <div
+                      className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1.5 transition-all ${
+                        card.isMatched
+                          ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
+                          : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                      }`}
+                      style={{
+                        backfaceVisibility: 'hidden',
+                        transform: 'rotateY(180deg)',
+                        borderRadius: `${cardBorderRadius}px`,
+                        backgroundColor: card.isMatched
+                          ? effectiveCardGoodBg
+                          : effectiveCardFrontBg,
+                        borderColor: card.isMatched
+                          ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
+                          : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
+                      }}
+                    >
+                      {/* Top Right Matched Checkmark Badge */}
+                      {card.isMatched && (
+                        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md animate-bounce">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        </div>
+                      )}
+
+                      {/* Card Image or Vector Icon */}
+                      <div className="flex-1 w-full min-h-0 flex items-center justify-center p-1">
+                        {card.imageUrl ? (
                           <img
-                            src={cardBackUrl}
-                            alt="Card Back"
-                            className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
+                            src={card.imageUrl}
+                            alt={card.name}
+                            className="max-h-[85%] max-w-[85%] object-contain drop-shadow-md transition-transform"
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <>
-                            <div
-                              className="absolute inset-1 border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none"
-                              style={{ borderRadius: `${Math.max(4, cardBorderRadius - 4)}px` }}
-                            />
-                            <div className="w-8 h-8 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400/80 group-hover:text-amber-300 group-hover:scale-110 transition-transform">
-                              <Grid3X3 className="w-4 h-4" />
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {/* FRONT FACE (Flipped Face-Up / Matched State) */}
-                      <div
-                        className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1.5 transition-all ${
-                          card.isMatched
-                            ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
-                            : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                        }`}
-                        style={{
-                          backfaceVisibility: 'hidden',
-                          transform: 'rotateY(180deg)',
-                          borderRadius: `${cardBorderRadius}px`,
-                          backgroundColor: card.isMatched
-                            ? effectiveCardGoodBg
-                            : effectiveCardFrontBg,
-                          borderColor: card.isMatched
-                            ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
-                            : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
-                        }}
-                      >
-                        {/* Top Right Matched Checkmark Badge */}
-                        {card.isMatched && (
-                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md animate-bounce">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          <div
+                            className="p-1 rounded-xl flex items-center justify-center"
+                            style={{ color: card.color || '#fbbf24' }}
+                          >
+                            {renderCardIcon(card.iconName, 'w-7 h-7')}
                           </div>
                         )}
-
-                        {/* Card Image or Vector Icon */}
-                        <div className="flex-1 w-full min-h-0 flex items-center justify-center p-1">
-                          {card.imageUrl ? (
-                            <img
-                              src={card.imageUrl}
-                              alt={card.name}
-                              className="max-h-[85%] max-w-[85%] object-contain drop-shadow-md transition-transform"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <div
-                              className="p-1 rounded-xl flex items-center justify-center"
-                              style={{ color: card.color || '#fbbf24' }}
-                            >
-                              {renderCardIcon(card.iconName, 'w-7 h-7')}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Card Title Label */}
-                        <span className="text-[11px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-1">
-                          {card.name}
-                        </span>
                       </div>
+
+                      {/* Card Title Label */}
+                      <span className="text-[11px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-1">
+                        {card.name}
+                      </span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            /* RANDOM / SCATTERED BOARD */
-            <div className="relative w-full h-full max-h-[410px] max-w-[540px] m-auto overflow-hidden">
-              {cards.map((card, index) => {
-                const pos = randomPositions[index] || {
-                  x: 50,
-                  y: 50,
-                  rotation: 0,
-                  widthPercent: 18,
-                  heightPercent: 24,
-                  zIndex: index + 1,
-                };
-                const isFaceUp = card.isFlipped || card.isMatched;
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* RANDOM / SCATTERED BOARD */
+          <div
+            style={{
+              position: 'absolute',
+              left: `${boardX}%`,
+              top: `${boardY}%`,
+              transform: 'translate(-50%, -50%)',
+              width: '540px',
+              height: '410px',
+              maxWidth: '100%',
+              maxHeight: '100%',
+              zIndex: editableLayout && selectedElementKey === 'memoryCardBoard' ? 45 : 10,
+              touchAction: editableLayout ? 'none' : 'auto',
+            }}
+            onClick={(e) => {
+              if (editableLayout) {
+                e.stopPropagation();
+                onSelectElementKey?.('memoryCardBoard');
+              }
+            }}
+            onPointerDown={(e) => {
+              if (editableLayout && onElementPointerDown) {
+                e.stopPropagation();
+                onElementPointerDown('memoryCardBoard', false, e);
+              }
+            }}
+            className={`relative overflow-hidden pointer-events-auto select-none ${
+              editableLayout
+                ? `cursor-move ${
+                    selectedElementKey === 'memoryCardBoard'
+                      ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 rounded-2xl shadow-2xl'
+                      : 'hover:ring-1 hover:ring-slate-400/60 rounded-2xl'
+                  }`
+                : ''
+            }`}
+          >
+            {/* Studio Selection Badge */}
+            {editableLayout && selectedElementKey === 'memoryCardBoard' && (
+              <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 px-2 py-0.5 rounded text-[10px] font-mono font-black shadow pointer-events-none whitespace-nowrap z-50 flex items-center gap-1">
+                <Move className="w-3 h-3" />
+                <span>Memory Card Board</span>
+                <span>
+                  ({Math.round(boardX)}%, {Math.round(boardY)}%)
+                </span>
+              </div>
+            )}
 
-                return (
+            {cards.map((card, index) => {
+              const pos = randomPositions[index] || {
+                x: 50,
+                y: 50,
+                rotation: 0,
+                widthPercent: 18,
+                heightPercent: 24,
+                zIndex: index + 1,
+              };
+              const isFaceUp = card.isFlipped || card.isMatched;
+
+              return (
+                <div
+                  key={card.id}
+                  onClick={(e) => {
+                    if (editableLayout) {
+                      e.stopPropagation();
+                      onSelectElementKey?.('memoryCardBoard');
+                      return;
+                    }
+                    handleCardClick(index);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: `${pos.x}%`,
+                    top: `${pos.y}%`,
+                    width: `${pos.widthPercent}%`,
+                    height: `${pos.heightPercent}%`,
+                    transform: `translate(-50%, -50%) rotate(${pos.rotation}deg)`,
+                    zIndex: isFaceUp ? 60 : pos.zIndex,
+                  }}
+                  className={`cursor-pointer perspective-1000 select-none group transition-all duration-200 active:scale-95 ${
+                    card.isShaking ? 'animate-wobble' : ''
+                  }`}
+                >
+                  {/* Card 3D Inner Wrapper */}
                   <div
-                    key={card.id}
-                    onClick={() => handleCardClick(index)}
-                    style={{
-                      position: 'absolute',
-                      left: `${pos.x}%`,
-                      top: `${pos.y}%`,
-                      width: `${pos.widthPercent}%`,
-                      height: `${pos.heightPercent}%`,
-                      transform: `translate(-50%, -50%) rotate(${pos.rotation}deg)`,
-                      zIndex: isFaceUp ? 60 : pos.zIndex,
-                    }}
-                    className={`cursor-pointer perspective-1000 select-none group transition-all duration-200 active:scale-95 ${
-                      card.isShaking ? 'animate-wobble' : ''
+                    className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md hover:shadow-xl hover:scale-105 ${
+                      isFaceUp ? 'rotate-y-180' : ''
                     }`}
+                    style={{
+                      transformStyle: 'preserve-3d',
+                      transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                      borderRadius: `${cardBorderRadius}px`,
+                    }}
                   >
-                    {/* Card 3D Inner Wrapper */}
+                    {/* BACK FACE (Default Face-Down State) */}
                     <div
-                      className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md hover:shadow-xl hover:scale-105 ${
-                        isFaceUp ? 'rotate-y-180' : ''
-                      }`}
+                      className="absolute inset-0 w-full h-full border p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
                       style={{
-                        transformStyle: 'preserve-3d',
-                        transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                        backfaceVisibility: 'hidden',
+                        backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
+                        borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
                         borderRadius: `${cardBorderRadius}px`,
                       }}
                     >
-                      {/* BACK FACE (Default Face-Down State) */}
-                      <div
-                        className="absolute inset-0 w-full h-full border p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
-                        style={{
-                          backfaceVisibility: 'hidden',
-                          backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
-                          borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
-                          borderRadius: `${cardBorderRadius}px`,
-                        }}
-                      >
-                        {cardBackUrl ? (
+                      {cardBackUrl ? (
+                        <img
+                          src={cardBackUrl}
+                          alt="Card Back"
+                          className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <>
+                          <div
+                            className="absolute inset-1 border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none"
+                            style={{ borderRadius: `${Math.max(4, cardBorderRadius - 4)}px` }}
+                          />
+                          <div className="w-8 h-8 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400/80 group-hover:text-amber-300 group-hover:scale-110 transition-transform">
+                            <Grid3X3 className="w-4 h-4" />
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* FRONT FACE (Flipped Face-Up / Matched State) */}
+                    <div
+                      className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1.5 transition-all ${
+                        card.isMatched
+                          ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
+                          : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                      }`}
+                      style={{
+                        backfaceVisibility: 'hidden',
+                        transform: 'rotateY(180deg)',
+                        borderRadius: `${cardBorderRadius}px`,
+                        backgroundColor: card.isMatched
+                          ? effectiveCardGoodBg
+                          : effectiveCardFrontBg,
+                        borderColor: card.isMatched
+                          ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
+                          : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
+                      }}
+                    >
+                      {/* Top Right Matched Checkmark Badge */}
+                      {card.isMatched && (
+                        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md animate-bounce">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        </div>
+                      )}
+
+                      {/* Card Image or Vector Icon */}
+                      <div className="flex-1 w-full min-h-0 flex items-center justify-center p-1">
+                        {card.imageUrl ? (
                           <img
-                            src={cardBackUrl}
-                            alt="Card Back"
-                            className="max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md pointer-events-none"
+                            src={card.imageUrl}
+                            alt={card.name}
+                            className="max-h-[85%] max-w-[85%] object-contain drop-shadow-md transition-transform"
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <>
-                            <div
-                              className="absolute inset-1 border border-dashed border-slate-700/50 flex items-center justify-center pointer-events-none"
-                              style={{ borderRadius: `${Math.max(4, cardBorderRadius - 4)}px` }}
-                            />
-                            <div className="w-8 h-8 rounded-xl bg-slate-950/80 border border-amber-500/30 flex items-center justify-center text-amber-400/80 group-hover:text-amber-300 group-hover:scale-110 transition-transform">
-                              <Grid3X3 className="w-4 h-4" />
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {/* FRONT FACE (Flipped Face-Up / Matched State) */}
-                      <div
-                        className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1.5 transition-all ${
-                          card.isMatched
-                            ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
-                            : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                        }`}
-                        style={{
-                          backfaceVisibility: 'hidden',
-                          transform: 'rotateY(180deg)',
-                          borderRadius: `${cardBorderRadius}px`,
-                          backgroundColor: card.isMatched
-                            ? effectiveCardGoodBg
-                            : effectiveCardFrontBg,
-                          borderColor: card.isMatched
-                            ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
-                            : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
-                        }}
-                      >
-                        {/* Top Right Matched Checkmark Badge */}
-                        {card.isMatched && (
-                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md animate-bounce">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          <div
+                            className="p-1 rounded-xl flex items-center justify-center"
+                            style={{ color: card.color || '#fbbf24' }}
+                          >
+                            {renderCardIcon(card.iconName, 'w-7 h-7')}
                           </div>
                         )}
-
-                        {/* Card Image or Vector Icon */}
-                        <div className="flex-1 w-full min-h-0 flex items-center justify-center p-1">
-                          {card.imageUrl ? (
-                            <img
-                              src={card.imageUrl}
-                              alt={card.name}
-                              className="max-h-[85%] max-w-[85%] object-contain drop-shadow-md transition-transform"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <div
-                              className="p-1 rounded-xl flex items-center justify-center"
-                              style={{ color: card.color || '#fbbf24' }}
-                            >
-                              {renderCardIcon(card.iconName, 'w-7 h-7')}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Card Title Label */}
-                        <span className="text-[11px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-1">
-                          {card.name}
-                        </span>
                       </div>
+
+                      {/* Card Title Label */}
+                      <span className="text-[11px] font-bold text-slate-100 text-center tracking-tight truncate max-w-full px-1">
+                        {card.name}
+                      </span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* 2. IN-GAME DYNAMIC UI LAYOUT (Positionable HUD Elements for Memory Match) */}

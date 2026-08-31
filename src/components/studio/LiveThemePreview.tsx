@@ -566,19 +566,34 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     const currentElem = layout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
 
     if (dragState.isDragging) {
-      const elemWidth = currentElem.width || meta.defaultWidth;
-      const newX = Math.max(0, Math.min(100 - elemWidth, dragState.startX + deltaXPercent));
-      const newY = Math.max(0, Math.min(95, dragState.startY + deltaYPercent));
+      if (key === 'memoryCardBoard') {
+        const newX = Math.max(0, Math.min(100, dragState.startX + deltaXPercent));
+        const newY = Math.max(0, Math.min(100, dragState.startY + deltaYPercent));
 
-      const nextLayout: GameLayoutConfig = {
-        ...layout,
-        [key]: {
-          ...currentElem,
-          x: Math.round(newX * 10) / 10,
-          y: Math.round(newY * 10) / 10,
-        },
-      };
-      onUpdateLayout?.(nextLayout);
+        const nextLayout: GameLayoutConfig = {
+          ...layout,
+          [key]: {
+            ...currentElem,
+            x: Math.round(newX * 10) / 10,
+            y: Math.round(newY * 10) / 10,
+          },
+        };
+        onUpdateLayout?.(nextLayout);
+      } else {
+        const elemWidth = currentElem.width || meta.defaultWidth;
+        const newX = Math.max(0, Math.min(100 - elemWidth, dragState.startX + deltaXPercent));
+        const newY = Math.max(0, Math.min(95, dragState.startY + deltaYPercent));
+
+        const nextLayout: GameLayoutConfig = {
+          ...layout,
+          [key]: {
+            ...currentElem,
+            x: Math.round(newX * 10) / 10,
+            y: Math.round(newY * 10) / 10,
+          },
+        };
+        onUpdateLayout?.(nextLayout);
+      }
     } else if (dragState.isResizing) {
       const newWidth = Math.max(
         meta.minWidth,

@@ -7,6 +7,7 @@ import {
   DEFAULT_GAME_LAYOUT,
   normalizeGameLayout,
   getQuickPositionCoords,
+  getBoardQuickPositionCoords,
   QuickPositionAnchor,
   getLayoutElementKeys,
   getDefaultUILayout,
@@ -118,6 +119,19 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
 
   // Apply 9-point quick position
   const handleApplyQuickPosition = (anchor: QuickPositionAnchor) => {
+    if (activeKey === 'memoryCardBoard') {
+      const coords = getBoardQuickPositionCoords(anchor);
+      handleUpdateLayout((prev) => ({
+        ...prev,
+        [activeKey]: {
+          ...(prev[activeKey] || defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey]),
+          x: coords.x,
+          y: coords.y,
+        },
+      }));
+      return;
+    }
+
     const elWidth = activeElement.width || activeMeta.defaultWidth;
     const coords = getQuickPositionCoords(anchor, elWidth);
     handleUpdateLayout((prev) => ({
@@ -140,6 +154,8 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
         return <Footprints className="w-4 h-4 text-sky-400" />;
       case 'pairsHud':
         return <Sparkles className="w-4 h-4 text-emerald-400" />;
+      case 'memoryCardBoard':
+        return <Grid className="w-4 h-4 text-amber-400" />;
       case 'timer':
         return <Timer className="w-4 h-4 text-teal-400" />;
       case 'gameTitle':
@@ -217,7 +233,9 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
                       )}
                     </div>
                     <div className="text-[10px] font-mono text-slate-400 truncate">
-                      X: {Math.round(elem.x)}% | Y: {Math.round(elem.y)}% | W: {Math.round(elem.width || meta.defaultWidth)}%
+                      {meta.allowResize === false
+                        ? `Center: X: ${Math.round(elem.x)}% | Y: ${Math.round(elem.y)}%`
+                        : `X: ${Math.round(elem.x)}% | Y: ${Math.round(elem.y)}% | W: ${Math.round(elem.width || meta.defaultWidth)}%`}
                     </div>
                   </div>
                 </div>
@@ -302,7 +320,11 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
         </div>
 
         {/* Position & Size Sliders & Numeric Controls */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div
+          className={`grid grid-cols-1 ${
+            activeMeta.allowResize === false ? 'md:grid-cols-2' : 'md:grid-cols-3'
+          } gap-4`}
+        >
           {/* X POSITION */}
           <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
@@ -338,7 +360,7 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
             />
             <div className="flex justify-between text-[10px] text-slate-500 font-mono">
               <span>0% (Left)</span>
-              <span>50%</span>
+              <span>50% (Center)</span>
               <span>100% (Right)</span>
             </div>
           </div>
@@ -378,53 +400,58 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
             />
             <div className="flex justify-between text-[10px] text-slate-500 font-mono">
               <span>0% (Top)</span>
-              <span>50%</span>
+              <span>50% (Center)</span>
               <span>100% (Bottom)</span>
             </div>
           </div>
 
           {/* WIDTH SIZE */}
-          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Width Size (%)</span>
-              </label>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min={activeMeta.minWidth}
-                  max={activeMeta.maxWidth}
-                  value={Math.round(activeElement.width || activeMeta.defaultWidth)}
-                  onChange={(e) =>
-                    handleUpdateElementField(
-                      'width',
-                      Math.max(
-                        activeMeta.minWidth,
-                        Math.min(activeMeta.maxWidth, parseFloat(e.target.value) || activeMeta.defaultWidth)
+          {activeMeta.allowResize !== false && (
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Width Size (%)</span>
+                </label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={activeMeta.minWidth}
+                    max={activeMeta.maxWidth}
+                    value={Math.round(activeElement.width || activeMeta.defaultWidth)}
+                    onChange={(e) =>
+                      handleUpdateElementField(
+                        'width',
+                        Math.max(
+                          activeMeta.minWidth,
+                          Math.min(
+                            activeMeta.maxWidth,
+                            parseFloat(e.target.value) || activeMeta.defaultWidth
+                          )
+                        )
                       )
-                    )
-                  }
-                  className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-indigo-400 text-right focus:outline-none focus:border-indigo-400"
-                />
-                <span className="text-xs text-slate-500 font-mono">%</span>
+                    }
+                    className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-indigo-400 text-right focus:outline-none focus:border-indigo-400"
+                  />
+                  <span className="text-xs text-slate-500 font-mono">%</span>
+                </div>
+              </div>
+              <input
+                type="range"
+                min={activeMeta.minWidth}
+                max={activeMeta.maxWidth}
+                step="1"
+                value={activeElement.width || activeMeta.defaultWidth}
+                onChange={(e) => handleUpdateElementField('width', parseFloat(e.target.value))}
+                className="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
+              />
+              <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>{activeMeta.minWidth}% (Min)</span>
+                <span>Def: {activeMeta.defaultWidth}%</span>
+                <span>{activeMeta.maxWidth}% (Max)</span>
               </div>
             </div>
-            <input
-              type="range"
-              min={activeMeta.minWidth}
-              max={activeMeta.maxWidth}
-              step="1"
-              value={activeElement.width || activeMeta.defaultWidth}
-              onChange={(e) => handleUpdateElementField('width', parseFloat(e.target.value))}
-              className="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
-            />
-            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-              <span>{activeMeta.minWidth}% (Min)</span>
-              <span>Def: {activeMeta.defaultWidth}%</span>
-              <span>{activeMeta.maxWidth}% (Max)</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* 9-POINT QUICK ALIGNMENT PALETTE */}
