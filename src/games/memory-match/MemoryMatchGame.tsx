@@ -124,7 +124,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const showLeaderboard = memoryConfig.ui?.showLeaderboard ?? true;
   const rows = boardConfig.rows;
   const cols = boardConfig.cols;
-  const totalCards = (rows * cols) % 2 === 0 ? rows * cols : 16;
+  const totalCards = (rows * cols) % 2 === 0 ? rows * cols : rows * cols - 1;
   const totalPairs = Math.floor(totalCards / 2);
 
   const hasMemoryGameConfig =

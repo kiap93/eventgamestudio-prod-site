@@ -915,7 +915,7 @@ export const MemoryMatchCardsCustomizer: React.FC<MemoryMatchCardsCustomizerProp
   const rows = Math.max(2, memoryConfig.board?.rows ?? memoryConfig.grid?.rows ?? 4);
   const cols = Math.max(2, memoryConfig.board?.cols ?? memoryConfig.grid?.cols ?? 4);
   const layoutMode = memoryConfig.board?.layoutMode ?? 'grid';
-  const totalCards = (rows * cols) % 2 === 0 ? rows * cols : 16;
+  const totalCards = (rows * cols) % 2 === 0 ? rows * cols : rows * cols - 1;
   const requiredPairsCount = Math.floor(totalCards / 2);
 
   // Ensure we have at least requiredPairsCount pairs available for editing
@@ -2084,7 +2084,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
 
   const rows = Math.max(2, memoryConfig.board?.rows ?? memoryConfig.grid?.rows ?? 4);
   const cols = Math.max(2, memoryConfig.board?.cols ?? memoryConfig.grid?.cols ?? 4);
-  const totalCards = (rows * cols) % 2 === 0 ? rows * cols : 16;
+  const totalCards = (rows * cols) % 2 === 0 ? rows * cols : rows * cols - 1;
   const totalPairs = Math.floor(totalCards / 2);
   const duration = memoryConfig.gameplay?.gameDurationSeconds ?? 45;
 

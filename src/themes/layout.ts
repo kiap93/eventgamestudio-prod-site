@@ -292,7 +292,7 @@ export const LAYOUT_ELEMENTS_META: Record<LayoutElementKey, LayoutElementMeta> =
     key: 'memoryCardBoard',
     label: 'Memory Card Board',
     shortName: 'Board',
-    description: 'The 4×4 card grid board area (center-positioned)',
+    description: 'The memory card board area (center-positioned)',
     iconName: 'Grid',
     defaultWidth: 50,
     minWidth: 20,

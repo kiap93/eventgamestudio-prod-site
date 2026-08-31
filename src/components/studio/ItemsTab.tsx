@@ -347,7 +347,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
               </h3>
               <p className="text-xs text-slate-400">
                 {isMemoryMatch
-                  ? 'Define the 8 unique card pairs, custom front face sprites, and match points for the 4×4 memory board'
+                  ? 'Define the unique card pairs, custom front face sprites, and match points for the memory board'
                   : 'Define collectible points, speed, artwork, and spawn weight'}
               </p>
             </div>

@@ -151,6 +151,7 @@ export interface ResultTextStyle {
   textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
   textDecoration?: 'none' | 'underline' | 'line-through';
   textShadow?: string;
+  opacity?: number;
 }
 
 export interface ResultTextElement extends ResultScreenBaseElement {
