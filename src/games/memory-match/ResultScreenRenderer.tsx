@@ -91,8 +91,11 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
 
   return (
     <div
-      className={`absolute inset-0 w-full h-full flex items-center justify-center overflow-hidden select-none ${className}`}
-      style={bg.containerStyle}
+      className={`absolute inset-0 w-full h-full flex items-center justify-center overflow-hidden select-none z-[100] ${className}`}
+      style={{
+        ...bg.containerStyle,
+        zIndex: 100,
+      }}
     >
       {/* Background Overlay */}
       <div className="absolute inset-0 pointer-events-none" style={bg.overlayStyle} />

@@ -710,6 +710,15 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const boardY =
     typeof boardLayout.y === 'number' && !isNaN(boardLayout.y) ? boardLayout.y : 50;
 
+  // Show Memory Card Board only during allowed active game phases or in Studio layout editing mode.
+  // When gameState === 'GAME_OVER', the board is completely removed from the rendered DOM.
+  const showMemoryCardBoard =
+    editableLayout ||
+    gameState === 'START' ||
+    gameState === 'COUNTDOWN' ||
+    gameState === 'PLAYING' ||
+    gameState === 'PAUSED';
+
   return (
     <div
       ref={viewportRef}
@@ -749,8 +758,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         {/* ========================================================================= */}
         {/* 1. MAIN CARD BOARD AREA (Grid vs Random / Scattered Layout)               */}
         {/* ========================================================================= */}
-        {boardConfig.layoutMode === 'grid' ? (
-          <div
+        {showMemoryCardBoard && (
+          boardConfig.layoutMode === 'grid' ? (
+            <div
             style={{
               position: 'absolute',
               left: `${boardX}%`,
@@ -1099,7 +1109,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               );
             })}
           </div>
-        )}
+        ))}
 
         {/* ========================================================================= */}
         {/* 2. IN-GAME DYNAMIC UI LAYOUT (Positionable HUD Elements for Memory Match) */}
