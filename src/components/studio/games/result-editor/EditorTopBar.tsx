@@ -25,6 +25,10 @@ import {
   FolderMinus,
   Lock,
   Unlock,
+  LayoutTemplate,
+  BookmarkPlus,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 
 interface EditorTopBarProps {
@@ -37,6 +41,8 @@ interface EditorTopBarProps {
   onDuplicateSelected: () => void;
   onDeleteSelected: () => void;
   onResetLayout: () => void;
+  onOpenPresets?: () => void;
+  onSaveAsTemplate?: () => void;
   onClose: () => void;
   canGroup?: boolean;
   canUngroup?: boolean;
@@ -44,6 +50,10 @@ interface EditorTopBarProps {
   onUngroupSelected?: () => void;
   onToggleLockSelected?: () => void;
   isSelectionLocked?: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export const EditorTopBar: React.FC<EditorTopBarProps> = ({
@@ -56,6 +66,8 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
   onDuplicateSelected,
   onDeleteSelected,
   onResetLayout,
+  onOpenPresets,
+  onSaveAsTemplate,
   onClose,
   canGroup = false,
   canUngroup = false,
@@ -63,6 +75,10 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
   onUngroupSelected,
   onToggleLockSelected,
   isSelectionLocked = false,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
 }) => {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -287,8 +303,67 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
         )}
       </div>
 
-      {/* Right: Reset & Done / Save Button */}
-      <div className="flex items-center gap-2">
+      {/* Right: Undo/Redo, Presets, Save Template, Reset & Done / Save Button */}
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Undo / Redo Button Group */}
+        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5">
+          <button
+            type="button"
+            disabled={!canUndo}
+            onClick={onUndo}
+            className={`px-2 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+              canUndo
+                ? 'text-slate-200 hover:text-white hover:bg-slate-800 active:scale-95'
+                : 'text-slate-600 opacity-40 cursor-not-allowed'
+            }`}
+            title="Undo (Ctrl+Z / Cmd+Z)"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+            <span className="hidden md:inline text-[11px]">Undo</span>
+          </button>
+          <div className="w-[1px] h-4 bg-slate-800 mx-0.5" />
+          <button
+            type="button"
+            disabled={!canRedo}
+            onClick={onRedo}
+            className={`px-2 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+              canRedo
+                ? 'text-slate-200 hover:text-white hover:bg-slate-800 active:scale-95'
+                : 'text-slate-600 opacity-40 cursor-not-allowed'
+            }`}
+            title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y)"
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+            <span className="hidden md:inline text-[11px]">Redo</span>
+          </button>
+        </div>
+
+        {/* Presets Library Modal Button */}
+        {onOpenPresets && (
+          <button
+            type="button"
+            onClick={onOpenPresets}
+            className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-bold flex items-center gap-1.5 transition-colors"
+            title="Browse pre-designed result screen layout presets and custom templates"
+          >
+            <LayoutTemplate className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Templates</span>
+          </button>
+        )}
+
+        {/* Save As Template Button */}
+        {onSaveAsTemplate && (
+          <button
+            type="button"
+            onClick={onSaveAsTemplate}
+            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-amber-300 hover:text-amber-200 text-xs font-bold flex items-center gap-1.5 transition-colors"
+            title="Save current layout as a reusable custom template"
+          >
+            <BookmarkPlus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Save Template</span>
+          </button>
+        )}
+
         {/* Reset Layout */}
         <div className="relative">
           <button

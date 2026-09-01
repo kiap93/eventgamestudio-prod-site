@@ -74,6 +74,10 @@ import {
   Maximize2,
   Magnet,
   Ruler,
+  LayoutTemplate,
+  BookmarkPlus,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 import { ResultScreenVisualEditorModal } from './result-editor/ResultScreenVisualEditorModal';
 import {
@@ -84,6 +88,10 @@ import {
   SpacingMeasurement,
   GRID_SIZE_PRESETS,
   GridSizePreset,
+  PresetLibraryModal,
+  SaveTemplateModal,
+  useResultScreenHistory,
+  filterValidSelectedIds,
 } from './result-editor';
 
 interface ResultScreenVisualEditorProps {
@@ -109,6 +117,8 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
   // Selected element IDs (supports multi-selection of sibling elements)
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
+  const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
   const selectedId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
   const setSelectedId = useCallback((id: string | null) => {
     setSelectedIds(id ? [id] : []);
@@ -165,6 +175,40 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     Array.isArray(resultConfig.elements) && resultConfig.elements.length > 0
       ? resultConfig.elements
       : generateDefaultResultScreenElements(resultConfig);
+
+  // Gesture tracking ref for batching continuous interactions (drag, resize, rotate)
+  const isGestureActiveRef = useRef(false);
+
+  // History Manager Hook
+  const {
+    canUndo,
+    canRedo,
+    undo,
+    redo,
+    recordChange,
+    beginGesture,
+    commitGesture,
+  } = useResultScreenHistory(elements, (newElements) => {
+    onChange({
+      elements: newElements,
+    });
+  });
+
+  // Handle undo with selection pruning
+  const handleUndo = useCallback(() => {
+    const restored = undo();
+    if (restored) {
+      setSelectedIds((prev) => filterValidSelectedIds(prev, restored));
+    }
+  }, [undo]);
+
+  // Handle redo with selection pruning
+  const handleRedo = useCallback(() => {
+    const restored = redo();
+    if (restored) {
+      setSelectedIds((prev) => filterValidSelectedIds(prev, restored));
+    }
+  }, [redo]);
 
   // Default element factory helper
   const createDefaultElement = (
@@ -576,9 +620,13 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
 
   // Update elements helper
   const updateElements = (newElements: ResultScreenElement[]) => {
-    onChange({
-      elements: newElements,
-    });
+    if (isGestureActiveRef.current) {
+      onChange({
+        elements: newElements,
+      });
+    } else {
+      recordChange(newElements);
+    }
   };
 
   // Mutate multiple elements at once (clean single tree pass)
@@ -1159,6 +1207,8 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     }
 
     setInteractionMode('drag');
+    isGestureActiveRef.current = true;
+    beginGesture(elements);
     interactionRef.current = {
       mode: 'drag',
       elementId: el.id,
@@ -1186,6 +1236,8 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     setSelectedIds([el.id]);
 
     setInteractionMode('resize');
+    isGestureActiveRef.current = true;
+    beginGesture(elements);
     interactionRef.current = {
       mode: 'resize',
       elementId: el.id,
@@ -1223,6 +1275,8 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     const startAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
 
     setInteractionMode('rotate');
+    isGestureActiveRef.current = true;
+    beginGesture(elements);
     interactionRef.current = {
       mode: 'rotate',
       elementId: el.id,
@@ -1444,6 +1498,10 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
       setActiveGuides(null);
       setInteractionMode('idle');
       interactionRef.current = null;
+      if (isGestureActiveRef.current) {
+        isGestureActiveRef.current = false;
+        commitGesture(elements);
+      }
     };
 
     if (interactionMode !== 'idle') {
@@ -1455,9 +1513,9 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [interactionMode, canvasWidth, canvasHeight]);
+  }, [interactionMode, canvasWidth, canvasHeight, elements, commitGesture]);
 
-  // Keyboard Navigation & Shortcuts (Arrow nudge, Delete, Escape)
+  // Keyboard Navigation & Shortcuts (Undo/Redo, Arrow nudge, Delete, Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeTag = document.activeElement?.tagName?.toLowerCase();
@@ -1467,7 +1525,25 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
         activeTag === 'select' ||
         (document.activeElement as HTMLElement)?.isContentEditable;
 
-      if (isEditingText || selectedIds.length === 0) return;
+      if (isEditingText) return;
+
+      // Undo / Redo Shortcuts (Ctrl+Z, Cmd+Z, Ctrl+Shift+Z, Cmd+Shift+Z, Ctrl+Y)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      if (selectedIds.length === 0) return;
 
       const step = e.shiftKey ? 10 : 1;
 
@@ -1509,7 +1585,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedIds, selectedElements, commonParent, canvasWidth, canvasHeight, elements]);
+  }, [selectedIds, selectedElements, commonParent, canvasWidth, canvasHeight, elements, handleUndo, handleRedo]);
 
   const bg = resolveScreenBackground(resultConfig, theme);
 
@@ -2446,6 +2522,61 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Undo / Redo Group */}
+          <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl p-0.5 shadow">
+            <button
+              type="button"
+              disabled={!canUndo}
+              onClick={handleUndo}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                canUndo
+                  ? 'text-slate-200 hover:text-white hover:bg-slate-800 active:scale-95'
+                  : 'text-slate-600 opacity-40 cursor-not-allowed'
+              }`}
+              title="Undo (Ctrl+Z / Cmd+Z)"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Undo</span>
+            </button>
+            <div className="w-[1px] h-4 bg-slate-800 mx-0.5" />
+            <button
+              type="button"
+              disabled={!canRedo}
+              onClick={handleRedo}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                canRedo
+                  ? 'text-slate-200 hover:text-white hover:bg-slate-800 active:scale-95'
+                  : 'text-slate-600 opacity-40 cursor-not-allowed'
+              }`}
+              title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y)"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Redo</span>
+            </button>
+          </div>
+
+          {/* Templates Modal */}
+          <button
+            type="button"
+            onClick={() => setIsPresetsModalOpen(true)}
+            className="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 active:scale-95 text-amber-300 font-bold text-xs rounded-xl shadow flex items-center gap-1.5 cursor-pointer transition-all"
+            title="Browse layout presets and saved custom templates"
+          >
+            <LayoutTemplate className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Templates</span>
+          </button>
+
+          {/* Save As Template Button */}
+          <button
+            type="button"
+            onClick={() => setIsSaveTemplateModalOpen(true)}
+            className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 active:scale-95 text-amber-300 font-bold text-xs rounded-xl shadow flex items-center gap-1.5 cursor-pointer transition-all"
+            title="Save current layout as a reusable custom template"
+          >
+            <BookmarkPlus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Save Template</span>
+          </button>
+
           {/* Open Pro Fullscreen Studio Modal */}
           <button
             type="button"
@@ -5969,6 +6100,32 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           theme={theme}
           onChange={onChange}
           onUploadAsset={onUploadAsset}
+        />
+      )}
+
+      {/* Preset Library & Custom Templates Modal */}
+      {isPresetsModalOpen && (
+        <PresetLibraryModal
+          isOpen={isPresetsModalOpen}
+          onClose={() => setIsPresetsModalOpen(false)}
+          hasExistingElements={(resultConfig.elements || []).length > 0}
+          onOpenSaveTemplateModal={() => setIsSaveTemplateModalOpen(true)}
+          onApplyPreset={(newElements) => {
+            onChange({ elements: newElements });
+            setSelectedIds([]);
+          }}
+        />
+      )}
+
+      {/* Save Custom Template Modal */}
+      {isSaveTemplateModalOpen && (
+        <SaveTemplateModal
+          isOpen={isSaveTemplateModalOpen}
+          onClose={() => setIsSaveTemplateModalOpen(false)}
+          elements={resultConfig.elements || []}
+          onTemplateSaved={(savedTemplate) => {
+            // Saved successfully
+          }}
         />
       )}
     </div>

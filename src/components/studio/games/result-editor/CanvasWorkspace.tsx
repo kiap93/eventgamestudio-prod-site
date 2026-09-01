@@ -52,6 +52,8 @@ interface CanvasWorkspaceProps {
     id: string,
     list: ResultScreenElement[]
   ) => { element: ResultScreenElement; parent: ResultCardElement | ResultGroupElement | null } | null;
+  onGestureStart?: (currentElements: ResultScreenElement[]) => void;
+  onGestureEnd?: (finalElements: ResultScreenElement[]) => void;
 }
 
 export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
@@ -64,9 +66,13 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   onUpdateElements,
   onUpdateSingleElement,
   findElementAndParent,
+  onGestureStart,
+  onGestureEnd,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const elementsRef = useRef<ResultScreenElement[]>(elements);
+  elementsRef.current = elements;
 
   // Logical canvas dimensions (always 1000 x 1000)
   const canvasWidth = resultConfig.canvas?.width || 1000;
@@ -303,6 +309,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
     }
 
     setInteractionMode('drag');
+    onGestureStart?.(elementsRef.current);
     interactionRef.current = {
       mode: 'drag',
       elementId: el.id,
@@ -332,6 +339,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
 
     onSelectElement(el.id);
     setInteractionMode('resize');
+    onGestureStart?.(elementsRef.current);
     interactionRef.current = {
       mode: 'resize',
       elementId: el.id,
@@ -372,6 +380,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
     const startAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
 
     setInteractionMode('rotate');
+    onGestureStart?.(elementsRef.current);
     interactionRef.current = {
       mode: 'rotate',
       elementId: el.id,
@@ -609,6 +618,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
       if (interactionMode !== 'idle') {
         setInteractionMode('idle');
         interactionRef.current = null;
+        onGestureEnd?.(elementsRef.current);
       }
     };
 
@@ -618,7 +628,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
       window.removeEventListener('mousemove', handleWindowMouseMove);
       window.removeEventListener('mouseup', handleWindowMouseUp);
     };
-  }, [isPanning, interactionMode, canvasWidth, canvasHeight, onUpdateElements, onUpdateSingleElement]);
+  }, [isPanning, interactionMode, canvasWidth, canvasHeight, onUpdateElements, onUpdateSingleElement, onGestureEnd]);
 
   // Render Alignment Guides Overlay (Editor-only visual alignment guides)
   const renderGuides = (guides: AlignmentGuide[], pW: number, pH: number) => {

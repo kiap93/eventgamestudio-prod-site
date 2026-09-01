@@ -31,6 +31,9 @@ import { LayerTreePanel } from './LayerTreePanel';
 import { CanvasWorkspace } from './CanvasWorkspace';
 import { PropertyInspectorPanel } from './PropertyInspectorPanel';
 import { EditorTopBar } from './EditorTopBar';
+import { PresetLibraryModal } from './PresetLibraryModal';
+import { SaveTemplateModal } from './SaveTemplateModal';
+import { useResultScreenHistory, filterValidSelectedIds } from './history';
 import { Layers, Sliders, Layout } from 'lucide-react';
 
 export interface ResultScreenVisualEditorModalProps {
@@ -54,6 +57,11 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+  const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
+  const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
+
+  // Gesture tracking ref for batching continuous interactions (drag, resize, rotate)
+  const isGestureActiveRef = React.useRef(false);
 
   // Mobile active tab ('layers' | 'canvas' | 'inspector')
   const [mobileActiveTab, setMobileActiveTab] = useState<'layers' | 'canvas' | 'inspector'>('canvas');
@@ -61,14 +69,76 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
   const canvasWidth = resultConfig.canvas?.width || 1000;
   const canvasHeight = resultConfig.canvas?.height || 1000;
 
+  // History Manager Hook
+  const {
+    canUndo,
+    canRedo,
+    undo,
+    redo,
+    recordChange,
+    beginGesture,
+    commitGesture,
+    cancelGesture,
+    resetHistory,
+  } = useResultScreenHistory(elements, (newElements) => {
+    onChange({
+      elements: newElements,
+    });
+  });
+
+  // Re-sync history baseline on modal open
+  useEffect(() => {
+    if (isOpen) {
+      resetHistory(elements);
+    }
+  }, [isOpen]);
+
+  // Handle undo with selection pruning
+  const handleUndo = useCallback(() => {
+    const restored = undo();
+    if (restored) {
+      setSelectedIds((prev) => filterValidSelectedIds(prev, restored));
+    }
+  }, [undo]);
+
+  // Handle redo with selection pruning
+  const handleRedo = useCallback(() => {
+    const restored = redo();
+    if (restored) {
+      setSelectedIds((prev) => filterValidSelectedIds(prev, restored));
+    }
+  }, [redo]);
+
   // Sync update elements helper
   const updateElements = useCallback(
     (newElements: ResultScreenElement[]) => {
-      onChange({
-        elements: newElements,
-      });
+      if (isGestureActiveRef.current) {
+        onChange({
+          elements: newElements,
+        });
+      } else {
+        recordChange(newElements);
+      }
     },
-    [onChange]
+    [onChange, recordChange]
+  );
+
+  // Gesture Start callback from CanvasWorkspace
+  const handleGestureStart = useCallback(
+    (currentElements: ResultScreenElement[]) => {
+      isGestureActiveRef.current = true;
+      beginGesture(currentElements);
+    },
+    [beginGesture]
+  );
+
+  // Gesture End callback from CanvasWorkspace
+  const handleGestureEnd = useCallback(
+    (finalElements: ResultScreenElement[]) => {
+      isGestureActiveRef.current = false;
+      commitGesture(finalElements);
+    },
+    [commitGesture]
   );
 
   // Mutate multiple elements at once (clean single tree pass)
@@ -799,6 +869,31 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
 
       if (isEditingText) return;
 
+      // Undo / Redo Shortcuts (Ctrl+Z, Cmd+Z, Ctrl+Shift+Z, Cmd+Shift+Z, Ctrl+Y)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Duplicate Shortcut (Ctrl+D / Cmd+D)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+        if (selectedIds.length > 0) {
+          e.preventDefault();
+          handleDuplicateSelected();
+          return;
+        }
+      }
+
       if (e.key === 'Escape') {
         if (selectedIds.length > 0) {
           e.preventDefault();
@@ -870,10 +965,13 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
     canUngroup,
     updateMultipleElements,
     handleDeleteSelected,
+    handleDuplicateSelected,
     handleGroup,
     handleUngroup,
     handleToggleLockSelected,
     handleMoveLayer,
+    handleUndo,
+    handleRedo,
     onClose,
   ]);
 
@@ -892,6 +990,8 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
         onDuplicateSelected={handleDuplicateSelected}
         onDeleteSelected={handleDeleteSelected}
         onResetLayout={handleResetLayout}
+        onOpenPresets={() => setIsPresetsModalOpen(true)}
+        onSaveAsTemplate={() => setIsSaveTemplateModalOpen(true)}
         onClose={onClose}
         canGroup={canGroup}
         canUngroup={canUngroup}
@@ -899,6 +999,10 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
         onUngroupSelected={() => handleUngroup()}
         onToggleLockSelected={handleToggleLockSelected}
         isSelectionLocked={isSelectionLocked}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
 
       {/* Main 3-Column Workspace */}
@@ -928,6 +1032,7 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
             isSelectionLocked={isSelectionLocked}
             isCollapsed={isLeftCollapsed}
             onToggleCollapse={() => setIsLeftCollapsed(!isLeftCollapsed)}
+            onOpenPresets={() => setIsPresetsModalOpen(true)}
           />
         </div>
 
@@ -947,6 +1052,8 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
             onUpdateElements={updateMultipleElements}
             onUpdateSingleElement={updateElementById}
             findElementAndParent={findElementAndParent}
+            onGestureStart={handleGestureStart}
+            onGestureEnd={handleGestureEnd}
           />
         </div>
 
@@ -1024,6 +1131,28 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
           <span>Properties</span>
         </button>
       </div>
+
+      {/* Preset Library & Custom Templates Modal */}
+      <PresetLibraryModal
+        isOpen={isPresetsModalOpen}
+        onClose={() => setIsPresetsModalOpen(false)}
+        hasExistingElements={elements.length > 0}
+        onOpenSaveTemplateModal={() => setIsSaveTemplateModalOpen(true)}
+        onApplyPreset={(newElements) => {
+          updateElements(newElements);
+          setSelectedIds([]);
+        }}
+      />
+
+      {/* Save Custom Template Modal */}
+      <SaveTemplateModal
+        isOpen={isSaveTemplateModalOpen}
+        onClose={() => setIsSaveTemplateModalOpen(false)}
+        elements={elements}
+        onTemplateSaved={(savedTemplate) => {
+          // Template saved into persistent storage
+        }}
+      />
     </div>
   );
 };

@@ -36,6 +36,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   Box,
+  LayoutTemplate,
 } from 'lucide-react';
 
 interface LayerTreePanelProps {
@@ -57,6 +58,7 @@ interface LayerTreePanelProps {
   isSelectionLocked?: boolean;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  onOpenPresets?: () => void;
 }
 
 export const getElementIcon = (type: ResultScreenElementType) => {
@@ -105,6 +107,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
   isSelectionLocked = false,
   isCollapsed = false,
   onToggleCollapse,
+  onOpenPresets,
 }) => {
   const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -458,6 +461,19 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Presets Button */}
+          {onOpenPresets && (
+            <button
+              type="button"
+              onClick={onOpenPresets}
+              className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-amber-300 hover:text-amber-200 text-xs flex items-center gap-1 font-semibold transition-colors"
+              title="Browse Result Screen Presets"
+            >
+              <LayoutTemplate className="w-3.5 h-3.5" />
+              <span className="text-[11px] hidden sm:inline">Presets</span>
+            </button>
+          )}
+
           {/* Add Root Element Dropdown */}
           <div className="relative">
             <button
