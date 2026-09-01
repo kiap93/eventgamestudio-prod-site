@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { ResultScreenElement, ResultCardElement, ResultGroupElement } from '../../../../games/memory-match/types';
 
 /**
@@ -84,6 +84,15 @@ export class ResultScreenHistoryManager {
 
   public canRedo(): boolean {
     return this.future.length > 0;
+  }
+
+  /**
+   * Synchronizes present with external state if changed externally outside of history actions.
+   */
+  public syncExternalPresent(externalElements: ResultScreenElement[]): void {
+    if (!areElementsEqual(this.present, externalElements)) {
+      this.present = deepCloneElements(externalElements);
+    }
   }
 
   /**
@@ -185,6 +194,19 @@ export class ResultScreenHistoryManager {
   }
 }
 
+export interface ResultScreenHistoryController {
+  canUndo: boolean;
+  canRedo: boolean;
+  undo: () => ResultScreenElement[] | null;
+  redo: () => ResultScreenElement[] | null;
+  recordChange: (newElements: ResultScreenElement[]) => void;
+  beginGesture: (currentElements: ResultScreenElement[]) => void;
+  commitGesture: (finalElements: ResultScreenElement[]) => void;
+  cancelGesture: () => void;
+  resetHistory: (newElements: ResultScreenElement[]) => void;
+  syncExternal: (elements: ResultScreenElement[]) => void;
+}
+
 /**
  * React hook to manage Result Screen undo/redo history.
  */
@@ -192,7 +214,7 @@ export function useResultScreenHistory(
   initialElements: ResultScreenElement[],
   onSyncExternal: (elements: ResultScreenElement[]) => void,
   maxHistory = MAX_HISTORY_LENGTH
-) {
+): ResultScreenHistoryController {
   const managerRef = useRef<ResultScreenHistoryManager | null>(null);
   if (!managerRef.current) {
     managerRef.current = new ResultScreenHistoryManager(initialElements, maxHistory);
@@ -207,6 +229,17 @@ export function useResultScreenHistory(
       setCanRedo(managerRef.current.canRedo());
     }
   }, []);
+
+  // Sync external state if changed outside of history actions
+  useEffect(() => {
+    if (managerRef.current) {
+      const currentPresent = managerRef.current.getPresent();
+      if (!areElementsEqual(currentPresent, initialElements)) {
+        managerRef.current.syncExternalPresent(initialElements);
+        updateFlags();
+      }
+    }
+  }, [initialElements, updateFlags]);
 
   // Discrete change (Add, Delete, Duplicate, Style change, Preset, Template, etc.)
   const recordChange = useCallback(
@@ -283,6 +316,17 @@ export function useResultScreenHistory(
     [updateFlags]
   );
 
+  // Sync external
+  const syncExternal = useCallback(
+    (elements: ResultScreenElement[]) => {
+      if (managerRef.current) {
+        managerRef.current.syncExternalPresent(elements);
+        updateFlags();
+      }
+    },
+    [updateFlags]
+  );
+
   return {
     canUndo,
     canRedo,
@@ -293,6 +337,7 @@ export function useResultScreenHistory(
     commitGesture,
     cancelGesture,
     resetHistory,
+    syncExternal,
   };
 }
 

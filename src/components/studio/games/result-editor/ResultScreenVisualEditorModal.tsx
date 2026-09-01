@@ -33,7 +33,7 @@ import { PropertyInspectorPanel } from './PropertyInspectorPanel';
 import { EditorTopBar } from './EditorTopBar';
 import { PresetLibraryModal } from './PresetLibraryModal';
 import { SaveTemplateModal } from './SaveTemplateModal';
-import { useResultScreenHistory, filterValidSelectedIds } from './history';
+import { useResultScreenHistory, filterValidSelectedIds, ResultScreenHistoryController } from './history';
 import { Layers, Sliders, Layout } from 'lucide-react';
 
 export interface ResultScreenVisualEditorModalProps {
@@ -43,6 +43,7 @@ export interface ResultScreenVisualEditorModalProps {
   onUploadAsset?: (file: File, type: string) => Promise<string>;
   isOpen: boolean;
   onClose: () => void;
+  historyController?: ResultScreenHistoryController;
 }
 
 export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorModalProps> = ({
@@ -52,6 +53,7 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
   onUploadAsset,
   isOpen,
   onClose,
+  historyController,
 }) => {
   const elements = resultConfig.elements || [];
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -69,7 +71,16 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
   const canvasWidth = resultConfig.canvas?.width || 1000;
   const canvasHeight = resultConfig.canvas?.height || 1000;
 
-  // History Manager Hook
+  // History Manager Hook (standalone fallback)
+  const fallbackHistory = useResultScreenHistory(elements, (newElements) => {
+    onChange({
+      elements: newElements,
+    });
+  });
+
+  // Use the single authoritative history controller (passed from parent or fallback)
+  const activeHistory = historyController || fallbackHistory;
+
   const {
     canUndo,
     canRedo,
@@ -80,18 +91,14 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
     commitGesture,
     cancelGesture,
     resetHistory,
-  } = useResultScreenHistory(elements, (newElements) => {
-    onChange({
-      elements: newElements,
-    });
-  });
+  } = activeHistory;
 
-  // Re-sync history baseline on modal open
+  // Re-sync history baseline only on standalone modal initial open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !historyController) {
       resetHistory(elements);
     }
-  }, [isOpen]);
+  }, [isOpen, historyController]);
 
   // Handle undo with selection pruning
   const handleUndo = useCallback(() => {

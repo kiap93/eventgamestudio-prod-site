@@ -176,10 +176,19 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
       ? resultConfig.elements
       : generateDefaultResultScreenElements(resultConfig);
 
+  const elementsRef = useRef<ResultScreenElement[]>(elements);
+  elementsRef.current = elements;
+
   // Gesture tracking ref for batching continuous interactions (drag, resize, rotate)
   const isGestureActiveRef = useRef(false);
 
   // History Manager Hook
+  const history = useResultScreenHistory(elements, (newElements) => {
+    onChange({
+      elements: newElements,
+    });
+  });
+
   const {
     canUndo,
     canRedo,
@@ -188,11 +197,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
     recordChange,
     beginGesture,
     commitGesture,
-  } = useResultScreenHistory(elements, (newElements) => {
-    onChange({
-      elements: newElements,
-    });
-  });
+  } = history;
 
   // Handle undo with selection pruning
   const handleUndo = useCallback(() => {
@@ -1500,7 +1505,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
       interactionRef.current = null;
       if (isGestureActiveRef.current) {
         isGestureActiveRef.current = false;
-        commitGesture(elements);
+        commitGesture(elementsRef.current);
       }
     };
 
@@ -6100,6 +6105,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           theme={theme}
           onChange={onChange}
           onUploadAsset={onUploadAsset}
+          historyController={history}
         />
       )}
 
@@ -6111,7 +6117,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           hasExistingElements={(resultConfig.elements || []).length > 0}
           onOpenSaveTemplateModal={() => setIsSaveTemplateModalOpen(true)}
           onApplyPreset={(newElements) => {
-            onChange({ elements: newElements });
+            updateElements(newElements);
             setSelectedIds([]);
           }}
         />
