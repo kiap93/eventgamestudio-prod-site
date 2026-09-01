@@ -6428,6 +6428,82 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         </div>
                       </div>
                     </div>
+
+                    {/* Player Submission Form Labels & Config */}
+                    <div className="space-y-2 pt-1 border-t border-slate-800/80">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Player Submission Form
+                      </span>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400">Input Placeholder</label>
+                        <input
+                          type="text"
+                          value={lbEl.inputPlaceholder ?? style.inputPlaceholder ?? lbEl.submission?.inputPlaceholder ?? 'Enter your name'}
+                          onChange={(e) =>
+                            updateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              inputPlaceholder: e.target.value,
+                              style: { ...(prev as ResultLeaderboardElement).style, inputPlaceholder: e.target.value },
+                            } as ResultScreenElement))
+                          }
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-200 text-xs"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-slate-400">Max Name Length</label>
+                          <input
+                            type="number"
+                            min={3}
+                            max={50}
+                            value={lbEl.inputMaxLength ?? style.inputMaxLength ?? lbEl.submission?.inputMaxLength ?? 20}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 20;
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                inputMaxLength: val,
+                                style: { ...(prev as ResultLeaderboardElement).style, inputMaxLength: val },
+                              } as ResultScreenElement));
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-slate-200 font-mono text-xs"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-slate-400">Button Label</label>
+                          <input
+                            type="text"
+                            value={lbEl.submitButtonText ?? style.submitButtonText ?? lbEl.submission?.submitButtonText ?? 'SUBMIT SCORE'}
+                            onChange={(e) =>
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                submitButtonText: e.target.value,
+                                style: { ...(prev as ResultLeaderboardElement).style, submitButtonText: e.target.value },
+                              } as ResultScreenElement))
+                            }
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-slate-200 text-xs font-semibold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400">Success Message</label>
+                        <input
+                          type="text"
+                          value={lbEl.successMessage ?? style.successMessage ?? lbEl.submission?.successMessage ?? 'Score submitted!'}
+                          onChange={(e) =>
+                            updateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              successMessage: e.target.value,
+                              style: { ...(prev as ResultLeaderboardElement).style, successMessage: e.target.value },
+                            } as ResultScreenElement))
+                          }
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-200 text-xs"
+                        />
+                      </div>
+                    </div>
                   </div>
                 );
               })()}

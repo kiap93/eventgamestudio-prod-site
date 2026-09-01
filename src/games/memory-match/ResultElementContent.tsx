@@ -278,6 +278,10 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
       setLocalError('Please enter your name.');
       return;
     }
+    if (trimmed.length > inputMaxLength) {
+      setLocalError(`Name must be ${inputMaxLength} characters or less.`);
+      return;
+    }
     setLocalError(null);
 
     if (onSubmitScore) {
@@ -472,7 +476,10 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
         onClick={(e) => isEditor && e.stopPropagation()}
       >
         {!isSubmitted ? (
-          <form onSubmit={handleScoreSubmit} className="space-y-1.5">
+          <form
+            onSubmit={handleScoreSubmit}
+            className="space-y-1.5"
+          >
             <div className="flex items-center gap-1.5">
               <input
                 type="text"
@@ -481,26 +488,33 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
                   setLocalName(e.target.value);
                   if (localError) setLocalError(null);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleScoreSubmit();
+                  }
+                }}
                 placeholder={inputPlaceholder}
                 maxLength={inputMaxLength}
                 disabled={isSubmitting || isEditor}
-                className="flex-1 min-w-0 bg-slate-950/90 border border-slate-700/80 focus:border-amber-500 rounded-lg px-2.5 py-1 text-slate-100 placeholder:text-slate-500 outline-none transition-colors"
+                className="flex-1 min-w-0 bg-slate-950/90 border border-slate-700/80 focus:border-amber-500 rounded-lg px-3 py-1.5 min-h-[38px] sm:min-h-[44px] text-slate-100 placeholder:text-slate-500 outline-none transition-colors disabled:opacity-50"
                 style={{ fontSize: statFontSize }}
               />
               <button
                 type="submit"
                 disabled={isSubmitting || isEditor}
-                className="px-3 py-1 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 text-slate-950 font-black uppercase tracking-wider rounded-lg transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 shrink-0 cursor-pointer"
+                className="px-3.5 py-1.5 min-h-[38px] sm:min-h-[44px] bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 text-slate-950 font-black uppercase tracking-wider rounded-lg transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer disabled:cursor-not-allowed"
                 style={{ fontSize: statFontSize }}
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span>Submitting...</span>
                   </>
                 ) : (
                   <>
-                    <Send className="w-3 h-3" />
+                    <Send className="w-3.5 h-3.5" />
                     <span>{submitButtonText}</span>
                   </>
                 )}
@@ -508,16 +522,16 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
             </div>
 
             {effectiveError && (
-              <div className="flex items-center gap-1 text-rose-400 text-[10px] pl-0.5">
+              <div className="flex items-center gap-1 text-rose-400 text-[10px] pl-0.5 animate-in fade-in duration-150">
                 <AlertCircle className="w-3 h-3 shrink-0" />
                 <span>{effectiveError}</span>
               </div>
             )}
           </form>
         ) : (
-          <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-2 text-emerald-400 font-semibold px-2.5">
+          <div className="p-2 min-h-[38px] sm:min-h-[44px] rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-2 text-emerald-400 font-semibold px-2.5">
             <div className="flex items-center gap-1.5 truncate">
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
               <span className="truncate text-xs" style={{ fontSize: statFontSize }}>
                 {successMessage}
               </span>
