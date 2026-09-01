@@ -74,44 +74,131 @@ export function calculateEventStatus(
   }
 
   // If PAID:
-  if (eventStatus === 'COMPLETED' || rawStatus === 'expired' || rawStatus === 'completed' || nowTime >= expiresAt) {
+  // 1. If now >= expires_at or status is completed/expired -> expired
+  if (nowTime >= expiresAt || eventStatus === 'COMPLETED' || rawStatus === 'expired' || rawStatus === 'completed') {
     return 'expired';
   }
-  if (nowTime >= startsAt || eventStatus === 'LIVE' || rawStatus === 'live' || rawStatus === 'active') {
+  // 2. If now >= starts_at -> live
+  if (nowTime >= startsAt) {
     return 'live';
   }
+  // 3. If now < starts_at -> scheduled
   return 'scheduled';
 }
 
 /**
- * Derives the canonical uppercase event_status lifecycle enum.
+ * Checks whether an event is currently playable by the public according to canonical lifecycle rules:
+ * 1. CANCELLED -> false
+ * 2. unpaid / pending payment -> false
+ * 3. paid + before starts_at -> false
+ * 4. paid + starts_at <= now < expires_at -> true (PLAYABLE)
+ * 5. paid + now >= expires_at -> false (COMPLETED)
+ */
+export function isEventPlayable(
+  event: {
+    status?: EventStatus | string | null;
+    event_status?: string | null;
+    starts_at?: string | null;
+    expires_at?: string | null;
+    payment_status?: string | null;
+    cancel_reason?: string | null;
+  },
+  now: Date = new Date()
+): boolean {
+  const rawStatus = (event.status || '').toLowerCase();
+  const eventStatus = (event.event_status || '').toUpperCase();
+  const payStatus = (event.payment_status || '').toUpperCase();
+  const cancelReason = event.cancel_reason || null;
+
+  // 1. CANCELLED -> not playable
+  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
+    return false;
+  }
+
+  // 2. unpaid / pending payment -> not playable
+  if (payStatus !== 'PAID') {
+    return false;
+  }
+
+  if (!event.starts_at || !event.expires_at) {
+    return false;
+  }
+
+  const nowTime = now.getTime();
+  const startsAt = new Date(event.starts_at).getTime();
+  const expiresAt = new Date(event.expires_at).getTime();
+
+  // 3. paid + before starts_at -> not playable
+  if (nowTime < startsAt) {
+    return false;
+  }
+
+  // 5. paid + now >= expires_at -> completed / not playable
+  if (nowTime >= expiresAt || eventStatus === 'COMPLETED' || rawStatus === 'expired' || rawStatus === 'completed') {
+    return false;
+  }
+
+  // 4. paid + starts_at <= now < expires_at -> playable
+  return true;
+}
+
+/**
+ * Derives the canonical uppercase event_status lifecycle enum:
+ * 1. CANCELLED -> 'CANCELLED'
+ * 2. unpaid / pending payment -> 'DRAFT' | 'PENDING_PAYMENT' | 'CANCELLED' (if expired)
+ * 3. paid + now >= expires_at -> 'COMPLETED' (Do NOT allow stored event_status='LIVE' to override expired timestamp)
+ * 4. paid + before starts_at -> 'SCHEDULED'
+ * 5. paid + starts_at <= now < expires_at -> 'LIVE'
  */
 export function deriveEventLifecycleStatus(
   event: {
     status?: EventStatus | string | null;
     event_status?: string | null;
-    starts_at: string;
-    expires_at: string;
+    starts_at?: string | null;
+    expires_at?: string | null;
     payment_status?: string | null;
     cancel_reason?: string | null;
   },
   now: Date = new Date()
-): 'DRAFT' | 'PAYMENT_PENDING' | 'LIVE' | 'COMPLETED' | 'CANCELLED' {
-  const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
-  if (event.event_status) {
-    const s = event.event_status.toUpperCase();
-    if (s === 'CANCELLED') return 'CANCELLED';
-    if (s === 'COMPLETED') return 'COMPLETED';
-    if (isPaid) return 'LIVE';
+): EventLifecycleStatus {
+  const rawStatus = (event.status || '').toLowerCase();
+  const eventStatus = (event.event_status || '').toUpperCase();
+  const payStatus = (event.payment_status || '').toUpperCase();
+  const cancelReason = event.cancel_reason || null;
+
+  // 1. CANCELLED -> 'CANCELLED'
+  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
+    return 'CANCELLED';
   }
 
-  const calculated = calculateEventStatus(event, now);
-  if (calculated === 'cancelled') return 'CANCELLED';
-  if (calculated === 'expired') return 'COMPLETED';
+  const nowTime = now.getTime();
+  const startsAt = event.starts_at ? new Date(event.starts_at).getTime() : 0;
+  const expiresAt = event.expires_at ? new Date(event.expires_at).getTime() : Infinity;
+  const isPaid = payStatus === 'PAID';
+
+  // 2. unpaid / pending payment
   if (!isPaid) {
-    if (calculated === 'draft') return 'DRAFT';
-    return 'PAYMENT_PENDING';
+    if (nowTime >= expiresAt) {
+      return 'CANCELLED';
+    }
+    if (eventStatus === 'DRAFT' || rawStatus === 'draft') {
+      return 'DRAFT';
+    }
+    return 'PENDING_PAYMENT';
   }
+
+  // 3. Paid events:
+  // Paid + now >= expires_at -> COMPLETED (Do NOT allow stored event_status='LIVE' to override expired timestamp!)
+  if (nowTime >= expiresAt || eventStatus === 'COMPLETED' || rawStatus === 'expired' || rawStatus === 'completed') {
+    return 'COMPLETED';
+  }
+
+  // Paid + before starts_at -> SCHEDULED
+  if (nowTime < startsAt) {
+    return 'SCHEDULED';
+  }
+
+  // Paid + starts_at <= now < expires_at -> LIVE
   return 'LIVE';
 }
 
@@ -819,15 +906,19 @@ export async function getEventByPublicToken(
   }
 
   const derivedLifecycle = deriveEventLifecycleStatus(eventRecord);
-  const paymentStatus = (eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID')).toUpperCase();
+  const calculatedStatus = calculateEventStatus(eventRecord);
+  const paymentStatus = (eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'UNPAID')).toUpperCase();
   const isPaid = paymentStatus === 'PAID';
-  const eventLifecycleStatus = isPaid
-    ? (eventRecord.event_status === 'COMPLETED' ? 'COMPLETED' : (eventRecord.event_status === 'CANCELLED' ? 'CANCELLED' : 'LIVE'))
-    : derivedLifecycle;
+  const eventLifecycleStatus = derivedLifecycle;
+  const allowUnpaid = Boolean(options?.allowUnpaid);
 
-  // Strict Public Guard: Do NOT resolve cancelled events on public routes
-  if (eventLifecycleStatus === 'CANCELLED' || eventRecord.status === 'cancelled') {
-    return null;
+  // Strict Public Guard:
+  // If allowUnpaid is NOT explicitly requested (e.g. playing/submitting scores):
+  // Event MUST be PAID, NOT CANCELLED, and PLAYABLE/VALID.
+  if (!allowUnpaid) {
+    if (eventLifecycleStatus === 'CANCELLED' || eventRecord.status === 'cancelled' || !isPaid) {
+      return null;
+    }
   }
 
   const theme = await getThemeById(eventRecord.game_theme_id, env);

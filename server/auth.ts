@@ -387,12 +387,6 @@ export async function authenticateDeveloperAdmin(
   await authenticateJWT(req, res, () => {
     const user = req.user;
     const allowed = isUserDeveloperAdmin(user);
-    console.log('[DeveloperAuth]', {
-      userId: user?.id,
-      email: user?.email,
-      isDeveloper: user?.is_developer,
-      allowed,
-    });
     if (!user || !allowed) {
       res.status(403).json({
         error: 'Forbidden: Developer Admin access required. You do not have permission to access platform developer tools.',

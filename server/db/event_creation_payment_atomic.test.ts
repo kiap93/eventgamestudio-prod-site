@@ -23,6 +23,9 @@ import {
   calculateEventPayment,
   STANDARD_EVENT_PRICE,
 } from './wallet.js';
+import { createOrganization } from './organizations.js';
+import { ensureDefaultGame } from './games.js';
+import { createTheme } from './themes.js';
 import { getSupabaseServerClient } from '../supabase.js';
 
 let passed = 0;
@@ -50,8 +53,9 @@ async function runTests() {
   // --------------------------------------------------------------------------
   console.log('--- Test Group 1: Insufficient Balance Rejection ---');
   
-  const org99 = crypto.randomUUID();
-  const theme99 = '8463ed7c-2b78-4285-8fdf-c0b18383fb3d';
+  const org99 = (await createOrganization({ name: 'Org 99 Test', owner_id: crypto.randomUUID() })).id;
+  const game99 = await ensureDefaultGame(org99, 'Test Game');
+  const theme99 = (await createTheme({ organization_id: org99, game_id: game99.id, name: 'Theme 99' })).id;
 
   // Only RM200 paid balance, need RM1,400
   await createTopup({ organizationId: org99, amount: 200.0, referenceId: `topup_test_99_${Date.now()}` });
@@ -69,7 +73,7 @@ async function runTests() {
   } catch (err: any) {
     rejected = true;
     assert(
-      err.message.includes('Insufficient wallet balance'),
+      err.message.includes('Insufficient balance') || err.message.includes('Insufficient wallet balance'),
       `Rejected with clear Insufficient Balance error message: "${err.message}"`
     );
   }
@@ -93,8 +97,9 @@ async function runTests() {
   // --------------------------------------------------------------------------
   console.log('\n--- Test Group 2: Full Paid Event Creation & Atomic Deduction ---');
 
-  const orgFullPaid = crypto.randomUUID();
-  const themeFullPaid = '8463ed7c-2b78-4285-8fdf-c0b18383fb3d';
+  const orgFullPaid = (await createOrganization({ name: 'Org Full Paid', owner_id: crypto.randomUUID() })).id;
+  const gameFP = await ensureDefaultGame(orgFullPaid, 'Test Game');
+  const themeFullPaid = (await createTheme({ organization_id: orgFullPaid, game_id: gameFP.id, name: 'Theme FP' })).id;
 
   await createTopup({ organizationId: orgFullPaid, amount: 3000.0, referenceId: `topup_fp_${Date.now()}` });
 
@@ -127,8 +132,9 @@ async function runTests() {
   // --------------------------------------------------------------------------
   console.log('\n--- Test Group 3: Welcome Credit Event Creation & Atomic Split ---');
 
-  const orgWelcome = crypto.randomUUID();
-  const themeWelcome = '8463ed7c-2b78-4285-8fdf-c0b18383fb3d';
+  const orgWelcome = (await createOrganization({ name: 'Org Welcome', owner_id: crypto.randomUUID() })).id;
+  const gameW = await ensureDefaultGame(orgWelcome, 'Test Game');
+  const themeWelcome = (await createTheme({ organization_id: orgWelcome, game_id: gameW.id, name: 'Theme W' })).id;
 
   await grantWelcomeCredit({ organizationId: orgWelcome });
   await createTopup({ organizationId: orgWelcome, amount: 1000.0, referenceId: `topup_w_${Date.now()}` });
@@ -166,8 +172,9 @@ async function runTests() {
   // --------------------------------------------------------------------------
   console.log('\n--- Test Group 4: Showcase Credit Event Creation ---');
 
-  const orgShowcase = crypto.randomUUID();
-  const themeShowcase = '8463ed7c-2b78-4285-8fdf-c0b18383fb3d';
+  const orgShowcase = (await createOrganization({ name: 'Org Showcase', owner_id: crypto.randomUUID() })).id;
+  const gameSC = await ensureDefaultGame(orgShowcase, 'Test Game');
+  const themeShowcase = (await createTheme({ organization_id: orgShowcase, game_id: gameSC.id, name: 'Theme SC' })).id;
 
   await grantShowcaseCredit({ organizationId: orgShowcase });
   await createTopup({ organizationId: orgShowcase, amount: 1500.0, referenceId: `topup_sc_${Date.now()}` });

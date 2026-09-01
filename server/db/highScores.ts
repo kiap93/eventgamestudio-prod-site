@@ -1,4 +1,4 @@
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isLocalFallbackAllowed } from '../supabase.js';
 import {
   EventHighScoreRecord,
   EventLeaderboardEntry,
@@ -242,9 +242,15 @@ export async function submitEventScore(
         .single();
 
       if (error) {
+        if (!isLocalFallbackAllowed(env)) {
+          throw new Error(`Database error saving high score: ${error.message}`);
+        }
         console.warn(`Notice from Supabase high score insert (${error.message}). Saved to local fallback store.`);
       }
     } catch (err: any) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw err;
+      }
       console.warn('Supabase high score insert fallback notice:', err.message);
     }
   }
@@ -291,6 +297,9 @@ export async function getEventHighScores(
     } catch {
       // ignore
     }
+    if (!isLocalFallbackAllowed(env)) {
+      throw new Error(`Event ID "${eventId}" is not a valid UUID in production.`);
+    }
     return getLocalEventHighScores(eventId, limit, page);
   }
 
@@ -305,6 +314,9 @@ export async function getEventHighScores(
       .range(offset, offset + limit - 1);
 
     if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error fetching leaderboard: ${error.message}`);
+      }
       console.warn(`Notice from Supabase getEventHighScores (${error.message}). Reading from local cache.`);
       return getLocalEventHighScores(eventId, limit, page);
     }
@@ -328,8 +340,14 @@ export async function getEventHighScores(
       };
     }
 
+    if (!isLocalFallbackAllowed(env)) {
+      return { scores: [], totalCount: 0, page, limit };
+    }
     return getLocalEventHighScores(eventId, limit, page);
   } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('Error reading high scores from Supabase, using local fallback:', err.message);
     return getLocalEventHighScores(eventId, limit, page);
   }

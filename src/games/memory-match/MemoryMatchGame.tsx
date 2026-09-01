@@ -180,6 +180,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const [timeRemaining, setTimeRemaining] = useState<number>(gameDuration);
   const [isVictory, setIsVictory] = useState<boolean>(false);
   const [sessionId, setSessionId] = useState<string>(() => `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
+  const sessionIdRef = useRef<string>(sessionId);
+  sessionIdRef.current = sessionId;
 
   // Leaderboard / Score Submission
   const [playerName, setPlayerName] = useState<string>(() => {
@@ -194,7 +196,20 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const activeTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
   const hasEventContext = Boolean(publicToken || (eventId && eventId !== 'undefined' && eventId !== 'null'));
+
+  const clearCardTimeouts = useCallback(() => {
+    activeTimeoutsRef.current.forEach((t) => clearTimeout(t));
+    activeTimeoutsRef.current.clear();
+  }, []);
+
+  // Cleanup all pending timeouts on component unmount
+  useEffect(() => {
+    return () => {
+      clearCardTimeouts();
+    };
+  }, [clearCardTimeouts]);
 
   // Stable callback and state refs to prevent premature timer teardowns
   const onGameStateChangeRef = useRef(onGameStateChange);
@@ -254,37 +269,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const boardLayoutKey = `${boardConfig.layoutMode}_${boardConfig.rows}_${boardConfig.cols}_${boardConfig.cardGap}_${cardWidth}_${cardHeight}_${cardBorderRadius}_${cardConfig?.rotationMode}_${cardConfig?.rotation}_${cardConfig?.rotationRange}`;
   const cardConfigSignature = `${memoryConfig.cardBackUrl || ''}_${(memoryConfig.pairs || []).map((p) => `${p.id}:${p.imageUrl || ''}:${p.name || ''}`).join('|')}`;
 
-  // Log active memory match card configuration and duration for verification
-  useEffect(() => {
-    console.log('[MEMORY MATCH CARD CONFIG]', {
-      themeId: activeTheme?.id,
-      hasGameConfig: Boolean(activeTheme?.game_config),
-      gameConfig: activeTheme?.game_config,
-      cardBackUrl: memoryConfig.cardBackUrl,
-      pairs: memoryConfig.pairs?.map((pair) => ({
-        id: pair.id,
-        name: pair.name,
-        imageUrl: pair.imageUrl,
-      })),
-    });
-
-    console.log('[MEMORY MATCH DURATION]', {
-      themeId: activeTheme?.id,
-      themeGameConfigDuration:
-        activeTheme?.game_config?.gameplay?.gameDurationSeconds,
-      resolvedMemoryDuration:
-        memoryConfig.gameplay.gameDurationSeconds,
-      settingsDuration:
-        settings?.gameDurationSeconds,
-      registryConfigDuration:
-        config?.gameDurationSeconds,
-      finalGameDuration:
-        gameDuration,
-    });
-  }, [activeTheme, memoryConfig, settings, config, gameDuration]);
-
   // Initialize fresh card deck on theme change or mount
   const initBoard = useCallback(() => {
+    clearCardTimeouts();
     const newDeck = createShuffledDeck(activeTheme);
     setCards(newDeck);
     setRandomPositions(generateCardPositions(newDeck.length, boardConfig, cardConfig));
@@ -299,8 +286,10 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     setIsVictory(false);
     setScoreSubmitted(false);
     setSubmittedRank(null);
-    setSessionId(`mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
-  }, [activeTheme, boardConfig, cardConfig, gameDuration]);
+    const newSession = `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    setSessionId(newSession);
+    sessionIdRef.current = newSession;
+  }, [activeTheme, boardConfig, cardConfig, gameDuration, clearCardTimeouts]);
 
   // Only re-initialize board on mount or when theme/layout/card/duration configuration changes
   useEffect(() => {
@@ -388,6 +377,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   // Handle Game Over / Victory
   const handleGameOver = useCallback(
     (won: boolean) => {
+      clearCardTimeouts();
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -417,7 +407,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         fetchLeaderboard();
       }
     },
-    [gameDuration, totalPairs, fetchLeaderboard, showLeaderboard]
+    [gameDuration, totalPairs, fetchLeaderboard, showLeaderboard, clearCardTimeouts]
   );
 
   const handleGameOverRef = useRef(handleGameOver);
@@ -490,6 +480,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       const newMoves = moves + 1;
       setMoves(newMoves);
 
+      const currentSession = sessionIdRef.current;
+
       // Check for match
       if (firstCard.pairId === secondCard.pairId) {
         // MATCH SUCCESS!
@@ -503,11 +495,14 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
         memorySounds.playMatchSuccess(newStreak);
 
-        setTimeout(() => {
+        const matchTimeout = setTimeout(() => {
+          activeTimeoutsRef.current.delete(matchTimeout);
+          if (sessionIdRef.current !== currentSession) return;
+
           setCards((prevDeck) => {
             const nextDeck = [...prevDeck];
-            nextDeck[firstIdx] = { ...nextDeck[firstIdx], isMatched: true };
-            nextDeck[secondIdx] = { ...nextDeck[secondIdx], isMatched: true };
+            if (nextDeck[firstIdx]) nextDeck[firstIdx] = { ...nextDeck[firstIdx], isMatched: true };
+            if (nextDeck[secondIdx]) nextDeck[secondIdx] = { ...nextDeck[secondIdx], isMatched: true };
             return nextDeck;
           });
 
@@ -521,6 +516,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             handleGameOver(true);
           }
         }, 350);
+        activeTimeoutsRef.current.add(matchTimeout);
       } else {
         // MATCH FAILED!
         setComboStreak(0);
@@ -529,22 +525,26 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         // Shake both cards
         setCards((prevDeck) => {
           const nextDeck = [...prevDeck];
-          nextDeck[firstIdx] = { ...nextDeck[firstIdx], isShaking: true };
-          nextDeck[secondIdx] = { ...nextDeck[secondIdx], isShaking: true };
+          if (nextDeck[firstIdx]) nextDeck[firstIdx] = { ...nextDeck[firstIdx], isShaking: true };
+          if (nextDeck[secondIdx]) nextDeck[secondIdx] = { ...nextDeck[secondIdx], isShaking: true };
           return nextDeck;
         });
 
         // Flip both back after mismatch delay
-        setTimeout(() => {
+        const mismatchTimeout = setTimeout(() => {
+          activeTimeoutsRef.current.delete(mismatchTimeout);
+          if (sessionIdRef.current !== currentSession) return;
+
           setCards((prevDeck) => {
             const nextDeck = [...prevDeck];
-            nextDeck[firstIdx] = { ...nextDeck[firstIdx], isFlipped: false, isShaking: false };
-            nextDeck[secondIdx] = { ...nextDeck[secondIdx], isFlipped: false, isShaking: false };
+            if (nextDeck[firstIdx]) nextDeck[firstIdx] = { ...nextDeck[firstIdx], isFlipped: false, isShaking: false };
+            if (nextDeck[secondIdx]) nextDeck[secondIdx] = { ...nextDeck[secondIdx], isFlipped: false, isShaking: false };
             return nextDeck;
           });
           setFlippedIndices([]);
           setIsLocked(false);
         }, mismatchDelay);
+        activeTimeoutsRef.current.add(mismatchTimeout);
       }
     }
   };

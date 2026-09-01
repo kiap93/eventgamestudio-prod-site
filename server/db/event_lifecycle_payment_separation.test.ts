@@ -83,14 +83,19 @@ async function runTests() {
   console.log('  ✓ PASS: Event created in UNPAID/PENDING_PAYMENT status without wallet charge');
 
   console.log('--- Test Case 2 & 3: Public Token Resolution for PENDING_PAYMENT ---');
-  const publicEvent = await getEventByPublicToken(event1.public_token, env);
-  assert.ok(publicEvent, 'Public event should resolve by public token');
+  // Without allowUnpaid, pending payment event is NOT playable (returns null)
+  const playableCheck = await getEventByPublicToken(event1.public_token, env, { allowUnpaid: false });
+  assert.strictEqual(playableCheck, null, 'Public playable access must be blocked for UNPAID event');
+
+  // With allowUnpaid: true, public event details resolve (for showing payment-required screen)
+  const publicEvent = await getEventByPublicToken(event1.public_token, env, { allowUnpaid: true });
+  assert.ok(publicEvent, 'Public event metadata should resolve with allowUnpaid: true');
   assert.strictEqual(publicEvent?.id, event1.id);
   assert.ok(
     publicEvent?.payment_status === 'UNPAID' || publicEvent?.payment_status === 'PENDING_PAYMENT',
     'Public event payment status must be UNPAID or PENDING_PAYMENT'
   );
-  console.log('  ✓ PASS: Public resolution returns valid playable event details with unpaid/pending status');
+  console.log('  ✓ PASS: Public resolution correctly guards playability while resolving metadata with allowUnpaid');
 
   console.log('--- Test Case 4: Complete Payment -> Status changes to ACTIVE / Scheduled ---');
   // Add balance to org wallet to pay
