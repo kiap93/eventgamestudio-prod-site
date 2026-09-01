@@ -549,11 +549,15 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     }
   };
 
-  const handleSubmitScore = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const handleSubmitScore = async (playerNameInput?: string | React.FormEvent) => {
+    if (playerNameInput && typeof playerNameInput === 'object' && 'preventDefault' in playerNameInput) {
+      playerNameInput.preventDefault();
+    }
     if (isSubmittingScore || scoreSubmitted) return;
 
-    const trimmedName = playerName.trim() || 'Player';
+    const rawName = typeof playerNameInput === 'string' ? playerNameInput : playerName;
+    const trimmedName = rawName.trim() || 'Player';
+    setPlayerName(trimmedName);
     localStorage.setItem('event_player_name', trimmedName);
     setIsSubmittingScore(true);
 
@@ -601,10 +605,10 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         setSubmittedRank(myRank > 0 ? myRank : 1);
         setLeaderboardScores(ranked.slice(0, 50));
         setActiveEndTab('leaderboard');
+        return { success: true, rank: myRank > 0 ? myRank : 1 };
       } finally {
         setIsSubmittingScore(false);
       }
-      return;
     }
 
     try {
@@ -628,9 +632,14 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         setSubmittedRank(data.rank || 1);
         fetchLeaderboard();
         setActiveEndTab('leaderboard');
+        return { success: true, rank: data.rank || 1 };
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        return { success: false, error: errData.error || 'Failed to submit score' };
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Score submission error:', err);
+      return { success: false, error: err?.message || 'Network error' };
     } finally {
       setIsSubmittingScore(false);
     }
@@ -1349,6 +1358,13 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               isVictory,
             }}
             theme={activeTheme}
+            leaderboardData={leaderboardScores}
+            loadingLeaderboard={loadingLeaderboard}
+            currentPlayerName={playerName}
+            scoreSubmitted={scoreSubmitted}
+            submittedRank={submittedRank}
+            isSubmittingScore={isSubmittingScore}
+            onSubmitScore={handleSubmitScore}
             onAction={(action) => {
               if (action === 'playAgain') {
                 startCountdown();
@@ -1357,37 +1373,6 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                 updateGameState('START');
               }
             }}
-            leaderboardSlot={
-              showLeaderboard ? (
-                !scoreSubmitted ? (
-                  <form onSubmit={handleSubmitScore} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={playerName}
-                      onChange={(e) => setPlayerName(e.target.value)}
-                      placeholder="Enter Player Name..."
-                      maxLength={20}
-                      className="flex-1 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 outline-none"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isSubmittingScore}
-                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 shrink-0 cursor-pointer"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>{isSubmittingScore ? 'Saving...' : 'Submit'}</span>
-                    </button>
-                  </form>
-                ) : (
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center gap-2 text-emerald-400 text-xs font-semibold">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>
-                      Score submitted! Ranked #{submittedRank || 1}
-                    </span>
-                  </div>
-                )
-              ) : undefined
-            }
           />
         )}
       </div>

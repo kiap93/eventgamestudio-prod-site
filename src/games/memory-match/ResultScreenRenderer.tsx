@@ -9,6 +9,7 @@ import {
 import { resolveScreenBackground } from '../../themes/screenBackground';
 import { GameTheme } from '../../themes/types';
 import { ResultElementContent } from './ResultElementContent';
+import { EventLeaderboardEntry } from '../../types';
 
 export interface ResultScreenStats {
   score: number;
@@ -26,6 +27,16 @@ export interface ResultScreenRendererProps {
   theme?: Partial<GameTheme> | null;
   onAction?: (action: 'playAgain' | 'exit' | string) => void;
   leaderboardSlot?: React.ReactNode;
+  leaderboardData?: EventLeaderboardEntry[];
+  loadingLeaderboard?: boolean;
+  leaderboardError?: string | null;
+  currentPlayerName?: string;
+  currentEntryId?: string;
+  scoreSubmitted?: boolean;
+  submittedRank?: number | null;
+  isSubmittingScore?: boolean;
+  submissionError?: string | null;
+  onSubmitScore?: (playerName: string) => Promise<{ success: boolean; rank?: number; error?: string } | void> | void;
   className?: string;
   isSimulation?: boolean;
 }
@@ -36,6 +47,16 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
   theme,
   onAction,
   leaderboardSlot,
+  leaderboardData,
+  loadingLeaderboard,
+  leaderboardError,
+  currentPlayerName,
+  currentEntryId,
+  scoreSubmitted,
+  submittedRank,
+  isSubmittingScore,
+  submissionError,
+  onSubmitScore,
   className = '',
   isSimulation = false,
 }) => {
@@ -84,6 +105,16 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
           isSimulation={isSimulation}
           onAction={onAction}
           renderChild={(child, pW, pH) => renderElement(child, pW, pH, false)}
+          leaderboardData={leaderboardData}
+          loadingLeaderboard={loadingLeaderboard}
+          leaderboardError={leaderboardError}
+          currentPlayerName={currentPlayerName}
+          currentEntryId={currentEntryId}
+          scoreSubmitted={scoreSubmitted}
+          submittedRank={submittedRank}
+          isSubmittingScore={isSubmittingScore}
+          submissionError={submissionError}
+          onSubmitScore={onSubmitScore}
         />
       </div>
     );

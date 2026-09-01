@@ -11,6 +11,8 @@ import {
   ResultTimeElement,
   ResultAccuracyElement,
   ResultButtonElement,
+  ResultLeaderboardElement,
+  ResultLeaderboardStyle,
   ResultScreenElementType,
   MemoryMatchResultScreenConfig,
   generateDefaultResultScreenElements,
@@ -27,6 +29,7 @@ import {
   Image as ImageIcon,
   Type,
   Award,
+  Trophy,
   Zap,
   Clock,
   Sparkles,
@@ -94,11 +97,12 @@ import {
   filterValidSelectedIds,
 } from './result-editor';
 
-interface ResultScreenVisualEditorProps {
+export interface ResultScreenVisualEditorProps {
   resultConfig: MemoryMatchResultScreenConfig;
   theme: Partial<GameTheme>;
   onChange: (updatedConfig: Partial<MemoryMatchResultScreenConfig>) => void;
   onUploadAsset?: (file: File, type: string) => Promise<string>;
+  onFullscreenChange?: (isFullscreen: boolean) => void;
 }
 
 export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> = ({
@@ -106,6 +110,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
   theme,
   onChange,
   onUploadAsset,
+  onFullscreenChange,
 }) => {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -119,6 +124,11 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
   const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
+
+  // Notify parent of fullscreen state changes
+  useEffect(() => {
+    onFullscreenChange?.(isModalOpen);
+  }, [isModalOpen, onFullscreenChange]);
   const selectedId = selectedIds.length > 0 ? selectedIds[selectedIds.length - 1] : null;
   const setSelectedId = useCallback((id: string | null) => {
     setSelectedIds(id ? [id] : []);
@@ -423,6 +433,45 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
             shadow: true,
           },
         } as ResultButtonElement;
+
+      case 'leaderboard':
+        return {
+          id,
+          type: 'leaderboard',
+          x: 200,
+          y: 200,
+          width: 600,
+          height: 400,
+          rotation: 0,
+          visible: true,
+          opacity: 1,
+          zIndex: 2,
+          headerText: 'LEADERBOARD',
+          showHeader: true,
+          showRank: true,
+          showPlayerName: true,
+          showScore: true,
+          showMoves: false,
+          showTime: false,
+          showAccuracy: false,
+          maxRows: 5,
+          style: {
+            backgroundColor: 'rgba(15, 23, 42, 0.92)',
+            borderColor: '#334155',
+            borderWidth: 1,
+            borderRadius: 20,
+            padding: 12,
+            shadow: true,
+            fontSize: 16,
+            textColor: '#f8fafc',
+            rankColor: '#fbbf24',
+            scoreColor: '#fbbf24',
+            headerColor: '#fbbf24',
+            rowSpacing: 6,
+            highlightCurrentPlayer: true,
+            highlightColor: 'rgba(245, 158, 11, 0.2)',
+          },
+        } as ResultLeaderboardElement;
 
       case 'group':
         return {
@@ -1629,6 +1678,8 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
         return <Zap className="w-3.5 h-3.5 text-purple-400" />;
       case 'button':
         return <MousePointerClick className="w-3.5 h-3.5 text-amber-400" />;
+      case 'leaderboard':
+        return <Trophy className="w-3.5 h-3.5 text-amber-400" />;
       case 'group':
         return <FolderTree className="w-3.5 h-3.5 text-slate-400" />;
       default:
@@ -1820,6 +1871,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
         parentWidth={parentWidth}
         parentHeight={parentHeight}
         isSimulation={true}
+        isEditor={true}
         renderChild={(child, pW, pH) => renderCanvasElement(child, pW, pH)}
       />
     );
@@ -2020,6 +2072,8 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 ? `"${(el as ResultTextElement).text || 'Text'}"`
                 : el.type === 'button'
                 ? `Btn: ${(el as ResultButtonElement).text || 'Action'}`
+                : el.type === 'leaderboard'
+                ? (el as ResultLeaderboardElement).headerText || 'Leaderboard'
                 : `${el.type.charAt(0).toUpperCase() + el.type.slice(1)}`}
             </span>
 
@@ -2131,6 +2185,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                         { type: 'accuracy', label: 'Accuracy Stat' },
                         { type: 'image', label: 'Image Box' },
                         { type: 'button', label: 'Button' },
+                        { type: 'leaderboard', label: 'Leaderboard' },
                         { type: 'group', label: 'Group Wrapper' },
                       ] as const
                     ).map((item) => (
@@ -2605,103 +2660,120 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
             </button>
 
           {addMenuOpen && (
-            <div className="absolute right-0 top-full mt-2 w-52 bg-slate-950 border border-slate-800 rounded-2xl p-2 shadow-2xl z-50 space-y-1">
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2.5 py-1">
-                Containers
-              </div>
-              <button
-                type="button"
-                onClick={() => handleAddElement('card')}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setAddMenuOpen(false)}
+              />
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-full mt-2 w-56 bg-slate-950 border border-slate-800 rounded-2xl p-2 shadow-2xl z-50 space-y-1 max-h-[80vh] overflow-y-auto"
               >
-                <Square className="w-4 h-4 text-blue-400" />
-                <span>Card Container</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddElement('group')}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
-              >
-                <FolderTree className="w-4 h-4 text-slate-400" />
-                <span>Group Wrapper</span>
-              </button>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2.5 py-1">
+                  Containers
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('card')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+                >
+                  <Square className="w-4 h-4 text-blue-400" />
+                  <span>Card Container</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('group')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+                >
+                  <FolderTree className="w-4 h-4 text-slate-400" />
+                  <span>Group Wrapper</span>
+                </button>
 
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2.5 py-1 pt-2 border-t border-slate-800/80">
-                Visual Elements
-              </div>
-              <button
-                type="button"
-                onClick={() => handleAddElement('text')}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
-              >
-                <Type className="w-4 h-4 text-slate-300" />
-                <span>Text Label</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddElement('image')}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
-              >
-                <ImageIcon className="w-4 h-4 text-emerald-400" />
-                <span>Image / Icon</span>
-              </button>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2.5 py-1 pt-2 border-t border-slate-800/80">
+                  Visual Elements
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('text')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+                >
+                  <Type className="w-4 h-4 text-amber-400" />
+                  <span>Text Block</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('image')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+                >
+                  <ImageIcon className="w-4 h-4 text-emerald-400" />
+                  <span>Image / Icon</span>
+                </button>
 
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2.5 py-1 pt-2 border-t border-slate-800/80">
-                Live Game Stats
-              </div>
-              <button
-                type="button"
-                onClick={() => handleAddElement('score')}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
-              >
-                <Award className="w-4 h-4 text-amber-400" />
-                <span>Final Score</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddElement('moves')}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
-              >
-                <RotateCcw className="w-4 h-4 text-cyan-400" />
-                <span>Total Moves</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddElement('pairs')}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
-              >
-                <Sparkles className="w-4 h-4 text-emerald-400" />
-                <span>Matched Pairs</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddElement('accuracy')}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
-              >
-                <Zap className="w-4 h-4 text-purple-400" />
-                <span>Accuracy %</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddElement('time')}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
-              >
-                <Clock className="w-4 h-4 text-sky-400" />
-                <span>Time Elapsed</span>
-              </button>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2.5 py-1 pt-2 border-t border-slate-800/80">
+                  Live Game Stats
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('score')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+                >
+                  <Award className="w-4 h-4 text-yellow-400" />
+                  <span>Final Score</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('moves')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+                >
+                  <RotateCcw className="w-4 h-4 text-cyan-400" />
+                  <span>Total Moves</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('pairs')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+                >
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  <span>Matched Pairs</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('time')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+                >
+                  <Clock className="w-4 h-4 text-sky-400" />
+                  <span>Time Elapsed</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('accuracy')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+                >
+                  <Zap className="w-4 h-4 text-purple-400" />
+                  <span>Accuracy</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('leaderboard')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+                >
+                  <Trophy className="w-4 h-4 text-amber-400" />
+                  <span>Leaderboard</span>
+                </button>
 
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2.5 py-1 pt-2 border-t border-slate-800/80">
-                Interactive Controls
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2.5 py-1 pt-2 border-t border-slate-800/80">
+                  Interactive Controls
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('button')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
+                >
+                  <MousePointerClick className="w-4 h-4 text-amber-400" />
+                  <span>Button</span>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => handleAddElement('button')}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors text-left"
-              >
-                <MousePointerClick className="w-4 h-4 text-amber-400" />
-                <span>Action Button</span>
-              </button>
-            </div>
+            </>
           )}
         </div>
       </div>
@@ -3520,6 +3592,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                           <option value="accuracy">Accuracy Stat</option>
                           <option value="image">Image Box</option>
                           <option value="button">Button</option>
+                          <option value="leaderboard">Leaderboard</option>
                           <option value="group">Group Wrapper</option>
                         </select>
                       </div>
@@ -3545,6 +3618,8 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                                   ? `"${(child as ResultTextElement).text || 'Text'}"`
                                   : child.type === 'button'
                                   ? `Btn: ${(child as ResultButtonElement).text || 'Action'}`
+                                  : child.type === 'leaderboard'
+                                  ? (child as ResultLeaderboardElement).headerText || 'Leaderboard'
                                   : `${child.type.charAt(0).toUpperCase() + child.type.slice(1)}`}
                               </span>
                             </div>
@@ -6052,7 +6127,312 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 );
               })()}
 
-              {/* 6. GROUP ELEMENT */}
+              {/* 6. LEADERBOARD ELEMENT */}
+              {selectedElement.type === 'leaderboard' && (() => {
+                const lbEl = selectedElement as ResultLeaderboardElement;
+                const style = lbEl.style || {};
+
+                const maxRows = lbEl.maxRows ?? style.maxRows ?? 5;
+                const showHeader = (lbEl.showHeader ?? style.showHeader) !== false;
+                const headerText = lbEl.headerText || style.headerText || 'LEADERBOARD';
+                const showRank = (lbEl.showRank ?? style.showRank) !== false;
+                const showPlayerName = (lbEl.showPlayerName ?? style.showPlayerName) !== false;
+                const showScore = (lbEl.showScore ?? style.showScore) !== false;
+                const showMoves = Boolean(lbEl.showMoves ?? style.showMoves);
+                const showTime = Boolean(lbEl.showTime ?? style.showTime);
+                const showAccuracy = Boolean(lbEl.showAccuracy ?? style.showAccuracy);
+                const highlightCurrentPlayer = style.highlightCurrentPlayer !== false;
+
+                return (
+                  <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Trophy className="w-3.5 h-3.5" />
+                        <span>Leaderboard Settings</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">Dynamic Ranking</span>
+                    </div>
+
+                    {/* Header Title & Visibility */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-slate-400">Header Title</label>
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={showHeader}
+                            onChange={(e) =>
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                showHeader: e.target.checked,
+                                style: { ...(prev as ResultLeaderboardElement).style, showHeader: e.target.checked },
+                              } as ResultScreenElement))
+                            }
+                            className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                          />
+                          <span className="text-[10px] text-slate-400">Show</span>
+                        </label>
+                      </div>
+                      {showHeader && (
+                        <input
+                          type="text"
+                          value={headerText}
+                          onChange={(e) =>
+                            updateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              headerText: e.target.value,
+                              style: { ...(prev as ResultLeaderboardElement).style, headerText: e.target.value },
+                            } as ResultScreenElement))
+                          }
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-200 font-bold text-xs"
+                        />
+                      )}
+                    </div>
+
+                    {/* Max Rows (1 to 10) */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-slate-400">Displayed Rows</label>
+                        <span className="text-[10px] font-mono text-amber-400 font-bold">{maxRows}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={1}
+                        max={10}
+                        value={maxRows}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 5;
+                          updateElementById(lbEl.id, (prev) => ({
+                            ...prev,
+                            maxRows: val,
+                            style: { ...(prev as ResultLeaderboardElement).style, maxRows: val },
+                          } as ResultScreenElement));
+                        }}
+                        className="w-full accent-amber-500"
+                      />
+                    </div>
+
+                    {/* Visible Columns Grid */}
+                    <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Visible Columns
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={showRank}
+                            onChange={(e) =>
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                showRank: e.target.checked,
+                                style: { ...(prev as ResultLeaderboardElement).style, showRank: e.target.checked },
+                              } as ResultScreenElement))
+                            }
+                            className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                          />
+                          <span className="text-[11px]">Rank (#)</span>
+                        </label>
+
+                        <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={showPlayerName}
+                            onChange={(e) =>
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                showPlayerName: e.target.checked,
+                                style: { ...(prev as ResultLeaderboardElement).style, showPlayerName: e.target.checked },
+                              } as ResultScreenElement))
+                            }
+                            className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                          />
+                          <span className="text-[11px]">Player Name</span>
+                        </label>
+
+                        <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={showScore}
+                            onChange={(e) =>
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                showScore: e.target.checked,
+                                style: { ...(prev as ResultLeaderboardElement).style, showScore: e.target.checked },
+                              } as ResultScreenElement))
+                            }
+                            className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                          />
+                          <span className="text-[11px]">Score</span>
+                        </label>
+
+                        <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={showMoves}
+                            onChange={(e) =>
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                showMoves: e.target.checked,
+                                style: { ...(prev as ResultLeaderboardElement).style, showMoves: e.target.checked },
+                              } as ResultScreenElement))
+                            }
+                            className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                          />
+                          <span className="text-[11px]">Moves</span>
+                        </label>
+
+                        <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={showTime}
+                            onChange={(e) =>
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                showTime: e.target.checked,
+                                style: { ...(prev as ResultLeaderboardElement).style, showTime: e.target.checked },
+                              } as ResultScreenElement))
+                            }
+                            className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                          />
+                          <span className="text-[11px]">Time</span>
+                        </label>
+
+                        <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={showAccuracy}
+                            onChange={(e) =>
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                showAccuracy: e.target.checked,
+                                style: { ...(prev as ResultLeaderboardElement).style, showAccuracy: e.target.checked },
+                              } as ResultScreenElement))
+                            }
+                            className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                          />
+                          <span className="text-[11px]">Accuracy</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Highlight Current Player Option */}
+                    <div className="pt-1">
+                      <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={highlightCurrentPlayer}
+                          onChange={(e) =>
+                            updateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              style: {
+                                ...(prev as ResultLeaderboardElement).style,
+                                highlightCurrentPlayer: e.target.checked,
+                              },
+                            } as ResultScreenElement))
+                          }
+                          className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3.5 h-3.5"
+                        />
+                        <span>Highlight Current Player Row</span>
+                      </label>
+                    </div>
+
+                    {/* Typography & Sizing */}
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400">Base Font Size</label>
+                        <input
+                          type="number"
+                          value={style.fontSize ?? 16}
+                          onChange={(e) =>
+                            updateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              style: {
+                                ...(prev as ResultLeaderboardElement).style,
+                                fontSize: parseInt(e.target.value) || 16,
+                              },
+                            } as ResultScreenElement))
+                          }
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-slate-200 font-mono text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400">Corner Radius</label>
+                        <input
+                          type="number"
+                          value={style.borderRadius ?? 18}
+                          onChange={(e) =>
+                            updateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              style: {
+                                ...(prev as ResultLeaderboardElement).style,
+                                borderRadius: parseInt(e.target.value) || 0,
+                              },
+                            } as ResultScreenElement))
+                          }
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-slate-200 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Colors */}
+                    <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Theme Colors
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <span className="text-[9px] text-slate-400 block">Header</span>
+                          <input
+                            type="color"
+                            value={style.headerColor?.startsWith('#') && style.headerColor.length === 7 ? style.headerColor : '#fbbf24'}
+                            onChange={(e) =>
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultLeaderboardElement).style, headerColor: e.target.value },
+                              } as ResultScreenElement))
+                            }
+                            className="w-full h-6 rounded border border-slate-700 bg-transparent cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[9px] text-slate-400 block">Scores</span>
+                          <input
+                            type="color"
+                            value={style.scoreColor?.startsWith('#') && style.scoreColor.length === 7 ? style.scoreColor : '#fbbf24'}
+                            onChange={(e) =>
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultLeaderboardElement).style, scoreColor: e.target.value },
+                              } as ResultScreenElement))
+                            }
+                            className="w-full h-6 rounded border border-slate-700 bg-transparent cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[9px] text-slate-400 block">Text</span>
+                          <input
+                            type="color"
+                            value={style.textColor?.startsWith('#') && style.textColor.length === 7 ? style.textColor : '#f8fafc'}
+                            onChange={(e) =>
+                              updateElementById(lbEl.id, (prev) => ({
+                                ...prev,
+                                style: { ...(prev as ResultLeaderboardElement).style, textColor: e.target.value },
+                              } as ResultScreenElement))
+                            }
+                            className="w-full h-6 rounded border border-slate-700 bg-transparent cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 7. GROUP ELEMENT */}
               {selectedElement.type === 'group' && (() => {
                 const groupEl = selectedElement as ResultGroupElement;
                 return (

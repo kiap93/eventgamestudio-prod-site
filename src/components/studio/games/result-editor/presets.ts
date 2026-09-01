@@ -10,13 +10,14 @@ import {
   ResultAccuracyElement,
   ResultButtonElement,
   ResultImageElement,
+  ResultLeaderboardElement,
 } from '../../../../games/memory-match/types';
 
 export interface ResultScreenPreset {
   id: string;
   name: string;
   description: string;
-  category: 'Standard' | 'Focused' | 'Analytics' | 'Minimalist' | 'Dual';
+  category: 'Standard' | 'Focused' | 'Analytics' | 'Minimalist' | 'Dual' | 'Leaderboard';
   badge?: string;
   previewSvg?: string;
   generateElements: () => ResultScreenElement[];
@@ -1567,6 +1568,147 @@ function generateSplitLayoutPreset(): ResultScreenElement[] {
 }
 
 // ---------------------------------------------------------------------------
+// 7. LEADERBOARD SHOWCASE PRESET
+// ---------------------------------------------------------------------------
+function generateLeaderboardShowcasePreset(): ResultScreenElement[] {
+  const cardId = uid('card');
+  return [
+    {
+      id: cardId,
+      type: 'card',
+      x: 120,
+      y: 80,
+      width: 760,
+      height: 840,
+      rotation: 0,
+      visible: true,
+      locked: false,
+      opacity: 1,
+      zIndex: 1,
+      style: {
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        borderWidth: 1,
+        borderColor: '#334155',
+        borderRadius: 28,
+        shadow: true,
+        padding: 24,
+      },
+      children: [
+        {
+          id: uid('text'),
+          type: 'text',
+          x: 20,
+          y: 25,
+          width: 720,
+          height: 48,
+          rotation: 0,
+          visible: true,
+          locked: false,
+          opacity: 1,
+          zIndex: 2,
+          text: 'MATCH COMPLETED!',
+          style: {
+            fontSize: 32,
+            fontWeight: '900',
+            textColor: '#f8fafc',
+            textAlign: 'center',
+            letterSpacing: 2,
+          },
+        } as ResultTextElement,
+        {
+          id: uid('score'),
+          type: 'score',
+          x: 180,
+          y: 85,
+          width: 400,
+          height: 100,
+          rotation: 0,
+          visible: true,
+          locked: false,
+          opacity: 1,
+          zIndex: 2,
+          label: 'FINAL SCORE',
+          showLabel: true,
+          style: {
+            backgroundColor: 'rgba(30, 41, 59, 0.7)',
+            borderColor: '#f59e0b',
+            borderWidth: 2,
+            borderRadius: 18,
+            shadow: true,
+            labelFontSize: 13,
+            valueFontSize: 44,
+            labelColor: '#f59e0b',
+            valueColor: '#ffffff',
+            fontWeight: '900',
+          },
+        } as ResultScoreElement,
+        {
+          id: uid('leaderboard'),
+          type: 'leaderboard',
+          x: 30,
+          y: 205,
+          width: 700,
+          height: 380,
+          rotation: 0,
+          visible: true,
+          locked: false,
+          opacity: 1,
+          zIndex: 2,
+          headerText: 'HALL OF FAME',
+          showHeader: true,
+          showRank: true,
+          showPlayerName: true,
+          showScore: true,
+          showMoves: false,
+          showTime: true,
+          showAccuracy: false,
+          maxRows: 5,
+          style: {
+            backgroundColor: 'rgba(10, 15, 30, 0.8)',
+            borderColor: '#334155',
+            borderWidth: 1,
+            borderRadius: 18,
+            padding: 12,
+            shadow: true,
+            fontSize: 15,
+            textColor: '#f8fafc',
+            rankColor: '#fbbf24',
+            scoreColor: '#fbbf24',
+            headerColor: '#fbbf24',
+            rowSpacing: 6,
+            highlightCurrentPlayer: true,
+            highlightColor: 'rgba(245, 158, 11, 0.2)',
+          },
+        } as ResultLeaderboardElement,
+        {
+          id: uid('button'),
+          type: 'button',
+          x: 180,
+          y: 610,
+          width: 400,
+          height: 65,
+          rotation: 0,
+          visible: true,
+          locked: false,
+          opacity: 1,
+          zIndex: 2,
+          text: 'PLAY AGAIN',
+          action: 'playAgain',
+          style: {
+            backgroundColor: '#f59e0b',
+            textColor: '#020617',
+            fontSize: 20,
+            fontWeight: '900',
+            borderRadius: 18,
+            shadow: true,
+          },
+        } as ResultButtonElement,
+      ],
+    } as ResultCardElement,
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // PRESET REGISTRY
 // ---------------------------------------------------------------------------
 export const RESULT_SCREEN_PRESETS: ResultScreenPreset[] = [
@@ -1577,6 +1719,14 @@ export const RESULT_SCREEN_PRESETS: ResultScreenPreset[] = [
     category: 'Standard',
     badge: 'Popular',
     generateElements: generateClassicCenterPreset,
+  },
+  {
+    id: 'leaderboard-showcase',
+    name: 'Hall of Fame',
+    description: 'Showcase final score alongside the live event leaderboard ranking and replay action.',
+    category: 'Leaderboard',
+    badge: 'New',
+    generateElements: generateLeaderboardShowcasePreset,
   },
   {
     id: 'two-cards',

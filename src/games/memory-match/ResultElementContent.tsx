@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ResultScreenElement,
   ResultCardElement,
@@ -11,9 +11,75 @@ import {
   ResultTimeElement,
   ResultAccuracyElement,
   ResultButtonElement,
+  ResultLeaderboardElement,
 } from './types';
-import { Award, RotateCcw, LogOut, Image as ImageIcon } from 'lucide-react';
+import {
+  Award,
+  RotateCcw,
+  LogOut,
+  Image as ImageIcon,
+  Trophy,
+  Medal,
+  Crown,
+  Clock,
+  Sparkles,
+  Zap,
+  Users,
+  AlertCircle,
+  Loader2,
+  Send,
+  CheckCircle2,
+} from 'lucide-react';
 import { ResultScreenStats } from './ResultScreenRenderer';
+import { EventLeaderboardEntry } from '../../types';
+
+export const SIMULATED_LEADERBOARD_ENTRIES: EventLeaderboardEntry[] = [
+  {
+    id: 'sim_1',
+    event_id: 'sim',
+    player_name: 'Alex',
+    score: 1250,
+    rank: 1,
+    created_at: new Date().toISOString(),
+    metadata: { moves: 14, duration: 24, accuracyPercent: 92 },
+  },
+  {
+    id: 'sim_2',
+    event_id: 'sim',
+    player_name: 'Jamie',
+    score: 1100,
+    rank: 2,
+    created_at: new Date().toISOString(),
+    metadata: { moves: 16, duration: 28, accuracyPercent: 86 },
+  },
+  {
+    id: 'sim_3',
+    event_id: 'sim',
+    player_name: 'Taylor',
+    score: 980,
+    rank: 3,
+    created_at: new Date().toISOString(),
+    metadata: { moves: 18, duration: 32, accuracyPercent: 80 },
+  },
+  {
+    id: 'sim_4',
+    event_id: 'sim',
+    player_name: 'Jordan',
+    score: 850,
+    rank: 4,
+    created_at: new Date().toISOString(),
+    metadata: { moves: 20, duration: 35, accuracyPercent: 75 },
+  },
+  {
+    id: 'sim_5',
+    event_id: 'sim',
+    player_name: 'Morgan',
+    score: 720,
+    rank: 5,
+    created_at: new Date().toISOString(),
+    metadata: { moves: 22, duration: 40, accuracyPercent: 70 },
+  },
+];
 
 export const FONT_FAMILY_PRESETS = [
   { label: 'System Default', value: 'inherit' },
@@ -38,9 +104,435 @@ export interface ResultElementContentProps {
   parentHeight: number;
   stats?: ResultScreenStats;
   isSimulation?: boolean;
+  isEditor?: boolean;
   onAction?: (action: string) => void;
   renderChild?: (child: ResultScreenElement, parentW: number, parentH: number) => React.ReactNode;
+  leaderboardData?: EventLeaderboardEntry[];
+  loadingLeaderboard?: boolean;
+  leaderboardError?: string | null;
+  currentPlayerName?: string;
+  currentEntryId?: string;
+  scoreSubmitted?: boolean;
+  submittedRank?: number | null;
+  isSubmittingScore?: boolean;
+  submissionError?: string | null;
+  onSubmitScore?: (playerName: string) => Promise<{ success: boolean; rank?: number; error?: string } | void> | void;
 }
+
+interface LeaderboardElementRendererProps {
+  lbEl: ResultLeaderboardElement;
+  parentWidth: number;
+  parentHeight: number;
+  stats?: ResultScreenStats;
+  isSimulation?: boolean;
+  isEditor?: boolean;
+  leaderboardData?: EventLeaderboardEntry[];
+  loadingLeaderboard?: boolean;
+  leaderboardError?: string | null;
+  currentPlayerName?: string;
+  currentEntryId?: string;
+  scoreSubmitted?: boolean;
+  submittedRank?: number | null;
+  isSubmittingScore?: boolean;
+  submissionError?: string | null;
+  onSubmitScore?: (playerName: string) => Promise<{ success: boolean; rank?: number; error?: string } | void> | void;
+}
+
+const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
+  lbEl,
+  parentWidth,
+  parentHeight,
+  stats,
+  isSimulation = false,
+  isEditor = false,
+  leaderboardData,
+  loadingLeaderboard = false,
+  leaderboardError = null,
+  currentPlayerName,
+  currentEntryId,
+  scoreSubmitted = false,
+  submittedRank = null,
+  isSubmittingScore = false,
+  submissionError = null,
+  onSubmitScore,
+}) => {
+  const style = lbEl.style || {};
+
+  const maxRows = Math.max(1, Math.min(10, lbEl.maxRows ?? style.maxRows ?? 5));
+  const showHeader = (lbEl.showHeader ?? style.showHeader) !== false;
+  const headerText = lbEl.headerText || style.headerText || 'LEADERBOARD';
+  const showRank = (lbEl.showRank ?? style.showRank) !== false;
+  const showPlayerName = (lbEl.showPlayerName ?? style.showPlayerName) !== false;
+  const showScore = (lbEl.showScore ?? style.showScore) !== false;
+  const showMoves = Boolean(lbEl.showMoves ?? style.showMoves);
+  const showTime = Boolean(lbEl.showTime ?? style.showTime);
+  const showAccuracy = Boolean(lbEl.showAccuracy ?? style.showAccuracy);
+
+  // Submission style & content config
+  const submissionConfig = lbEl.submission || style.submission || {};
+  const inputPlaceholder =
+    lbEl.inputPlaceholder || style.inputPlaceholder || submissionConfig.inputPlaceholder || 'Enter your name';
+  const inputMaxLength =
+    lbEl.inputMaxLength || style.inputMaxLength || submissionConfig.inputMaxLength || 20;
+  const submitButtonText =
+    lbEl.submitButtonText || style.submitButtonText || submissionConfig.submitButtonText || 'SUBMIT SCORE';
+  const successMessage =
+    lbEl.successMessage || style.successMessage || submissionConfig.successMessage || 'Score submitted!';
+
+  // Interactive / Simulation State
+  const [localName, setLocalName] = useState<string>(() => currentPlayerName || '');
+  const [localSubmitting, setLocalSubmitting] = useState<boolean>(false);
+  const [localSubmitted, setLocalSubmitted] = useState<boolean>(false);
+  const [localRank, setLocalRank] = useState<number | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (currentPlayerName && !localName) {
+      setLocalName(currentPlayerName);
+    }
+  }, [currentPlayerName]);
+
+  // Synced submission statuses
+  const isSubmitted = scoreSubmitted || localSubmitted;
+  const isSubmitting = isSubmittingScore || localSubmitting;
+  const effectiveRank = submittedRank ?? localRank;
+  const effectiveError = submissionError || localError;
+  const effectiveCurrentName =
+    (scoreSubmitted ? currentPlayerName : undefined) || (localSubmitted ? localName : currentPlayerName);
+
+  // Base entries
+  const baseEntries: EventLeaderboardEntry[] =
+    isSimulation || isEditor
+      ? (leaderboardData && leaderboardData.length > 0 ? leaderboardData : SIMULATED_LEADERBOARD_ENTRIES)
+      : (leaderboardData || []);
+
+  let entries = [...baseEntries];
+  if ((isSimulation || isEditor) && isSubmitted && localName.trim()) {
+    const alreadyInList = entries.some(
+      (e) => e.player_name.trim().toLowerCase() === localName.trim().toLowerCase()
+    );
+    if (!alreadyInList) {
+      const simScore = stats?.score ?? 1000;
+      const newSimEntry: EventLeaderboardEntry = {
+        id: 'sim_curr_' + Date.now(),
+        event_id: 'sim',
+        player_name: localName.trim(),
+        score: simScore,
+        rank: effectiveRank || 1,
+        created_at: new Date().toISOString(),
+        metadata: {
+          moves: stats?.moves ?? 16,
+          duration: stats?.timeElapsedSeconds ?? 28,
+          accuracyPercent: stats?.accuracyPercent ?? 88,
+        },
+      };
+      entries.push(newSimEntry);
+      entries.sort((a, b) => b.score - a.score);
+      entries = entries.map((item, idx) => ({ ...item, rank: idx + 1 }));
+    }
+  }
+
+  const baseFontSize = style.fontSize || 16;
+  const containerFontSize = `${(baseFontSize / parentWidth) * 100}cqi`;
+  const headerFontSize = `${((baseFontSize * 1.05) / parentWidth) * 100}cqi`;
+  const statFontSize = `${((baseFontSize * 0.85) / parentWidth) * 100}cqi`;
+  const rowSpacing = typeof style.rowSpacing === 'number' ? style.rowSpacing : 4;
+
+  const containerStyle: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
+    backgroundColor: style.backgroundColor || 'rgba(15, 23, 42, 0.92)',
+    border:
+      typeof style.borderWidth === 'number' && style.borderWidth > 0
+        ? `${(style.borderWidth / parentWidth) * 100}cqi solid ${style.borderColor || '#334155'}`
+        : '1px solid #334155',
+    borderRadius:
+      typeof style.borderRadius === 'number'
+        ? `${(style.borderRadius / parentWidth) * 100}cqi`
+        : '18px',
+    padding:
+      typeof style.padding === 'number'
+        ? `${(style.padding / parentWidth) * 100}cqi`
+        : '10px 14px',
+    boxShadow:
+      style.shadow !== false ? '0 12px 30px -6px rgba(0, 0, 0, 0.5)' : undefined,
+    opacity: typeof style.opacity === 'number' ? style.opacity : undefined,
+    fontFamily: style.fontFamily || 'inherit',
+    display: 'flex',
+    flexDirection: 'column',
+    boxSizing: 'border-box',
+    overflow: 'hidden',
+  };
+
+  const displayRows = entries.slice(0, maxRows);
+
+  const handleScoreSubmit = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isSubmitting || isSubmitted) return;
+
+    const trimmed = localName.trim();
+    if (!trimmed) {
+      setLocalError('Please enter your name.');
+      return;
+    }
+    setLocalError(null);
+
+    if (onSubmitScore) {
+      const result = await onSubmitScore(trimmed);
+      if (result && !result.success && result.error) {
+        setLocalError(result.error);
+      }
+    } else {
+      setLocalSubmitting(true);
+      setTimeout(() => {
+        setLocalSubmitting(false);
+        setLocalSubmitted(true);
+        const simScore = stats?.score ?? 1000;
+        const betterCount = SIMULATED_LEADERBOARD_ENTRIES.filter((s) => s.score > simScore).length;
+        setLocalRank(betterCount + 1);
+      }, 350);
+    }
+  };
+
+  return (
+    <div
+      style={containerStyle}
+      className="flex flex-col select-none"
+    >
+      {/* Optional Leaderboard Header */}
+      {showHeader && (
+        <div
+          className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800/80 shrink-0"
+          style={{ color: style.headerColor || '#fbbf24' }}
+        >
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Trophy className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+            <span
+              className="font-black uppercase tracking-wider truncate"
+              style={{ fontSize: headerFontSize }}
+            >
+              {headerText}
+            </span>
+          </div>
+          <span className="text-[10px] text-slate-500 font-mono shrink-0 ml-2">
+            Top {maxRows}
+          </span>
+        </div>
+      )}
+
+      {/* Ranking Table Rows */}
+      <div
+        className="flex-1 min-h-0 flex flex-col justify-around overflow-hidden"
+        style={{ gap: `${rowSpacing}px` }}
+      >
+        {!isSimulation && !isEditor && loadingLeaderboard ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-1.5 text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+            <span style={{ fontSize: statFontSize }}>Loading rankings...</span>
+          </div>
+        ) : !isSimulation && !isEditor && leaderboardError ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
+            <AlertCircle className="w-4 h-4 text-rose-400/80" />
+            <span style={{ fontSize: statFontSize }}>Leaderboard unavailable</span>
+          </div>
+        ) : displayRows.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
+            <Users className="w-4 h-4 text-slate-600" />
+            <span style={{ fontSize: statFontSize }}>No scores recorded yet</span>
+          </div>
+        ) : (
+          displayRows.map((entry, idx) => {
+            const rankNum = entry.rank || idx + 1;
+            const isTop1 = rankNum === 1;
+            const isTop2 = rankNum === 2;
+            const isTop3 = rankNum === 3;
+            const isCurrentPlayer =
+              style.highlightCurrentPlayer !== false &&
+              ((currentEntryId && entry.id === currentEntryId) ||
+                (effectiveCurrentName &&
+                  entry.player_name &&
+                  entry.player_name.trim().toLowerCase() ===
+                    effectiveCurrentName.trim().toLowerCase()));
+
+            const rowBg = isCurrentPlayer
+              ? style.highlightColor || 'rgba(245, 158, 11, 0.18)'
+              : idx % 2 === 0
+              ? style.rowBackgroundColor || 'rgba(30, 41, 59, 0.45)'
+              : style.alternateRowBackgroundColor || 'transparent';
+
+            const rankColor =
+              style.rankColor ||
+              (isTop1 ? '#fbbf24' : isTop2 ? '#e2e8f0' : isTop3 ? '#d97706' : '#94a3b8');
+
+            return (
+              <div
+                key={entry.id || `rank-${idx}`}
+                className={`flex items-center justify-between px-2 py-1 rounded-lg transition-colors overflow-hidden shrink-0 ${
+                  isCurrentPlayer ? 'ring-1 ring-amber-400/40 font-semibold' : ''
+                }`}
+                style={{
+                  backgroundColor: rowBg,
+                  fontSize: containerFontSize,
+                }}
+              >
+                {/* Left: Rank & Player Name */}
+                <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                  {showRank && (
+                    <div
+                      className="w-5 flex items-center justify-center font-mono font-bold shrink-0 text-center"
+                      style={{ color: rankColor }}
+                    >
+                      {isTop1 ? (
+                        <Crown className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                      ) : isTop2 ? (
+                        <Medal className="w-3.5 h-3.5 text-slate-300" />
+                      ) : isTop3 ? (
+                        <Medal className="w-3.5 h-3.5 text-amber-700" />
+                      ) : (
+                        <span style={{ fontSize: statFontSize }}>#{rankNum}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {showPlayerName && (
+                    <span
+                      className="truncate font-medium"
+                      style={{
+                        color: isCurrentPlayer
+                          ? '#fef08a'
+                          : style.textColor || '#f8fafc',
+                      }}
+                    >
+                      {entry.player_name || 'Player'}
+                      {isCurrentPlayer && (
+                        <span className="ml-1 text-[10px] text-amber-400/90 font-mono font-normal">
+                          (You)
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
+
+                {/* Middle: Optional Extended Stats (Moves, Time, Accuracy) */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {showMoves && entry.metadata?.moves !== undefined && (
+                    <span
+                      className="font-mono text-cyan-400 text-right"
+                      style={{ fontSize: statFontSize }}
+                      title="Moves"
+                    >
+                      {entry.metadata.moves}m
+                    </span>
+                  )}
+                  {showTime &&
+                    (entry.metadata?.duration !== undefined ||
+                      entry.metadata?.timeElapsedSeconds !== undefined) && (
+                      <span
+                        className="font-mono text-sky-400 text-right"
+                        style={{ fontSize: statFontSize }}
+                        title="Duration"
+                      >
+                        {entry.metadata.duration ?? entry.metadata.timeElapsedSeconds}s
+                      </span>
+                    )}
+                  {showAccuracy && entry.metadata?.accuracyPercent !== undefined && (
+                    <span
+                      className="font-mono text-purple-400 text-right"
+                      style={{ fontSize: statFontSize }}
+                      title="Accuracy"
+                    >
+                      {entry.metadata.accuracyPercent}%
+                    </span>
+                  )}
+
+                  {/* Right: Score */}
+                  {showScore && (
+                    <span
+                      className="font-mono font-black text-right shrink-0"
+                      style={{
+                        color: style.scoreColor || '#fbbf24',
+                      }}
+                    >
+                      {Number(entry.score || 0).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Integrated Player Submission Section (Always Included in Leaderboard Element) */}
+      <div
+        className="mt-2 pt-2 border-t border-slate-800/80 shrink-0 select-auto"
+        onClick={(e) => isEditor && e.stopPropagation()}
+      >
+        {!isSubmitted ? (
+          <form onSubmit={handleScoreSubmit} className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={localName}
+                onChange={(e) => {
+                  setLocalName(e.target.value);
+                  if (localError) setLocalError(null);
+                }}
+                placeholder={inputPlaceholder}
+                maxLength={inputMaxLength}
+                disabled={isSubmitting || isEditor}
+                className="flex-1 min-w-0 bg-slate-950/90 border border-slate-700/80 focus:border-amber-500 rounded-lg px-2.5 py-1 text-slate-100 placeholder:text-slate-500 outline-none transition-colors"
+                style={{ fontSize: statFontSize }}
+              />
+              <button
+                type="submit"
+                disabled={isSubmitting || isEditor}
+                className="px-3 py-1 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 text-slate-950 font-black uppercase tracking-wider rounded-lg transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 shrink-0 cursor-pointer"
+                style={{ fontSize: statFontSize }}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3 h-3" />
+                    <span>{submitButtonText}</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {effectiveError && (
+              <div className="flex items-center gap-1 text-rose-400 text-[10px] pl-0.5">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                <span>{effectiveError}</span>
+              </div>
+            )}
+          </form>
+        ) : (
+          <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-2 text-emerald-400 font-semibold px-2.5">
+            <div className="flex items-center gap-1.5 truncate">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+              <span className="truncate text-xs" style={{ fontSize: statFontSize }}>
+                {successMessage}
+              </span>
+            </div>
+            {effectiveRank && (
+              <div className="shrink-0 font-mono text-xs font-black bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-300">
+                Your Rank: #{effectiveRank}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const ResultElementContent: React.FC<ResultElementContentProps> = ({
   element: el,
@@ -48,8 +540,19 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
   parentHeight,
   stats,
   isSimulation = false,
+  isEditor = false,
   onAction,
   renderChild,
+  leaderboardData,
+  loadingLeaderboard = false,
+  leaderboardError = null,
+  currentPlayerName,
+  currentEntryId,
+  scoreSubmitted = false,
+  submittedRank = null,
+  isSubmittingScore = false,
+  submissionError = null,
+  onSubmitScore,
 }) => {
   switch (el.type) {
     case 'card': {
@@ -433,52 +936,96 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
           ? `${(style.letterSpacing / parentWidth) * 100}cqi`
           : '0.05em';
 
+      const commonButtonStyles: React.CSSProperties = {
+        width: '100%',
+        height: '100%',
+        backgroundColor: style?.backgroundColor || '#f59e0b',
+        color: style?.textColor || '#020617',
+        borderColor: style?.borderColor,
+        borderWidth:
+          typeof style?.borderWidth === 'number'
+            ? `${(style.borderWidth / parentWidth) * 100}cqi`
+            : undefined,
+        borderStyle:
+          typeof style?.borderWidth === 'number' && style.borderWidth > 0 ? 'solid' : undefined,
+        borderRadius:
+          typeof style?.borderRadius === 'number'
+            ? `${(style.borderRadius / parentWidth) * 100}cqi`
+            : '18px',
+        fontFamily: style?.fontFamily || 'inherit',
+        fontSize,
+        fontWeight: style?.fontWeight || '900',
+        fontStyle: style?.fontStyle || 'normal',
+        letterSpacing,
+        textTransform: style?.textTransform || 'uppercase',
+        textShadow: style?.textShadow || undefined,
+        boxShadow:
+          style?.shadow !== false ? '0 10px 25px -5px rgba(245, 158, 11, 0.4)' : undefined,
+        opacity: typeof style?.opacity === 'number' ? style.opacity : undefined,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        cursor: isSimulation || isEditor ? 'default' : 'pointer',
+        padding: '4px 12px',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+      };
+
+      const buttonInner = (
+        <>
+          {btnEl.action === 'playAgain' && <RotateCcw className="w-4 h-4 shrink-0" />}
+          {btnEl.action === 'exit' && <LogOut className="w-4 h-4 shrink-0" />}
+          <span className="truncate">{btnEl.text}</span>
+        </>
+      );
+
+      // In the Visual Editor, render as non-blocking visual element allowing parent canvas element wrapper to handle drag/select
+      if (isEditor) {
+        return (
+          <div
+            style={commonButtonStyles}
+            className="select-none pointer-events-none"
+          >
+            {buttonInner}
+          </div>
+        );
+      }
+
+      // In Live Gameplay / Simulation, render as native interactive button
       return (
         <button
           type="button"
           onClick={() => onAction?.(btnEl.action)}
           disabled={isSimulation}
-          style={{
-            width: '100%',
-            height: '100%',
-            backgroundColor: style?.backgroundColor || '#f59e0b',
-            color: style?.textColor || '#020617',
-            borderColor: style?.borderColor,
-            borderWidth:
-              typeof style?.borderWidth === 'number'
-                ? `${(style.borderWidth / parentWidth) * 100}cqi`
-                : undefined,
-            borderStyle:
-              typeof style?.borderWidth === 'number' && style.borderWidth > 0 ? 'solid' : undefined,
-            borderRadius:
-              typeof style?.borderRadius === 'number'
-                ? `${(style.borderRadius / parentWidth) * 100}cqi`
-                : '18px',
-            fontFamily: style?.fontFamily || 'inherit',
-            fontSize,
-            fontWeight: style?.fontWeight || '900',
-            fontStyle: style?.fontStyle || 'normal',
-            letterSpacing,
-            textTransform: style?.textTransform || 'uppercase',
-            textShadow: style?.textShadow || undefined,
-            boxShadow:
-              style?.shadow !== false ? '0 10px 25px -5px rgba(245, 158, 11, 0.4)' : undefined,
-            opacity: typeof style?.opacity === 'number' ? style.opacity : undefined,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            cursor: isSimulation ? 'default' : 'pointer',
-            padding: '4px 12px',
-            boxSizing: 'border-box',
-            overflow: 'hidden',
-          }}
+          style={commonButtonStyles}
           className="transition-all hover:brightness-110 active:scale-95 select-none"
         >
-          {btnEl.action === 'playAgain' && <RotateCcw className="w-4 h-4 shrink-0" />}
-          {btnEl.action === 'exit' && <LogOut className="w-4 h-4 shrink-0" />}
-          <span className="truncate">{btnEl.text}</span>
+          {buttonInner}
         </button>
+      );
+    }
+
+    case 'leaderboard': {
+      return (
+        <LeaderboardElementRenderer
+          lbEl={el as ResultLeaderboardElement}
+          parentWidth={parentWidth}
+          parentHeight={parentHeight}
+          stats={stats}
+          isSimulation={isSimulation}
+          isEditor={isEditor}
+          leaderboardData={leaderboardData}
+          loadingLeaderboard={loadingLeaderboard}
+          leaderboardError={leaderboardError}
+          currentPlayerName={currentPlayerName}
+          currentEntryId={currentEntryId}
+          scoreSubmitted={scoreSubmitted}
+          submittedRank={submittedRank}
+          isSubmittingScore={isSubmittingScore}
+          submissionError={submissionError}
+          onSubmitScore={onSubmitScore}
+        />
       );
     }
 

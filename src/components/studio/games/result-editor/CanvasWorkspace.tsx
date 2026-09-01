@@ -826,6 +826,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
           parentWidth={parentWidth}
           parentHeight={parentHeight}
           isSimulation={true}
+          isEditor={true}
           renderChild={(child, pW, pH) => renderCanvasElement(child, pW, pH)}
         />
 

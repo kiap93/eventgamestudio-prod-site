@@ -11,6 +11,8 @@ import {
   ResultTimeElement,
   ResultAccuracyElement,
   ResultButtonElement,
+  ResultLeaderboardElement,
+  ResultLeaderboardStyle,
   ResultScreenElementType,
   MemoryMatchResultScreenConfig,
 } from '../../../../games/memory-match/types';
@@ -58,6 +60,8 @@ import {
   PanelRight,
   Plus,
   Palette,
+  Award,
+  Trophy,
 } from 'lucide-react';
 
 interface PropertyInspectorPanelProps {
@@ -1477,7 +1481,313 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 </div>
               );
             })()}
-            {/* F. GROUP CONTAINER ELEMENT */}
+
+            {/* F. LEADERBOARD ELEMENT */}
+            {selectedElement.type === 'leaderboard' && (() => {
+              const lbEl = selectedElement as ResultLeaderboardElement;
+              const style = lbEl.style || {};
+
+              const maxRows = lbEl.maxRows ?? style.maxRows ?? 5;
+              const showHeader = (lbEl.showHeader ?? style.showHeader) !== false;
+              const headerText = lbEl.headerText || style.headerText || 'LEADERBOARD';
+              const showRank = (lbEl.showRank ?? style.showRank) !== false;
+              const showPlayerName = (lbEl.showPlayerName ?? style.showPlayerName) !== false;
+              const showScore = (lbEl.showScore ?? style.showScore) !== false;
+              const showMoves = Boolean(lbEl.showMoves ?? style.showMoves);
+              const showTime = Boolean(lbEl.showTime ?? style.showTime);
+              const showAccuracy = Boolean(lbEl.showAccuracy ?? style.showAccuracy);
+              const highlightCurrentPlayer = style.highlightCurrentPlayer !== false;
+
+              return (
+                <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Award className="w-3.5 h-3.5" />
+                      <span>Leaderboard Settings</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">Dynamic Ranking</span>
+                  </div>
+
+                  {/* Header Title & Visibility */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-slate-400">Header Title</label>
+                      <label className="flex items-center gap-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showHeader}
+                          onChange={(e) =>
+                            onUpdateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              showHeader: e.target.checked,
+                              style: { ...(prev as ResultLeaderboardElement).style, showHeader: e.target.checked },
+                            } as ResultScreenElement))
+                          }
+                          className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                        />
+                        <span className="text-[10px] text-slate-400">Show</span>
+                      </label>
+                    </div>
+                    {showHeader && (
+                      <input
+                        type="text"
+                        value={headerText}
+                        onChange={(e) =>
+                          onUpdateElementById(lbEl.id, (prev) => ({
+                            ...prev,
+                            headerText: e.target.value,
+                            style: { ...(prev as ResultLeaderboardElement).style, headerText: e.target.value },
+                          } as ResultScreenElement))
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-slate-200 font-bold text-xs"
+                      />
+                    )}
+                  </div>
+
+                  {/* Max Rows (1 to 10) */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-slate-400">Displayed Rows</label>
+                      <span className="text-[10px] font-mono text-amber-400 font-bold">{maxRows}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={10}
+                      value={maxRows}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 5;
+                        onUpdateElementById(lbEl.id, (prev) => ({
+                          ...prev,
+                          maxRows: val,
+                          style: { ...(prev as ResultLeaderboardElement).style, maxRows: val },
+                        } as ResultScreenElement));
+                      }}
+                      className="w-full accent-amber-500"
+                    />
+                  </div>
+
+                  {/* Visible Columns Grid */}
+                  <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Visible Columns
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showRank}
+                          onChange={(e) =>
+                            onUpdateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              showRank: e.target.checked,
+                              style: { ...(prev as ResultLeaderboardElement).style, showRank: e.target.checked },
+                            } as ResultScreenElement))
+                          }
+                          className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                        />
+                        <span className="text-[11px]">Rank (#)</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showPlayerName}
+                          onChange={(e) =>
+                            onUpdateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              showPlayerName: e.target.checked,
+                              style: { ...(prev as ResultLeaderboardElement).style, showPlayerName: e.target.checked },
+                            } as ResultScreenElement))
+                          }
+                          className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                        />
+                        <span className="text-[11px]">Player Name</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showScore}
+                          onChange={(e) =>
+                            onUpdateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              showScore: e.target.checked,
+                              style: { ...(prev as ResultLeaderboardElement).style, showScore: e.target.checked },
+                            } as ResultScreenElement))
+                          }
+                          className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                        />
+                        <span className="text-[11px]">Score</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showMoves}
+                          onChange={(e) =>
+                            onUpdateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              showMoves: e.target.checked,
+                              style: { ...(prev as ResultLeaderboardElement).style, showMoves: e.target.checked },
+                            } as ResultScreenElement))
+                          }
+                          className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                        />
+                        <span className="text-[11px]">Moves</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showTime}
+                          onChange={(e) =>
+                            onUpdateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              showTime: e.target.checked,
+                              style: { ...(prev as ResultLeaderboardElement).style, showTime: e.target.checked },
+                            } as ResultScreenElement))
+                          }
+                          className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                        />
+                        <span className="text-[11px]">Time</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 text-xs text-slate-300 p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showAccuracy}
+                          onChange={(e) =>
+                            onUpdateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              showAccuracy: e.target.checked,
+                              style: { ...(prev as ResultLeaderboardElement).style, showAccuracy: e.target.checked },
+                            } as ResultScreenElement))
+                          }
+                          className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3 h-3"
+                        />
+                        <span className="text-[11px]">Accuracy</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Highlight Current Player Option */}
+                  <div className="pt-1">
+                    <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={highlightCurrentPlayer}
+                        onChange={(e) =>
+                          onUpdateElementById(lbEl.id, (prev) => ({
+                            ...prev,
+                            style: {
+                              ...(prev as ResultLeaderboardElement).style,
+                              highlightCurrentPlayer: e.target.checked,
+                            },
+                          } as ResultScreenElement))
+                        }
+                        className="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0 w-3.5 h-3.5"
+                      />
+                      <span>Highlight Current Player Row</span>
+                    </label>
+                  </div>
+
+                  {/* Typography & Sizing */}
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400">Base Font Size</label>
+                      <input
+                        type="number"
+                        value={style.fontSize ?? 16}
+                        onChange={(e) =>
+                          onUpdateElementById(lbEl.id, (prev) => ({
+                            ...prev,
+                            style: {
+                              ...(prev as ResultLeaderboardElement).style,
+                              fontSize: parseInt(e.target.value) || 16,
+                            },
+                          } as ResultScreenElement))
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-slate-200 font-mono text-xs"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400">Corner Radius</label>
+                      <input
+                        type="number"
+                        value={style.borderRadius ?? 18}
+                        onChange={(e) =>
+                          onUpdateElementById(lbEl.id, (prev) => ({
+                            ...prev,
+                            style: {
+                              ...(prev as ResultLeaderboardElement).style,
+                              borderRadius: parseInt(e.target.value) || 0,
+                            },
+                          } as ResultScreenElement))
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-slate-200 font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Colors */}
+                  <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Theme Colors
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <span className="text-[9px] text-slate-400 block">Header</span>
+                        <input
+                          type="color"
+                          value={style.headerColor?.startsWith('#') && style.headerColor.length === 7 ? style.headerColor : '#fbbf24'}
+                          onChange={(e) =>
+                            onUpdateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultLeaderboardElement).style, headerColor: e.target.value },
+                            } as ResultScreenElement))
+                          }
+                          className="w-full h-6 rounded border border-slate-700 bg-transparent cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[9px] text-slate-400 block">Scores</span>
+                        <input
+                          type="color"
+                          value={style.scoreColor?.startsWith('#') && style.scoreColor.length === 7 ? style.scoreColor : '#fbbf24'}
+                          onChange={(e) =>
+                            onUpdateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultLeaderboardElement).style, scoreColor: e.target.value },
+                            } as ResultScreenElement))
+                          }
+                          className="w-full h-6 rounded border border-slate-700 bg-transparent cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[9px] text-slate-400 block">Text</span>
+                        <input
+                          type="color"
+                          value={style.textColor?.startsWith('#') && style.textColor.length === 7 ? style.textColor : '#f8fafc'}
+                          onChange={(e) =>
+                            onUpdateElementById(lbEl.id, (prev) => ({
+                              ...prev,
+                              style: { ...(prev as ResultLeaderboardElement).style, textColor: e.target.value },
+                            } as ResultScreenElement))
+                          }
+                          className="w-full h-6 rounded border border-slate-700 bg-transparent cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* G. GROUP CONTAINER ELEMENT */}
             {selectedElement.type === 'group' && (() => {
               const groupEl = selectedElement as ResultGroupElement;
               const childCount = groupEl.children?.length || 0;
@@ -1556,34 +1866,134 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </div>
 
             {/* Quick Add Elements */}
-            <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-2">
+            <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-3">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 <Plus className="w-3 h-3 text-amber-400" />
                 <span>Add Elements to Canvas</span>
               </span>
-              <div className="grid grid-cols-2 gap-1.5 pt-1">
-                {(
-                  [
-                    { type: 'card', label: 'Card Container' },
-                    { type: 'text', label: 'Text Block' },
-                    { type: 'score', label: 'Final Score' },
-                    { type: 'moves', label: 'Moves Stat' },
-                    { type: 'pairs', label: 'Pairs Stat' },
-                    { type: 'time', label: 'Time Elapsed' },
-                    { type: 'accuracy', label: 'Accuracy' },
-                    { type: 'button', label: 'Button' },
-                  ] as const
-                ).map((item) => (
+
+              {/* CONTAINERS */}
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Containers
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
                   <button
-                    key={item.type}
                     type="button"
-                    onClick={() => onAddNewRootElement(item.type)}
+                    onClick={() => onAddNewRootElement('card')}
                     className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
                   >
-                    {getElementIcon(item.type)}
-                    <span className="truncate">{item.label}</span>
+                    {getElementIcon('card')}
+                    <span className="truncate">Card Container</span>
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => onAddNewRootElement('group')}
+                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
+                  >
+                    {getElementIcon('group')}
+                    <span className="truncate">Group Wrapper</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* VISUAL ELEMENTS */}
+              <div className="space-y-1 pt-1.5 border-t border-slate-800/80">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Visual Elements
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onAddNewRootElement('text')}
+                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
+                  >
+                    {getElementIcon('text')}
+                    <span className="truncate">Text Block</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAddNewRootElement('image')}
+                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
+                  >
+                    {getElementIcon('image')}
+                    <span className="truncate">Image / Icon</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* LIVE GAME STATS */}
+              <div className="space-y-1 pt-1.5 border-t border-slate-800/80">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Live Game Stats
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onAddNewRootElement('score')}
+                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
+                  >
+                    {getElementIcon('score')}
+                    <span className="truncate">Final Score</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAddNewRootElement('moves')}
+                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
+                  >
+                    {getElementIcon('moves')}
+                    <span className="truncate">Total Moves</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAddNewRootElement('pairs')}
+                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
+                  >
+                    {getElementIcon('pairs')}
+                    <span className="truncate">Matched Pairs</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAddNewRootElement('time')}
+                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
+                  >
+                    {getElementIcon('time')}
+                    <span className="truncate">Time Elapsed</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAddNewRootElement('accuracy')}
+                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
+                  >
+                    {getElementIcon('accuracy')}
+                    <span className="truncate">Accuracy</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAddNewRootElement('leaderboard')}
+                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
+                  >
+                    {getElementIcon('leaderboard')}
+                    <span className="truncate">Leaderboard</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* INTERACTIVE CONTROLS */}
+              <div className="space-y-1 pt-1.5 border-t border-slate-800/80">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Interactive Controls
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onAddNewRootElement('button')}
+                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
+                  >
+                    {getElementIcon('button')}
+                    <span className="truncate">Button</span>
+                  </button>
+                </div>
               </div>
             </div>
 

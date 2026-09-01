@@ -118,41 +118,120 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
           </button>
 
           {addMenuOpen && (
-            <div
-              onClick={() => setAddMenuOpen(false)}
-              className="absolute left-0 top-full mt-2 w-52 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-1.5 space-y-1"
-            >
-              <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                New Result Element
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setAddMenuOpen(false)}
+              />
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute left-0 top-full mt-2 w-56 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-2 space-y-2 max-h-[80vh] overflow-y-auto"
+              >
+                <div className="px-2 py-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800 pb-1">
+                  New Result Element
+                </div>
+
+                {/* Containers */}
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2">
+                    Containers
+                  </span>
+                  {(
+                    [
+                      { type: 'card', label: 'Card Container' },
+                      { type: 'group', label: 'Group Wrapper' },
+                    ] as const
+                  ).map((item) => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={() => {
+                        onAddNewRootElement(item.type);
+                        setAddMenuOpen(false);
+                      }}
+                      className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
+                    >
+                      {getElementIcon(item.type)}
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Visual Elements */}
+                <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2">
+                    Visual Elements
+                  </span>
+                  {(
+                    [
+                      { type: 'text', label: 'Text Block' },
+                      { type: 'image', label: 'Image / Icon' },
+                    ] as const
+                  ).map((item) => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={() => {
+                        onAddNewRootElement(item.type);
+                        setAddMenuOpen(false);
+                      }}
+                      className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
+                    >
+                      {getElementIcon(item.type)}
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Live Game Stats */}
+                <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2">
+                    Live Game Stats
+                  </span>
+                  {(
+                    [
+                      { type: 'score', label: 'Final Score' },
+                      { type: 'moves', label: 'Total Moves' },
+                      { type: 'pairs', label: 'Matched Pairs' },
+                      { type: 'time', label: 'Time Elapsed' },
+                      { type: 'accuracy', label: 'Accuracy' },
+                      { type: 'leaderboard', label: 'Leaderboard' },
+                    ] as const
+                  ).map((item) => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={() => {
+                        onAddNewRootElement(item.type);
+                        setAddMenuOpen(false);
+                      }}
+                      className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
+                    >
+                      {getElementIcon(item.type)}
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Interactive Controls */}
+                <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-2">
+                    Interactive Controls
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onAddNewRootElement('button');
+                      setAddMenuOpen(false);
+                    }}
+                    className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
+                  >
+                    {getElementIcon('button')}
+                    <span>Button</span>
+                  </button>
+                </div>
               </div>
-              {(
-                [
-                  { type: 'card', label: 'Card Container' },
-                  { type: 'text', label: 'Text Block' },
-                  { type: 'score', label: 'Final Score Display' },
-                  { type: 'moves', label: 'Moves Counter' },
-                  { type: 'pairs', label: 'Pairs Counter' },
-                  { type: 'time', label: 'Time Elapsed' },
-                  { type: 'accuracy', label: 'Accuracy Stat' },
-                  { type: 'image', label: 'Image Box' },
-                  { type: 'button', label: 'Action Button' },
-                  { type: 'group', label: 'Group Wrapper' },
-                ] as const
-              ).map((item) => (
-                <button
-                  key={item.type}
-                  type="button"
-                  onClick={() => {
-                    onAddNewRootElement(item.type);
-                    setAddMenuOpen(false);
-                  }}
-                  className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2.5 transition-colors"
-                >
-                  {getElementIcon(item.type)}
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </div>
+            </>
           )}
         </div>
       </div>

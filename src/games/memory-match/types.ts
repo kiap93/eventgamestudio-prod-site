@@ -98,6 +98,7 @@ export type ResultScreenElementType =
   | 'time'
   | 'accuracy'
   | 'button'
+  | 'leaderboard'
   | 'group';
 
 export interface ResultScreenBaseElement {
@@ -261,6 +262,78 @@ export interface ResultButtonElement extends ResultScreenBaseElement {
   style?: ResultButtonStyle;
 }
 
+export interface ResultLeaderboardStyle {
+  // Container & Background styling
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  padding?: number;
+  shadow?: boolean;
+  opacity?: number;
+
+  // Typography & Colors
+  fontFamily?: string;
+  fontSize?: number; // base font size in canvas units (default: 16)
+  textColor?: string; // default row text color
+  rankColor?: string; // color of rank numbers/badges
+  scoreColor?: string; // color of score numbers
+  headerColor?: string; // color of table/section header
+
+  // Row Styling
+  rowSpacing?: number;
+  rowBackgroundColor?: string;
+  alternateRowBackgroundColor?: string;
+  highlightCurrentPlayer?: boolean;
+  highlightColor?: string;
+
+  // Header & Columns visibility
+  showHeader?: boolean;
+  headerText?: string;
+  showRank?: boolean;
+  showPlayerName?: boolean;
+  showScore?: boolean;
+  showMoves?: boolean;
+  showTime?: boolean;
+  showAccuracy?: boolean;
+
+  // Data Limits
+  maxRows?: number; // default: 5 (range: 1-10)
+
+  // Player Submission config
+  submission?: ResultLeaderboardSubmissionConfig;
+  inputPlaceholder?: string;
+  inputMaxLength?: number;
+  submitButtonText?: string;
+  successMessage?: string;
+}
+
+export interface ResultLeaderboardSubmissionConfig {
+  inputPlaceholder?: string; // default: 'Enter your name'
+  inputMaxLength?: number; // default: 20
+  submitButtonText?: string; // default: 'SUBMIT SCORE'
+  successMessage?: string; // default: 'Score submitted!'
+}
+
+export interface ResultLeaderboardElement extends ResultScreenBaseElement {
+  type: 'leaderboard';
+  maxRows?: number;
+  headerText?: string;
+  showHeader?: boolean;
+  showRank?: boolean;
+  showPlayerName?: boolean;
+  showScore?: boolean;
+  showMoves?: boolean;
+  showTime?: boolean;
+  showAccuracy?: boolean;
+  submission?: ResultLeaderboardSubmissionConfig;
+  inputPlaceholder?: string;
+  inputMaxLength?: number;
+  submitButtonText?: string;
+  successMessage?: string;
+  style?: ResultLeaderboardStyle;
+}
+
 export interface ResultGroupElement extends ResultScreenBaseElement {
   type: 'group';
   children?: ResultScreenElement[];
@@ -276,6 +349,7 @@ export type ResultScreenElement =
   | ResultTimeElement
   | ResultAccuracyElement
   | ResultButtonElement
+  | ResultLeaderboardElement
   | ResultGroupElement;
 
 export interface ResultScreenCanvasConfig {

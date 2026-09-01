@@ -2069,6 +2069,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
   uploadingAsset,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
+  const [isResultEditorFullscreen, setIsResultEditorFullscreen] = useState(false);
   const [startDragActive, setStartDragActive] = useState(false);
   const [resultDragActive, setResultDragActive] = useState(false);
   const [startUploadError, setStartUploadError] = useState<string | null>(null);
@@ -3095,35 +3096,38 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
             theme={theme}
             onChange={(updates) => handleUpdateResultScreen(updates)}
             onUploadAsset={onUploadAsset}
+            onFullscreenChange={setIsResultEditorFullscreen}
           />
 
           {/* D. Live Miniature Result Screen Preview Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-3 shadow-lg">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                <span>Result Screen Live Simulation (Dynamic Reflow)</span>
-              </h4>
-              <span className="text-[11px] text-slate-500 font-mono">16:9 Scale Preview</span>
-            </div>
+          {!isResultEditorFullscreen && (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-3 shadow-lg">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                  <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Result Screen Live Simulation (Dynamic Reflow)</span>
+                </h4>
+                <span className="text-[11px] text-slate-500 font-mono">16:9 Scale Preview</span>
+              </div>
 
-            <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col items-center justify-center select-none">
-              <ResultScreenRenderer
-                resultConfig={resultConfig}
-                stats={{
-                  score: 1250,
-                  moves: 14,
-                  matchedPairsCount: totalPairs,
-                  totalPairs: totalPairs,
-                  accuracyPercent: 88,
-                  timeElapsedSeconds: 24,
-                  isVictory: true,
-                }}
-                theme={theme}
-                isSimulation={true}
-              />
+              <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col items-center justify-center select-none">
+                <ResultScreenRenderer
+                  resultConfig={resultConfig}
+                  stats={{
+                    score: 1250,
+                    moves: 14,
+                    matchedPairsCount: totalPairs,
+                    totalPairs: totalPairs,
+                    accuracyPercent: 88,
+                    timeElapsedSeconds: 24,
+                    isVictory: true,
+                  }}
+                  theme={theme}
+                  isSimulation={true}
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>

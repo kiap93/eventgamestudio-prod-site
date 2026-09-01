@@ -76,7 +76,7 @@ export const PresetLibraryModal: React.FC<PresetLibraryModalProps> = ({
 
   if (!isOpen) return null;
 
-  const builtinCategories = ['All', 'Standard', 'Dual', 'Focused', 'Analytics', 'Minimalist'];
+  const builtinCategories = ['All', 'Standard', 'Leaderboard', 'Dual', 'Focused', 'Analytics', 'Minimalist'];
 
   const filteredBuiltinPresets =
     builtinCategory === 'All'

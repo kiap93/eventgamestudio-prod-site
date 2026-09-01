@@ -11,6 +11,7 @@ import {
   ResultTimeElement,
   ResultAccuracyElement,
   ResultButtonElement,
+  ResultLeaderboardElement,
   ResultScreenElementType,
   MemoryMatchResultScreenConfig,
 } from '../../../../games/memory-match/types';
@@ -268,6 +269,58 @@ export const createDefaultElement = (
           shadow: true,
         },
       } as ResultButtonElement;
+
+    case 'leaderboard':
+      return {
+        id,
+        type: 'leaderboard',
+        x: 150,
+        y: 280,
+        width: 700,
+        height: 380,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: 2,
+        headerText: 'LEADERBOARD',
+        showHeader: true,
+        showRank: true,
+        showPlayerName: true,
+        showScore: true,
+        showMoves: false,
+        showTime: false,
+        showAccuracy: false,
+        maxRows: 5,
+        submission: {
+          inputPlaceholder: 'Enter your name',
+          inputMaxLength: 20,
+          submitButtonText: 'SUBMIT SCORE',
+          successMessage: 'Score submitted!',
+        },
+        style: {
+          backgroundColor: 'rgba(15, 23, 42, 0.92)',
+          borderColor: '#334155',
+          borderWidth: 1,
+          borderRadius: 20,
+          padding: 12,
+          shadow: true,
+          fontSize: 16,
+          textColor: '#f8fafc',
+          rankColor: '#fbbf24',
+          scoreColor: '#fbbf24',
+          headerColor: '#fbbf24',
+          rowSpacing: 6,
+          highlightCurrentPlayer: true,
+          highlightColor: 'rgba(245, 158, 11, 0.2)',
+          submission: {
+            inputPlaceholder: 'Enter your name',
+            inputMaxLength: 20,
+            submitButtonText: 'SUBMIT SCORE',
+            successMessage: 'Score submitted!',
+          },
+        },
+      } as ResultLeaderboardElement;
 
     case 'group':
       return {

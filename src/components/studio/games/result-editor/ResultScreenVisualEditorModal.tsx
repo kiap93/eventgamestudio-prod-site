@@ -11,6 +11,7 @@ import {
   ResultTimeElement,
   ResultAccuracyElement,
   ResultButtonElement,
+  ResultLeaderboardElement,
   ResultScreenElementType,
   MemoryMatchResultScreenConfig,
 } from '../../../../games/memory-match/types';
@@ -1018,7 +1019,7 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
         <div
           className={`${
             mobileActiveTab === 'layers' ? 'flex w-full absolute inset-0 z-30' : 'hidden'
-          } md:flex shrink-0`}
+          } md:flex shrink-0 relative z-20`}
         >
           <LayerTreePanel
             elements={elements}
