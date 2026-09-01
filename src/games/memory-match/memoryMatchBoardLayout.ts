@@ -3,7 +3,23 @@ import {
   MemoryMatchGridConfig,
   MemoryMatchRandomLayoutConfig,
   MemoryMatchCardConfig,
+  MemoryMatchLayoutMode,
+  MIN_BOARD_ROWS,
+  MAX_BOARD_ROWS,
+  MIN_BOARD_COLS,
+  MAX_BOARD_COLS,
+  MIN_TOTAL_CARDS,
+  MAX_TOTAL_CARDS,
 } from './types';
+
+export {
+  MIN_BOARD_ROWS,
+  MAX_BOARD_ROWS,
+  MIN_BOARD_COLS,
+  MAX_BOARD_COLS,
+  MIN_TOTAL_CARDS,
+  MAX_TOTAL_CARDS,
+};
 
 export interface CardLayoutPosition {
   x: number; // Center X percentage (0 - 100%)
@@ -78,11 +94,18 @@ export function normalizeCardConfig(
  * Calculates total card count and matching pairs from rows and cols.
  */
 export function calculateBoardDimensions(rows: number, cols: number): BoardDimensionResult {
-  const safeRows = Math.min(6, Math.max(2, Math.floor(rows || 4)));
-  const safeCols = Math.min(6, Math.max(2, Math.floor(cols || 4)));
+  const safeRows = Math.min(MAX_BOARD_ROWS, Math.max(MIN_BOARD_ROWS, Math.floor(rows || 4)));
+  const safeCols = Math.min(MAX_BOARD_COLS, Math.max(MIN_BOARD_COLS, Math.floor(cols || 4)));
   const totalCards = safeRows * safeCols;
   const isEven = totalCards % 2 === 0;
   const requiredPairs = Math.floor(totalCards / 2);
+
+  let warning: string | undefined = undefined;
+  if (!isEven) {
+    warning = `Odd card count (${totalCards}). Memory match requires an even number of cards.`;
+  } else if (totalCards > MAX_TOTAL_CARDS) {
+    warning = `Total card count (${totalCards}) exceeds maximum allowed cards (${MAX_TOTAL_CARDS}).`;
+  }
 
   return {
     rows: safeRows,
@@ -90,9 +113,7 @@ export function calculateBoardDimensions(rows: number, cols: number): BoardDimen
     totalCards,
     isEven,
     requiredPairs,
-    warning: !isEven
-      ? `Odd card count (${totalCards}). Memory match requires an even number of cards.`
-      : undefined,
+    warning,
   };
 }
 
@@ -105,7 +126,11 @@ export function normalizeBoardConfig(
 ): MemoryMatchBoardConfig {
   const rows = Number(rawBoard?.rows) || Number(legacyGrid?.rows) || 4;
   const cols = Number(rawBoard?.cols) || Number(legacyGrid?.cols) || 4;
-  const layoutMode = rawBoard?.layoutMode === 'random' ? 'random' : 'grid';
+  const rawMode = rawBoard?.layoutMode;
+  const layoutMode: MemoryMatchLayoutMode =
+    rawMode === 'random' || rawMode === 'up-down' || rawMode === 'up-down-rotation'
+      ? rawMode
+      : 'grid';
   const cardGap = typeof rawBoard?.cardGap === 'number' ? Math.max(4, Math.min(32, rawBoard.cardGap)) : 12;
 
   const rawRandom = rawBoard?.randomLayout;
@@ -132,8 +157,8 @@ export function normalizeBoardConfig(
 
   return {
     layoutMode,
-    rows: Math.max(2, Math.min(6, rows)),
-    cols: Math.max(2, Math.min(6, cols)),
+    rows: Math.max(MIN_BOARD_ROWS, Math.min(MAX_BOARD_ROWS, rows)),
+    cols: Math.max(MIN_BOARD_COLS, Math.min(MAX_BOARD_COLS, cols)),
     cardGap,
     randomLayout: {
       minSpacing,
@@ -165,6 +190,15 @@ export function validateBoardLayout(board?: Partial<MemoryMatchBoardConfig> | nu
     };
   }
 
+  if (dims.totalCards > MAX_TOTAL_CARDS) {
+    return {
+      isValid: false,
+      totalCards: dims.totalCards,
+      requiredPairs: dims.requiredPairs,
+      error: `Card count (${dims.totalCards}) exceeds maximum supported cards (${MAX_TOTAL_CARDS}).`,
+    };
+  }
+
   return {
     isValid: true,
     totalCards: dims.totalCards,
@@ -181,8 +215,8 @@ export function calculateGridLayout(
   cardGap = 12,
   cardConfig?: Partial<MemoryMatchCardConfig> | null
 ) {
-  const safeRows = Math.max(2, Math.min(6, rows));
-  const safeCols = Math.max(2, Math.min(6, cols));
+  const safeRows = Math.max(MIN_BOARD_ROWS, Math.min(MAX_BOARD_ROWS, rows));
+  const safeCols = Math.max(MIN_BOARD_COLS, Math.min(MAX_BOARD_COLS, cols));
   const card = normalizeCardConfig(cardConfig);
 
   const containerAspect = (safeCols * card.width) / (safeRows * card.height);
@@ -338,4 +372,126 @@ export function generateRandomCardPositions(
 
   return positions;
 }
+
+/**
+ * Generates fixed Up-Down alternating staggered card positions.
+ * Cards alternate between higher and lower vertical positions across columns
+ * to create a clear up-down visual rhythm while preventing overlaps and respecting bounds.
+ *
+ * If withRandomRotation is true (Up-Down + Random Rotation), applies the existing
+ * random rotation behavior from Memory Match.
+ */
+export function generateUpDownCardPositions(
+  cardCount: number,
+  boardConfig?: Partial<MemoryMatchBoardConfig> | null,
+  cardConfigInput?: Partial<MemoryMatchCardConfig> | null,
+  withRandomRotation = false
+): CardLayoutPosition[] {
+  const count = Math.max(2, cardCount);
+  const normalized = normalizeBoardConfig(boardConfig);
+  const card = normalizeCardConfig(cardConfigInput || normalized.card);
+  const { rotationMin, rotationMax } = normalized.randomLayout;
+
+  const cols = Math.max(MIN_BOARD_COLS, Math.min(MAX_BOARD_COLS, normalized.cols));
+  const rows = Math.max(MIN_BOARD_ROWS, Math.min(MAX_BOARD_ROWS, normalized.rows));
+
+  // Compute proportional percentage dimensions based on card.width and card.height
+  const baseDim = Math.max(card.width, card.height);
+  const widthFactor = card.width / baseDim;
+  const heightFactor = card.height / baseDim;
+
+  const cardWidthPercent = Math.min(26, Math.max(9, Math.round((74 / cols) * widthFactor * 10) / 10));
+  const cardHeightPercent = Math.min(30, Math.max(10, Math.round((78 / rows) * heightFactor * 10) / 10));
+
+  const halfW = cardWidthPercent / 2;
+  const halfH = cardHeightPercent / 2;
+  const marginPercent = 3.5;
+  const minX = halfW + marginPercent;
+  const maxX = 100 - halfW - marginPercent;
+  const minY = halfH + marginPercent;
+  const maxY = 100 - halfH - marginPercent;
+
+  const totalHeightSpan = maxY - minY;
+  let offsetY = Math.min(cardHeightPercent * 0.28, (totalHeightSpan / Math.max(1, rows - 1)) * 0.22);
+  offsetY = Math.max(2.5, Math.round(offsetY * 10) / 10);
+
+  let usableMinY = minY + offsetY;
+  let usableMaxY = maxY - offsetY;
+
+  if (usableMinY > usableMaxY) {
+    offsetY = Math.max(0, totalHeightSpan * 0.1);
+    usableMinY = minY + offsetY;
+    usableMaxY = maxY - offsetY;
+  }
+
+  // Determine rotation range
+  let rotMin = rotationMin;
+  let rotMax = rotationMax;
+
+  if (withRandomRotation) {
+    const range = card.rotationRange ?? (card.rotationMode === 'random' ? card.rotationRange : (rotationMax || 8));
+    rotMin = typeof rotationMin === 'number' && rotationMin !== 0 ? rotationMin : -range;
+    rotMax = typeof rotationMax === 'number' && rotationMax !== 0 ? rotationMax : range;
+  } else {
+    if (card.rotationMode === 'fixed') {
+      rotMin = card.rotation;
+      rotMax = card.rotation;
+    } else {
+      rotMin = 0;
+      rotMax = 0;
+    }
+  }
+
+  const positions: CardLayoutPosition[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const colIdx = i % cols;
+    const rowIdx = Math.floor(i / cols) % rows;
+
+    const colX = cols === 1 ? 50 : minX + (colIdx / (cols - 1)) * (maxX - minX);
+    const baseY = rows === 1 ? 50 : usableMinY + (rowIdx / (rows - 1)) * (usableMaxY - usableMinY);
+
+    // Alternate: even columns higher (Up), odd columns lower (Down)
+    const isUp = colIdx % 2 === 0;
+    const cardY = isUp ? baseY - offsetY : baseY + offsetY;
+
+    let rotation = 0;
+    if (withRandomRotation) {
+      const rotSpan = rotMax - rotMin;
+      rotation = rotSpan > 0 ? rotMin + Math.random() * rotSpan : (rotMin + rotMax) / 2;
+    } else if (card.rotationMode === 'fixed') {
+      rotation = card.rotation;
+    }
+
+    positions.push({
+      x: Math.min(maxX, Math.max(minX, Math.round(colX * 10) / 10)),
+      y: Math.min(maxY, Math.max(minY, Math.round(cardY * 10) / 10)),
+      rotation: Math.round(rotation * 10) / 10,
+      widthPercent: cardWidthPercent,
+      heightPercent: cardHeightPercent,
+      zIndex: i + 1,
+    });
+  }
+
+  return positions;
+}
+
+/**
+ * Master dispatcher for generating card positions according to board layoutMode.
+ */
+export function generateCardPositions(
+  cardCount: number,
+  boardConfig?: Partial<MemoryMatchBoardConfig> | null,
+  cardConfigInput?: Partial<MemoryMatchCardConfig> | null
+): CardLayoutPosition[] {
+  const normalized = normalizeBoardConfig(boardConfig);
+  if (normalized.layoutMode === 'up-down') {
+    return generateUpDownCardPositions(cardCount, normalized, cardConfigInput, false);
+  }
+  if (normalized.layoutMode === 'up-down-rotation') {
+    return generateUpDownCardPositions(cardCount, normalized, cardConfigInput, true);
+  }
+  return generateRandomCardPositions(cardCount, normalized, cardConfigInput);
+}
+
 

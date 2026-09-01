@@ -1,5 +1,12 @@
 import { GameTheme, getMemoryMatchConfig } from '../../themes/types';
-import { MemoryCard, MemoryMatchPairConfig } from './types';
+import {
+  MemoryCard,
+  MemoryMatchPairConfig,
+  MIN_BOARD_ROWS,
+  MAX_BOARD_ROWS,
+  MIN_BOARD_COLS,
+  MAX_BOARD_COLS,
+} from './types';
 
 interface CardPrototype {
   pairId: string;
@@ -265,8 +272,8 @@ export function shuffleArray<T>(array: T[]): T[] {
  */
 export function createShuffledDeck(theme?: GameTheme | null): MemoryCard[] {
   const memoryConfig = getMemoryMatchConfig(theme);
-  const rows = Math.max(2, memoryConfig.board?.rows ?? memoryConfig.grid?.rows ?? 4);
-  const cols = Math.max(2, memoryConfig.board?.cols ?? memoryConfig.grid?.cols ?? 4);
+  const rows = Math.max(MIN_BOARD_ROWS, Math.min(MAX_BOARD_ROWS, memoryConfig.board?.rows ?? memoryConfig.grid?.rows ?? 4));
+  const cols = Math.max(MIN_BOARD_COLS, Math.min(MAX_BOARD_COLS, memoryConfig.board?.cols ?? memoryConfig.grid?.cols ?? 4));
   const totalCards = (rows * cols) % 2 === 0 ? rows * cols : rows * cols - 1;
   const requiredPairsCount = Math.max(1, Math.floor(totalCards / 2));
 

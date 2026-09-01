@@ -2,6 +2,7 @@ import type {
   MemoryMatchGameConfig,
   MemoryMatchBoardConfig,
   MemoryMatchCardConfig,
+  MemoryMatchLayoutMode,
   ScreenBackgroundType,
   MemoryMatchStartScreenConfig,
   MemoryMatchResultScreenConfig,
@@ -32,6 +33,10 @@ import type {
 import {
   generateDefaultResultScreenElements,
   DEFAULT_RESULT_CANVAS_CONFIG,
+  MIN_BOARD_ROWS,
+  MAX_BOARD_ROWS,
+  MIN_BOARD_COLS,
+  MAX_BOARD_COLS,
 } from '../games/memory-match/types';
 
 export type {
@@ -385,9 +390,13 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
     const rawUi = gc.ui;
     const showLeaderboard = rawUi?.showLeaderboard !== undefined ? Boolean(rawUi.showLeaderboard) : true;
 
-    const rows = Math.max(2, Math.min(6, Number(rawBoard?.rows) || Number(rawGrid?.rows) || 4));
-    const cols = Math.max(2, Math.min(6, Number(rawBoard?.cols) || Number(rawGrid?.cols) || 4));
-    const layoutMode = rawBoard?.layoutMode === 'random' ? 'random' : 'grid';
+    const rows = Math.max(MIN_BOARD_ROWS, Math.min(MAX_BOARD_ROWS, Number(rawBoard?.rows) || Number(rawGrid?.rows) || 4));
+    const cols = Math.max(MIN_BOARD_COLS, Math.min(MAX_BOARD_COLS, Number(rawBoard?.cols) || Number(rawGrid?.cols) || 4));
+    const rawMode = rawBoard?.layoutMode;
+    const layoutMode: MemoryMatchLayoutMode =
+      rawMode === 'random' || rawMode === 'up-down' || rawMode === 'up-down-rotation'
+        ? rawMode
+        : 'grid';
     const cardGap = typeof rawBoard?.cardGap === 'number' ? Math.max(4, Math.min(32, rawBoard.cardGap)) : 12;
 
     const rawRandom = rawBoard?.randomLayout;
@@ -418,7 +427,7 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
     };
 
     const resolvedBoard: MemoryMatchBoardConfig = {
-      layoutMode: rawBoard?.layoutMode === 'random' ? 'random' : 'grid',
+      layoutMode,
       rows,
       cols,
       cardGap,

@@ -23,6 +23,12 @@ import {
   MemoryMatchScreensConfig,
   ScreenBackgroundType,
   generateDefaultResultScreenElements,
+  MIN_BOARD_ROWS,
+  MAX_BOARD_ROWS,
+  MIN_BOARD_COLS,
+  MAX_BOARD_COLS,
+  MIN_TOTAL_CARDS,
+  MAX_TOTAL_CARDS,
 } from '../../../games/memory-match/types';
 import { ResultScreenRenderer } from '../../../games/memory-match/ResultScreenRenderer';
 import { ResultScreenVisualEditor } from './ResultScreenVisualEditor';
@@ -61,6 +67,7 @@ import {
   Shuffle,
   Maximize2,
   RotateCw,
+  ArrowUpDown,
   Square,
   RectangleHorizontal,
   RectangleVertical,
@@ -965,14 +972,30 @@ export const MemoryMatchCardsCustomizer: React.FC<MemoryMatchCardsCustomizerProp
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
-            {layoutMode === 'random' ? <Shuffle className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
+            {layoutMode === 'random' ? (
+              <Shuffle className="w-4 h-4" />
+            ) : layoutMode === 'up-down' ? (
+              <ArrowUpDown className="w-4 h-4" />
+            ) : layoutMode === 'up-down-rotation' ? (
+              <RotateCw className="w-4 h-4" />
+            ) : (
+              <Grid3X3 className="w-4 h-4" />
+            )}
           </span>
           <div>
             <h3 className="text-sm font-bold text-slate-100">
               {requiredPairsCount} Memory Card Pairs ({totalCards} Cards)
             </h3>
             <p className="text-xs text-slate-400">
-              Customize the front art, title, and symbol for the {rows} × {cols} {layoutMode === 'random' ? 'scattered' : 'grid'} board ({requiredPairsCount} active pairs)
+              Customize the front art, title, and symbol for the {rows} × {cols}{' '}
+              {layoutMode === 'random'
+                ? 'scattered'
+                : layoutMode === 'up-down'
+                ? 'up-down'
+                : layoutMode === 'up-down-rotation'
+                ? 'up-down with rotation'
+                : 'grid'}{' '}
+              board ({requiredPairsCount} active pairs)
             </p>
           </div>
         </div>
@@ -1079,6 +1102,7 @@ interface MemoryMatchGameLayoutCustomizerProps {
 
 const GRID_PRESETS = [
   { label: '4 × 4', rows: 4, cols: 4, desc: '16 Cards • 8 Pairs (Standard)' },
+  { label: '2 × 8', rows: 2, cols: 8, desc: '16 Cards • 8 Pairs (Wide)' },
   { label: '4 × 5', rows: 4, cols: 5, desc: '20 Cards • 10 Pairs (Medium)' },
   { label: '5 × 6', rows: 5, cols: 6, desc: '30 Cards • 15 Pairs (Large)' },
   { label: '6 × 6', rows: 6, cols: 6, desc: '36 Cards • 18 Pairs (Expert)' },
@@ -1090,6 +1114,7 @@ const RANDOM_PRESETS = [
   { label: '8 Cards', rows: 2, cols: 4, desc: '4 Pairs (Scattered Mini)' },
   { label: '12 Cards', rows: 3, cols: 4, desc: '6 Pairs (Scattered Quick)' },
   { label: '16 Cards', rows: 4, cols: 4, desc: '8 Pairs (Scattered Standard)' },
+  { label: '16 Cards (2 × 8)', rows: 2, cols: 8, desc: '8 Pairs (Scattered Wide)' },
   { label: '20 Cards', rows: 4, cols: 5, desc: '10 Pairs (Scattered Medium)' },
   { label: '24 Cards', rows: 4, cols: 6, desc: '12 Pairs (Scattered Large)' },
   { label: '30 Cards', rows: 5, cols: 6, desc: '15 Pairs (Scattered Expert)' },
@@ -1156,8 +1181,8 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
       ...updates,
     };
 
-    const validRows = Math.min(6, Math.max(2, nextBoard.rows));
-    const validCols = Math.min(6, Math.max(2, nextBoard.cols));
+    const validRows = Math.min(MAX_BOARD_ROWS, Math.max(MIN_BOARD_ROWS, nextBoard.rows));
+    const validCols = Math.min(MAX_BOARD_COLS, Math.max(MIN_BOARD_COLS, nextBoard.cols));
     nextBoard.rows = validRows;
     nextBoard.cols = validCols;
 
@@ -1167,6 +1192,10 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
     const product = validRows * validCols;
     if (product % 2 !== 0) {
       // Don't commit invalid odd card count to theme
+      return;
+    }
+    if (product > MAX_TOTAL_CARDS) {
+      // Don't commit if exceeds max total cards limit
       return;
     }
 
@@ -1211,18 +1240,34 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
-              {currentLayoutMode === 'random' ? <Shuffle className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
+              {currentLayoutMode === 'random' ? (
+                <Shuffle className="w-4 h-4" />
+              ) : currentLayoutMode === 'up-down' ? (
+                <ArrowUpDown className="w-4 h-4" />
+              ) : currentLayoutMode === 'up-down-rotation' ? (
+                <RotateCw className="w-4 h-4" />
+              ) : (
+                <Grid3X3 className="w-4 h-4" />
+              )}
             </span>
             <div>
               <h3 className="text-sm font-bold text-slate-100">Board Layout & Card Arrangement</h3>
               <p className="text-xs text-slate-400">
-                Choose between structured CSS Grid or dynamic Scattered / Random card placement
+                Choose between Grid, Random / Scattered, Up-Down, or Up-Down with Random Rotation
               </p>
             </div>
           </div>
           <div className="text-right">
             <span className="text-emerald-400 font-bold font-mono text-sm block">
-              {currentRows} × {currentCols} ({currentLayoutMode === 'random' ? 'Random' : 'Grid'})
+              {currentRows} × {currentCols} ({
+                currentLayoutMode === 'random'
+                  ? 'Random'
+                  : currentLayoutMode === 'up-down'
+                  ? 'Up-Down'
+                  : currentLayoutMode === 'up-down-rotation'
+                  ? 'Up-Down + Rot'
+                  : 'Grid'
+              })
             </span>
             <span className="text-[11px] text-slate-400 font-mono">
               {currentRows * currentCols} Cards • {(currentRows * currentCols) / 2} Pairs
@@ -1230,38 +1275,66 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
           </div>
         </div>
 
-        {/* Layout Style Toggle: [ Grid ] [ Random / Scattered ] */}
+        {/* Layout Style Toggle: [ Grid ] [ Random / Scattered ] [ Up-Down ] [ Up-Down + Random Rotation ] */}
         <div className="space-y-2">
           <label className="text-xs font-semibold text-slate-300 block">
             Layout Style
           </label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <button
               type="button"
               onClick={() => handleUpdateBoard({ layoutMode: 'grid' })}
-              className={`p-3 rounded-2xl border flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+              className={`p-3 rounded-2xl border flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 currentLayoutMode === 'grid'
                   ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 shadow-md shadow-emerald-500/10 font-bold'
                   : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
               }`}
             >
-              <Grid3X3 className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs">Grid Layout</span>
-              {currentLayoutMode === 'grid' && <Check className="w-3.5 h-3.5 text-emerald-400 ml-1" />}
+              <Grid3X3 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-xs">Grid</span>
+              {currentLayoutMode === 'grid' && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-auto" />}
             </button>
 
             <button
               type="button"
               onClick={() => handleUpdateBoard({ layoutMode: 'random' })}
-              className={`p-3 rounded-2xl border flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+              className={`p-3 rounded-2xl border flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 currentLayoutMode === 'random'
                   ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 shadow-md shadow-emerald-500/10 font-bold'
                   : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
               }`}
             >
-              <Shuffle className="w-4 h-4 text-emerald-400" />
+              <Shuffle className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="text-xs">Random / Scattered</span>
-              {currentLayoutMode === 'random' && <Check className="w-3.5 h-3.5 text-emerald-400 ml-1" />}
+              {currentLayoutMode === 'random' && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-auto" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleUpdateBoard({ layoutMode: 'up-down' })}
+              className={`p-3 rounded-2xl border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                currentLayoutMode === 'up-down'
+                  ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 shadow-md shadow-emerald-500/10 font-bold'
+                  : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
+              }`}
+            >
+              <ArrowUpDown className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-xs">Up-Down</span>
+              {currentLayoutMode === 'up-down' && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-auto" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleUpdateBoard({ layoutMode: 'up-down-rotation' })}
+              className={`p-3 rounded-2xl border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                currentLayoutMode === 'up-down-rotation'
+                  ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 shadow-md shadow-emerald-500/10 font-bold'
+                  : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
+              }`}
+            >
+              <RotateCw className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-xs">Up-Down + Random Rotation</span>
+              {currentLayoutMode === 'up-down-rotation' && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-auto" />}
             </button>
           </div>
         </div>
@@ -1306,7 +1379,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-300">
-                Rows (2 – 6)
+                Rows ({MIN_BOARD_ROWS} – {MAX_BOARD_ROWS})
               </span>
               <span className="text-emerald-400 font-bold font-mono text-sm">
                 {rowsInput} Rows
@@ -1315,7 +1388,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                disabled={rowsInput <= 2}
+                disabled={rowsInput <= MIN_BOARD_ROWS}
                 onClick={() => handleUpdateBoard({ rows: rowsInput - 1, cols: colsInput })}
                 className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
               >
@@ -1323,16 +1396,16 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
               </button>
               <input
                 type="range"
-                min="2"
-                max="6"
+                min={MIN_BOARD_ROWS}
+                max={MAX_BOARD_ROWS}
                 step="1"
                 value={rowsInput}
-                onChange={(e) => handleUpdateBoard({ rows: parseInt(e.target.value) || 2, cols: colsInput })}
+                onChange={(e) => handleUpdateBoard({ rows: parseInt(e.target.value) || MIN_BOARD_ROWS, cols: colsInput })}
                 className="flex-1 accent-emerald-500 cursor-pointer"
               />
               <button
                 type="button"
-                disabled={rowsInput >= 6}
+                disabled={rowsInput >= MAX_BOARD_ROWS}
                 onClick={() => handleUpdateBoard({ rows: rowsInput + 1, cols: colsInput })}
                 className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
               >
@@ -1345,7 +1418,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-300">
-                Columns (2 – 6)
+                Columns ({MIN_BOARD_COLS} – {MAX_BOARD_COLS})
               </span>
               <span className="text-emerald-400 font-bold font-mono text-sm">
                 {colsInput} Columns
@@ -1354,7 +1427,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                disabled={colsInput <= 2}
+                disabled={colsInput <= MIN_BOARD_COLS}
                 onClick={() => handleUpdateBoard({ rows: rowsInput, cols: colsInput - 1 })}
                 className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
               >
@@ -1362,16 +1435,16 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
               </button>
               <input
                 type="range"
-                min="2"
-                max="6"
+                min={MIN_BOARD_COLS}
+                max={MAX_BOARD_COLS}
                 step="1"
                 value={colsInput}
-                onChange={(e) => handleUpdateBoard({ rows: rowsInput, cols: parseInt(e.target.value) || 2 })}
+                onChange={(e) => handleUpdateBoard({ rows: rowsInput, cols: parseInt(e.target.value) || MIN_BOARD_COLS })}
                 className="flex-1 accent-emerald-500 cursor-pointer"
               />
               <button
                 type="button"
-                disabled={colsInput >= 6}
+                disabled={colsInput >= MAX_BOARD_COLS}
                 onClick={() => handleUpdateBoard({ rows: rowsInput, cols: colsInput + 1 })}
                 className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
               >
@@ -1482,11 +1555,29 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
           </div>
         )}
 
+        {/* Max Total Cards Validation Warning */}
+        {totalCards > MAX_TOTAL_CARDS && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-2.5 text-amber-400 text-xs animate-in fade-in">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <p>
+              <strong>Exceeds Maximum Limit ({totalCards} Cards):</strong> Maximum supported cards is {MAX_TOTAL_CARDS} cards ({MAX_TOTAL_CARDS / 2} pairs). Please reduce rows or columns.
+            </p>
+          </div>
+        )}
+
         {/* Dynamic Matrix Summary Callout */}
         <div className="bg-slate-950/70 border border-slate-850 rounded-2xl p-3.5 flex items-center justify-between text-xs">
           <div className="space-y-0.5">
             <span className="font-bold text-slate-200 block">
-              Active Configuration: {currentRows} × {currentCols} ({currentLayoutMode === 'random' ? 'Scattered Layout' : 'CSS Grid'})
+              Active Configuration: {currentRows} × {currentCols} ({
+                currentLayoutMode === 'random'
+                  ? 'Scattered Layout'
+                  : currentLayoutMode === 'up-down'
+                  ? 'Up-Down Layout'
+                  : currentLayoutMode === 'up-down-rotation'
+                  ? 'Up-Down + Random Rotation'
+                  : 'CSS Grid'
+              })
             </span>
             <span className="text-[11px] text-slate-400">
               {currentRows * currentCols} Cards total • {(currentRows * currentCols) / 2} Matching Pairs
@@ -2083,8 +2174,8 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
   const startConfig = screens.start || DEFAULT_START_SCREEN_CONFIG;
   const resultConfig = screens.result || DEFAULT_RESULT_SCREEN_CONFIG;
 
-  const rows = Math.max(2, memoryConfig.board?.rows ?? memoryConfig.grid?.rows ?? 4);
-  const cols = Math.max(2, memoryConfig.board?.cols ?? memoryConfig.grid?.cols ?? 4);
+  const rows = Math.max(MIN_BOARD_ROWS, Math.min(MAX_BOARD_ROWS, memoryConfig.board?.rows ?? memoryConfig.grid?.rows ?? 4));
+  const cols = Math.max(MIN_BOARD_COLS, Math.min(MAX_BOARD_COLS, memoryConfig.board?.cols ?? memoryConfig.grid?.cols ?? 4));
   const totalCards = (rows * cols) % 2 === 0 ? rows * cols : rows * cols - 1;
   const totalPairs = Math.floor(totalCards / 2);
   const duration = memoryConfig.gameplay?.gameDurationSeconds ?? 45;

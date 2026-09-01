@@ -27,7 +27,14 @@ export interface MemoryMatchPairConfig {
   points?: number;
 }
 
-export type MemoryMatchLayoutMode = 'grid' | 'random';
+export const MIN_BOARD_ROWS = 2;
+export const MAX_BOARD_ROWS = 8;
+export const MIN_BOARD_COLS = 2;
+export const MAX_BOARD_COLS = 8;
+export const MIN_TOTAL_CARDS = 4;
+export const MAX_TOTAL_CARDS = 48;
+
+export type MemoryMatchLayoutMode = 'grid' | 'random' | 'up-down' | 'up-down-rotation';
 export type MemoryMatchCardRotationMode = 'none' | 'fixed' | 'random';
 
 export interface MemoryMatchCardConfig {
@@ -46,9 +53,9 @@ export interface MemoryMatchRandomLayoutConfig {
 }
 
 export interface MemoryMatchBoardConfig {
-  layoutMode: MemoryMatchLayoutMode; // 'grid' | 'random'
-  rows: number; // default: 4 (range: 2 to 6)
-  cols: number; // default: 4 (range: 2 to 6)
+  layoutMode: MemoryMatchLayoutMode; // 'grid' | 'random' | 'up-down' | 'up-down-rotation'
+  rows: number; // default: 4 (range: 2 to 8)
+  cols: number; // default: 4 (range: 2 to 8)
   cardGap: number; // default: 12 px
   randomLayout: MemoryMatchRandomLayoutConfig;
   card?: MemoryMatchCardConfig;

@@ -32,7 +32,7 @@ import { GameComponentProps } from '../types';
 import { MemoryCard, MemoryMatchConfig } from './types';
 import { createShuffledDeck } from './cardDeck';
 import { memorySounds } from './memorySounds';
-import { generateRandomCardPositions, CardPosition } from './memoryMatchBoardLayout';
+import { generateCardPositions, generateRandomCardPositions, CardPosition } from './memoryMatchBoardLayout';
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
 import { getMemoryMatchConfig, getCardFrontBg, getCardGoodBg, resolveScreenBackground } from '../../themes';
 import {
@@ -166,7 +166,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const [countdown, setCountdown] = useState<number>(3);
   const [cards, setCards] = useState<MemoryCard[]>(() => createShuffledDeck(activeTheme));
   const [randomPositions, setRandomPositions] = useState<CardPosition[]>(() =>
-    generateRandomCardPositions(createShuffledDeck(activeTheme).length, boardConfig, cardConfig)
+    generateCardPositions(createShuffledDeck(activeTheme).length, boardConfig, cardConfig)
   );
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [isLocked, setIsLocked] = useState<boolean>(false);
@@ -287,7 +287,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const initBoard = useCallback(() => {
     const newDeck = createShuffledDeck(activeTheme);
     setCards(newDeck);
-    setRandomPositions(generateRandomCardPositions(newDeck.length, boardConfig, cardConfig));
+    setRandomPositions(generateCardPositions(newDeck.length, boardConfig, cardConfig));
     setFlippedIndices([]);
     setIsLocked(false);
     setScore(0);
@@ -775,8 +775,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               left: `${boardX}%`,
               top: `${boardY}%`,
               transform: 'translate(-50%, -50%)',
-              width: `${Math.min(540, Math.round(410 * gridContainerAspect))}px`,
-              height: `${Math.min(410, Math.round(540 / gridContainerAspect))}px`,
+              width: `${Math.min(760, Math.round(410 * gridContainerAspect))}px`,
+              height: `${Math.min(410, Math.round(760 / gridContainerAspect))}px`,
               maxWidth: '100%',
               maxHeight: '100%',
               display: 'grid',
