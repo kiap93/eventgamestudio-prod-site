@@ -13,6 +13,7 @@ import {
   addDaysToDateString,
   formatDateOnly,
   formatEventDateRange,
+  calculateEventCalendarDays,
 } from '../../lib/dateUtils';
 import { PaymentCheckoutModal } from '../wallet/PaymentCheckoutModal';
 import {
@@ -43,6 +44,9 @@ interface GameThemeOption {
   game_id?: string | null;
   game_name?: string;
   game_slug?: string;
+  organization_id?: string | null;
+  is_system?: boolean;
+  ownership_type?: string;
   status?: string;
 }
 
@@ -149,15 +153,12 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         setLoadingCatalog(true);
         // 1. Fetch Admin-registered platform games from Supabase
         const gamesPromise = apiFetch('/api/games');
-        // 2. Fetch active org custom themes
+        // 2. Fetch active org custom themes (NEVER load system themes in event creation)
         const themesPromise = apiFetch('/api/themes');
-        // 3. Fetch system default themes
-        const systemThemesPromise = apiFetch('/api/themes/system');
 
-        const [gamesRes, themesRes, sysThemesRes] = await Promise.all([
+        const [gamesRes, themesRes] = await Promise.all([
           gamesPromise,
           themesPromise,
-          systemThemesPromise,
         ]);
 
         let gameList: PlatformGameOption[] = [];
@@ -169,27 +170,21 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
         const registeredGameIds = new Set(gameList.map((g) => g.id));
 
-        let allThemes: GameThemeOption[] = [];
+        let orgThemes: GameThemeOption[] = [];
         if (themesRes.ok) {
           const themesData = await themesRes.json();
           if (Array.isArray(themesData.themes)) {
-            allThemes.push(...themesData.themes);
-          }
-        }
-        if (sysThemesRes.ok) {
-          const sysData = await sysThemesRes.json();
-          if (Array.isArray(sysData.themes)) {
-            for (const st of sysData.themes) {
-              if (!allThemes.some((t) => t.id === st.id)) {
-                allThemes.push(st);
-              }
-            }
+            orgThemes = themesData.themes;
           }
         }
 
-        // STRICT FILTER: Only keep themes that belong to active registered platform games in `gameList`
-        const validThemes = allThemes.filter((t) => {
-          if (!t.game_id) return false;
+        // STRICT FILTER: Only keep organization-owned, non-system themes that belong to active registered platform games in `gameList`
+        const validThemes = orgThemes.filter((t) => {
+          if (!t || !t.id || !t.game_id) return false;
+          if (t.is_system === true) return false;
+          if (t.ownership_type === 'system') return false;
+          if (currentOrganization?.id && t.organization_id && t.organization_id !== currentOrganization.id) return false;
+          if (t.status && t.status !== 'active') return false;
           return registeredGameIds.has(t.game_id);
         });
 
@@ -219,7 +214,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     };
 
     fetchCatalog();
-  }, [isOpen]);
+  }, [isOpen, currentOrganization?.id]);
 
   // Handle Game selection change - updates game and auto-selects first theme of that game
   const handleGameChange = (gameId: string) => {
@@ -257,6 +252,10 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
           game_theme_id: themeId || undefined,
           payment_mode: mode,
           event_price: createdEvent?.event_price || undefined,
+          start_date: createdEvent?.start_date || startDate || undefined,
+          end_date: createdEvent?.end_date || endDate || undefined,
+          startDate: createdEvent?.start_date || startDate || undefined,
+          endDate: createdEvent?.end_date || endDate || undefined,
         }),
       });
 
@@ -316,9 +315,14 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       return;
     }
 
-    const currentTheme = themes.find((t) => t.id === selectedThemeId) || themes[0];
-    const themeIdToUse = currentTheme?.id || selectedThemeId;
-    const gameIdToUse = selectedGameId || currentTheme?.game_id || games[0]?.id;
+    const currentTheme = themes.find((t) => t.id === selectedThemeId && (!selectedGameId || t.game_id === selectedGameId));
+    if (!currentTheme) {
+      setCreationError('Please select a valid organization theme for this game');
+      return;
+    }
+
+    const themeIdToUse = currentTheme.id;
+    const gameIdToUse = selectedGameId || currentTheme.game_id;
 
     if (!startDate || !endDate) {
       setCreationError('Please select both Start Date and End Date');
@@ -851,6 +855,23 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 <span className="text-slate-400">Game / Theme:</span>
                 <span className="font-semibold text-amber-300">
                   {selectedTheme?.game_name || 'Game'} / {selectedTheme?.name || 'Theme'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
+                <span className="text-slate-400">Scheduled Duration:</span>
+                <span className="font-bold text-slate-200">
+                  {calculateEventCalendarDays(createdEvent.start_date || startDate, createdEvent.end_date || endDate)} calendar days
+                  {createdEvent.start_date && (
+                    <span className="text-[11px] font-normal text-slate-400 ml-1.5">
+                      ({createdEvent.start_date} to {createdEvent.end_date || createdEvent.start_date})
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
+                <span className="text-slate-400">Event Price:</span>
+                <span className="font-mono font-bold text-amber-400">
+                  {formatCurrency(createdEvent.event_price || standardPrice)}
                 </span>
               </div>
               <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">

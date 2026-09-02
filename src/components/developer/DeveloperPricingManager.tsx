@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from '../../lib/api';
-import { PlatformPricingSettings, AdminEventPricingItem } from '../../types/developer';
+import { PlatformPricingSettings, AdminEventPricingItem, EventPricingRule } from '../../types/developer';
+import { calculateEventCalendarDays } from '../../lib/dateUtils';
 import {
   Coins,
   DollarSign,
@@ -21,12 +22,31 @@ import {
   X,
   History,
   Info,
+  Plus,
+  Trash2,
+  Clock,
+  ArrowRight,
+  Calculator,
+  CheckCircle2,
 } from 'lucide-react';
+
+const DEFAULT_RULE_TEMPLATES: EventPricingRule[] = [
+  { id: 'rule_1d', min_days: 1, max_days: 1, price: 1400, currency: 'MYR', active: true },
+  { id: 'rule_2d', min_days: 2, max_days: 2, price: 1900, currency: 'MYR', active: true },
+  { id: 'rule_3d', min_days: 3, max_days: 3, price: 2200, currency: 'MYR', active: true },
+  { id: 'rule_4_7d', min_days: 4, max_days: 7, price: 2800, currency: 'MYR', active: true },
+  { id: 'rule_8_14d', min_days: 8, max_days: 14, price: 3500, currency: 'MYR', active: true },
+  { id: 'rule_15_30d', min_days: 15, max_days: 30, price: 4800, currency: 'MYR', active: true },
+  { id: 'rule_31_60d', min_days: 31, max_days: 60, price: 7200, currency: 'MYR', active: true },
+  { id: 'rule_61_90d', min_days: 61, max_days: 90, price: 9500, currency: 'MYR', active: true },
+  { id: 'rule_91plus', min_days: 91, max_days: null, price: 12000, currency: 'MYR', active: true },
+];
 
 export const DeveloperPricingManager: React.FC = () => {
   const [pricingSettings, setPricingSettings] = useState<PlatformPricingSettings>({
     default_price: 1400,
     default_currency: 'MYR',
+    pricing_rules: DEFAULT_RULE_TEMPLATES,
   });
   const [events, setEvents] = useState<AdminEventPricingItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -39,11 +59,37 @@ export const DeveloperPricingManager: React.FC = () => {
   const [tempDefaultPrice, setTempDefaultPrice] = useState<string>('1400');
   const [tempDefaultCurrency, setTempDefaultCurrency] = useState<string>('MYR');
 
+  // Pricing Rules Edit / Modal State
+  const [pricingRules, setPricingRules] = useState<EventPricingRule[]>(DEFAULT_RULE_TEMPLATES);
+  const [isAddingRule, setIsAddingRule] = useState<boolean>(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [ruleFormMinDays, setRuleFormMinDays] = useState<string>('1');
+  const [ruleFormMaxDays, setRuleFormMaxDays] = useState<string>('1');
+  const [ruleFormIsUnlimited, setRuleFormIsUnlimited] = useState<boolean>(false);
+  const [ruleFormPrice, setRuleFormPrice] = useState<string>('1400');
+  const [ruleFormCurrency, setRuleFormCurrency] = useState<string>('MYR');
+  const [ruleFormActive, setRuleFormActive] = useState<boolean>(true);
+
+  // Simulator State
+  const [simStartDate, setSimStartDate] = useState<string>(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [simEndDate, setSimEndDate] = useState<string>(() => {
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 6);
+    return nextWeek.toISOString().split('T')[0];
+  });
+
   // Event Price Edit Modal State
   const [selectedEvent, setSelectedEvent] = useState<AdminEventPricingItem | null>(null);
   const [tempEventPrice, setTempEventPrice] = useState<string>('');
   const [tempEventCurrency, setTempEventCurrency] = useState<string>('MYR');
   const [savingEventPrice, setSavingEventPrice] = useState<boolean>(false);
+
+  // Reactivate & Maintenance states
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+  const [runningMaintenance, setRunningMaintenance] = useState<boolean>(false);
 
   // Filter & Search
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -73,6 +119,11 @@ export const DeveloperPricingManager: React.FC = () => {
           setPricingSettings(data.settings);
           setTempDefaultPrice(String(data.settings.default_price));
           setTempDefaultCurrency(data.settings.default_currency || 'MYR');
+          if (data.settings.pricing_rules && Array.isArray(data.settings.pricing_rules) && data.settings.pricing_rules.length > 0) {
+            setPricingRules(data.settings.pricing_rules);
+          } else {
+            setPricingRules(DEFAULT_RULE_TEMPLATES);
+          }
         }
       }
 
@@ -95,7 +146,7 @@ export const DeveloperPricingManager: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  // Handle updating platform default price
+  // Handle updating platform default base price
   const handleSaveDefaultPricing = async (e: React.FormEvent) => {
     e.preventDefault();
     const priceNum = parseFloat(tempDefaultPrice);
@@ -115,6 +166,7 @@ export const DeveloperPricingManager: React.FC = () => {
         body: JSON.stringify({
           default_price: priceNum,
           default_currency: tempDefaultCurrency.trim().toUpperCase() || 'MYR',
+          pricing_rules: pricingRules,
         }),
       });
 
@@ -125,9 +177,8 @@ export const DeveloperPricingManager: React.FC = () => {
 
       setPricingSettings(data.settings);
       setIsEditingDefault(false);
-      setSuccessMsg(data.message || `Platform default price successfully updated to ${data.settings.default_currency} ${data.settings.default_price.toFixed(2)}`);
+      setSuccessMsg(`Platform default price updated to ${data.settings.default_currency} ${data.settings.default_price.toFixed(2)}`);
       setTimeout(() => setSuccessMsg(null), 5000);
-      // Refresh event list to re-evaluate effective prices
       fetchData();
     } catch (err: any) {
       setError(err.message || 'Failed to update platform default pricing');
@@ -136,16 +187,167 @@ export const DeveloperPricingManager: React.FC = () => {
     }
   };
 
+  // Rule Helpers & Validation
+  const formatRuleRange = (rule: EventPricingRule) => {
+    if (rule.max_days === null) {
+      return `${rule.min_days}+ calendar days`;
+    }
+    if (rule.min_days === rule.max_days) {
+      return `${rule.min_days} calendar day${rule.min_days > 1 ? 's' : ''}`;
+    }
+    return `${rule.min_days} to ${rule.max_days} calendar days`;
+  };
+
+  const handleSavePricingRules = async (rulesToSave: EventPricingRule[]) => {
+    setSavingSettings(true);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      const res = await apiFetch('/api/developer/pricing/settings', {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          default_price: pricingSettings.default_price,
+          default_currency: pricingSettings.default_currency,
+          pricing_rules: rulesToSave,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to save duration pricing rules');
+      }
+
+      setPricingSettings(data.settings);
+      setPricingRules(data.settings.pricing_rules || rulesToSave);
+      setSuccessMsg('Duration-based pricing tiers successfully updated and saved.');
+      setTimeout(() => setSuccessMsg(null), 5000);
+      fetchData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update duration pricing rules');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleToggleRuleActive = (ruleId: string) => {
+    const updated = pricingRules.map((r) => (r.id === ruleId ? { ...r, active: !r.active } : r));
+    setPricingRules(updated);
+    handleSavePricingRules(updated);
+  };
+
+  const handleDeleteRule = (ruleId: string) => {
+    if (pricingRules.length <= 1) {
+      setError('You must keep at least one pricing rule tier.');
+      return;
+    }
+    const updated = pricingRules.filter((r) => r.id !== ruleId);
+    setPricingRules(updated);
+    handleSavePricingRules(updated);
+  };
+
+  const handleResetDefaultRules = () => {
+    if (window.confirm('Reset all duration pricing rules to standard platform defaults?')) {
+      setPricingRules(DEFAULT_RULE_TEMPLATES);
+      handleSavePricingRules(DEFAULT_RULE_TEMPLATES);
+    }
+  };
+
+  const handleOpenAddRule = () => {
+    setIsAddingRule(true);
+    setEditingRuleId(null);
+    setRuleFormMinDays('1');
+    setRuleFormMaxDays('1');
+    setRuleFormIsUnlimited(false);
+    setRuleFormPrice(String(pricingSettings.default_price || 1400));
+    setRuleFormCurrency(pricingSettings.default_currency || 'MYR');
+    setRuleFormActive(true);
+  };
+
+  const handleOpenEditRule = (rule: EventPricingRule) => {
+    setIsAddingRule(true);
+    setEditingRuleId(rule.id);
+    setRuleFormMinDays(String(rule.min_days));
+    setRuleFormMaxDays(rule.max_days !== null ? String(rule.max_days) : '');
+    setRuleFormIsUnlimited(rule.max_days === null);
+    setRuleFormPrice(String(rule.price));
+    setRuleFormCurrency(rule.currency || 'MYR');
+    setRuleFormActive(rule.active);
+  };
+
+  const handleSaveRuleModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const min = parseInt(ruleFormMinDays, 10);
+    const max = ruleFormIsUnlimited ? null : parseInt(ruleFormMaxDays, 10);
+    const price = parseFloat(ruleFormPrice);
+
+    if (isNaN(min) || min < 1) {
+      setError('Minimum days must be an integer of 1 or greater.');
+      return;
+    }
+    if (max !== null && (isNaN(max) || max < min)) {
+      setError('Maximum days must be greater than or equal to minimum days.');
+      return;
+    }
+    if (isNaN(price) || price <= 0) {
+      setError('Rule price must be greater than 0.');
+      return;
+    }
+
+    const newRule: EventPricingRule = {
+      id: editingRuleId || `rule_${Date.now()}`,
+      min_days: min,
+      max_days: max,
+      price: price,
+      currency: ruleFormCurrency.trim().toUpperCase() || 'MYR',
+      active: ruleFormActive,
+      updated_at: new Date().toISOString(),
+    };
+
+    let updatedList: EventPricingRule[];
+    if (editingRuleId) {
+      updatedList = pricingRules.map((r) => (r.id === editingRuleId ? newRule : r));
+    } else {
+      updatedList = [...pricingRules, newRule];
+    }
+
+    // Sort by min_days ascending
+    updatedList.sort((a, b) => a.min_days - b.min_days);
+
+    setIsAddingRule(false);
+    setEditingRuleId(null);
+    setPricingRules(updatedList);
+    handleSavePricingRules(updatedList);
+  };
+
+  // Simulator Calculations
+  const simDurationDays = useMemo(() => {
+    if (!simStartDate || !simEndDate) return 1;
+    return calculateEventCalendarDays(simStartDate, simEndDate);
+  }, [simStartDate, simEndDate]);
+
+  const simMatchedRule = useMemo(() => {
+    const activeRules = pricingRules.filter((r) => r.active);
+    for (const rule of activeRules) {
+      if (rule.max_days === null) {
+        if (simDurationDays >= rule.min_days) return rule;
+      } else {
+        if (simDurationDays >= rule.min_days && simDurationDays <= rule.max_days) return rule;
+      }
+    }
+    return null;
+  }, [pricingRules, simDurationDays]);
+
+  const simQuotePrice = simMatchedRule ? simMatchedRule.price : pricingSettings.default_price;
+  const simCurrency = simMatchedRule ? simMatchedRule.currency : pricingSettings.default_currency;
+
   // Open Edit Event Modal
   const handleOpenEditEvent = (event: AdminEventPricingItem) => {
     setSelectedEvent(event);
     setTempEventPrice(String(event.effective_price || event.event_price || pricingSettings.default_price));
     setTempEventCurrency(event.event_currency || pricingSettings.default_currency || 'MYR');
   };
-
-  // Reactivate event state
-  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
-  const [runningMaintenance, setRunningMaintenance] = useState<boolean>(false);
 
   // Handle saving individual event custom price
   const handleSaveEventPricing = async (e: React.FormEvent) => {
@@ -187,7 +389,7 @@ export const DeveloperPricingManager: React.FC = () => {
     }
   };
 
-  // Handle developer admin manual reactivate / status override
+  // Reactivate event
   const handleReactivateEvent = async (eventId: string, eventName: string) => {
     const confirmReactivate = window.confirm(
       `Are you sure you want to manually reactivate event "${eventName}"?\n\nThis will restore the event status to LIVE (or DRAFT if unpaid) and clear any cancellation reason.`
@@ -220,7 +422,7 @@ export const DeveloperPricingManager: React.FC = () => {
     }
   };
 
-  // Handle developer admin trigger maintenance worker
+  // Trigger maintenance worker
   const handleRunMaintenance = async () => {
     setRunningMaintenance(true);
     setError(null);
@@ -282,13 +484,13 @@ export const DeveloperPricingManager: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-6">
         <div>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-slate-950 shadow-lg shadow-cyan-950/40">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-slate-950 shadow-lg shadow-amber-950/40">
               <Coins className="w-5 h-5 stroke-[2.5]" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white tracking-tight">Event Pricing Control</h1>
+              <h1 className="text-2xl font-black text-white tracking-tight">Event Pricing & Duration Control</h1>
               <p className="text-xs text-slate-400">
-                Server-authoritative pricing management for platform defaults and custom event overrides.
+                Server-authoritative calendar-day duration tiers, platform base pricing, and custom event overrides.
               </p>
             </div>
           </div>
@@ -310,7 +512,7 @@ export const DeveloperPricingManager: React.FC = () => {
             disabled={loading}
             className="flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-amber-400' : ''}`} />
             <span>Refresh Data</span>
           </button>
         </div>
@@ -341,20 +543,20 @@ export const DeveloperPricingManager: React.FC = () => {
         </div>
       )}
 
-      {/* Platform Default Pricing Control Card */}
+      {/* Top Section: Default Base & Quick Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800/90 rounded-3xl border border-slate-800 p-6 shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
           <div className="flex items-start justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
                 <Sliders className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-white">Platform Default Event Price</h2>
+                <h2 className="text-base font-bold text-white">Platform Default Base Price (1 Day)</h2>
                 <p className="text-xs text-slate-400">
-                  Authoritative base price applied to newly created events across all organizations
+                  Authoritative base price fallback applied to 1-day events across all organizations
                 </p>
               </div>
             </div>
@@ -366,10 +568,10 @@ export const DeveloperPricingManager: React.FC = () => {
                   setTempDefaultCurrency(pricingSettings.default_currency);
                   setIsEditingDefault(true);
                 }}
-                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 transition-colors cursor-pointer"
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit Default</span>
+                <span>Edit Base</span>
               </button>
             )}
           </div>
@@ -378,10 +580,10 @@ export const DeveloperPricingManager: React.FC = () => {
             <div className="mt-6 flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 pt-4 border-t border-slate-800/80">
               <div>
                 <div className="flex items-baseline space-x-2">
-                  <span className="text-3xl font-black text-cyan-400 font-mono tracking-tight">
+                  <span className="text-3xl font-black text-amber-400 font-mono tracking-tight">
                     {pricingSettings.default_currency} {pricingSettings.default_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
-                  <span className="text-xs text-slate-400 font-medium">/ event license</span>
+                  <span className="text-xs text-slate-400 font-medium">/ 1 calendar day</span>
                 </div>
                 <div className="flex items-center space-x-2 mt-2 text-[11px] text-slate-400">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
@@ -397,11 +599,11 @@ export const DeveloperPricingManager: React.FC = () => {
 
               <div className="bg-slate-950/60 rounded-2xl p-3 border border-slate-800 text-[11px] text-slate-400 max-w-sm space-y-1">
                 <div className="flex items-center space-x-1 text-slate-300 font-semibold">
-                  <Info className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  <span>Pricing Rule Guarantee:</span>
+                  <Info className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Authoritative Price Rule:</span>
                 </div>
                 <p>
-                  Existing historical events preserve their original locked price. Changing the platform default only takes effect on events created thereafter.
+                  Prices are locked into event records at creation time. Historical events preserve their original locked price.
                 </p>
               </div>
             </div>
@@ -410,7 +612,7 @@ export const DeveloperPricingManager: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Default Price Amount
+                    Default Base Price Amount
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-mono text-xs">
@@ -422,7 +624,7 @@ export const DeveloperPricingManager: React.FC = () => {
                       min="1"
                       value={tempDefaultPrice}
                       onChange={(e) => setTempDefaultPrice(e.target.value)}
-                      className="w-full bg-slate-950 border border-cyan-500/40 rounded-xl pl-14 pr-4 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                      className="w-full bg-slate-950 border border-amber-500/40 rounded-xl pl-14 pr-4 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500/50"
                       placeholder="1400.00"
                       required
                     />
@@ -436,7 +638,7 @@ export const DeveloperPricingManager: React.FC = () => {
                   <select
                     value={tempDefaultCurrency}
                     onChange={(e) => setTempDefaultCurrency(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 cursor-pointer"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer"
                   >
                     <option value="MYR">MYR (Malaysian Ringgit)</option>
                     <option value="USD">USD (US Dollar)</option>
@@ -457,17 +659,17 @@ export const DeveloperPricingManager: React.FC = () => {
                 <button
                   type="submit"
                   disabled={savingSettings}
-                  className="flex items-center space-x-2 px-5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-lg shadow-cyan-950/40 transition-all cursor-pointer disabled:opacity-50"
+                  className="flex items-center space-x-2 px-5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 shadow-lg shadow-amber-950/40 transition-all cursor-pointer disabled:opacity-50"
                 >
                   {savingSettings ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Saving Setting...</span>
+                      <span>Saving Base...</span>
                     </>
                   ) : (
                     <>
                       <Check className="w-3.5 h-3.5" />
-                      <span>Save Platform Default</span>
+                      <span>Save Platform Base</span>
                     </>
                   )}
                 </button>
@@ -479,35 +681,211 @@ export const DeveloperPricingManager: React.FC = () => {
         {/* Quick Stat Summary Cards */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between">
-            <span className="text-slate-400 text-xs font-medium">Total Platform Events</span>
+            <span className="text-slate-400 text-xs font-medium">Duration Tiers</span>
+            <div className="mt-2">
+              <span className="text-2xl font-black text-amber-400 font-mono">{pricingRules.length}</span>
+              <span className="block text-[10px] text-slate-500 mt-0.5">Active tier rules</span>
+            </div>
+          </div>
+
+          <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between">
+            <span className="text-slate-400 text-xs font-medium">Platform Events</span>
             <div className="mt-2">
               <span className="text-2xl font-black text-white font-mono">{events.length}</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">Across all organizations</span>
+              <span className="block text-[10px] text-slate-500 mt-0.5">Across all orgs</span>
             </div>
           </div>
 
           <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between">
-            <span className="text-slate-400 text-xs font-medium">Custom Price Overrides</span>
+            <span className="text-slate-400 text-xs font-medium">Custom Overrides</span>
             <div className="mt-2">
-              <span className="text-2xl font-black text-amber-400 font-mono">{customPriceCount}</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">Admin-configured overrides</span>
+              <span className="text-2xl font-black text-cyan-400 font-mono">{customPriceCount}</span>
+              <span className="block text-[10px] text-slate-500 mt-0.5">Admin custom rates</span>
             </div>
           </div>
 
           <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between">
-            <span className="text-slate-400 text-xs font-medium">Default Price Events</span>
+            <span className="text-slate-400 text-xs font-medium">Credit Coverage</span>
             <div className="mt-2">
-              <span className="text-2xl font-black text-cyan-400 font-mono">{defaultPriceCount}</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">Using standard base</span>
+              <span className="text-2xl font-black text-emerald-400 font-mono">20% Cap</span>
+              <span className="block text-[10px] text-slate-500 mt-0.5">Top-up bonus max</span>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-4 flex flex-col justify-between">
-            <span className="text-slate-400 text-xs font-medium">Credit Coverage Cap</span>
-            <div className="mt-2">
-              <span className="text-2xl font-black text-emerald-400 font-mono">20% Max</span>
-              <span className="block text-[10px] text-slate-500 mt-0.5">Dynamically calculated</span>
+      {/* DURATION-BASED PRICING TIERS (RULES MANAGEMENT) */}
+      <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-xl">
+        <div className="p-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-900/50">
+          <div>
+            <div className="flex items-center space-x-2.5">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                <Clock className="w-4 h-4" />
+              </div>
+              <h3 className="text-base font-bold text-white">Duration-Based Pricing Tiers</h3>
             </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Configure tiered pricing based on the event's calendar-day duration (Start Date to End Date inclusive).
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleResetDefaultRules}
+              disabled={savingSettings}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              Reset to Standard Defaults
+            </button>
+            <button
+              onClick={handleOpenAddRule}
+              disabled={savingSettings}
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors cursor-pointer shadow-md"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Add Duration Tier</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Pricing Rules Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-300">
+            <thead className="bg-slate-950/70 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <tr>
+                <th className="px-5 py-3.5">Duration Range</th>
+                <th className="px-5 py-3.5">Min Days</th>
+                <th className="px-5 py-3.5">Max Days</th>
+                <th className="px-5 py-3.5">Authoritative Price</th>
+                <th className="px-5 py-3.5">Daily Equivalent</th>
+                <th className="px-5 py-3.5">Status</th>
+                <th className="px-5 py-3.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 font-sans">
+              {pricingRules.map((rule) => {
+                const avgDays = rule.max_days ? (rule.min_days + rule.max_days) / 2 : rule.min_days;
+                const dailyEquivalent = rule.price / avgDays;
+
+                return (
+                  <tr key={rule.id} className={`hover:bg-slate-800/40 transition-colors ${!rule.active ? 'opacity-50' : ''}`}>
+                    <td className="px-5 py-4">
+                      <div className="font-bold text-white text-sm flex items-center gap-2">
+                        <Tag className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{formatRuleRange(rule)}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 font-mono font-medium text-slate-300">
+                      {rule.min_days} day{rule.min_days > 1 ? 's' : ''}
+                    </td>
+                    <td className="px-5 py-4 font-mono font-medium text-slate-300">
+                      {rule.max_days !== null ? `${rule.max_days} days` : 'Unlimited (∞)'}
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="font-mono font-bold text-sm text-amber-400">
+                        {rule.currency || 'MYR'} {rule.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 font-mono text-[11px] text-slate-400">
+                      ~{rule.currency || 'MYR'} {dailyEquivalent.toFixed(2)} / day
+                    </td>
+                    <td className="px-5 py-4">
+                      <button
+                        onClick={() => handleToggleRuleActive(rule.id)}
+                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-all ${
+                          rule.active
+                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
+                            : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                        }`}
+                      >
+                        {rule.active ? 'Active' : 'Disabled'}
+                      </button>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="inline-flex items-center justify-end space-x-2">
+                        <button
+                          onClick={() => handleOpenEditRule(rule)}
+                          className="p-1.5 text-slate-400 hover:text-cyan-300 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                          title="Edit Tier"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRule(rule.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                          title="Delete Tier"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* DURATION PRICING SIMULATOR / TESTER */}
+      <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-850 rounded-3xl border border-slate-800 p-6 shadow-xl space-y-4">
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+            <Calculator className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-white">Duration Pricing Simulator</h3>
+            <p className="text-xs text-slate-400">
+              Test how calendar-day ranges calculate server-authoritative event license pricing.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-300 mb-1.5">
+              Start Date
+            </label>
+            <input
+              type="date"
+              value={simStartDate}
+              onChange={(e) => setSimStartDate(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 cursor-pointer"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-300 mb-1.5">
+              End Date
+            </label>
+            <input
+              type="date"
+              min={simStartDate}
+              value={simEndDate}
+              onChange={(e) => setSimEndDate(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 cursor-pointer"
+            />
+          </div>
+
+          <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800/80 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">Calculated Duration:</span>
+              <span className="text-xs font-bold text-white font-mono">
+                {simDurationDays} calendar day{simDurationDays > 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-900">
+              <span className="text-xs text-slate-400">Simulated Quote:</span>
+              <span className="text-base font-black text-amber-400 font-mono">
+                {simCurrency} {simQuotePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+            {simMatchedRule && (
+              <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-end gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span>Matched Tier: {formatRuleRange(simMatchedRule)}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -519,7 +897,7 @@ export const DeveloperPricingManager: React.FC = () => {
           <div>
             <h3 className="text-base font-bold text-white">Event Pricing Inventory</h3>
             <p className="text-xs text-slate-400">
-              View and configure authoritative prices for every event individually.
+              View and configure authoritative prices for every event individually with locked rates.
             </p>
           </div>
 
@@ -532,7 +910,7 @@ export const DeveloperPricingManager: React.FC = () => {
                 placeholder="Search event or organization..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
               />
             </div>
 
@@ -540,18 +918,18 @@ export const DeveloperPricingManager: React.FC = () => {
             <select
               value={pricingTypeFilter}
               onChange={(e) => setPricingTypeFilter(e.target.value as any)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-500 cursor-pointer"
+              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-amber-500 cursor-pointer"
             >
               <option value="all">All Pricing Types</option>
               <option value="custom">Custom Overrides Only</option>
-              <option value="default">Platform Default Only</option>
+              <option value="default">Standard Tiers Only</option>
             </select>
 
             {/* Status Filter */}
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-500 cursor-pointer"
+              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-amber-500 cursor-pointer"
             >
               <option value="all">All Event & Payment Statuses</option>
               <option value="draft">Event: DRAFT</option>
@@ -567,7 +945,7 @@ export const DeveloperPricingManager: React.FC = () => {
         {/* Table Content */}
         {loading ? (
           <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center space-y-3">
-            <RefreshCw className="w-6 h-6 animate-spin text-cyan-400" />
+            <RefreshCw className="w-6 h-6 animate-spin text-amber-400" />
             <span className="text-xs">Loading event pricing ledger...</span>
           </div>
         ) : filteredEvents.length === 0 ? (
@@ -583,6 +961,7 @@ export const DeveloperPricingManager: React.FC = () => {
                 <tr>
                   <th className="px-5 py-3.5">Event Name</th>
                   <th className="px-5 py-3.5">Organization</th>
+                  <th className="px-5 py-3.5">Duration & Dates</th>
                   <th className="px-5 py-3.5">Effective Price</th>
                   <th className="px-5 py-3.5">Pricing Status</th>
                   <th className="px-5 py-3.5">Event Status</th>
@@ -598,6 +977,7 @@ export const DeveloperPricingManager: React.FC = () => {
                   const eventStatus = (ev.event_status || ev.status || 'DRAFT').toUpperCase();
                   const paymentStatus = (ev.payment_status || (isPaid ? 'PAID' : 'UNPAID')).toUpperCase();
                   const isCancelled = eventStatus === 'CANCELLED';
+                  const duration = ev.duration_days || calculateEventCalendarDays(ev.start_date, ev.end_date);
 
                   return (
                     <tr key={ev.id} className="hover:bg-slate-800/40 transition-colors">
@@ -615,9 +995,22 @@ export const DeveloperPricingManager: React.FC = () => {
                         </div>
                       </td>
 
+                      {/* Duration & Dates */}
+                      <td className="px-5 py-4">
+                        <div className="font-bold text-slate-200 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{duration} calendar day{duration > 1 ? 's' : ''}</span>
+                        </div>
+                        {ev.start_date && (
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            {ev.start_date} {ev.end_date && ev.end_date !== ev.start_date ? `→ ${ev.end_date}` : ''}
+                          </div>
+                        )}
+                      </td>
+
                       {/* Effective Price */}
                       <td className="px-5 py-4">
-                        <div className="font-mono font-bold text-sm text-cyan-400">
+                        <div className="font-mono font-bold text-sm text-amber-400">
                           {currency} {effectivePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                         <div className="text-[10px] text-slate-500">
@@ -633,7 +1026,7 @@ export const DeveloperPricingManager: React.FC = () => {
                           </span>
                         ) : (
                           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                            Platform Default
+                            Duration Tier
                           </span>
                         )}
                       </td>
@@ -699,7 +1092,7 @@ export const DeveloperPricingManager: React.FC = () => {
                         <div className="inline-flex items-center justify-end space-x-2">
                           <button
                             onClick={() => handleOpenEditEvent(ev)}
-                            className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-cyan-500/20 hover:text-cyan-300 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
+                            className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-amber-500/20 hover:text-amber-300 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
                             title="Edit Price"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -728,13 +1121,138 @@ export const DeveloperPricingManager: React.FC = () => {
         )}
       </div>
 
+      {/* Add / Edit Duration Rule Modal */}
+      {isAddingRule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 relative overflow-hidden">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {editingRuleId ? 'Edit Duration Tier' : 'Add Duration Tier'}
+                  </h3>
+                  <p className="text-xs text-slate-400">Configure day range and fixed rate</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddingRule(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRuleModal} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Min Calendar Days
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={ruleFormMinDays}
+                    onChange={(e) => setRuleFormMinDays(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-amber-500"
+                    placeholder="1"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Max Calendar Days
+                  </label>
+                  <input
+                    type="number"
+                    min={ruleFormMinDays}
+                    disabled={ruleFormIsUnlimited}
+                    required={!ruleFormIsUnlimited}
+                    value={ruleFormIsUnlimited ? '' : ruleFormMaxDays}
+                    onChange={(e) => setRuleFormMaxDays(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    placeholder={ruleFormIsUnlimited ? 'Unlimited (∞)' : '7'}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="unlimited-max"
+                  checked={ruleFormIsUnlimited}
+                  onChange={(e) => setRuleFormIsUnlimited(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500/30 accent-amber-500 cursor-pointer"
+                />
+                <label htmlFor="unlimited-max" className="text-xs text-slate-300 font-medium cursor-pointer select-none">
+                  Unlimited max duration (e.g. 91+ days)
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Price Amount
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1"
+                    required
+                    value={ruleFormPrice}
+                    onChange={(e) => setRuleFormPrice(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-amber-500"
+                    placeholder="1400.00"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Currency
+                  </label>
+                  <select
+                    value={ruleFormCurrency}
+                    onChange={(e) => setRuleFormCurrency(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 cursor-pointer"
+                  >
+                    <option value="MYR">MYR</option>
+                    <option value="USD">USD</option>
+                    <option value="SGD">SGD</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingRule(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center space-x-2 px-5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg transition-all cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{editingRuleId ? 'Update Tier' : 'Save Tier'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Edit Event Custom Price Modal */}
       {selectedEvent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-6 relative overflow-hidden">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
               <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
                   <Coins className="w-5 h-5" />
                 </div>
                 <div>
@@ -744,7 +1262,7 @@ export const DeveloperPricingManager: React.FC = () => {
               </div>
               <button
                 onClick={() => setSelectedEvent(null)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800"
+                className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -756,15 +1274,15 @@ export const DeveloperPricingManager: React.FC = () => {
                 <span className="text-slate-200 font-semibold">{selectedEvent.organization_name || 'Organization'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Current Effective Price:</span>
-                <span className="text-cyan-400 font-mono font-bold">
-                  {selectedEvent.event_currency || 'MYR'} {(selectedEvent.effective_price || selectedEvent.event_price || pricingSettings.default_price).toFixed(2)}
+                <span className="text-slate-400">Duration:</span>
+                <span className="text-slate-200 font-medium">
+                  {selectedEvent.duration_days || calculateEventCalendarDays(selectedEvent.start_date, selectedEvent.end_date)} calendar days
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Platform Default Reference:</span>
-                <span className="text-slate-400 font-mono">
-                  {pricingSettings.default_currency} {pricingSettings.default_price.toFixed(2)}
+                <span className="text-slate-400">Current Effective Price:</span>
+                <span className="text-amber-400 font-mono font-bold">
+                  {selectedEvent.event_currency || 'MYR'} {(selectedEvent.effective_price || selectedEvent.event_price || pricingSettings.default_price).toFixed(2)}
                 </span>
               </div>
             </div>
@@ -784,7 +1302,7 @@ export const DeveloperPricingManager: React.FC = () => {
                     min="1"
                     value={tempEventPrice}
                     onChange={(e) => setTempEventPrice(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl pl-14 pr-4 py-2.5 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl pl-14 pr-4 py-2.5 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500/50"
                     placeholder="1400.00"
                     required
                   />
@@ -798,7 +1316,7 @@ export const DeveloperPricingManager: React.FC = () => {
                 <select
                   value={tempEventCurrency}
                   onChange={(e) => setTempEventCurrency(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 cursor-pointer"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer"
                 >
                   <option value="MYR">MYR (Malaysian Ringgit)</option>
                   <option value="USD">USD (US Dollar)</option>
@@ -814,9 +1332,9 @@ export const DeveloperPricingManager: React.FC = () => {
                     setTempEventPrice(String(pricingSettings.default_price));
                     setTempEventCurrency(pricingSettings.default_currency);
                   }}
-                  className="text-xs text-cyan-400 hover:text-cyan-300 underline font-medium cursor-pointer"
+                  className="text-xs text-amber-400 hover:text-amber-300 underline font-medium cursor-pointer"
                 >
-                  Reset to Platform Default ({pricingSettings.default_currency} {pricingSettings.default_price.toFixed(2)})
+                  Reset to Platform Base ({pricingSettings.default_currency} {pricingSettings.default_price.toFixed(2)})
                 </button>
               </div>
 
@@ -832,7 +1350,7 @@ export const DeveloperPricingManager: React.FC = () => {
                 <button
                   type="submit"
                   disabled={savingEventPrice}
-                  className="flex items-center space-x-2 px-5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-lg shadow-cyan-950/40 transition-all cursor-pointer disabled:opacity-50"
+                  className="flex items-center space-x-2 px-5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg transition-all cursor-pointer disabled:opacity-50"
                 >
                   {savingEventPrice ? (
                     <>

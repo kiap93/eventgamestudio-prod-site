@@ -1305,6 +1305,9 @@ export async function createTheme(
     id,
     organization_id: params.organization_id,
     game_id: resolvedGameId || null,
+    is_system: false,
+    ownership_type: 'organization',
+    is_default: false,
     name: params.name,
     slug,
     description: params.description ?? null,
@@ -1334,6 +1337,9 @@ export async function createTheme(
     id,
     organization_id: params.organization_id,
     game_id: resolvedGameId || null,
+    is_system: false,
+    ownership_type: 'organization',
+    is_default: false,
     name: params.name,
     slug,
     description: params.description ?? null,
@@ -1779,6 +1785,39 @@ export async function createSystemTheme(
     clientLogoUrl: null,
   };
 
+  const newTheme: GameThemeRecord = {
+    id,
+    organization_id: null,
+    base_theme_id: null,
+    game_id: params.game_id,
+    is_system: true,
+    ownership_type: 'system',
+    is_default: params.is_default ?? false,
+    name: params.name,
+    slug,
+    description: params.description ?? null,
+    status: params.status || 'active',
+    branding: params.branding ?? defaultBranding,
+    background_url: params.background_url ?? defaultTemplate.background_url,
+    basket_config: isMemory ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
+    items_config: params.items_config ?? defaultTemplate.items_config,
+    physics_config: params.physics_config ?? defaultTemplate.physics_config,
+    visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
+    sounds_config: params.sounds_config ?? defaultTemplate.sounds_config,
+    layout: params.layout ?? defaultTemplate.layout,
+    game_config: params.game_config ?? (defaultTemplate as any).game_config ?? {},
+    created_at: now,
+    updated_at: now,
+    game_name: targetGameName,
+    game_slug: targetGameSlug,
+    game_type: resolvedGameType,
+  } as GameThemeRecord;
+
+  if (!isSupabaseConfigured(env)) {
+    localThemesCache.set(id, newTheme);
+    return newTheme;
+  }
+
   const { data, error } = await safeInsertTheme(supabase, {
     id,
     organization_id: null,
@@ -1805,6 +1844,10 @@ export async function createSystemTheme(
   });
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+      localThemesCache.set(id, newTheme);
+      return newTheme;
+    }
     console.error('Error in createSystemTheme:', error);
     throw new Error(`Failed to create system theme: ${error.message}`);
   }

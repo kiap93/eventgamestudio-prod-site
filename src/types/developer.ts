@@ -29,9 +29,21 @@ export interface PlatformStats {
   activeThemes: number;
 }
 
+export interface EventPricingRule {
+  id: string;
+  min_days: number;
+  max_days: number | null; // null = unlimited (e.g., 91+ days)
+  price: number;
+  currency: string;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface PlatformPricingSettings {
   default_price: number;
   default_currency: string;
+  pricing_rules?: EventPricingRule[];
   updated_at?: string;
   updated_by?: string | null;
 }
@@ -55,5 +67,6 @@ export interface AdminEventPricingItem {
   theme_name?: string;
   start_date?: string | null;
   end_date?: string | null;
+  duration_days?: number;
   created_at: string;
 }

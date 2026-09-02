@@ -86,6 +86,8 @@ import {
   STANDARD_EVENT_PRICE,
   getPlatformPricingSettings,
   updatePlatformPricingSettings,
+  calculateEventCalendarDays,
+  calculateEventAuthoritativePrice,
   getAllAdminEvents,
   updateEventPrice,
   getShowcaseByEventId,
@@ -2087,22 +2089,51 @@ export default {
           use_welcome_credit,
           use_event_credit,
           welcome_credit_requested,
+          start_date,
+          end_date,
+          startDate,
+          endDate,
+          event_date,
+          starts_at,
+          expires_at,
         } = body;
 
         let price = typeof event_price === 'number' && event_price > 0 ? event_price : undefined;
+        let currency = 'MYR';
+        let durationDays = 1;
+        let ruleLabel = '1 day';
+
         if (!price && event_id) {
           const existing = await getEventById(event_id, env);
           if (existing && existing.event_price) {
             price = existing.event_price;
+            currency = existing.event_currency || 'MYR';
+            durationDays = calculateEventCalendarDays(existing.start_date || existing.event_date, existing.end_date || existing.start_date || existing.event_date);
+            ruleLabel = `${durationDays} day${durationDays > 1 ? 's' : ''}`;
           }
         }
+
         if (!price) {
           try {
-            const { getPlatformPricingSettings } = await import('./server/db/platformSettings.js');
-            const settings = await getPlatformPricingSettings(env);
-            price = settings.default_price;
+            const pricing = await calculateEventAuthoritativePrice({
+              start_date: start_date || startDate,
+              end_date: end_date || endDate,
+              event_date,
+              starts_at,
+              expires_at,
+            }, env);
+            price = pricing.price;
+            currency = pricing.currency;
+            durationDays = pricing.durationDays;
+            ruleLabel = pricing.ruleLabel;
           } catch (e) {
-            price = STANDARD_EVENT_PRICE;
+            try {
+              const settings = await getPlatformPricingSettings(env);
+              price = settings.default_price;
+              currency = settings.default_currency;
+            } catch {
+              price = STANDARD_EVENT_PRICE;
+            }
           }
         }
 
@@ -2190,7 +2221,12 @@ export default {
 
         return jsonResponse({
           standard_price: price,
-          currency: 'MYR',
+          event_price: price,
+          currency: currency || 'MYR',
+          duration_days: durationDays,
+          durationDays,
+          pricing_rule_label: ruleLabel,
+          pricingRuleLabel: ruleLabel,
           theme: themeInfo,
           selected_mode: selectedMode,
           calculation: selectedCalculation,
@@ -4056,18 +4092,22 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const { default_price, default_currency } = body;
-        const priceNum = Number(default_price);
-
-        if (isNaN(priceNum) || priceNum <= 0) {
-          return errorResponse('default_price must be a positive number greater than 0', 422, cors);
+        const { default_price, default_currency, pricing_rules } = body;
+        
+        let priceNum: number | undefined;
+        if (default_price !== undefined) {
+          priceNum = Number(default_price);
+          if (isNaN(priceNum) || priceNum <= 0) {
+            return errorResponse('default_price must be a positive number greater than 0', 422, cors);
+          }
         }
 
         try {
           const updatedSettings = await updatePlatformPricingSettings(
             {
               default_price: priceNum,
-              default_currency: default_currency ? String(default_currency).trim().toUpperCase() : 'MYR',
+              default_currency: default_currency ? String(default_currency).trim().toUpperCase() : undefined,
+              pricing_rules: Array.isArray(pricing_rules) ? pricing_rules : undefined,
             },
             auth.user?.id,
             env
@@ -4076,11 +4116,11 @@ export default {
           return jsonResponse({
             success: true,
             settings: updatedSettings,
-            message: `Platform default event price updated to ${updatedSettings.default_currency} ${updatedSettings.default_price.toFixed(2)}`,
+            message: `Platform pricing settings updated successfully`,
           }, 200, cors);
         } catch (err: any) {
           console.error('Admin update pricing settings error:', err);
-          return errorResponse(err.message || 'Failed to update pricing settings', 500, cors);
+          return errorResponse(err.message || 'Failed to update pricing settings', 422, cors);
         }
       }
 

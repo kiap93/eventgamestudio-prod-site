@@ -1,10 +1,26 @@
 import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
-import { PlatformPricingSettings } from './types.js';
+import { PlatformPricingSettings, EventPricingRule } from './types.js';
+import { normalizeEventDateBoundaries } from './events.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
 export const DEFAULT_EVENT_PRICE = 1400.00;
 export const DEFAULT_EVENT_CURRENCY = 'MYR';
+
+export const DEFAULT_PRICING_RULES: EventPricingRule[] = [
+  { id: 'rule_1d', min_days: 1, max_days: 1, price: 1400.00, currency: 'MYR', active: true },
+  { id: 'rule_2d', min_days: 2, max_days: 2, price: 1900.00, currency: 'MYR', active: true },
+  { id: 'rule_3d', min_days: 3, max_days: 3, price: 2200.00, currency: 'MYR', active: true },
+  { id: 'rule_4d', min_days: 4, max_days: 4, price: 2400.00, currency: 'MYR', active: true },
+  { id: 'rule_5d', min_days: 5, max_days: 5, price: 2500.00, currency: 'MYR', active: true },
+  { id: 'rule_6d', min_days: 6, max_days: 6, price: 2600.00, currency: 'MYR', active: true },
+  { id: 'rule_7d', min_days: 7, max_days: 7, price: 2800.00, currency: 'MYR', active: true },
+  { id: 'rule_8_14d', min_days: 8, max_days: 14, price: 3500.00, currency: 'MYR', active: true },
+  { id: 'rule_15_30d', min_days: 15, max_days: 30, price: 4500.00, currency: 'MYR', active: true },
+  { id: 'rule_31_60d', min_days: 31, max_days: 60, price: 6000.00, currency: 'MYR', active: true },
+  { id: 'rule_61_90d', min_days: 61, max_days: 90, price: 8000.00, currency: 'MYR', active: true },
+  { id: 'rule_91plus', min_days: 91, max_days: null, price: 10000.00, currency: 'MYR', active: true },
+];
 
 const LOCAL_PLATFORM_SETTINGS_FILE = path.join(process.cwd(), 'uploads', 'platform_settings.json');
 
@@ -12,6 +28,7 @@ let localSettingsCache: Record<string, any> = {
   event_pricing: {
     default_price: DEFAULT_EVENT_PRICE,
     default_currency: DEFAULT_EVENT_CURRENCY,
+    pricing_rules: DEFAULT_PRICING_RULES,
     updated_at: new Date().toISOString(),
   },
 };
@@ -45,10 +62,237 @@ function saveLocalSettings(): void {
 loadLocalSettings();
 
 /**
- * Get current platform default event pricing configuration.
+ * Calculates calendar-day duration (Start Date to End Date).
+ *
+ * Examples:
+ * - 01/09/2026 to 01/09/2026 = 1 day
+ * - 01/09/2026 to 02/09/2026 = 2 days
+ * - 01/09/2026 to 14/09/2026 = 14 days
+ * - 31/08/2026 to 01/09/2026 = 2 days
+ * - 28/02/2024 to 01/03/2024 = 3 days (leap year)
+ * - 28/02/2025 to 01/03/2025 = 2 days (non-leap)
+ */
+export function calculateEventCalendarDays(
+  startDateVal: string | Date | null | undefined,
+  endDateVal: string | Date | null | undefined
+): number {
+  const extractDate = (val: string | Date | null | undefined): string => {
+    if (!val) return '';
+    if (typeof val === 'string') {
+      const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+      const dt = new Date(val);
+      if (isNaN(dt.getTime())) return '';
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+    }
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${val.getUTCFullYear()}-${pad(val.getUTCMonth() + 1)}-${pad(val.getUTCDate())}`;
+  };
+
+  const startStr = extractDate(startDateVal);
+  const endStr = extractDate(endDateVal) || startStr;
+
+  if (!startStr) return 1;
+
+  const [y1, m1, d1] = startStr.split('-').map(Number);
+  const [y2, m2, d2] = (endStr || startStr).split('-').map(Number);
+
+  if (!y1 || !m1 || !d1 || !y2 || !m2 || !d2) return 1;
+
+  const startUtc = Date.UTC(y1, m1 - 1, d1);
+  const endUtc = Date.UTC(y2, m2 - 1, d2);
+
+  if (endUtc < startUtc) return 1;
+
+  const diffMs = endUtc - startUtc;
+  const days = Math.round(diffMs / 86400000) + 1;
+  return Math.max(1, days);
+}
+
+/**
+ * Returns human-readable label for a pricing rule (e.g., "1 day", "8–14 days", "91+ days").
+ */
+export function formatPricingRuleLabel(rule: EventPricingRule): string {
+  if (rule.min_days === rule.max_days) {
+    return `${rule.min_days} day${rule.min_days > 1 ? 's' : ''}`;
+  }
+  if (rule.max_days === null) {
+    return `${rule.min_days}+ days`;
+  }
+  return `${rule.min_days}–${rule.max_days} days`;
+}
+
+/**
+ * Finds the active pricing rule matching the given calendar-day duration.
+ */
+export function matchPricingRuleForDuration(
+  durationDays: number,
+  rules: EventPricingRule[]
+): EventPricingRule | null {
+  const activeRules = rules.filter((r) => r.active !== false);
+  const sorted = [...activeRules].sort((a, b) => a.min_days - b.min_days);
+  for (const rule of sorted) {
+    const min = rule.min_days;
+    const max = rule.max_days;
+    if (durationDays >= min && (max === null || durationDays <= max)) {
+      return rule;
+    }
+  }
+  return null;
+}
+
+/**
+ * Validates an array of event pricing rules.
+ * Enforces:
+ * - Minimum days > 0 and integer
+ * - Maximum days >= minimum days (or null for unlimited)
+ * - Price > 0
+ * - No overlapping active day ranges
+ */
+export function validatePricingRules(rules: EventPricingRule[]): { valid: boolean; error?: string } {
+  if (!Array.isArray(rules) || rules.length === 0) {
+    return { valid: false, error: 'At least one pricing rule is required' };
+  }
+
+  for (let i = 0; i < rules.length; i++) {
+    const r = rules[i];
+    if (typeof r.min_days !== 'number' || !Number.isInteger(r.min_days) || r.min_days <= 0) {
+      return { valid: false, error: `Rule #${i + 1}: Minimum days must be a positive integer greater than 0` };
+    }
+    if (r.max_days !== null && (typeof r.max_days !== 'number' || !Number.isInteger(r.max_days) || r.max_days < r.min_days)) {
+      return { valid: false, error: `Rule #${i + 1}: Maximum days must be greater than or equal to minimum days` };
+    }
+    if (typeof r.price !== 'number' || isNaN(r.price) || r.price <= 0) {
+      return { valid: false, error: `Rule #${i + 1}: Price must be a positive number greater than 0` };
+    }
+    if (!r.currency || typeof r.currency !== 'string' || r.currency.trim().length === 0) {
+      return { valid: false, error: `Rule #${i + 1}: Currency is required` };
+    }
+  }
+
+  const activeRules = rules.filter((r) => r.active !== false);
+  for (let i = 0; i < activeRules.length; i++) {
+    for (let j = i + 1; j < activeRules.length; j++) {
+      const a = activeRules[i];
+      const b = activeRules[j];
+      const aMin = a.min_days;
+      const aMax = a.max_days ?? Infinity;
+      const bMin = b.min_days;
+      const bMax = b.max_days ?? Infinity;
+
+      if (Math.max(aMin, bMin) <= Math.min(aMax, bMax)) {
+        return {
+          valid: false,
+          error: `Pricing rules overlap: "${formatPricingRuleLabel(a)}" and "${formatPricingRuleLabel(b)}"`,
+        };
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Calculates authoritative event price and matching rule label from duration and settings.
+ */
+export function calculateEventPriceFromDuration(
+  durationDays: number,
+  settings: PlatformPricingSettings
+): {
+  price: number;
+  currency: string;
+  matchedRule: EventPricingRule | null;
+  ruleLabel: string;
+} {
+  const rules = settings.pricing_rules && settings.pricing_rules.length > 0
+    ? settings.pricing_rules
+    : DEFAULT_PRICING_RULES;
+
+  const matched = matchPricingRuleForDuration(durationDays, rules);
+  if (matched) {
+    return {
+      price: matched.price,
+      currency: matched.currency || settings.default_currency || DEFAULT_EVENT_CURRENCY,
+      matchedRule: matched,
+      ruleLabel: formatPricingRuleLabel(matched),
+    };
+  }
+
+  // Fallback: If no rule matches, use 1-day rule or default_price
+  const day1Rule = rules.find((r) => r.min_days <= 1 && (r.max_days === null || r.max_days >= 1) && r.active);
+  const basePrice = day1Rule ? day1Rule.price : (settings.default_price || DEFAULT_EVENT_PRICE);
+  return {
+    price: basePrice,
+    currency: settings.default_currency || DEFAULT_EVENT_CURRENCY,
+    matchedRule: null,
+    ruleLabel: `${durationDays} day${durationDays > 1 ? 's' : ''} (Default Base)`,
+  };
+}
+
+/**
+ * Calculates server-authoritative event pricing from date boundaries.
+ */
+export async function calculateEventAuthoritativePrice(
+  params: {
+    start_date?: string | null;
+    end_date?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    event_date?: string | null;
+    starts_at?: string | null;
+    expires_at?: string | null;
+  },
+  env?: Record<string, any>
+): Promise<{
+  durationDays: number;
+  price: number;
+  currency: string;
+  ruleLabel: string;
+  matchedRule: EventPricingRule | null;
+}> {
+  const norm = normalizeEventDateBoundaries(params);
+  const durationDays = calculateEventCalendarDays(norm.startDate, norm.endDate);
+  const settings = await getPlatformPricingSettings(env);
+  const calc = calculateEventPriceFromDuration(durationDays, settings);
+  return {
+    durationDays,
+    price: calc.price,
+    currency: calc.currency,
+    ruleLabel: calc.ruleLabel,
+    matchedRule: calc.matchedRule,
+  };
+}
+
+/**
+ * Get current platform default event pricing configuration and duration pricing rules.
  * Server-authoritative source for new event creation pricing.
  */
 export async function getPlatformPricingSettings(env?: Record<string, any>): Promise<PlatformPricingSettings> {
+  const buildSettingsFromData = (val: any, updatedAt?: string, updatedBy?: string | null): PlatformPricingSettings => {
+    const price = Number(val.default_price);
+    const defaultPrice = !isNaN(price) && price > 0 ? price : DEFAULT_EVENT_PRICE;
+    const defaultCurrency = val.default_currency || DEFAULT_EVENT_CURRENCY;
+
+    let rules: EventPricingRule[] = DEFAULT_PRICING_RULES;
+    if (Array.isArray(val.pricing_rules) && val.pricing_rules.length > 0) {
+      rules = val.pricing_rules;
+    } else {
+      // Sync default_price into 1-day rule
+      rules = DEFAULT_PRICING_RULES.map((r) =>
+        r.id === 'rule_1d' ? { ...r, price: defaultPrice, currency: defaultCurrency } : { ...r, currency: defaultCurrency }
+      );
+    }
+
+    return {
+      default_price: defaultPrice,
+      default_currency: defaultCurrency,
+      pricing_rules: rules,
+      updated_at: updatedAt || val.updated_at || new Date().toISOString(),
+      updated_by: updatedBy || val.updated_by || null,
+    };
+  };
+
   if (isSupabaseConfigured(env)) {
     try {
       const supabase = getSupabaseServerClient(env);
@@ -60,13 +304,7 @@ export async function getPlatformPricingSettings(env?: Record<string, any>): Pro
 
       if (!error && data && data.value) {
         const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        const price = Number(val.default_price);
-        return {
-          default_price: !isNaN(price) && price > 0 ? price : DEFAULT_EVENT_PRICE,
-          default_currency: val.default_currency || DEFAULT_EVENT_CURRENCY,
-          updated_at: data.updated_at || new Date().toISOString(),
-          updated_by: data.updated_by || null,
-        };
+        return buildSettingsFromData(val, data.updated_at, data.updated_by);
       }
     } catch (err) {
       console.warn('Notice loading platform settings from Supabase, using local fallback:', err);
@@ -74,45 +312,68 @@ export async function getPlatformPricingSettings(env?: Record<string, any>): Pro
   }
 
   const cached = localSettingsCache.event_pricing || {};
-  const price = Number(cached.default_price);
-  return {
-    default_price: !isNaN(price) && price > 0 ? price : DEFAULT_EVENT_PRICE,
-    default_currency: cached.default_currency || DEFAULT_EVENT_CURRENCY,
-    updated_at: cached.updated_at || new Date().toISOString(),
-    updated_by: cached.updated_by || null,
-  };
+  return buildSettingsFromData(cached, cached.updated_at, cached.updated_by);
 }
 
 /**
- * Update platform default event pricing configuration.
+ * Update platform default event pricing configuration and duration pricing rules.
  * Requires Developer Admin authorization.
  * Only affects newly created events; does not modify existing events.
  */
 export async function updatePlatformPricingSettings(
-  updates: { default_price: number; default_currency?: string },
+  updates: {
+    default_price?: number;
+    default_currency?: string;
+    pricing_rules?: EventPricingRule[];
+  },
   updatedBy?: string,
   env?: Record<string, any>
 ): Promise<PlatformPricingSettings> {
-  const price = Number(updates.default_price);
-  if (isNaN(price) || price <= 0) {
+  const currentSettings = await getPlatformPricingSettings(env);
+
+  let newCurrency = (updates.default_currency || currentSettings.default_currency || DEFAULT_EVENT_CURRENCY).trim().toUpperCase();
+  if (!newCurrency || newCurrency.length > 5) {
+    throw new Error('Invalid currency code');
+  }
+
+  let newRules: EventPricingRule[] = updates.pricing_rules || currentSettings.pricing_rules || DEFAULT_PRICING_RULES;
+
+  // If default_price was explicitly supplied:
+  let newDefaultPrice = updates.default_price !== undefined ? Number(updates.default_price) : currentSettings.default_price;
+  if (isNaN(newDefaultPrice) || newDefaultPrice <= 0) {
     throw new Error('Default event price must be greater than 0');
   }
-  const currency = (updates.default_currency || DEFAULT_EVENT_CURRENCY).trim().toUpperCase();
-  if (!currency || currency.length > 5) {
-    throw new Error('Invalid currency code');
+
+  // If new pricing_rules are provided, validate them
+  if (updates.pricing_rules) {
+    const validation = validatePricingRules(updates.pricing_rules);
+    if (!validation.valid) {
+      throw new Error(validation.error || 'Invalid pricing rules');
+    }
+    newRules = updates.pricing_rules;
+
+    // Sync 1-day rule price with default_price if not explicitly set
+    const day1Rule = newRules.find((r) => r.min_days === 1 && r.max_days === 1 && r.active);
+    if (day1Rule && updates.default_price === undefined) {
+      newDefaultPrice = day1Rule.price;
+    }
+  } else if (updates.default_price !== undefined) {
+    // If only default_price was updated, sync the 1-day rule
+    newRules = newRules.map((r) =>
+      r.min_days === 1 && r.max_days === 1 ? { ...r, price: newDefaultPrice, currency: newCurrency } : r
+    );
   }
 
   const now = new Date().toISOString();
   const valuePayload = {
-    default_price: price,
-    default_currency: currency,
-  };
-
-  localSettingsCache.event_pricing = {
-    ...valuePayload,
+    default_price: newDefaultPrice,
+    default_currency: newCurrency,
+    pricing_rules: newRules,
     updated_at: now,
     updated_by: updatedBy || null,
   };
+
+  localSettingsCache.event_pricing = valuePayload;
   saveLocalSettings();
 
   if (isSupabaseConfigured(env)) {
@@ -123,7 +384,7 @@ export async function updatePlatformPricingSettings(
         .upsert({
           key: 'event_pricing',
           value: valuePayload,
-          description: 'Platform default event pricing configuration for new events',
+          description: 'Platform default event pricing and duration rules for new events',
           updated_by: updatedBy || null,
           updated_at: now,
         });
@@ -133,9 +394,11 @@ export async function updatePlatformPricingSettings(
   }
 
   return {
-    default_price: price,
-    default_currency: currency,
+    default_price: newDefaultPrice,
+    default_currency: newCurrency,
+    pricing_rules: newRules,
     updated_at: now,
     updated_by: updatedBy || null,
   };
 }
+

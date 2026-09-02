@@ -459,6 +459,41 @@ export function isCurrentSingaporeDateWithinEventRange(
 }
 
 /**
+ * Calculates the duration in whole calendar days between two dates.
+ *
+ * Rules:
+ * - Same day (01/09/2026 to 01/09/2026) = 1 day
+ * - Consecutive days (01/09/2026 to 02/09/2026) = 2 days
+ * - 14-day range (01/09/2026 to 14/09/2026) = 14 days
+ * - Month boundary (31/08/2026 to 01/09/2026) = 2 days
+ * - Leap year aware (28/02/2024 to 01/03/2024 = 3 days; 28/02/2025 to 01/03/2025 = 2 days)
+ * - Safe from timezone shifting: operates strictly on UTC calendar date components.
+ */
+export function calculateEventCalendarDays(
+  startDateVal: string | Date | null | undefined,
+  endDateVal: string | Date | null | undefined
+): number {
+  const startStr = extractDateString(startDateVal);
+  const endStr = extractDateString(endDateVal) || startStr;
+
+  if (!startStr) return 1;
+
+  const [y1, m1, d1] = startStr.split('-').map(Number);
+  const [y2, m2, d2] = (endStr || startStr).split('-').map(Number);
+
+  if (!y1 || !m1 || !d1 || !y2 || !m2 || !d2) return 1;
+
+  const startUtc = Date.UTC(y1, m1 - 1, d1);
+  const endUtc = Date.UTC(y2, m2 - 1, d2);
+
+  if (endUtc < startUtc) return 1;
+
+  const diffMs = endUtc - startUtc;
+  const days = Math.round(diffMs / 86400000) + 1;
+  return Math.max(1, days);
+}
+
+/**
  * Checks whether the current date/time (in Asia/Singapore timezone) falls within
  * the immersive fullscreen window for the given event date.
  *

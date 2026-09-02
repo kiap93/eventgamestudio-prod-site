@@ -11867,5 +11867,70 @@
     "showcase_credit_granted": false,
     "created_at": "2026-09-02T08:07:46.344Z",
     "updated_at": "2026-09-02T08:07:46.414Z"
+  },
+  {
+    "id": "6d8c3099-7968-4268-8cb8-fc7a589d2194",
+    "organization_id": "4814e9db-482a-48f2-a9dd-e29572443dbc",
+    "paid_balance": 0,
+    "welcome_credit": 800,
+    "showcase_credit": 0,
+    "topup_credit": 0,
+    "currency": "MYR",
+    "welcome_credit_granted": true,
+    "showcase_credit_granted": false,
+    "created_at": "2026-09-02T08:46:34.088Z",
+    "updated_at": "2026-09-02T08:46:34.088Z"
+  },
+  {
+    "id": "edc00da9-b226-42df-9ad5-0ae3b32eccc5",
+    "organization_id": "fe108510-4d57-421e-9a8b-a70d977e39c3",
+    "paid_balance": 0,
+    "welcome_credit": 800,
+    "showcase_credit": 0,
+    "topup_credit": 0,
+    "currency": "MYR",
+    "welcome_credit_granted": true,
+    "showcase_credit_granted": false,
+    "created_at": "2026-09-02T08:47:28.011Z",
+    "updated_at": "2026-09-02T08:47:28.011Z"
+  },
+  {
+    "id": "b4f049a3-0980-482a-a430-d08c3479dad9",
+    "organization_id": "3a158126-7e6f-4833-9946-adc9f3414f04",
+    "paid_balance": 0,
+    "welcome_credit": 800,
+    "showcase_credit": 0,
+    "topup_credit": 0,
+    "currency": "MYR",
+    "welcome_credit_granted": true,
+    "showcase_credit_granted": false,
+    "created_at": "2026-09-02T08:48:12.219Z",
+    "updated_at": "2026-09-02T08:48:12.219Z"
+  },
+  {
+    "id": "8bc8a8d5-df7a-43c5-93f0-599ed18d969a",
+    "organization_id": "4aed0cf0-f17d-4717-a845-bc584289168c",
+    "paid_balance": 0,
+    "welcome_credit": 800,
+    "showcase_credit": 0,
+    "topup_credit": 0,
+    "currency": "MYR",
+    "welcome_credit_granted": true,
+    "showcase_credit_granted": false,
+    "created_at": "2026-09-02T08:48:51.927Z",
+    "updated_at": "2026-09-02T08:48:51.927Z"
+  },
+  {
+    "id": "08d3c630-60b1-4fdd-9efa-22c276bfd497",
+    "organization_id": "dce30a46-831a-4a19-bdb3-c2257a401495",
+    "paid_balance": 0,
+    "welcome_credit": 0,
+    "showcase_credit": 0,
+    "topup_credit": 0,
+    "currency": "MYR",
+    "welcome_credit_granted": true,
+    "showcase_credit_granted": false,
+    "created_at": "2026-09-02T08:49:18.958Z",
+    "updated_at": "2026-09-02T08:49:19.158Z"
   }
 ]

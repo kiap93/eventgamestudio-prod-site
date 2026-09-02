@@ -20,6 +20,7 @@ import {
   CreditCard,
   Gamepad2,
   ArrowRight,
+  Calendar,
 } from 'lucide-react';
 
 interface EventPaymentModalProps {
@@ -91,6 +92,8 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
           game_theme_id: event.game_theme_id || event.game_theme?.id,
           payment_mode: 'COMBINED_CREDIT',
           event_price: event.event_price || undefined,
+          start_date: event.start_date || undefined,
+          end_date: event.end_date || undefined,
           use_welcome_credit: true,
           use_event_credit: true,
         }),
@@ -360,6 +363,15 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                   <span>•</span>
                   <span>{event.game_theme?.name || event.name || 'Theme'}</span>
                 </div>
+                {event.start_date && (
+                  <div className="text-[11px] text-slate-400 flex items-center gap-1.5 pt-0.5 border-t border-slate-850">
+                    <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>{event.start_date} {event.end_date && event.end_date !== event.start_date ? `to ${event.end_date}` : ''}</span>
+                    {event.duration_days && (
+                      <span className="text-slate-500 font-mono font-medium">({event.duration_days} days)</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Pricing & Credit Summary Card */}

@@ -25,6 +25,10 @@ interface GameThemeOption {
   game_id?: string | null;
   game_name?: string;
   game_slug?: string;
+  organization_id?: string | null;
+  is_system?: boolean;
+  ownership_type?: string;
+  status?: string;
 }
 
 interface EditEventDialogProps {
@@ -77,32 +81,21 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
     const fetchThemes = async () => {
       try {
         setLoadingThemes(true);
-        const [customRes, systemRes] = await Promise.all([
-          apiFetch('/api/themes'),
-          apiFetch('/api/themes/system'),
-        ]);
-
-        let customThemes: GameThemeOption[] = [];
-        let systemThemes: GameThemeOption[] = [];
+        const customRes = await apiFetch('/api/themes');
 
         if (customRes.ok) {
           const data = await customRes.json();
-          customThemes = data.themes || [];
+          const customThemes = (data.themes || []) as GameThemeOption[];
+          const validThemes = customThemes.filter((t) => {
+            if (!t || !t.id) return false;
+            if (t.is_system === true) return false;
+            if (t.ownership_type === 'system') return false;
+            if (event?.organization_id && t.organization_id && t.organization_id !== event.organization_id) return false;
+            if (t.status && t.status !== 'active') return false;
+            return true;
+          });
+          setThemes(validThemes);
         }
-        if (systemRes.ok) {
-          const data = await systemRes.json();
-          systemThemes = data.system_themes || data.themes || [];
-        }
-
-        const map = new Map<string, GameThemeOption>();
-        for (const t of [...systemThemes, ...customThemes]) {
-          if (t && t.id) {
-            map.set(t.id, t);
-          }
-        }
-
-        const allThemes = Array.from(map.values());
-        setThemes(allThemes);
       } catch (err: any) {
         console.error('Error fetching themes:', err);
       } finally {

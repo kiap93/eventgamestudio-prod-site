@@ -298,9 +298,21 @@ export interface EventRecord {
   updated_at: string;
 }
 
+export interface EventPricingRule {
+  id: string;
+  min_days: number;
+  max_days: number | null; // null = unlimited (e.g., 91+ days)
+  price: number;
+  currency: string;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface PlatformPricingSettings {
   default_price: number;
   default_currency: string;
+  pricing_rules?: EventPricingRule[];
   updated_at?: string;
   updated_by?: string | null;
 }

@@ -5871,5 +5871,26 @@
     "paid_at": null,
     "failed_at": null,
     "cancelled_at": "2026-09-02T08:07:46.407Z"
+  },
+  {
+    "id": "b7c80990-307d-4fa1-9008-4afff7f515d9",
+    "organization_id": "dce30a46-831a-4a19-bdb3-c2257a401495",
+    "user_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "currency": "MYR",
+    "top_up_amount": 600,
+    "expected_credit_amount": 0,
+    "bonus_percentage": 0,
+    "total_wallet_value": 600,
+    "status": "PAID",
+    "payment_reference": "test_ref_shortfall_paid",
+    "payment_method": "card",
+    "notes": "Cover shortfall for event creation",
+    "metadata": {},
+    "created_at": "2026-09-02T08:49:18.994Z",
+    "updated_at": "2026-09-02T08:49:19.024Z",
+    "expired_at": "2026-09-03T08:49:18.994Z",
+    "paid_at": "2026-09-02T08:49:19.024Z",
+    "failed_at": null,
+    "cancelled_at": null
   }
 ]

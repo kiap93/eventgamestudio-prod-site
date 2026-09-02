@@ -27,7 +27,11 @@ import {
   withOrganizationLock,
   recordWalletAuditEvent,
 } from './wallet.js';
-import { getPlatformPricingSettings } from './platformSettings.js';
+import {
+  getPlatformPricingSettings,
+  calculateEventAuthoritativePrice,
+  calculateEventCalendarDays,
+} from './platformSettings.js';
 import crypto from 'node:crypto';
 
 // In-memory cache fallback for mock / test environments
@@ -1168,6 +1172,7 @@ export async function createEvent(
     discount_amount?: number;
     event_price?: number;
     event_currency?: string;
+    custom_price_override?: boolean;
     created_by?: string | null;
     skipPendingLimitCheck?: boolean;
   },
@@ -1175,17 +1180,36 @@ export async function createEvent(
 ): Promise<EventRecord> {
   const supabase = getSupabaseServerClient(env);
 
-  // 1. Verify organization isolation: The theme must exist and belong to this organization or be a system theme!
+  // 1. Verify organization isolation & system theme restriction: The theme must exist, belong to this organization, and not be a system theme!
   const theme = await getThemeById(params.game_theme_id, env);
   if (!theme) {
     const err: any = new Error('Selected Game Theme not found');
     err.status = 404;
+    err.code = 'THEME_NOT_FOUND';
     throw err;
   }
 
-  if (theme.organization_id && theme.organization_id !== params.organization_id && !theme.is_system) {
-    const err: any = new Error('Security Error: Game Theme does not belong to your organization');
+  // System themes are read-only templates and cannot be used directly for events
+  if (theme.is_system || theme.ownership_type === 'system') {
+    const err: any = new Error('Only organization themes can be used for events.');
     err.status = 403;
+    err.code = 'SYSTEM_THEME_NOT_ALLOWED';
+    throw err;
+  }
+
+  // Theme must belong to the active organization
+  if (theme.organization_id !== params.organization_id) {
+    const err: any = new Error('Only organization themes can be used for events.');
+    err.status = 403;
+    err.code = 'THEME_FORBIDDEN';
+    throw err;
+  }
+
+  // Theme must be active
+  if (theme.status && theme.status !== 'active') {
+    const err: any = new Error('The selected theme is not active.');
+    err.status = 422;
+    err.code = 'THEME_INACTIVE';
     throw err;
   }
 
@@ -1252,13 +1276,18 @@ export async function createEvent(
     }
   }
 
-  // 5. Resolve server-authoritative event pricing if not supplied
+  // 5. Resolve server-authoritative event pricing based on calendar duration
   let price = params.event_price;
   let currency = params.event_currency || 'MYR';
-  if (!price || price <= 0) {
-    const defaultPricing = await getPlatformPricingSettings(env);
-    price = defaultPricing.default_price;
-    currency = defaultPricing.default_currency;
+  if (params.custom_price_override && typeof price === 'number' && price > 0) {
+    // Explicit custom price override (e.g. Developer Admin override)
+  } else {
+    const durationPricing = await calculateEventAuthoritativePrice({
+      startDate: norm.startDate,
+      endDate: norm.endDate,
+    }, env);
+    price = durationPricing.price;
+    currency = durationPricing.currency;
   }
 
   // 6. Generate collision-resistant unique token
@@ -1404,6 +1433,10 @@ export async function createEventWithAtomicPayment(
     game_theme_id: string;
     name: string;
     event_date?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
     starts_at: string;
     expires_at: string;
     status?: EventStatus;
@@ -1412,6 +1445,7 @@ export async function createEventWithAtomicPayment(
     topup_credit_requested?: number;
     event_price?: number;
     event_currency?: string;
+    custom_price_override?: boolean;
     reference_id?: string;
   },
   env?: Record<string, any>
@@ -1441,23 +1475,44 @@ export async function createEventWithAtomicPayment(
       reference_id,
     } = params;
 
-    // Resolve server-authoritative event pricing
+    // Resolve server-authoritative event pricing based on duration
     let eventPrice = params.event_price;
     let eventCurrency = params.event_currency || 'MYR';
-    if (!eventPrice || eventPrice <= 0) {
-      const platformPricing = await getPlatformPricingSettings(env);
-      eventPrice = platformPricing.default_price;
-      eventCurrency = platformPricing.default_currency;
+    if (params.custom_price_override && typeof eventPrice === 'number' && eventPrice > 0) {
+      // Explicit custom price override
+    } else {
+      const durationPricing = await calculateEventAuthoritativePrice({
+        start_date: params.start_date || params.startDate,
+        end_date: params.end_date || params.endDate,
+        event_date: params.event_date,
+        starts_at: params.starts_at,
+        expires_at: params.expires_at,
+      }, env);
+      eventPrice = durationPricing.price;
+      eventCurrency = durationPricing.currency;
     }
 
-    // 1. Validate Theme & Organization Isolation
+    // 1. Validate Theme & Organization Isolation & System Theme Restriction
     const theme = await getThemeById(game_theme_id, env);
     if (!theme) {
-      throw new Error('Selected Game Theme not found');
+      const err: any = new Error('Selected Game Theme not found');
+      err.status = 404;
+      err.code = 'THEME_NOT_FOUND';
+      throw err;
     }
 
-    if (theme.organization_id && theme.organization_id !== organization_id && !theme.is_system) {
-      throw new Error('Security Error: Game Theme does not belong to your organization');
+    if (theme.is_system || theme.ownership_type === 'system' || theme.organization_id !== organization_id) {
+      const err: any = new Error('Only organization themes can be used for events.');
+      err.status = 403;
+      err.code = 'SYSTEM_THEME_NOT_ALLOWED';
+      throw err;
+    }
+
+    if (theme.status && theme.status !== 'active') {
+      const err: any = new Error('The selected theme is not active.');
+      err.status = 422;
+      err.code = 'THEME_INACTIVE';
+      throw err;
     }
 
     // 2. Validate Game Existence & Active Status
@@ -1661,14 +1716,26 @@ export async function updateEvent(
     payload.cancel_reason = updates.cancel_reason;
   }
 
-  // 2. If changing theme, verify organizational isolation and game compatibility
+  // 2. If changing theme, verify organizational isolation, system theme restriction, and game compatibility
   if (updates.game_theme_id !== undefined && updates.game_theme_id !== existing.game_theme_id) {
     const newTheme = await getThemeById(updates.game_theme_id, env);
     if (!newTheme) {
-      throw new Error('New Game Theme not found');
+      const err: any = new Error('New Game Theme not found');
+      err.status = 404;
+      err.code = 'THEME_NOT_FOUND';
+      throw err;
     }
-    if (newTheme.organization_id && newTheme.organization_id !== existing.organization_id && !newTheme.is_system) {
-      throw new Error('Security Error: Game Theme belongs to another organization');
+    if (newTheme.is_system || newTheme.ownership_type === 'system' || newTheme.organization_id !== existing.organization_id) {
+      const err: any = new Error('Only organization themes can be used for events.');
+      err.status = 403;
+      err.code = 'SYSTEM_THEME_NOT_ALLOWED';
+      throw err;
+    }
+    if (newTheme.status && newTheme.status !== 'active') {
+      const err: any = new Error('The selected theme is not active.');
+      err.status = 422;
+      err.code = 'THEME_INACTIVE';
+      throw err;
     }
     if (existing.game_id && newTheme.game_id && existing.game_id !== newTheme.game_id) {
       const err: any = new Error('Selected theme does not belong to the chosen game for this event.');
@@ -2074,8 +2141,11 @@ export async function getAllAdminEvents(
     const isPaid = paymentStatus === 'PAID';
     const eventLifecycle = event.event_status || deriveEventLifecycleStatus(event);
 
+    const durDays = calculateEventCalendarDays(event.start_date || event.event_date, event.end_date || event.start_date || event.event_date);
+
     return {
       ...event,
+      duration_days: durDays,
       event_price: storedPrice,
       event_currency: event.event_currency || 'MYR',
       event_status: eventLifecycle,
