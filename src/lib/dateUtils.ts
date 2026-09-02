@@ -162,6 +162,257 @@ export function getSingaporeCalendarDate(date: Date = new Date()): string {
 }
 
 /**
+ * Normalizes input date representation to YYYY-MM-DD string.
+ */
+export function getNormalizedCurrentDate(currentDate?: string | Date | null): string {
+  if (typeof currentDate === 'string') {
+    const match = currentDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+  }
+  const dt = currentDate instanceof Date ? currentDate : new Date();
+  return getSingaporeCalendarDate(dt);
+}
+
+/**
+ * Extracts and normalizes the authoritative event date boundaries.
+ * 
+ * Rules:
+ * - startDate: 'YYYY-MM-DD'
+ * - endDate: 'YYYY-MM-DD'
+ * - liveOpenDate: startDate minus 1 calendar day ('YYYY-MM-DD')
+ */
+export function getNormalizedEventDates(event: {
+  start_date?: string | null;
+  end_date?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  event_date?: string | null;
+  starts_at?: string | null;
+  expires_at?: string | null;
+  setup_starts_at?: string | null;
+  [key: string]: any;
+}): {
+  startDate: string;
+  endDate: string;
+  liveOpenDate: string;
+} {
+  const rawStart =
+    event.start_date ||
+    event.startDate ||
+    event.event_date ||
+    (event.starts_at ? extractDateString(event.starts_at) : '');
+
+  const rawEnd =
+    event.end_date ||
+    event.endDate ||
+    (event.expires_at ? extractDateString(event.expires_at) : '') ||
+    rawStart;
+
+  const startDate = extractDateString(rawStart) || '';
+  const endDate = extractDateString(rawEnd) || startDate;
+  const liveOpenDate = startDate ? addDaysToDateString(startDate, -1) : '';
+
+  return {
+    startDate,
+    endDate,
+    liveOpenDate,
+  };
+}
+
+/**
+ * Checks whether an event's Live URL is currently accessible.
+ *
+ * Canonical Rule:
+ * LIVE URL AVAILABLE =
+ *   payment_status === "PAID"
+ *   AND current_date >= event_start_date - 1 calendar day (liveOpenDate)
+ *   AND current_date <= event_end_date
+ *   AND event is not cancelled
+ */
+export function canAccessLiveEvent(
+  event: {
+    status?: string | null;
+    event_status?: string | null;
+    payment_status?: string | null;
+    cancel_reason?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    event_date?: string | null;
+    starts_at?: string | null;
+    expires_at?: string | null;
+    [key: string]: any;
+  } | null | undefined,
+  currentDate?: string | Date
+): boolean {
+  if (!event) return false;
+
+  const rawStatus = (event.status || '').toLowerCase();
+  const eventStatus = (event.event_status || '').toUpperCase();
+  const payStatus = (event.payment_status || '').toUpperCase();
+  const cancelReason = event.cancel_reason || null;
+
+  // 1. Cancelled events are never accessible
+  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
+    return false;
+  }
+
+  // 2. Payment MUST be fully PAID
+  if (payStatus !== 'PAID') {
+    return false;
+  }
+
+  const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
+  if (!startDate || !endDate || !liveOpenDate) return false;
+
+  const curDate = getNormalizedCurrentDate(currentDate);
+
+  // 3. Current calendar date >= liveOpenDate (start_date - 1 day) AND current_date <= end_date
+  return curDate >= liveOpenDate && curDate <= endDate;
+}
+
+/**
+ * Checks whether an event's Preview URL is currently accessible.
+ *
+ * Canonical Rule:
+ * Before the Live URL window starts (current_date < event_start_date - 1 calendar day):
+ *   Preview URL = available (for both paid and unpaid events)
+ *
+ * Once the Live URL window starts or after event ends:
+ *   Preview URL = unavailable
+ */
+export function canAccessPreviewEvent(
+  event: {
+    status?: string | null;
+    event_status?: string | null;
+    cancel_reason?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    event_date?: string | null;
+    starts_at?: string | null;
+    expires_at?: string | null;
+    [key: string]: any;
+  } | null | undefined,
+  currentDate?: string | Date
+): boolean {
+  if (!event) return false;
+
+  const rawStatus = (event.status || '').toLowerCase();
+  const eventStatus = (event.event_status || '').toUpperCase();
+  const cancelReason = event.cancel_reason || null;
+
+  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
+    return false;
+  }
+
+  const { startDate, liveOpenDate } = getNormalizedEventDates(event);
+  if (!startDate || !liveOpenDate) return false;
+
+  const curDate = getNormalizedCurrentDate(currentDate);
+
+  // Preview URL is ONLY available BEFORE the Live URL window starts
+  return curDate < liveOpenDate;
+}
+
+/**
+ * Checks whether the Preview Header toolbar should be visible.
+ * Rule: Visible when Preview URL is available (before live window starts).
+ */
+export function shouldShowPreviewHeader(
+  event: any,
+  currentDate?: string | Date
+): boolean {
+  return canAccessPreviewEvent(event, currentDate);
+}
+
+/**
+ * Returns comprehensive availability state breakdown for an event.
+ */
+export function getEventAvailabilityState(
+  event: any,
+  currentDate?: string | Date
+): {
+  isPaid: boolean;
+  isCancelled: boolean;
+  startDate: string;
+  endDate: string;
+  liveOpenDate: string;
+  currentDate: string;
+  isBeforeLiveWindow: boolean;
+  isInsideLiveWindow: boolean;
+  isAfterLiveWindow: boolean;
+  previewUrlAvailable: boolean;
+  previewHeaderVisible: boolean;
+  liveUrlAvailable: boolean;
+  statusLabel: string;
+  statusExplanation: string;
+} {
+  const rawStatus = (event?.status || '').toLowerCase();
+  const eventStatus = (event?.event_status || '').toUpperCase();
+  const payStatus = (event?.payment_status || '').toUpperCase();
+  const isCancelled =
+    rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || Boolean(event?.cancel_reason);
+  const isPaid = payStatus === 'PAID';
+
+  const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event || {});
+  const curDate = getNormalizedCurrentDate(currentDate);
+
+  const isBeforeLiveWindow = Boolean(liveOpenDate && curDate < liveOpenDate);
+  const isInsideLiveWindow = Boolean(
+    liveOpenDate && endDate && curDate >= liveOpenDate && curDate <= endDate
+  );
+  const isAfterLiveWindow = Boolean(endDate && curDate > endDate);
+
+  const previewUrlAvailable = !isCancelled && isBeforeLiveWindow;
+  const previewHeaderVisible = previewUrlAvailable;
+  const liveUrlAvailable = !isCancelled && isPaid && isInsideLiveWindow;
+
+  let statusLabel = 'Draft';
+  let statusExplanation = '';
+
+  if (isCancelled) {
+    statusLabel = 'Cancelled';
+    statusExplanation = 'This event deployment has been cancelled.';
+  } else if (isAfterLiveWindow) {
+    statusLabel = 'Expired';
+    statusExplanation = `This event concluded on ${formatDateOnly(endDate)}.`;
+  } else if (isBeforeLiveWindow) {
+    statusLabel = isPaid ? 'Scheduled' : 'Draft';
+    statusExplanation = isPaid
+      ? `Live URL opens on ${formatDateOnly(liveOpenDate)} (1 day before start date ${formatDateOnly(startDate)}). Preview test mode is active.`
+      : `Event is scheduled for ${formatDateOnly(startDate)}. Pay and activate to enable the Live URL on ${formatDateOnly(liveOpenDate)}.`;
+  } else if (isInsideLiveWindow) {
+    if (isPaid) {
+      statusLabel = 'Live Now';
+      statusExplanation = `Live URL is active through ${formatDateOnly(endDate)}.`;
+    } else {
+      statusLabel = 'Pending Payment';
+      statusExplanation = `Live window is open, but payment is required. Live URL will activate immediately upon payment.`;
+    }
+  }
+
+  return {
+    isPaid,
+    isCancelled,
+    startDate,
+    endDate,
+    liveOpenDate,
+    currentDate: curDate,
+    isBeforeLiveWindow,
+    isInsideLiveWindow,
+    isAfterLiveWindow,
+    previewUrlAvailable,
+    previewHeaderVisible,
+    liveUrlAvailable,
+    statusLabel,
+    statusExplanation,
+  };
+}
+
+/**
  * Returns formatted string of current date & time in Asia/Singapore timezone (UTC+8).
  * Format: DD/MM/YYYY, HH:mm:ss
  */

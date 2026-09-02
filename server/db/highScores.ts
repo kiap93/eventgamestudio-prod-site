@@ -4,7 +4,7 @@ import {
   EventLeaderboardEntry,
   EventScoreStats,
 } from './types.js';
-import { getEventById, getEventByPublicToken } from './events.js';
+import { getEventById, getEventByPublicToken, isEventPlayable, deriveEventLifecycleStatus } from './events.js';
 import { isUUID } from './themes.js';
 import {
   calculateMemoryMatchScore,
@@ -104,9 +104,53 @@ export async function submitEventScore(
     throw err;
   }
 
-  if (event.status === 'cancelled') {
-    const err: any = new Error('Cannot submit scores to a cancelled event');
-    err.status = 400;
+  // Reject explicit test / preview score submissions from reaching official event leaderboards
+  if (metadata.isEventPreview === true || metadata.isPreview === true || metadata.isTest === true) {
+    const err: any = new Error('Preview test scores cannot be submitted to official event leaderboards');
+    err.status = 403;
+    err.code = 'PREVIEW_SCORE_FORBIDDEN';
+    throw err;
+  }
+
+  // Authoritative server-side playable & lifecycle check
+  if (!isEventPlayable(event)) {
+    const rawStatus = (event.status || '').toLowerCase();
+    const eventStatus = (event.event_status || '').toUpperCase();
+    const payStatus = (event.payment_status || '').toUpperCase();
+    const cancelReason = event.cancel_reason || null;
+
+    if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
+      const err: any = new Error('Cannot submit scores to a cancelled event');
+      err.status = 400;
+      err.code = 'EVENT_CANCELLED';
+      throw err;
+    }
+
+    if (payStatus !== 'PAID') {
+      const err: any = new Error('Cannot submit scores to an unpaid or draft event');
+      err.status = 403;
+      err.code = 'PAYMENT_REQUIRED';
+      throw err;
+    }
+
+    const derivedStatus = deriveEventLifecycleStatus(event);
+    if (derivedStatus === 'SCHEDULED') {
+      const err: any = new Error('Cannot submit scores before the event has started');
+      err.status = 403;
+      err.code = 'EVENT_NOT_STARTED';
+      throw err;
+    }
+
+    if (derivedStatus === 'COMPLETED') {
+      const err: any = new Error('Cannot submit scores to a completed event');
+      err.status = 403;
+      err.code = 'EVENT_COMPLETED';
+      throw err;
+    }
+
+    const err: any = new Error('Event is not currently active for score submission');
+    err.status = 403;
+    err.code = 'EVENT_NOT_PLAYABLE';
     throw err;
   }
 

@@ -109,13 +109,69 @@ async function runTests() {
     game_id: game.id,
     game_theme_id: theme.id,
     name: 'Memory Match Championship ' + Date.now(),
-    starts_at: new Date().toISOString(),
+    starts_at: new Date(Date.now() - 3600000).toISOString(),
     expires_at: new Date(Date.now() + 86400000).toISOString(),
-    status: 'draft',
+    status: 'active',
+    payment_status: 'PAID',
+    event_status: 'LIVE',
   });
 
   const testEventId = testEvent.id;
   const sessionId = 'session_test_xyz_123';
+
+  // ----------------------------------------------------
+  // Test 5.5: Preview & Unplayable Event Score Rejection
+  // ----------------------------------------------------
+  console.log('Test 5.5: Verifying preview test scores and unplayable events are rejected...');
+
+  // Test preview flag rejection
+  let previewRejected = false;
+  try {
+    await submitEventScore({
+      event_id: testEventId,
+      player_name: 'PreviewTester',
+      score: 5000,
+      metadata: {
+        gameType: 'memory-match',
+        isEventPreview: true,
+      },
+    });
+  } catch (err: any) {
+    previewRejected = true;
+    assert(err.status === 403, 'Expected 403 status for preview score submission');
+  }
+  assert(previewRejected, 'Expected isEventPreview=true to be rejected from submitting to leaderboard');
+  console.log('✅ Preview test score rejection passed');
+
+  // Test unpaid event rejection
+  const unpaidEvent = await createEvent({
+    organization_id: org.id,
+    game_id: game.id,
+    game_theme_id: theme.id,
+    name: 'Unpaid Championship',
+    starts_at: new Date(Date.now() - 3600000).toISOString(),
+    expires_at: new Date(Date.now() + 86400000).toISOString(),
+    status: 'draft',
+    payment_status: 'UNPAID',
+    event_status: 'DRAFT',
+  });
+
+  let unpaidRejected = false;
+  try {
+    await submitEventScore({
+      event_id: unpaidEvent.id,
+      player_name: 'UnpaidPlayer',
+      score: 5000,
+      metadata: {
+        gameType: 'memory-match',
+      },
+    });
+  } catch (err: any) {
+    unpaidRejected = true;
+    assert(err.status === 403, 'Expected 403 status for unpaid event score submission');
+  }
+  assert(unpaidRejected, 'Expected unpaid event to be rejected from submitting score');
+  console.log('✅ Unpaid event score rejection passed');
 
   // ----------------------------------------------------
   // Test 6: Submit Score & Idempotency

@@ -39,6 +39,7 @@ export interface ResultScreenRendererProps {
   onSubmitScore?: (playerName: string) => Promise<{ success: boolean; rank?: number; error?: string } | void> | void;
   className?: string;
   isSimulation?: boolean;
+  isEventPreview?: boolean;
 }
 
 export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
@@ -59,6 +60,7 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
   onSubmitScore,
   className = '',
   isSimulation = false,
+  isEventPreview = false,
 }) => {
   const bg = resolveScreenBackground(resultConfig, theme);
   const canvasWidth = resultConfig?.canvas?.width || 1000;
@@ -103,6 +105,7 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
           parentHeight={parentHeight}
           stats={stats}
           isSimulation={isSimulation}
+          isEventPreview={isEventPreview}
           onAction={onAction}
           renderChild={(child, pW, pH) => renderElement(child, pW, pH, false)}
           leaderboardData={leaderboardData}

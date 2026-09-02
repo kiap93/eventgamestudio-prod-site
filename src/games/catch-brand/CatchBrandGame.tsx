@@ -17,6 +17,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
   settings: initialSettings,
   eventId,
   publicToken,
+  isEventPreview,
   onStatsChange: externalOnStatsChange,
   onGameStateChange: externalOnGameStateChange,
   isMuted: initialIsMuted = false,
@@ -294,6 +295,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
           countdownText={countdownText}
           eventId={eventId}
           publicToken={publicToken}
+          isEventPreview={isEventPreview}
           isMuted={isMuted}
           onToggleMute={handleToggleMute}
           cameraActive={cameraActive}

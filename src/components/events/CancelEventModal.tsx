@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
 import { EventCancellationEligibility, EventRecord, EventWithDetails } from '../../types';
+import { getNormalizedEventDates, formatDateOnly } from '../../lib/dateUtils';
 
 interface CancelEventModalProps {
   isOpen: boolean;
@@ -91,10 +92,9 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
 
   if (!isOpen || !event) return null;
 
-  const startsAtDate = new Date(event.starts_at);
-  const setupDate = eligibility?.setupStartsAt
-    ? new Date(eligibility.setupStartsAt)
-    : new Date(startsAtDate.getTime() - 24 * 60 * 60 * 1000);
+  const eventDates = getNormalizedEventDates(event);
+  const startDateStr = eventDates.startDate;
+  const liveOpenDateStr = eligibility?.setupStartsAt ? (eligibility.setupStartsAt.includes('T') ? eligibility.setupStartsAt.split('T')[0] : eligibility.setupStartsAt) : eventDates.liveOpenDate;
 
   const isEligible = eligibility?.canCancel ?? false;
   const canRefund = eligibility?.canRefund ?? false;
@@ -172,7 +172,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                     Event Start Date:
                   </span>
                   <span className="font-mono text-slate-200">
-                    {startsAtDate.toLocaleDateString([], { dateStyle: 'medium' })}
+                    {formatDateOnly(startDateStr)}
                   </span>
                 </div>
 
@@ -182,7 +182,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                     Setup Day (Start Date - 1 Day):
                   </span>
                   <span className={`font-mono font-semibold ${eligibility?.setupDayStarted ? 'text-red-400' : 'text-emerald-400'}`}>
-                    {setupDate.toLocaleDateString([], { dateStyle: 'medium' })}
+                    {formatDateOnly(liveOpenDateStr)}
                     {eligibility?.setupDayStarted ? ' (Started)' : ' (Upcoming)'}
                   </span>
                 </div>

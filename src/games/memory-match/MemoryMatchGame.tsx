@@ -101,6 +101,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   config,
   eventId,
   publicToken,
+  isEventPreview = false,
   onStatsChange,
   onGameStateChange,
   isMuted = false,
@@ -552,6 +553,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const handleSubmitScore = async (playerNameInput?: string | React.FormEvent) => {
     if (playerNameInput && typeof playerNameInput === 'object' && 'preventDefault' in playerNameInput) {
       playerNameInput.preventDefault();
+    }
+    if (isEventPreview) {
+      return { success: false, error: 'Preview test scores are not submitted to the leaderboard.' };
     }
     if (isSubmittingScore || scoreSubmitted) return;
 
@@ -1361,6 +1365,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             leaderboardData={leaderboardScores}
             loadingLeaderboard={loadingLeaderboard}
             currentPlayerName={playerName}
+            isEventPreview={isEventPreview}
             scoreSubmitted={scoreSubmitted}
             submittedRank={submittedRank}
             isSubmittingScore={isSubmittingScore}

@@ -39,6 +39,7 @@ interface ArcadeUIProps {
   countdownText: string | number;
   eventId?: string;
   publicToken?: string;
+  isEventPreview?: boolean;
   isMuted: boolean;
   onToggleMute: () => void;
   cameraActive: boolean;
@@ -64,6 +65,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   countdownText,
   eventId,
   publicToken,
+  isEventPreview = false,
   isMuted,
   onToggleMute,
   cameraActive,
@@ -142,6 +144,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     '/assets/themes/carnival/item_hazard_01.png';
 
   const hasEventContext = Boolean(publicToken || (eventId && eventId !== 'undefined' && eventId !== 'null'));
+  const isOfficialEventFlow = hasEventContext && !isEventPreview;
 
   // Fetch Event Leaderboard (or load local storage scores in preview mode)
   const fetchEventLeaderboard = async () => {
@@ -187,19 +190,24 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
       setGameOverTab('summary');
       fetchEventLeaderboard();
     }
-  }, [gameState, eventId, publicToken]);
+  }, [gameState, eventId, publicToken, isEventPreview]);
 
   // Load leaderboard when modal opens
   useEffect(() => {
     if (showLeaderboardModal) {
       fetchEventLeaderboard();
     }
-  }, [showLeaderboardModal, eventId, publicToken]);
+  }, [showLeaderboardModal, eventId, publicToken, isEventPreview]);
 
   // Handle high score submission
   const handleSubmitScore = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (isSubmittingScore || scoreSubmitted) return;
+
+    // Strict separation: Preview / test runs NEVER submit official scores
+    if (isEventPreview) {
+      return;
+    }
 
     const trimmedName = playerName.trim() || 'Player';
     localStorage.setItem('event_player_name', trimmedName);
@@ -276,7 +284,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to submit score');
+        throw new Error(data.error || 'This event is not accepting scores.');
       }
 
       const data = await res.json();
@@ -289,7 +297,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
       setGameOverTab('leaderboard');
     } catch (err: any) {
       console.error('Submit score error:', err);
-      setLeaderboardError(err.message || 'Failed to save score to leaderboard.');
+      setLeaderboardError(err.message || 'This event has ended. Your score was not submitted.');
     } finally {
       setIsSubmittingScore(false);
     }
@@ -689,7 +697,16 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                     )}
 
                     <div className="game-over-score-box bg-slate-950 border border-slate-800 rounded-xl p-2.5 sm:p-3 mb-2.5">
-                      <span className="text-slate-400 text-[10px] font-bold block uppercase mb-0.5">FINAL SCORE</span>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-slate-400 text-[10px] font-bold block uppercase">
+                          {isEventPreview ? 'TEST SCORE' : 'FINAL SCORE'}
+                        </span>
+                        {isEventPreview && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/90 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-mono">
+                            Preview Test Play
+                          </span>
+                        )}
+                      </div>
                       <span className="text-3xl sm:text-4xl font-black text-emerald-400 tracking-tight">
                         {stats.score}
                       </span>
@@ -710,8 +727,22 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                       </div>
                     </div>
 
-                    {/* Nickname Submission Box */}
-                    {!scoreSubmitted ? (
+                    {/* Preview Test Notice vs Official Score Submission Box */}
+                    {isEventPreview ? (
+                      <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-2.5 sm:p-3 mb-3 text-left">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="flex items-center gap-1.5 text-amber-400 font-black text-xs uppercase tracking-wider">
+                            <Trophy className="w-3.5 h-3.5" /> TEST SCORE: {stats.score}
+                          </span>
+                          <span className="text-[9px] text-amber-300/80 font-mono uppercase bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                            Test Only
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-snug">
+                          This is a test score. It will not be added to the live event leaderboard.
+                        </p>
+                      </div>
+                    ) : !scoreSubmitted ? (
                       <form onSubmit={handleSubmitScore} className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 mb-3 text-left">
                         <div className="flex items-center justify-between text-xs text-slate-300 font-bold mb-1.5">
                           <span className="flex items-center gap-1.5 text-amber-400">
@@ -738,7 +769,10 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                           </button>
                         </div>
                         {leaderboardError && (
-                          <p className="text-rose-400 text-[10px] mt-1 text-left">{leaderboardError}</p>
+                          <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold mt-2 text-left">
+                            <p className="font-bold text-rose-400">Submission Notice</p>
+                            <p className="text-[11px] text-rose-300 mt-0.5">{leaderboardError}</p>
+                          </div>
                         )}
                       </form>
                     ) : (

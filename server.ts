@@ -59,6 +59,9 @@ import {
   getEventsByOrgId,
   getEventById,
   getEventByPublicToken,
+  canAccessLiveEvent,
+  canAccessPreviewEvent,
+  getNormalizedEventDates,
   createEvent,
   createEventWithAtomicPayment,
   updateEvent,
@@ -1050,19 +1053,6 @@ app.get('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) =
 
     const themes = await getThemesByOrgId(organizationId, gameId);
 
-    const safefTheme = themes.find((t) => t.name?.toLowerCase() === 'safef' || t.slug?.toLowerCase() === 'safef' || t.id === 'dd423275-9ed8-457a-8f1e-2231af720e01');
-    if (safefTheme) {
-      console.log('[Theme API Assertion - safef in list]', {
-        theme_id: safefTheme.id,
-        name: safefTheme.name,
-        slug: safefTheme.slug,
-        game_id: safefTheme.game_id,
-        game_name: safefTheme.game_name,
-        game_slug: safefTheme.game_slug,
-        game_type: safefTheme.game_type,
-      });
-    }
-
     res.json({ themes });
   } catch (err: any) {
     console.error('Get themes error:', err);
@@ -1233,17 +1223,6 @@ app.get('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
     }
 
     console.log(`[Theme API] Successfully resolved theme "${theme.name}" (id: ${theme.id}, is_system: ${isSystemTheme})`);
-    if (theme.name?.toLowerCase() === 'safef' || theme.slug?.toLowerCase() === 'safef' || theme.id === 'dd423275-9ed8-457a-8f1e-2231af720e01') {
-      console.log('[Theme API Assertion - safef single theme]', {
-        theme_id: theme.id,
-        name: theme.name,
-        slug: theme.slug,
-        game_id: theme.game_id,
-        game_name: theme.game_name,
-        game_slug: theme.game_slug,
-        game_type: theme.game_type,
-      });
-    }
     res.json({ theme });
   } catch (err: any) {
     console.error('Get theme details error:', err);
@@ -2142,7 +2121,8 @@ app.post('/api/events/:eventId/cancel', eventRateLimiter, authenticateJWT, async
 
 /**
  * GET /api/events/:eventId/preview
- * Authenticated preview endpoint for organization members & designers to test play and configure
+ * Authenticated preview endpoint for organization members & designers to test play and configure.
+ * STRICTLY ENFORCES: Preview is ONLY available BEFORE the Live URL window starts (current_date < event_start_date - 1 calendar day).
  */
 app.get('/api/events/:eventId/preview', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -2165,6 +2145,39 @@ app.get('/api/events/:eventId/preview', authenticateJWT, async (req: Authenticat
       return;
     }
 
+    if (event.event_status === 'CANCELLED' || event.status === 'cancelled' || event.cancel_reason) {
+      res.status(403).json({
+        error: 'This event has been cancelled.',
+        code: 'EVENT_CANCELLED',
+        is_cancelled: true,
+        cancel_reason: event.cancel_reason,
+      });
+      return;
+    }
+
+    // Check preview accessibility window (Before event_start_date - 1 calendar day)
+    const isPreviewAllowed = canAccessPreviewEvent(event);
+    if (!isPreviewAllowed) {
+      const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
+      const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
+      const isLiveAllowed = canAccessLiveEvent(event);
+
+      res.status(403).json({
+        error: 'Event preview is only available before the Live event window starts. The Live window is now active.',
+        code: 'PREVIEW_WINDOW_ENDED',
+        is_preview_available: false,
+        live_window_started: true,
+        is_paid: isPaid,
+        can_access_live: isLiveAllowed,
+        start_date: startDate,
+        end_date: endDate,
+        live_open_date: liveOpenDate,
+        public_token: event.public_token,
+        event,
+      });
+      return;
+    }
+
     res.json({
       event: {
         ...event,
@@ -2180,7 +2193,12 @@ app.get('/api/events/:eventId/preview', authenticateJWT, async (req: Authenticat
 /**
  * GET /api/public/events/:publicToken
  * Public unauthenticated endpoint for event players.
- * STRICTLY ENFORCES: Public play is only accessible for PAID, LIVE, non-cancelled events.
+ * STRICTLY ENFORCES DATE-ONLY BUSINESS RULE:
+ * LIVE URL AVAILABLE =
+ *   payment_status === "PAID"
+ *   AND current_date >= event_start_date - 1 calendar day
+ *   AND current_date <= event_end_date
+ *   AND not cancelled
  */
 app.get('/api/public/events/:publicToken', async (req, res) => {
   try {
@@ -2200,7 +2218,7 @@ app.get('/api/public/events/:publicToken', async (req, res) => {
       return;
     }
 
-    if (rawEvent.event_status === 'CANCELLED' || rawEvent.status === 'cancelled') {
+    if (rawEvent.event_status === 'CANCELLED' || rawEvent.status === 'cancelled' || rawEvent.cancel_reason) {
       res.status(403).json({
         error: 'This event has been cancelled.',
         code: 'EVENT_CANCELLED',
@@ -2210,7 +2228,10 @@ app.get('/api/public/events/:publicToken', async (req, res) => {
       return;
     }
 
-    const isPaid = rawEvent.payment_status === 'PAID';
+    const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(rawEvent);
+    const isPaid = (rawEvent.payment_status || '').toUpperCase() === 'PAID';
+
+    // 1. Payment status check (checked independently)
     if (!isPaid || rawEvent.status === 'pending_payment') {
       res.status(403).json({
         error: 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
@@ -2223,9 +2244,55 @@ app.get('/api/public/events/:publicToken', async (req, res) => {
         organization_id: rawEvent.organization_id,
         event_price: rawEvent.event_price,
         event_currency: rawEvent.event_currency,
+        start_date: startDate,
+        end_date: endDate,
+        live_open_date: liveOpenDate,
         event: rawEvent,
       });
       return;
+    }
+
+    // 2. Date window check
+    const isLiveAllowed = canAccessLiveEvent(rawEvent);
+    if (!isLiveAllowed) {
+      // Determine if before opening date or after closing date
+      const curDate = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Singapore',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const todayStr = formatter.format(curDate);
+
+      if (todayStr < liveOpenDate) {
+        res.status(403).json({
+          error: `This event is scheduled to open on ${liveOpenDate}. Live URL will become active on ${liveOpenDate}.`,
+          code: 'EVENT_NOT_OPEN',
+          is_scheduled: true,
+          live_open_date: liveOpenDate,
+          start_date: startDate,
+          end_date: endDate,
+          event_id: rawEvent.id,
+          event_name: rawEvent.name,
+          event: rawEvent,
+        });
+        return;
+      }
+
+      if (todayStr > endDate) {
+        res.status(403).json({
+          error: `This event concluded on ${endDate}.`,
+          code: 'EVENT_EXPIRED',
+          is_expired: true,
+          start_date: startDate,
+          end_date: endDate,
+          event_id: rawEvent.id,
+          event_name: rawEvent.name,
+          event: rawEvent,
+        });
+        return;
+      }
     }
 
     res.json({ event: rawEvent });

@@ -5,9 +5,10 @@ import { GameContainer } from '../GameContainer';
 import { EventPaymentModal } from './EventPaymentModal';
 import { apiFetch } from '../../lib/api';
 import {
-  isCurrentSingaporeDateWithinEventRange,
-  extractDateString,
-  getSingaporeDateTime,
+  canAccessLiveEvent,
+  getEventAvailabilityState,
+  getNormalizedEventDates,
+  formatDateOnly,
   getSingaporeCalendarDate,
 } from '../../lib/dateUtils';
 import {
@@ -19,11 +20,10 @@ import {
   Maximize2,
   Minimize2,
   CreditCard,
-  AlertCircle,
   LogIn,
-  Gamepad2,
-  X,
   ShieldCheck,
+  Play,
+  Lock,
 } from 'lucide-react';
 
 interface PublicEventData {
@@ -40,6 +40,7 @@ interface PublicEventData {
   starts_at: string;
   expires_at: string;
   status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
+  event_status?: string;
   calculated_status?: string;
   payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED' | 'PENDING_PAYMENT';
   organization_id?: string;
@@ -64,7 +65,6 @@ export const PublicEventGameView: React.FC = () => {
   const [eventData, setEventData] = useState<PublicEventData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now());
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [singaporeDateKey, setSingaporeDateKey] = useState<string>(() => getSingaporeCalendarDate());
@@ -74,20 +74,18 @@ export const PublicEventGameView: React.FC = () => {
     code?: string;
     is_pending_payment?: boolean;
     is_cancelled?: boolean;
+    is_scheduled?: boolean;
+    is_expired?: boolean;
+    live_open_date?: string;
+    start_date?: string;
+    end_date?: string;
     event_id?: string;
     event_name?: string;
     organization_id?: string;
     event_price?: number;
     event_currency?: string;
+    event?: any;
   } | null>(null);
-
-  // Poll current time every second for live countdown
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(Date.now());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Periodic check for Singapore date boundary change (midnight transition)
   useEffect(() => {
@@ -97,58 +95,6 @@ export const PublicEventGameView: React.FC = () => {
     }, 15000);
     return () => clearInterval(dateTimer);
   }, []);
-
-  // Authoritative payment and Singapore date range checks
-  const isPaidEvent =
-    String(eventData?.payment_status || '').toUpperCase() === 'PAID';
-
-  const eventStartDate =
-    eventData?.start_date ||
-    eventData?.startDate ||
-    eventData?.event_start_date ||
-    eventData?.event_date ||
-    (eventData?.starts_at ? extractDateString(eventData.starts_at) : null);
-
-  const eventEndDate =
-    eventData?.end_date ||
-    eventData?.endDate ||
-    eventData?.event_end_date ||
-    (eventData?.expires_at ? extractDateString(eventData.expires_at) : null) ||
-    eventStartDate;
-
-  const isWithinEventDateRange =
-    isCurrentSingaporeDateWithinEventRange(eventStartDate, eventEndDate);
-
-  // Header Visibility Rule: Event Header is hidden ONLY when browser is fullscreen, event is PAID, and within event date range
-  const shouldHideEventHeader =
-    isFullscreen && isPaidEvent && isWithinEventDateRange;
-
-  const showEventHeader = !shouldHideEventHeader;
-
-  // Development debug logging
-  useEffect(() => {
-    if (eventData) {
-      console.log('[EVENT HEADER]', {
-        paymentStatus: eventData.payment_status,
-        eventStartDate,
-        eventEndDate,
-        singaporeNow: getSingaporeDateTime(),
-        isPaidEvent,
-        isWithinEventDateRange,
-        isFullscreen,
-        shouldHideEventHeader,
-      });
-    }
-  }, [
-    eventData?.payment_status,
-    eventStartDate,
-    eventEndDate,
-    isPaidEvent,
-    isWithinEventDateRange,
-    isFullscreen,
-    shouldHideEventHeader,
-    singaporeDateKey,
-  ]);
 
   /**
    * Authoritative Event Fetcher with cache-busting
@@ -167,7 +113,6 @@ export const PublicEventGameView: React.FC = () => {
           setLoading(true);
         }
 
-        // Cache buster parameter ensures freshest payment state
         const cacheBuster = `_t=${Date.now()}`;
         const res = await apiFetch(`/api/public/events/${publicToken}?${cacheBuster}`, {
           cache: 'no-store',
@@ -188,9 +133,13 @@ export const PublicEventGameView: React.FC = () => {
               organization_id: data.organization_id,
               event_price: data.event_price,
               event_currency: data.event_currency,
+              live_open_date: data.live_open_date,
+              start_date: data.start_date,
+              end_date: data.end_date,
+              event: data.event,
             });
             setError(data.error || 'This event is currently awaiting payment and activation.');
-            setEventData(null);
+            setEventData(data.event || null);
             return;
           }
           if (data.is_cancelled || data.code === 'EVENT_CANCELLED') {
@@ -200,6 +149,35 @@ export const PublicEventGameView: React.FC = () => {
             });
             setError(data.error || 'This event has been cancelled by the organizer.');
             setEventData(null);
+            return;
+          }
+          if (data.code === 'EVENT_NOT_OPEN' || data.is_scheduled) {
+            setErrorDetails({
+              code: 'EVENT_NOT_OPEN',
+              is_scheduled: true,
+              live_open_date: data.live_open_date,
+              start_date: data.start_date,
+              end_date: data.end_date,
+              event_id: data.event_id,
+              event_name: data.event_name,
+              event: data.event,
+            });
+            setError(data.error || 'This event is not open yet.');
+            setEventData(data.event || null);
+            return;
+          }
+          if (data.code === 'EVENT_EXPIRED' || data.is_expired) {
+            setErrorDetails({
+              code: 'EVENT_EXPIRED',
+              is_expired: true,
+              start_date: data.start_date,
+              end_date: data.end_date,
+              event_id: data.event_id,
+              event_name: data.event_name,
+              event: data.event,
+            });
+            setError(data.error || 'This event has expired.');
+            setEventData(data.event || null);
             return;
           }
           if (res.status === 404) {
@@ -235,23 +213,21 @@ export const PublicEventGameView: React.FC = () => {
   useEffect(() => {
     if (!publicToken) return;
 
-    // Check if event is pending payment
     const isAwaitingPayment =
       errorDetails?.is_pending_payment ||
-      (eventData && eventData.payment_status !== 'PAID') ||
-      (!eventData && !errorDetails?.is_cancelled && !error);
+      (eventData && (eventData.payment_status || '').toUpperCase() !== 'PAID');
 
-    // If event is already confirmed PAID, do not fast poll
-    if (!isAwaitingPayment && eventData?.payment_status === 'PAID') {
+    // If event is already confirmed PAID and LIVE, do not fast poll
+    if (!isAwaitingPayment && eventData && canAccessLiveEvent(eventData)) {
       return;
     }
 
     const pollTimer = setInterval(() => {
       fetchEvent(false); // Background fetch without full spinner
-    }, 3000);
+    }, 4000);
 
     return () => clearInterval(pollTimer);
-  }, [publicToken, errorDetails?.is_pending_payment, errorDetails?.is_cancelled, eventData?.payment_status, error, fetchEvent]);
+  }, [publicToken, errorDetails?.is_pending_payment, errorDetails?.is_cancelled, eventData, fetchEvent]);
 
   // Synchronize fullscreen state strictly with browser events
   const getIsFullscreen = (): boolean => {
@@ -273,7 +249,6 @@ export const PublicEventGameView: React.FC = () => {
     document.addEventListener('mozfullscreenchange', handleFsChange);
     document.addEventListener('MSFullscreenChange', handleFsChange);
 
-    // Initialize state
     setIsFullscreen(getIsFullscreen());
 
     return () => {
@@ -297,7 +272,6 @@ export const PublicEventGameView: React.FC = () => {
       if (reqFs) {
         try {
           await reqFs.call(elem);
-          // State will update via fullscreenchange event listener
         } catch (err) {
           console.warn('Fullscreen request failed or was rejected:', err);
         }
@@ -312,7 +286,6 @@ export const PublicEventGameView: React.FC = () => {
       if (exitFs) {
         try {
           await exitFs.call(document);
-          // State will update via fullscreenchange event listener
         } catch (err) {
           console.warn('Exit fullscreen failed:', err);
         }
@@ -336,107 +309,203 @@ export const PublicEventGameView: React.FC = () => {
     );
   }
 
-  // Error / Payment Pending / Cancelled State
-  if (error || !eventData) {
-    if (errorDetails?.is_pending_payment) {
-      return (
-        <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-orange-500/5 pointer-events-none" />
+  const activeEvent = eventData || errorDetails?.event;
+  const availability = activeEvent ? getEventAvailabilityState(activeEvent) : null;
+  const dates = activeEvent ? getNormalizedEventDates(activeEvent) : null;
 
-          <div className="max-w-md w-full bg-slate-900/90 backdrop-blur-xl border border-amber-500/30 rounded-3xl p-8 text-center space-y-6 shadow-2xl relative z-10">
-            <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
-              <Clock className="w-8 h-8 animate-pulse" />
+  // 1. Cancelled State
+  if (errorDetails?.is_cancelled || activeEvent?.event_status === 'CANCELLED' || activeEvent?.status === 'cancelled') {
+    return (
+      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
+          <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto text-red-400">
+            <AlertTriangle className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-bold text-slate-100">Event Cancelled</h1>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              {error || 'This event has been cancelled by the organizer.'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Unpaid / Payment Pending State
+  const isPendingPayment =
+    errorDetails?.is_pending_payment ||
+    (activeEvent && (activeEvent.payment_status || '').toUpperCase() !== 'PAID');
+
+  if (isPendingPayment) {
+    return (
+      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-orange-500/5 pointer-events-none" />
+
+        <div className="max-w-md w-full bg-slate-900/90 backdrop-blur-xl border border-amber-500/30 rounded-3xl p-8 text-center space-y-6 shadow-2xl relative z-10">
+          <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
+            <Clock className="w-8 h-8 animate-pulse" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold">
+              <span>Awaiting Activation</span>
             </div>
+            <h1 className="text-2xl font-black text-slate-100 tracking-tight">
+              {errorDetails?.event_name || activeEvent?.name || 'Event Game'}
+            </h1>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              This event is currently awaiting payment and activation. Public game access will become active once paid and within the event window.
+            </p>
+          </div>
 
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold">
-                <span>Awaiting Activation</span>
-              </div>
-              <h1 className="text-2xl font-black text-slate-100 tracking-tight">
-                {errorDetails.event_name || 'Event Game'}
-              </h1>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                This event is currently being finalized by the organizer. Public gameplay and leaderboards will go live once activated!
-              </p>
+          <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl text-xs text-slate-400 space-y-3">
+            <p className="text-[11px] text-slate-500">
+              Are you the event organizer? Sign in or complete payment to activate this event.
+            </p>
+
+            {user && (
+              <button
+                type="button"
+                onClick={() => setShowPaymentModal(true)}
+                className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Pay & Activate Event (Organizer)</span>
+              </button>
+            )}
+
+            {!user && (
+              <a
+                href="/login"
+                className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Organizer Sign In / Preview</span>
+              </a>
+            )}
+          </div>
+
+          <button
+            onClick={() => fetchEvent(true)}
+            className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-6 py-2.5 rounded-xl text-xs transition-all border border-slate-700 cursor-pointer w-full"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Check If Live</span>
+          </button>
+        </div>
+
+        {/* Pay & Activate Modal for logged-in organizer */}
+        {showPaymentModal && (activeEvent || errorDetails?.event_id) && (
+          <EventPaymentModal
+            isOpen={showPaymentModal}
+            onClose={() => setShowPaymentModal(false)}
+            event={{
+              id: activeEvent?.id || errorDetails?.event_id || '',
+              name: activeEvent?.name || errorDetails?.event_name || 'Event Game',
+              public_token: publicToken || '',
+              organization_id: activeEvent?.organization_id || errorDetails?.organization_id,
+              event_price: activeEvent?.event_price || errorDetails?.event_price || 1400,
+              event_currency: activeEvent?.event_currency || errorDetails?.event_currency || 'MYR',
+            }}
+            onPaymentSuccess={async () => {
+              setShowPaymentModal(false);
+              await fetchEvent(true);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // 3. Before Live Window (Scheduled) State
+  const isBeforeOpeningDate =
+    errorDetails?.is_scheduled ||
+    (availability && availability.isBeforeLiveWindow);
+
+  if (isBeforeOpeningDate) {
+    const liveOpenDate = errorDetails?.live_open_date || dates?.liveOpenDate || '';
+    const startDate = errorDetails?.start_date || dates?.startDate || '';
+
+    return (
+      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-orange-500/5 pointer-events-none" />
+
+        <div className="max-w-md w-full bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl relative z-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold">
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Event Scheduled</span>
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black text-slate-100 tracking-tight">
+              {activeEvent?.name || errorDetails?.event_name || 'Event Game'}
+            </h1>
+            <p className="text-xs text-slate-400">
+              Presented by <strong className="text-slate-200">{activeEvent?.organization_name || 'Studio'}</strong>
+            </p>
+          </div>
+
+          {/* Date Information Card */}
+          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-6 space-y-3 shadow-inner">
+            <p className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Game Opens On</p>
+            <div className="text-xl sm:text-2xl font-bold text-amber-400">
+              {formatDateOnly(liveOpenDate)}
             </div>
-
-            <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl text-xs text-slate-400 space-y-3">
-              <p className="text-[11px] text-slate-500">
-                Are you the event organizer? Sign in or pay to activate this event now.
-              </p>
-
-              {user && (
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentModal(true)}
-                  className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 cursor-pointer"
-                >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  <span>Pay & Activate Event (Organizer)</span>
-                </button>
-              )}
-
-              {!user && (
-                <a
-                  href="/login"
-                  className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>Organizer Sign In / Preview</span>
-                </a>
-              )}
+            <div className="text-xs text-slate-400 border-t border-slate-800/80 pt-3">
+              Event Dates: <span className="font-semibold text-slate-200">{formatDateOnly(startDate)}</span> to <span className="font-semibold text-slate-200">{formatDateOnly(dates?.endDate || '')}</span>
             </div>
+            <p className="text-[11px] text-slate-500">
+              Live play will automatically activate on setup day ({formatDateOnly(liveOpenDate)}).
+            </p>
+          </div>
 
+          <div className="pt-2">
             <button
               onClick={() => fetchEvent(true)}
-              className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-6 py-2.5 rounded-xl text-xs transition-all border border-slate-700 cursor-pointer w-full"
+              className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-6 py-2.5 rounded-xl text-xs transition-all cursor-pointer w-full"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>Check If Live</span>
+              <span>Check If Open</span>
             </button>
           </div>
-
-          {/* Pay & Activate Modal for logged-in organizer */}
-          {showPaymentModal && (
-            <EventPaymentModal
-              isOpen={showPaymentModal}
-              onClose={() => setShowPaymentModal(false)}
-              event={{
-                id: errorDetails.event_id,
-                name: errorDetails.event_name || 'Event Game',
-                public_token: publicToken,
-                organization_id: errorDetails.organization_id,
-                event_price: errorDetails.event_price || 1400,
-                event_currency: errorDetails.event_currency || 'MYR',
-              }}
-              onPaymentSuccess={async (updated) => {
-                setShowPaymentModal(false);
-                await fetchEvent(true);
-              }}
-            />
-          )}
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
-    if (errorDetails?.is_cancelled) {
-      return (
-        <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
-          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
-            <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto text-red-400">
-              <AlertTriangle className="w-8 h-8" />
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-xl font-bold text-slate-100">Event Cancelled</h1>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                {error || 'This event has been cancelled by the organizer.'}
-              </p>
-            </div>
+  // 4. Concluded / Expired State
+  const isExpired =
+    errorDetails?.is_expired ||
+    (availability && availability.isAfterLiveWindow) ||
+    activeEvent?.status === 'expired' ||
+    activeEvent?.event_status === 'EXPIRED';
+
+  if (isExpired) {
+    const endDate = errorDetails?.end_date || dates?.endDate || '';
+
+    return (
+      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
+          <div className="w-16 h-16 bg-slate-800 border border-slate-700 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
+            <Calendar className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-bold text-slate-100">{activeEvent?.name || 'Event Game'}</h1>
+            <p className="text-xs text-slate-400">
+              This event concluded on {formatDateOnly(endDate)}.
+            </p>
+          </div>
+          <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-2xl text-xs text-slate-400">
+            Thank you for participating! Stay tuned for future events.
           </div>
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
+  // 5. Generic Error State
+  if (error || !eventData) {
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
@@ -461,94 +530,10 @@ export const PublicEventGameView: React.FC = () => {
     );
   }
 
-  const startTime = new Date(eventData.starts_at).getTime();
-  const expiryTime = new Date(eventData.expires_at).getTime();
-
-  // Helper for format countdown
-  const formatCountdown = (diffMs: number) => {
-    if (diffMs <= 0) return '00:00:00';
-    const totalSeconds = Math.floor(diffMs / 1000);
-    const days = Math.floor(totalSeconds / 86400);
-    const hours = Math.floor((totalSeconds % 86400) / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    if (days > 0) {
-      return `${days}d ${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
-    }
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  // If the event is scheduled for the future:
-  if (now < startTime) {
-    const timeUntilStart = Math.max(0, startTime - now);
-    return (
-      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-orange-500/5 pointer-events-none" />
-
-        <div className="max-w-md w-full bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold">
-            <Clock className="w-3.5 h-3.5" />
-            <span>Event Scheduled</span>
-          </div>
-
-          <div className="space-y-2">
-            <h1 className="text-2xl font-black text-slate-100 tracking-tight">{eventData.name}</h1>
-            <p className="text-xs text-slate-400">
-              Presented by <strong className="text-slate-200">{eventData.organization_name || 'Studio'}</strong>
-            </p>
-          </div>
-
-          {/* Countdown Clock Display */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-6 space-y-2 shadow-inner">
-            <p className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Game Opens In</p>
-            <div className="text-3xl sm:text-4xl font-mono font-black text-amber-400 tracking-wider">
-              {formatCountdown(timeUntilStart)}
-            </div>
-            <p className="text-[11px] text-slate-500">
-              Starts on {new Date(eventData.starts_at).toLocaleDateString([], { dateStyle: 'medium' })}
-            </p>
-          </div>
-
-          <div className="pt-2">
-            <button
-              onClick={() => fetchEvent(true)}
-              className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Check If Live</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // If the event has expired:
-  if (now >= expiryTime || eventData.status === 'expired') {
-    return (
-      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
-          <div className="w-16 h-16 bg-slate-800 border border-slate-700 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
-            <Calendar className="w-8 h-8" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-xl font-bold text-slate-100">{eventData.name}</h1>
-            <p className="text-xs text-slate-400">
-              This deployment concluded on {new Date(eventData.expires_at).toLocaleDateString([], { dateStyle: 'medium' })}.
-            </p>
-          </div>
-          <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-2xl text-xs text-slate-400">
-            Thank you for participating! Stay tuned for future events.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // 6. Event is LIVE & PAID!
   const theme = eventData.game_theme;
   const gameType = eventData.game?.game_type || 'catch-brand';
-  const remainingTime = Math.max(0, expiryTime - now);
+  const showHeader = !isFullscreen;
 
   return (
     <div
@@ -557,31 +542,24 @@ export const PublicEventGameView: React.FC = () => {
         isFullscreen ? 'p-0 m-0' : ''
       }`}
     >
-      {/* Event Header Banner (Hidden ONLY when isFullscreen && isPaidEvent && isWithinEventDateWindow) */}
-      {showEventHeader && (
+      {/* Event Header Banner (Hidden in Fullscreen) */}
+      {showHeader && (
         <header className="h-12 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-2 flex items-center justify-between z-40 shrink-0">
           <div className="flex items-center gap-3 min-w-0 truncate">
-            {isPaidEvent ? (
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold shrink-0">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-                <span>LIVE EVENT</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-bold shrink-0">
-                <Clock className="w-3 h-3 text-amber-400" />
-                <span>PAYMENT PENDING</span>
-              </div>
-            )}
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+              <span>LIVE EVENT</span>
+            </div>
             <span className="font-bold text-xs text-slate-200 truncate max-w-[200px] sm:max-w-md">
               {eventData.name}
             </span>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {isPaidEvent && (
-              <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-mono">
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
-                <span>Ends in: {formatCountdown(remainingTime)}</span>
+            {dates && (
+              <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+                <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                <span>Active until {formatDateOnly(dates.endDate)}</span>
               </div>
             )}
 
@@ -626,7 +604,7 @@ export const PublicEventGameView: React.FC = () => {
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           event={eventData}
-          onPaymentSuccess={async (updated) => {
+          onPaymentSuccess={async () => {
             setShowPaymentModal(false);
             await fetchEvent(true);
           }}

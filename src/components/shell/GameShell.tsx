@@ -15,6 +15,7 @@ export interface GameShellProps {
   showCabinetFooter?: boolean;
   eventId?: string;
   publicToken?: string;
+  isEventPreview?: boolean;
   allowImmersiveFullscreen?: boolean;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
@@ -31,6 +32,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   showCabinetFooter = true,
   eventId,
   publicToken,
+  isEventPreview,
   allowImmersiveFullscreen = true,
   isFullscreen: controlledFullscreen,
   onToggleFullscreen: controlledToggleFullscreen,
@@ -178,6 +180,7 @@ export const GameShell: React.FC<GameShellProps> = ({
             config={gameDef.defaultConfig}
             eventId={eventId}
             publicToken={publicToken}
+            isEventPreview={isEventPreview}
             isMuted={isMuted}
             isFullscreen={isFullscreen}
             onToggleFullscreen={handleToggleFullscreen}

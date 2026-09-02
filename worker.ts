@@ -32,6 +32,9 @@ import {
   getEventsByOrgId,
   getEventById,
   getEventByPublicToken,
+  canAccessLiveEvent,
+  canAccessPreviewEvent,
+  getNormalizedEventDates,
   createEvent,
   createEventWithAtomicPayment,
   updateEvent,
@@ -1356,19 +1359,6 @@ export default {
         const gameId = url.searchParams.get('gameId') || undefined;
         const themes = await getThemesByOrgId(organizationId, gameId, env);
 
-        const safefTheme = themes.find((t) => t.name?.toLowerCase() === 'safef' || t.slug?.toLowerCase() === 'safef' || t.id === 'dd423275-9ed8-457a-8f1e-2231af720e01');
-        if (safefTheme) {
-          console.log('[Worker Theme API Assertion - safef in list]', {
-            theme_id: safefTheme.id,
-            name: safefTheme.name,
-            slug: safefTheme.slug,
-            game_id: safefTheme.game_id,
-            game_name: safefTheme.game_name,
-            game_slug: safefTheme.game_slug,
-            game_type: safefTheme.game_type,
-          });
-        }
-
         return jsonResponse({ themes }, 200, cors);
       }
 
@@ -1508,17 +1498,6 @@ export default {
         }
 
         console.log(`[Worker Theme API] Successfully resolved theme "${theme.name}" (id: ${theme.id}, is_system: ${isSystemTheme})`);
-        if (theme.name?.toLowerCase() === 'safef' || theme.slug?.toLowerCase() === 'safef' || theme.id === 'dd423275-9ed8-457a-8f1e-2231af720e01') {
-          console.log('[Worker Theme API Assertion - safef single theme]', {
-            theme_id: theme.id,
-            name: theme.name,
-            slug: theme.slug,
-            game_id: theme.game_id,
-            game_name: theme.game_name,
-            game_slug: theme.game_slug,
-            game_type: theme.game_type,
-          });
-        }
         return jsonResponse({ theme }, 200, cors);
       }
 
@@ -1910,6 +1889,47 @@ export default {
         const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view', env);
         if (!isMember) {
           return errorResponse('Forbidden: Access denied to this event preview', 403, cors);
+        }
+
+        if (event.event_status === 'CANCELLED' || event.status === 'cancelled' || event.cancel_reason) {
+          return jsonResponse({
+            error: 'This event has been cancelled.',
+            code: 'EVENT_CANCELLED',
+            is_cancelled: true,
+            cancel_reason: event.cancel_reason,
+          }, 403, {
+            ...cors,
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          });
+        }
+
+        // Check preview accessibility window (Before event_start_date - 1 calendar day)
+        const isPreviewAllowed = canAccessPreviewEvent(event);
+        if (!isPreviewAllowed) {
+          const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
+          const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
+          const isLiveAllowed = canAccessLiveEvent(event);
+
+          return jsonResponse({
+            error: 'Event preview is only available before the Live event window starts. The Live window is now active.',
+            code: 'PREVIEW_WINDOW_ENDED',
+            is_preview_available: false,
+            live_window_started: true,
+            is_paid: isPaid,
+            can_access_live: isLiveAllowed,
+            start_date: startDate,
+            end_date: endDate,
+            live_open_date: liveOpenDate,
+            public_token: event.public_token,
+            event,
+          }, 403, {
+            ...cors,
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          });
         }
 
         return jsonResponse({
@@ -2404,7 +2424,7 @@ export default {
           return errorResponse('Event not found or invalid URL', 404, cors);
         }
 
-        if (rawEvent.event_status === 'CANCELLED' || rawEvent.status === 'cancelled') {
+        if (rawEvent.event_status === 'CANCELLED' || rawEvent.status === 'cancelled' || rawEvent.cancel_reason) {
           return jsonResponse({
             error: 'This event has been cancelled.',
             code: 'EVENT_CANCELLED',
@@ -2418,7 +2438,10 @@ export default {
           });
         }
 
-        const isPaid = rawEvent.payment_status === 'PAID';
+        const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(rawEvent);
+        const isPaid = (rawEvent.payment_status || '').toUpperCase() === 'PAID';
+
+        // 1. Payment status check (checked independently)
         if (!isPaid || rawEvent.status === 'pending_payment') {
           return jsonResponse({
             error: 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
@@ -2431,6 +2454,9 @@ export default {
             organization_id: rawEvent.organization_id,
             event_price: rawEvent.event_price,
             event_currency: rawEvent.event_currency,
+            start_date: startDate,
+            end_date: endDate,
+            live_open_date: liveOpenDate,
             event: rawEvent,
           }, 403, {
             ...cors,
@@ -2438,6 +2464,56 @@ export default {
             'Pragma': 'no-cache',
             'Expires': '0',
           });
+        }
+
+        // 2. Date window check
+        const isLiveAllowed = canAccessLiveEvent(rawEvent);
+        if (!isLiveAllowed) {
+          const curDate = new Date();
+          const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Singapore',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          });
+          const todayStr = formatter.format(curDate);
+
+          if (todayStr < liveOpenDate) {
+            return jsonResponse({
+              error: `This event is scheduled to open on ${liveOpenDate}. Live URL will become active on ${liveOpenDate}.`,
+              code: 'EVENT_NOT_OPEN',
+              is_scheduled: true,
+              live_open_date: liveOpenDate,
+              start_date: startDate,
+              end_date: endDate,
+              event_id: rawEvent.id,
+              event_name: rawEvent.name,
+              event: rawEvent,
+            }, 403, {
+              ...cors,
+              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+            });
+          }
+
+          if (todayStr > endDate) {
+            return jsonResponse({
+              error: `This event concluded on ${endDate}.`,
+              code: 'EVENT_EXPIRED',
+              is_expired: true,
+              start_date: startDate,
+              end_date: endDate,
+              event_id: rawEvent.id,
+              event_name: rawEvent.name,
+              event: rawEvent,
+            }, 403, {
+              ...cors,
+              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+            });
+          }
         }
 
         return jsonResponse({ event: rawEvent }, 200, {
@@ -2495,22 +2571,30 @@ export default {
           return errorResponse('Valid numerical score is required', 422, cors);
         }
 
-        const result = await submitEventScore(
-          {
-            event_id: event.id,
-            player_name,
-            score: Number(score),
-            metadata,
-          },
-          env
-        );
+        try {
+          const result = await submitEventScore(
+            {
+              event_id: event.id,
+              player_name,
+              score: Number(score),
+              metadata,
+            },
+            env
+          );
 
-        return jsonResponse({
-          success: true,
-          event_id: event.id,
-          event_name: event.name,
-          ...result,
-        }, 201, cors);
+          return jsonResponse({
+            success: true,
+            event_id: event.id,
+            event_name: event.name,
+            ...result,
+          }, 201, cors);
+        } catch (err: any) {
+          console.error('Submit public score error:', err);
+          return jsonResponse({
+            error: err.message || 'Failed to submit score',
+            code: err.code || 'SCORE_SUBMISSION_ERROR',
+          }, err.status || 400, cors);
+        }
       }
 
       // GET /api/events/:eventId/admin/high-scores (Organizer High Scores & Stats)
@@ -2633,21 +2717,29 @@ export default {
           return errorResponse('Valid numerical score is required', 422, cors);
         }
 
-        const result = await submitEventScore(
-          {
-            event_id: eventId,
-            player_name,
-            score: Number(score),
-            metadata,
-          },
-          env
-        );
+        try {
+          const result = await submitEventScore(
+            {
+              event_id: eventId,
+              player_name,
+              score: Number(score),
+              metadata,
+            },
+            env
+          );
 
-        return jsonResponse({
-          success: true,
-          event_id: eventId,
-          ...result,
-        }, 201, cors);
+          return jsonResponse({
+            success: true,
+            event_id: eventId,
+            ...result,
+          }, 201, cors);
+        } catch (err: any) {
+          console.error('Submit event score error:', err);
+          return jsonResponse({
+            error: err.message || 'Failed to submit score',
+            code: err.code || 'SCORE_SUBMISSION_ERROR',
+          }, err.status || 400, cors);
+        }
       }
 
       // ==========================================

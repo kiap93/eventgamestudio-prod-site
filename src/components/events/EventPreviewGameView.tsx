@@ -5,6 +5,14 @@ import { GameContainer } from '../GameContainer';
 import { EventPaymentModal } from './EventPaymentModal';
 import { apiFetch } from '../../lib/api';
 import {
+  canAccessPreviewEvent,
+  canAccessLiveEvent,
+  shouldShowPreviewHeader,
+  getEventAvailabilityState,
+  formatDateOnly,
+  getNormalizedEventDates,
+} from '../../lib/dateUtils';
+import {
   ArrowLeft,
   Sparkles,
   RefreshCw,
@@ -17,6 +25,9 @@ import {
   Copy,
   ExternalLink,
   ShieldCheck,
+  Play,
+  Calendar,
+  Lock,
 } from 'lucide-react';
 
 interface EventPreviewData {
@@ -24,12 +35,18 @@ interface EventPreviewData {
   name: string;
   public_token: string;
   event_date: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   starts_at: string;
   expires_at: string;
   status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
+  event_status?: string;
   calculated_status?: string;
   payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED' | 'PENDING_PAYMENT';
   payment_mode?: string;
+  cancel_reason?: string | null;
   organization_id?: string;
   organization_name?: string;
   organization_slug?: string;
@@ -57,6 +74,8 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
   const [eventData, setEventData] = useState<EventPreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [errorPayload, setErrorPayload] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -71,6 +90,8 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
     try {
       setLoading(true);
       setError(null);
+      setErrorCode(null);
+      setErrorPayload(null);
       const cacheBuster = `_t=${Date.now()}`;
       const res = await apiFetch(`/api/events/${eventId}/preview?${cacheBuster}`, {
         cache: 'no-store',
@@ -79,7 +100,18 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
           'Pragma': 'no-cache',
         },
       });
+
       if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        if (errData.code === 'PREVIEW_WINDOW_ENDED' || errData.code === 'EVENT_EXPIRED') {
+          setErrorCode(errData.code);
+          setErrorPayload(errData);
+          if (errData.event) {
+            setEventData(errData.event);
+          }
+          return;
+        }
+
         // Fallback to /api/events/:id if /preview returns 404
         const fallbackRes = await apiFetch(`/api/events/${eventId}?${cacheBuster}`, {
           cache: 'no-store',
@@ -89,8 +121,8 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
           },
         });
         if (!fallbackRes.ok) {
-          const errData = await fallbackRes.json().catch(() => ({}));
-          throw new Error(errData.error || 'Failed to load event details for preview');
+          const fallbackErrData = await fallbackRes.json().catch(() => ({}));
+          throw new Error(fallbackErrData.error || errData.error || 'Failed to load event details for preview');
         }
         const fallbackData = await fallbackRes.json();
         setEventData(fallbackData.event);
@@ -160,8 +192,9 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
   };
 
   const copyPublicLink = async () => {
-    if (!eventData?.public_token) return;
-    const url = `${window.location.origin}/play/${eventData.public_token}`;
+    const token = eventData?.public_token || errorPayload?.public_token;
+    if (!token) return;
+    const url = `${window.location.origin}/play/${token}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopiedLink(true);
@@ -187,7 +220,90 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
     );
   }
 
-  // Error State
+  // Check Preview Availability State (Date-Only Rule)
+  const targetEvent = eventData || errorPayload?.event;
+  const isPreviewAllowed = targetEvent ? canAccessPreviewEvent(targetEvent) : false;
+  const isLiveAllowed = targetEvent ? canAccessLiveEvent(targetEvent) : false;
+  const availability = targetEvent ? getEventAvailabilityState(targetEvent) : null;
+  const isPaid = (targetEvent?.payment_status || '').toUpperCase() === 'PAID';
+  const publicToken = targetEvent?.public_token || errorPayload?.public_token;
+
+  // Handle Preview Window Ended / Concluded State
+  if (errorCode === 'PREVIEW_WINDOW_ENDED' || errorCode === 'EVENT_EXPIRED' || (targetEvent && !isPreviewAllowed)) {
+    const { startDate, endDate, liveOpenDate } = targetEvent ? getNormalizedEventDates(targetEvent) : { startDate: '', endDate: '', liveOpenDate: '' };
+    const isExpired = availability?.isAfterLiveWindow || errorCode === 'EVENT_EXPIRED';
+
+    return (
+      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
+        <div className="max-w-lg w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl">
+          <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
+            {isExpired ? <Calendar className="w-8 h-8 text-slate-400" /> : <Play className="w-8 h-8 text-emerald-400" />}
+          </div>
+
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-300">
+              <span>{isExpired ? 'Event Concluded' : 'Live Window Active'}</span>
+            </div>
+            <h1 className="text-2xl font-bold text-slate-100">
+              {isExpired ? 'Event Has Ended' : 'Preview Window Ended'}
+            </h1>
+            <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
+              {isExpired
+                ? `This event concluded on ${formatDateOnly(endDate)}. The test preview and live deployment are no longer accessible.`
+                : `Preview mode is only available before the Live event window starts. The Live window is active from ${formatDateOnly(liveOpenDate)} to ${formatDateOnly(endDate)}.`}
+            </p>
+          </div>
+
+          {/* Action CTAs */}
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              onClick={() => navigateTo('/events')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Events</span>
+            </button>
+
+            {!isExpired && isPaid && publicToken && (
+              <button
+                onClick={() => window.open(`/play/${publicToken}`, '_blank')}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Open Live Game</span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-75" />
+              </button>
+            )}
+
+            {!isExpired && !isPaid && targetEvent && (
+              <button
+                onClick={() => setShowPaymentModal(true)}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Pay & Activate Live Game</span>
+              </button>
+            )}
+          </div>
+
+          {/* Payment Modal */}
+          {showPaymentModal && targetEvent && (
+            <EventPaymentModal
+              isOpen={showPaymentModal}
+              onClose={() => setShowPaymentModal(false)}
+              event={targetEvent}
+              onPaymentSuccess={(updated) => {
+                setShowPaymentModal(false);
+                fetchEvent();
+              }}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Error State (Generic)
   if (error || !eventData) {
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
@@ -223,15 +339,17 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
   }
 
   const isPendingPayment =
+    eventData.payment_status !== 'PAID' ||
     eventData.status === 'pending_payment' ||
-    eventData.calculated_status === 'pending_payment' ||
-    eventData.payment_status === 'PENDING_PAYMENT' ||
-    (eventData.payment_status && eventData.payment_status !== 'PAID');
+    eventData.calculated_status === 'pending_payment';
 
   const theme = eventData.game_theme;
   const gameType = eventData.game?.game_type || 'catch-brand';
   const gameName = eventData.game?.name || 'Catch The Brand';
   const themeName = eventData.game_theme?.name || 'Theme';
+  const dates = getNormalizedEventDates(eventData);
+
+  const showHeader = shouldShowPreviewHeader(eventData) && !isFullscreen;
 
   return (
     <div
@@ -240,9 +358,10 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
       }`}
     >
       {/* ------------------------------------------------------------- */}
-      {/* AUTHENTICATED PREVIEW HEADER TOOLBAR (Hidden in Fullscreen)    */}
+      {/* AUTHENTICATED PREVIEW HEADER TOOLBAR                          */}
+      {/* Rule: Visible when Preview URL is available                    */}
       {/* ------------------------------------------------------------- */}
-      {!isFullscreen && (
+      {showHeader && (
         <header className="w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-slate-100 z-50 shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 transition-all h-13 sm:h-14">
           {/* Left: Navigation & Context */}
           <div className="flex items-center gap-2.5 min-w-0 truncate">
@@ -291,24 +410,16 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
               <div className="flex items-center gap-2">
                 <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Paid & Active</span>
+                  <span>Paid • Opens {formatDateOnly(dates.liveOpenDate)}</span>
                 </div>
                 <button
                   type="button"
                   onClick={copyPublicLink}
                   className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 font-semibold text-xs transition-all cursor-pointer flex items-center gap-1.5"
-                  title="Copy Public Player URL"
+                  title={`Copy Live URL (Opens on ${formatDateOnly(dates.liveOpenDate)})`}
                 >
                   {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span className="hidden md:inline">{copiedLink ? 'Copied Link' : 'Copy Public URL'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.open(`/play/${eventData.public_token}`, '_blank')}
-                  className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
-                  title="Open Public Link in New Tab"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">{copiedLink ? 'Copied URL' : 'Copy Live URL'}</span>
                 </button>
               </div>
             )}
@@ -336,6 +447,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
             customTheme={theme}
             eventId={eventData.id}
             publicToken={eventData.public_token}
+            isEventPreview={true}
             showCabinetFooter={!isFullscreen}
             allowImmersiveFullscreen={true}
             isFullscreen={isFullscreen}

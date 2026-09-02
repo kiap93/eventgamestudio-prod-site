@@ -105,6 +105,7 @@ export interface ResultElementContentProps {
   stats?: ResultScreenStats;
   isSimulation?: boolean;
   isEditor?: boolean;
+  isEventPreview?: boolean;
   onAction?: (action: string) => void;
   renderChild?: (child: ResultScreenElement, parentW: number, parentH: number) => React.ReactNode;
   leaderboardData?: EventLeaderboardEntry[];
@@ -126,6 +127,7 @@ interface LeaderboardElementRendererProps {
   stats?: ResultScreenStats;
   isSimulation?: boolean;
   isEditor?: boolean;
+  isEventPreview?: boolean;
   leaderboardData?: EventLeaderboardEntry[];
   loadingLeaderboard?: boolean;
   leaderboardError?: string | null;
@@ -145,6 +147,7 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
   stats,
   isSimulation = false,
   isEditor = false,
+  isEventPreview = false,
   leaderboardData,
   loadingLeaderboard = false,
   leaderboardError = null,
@@ -475,7 +478,21 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
         className="mt-2 pt-2 border-t border-slate-800/80 shrink-0 select-auto"
         onClick={(e) => isEditor && e.stopPropagation()}
       >
-        {!isSubmitted ? (
+        {isEventPreview ? (
+          <div className="p-2 min-h-[38px] sm:min-h-[44px] rounded-lg bg-amber-500/10 border border-amber-500/30 flex flex-col justify-center gap-0.5 text-left px-2.5">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1 text-amber-400 font-bold text-xs uppercase tracking-wide">
+                <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" /> TEST SCORE: {stats?.score !== undefined ? stats.score.toLocaleString() : 0}
+              </span>
+              <span className="text-[9px] text-amber-300/80 font-mono uppercase bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
+                Preview Test
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-300">
+              This is a test score. It will not be added to the live event leaderboard.
+            </p>
+          </div>
+        ) : !isSubmitted ? (
           <form
             onSubmit={handleScoreSubmit}
             className="space-y-1.5"
@@ -555,6 +572,7 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
   stats,
   isSimulation = false,
   isEditor = false,
+  isEventPreview = false,
   onAction,
   renderChild,
   leaderboardData,
@@ -1029,6 +1047,7 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
           stats={stats}
           isSimulation={isSimulation}
           isEditor={isEditor}
+          isEventPreview={isEventPreview}
           leaderboardData={leaderboardData}
           loadingLeaderboard={loadingLeaderboard}
           leaderboardError={leaderboardError}

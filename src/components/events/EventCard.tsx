@@ -13,9 +13,16 @@ import {
   CreditCard,
   Trophy,
   AlertCircle,
+  Clock,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
-import { formatEventDateRange, formatDateOnly } from '../../lib/dateUtils';
+import {
+  formatEventDateRange,
+  formatDateOnly,
+  getEventAvailabilityState,
+  canAccessLiveEvent,
+  canAccessPreviewEvent,
+} from '../../lib/dateUtils';
 import { EventLeaderboardModal } from './EventLeaderboardModal';
 import { EventPaymentModal } from './EventPaymentModal';
 
@@ -47,11 +54,10 @@ export const EventCard: React.FC<EventCardProps> = ({
 
   const showcaseStatus = event.showcase?.status || event.showcase_status;
 
-  const isPendingPayment =
-    event.status === 'pending_payment' ||
-    event.calculated_status === 'pending_payment' ||
-    event.payment_status === 'PENDING_PAYMENT' ||
-    (event.payment_status && event.payment_status !== 'PAID');
+  const availability = getEventAvailabilityState(event);
+  const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
+  const isPendingPayment = !isPaid;
+  const isCancelled = event.event_status === 'CANCELLED' || event.status === 'cancelled' || !!event.cancel_reason;
 
   const copyLink = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -74,58 +80,56 @@ export const EventCard: React.FC<EventCardProps> = ({
     navigateTo(previewUrl);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'live':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-            Live Now
-          </span>
-        );
-      case 'scheduled':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 border border-blue-500/30 text-blue-400">
-            <Calendar className="w-3 h-3" />
-            Scheduled
-          </span>
-        );
-      case 'pending_payment':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400">
-            <AlertCircle className="w-3 h-3" />
-            Pending Payment
-          </span>
-        );
-      case 'expired':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 border border-slate-700 text-slate-400">
-            Expired
-          </span>
-        );
-      case 'cancelled':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 border border-red-500/30 text-red-400">
-            <Ban className="w-3 h-3" />
-            Cancelled
-          </span>
-        );
-      case 'draft':
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400">
-            Draft
-          </span>
-        );
+  const getStatusBadge = () => {
+    if (isCancelled) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 border border-red-500/30 text-red-400">
+          <Ban className="w-3 h-3" />
+          Cancelled
+        </span>
+      );
     }
+
+    if (availability.isAfterLiveWindow) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 border border-slate-700 text-slate-400">
+          Concluded
+        </span>
+      );
+    }
+
+    if (isPendingPayment) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400">
+          <AlertCircle className="w-3 h-3" />
+          Pending Payment
+        </span>
+      );
+    }
+
+    if (availability.isInsideLiveWindow) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+          Live Now
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 border border-blue-500/30 text-blue-400">
+        <Calendar className="w-3 h-3" />
+        Scheduled
+      </span>
+    );
   };
 
   const gameName = event.game?.name || 'Catch The Brand';
   const themeName = event.game_theme?.name || 'Theme';
 
   const dateRangeFormatted = formatEventDateRange(
-    event.start_date || event.starts_at,
-    event.end_date || event.expires_at
+    availability.startDate,
+    availability.endDate
   );
 
   return (
@@ -133,7 +137,7 @@ export const EventCard: React.FC<EventCardProps> = ({
       {/* Top Card Section: Status and Title */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          {getStatusBadge(isPendingPayment ? 'pending_payment' : (event.calculated_status || event.status))}
+          {getStatusBadge()}
           <span className="text-[10px] font-mono text-slate-500">
             Token: {event.public_token}
           </span>
@@ -163,6 +167,14 @@ export const EventCard: React.FC<EventCardProps> = ({
           <span className="text-slate-200 font-bold">{dateRangeFormatted}</span>
         </div>
 
+        <div className="flex items-center justify-between text-slate-400">
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3 text-slate-500" />
+            Live Window Opens:
+          </span>
+          <span className="text-slate-300 font-mono">{formatDateOnly(availability.liveOpenDate)}</span>
+        </div>
+
         {event.payment_status && (
           <div className="flex items-center justify-between pt-1.5 border-t border-slate-900 text-slate-400">
             <span className="flex items-center gap-1">
@@ -172,7 +184,7 @@ export const EventCard: React.FC<EventCardProps> = ({
             <span className={`text-[10px] font-mono font-semibold ${
               event.payment_status === 'REFUNDED'
                 ? 'text-amber-400'
-                : event.payment_status === 'PENDING_PAYMENT' || isPendingPayment
+                : isPendingPayment
                 ? 'text-amber-400'
                 : 'text-emerald-400'
             }`}>
@@ -223,9 +235,25 @@ export const EventCard: React.FC<EventCardProps> = ({
       <div className="flex items-center justify-between gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs">
         <div className="flex items-center gap-1.5 min-w-0 truncate font-mono text-[11px] text-slate-400">
           <span className="truncate">/play/{event.public_token}</span>
-          {isPendingPayment && (
+          {isCancelled ? (
+            <span className="text-[10px] text-red-400 font-sans font-medium shrink-0">
+              (Cancelled)
+            </span>
+          ) : availability.isAfterLiveWindow ? (
+            <span className="text-[10px] text-slate-500 font-sans font-medium shrink-0">
+              (Concluded)
+            </span>
+          ) : isPendingPayment ? (
             <span className="text-[10px] text-amber-500/80 font-sans font-medium shrink-0">
               (Active after payment)
+            </span>
+          ) : availability.isBeforeLiveWindow ? (
+            <span className="text-[10px] text-blue-400/80 font-sans font-medium shrink-0">
+              (Opens {formatDateOnly(availability.liveOpenDate)})
+            </span>
+          ) : (
+            <span className="text-[10px] text-emerald-400 font-sans font-medium shrink-0">
+              (Live Now)
             </span>
           )}
         </div>
@@ -251,7 +279,8 @@ export const EventCard: React.FC<EventCardProps> = ({
       {/* Card Actions */}
       <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          {isPendingPayment ? (
+          {/* Action 1: Pay CTA or Play Live CTA */}
+          {isPendingPayment && !isCancelled && !availability.isAfterLiveWindow ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -262,25 +291,29 @@ export const EventCard: React.FC<EventCardProps> = ({
               <CreditCard className="w-3.5 h-3.5 text-slate-950" />
               <span>Pay & Activate</span>
             </button>
-          ) : (
+          ) : availability.liveUrlAvailable ? (
             <button
               onClick={openPublicGame}
-              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm shadow-amber-500/20 cursor-pointer"
+              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-500/20 cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               <span>Play Live</span>
             </button>
+          ) : null}
+
+          {/* Action 2: Test Preview CTA (Only available before Live window starts) */}
+          {availability.previewUrlAvailable && (
+            <button
+              onClick={openPreviewGame}
+              className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+              title="Open Authenticated Test Preview"
+            >
+              <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden sm:inline">Preview</span>
+            </button>
           )}
 
-          <button
-            onClick={openPreviewGame}
-            className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
-            title="Open Authenticated Test Preview"
-          >
-            <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
-            <span className="hidden sm:inline">Preview</span>
-          </button>
-
+          {/* Action 3: High Scores */}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -304,7 +337,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               <Edit2 className="w-3.5 h-3.5" />
             </button>
 
-            {event.status !== 'cancelled' && (
+            {!isCancelled && (
               <button
                 onClick={() => onCancel(event.id)}
                 className="p-1.5 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg text-xs transition-colors cursor-pointer"
