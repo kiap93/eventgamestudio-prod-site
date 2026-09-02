@@ -40,10 +40,22 @@ export async function ensureStorageBucket(env?: Record<string, any>): Promise<vo
   return bucketCheckPromise;
 }
 
+export const ALLOWED_ASSET_CATEGORIES = new Set([
+  'logos',
+  'backgrounds',
+  'baskets',
+  'items',
+  'themes',
+  'general',
+  'branding',
+  'audio',
+  'showcases',
+]);
+
 export async function uploadGameAsset(
   params: {
     organizationId?: string;
-    category?: 'logos' | 'backgrounds' | 'baskets' | 'items' | 'themes' | 'general';
+    category?: 'logos' | 'backgrounds' | 'baskets' | 'items' | 'themes' | 'general' | 'branding' | 'audio' | 'showcases' | string;
     fileBuffer: Uint8Array | ArrayBuffer | Buffer;
     originalName: string;
     mimeType: string;
@@ -53,11 +65,13 @@ export async function uploadGameAsset(
   const supabase = getSupabaseServerClient(env);
   await ensureStorageBucket(env);
 
-  const orgId = params.organizationId || 'default';
-  const category = params.category || 'general';
+  const rawOrgId = params.organizationId || 'default';
+  const orgId = rawOrgId.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
+  const rawCategory = (params.category || 'general').toLowerCase();
+  const category = rawCategory.replace(/[^a-zA-Z0-9_-]/g, '') || 'general';
   
   const dotIndex = params.originalName.lastIndexOf('.');
-  const ext = dotIndex !== -1 ? params.originalName.slice(dotIndex) : '.png';
+  const ext = dotIndex !== -1 ? params.originalName.slice(dotIndex).replace(/[^a-zA-Z0-9.]/g, '') : '.png';
 
   const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(8)))
     .map((b) => b.toString(16).padStart(2, '0'))

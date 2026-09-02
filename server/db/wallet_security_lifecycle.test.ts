@@ -34,6 +34,9 @@ import {
   getPaymentWebhookSecret,
 } from '../payment/index.js';
 
+// Explicit test webhook secret for test environment
+process.env.PAYMENT_WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET || 'test_webhook_secret_key_12345';
+
 let passed = 0;
 let failed = 0;
 

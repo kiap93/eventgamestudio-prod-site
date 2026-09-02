@@ -1304,6 +1304,9 @@ export default {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
+        const user = auth.user!;
+        const isDev = isUserDeveloperAdmin(user, env);
+
         const formData = await request.formData().catch(() => null);
         if (!formData) {
           return errorResponse('Invalid form data', 422, cors);
@@ -1314,23 +1317,114 @@ export default {
           return errorResponse('No file uploaded', 422, cors);
         }
 
-        const orgId = auth.jwtPayload?.organizationId || 'default';
-        const category = (formData.get('category') as string) || 'general';
+        // 1. Resolve organization ID
+        let orgId =
+          request.headers.get('x-organization-id') ||
+          auth.jwtPayload?.organizationId ||
+          (formData.get('organizationId') as string) ||
+          url.searchParams.get('orgId');
+
+        if (!orgId || orgId === 'default') {
+          if (isDev) {
+            orgId = 'system';
+          } else {
+            return errorResponse('Organization ID is required for asset uploads', 422, cors);
+          }
+        }
+
+        // 2. Verify Membership & Role
+        if (!isDev) {
+          const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, orgId, undefined, env);
+          if (!isMember) {
+            return errorResponse(`Forbidden: You are not a member of organization "${orgId}"`, 403, cors);
+          }
+          if (role === 'viewer') {
+            return errorResponse('Forbidden: Viewers do not have permission to upload assets in this organization', 403, cors);
+          }
+        }
+
+        // 3. Validate Category
+        const ALLOWED_ASSET_CATEGORIES = new Set([
+          'logos',
+          'backgrounds',
+          'baskets',
+          'items',
+          'themes',
+          'general',
+          'branding',
+          'audio',
+          'showcases',
+        ]);
+        const rawCategory = (formData.get('category') as string) || 'general';
+        const category = rawCategory.toLowerCase().trim();
+        if (!ALLOWED_ASSET_CATEGORIES.has(category)) {
+          return errorResponse(
+            `Invalid category "${rawCategory}". Allowed categories: ${Array.from(ALLOWED_ASSET_CATEGORIES).join(', ')}`,
+            422,
+            cors
+          );
+        }
+
+        // 4. Validate File MIME & Size
+        const ALLOWED_MIME_TYPES = new Set([
+          'image/png',
+          'image/jpeg',
+          'image/jpg',
+          'image/webp',
+          'image/svg+xml',
+          'image/gif',
+          'image/x-icon',
+          'image/vnd.microsoft.icon',
+          'audio/mpeg',
+          'audio/mp3',
+          'audio/wav',
+          'audio/ogg',
+          'audio/x-wav',
+          'audio/aac',
+          'video/mp4',
+          'video/webm',
+          'video/quicktime',
+        ]);
+        const fileName = file.name || 'uploaded_asset.png';
+        const dotIdx = fileName.lastIndexOf('.');
+        const ext = dotIdx !== -1 ? fileName.slice(dotIdx).toLowerCase() : '.png';
+        const allowedExts = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.ico', '.mp3', '.wav', '.ogg', '.aac', '.mp4', '.webm', '.mov']);
+
+        const mimeType = (file.type || 'application/octet-stream').toLowerCase();
+        if (!ALLOWED_MIME_TYPES.has(mimeType) && !allowedExts.has(ext)) {
+          return errorResponse(
+            `Unsupported file format (${mimeType}). Allowed formats: PNG, JPG, JPEG, WEBP, SVG, GIF, MP3, WAV, OGG, MP4.`,
+            422,
+            cors
+          );
+        }
+
+        const MAX_ASSET_SIZE = 25 * 1024 * 1024; // 25MB
+        if (file.size > MAX_ASSET_SIZE) {
+          return errorResponse(
+            `File size exceeds maximum allowed limit of 25MB (${(file.size / (1024 * 1024)).toFixed(1)}MB provided).`,
+            422,
+            cors
+          );
+        }
+
+        const safeOrgId = orgId.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
+        const safeCategory = category.replace(/[^a-zA-Z0-9_-]/g, '') || 'general';
 
         try {
           const arrayBuffer = await file.arrayBuffer();
           const result = await uploadGameAsset(
             {
-              organizationId: orgId,
-              category: category as any,
+              organizationId: safeOrgId,
+              category: safeCategory as any,
               fileBuffer: new Uint8Array(arrayBuffer),
-              originalName: file.name || 'uploaded_asset.png',
-              mimeType: file.type || 'image/png',
+              originalName: fileName,
+              mimeType: mimeType || 'image/png',
             },
             env
           );
 
-          return jsonResponse({ url: result.url }, 200, cors);
+          return jsonResponse({ url: result.url, path: result.path }, 200, cors);
         } catch (storageErr: any) {
           console.error('Supabase storage upload error:', storageErr);
           return errorResponse(storageErr.message || 'File upload failed', 500, cors);
@@ -4887,9 +4981,19 @@ export default {
       }
 
       // POST /api/developer/wallet/test-webhook
+      // CRITICAL SECURITY: Strictly developer-admin only and disabled in production environments.
       if (pathname === '/api/developer/wallet/test-webhook' && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required. You do not have permission to access test webhook simulations.', 403, cors);
+        }
+
+        const isProduction = env.NODE_ENV === 'production' || env.ENVIRONMENT === 'production';
+        if (isProduction) {
+          return errorResponse('Forbidden: Test webhook simulation is disabled in production environments.', 403, cors);
+        }
 
         const body = (await request.json().catch(() => ({}))) as any;
         const { orderId, eventType = 'payment.succeeded', failureReason } = body;
@@ -4901,12 +5005,6 @@ export default {
           const order = await getTopupOrderById(orderId, env);
           if (!order) {
             return errorResponse('Top-up order not found', 404, cors);
-          }
-
-          const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, order.organization_id, undefined, env);
-          const isDev = isUserDeveloperAdmin(auth.user, env);
-          if (!isMember && !isDev) {
-            return errorResponse('Forbidden: Access denied to this top-up order', 403, cors);
           }
 
           const secret = getPaymentWebhookSecret(env);

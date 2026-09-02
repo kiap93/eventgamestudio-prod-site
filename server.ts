@@ -985,40 +985,156 @@ app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
 
 /**
  * POST /api/upload
- * Upload game asset (backgrounds, baskets, items, logos) to Supabase Storage
+ * Secure Game Asset Upload (backgrounds, baskets, items, logos, themes, branding, audio)
+ * 
+ * REQUIRED AUTHORIZATION & VALIDATION FLOW:
+ * 1. Authenticate (authenticateJWT)
+ * 2. Get organization ID (x-organization-id, jwtPayload, body, query)
+ * 3. Verify membership (user ∈ organization)
+ * 4. Verify permission (viewers rejected)
+ * 5. Validate category (logos, backgrounds, baskets, items, themes, branding, audio, showcases, general)
+ * 6. Validate file (presence, MIME type, size limit)
+ * 7. Generate safe storage path
+ * 8. Upload to Supabase Storage
  */
 app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'), async (req: AuthenticatedRequest, res) => {
   try {
-    if (!req.file) {
-      res.status(422).json({ error: 'No file uploaded' });
+    const user = req.user!;
+    const isDev = isUserDeveloperAdmin(user);
+
+    // 1. Get organization ID
+    let orgId =
+      (req.headers['x-organization-id'] as string) ||
+      req.jwtPayload?.organizationId ||
+      (req.body?.organizationId as string) ||
+      (req.query?.orgId as string);
+
+    if (!orgId || orgId === 'default') {
+      if (isDev) {
+        orgId = 'system';
+      } else {
+        res.status(422).json({
+          error: 'Organization ID is required for asset uploads',
+          code: 'ORG_ID_REQUIRED',
+        });
+        return;
+      }
+    }
+
+    // 2. Verify Membership & 3. Verify Permission
+    if (!isDev) {
+      const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, orgId);
+      if (!isMember) {
+        res.status(403).json({
+          error: `Forbidden: You are not a member of organization "${orgId}"`,
+          code: 'ORG_NOT_MEMBER',
+        });
+        return;
+      }
+
+      if (role === 'viewer') {
+        res.status(403).json({
+          error: 'Forbidden: Viewers do not have permission to upload assets in this organization',
+          code: 'INSUFFICIENT_PERMISSIONS',
+        });
+        return;
+      }
+    }
+
+    // 4. Validate Category
+    const ALLOWED_ASSET_CATEGORIES = new Set([
+      'logos',
+      'backgrounds',
+      'baskets',
+      'items',
+      'themes',
+      'general',
+      'branding',
+      'audio',
+      'showcases',
+    ]);
+    const rawCategory = (req.body?.category as string) || 'general';
+    const category = rawCategory.toLowerCase().trim();
+    if (!ALLOWED_ASSET_CATEGORIES.has(category)) {
+      res.status(422).json({
+        error: `Invalid category "${rawCategory}". Allowed categories: ${Array.from(ALLOWED_ASSET_CATEGORIES).join(', ')}`,
+        code: 'INVALID_CATEGORY',
+      });
       return;
     }
 
-    const orgId = req.jwtPayload?.organizationId || 'default';
-    const category = (req.body.category as any) || 'general';
+    // 5. Validate File
+    if (!req.file || !req.file.buffer || req.file.buffer.length === 0) {
+      res.status(422).json({ error: 'No file uploaded', code: 'NO_FILE_UPLOADED' });
+      return;
+    }
+
+    const ALLOWED_MIME_TYPES = new Set([
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'image/svg+xml',
+      'image/gif',
+      'image/x-icon',
+      'image/vnd.microsoft.icon',
+      'audio/mpeg',
+      'audio/mp3',
+      'audio/wav',
+      'audio/ogg',
+      'audio/x-wav',
+      'audio/aac',
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
+    ]);
+    const ext = path.extname(req.file.originalname || '').toLowerCase();
+    const allowedExts = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.ico', '.mp3', '.wav', '.ogg', '.aac', '.mp4', '.webm', '.mov']);
+    const mimeType = (req.file.mimetype || 'application/octet-stream').toLowerCase();
+
+    if (!ALLOWED_MIME_TYPES.has(mimeType) && !allowedExts.has(ext)) {
+      res.status(422).json({
+        error: `Unsupported file format (${mimeType}). Allowed formats: PNG, JPG, JPEG, WEBP, SVG, GIF, MP3, WAV, OGG, MP4.`,
+        code: 'UNSUPPORTED_FILE_TYPE',
+      });
+      return;
+    }
+
+    const MAX_ASSET_SIZE = 25 * 1024 * 1024; // 25MB
+    if (req.file.size > MAX_ASSET_SIZE || req.file.buffer.length > MAX_ASSET_SIZE) {
+      res.status(422).json({
+        error: `File size exceeds maximum allowed limit of 25MB (${((req.file.size || req.file.buffer.length) / (1024 * 1024)).toFixed(1)}MB provided).`,
+        code: 'FILE_TOO_LARGE',
+      });
+      return;
+    }
+
+    // 6. Generate storage path and 7. Upload
+    const safeOrgId = orgId.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
+    const safeCategory = category.replace(/[^a-zA-Z0-9_-]/g, '') || 'general';
 
     try {
       // Attempt Supabase Storage upload
       const result = await uploadGameAsset({
-        organizationId: orgId,
-        category,
+        organizationId: safeOrgId,
+        category: safeCategory as any,
         fileBuffer: req.file.buffer,
         originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
+        mimeType: req.file.mimetype || mimeType,
       });
 
-      res.json({ url: result.url });
+      res.json({ url: result.url, path: result.path });
     } catch (storageErr: any) {
       console.warn('Supabase storage upload fallback:', storageErr.message);
 
       // Fallback to local disk storage if Supabase credentials are not yet configured in dev
-      const ext = path.extname(req.file.originalname) || '.png';
-      const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+      const safeExt = ext || '.png';
+      const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${safeExt}`;
       const localFilePath = path.join(uploadDir, filename);
       fs.writeFileSync(localFilePath, req.file.buffer);
 
       const fileUrl = `/uploads/${filename}`;
-      res.json({ url: fileUrl });
+      res.json({ url: fileUrl, path: `organizations/${safeOrgId}/${safeCategory}/${filename}` });
     }
   } catch (err: any) {
     console.error('Upload error:', err);
@@ -4520,9 +4636,19 @@ app.post('/api/wallet/webhooks/payment', handlePaymentWebhook);
 /**
  * POST /api/developer/wallet/test-webhook
  * Simulate payment provider webhook dispatch for developer/admin testing sandbox.
+ * CRITICAL SECURITY: Strictly developer-admin only and disabled in production environments.
  */
-app.post('/api/developer/wallet/test-webhook', authenticateJWT, async (req: AuthenticatedRequest, res: express.Response) => {
+app.post('/api/developer/wallet/test-webhook', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
+    // Completely disabled in production environments
+    if (process.env.NODE_ENV === 'production') {
+      res.status(403).json({
+        error: 'Forbidden: Test webhook simulation is disabled in production environments.',
+        code: 'TEST_WEBHOOK_DISABLED_IN_PRODUCTION',
+      });
+      return;
+    }
+
     const { orderId, eventType = 'payment.succeeded', failureReason } = req.body;
     if (!orderId) {
       res.status(400).json({ error: 'orderId is required' });
@@ -4532,13 +4658,6 @@ app.post('/api/developer/wallet/test-webhook', authenticateJWT, async (req: Auth
     const order = await getTopupOrderById(orderId);
     if (!order) {
       res.status(404).json({ error: 'Top-up order not found' });
-      return;
-    }
-
-    const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, order.organization_id);
-    const isDev = isUserDeveloperAdmin(req.user);
-    if (!isMember && !isDev) {
-      res.status(403).json({ error: 'Access denied to this top-up order' });
       return;
     }
 

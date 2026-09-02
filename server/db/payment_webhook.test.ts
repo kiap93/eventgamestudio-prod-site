@@ -23,6 +23,9 @@ import {
   getPaymentWebhookSecret,
 } from '../payment/index.js';
 
+// Explicit test webhook secret for test environment
+process.env.PAYMENT_WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET || 'test_webhook_secret_key_12345';
+
 let passed = 0;
 let failed = 0;
 
@@ -356,6 +359,93 @@ async function runTests() {
   const balanceAfterFailed = await getWalletBalance(testOrgId);
   assertEqual(balanceAfterFailed.paid_balance, balanceBeforeFailed.paid_balance, 'Zero wallet balance added for failed payment');
   assertEqual(balanceAfterFailed.topup_credit, balanceBeforeFailed.topup_credit, 'Zero promo credit added for failed payment');
+
+  // ----------------------------------------------------
+  // TEST GROUP 6: UNKNOWN WEBHOOK EVENT TYPE REJECTION
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 6: Unknown Event Type Rejection ---');
+
+  const unknownTypeOrder = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 1500.0,
+    currency: 'MYR',
+  });
+
+  const balanceBeforeUnknown = await getWalletBalance(testOrgId);
+
+  const unknownEventWebhook = JSON.stringify({
+    id: `evt_unknown_${Date.now()}`,
+    type: 'customer.source.updated', // unrecognized event type
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `pay_unknown_${Date.now()}`,
+        amount: 1500.0,
+        currency: 'MYR',
+        metadata: {
+          order_id: unknownTypeOrder.id,
+          organization_id: testOrgId,
+        },
+      },
+    },
+  });
+
+  const { signatureHeader: unknownSig } = generateWebhookSignature(unknownEventWebhook, secret);
+
+  try {
+    await verifyAndProcessPaymentWebhook({
+      rawBody: unknownEventWebhook,
+      signature: unknownSig,
+    });
+    console.error('  ✗ FAIL: Unknown event type should have been rejected');
+    failed++;
+  } catch (err: any) {
+    assertEqual(err.code, 'UNKNOWN_EVENT_TYPE', 'Unknown event type rejected with UNKNOWN_EVENT_TYPE');
+    assertEqual(err.status, 422, 'Unknown event type HTTP status is 422');
+  }
+
+  // Ensure order remains PENDING and wallet is untouched
+  const checkUnknownOrder = await getTopupOrderById(unknownTypeOrder.id);
+  assertEqual(checkUnknownOrder?.status, 'PENDING', 'Order remains PENDING after unknown event');
+
+  const balanceAfterUnknown = await getWalletBalance(testOrgId);
+  assertEqual(balanceAfterUnknown.paid_balance, balanceBeforeUnknown.paid_balance, 'Wallet paid balance untouched by unknown event');
+  assertEqual(balanceAfterUnknown.topup_credit, balanceBeforeUnknown.topup_credit, 'Wallet promo credit untouched by unknown event');
+
+  // ----------------------------------------------------
+  // TEST GROUP 7: MISSING EVENT TYPE REJECTION
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 7: Missing Event Type Rejection ---');
+
+  const missingTypeWebhook = JSON.stringify({
+    id: `evt_notype_${Date.now()}`,
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        amount: 1500.0,
+        currency: 'MYR',
+        metadata: {
+          order_id: unknownTypeOrder.id,
+          organization_id: testOrgId,
+        },
+      },
+    },
+  });
+
+  const { signatureHeader: missingTypeSig } = generateWebhookSignature(missingTypeWebhook, secret);
+
+  try {
+    await verifyAndProcessPaymentWebhook({
+      rawBody: missingTypeWebhook,
+      signature: missingTypeSig,
+    });
+    console.error('  ✗ FAIL: Missing event type should have been rejected');
+    failed++;
+  } catch (err: any) {
+    assertEqual(err.code, 'MISSING_EVENT_TYPE', 'Missing event type rejected with MISSING_EVENT_TYPE');
+    assertEqual(err.status, 400, 'Missing event type HTTP status is 400');
+  }
 
   // Summary
   console.log('\n======================================================');

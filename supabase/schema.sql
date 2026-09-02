@@ -1966,6 +1966,66 @@ CREATE POLICY "Developer admins can manage google_mail_settings"
   USING (public.is_developer_admin())
   WITH CHECK (public.is_developer_admin());
 
+-- ------------------------------------------------------------------------------
+-- 20. FINANCIAL RPC SECURITY & EXECUTE PRIVILEGES
+-- ------------------------------------------------------------------------------
+-- CRITICAL PRODUCTION SECURITY:
+-- Revoke all execute privileges on SECURITY DEFINER financial transaction RPCs
+-- from PUBLIC, anon, and authenticated roles so they cannot be directly invoked
+-- from client SDKs. Only the trusted server-side service_role can execute them.
+
+-- A. settle_wallet_topup_order
+REVOKE ALL ON FUNCTION public.settle_wallet_topup_order(
+  UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB
+) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.settle_wallet_topup_order(
+  UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB
+) FROM anon;
+REVOKE ALL ON FUNCTION public.settle_wallet_topup_order(
+  UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB
+) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.settle_wallet_topup_order(
+  UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.settle_wallet_topup_order(
+  UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB
+) TO postgres;
+
+-- B. process_topup_order_atomic
+REVOKE ALL ON FUNCTION public.process_topup_order_atomic(
+  UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB
+) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.process_topup_order_atomic(
+  UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB
+) FROM anon;
+REVOKE ALL ON FUNCTION public.process_topup_order_atomic(
+  UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB
+) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.process_topup_order_atomic(
+  UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.process_topup_order_atomic(
+  UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB
+) TO postgres;
+
+-- C. process_event_payment_atomic
+REVOKE ALL ON FUNCTION public.process_event_payment_atomic(
+  UUID, UUID, TEXT, NUMERIC, NUMERIC, TEXT, UUID, TEXT, JSONB
+) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.process_event_payment_atomic(
+  UUID, UUID, TEXT, NUMERIC, NUMERIC, TEXT, UUID, TEXT, JSONB
+) FROM anon;
+REVOKE ALL ON FUNCTION public.process_event_payment_atomic(
+  UUID, UUID, TEXT, NUMERIC, NUMERIC, TEXT, UUID, TEXT, JSONB
+) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.process_event_payment_atomic(
+  UUID, UUID, TEXT, NUMERIC, NUMERIC, TEXT, UUID, TEXT, JSONB
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.process_event_payment_atomic(
+  UUID, UUID, TEXT, NUMERIC, NUMERIC, TEXT, UUID, TEXT, JSONB
+) TO postgres;
+
+
 
 
 

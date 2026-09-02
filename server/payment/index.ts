@@ -69,6 +69,7 @@ export interface WebhookProcessingResult {
 
 /**
  * Get payment webhook secret from environment variables.
+ * CRITICAL SECURITY: Production fails closed with NO hardcoded default secret.
  */
 export function getPaymentWebhookSecret(env?: Record<string, any>, secretOverride?: string): string {
   if (secretOverride) return secretOverride;
@@ -81,8 +82,12 @@ export function getPaymentWebhookSecret(env?: Record<string, any>, secretOverrid
       : undefined);
 
   if (!secret) {
-    // Default fallback secret for sandbox provider, mock simulations, and development
-    return 'egs_dev_webhook_secret_key_2026_sandbox';
+    const err: any = new Error(
+      'Server security configuration error: PAYMENT_WEBHOOK_SECRET is not configured on the server. Webhook verification rejected.'
+    );
+    err.status = 500;
+    err.code = 'MISSING_WEBHOOK_SECRET';
+    throw err;
   }
 
   return secret;
@@ -190,6 +195,20 @@ export async function createPaymentSession(
 
   const baseUrl = originUrl || (typeof process !== 'undefined' ? process.env.APP_URL : '') || '';
   const stripe = getStripeClient(env);
+  const isProduction =
+    env?.NODE_ENV === 'production' ||
+    env?.ENVIRONMENT === 'production' ||
+    (typeof process !== 'undefined' && process.env.NODE_ENV === 'production');
+
+  // In production, require live Stripe payment configuration
+  if (isProduction && !stripe) {
+    const err: any = new Error(
+      'Payment checkout service unavailable: STRIPE_SECRET_KEY is required in production environments to initialize payment checkout.'
+    );
+    err.status = 500;
+    err.code = 'MISSING_STRIPE_SECRET_KEY';
+    throw err;
+  }
 
   let sessionId = `cs_egs_${crypto.randomBytes(16).toString('hex')}`;
   let checkoutUrl = `${baseUrl}/wallet/top-up?order_id=${order.id}&session_id=${sessionId}&checkout=true`;
@@ -320,7 +339,13 @@ export async function verifyAndProcessPaymentWebhook(
   }
 
   // Extract Event Details (Support standard Stripe / EGS payment provider formats)
-  const eventType = payload.type || payload.event || payload.status || 'payment.succeeded';
+  const eventType = payload.type || payload.event || payload.status;
+  if (!eventType || typeof eventType !== 'string') {
+    const err: any = new Error('Top-up order webhook event type is missing from payload');
+    err.status = 400;
+    err.code = 'MISSING_EVENT_TYPE';
+    throw err;
+  }
   const dataObject = payload.data?.object || payload.data || payload;
 
   const orderId =
@@ -435,10 +460,21 @@ export async function verifyAndProcessPaymentWebhook(
     eventType === 'payment.expired' ||
     eventType === 'EXPIRED';
 
-  let targetStatus: 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' = 'PAID';
-  if (isFailedEvent) targetStatus = 'FAILED';
-  else if (isCancelledEvent) targetStatus = 'CANCELLED';
-  else if (isExpiredEvent) targetStatus = 'EXPIRED';
+  let targetStatus: 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+  if (isSuccessEvent) {
+    targetStatus = 'PAID';
+  } else if (isFailedEvent) {
+    targetStatus = 'FAILED';
+  } else if (isCancelledEvent) {
+    targetStatus = 'CANCELLED';
+  } else if (isExpiredEvent) {
+    targetStatus = 'EXPIRED';
+  } else {
+    const err: any = new Error(`Unrecognized or unsupported payment webhook event type: "${eventType}". Webhook rejected.`);
+    err.status = 422;
+    err.code = 'UNKNOWN_EVENT_TYPE';
+    throw err;
+  }
 
   // 6. Check Current Order Status & Idempotency
   // If order is ALREADY 'PAID'

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiFetch } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import { TopupOrderRecord, PaymentCheckoutSession } from '../../types';
 import {
   Lock,
@@ -33,10 +34,13 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
   onPaymentFailed,
   onPaymentCancelled,
 }) => {
+  const { currentUser } = useAuth();
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'fpx'>('card');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isPollingStatus, setIsPollingStatus] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  const isDevAdmin = Boolean(import.meta.env.DEV && currentUser?.is_developer);
 
   const pollingTimerRef = useRef<any>(null);
 
@@ -256,7 +260,7 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
 
         {/* Payment CTAs */}
         <div className="space-y-2.5 pt-2">
-          {checkoutSession?.checkoutUrl && checkoutSession.checkoutUrl.startsWith('https://checkout.stripe.com') && (
+          {checkoutSession?.checkoutUrl && (
             <a
               href={checkoutSession.checkoutUrl}
               target="_blank"
@@ -265,38 +269,46 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
               className="w-full py-3.5 px-4 rounded-xl bg-[#635BFF] hover:bg-[#5851DF] text-white font-bold text-sm shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               <CreditCard className="w-4 h-4" />
-              <span>Open Stripe Checkout ({formatCurrency(order.top_up_amount, order.currency)})</span>
+              <span>Open Payment Gateway ({formatCurrency(order.top_up_amount, order.currency)})</span>
             </a>
           )}
 
-          <button
-            type="button"
-            disabled={isProcessingPayment || isPollingStatus}
-            onClick={() => handleSimulatePaymentCompletion('payment.succeeded')}
-            className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {isProcessingPayment || isPollingStatus ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Verifying Payment Settlement...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Pay {formatCurrency(order.top_up_amount, order.currency)} (Confirm & Settle)</span>
-              </>
-            )}
-          </button>
+          {/* Sandbox Webhook Simulation (Developer Admin Sandbox Only) */}
+          {isDevAdmin && (
+            <div className="pt-2 border-t border-slate-800/80 space-y-2">
+              <div className="text-[10px] font-mono text-amber-400 uppercase tracking-wider font-semibold text-center">
+                Developer Admin Sandbox Tools
+              </div>
+              <button
+                type="button"
+                disabled={isProcessingPayment || isPollingStatus}
+                onClick={() => handleSimulatePaymentCompletion('payment.succeeded')}
+                className="w-full py-2.5 px-4 rounded-xl bg-emerald-600/90 hover:bg-emerald-600 text-white font-bold text-xs shadow transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isProcessingPayment || isPollingStatus ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Verifying Simulation...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Simulate Webhook: Succeeded</span>
+                  </>
+                )}
+              </button>
 
-          <button
-            type="button"
-            disabled={isProcessingPayment || isPollingStatus}
-            onClick={() => handleSimulatePaymentCompletion('payment.failed')}
-            className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <XCircle className="w-3.5 h-3.5 text-rose-400" />
-            <span>Simulate Failed Payment</span>
-          </button>
+              <button
+                type="button"
+                disabled={isProcessingPayment || isPollingStatus}
+                onClick={() => handleSimulatePaymentCompletion('payment.failed')}
+                className="w-full py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                <span>Simulate Webhook: Failed</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
