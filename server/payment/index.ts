@@ -469,10 +469,18 @@ export async function verifyAndProcessPaymentWebhook(
   let receivedAmount: number | undefined = undefined;
   if (rawAmountValue !== undefined) {
     const expectedCents = toCents(order.top_up_amount);
-    // If sent as cents (standard for Stripe e.g. 60000 cents for RM 600.00)
-    if (Math.round(rawAmountValue) === expectedCents) {
+    // If sent as cents (standard for Stripe checkout session/payment intent/charges)
+    if (dataObject.amount_total !== undefined || dataObject.amount_received !== undefined) {
       receivedAmount = fromCents(rawAmountValue);
-    } else if (rawAmountValue > 100000 && order.top_up_amount < 100000) {
+    } else if (Math.round(rawAmountValue) === expectedCents) {
+      receivedAmount = fromCents(rawAmountValue);
+    } else if (rawAmountValue === order.top_up_amount) {
+      receivedAmount = rawAmountValue;
+    } else if (
+      dataObject.object === 'checkout.session' ||
+      dataObject.object === 'payment_intent' ||
+      dataObject.object === 'charge'
+    ) {
       receivedAmount = fromCents(rawAmountValue);
     } else {
       receivedAmount = rawAmountValue;
@@ -483,6 +491,9 @@ export async function verifyAndProcessPaymentWebhook(
     const receivedCents = toCents(receivedAmount);
     const expectedCents = toCents(order.top_up_amount);
     if (receivedCents !== expectedCents) {
+      console.warn(
+        `[Payment Webhook] Rejected: Amount mismatch on order ${order.id}. Expected RM${order.top_up_amount.toFixed(2)} (${expectedCents} cents), received RM${receivedAmount.toFixed(2)} (${receivedCents} cents)`
+      );
       const err: any = new Error(
         `Payment amount mismatch: expected RM${order.top_up_amount.toFixed(2)}, received RM${receivedAmount.toFixed(2)}`
       );
@@ -494,6 +505,9 @@ export async function verifyAndProcessPaymentWebhook(
 
   const receivedCurrency = (dataObject.currency || 'MYR').toUpperCase();
   if (receivedCurrency !== order.currency.toUpperCase()) {
+    console.warn(
+      `[Payment Webhook] Rejected: Currency mismatch on order ${order.id}. Expected ${order.currency}, received ${receivedCurrency}`
+    );
     const err: any = new Error(
       `Payment currency mismatch: expected ${order.currency}, received ${receivedCurrency}`
     );
@@ -508,11 +522,18 @@ export async function verifyAndProcessPaymentWebhook(
     dataObject.organization_id;
 
   if (receivedOrgId && receivedOrgId !== order.organization_id) {
+    console.warn(
+      `[Payment Webhook] Rejected: Organization mismatch on order ${order.id}. Expected ${order.organization_id}, received ${receivedOrgId}`
+    );
     const err: any = new Error('Unauthorized: Organization mismatch on top-up order');
     err.status = 403;
     err.code = 'ORGANIZATION_MISMATCH';
     throw err;
   }
+
+  console.log(
+    `[Payment Webhook] Verified: Order ${order.id} | Org: ${order.organization_id} | Amount: ${order.currency} ${order.top_up_amount.toFixed(2)} | Event: ${eventType}`
+  );
 
   // 5. Determine Target Status from Webhook Event
   const paymentReference =

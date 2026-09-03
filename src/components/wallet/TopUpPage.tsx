@@ -102,7 +102,68 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
     fetchWallet();
   }, [fetchWallet]);
 
-  // 2. Check URL parameters on mount for order redirect (e.g. ?order_id=... or ?session_id=...)
+  // 2. Poll server for verified payment status (Zero trust in frontend data)
+  const pollOrderStatus = useCallback(
+    async (orderId: string, maxAttempts = 20) => {
+      if (!currentOrganization?.id) return;
+
+      setIsPollingStatus(true);
+      let attempts = 0;
+
+      const check = async () => {
+        try {
+          attempts++;
+          const res = await apiFetch(
+            `/api/organizations/${currentOrganization.id}/wallet/topup-orders/${orderId}`
+          );
+
+          if (res.ok) {
+            const data = await res.json();
+            const order: TopupOrderRecord = data.order;
+            setActiveOrder(order);
+
+            if (['PAID', 'COMPLETED'].includes(order.status)) {
+              if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
+              setIsPollingStatus(false);
+              setShowPaymentModal(false);
+              await fetchWallet();
+              window.dispatchEvent(new CustomEvent('wallet_updated'));
+              return;
+            }
+
+            if (['EXPIRED', 'CANCELLED', 'FAILED'].includes(order.status)) {
+              if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
+              setIsPollingStatus(false);
+              setShowPaymentModal(false);
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('Polling error:', err);
+        }
+
+        if (attempts < maxAttempts) {
+          pollingTimerRef.current = setTimeout(check, 2000);
+        } else {
+          if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
+          setIsPollingStatus(false);
+        }
+      };
+
+      check();
+    },
+    [currentOrganization?.id, fetchWallet]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (pollingTimerRef.current) {
+        clearTimeout(pollingTimerRef.current);
+      }
+    };
+  }, []);
+
+  // 3. Check URL parameters on mount for order redirect (e.g. ?order_id=... or ?session_id=...)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const orderIdParam = params.get('order_id') || params.get('orderId');
@@ -126,6 +187,9 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             if (['PAID', 'COMPLETED'].includes(data.order.status)) {
               await fetchWallet();
               window.dispatchEvent(new CustomEvent('wallet_updated'));
+            } else if (data.order.status === 'PENDING') {
+              // Start polling to catch incoming webhook delivery or backend reconciliation
+              pollOrderStatus(data.order.id, 25);
             }
           }
         } catch (err) {
@@ -134,7 +198,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
       };
       loadExistingOrder();
     }
-  }, [currentOrganization?.id, fetchWallet]);
+  }, [currentOrganization?.id, fetchWallet, pollOrderStatus]);
 
   // 3. Fetch Dynamic Quote from existing Wallet Engine
   const fetchQuote = useCallback(
@@ -259,67 +323,6 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
     }
   };
 
-  // 5. Poll server for verified payment status (Zero trust in frontend data)
-  const pollOrderStatus = useCallback(
-    async (orderId: string, maxAttempts = 15) => {
-      if (!currentOrganization?.id) return;
-
-      setIsPollingStatus(true);
-      let attempts = 0;
-
-      const check = async () => {
-        try {
-          attempts++;
-          const res = await apiFetch(
-            `/api/organizations/${currentOrganization.id}/wallet/topup-orders/${orderId}`
-          );
-
-          if (res.ok) {
-            const data = await res.json();
-            const order: TopupOrderRecord = data.order;
-            setActiveOrder(order);
-
-            if (['PAID', 'COMPLETED'].includes(order.status)) {
-              if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
-              setIsPollingStatus(false);
-              setShowPaymentModal(false);
-              await fetchWallet();
-              window.dispatchEvent(new CustomEvent('wallet_updated'));
-              return;
-            }
-
-            if (['EXPIRED', 'CANCELLED', 'FAILED'].includes(order.status)) {
-              if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
-              setIsPollingStatus(false);
-              setShowPaymentModal(false);
-              return;
-            }
-          }
-        } catch (err) {
-          console.error('Polling error:', err);
-        }
-
-        if (attempts < maxAttempts) {
-          pollingTimerRef.current = setTimeout(check, 2000);
-        } else {
-          if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
-          setIsPollingStatus(false);
-        }
-      };
-
-      check();
-    },
-    [currentOrganization?.id, fetchWallet]
-  );
-
-  useEffect(() => {
-    return () => {
-      if (pollingTimerRef.current) {
-        clearTimeout(pollingTimerRef.current);
-      }
-    };
-  }, []);
-
   // 6. Simulate / Trigger Payment Provider Webhook Dispatch
   const handleSimulatePaymentCompletion = async (statusToTrigger: 'payment.succeeded' | 'payment.failed') => {
     if (!currentOrganization?.id || !activeOrder?.id) return;
@@ -364,6 +367,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
   };
 
   const handleBack = () => {
+    window.dispatchEvent(new CustomEvent('wallet_updated'));
     if (onBackToWallet) {
       onBackToWallet();
     } else {

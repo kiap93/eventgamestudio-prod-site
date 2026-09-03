@@ -447,6 +447,343 @@ async function runTests() {
     assertEqual(err.status, 400, 'Missing event type HTTP status is 400');
   }
 
+  // ----------------------------------------------------
+  // TEST GROUP 8: SUCCESSFUL TOP-UP WITHOUT PROMO (RM1,400 -> RM0 BONUS)
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 8: Successful Top-up Without Promo (RM1,400 -> RM0 Bonus) ---');
+
+  const preNoPromoWallet = await getWalletBalance(testOrgId);
+  const orderNoPromo = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 1400.0,
+    currency: 'MYR',
+  });
+
+  assertEqual(orderNoPromo.status, 'PENDING', 'RM1,400 order created in PENDING status');
+  assertEqual(orderNoPromo.expected_credit_amount, 0.0, 'RM1,400 order has RM0 expected bonus');
+
+  const noPromoWebhook = JSON.stringify({
+    id: `evt_nopromo_${Date.now()}`,
+    type: 'payment.succeeded',
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `pay_nopromo_${Date.now()}`,
+        amount: 1400.0,
+        currency: 'MYR',
+        metadata: {
+          order_id: orderNoPromo.id,
+          organization_id: testOrgId,
+        },
+        status: 'succeeded',
+      },
+    },
+  });
+
+  const { signatureHeader: noPromoSig } = generateWebhookSignature(noPromoWebhook, secret);
+  const noPromoResult = await verifyAndProcessPaymentWebhook({
+    rawBody: noPromoWebhook,
+    signature: noPromoSig,
+  });
+
+  assertEqual(noPromoResult.success, true, 'No-promo webhook succeeded');
+  assertEqual(noPromoResult.status, 'PAID', 'No-promo order status is PAID');
+
+  const postNoPromoWallet = await getWalletBalance(testOrgId);
+  assertEqual(
+    postNoPromoWallet.paid_balance,
+    preNoPromoWallet.paid_balance + 1400,
+    'Paid balance increased by exactly RM1,400.00'
+  );
+  assertEqual(
+    postNoPromoWallet.topup_credit,
+    preNoPromoWallet.topup_credit,
+    'Topup credit unchanged (RM0 bonus granted)'
+  );
+
+  // ----------------------------------------------------
+  // TEST GROUP 9: SUCCESSFUL TIER-2 TOP-UP WITH 7% PROMO (RM10,000 -> RM700 BONUS)
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 9: Successful Tier-2 Top-up With 7% Promo (RM10,000 -> RM700 Bonus) ---');
+
+  const preTier2Wallet = await getWalletBalance(testOrgId);
+  const orderTier2 = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 10000.0,
+    currency: 'MYR',
+  });
+
+  assertEqual(orderTier2.status, 'PENDING', 'RM10,000 order created in PENDING status');
+  assertEqual(orderTier2.expected_credit_amount, 700.0, 'RM10,000 order has RM700 expected bonus (7%)');
+
+  const tier2Webhook = JSON.stringify({
+    id: `evt_tier2_${Date.now()}`,
+    type: 'payment.succeeded',
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `pay_tier2_${Date.now()}`,
+        amount: 10000.0,
+        currency: 'MYR',
+        metadata: {
+          order_id: orderTier2.id,
+          organization_id: testOrgId,
+        },
+        status: 'succeeded',
+      },
+    },
+  });
+
+  const { signatureHeader: tier2Sig } = generateWebhookSignature(tier2Webhook, secret);
+  const tier2Result = await verifyAndProcessPaymentWebhook({
+    rawBody: tier2Webhook,
+    signature: tier2Sig,
+  });
+
+  assertEqual(tier2Result.success, true, 'Tier-2 webhook succeeded');
+  assertEqual(tier2Result.status, 'PAID', 'Tier-2 order status is PAID');
+
+  const postTier2Wallet = await getWalletBalance(testOrgId);
+  assertEqual(
+    postTier2Wallet.paid_balance,
+    preTier2Wallet.paid_balance + 10000,
+    'Paid balance increased by exactly RM10,000.00'
+  );
+  assertEqual(
+    postTier2Wallet.topup_credit,
+    preTier2Wallet.topup_credit + 700,
+    'Topup credit increased by exactly RM700.00'
+  );
+
+  // ----------------------------------------------------
+  // TEST GROUP 10: STRIPE CENTS WEBHOOK (amount_total: 140000) & SUB-UNIT SECURITY
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 10: Stripe Webhook in Cents & Sub-unit Security ---');
+
+  const orderCents = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 1400.0,
+    currency: 'MYR',
+  });
+
+  // Stripe standard checkout.session.completed with amount_total in cents
+  const stripeCentsWebhook = JSON.stringify({
+    id: `evt_cents_${Date.now()}`,
+    type: 'checkout.session.completed',
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `cs_test_${Date.now()}`,
+        object: 'checkout.session',
+        amount_total: 140000, // 140,000 cents = RM1,400.00
+        currency: 'myr',
+        payment_intent: `pi_test_${Date.now()}`,
+        metadata: {
+          order_id: orderCents.id,
+          organization_id: testOrgId,
+        },
+        payment_status: 'paid',
+      },
+    },
+  });
+
+  const { signatureHeader: stripeCentsSig } = generateWebhookSignature(stripeCentsWebhook, secret);
+  const stripeCentsResult = await verifyAndProcessPaymentWebhook({
+    rawBody: stripeCentsWebhook,
+    signature: stripeCentsSig,
+  });
+
+  assertEqual(stripeCentsResult.success, true, 'Stripe cents webhook processed successfully');
+  assertEqual(stripeCentsResult.status, 'PAID', 'Order transitioned to PAID via Stripe cents event');
+
+  // Verify sub-unit fraud rejection: order for RM5000, but attacker pays 5000 cents ($50.00)
+  const highValueOrder = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 5000.0,
+    currency: 'MYR',
+  });
+
+  const fraudSubunitWebhook = JSON.stringify({
+    id: `evt_fraud_${Date.now()}`,
+    type: 'checkout.session.completed',
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `cs_fraud_${Date.now()}`,
+        object: 'checkout.session',
+        amount_total: 5000, // 5,000 cents = RM50.00 instead of RM5,000.00
+        currency: 'myr',
+        metadata: {
+          order_id: highValueOrder.id,
+          organization_id: testOrgId,
+        },
+        payment_status: 'paid',
+      },
+    },
+  });
+
+  const { signatureHeader: fraudSig } = generateWebhookSignature(fraudSubunitWebhook, secret);
+  try {
+    await verifyAndProcessPaymentWebhook({
+      rawBody: fraudSubunitWebhook,
+      signature: fraudSig,
+    });
+    console.error('  ✗ FAIL: Fraudulent sub-unit amount should have been rejected');
+    failed++;
+  } catch (err: any) {
+    assertEqual(err.code, 'AMOUNT_MISMATCH', 'Fraudulent 5000 cents for RM5000 rejected with AMOUNT_MISMATCH');
+  }
+
+  // ----------------------------------------------------
+  // TEST GROUP 11: CURRENCY MISMATCH REJECTION
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 11: Currency Mismatch Rejection ---');
+
+  const orderCurr = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 2000.0,
+    currency: 'MYR',
+  });
+
+  const wrongCurrencyWebhook = JSON.stringify({
+    id: `evt_curr_${Date.now()}`,
+    type: 'payment.succeeded',
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `pay_curr_${Date.now()}`,
+        amount: 2000.0,
+        currency: 'USD', // Expected MYR
+        metadata: {
+          order_id: orderCurr.id,
+          organization_id: testOrgId,
+        },
+        status: 'succeeded',
+      },
+    },
+  });
+
+  const { signatureHeader: wrongCurrSig } = generateWebhookSignature(wrongCurrencyWebhook, secret);
+  try {
+    await verifyAndProcessPaymentWebhook({
+      rawBody: wrongCurrencyWebhook,
+      signature: wrongCurrSig,
+    });
+    console.error('  ✗ FAIL: Wrong currency should have been rejected');
+    failed++;
+  } catch (err: any) {
+    assertEqual(err.code, 'CURRENCY_MISMATCH', 'Currency USD rejected with CURRENCY_MISMATCH for MYR order');
+    assertEqual(err.status, 422, 'Currency mismatch status is 422');
+  }
+
+  // ----------------------------------------------------
+  // TEST GROUP 12: ALREADY-PAID ORDER STATE INTEGRITY
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 12: Already-Paid Orders & Terminal State Protection ---');
+
+  // Attempting to transition an already-paid order to FAILED via webhook must be rejected
+  const downgradeWebhook = JSON.stringify({
+    id: `evt_downgrade_${Date.now()}`,
+    type: 'payment.failed',
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `pay_downgrade_${Date.now()}`,
+        amount: 1400.0,
+        currency: 'MYR',
+        metadata: {
+          order_id: orderNoPromo.id, // ALREADY PAID
+          organization_id: testOrgId,
+        },
+        status: 'failed',
+      },
+    },
+  });
+
+  const { signatureHeader: downgradeSig } = generateWebhookSignature(downgradeWebhook, secret);
+  try {
+    await verifyAndProcessPaymentWebhook({
+      rawBody: downgradeWebhook,
+      signature: downgradeSig,
+    });
+    console.error('  ✗ FAIL: Downgrading PAID order to FAILED should be rejected');
+    failed++;
+  } catch (err: any) {
+    assertEqual(err.code, 'INVALID_STATE_TRANSITION', 'Downgrade attempt rejected with INVALID_STATE_TRANSITION');
+    assertEqual(err.status, 409, 'Downgrade attempt status is 409 Conflict');
+  }
+
+  // Idempotent duplicate replay of already-paid order
+  const duplicatePaidWebhook = JSON.stringify({
+    id: `evt_dup_paid_${Date.now()}`,
+    type: 'payment.succeeded',
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `pay_dup_${Date.now()}`,
+        amount: 1400.0,
+        currency: 'MYR',
+        metadata: {
+          order_id: orderNoPromo.id,
+          organization_id: testOrgId,
+        },
+        status: 'succeeded',
+      },
+    },
+  });
+
+  const { signatureHeader: dupPaidSig } = generateWebhookSignature(duplicatePaidWebhook, secret);
+  const dupPaidResult = await verifyAndProcessPaymentWebhook({
+    rawBody: duplicatePaidWebhook,
+    signature: dupPaidSig,
+  });
+
+  assertEqual(dupPaidResult.success, true, 'Duplicate PAID webhook returned success');
+  assertEqual(dupPaidResult.isDuplicate, true, 'Duplicate PAID webhook flagged isDuplicate = true');
+  assertEqual(dupPaidResult.alreadyProcessed, true, 'Duplicate PAID webhook flagged alreadyProcessed = true');
+
+  // ----------------------------------------------------
+  // TEST GROUP 13: DATABASE FAILURE / MISSING ORDER HANDLING
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 13: Non-existent Order Handling (Graceful 404) ---');
+
+  const nonExistentOrderId = crypto.randomUUID();
+  const nonExistentOrderWebhook = JSON.stringify({
+    id: `evt_404_${Date.now()}`,
+    type: 'payment.succeeded',
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `pay_404_${Date.now()}`,
+        amount: 1400.0,
+        currency: 'MYR',
+        metadata: {
+          order_id: nonExistentOrderId,
+          organization_id: testOrgId,
+        },
+        status: 'succeeded',
+      },
+    },
+  });
+
+  const { signatureHeader: nonExistentSig } = generateWebhookSignature(nonExistentOrderWebhook, secret);
+  try {
+    await verifyAndProcessPaymentWebhook({
+      rawBody: nonExistentOrderWebhook,
+      signature: nonExistentSig,
+    });
+    console.error('  ✗ FAIL: Non-existent order should have thrown 404');
+    failed++;
+  } catch (err: any) {
+    assertEqual(err.code, 'ORDER_NOT_FOUND', 'Non-existent order rejected with ORDER_NOT_FOUND');
+    assertEqual(err.status, 404, 'Non-existent order status is 404');
+  }
+
   // Summary
   console.log('\n======================================================');
   console.log(` RESULTS: ${passed} PASSED, ${failed} FAILED`);
