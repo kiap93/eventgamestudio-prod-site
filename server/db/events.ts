@@ -32,6 +32,11 @@ import {
   calculateEventAuthoritativePrice,
   calculateEventCalendarDays,
 } from './platformSettings.js';
+import {
+  clearEventTestScores,
+  isEventTestScoresCleared,
+  ensureTestScoresClearedForLiveEvent,
+} from './highScores.js';
 import crypto from 'node:crypto';
 
 // In-memory cache fallback for mock / test environments
@@ -899,50 +904,51 @@ export async function getEventById(
     return null;
   }
 
+  let eventRecord: EventRecord | null = null;
+
   // If not a valid UUID string, check local cache directly without querying Supabase to avoid 22P02 Postgres syntax error
   if (!isUUID(eventId)) {
-    const localEvent = localEventsCache.get(eventId) || null;
-    if (!localEvent) return null;
-  }
-
-  const supabase = getSupabaseServerClient(env);
-
-  let eventRecord: EventRecord | null = null;
-  const { data: event, error } = await supabase
-    .from('events')
-    .select('*')
-    .eq('id', eventId)
-    .maybeSingle();
-
-  if (error) {
-    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
-      eventRecord = localEventsCache.get(eventId) || null;
-    } else {
-      console.error('Error in getEventById:', error);
-      throw new Error(`Failed to get event: ${error.message}`);
-    }
+    eventRecord = localEventsCache.get(eventId) || null;
+    if (!eventRecord) return null;
   } else {
-    const raw = (event as EventRecord) || null;
-    if (raw) {
-      const cached = isLocalFallbackAllowed(env) ? localEventsCache.get(eventId) : undefined;
-      eventRecord = {
-        ...raw,
-        ...(cached || {}),
-        game_id: cached?.game_id || raw.game_id,
-        status: cached?.status || raw.status,
-        event_status: cached?.event_status || raw.event_status,
-        payment_status: cached?.payment_status || raw.payment_status,
-        cancel_reason: cached?.cancel_reason !== undefined ? cached.cancel_reason : raw.cancel_reason,
-        payment_mode: cached?.payment_mode || raw.payment_mode,
-        paid_amount: cached?.paid_amount !== undefined && cached.paid_amount !== null ? cached.paid_amount : raw.paid_amount,
-        event_price: cached?.event_price !== undefined && cached.event_price !== null ? cached.event_price : raw.event_price,
-        event_currency: cached?.event_currency || raw.event_currency || 'MYR',
-      };
-      if (isLocalFallbackAllowed(env)) {
-        localEventsCache.set(raw.id, eventRecord);
+    const supabase = getSupabaseServerClient(env);
+
+    const { data: event, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (error) {
+      if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+        eventRecord = localEventsCache.get(eventId) || null;
+      } else {
+        console.error('Error in getEventById:', error);
+        throw new Error(`Failed to get event: ${error.message}`);
       }
     } else {
-      eventRecord = null;
+      const raw = (event as EventRecord) || null;
+      if (raw) {
+        const cached = isLocalFallbackAllowed(env) ? localEventsCache.get(eventId) : undefined;
+        eventRecord = {
+          ...raw,
+          ...(cached || {}),
+          game_id: cached?.game_id || raw.game_id,
+          status: cached?.status || raw.status,
+          event_status: cached?.event_status || raw.event_status,
+          payment_status: cached?.payment_status || raw.payment_status,
+          cancel_reason: cached?.cancel_reason !== undefined ? cached.cancel_reason : raw.cancel_reason,
+          payment_mode: cached?.payment_mode || raw.payment_mode,
+          paid_amount: cached?.paid_amount !== undefined && cached.paid_amount !== null ? cached.paid_amount : raw.paid_amount,
+          event_price: cached?.event_price !== undefined && cached.event_price !== null ? cached.event_price : raw.event_price,
+          event_currency: cached?.event_currency || raw.event_currency || 'MYR',
+        };
+        if (isLocalFallbackAllowed(env)) {
+          localEventsCache.set(raw.id, eventRecord);
+        }
+      } else {
+        eventRecord = null;
+      }
     }
   }
 
@@ -975,8 +981,18 @@ export async function getEventById(
   const rawEndDate = eventRecord.end_date || (eventRecord.expires_at ? eventRecord.expires_at.split('T')[0] : rawStartDate) || rawStartDate;
   const rawEventDate = eventRecord.event_date || rawStartDate;
 
+  // Automatic date-based test score transition check on event retrieval
+  const { startDate: evStartDate } = getNormalizedEventDates(eventRecord);
+  const curDate = getNormalizedCurrentDate();
+  if (evStartDate && curDate >= evStartDate && !isEventTestScoresCleared(eventRecord.id, eventRecord)) {
+    ensureTestScoresClearedForLiveEvent(eventRecord.id, eventRecord, env).catch((e) => {
+      console.warn(`[getEventById] Notice ensuring test scores cleared for ${eventRecord.id}:`, e?.message || e);
+    });
+  }
+
   return {
     ...eventRecord,
+    test_scores_cleared_at: eventRecord.test_scores_cleared_at || null,
     start_date: rawStartDate,
     end_date: rawEndDate,
     event_date: rawEventDate,
@@ -1116,8 +1132,18 @@ export async function getEventByPublicToken(
   const rawEndDate = eventRecord.end_date || (eventRecord.expires_at ? eventRecord.expires_at.split('T')[0] : rawStartDate) || rawStartDate;
   const rawEventDate = eventRecord.event_date || rawStartDate;
 
+  // Automatic date-based test score transition check on public event resolution
+  const { startDate: pubStartDate } = getNormalizedEventDates(eventRecord);
+  const curPubDate = getNormalizedCurrentDate();
+  if (pubStartDate && curPubDate >= pubStartDate && !isEventTestScoresCleared(eventRecord.id, eventRecord)) {
+    ensureTestScoresClearedForLiveEvent(eventRecord.id, eventRecord, env).catch((e) => {
+      console.warn(`[getEventByPublicToken] Notice ensuring test scores cleared for ${eventRecord.id}:`, e?.message || e);
+    });
+  }
+
   return {
     ...eventRecord,
+    test_scores_cleared_at: eventRecord.test_scores_cleared_at || null,
     start_date: rawStartDate,
     end_date: rawEndDate,
     event_date: rawEventDate,
@@ -1935,10 +1961,12 @@ export async function runEventLifecycleMaintenance(
   paymentFailedCount: number;
   cancelledCount: number;
   completedCount: number;
+  testScoresClearedCount: number;
   paidEvents: string[];
   paymentFailedEvents: string[];
   cancelledEvents: string[];
   completedEvents: string[];
+  testScoresClearedEvents: string[];
 }> {
   const supabase = getSupabaseServerClient(env);
   const nowIso = now.toISOString();
@@ -1946,6 +1974,7 @@ export async function runEventLifecycleMaintenance(
   const paymentFailedEvents: string[] = [];
   const cancelledEvents: string[] = [];
   const completedEvents: string[] = [];
+  const testScoresClearedEvents: string[] = [];
 
   let allEvents: EventRecord[] = [];
   const { data, error } = await supabase.from('events').select('*');
@@ -1956,6 +1985,13 @@ export async function runEventLifecycleMaintenance(
     if (isLocalFallbackAllowed(env)) {
       for (const ev of allEvents) {
         localEventsCache.set(ev.id, ev);
+      }
+      // Include any local non-database events present in local cache
+      const dbIds = new Set(allEvents.map((e) => e.id));
+      for (const [id, cachedEv] of localEventsCache.entries()) {
+        if (!dbIds.has(id)) {
+          allEvents.push(cachedEv);
+        }
       }
     }
   }
@@ -1972,6 +2008,24 @@ export async function runEventLifecycleMaintenance(
     // Skip already cancelled events
     if (evStatus === 'CANCELLED' || rawStatus === 'cancelled') {
       continue;
+    }
+
+    const { startDate } = getNormalizedEventDates(ev);
+    const curDate = getNormalizedCurrentDate(now);
+    const hasReachedStartDate = Boolean(startDate && curDate >= startDate);
+
+    // 0. Automatic Test Score Clearing:
+    // When an event reaches its configured start date:
+    // - Remove all TEST scores for that event.
+    // - Preserve LIVE scores if any already exist.
+    // - The operation must be idempotent and safe across multiple worker instances.
+    if (hasReachedStartDate && !isEventTestScoresCleared(ev.id, ev)) {
+      try {
+        await clearEventTestScores(ev.id, env);
+        testScoresClearedEvents.push(ev.id);
+      } catch (clearErr: any) {
+        console.warn(`[Maintenance] Automatic test score clearing failed for event ${ev.id}:`, clearErr?.message || clearErr);
+      }
     }
 
     // 1. Unpaid events
@@ -2054,10 +2108,12 @@ export async function runEventLifecycleMaintenance(
     paymentFailedCount: paymentFailedEvents.length,
     cancelledCount: cancelledEvents.length,
     completedCount: completedEvents.length,
+    testScoresClearedCount: testScoresClearedEvents.length,
     paidEvents,
     paymentFailedEvents,
     cancelledEvents,
     completedEvents,
+    testScoresClearedEvents,
   };
 }
 

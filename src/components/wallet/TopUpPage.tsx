@@ -30,6 +30,7 @@ import {
   Lock,
   ExternalLink,
   XCircle,
+  PlusCircle,
 } from 'lucide-react';
 
 interface TopUpPageProps {
@@ -105,16 +106,27 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const orderIdParam = params.get('order_id') || params.get('orderId');
+    const sessionIdParam = params.get('session_id') || params.get('sessionId');
+    const statusParam = params.get('status');
 
     if (orderIdParam && currentOrganization?.id) {
       const loadExistingOrder = async () => {
         try {
+          const queryParams = new URLSearchParams();
+          if (sessionIdParam) queryParams.set('session_id', sessionIdParam);
+          if (statusParam) queryParams.set('status', statusParam);
+          const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+
           const res = await apiFetch(
-            `/api/organizations/${currentOrganization.id}/wallet/topup-orders/${orderIdParam}`
+            `/api/organizations/${currentOrganization.id}/wallet/topup-orders/${orderIdParam}${queryString}`
           );
           if (res.ok) {
             const data = await res.json();
             setActiveOrder(data.order);
+            if (['PAID', 'COMPLETED'].includes(data.order.status)) {
+              await fetchWallet();
+              window.dispatchEvent(new CustomEvent('wallet_updated'));
+            }
           }
         } catch (err) {
           console.error('Failed to load topup order from URL param:', err);
@@ -122,7 +134,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
       };
       loadExistingOrder();
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, fetchWallet]);
 
   // 3. Fetch Dynamic Quote from existing Wallet Engine
   const fetchQuote = useCallback(
@@ -267,7 +279,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             const order: TopupOrderRecord = data.order;
             setActiveOrder(order);
 
-            if (order.status === 'PAID') {
+            if (['PAID', 'COMPLETED'].includes(order.status)) {
+              if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
               setIsPollingStatus(false);
               setShowPaymentModal(false);
               await fetchWallet();
@@ -275,7 +288,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               return;
             }
 
-            if (['FAILED', 'CANCELLED', 'EXPIRED'].includes(order.status)) {
+            if (['EXPIRED', 'CANCELLED', 'FAILED'].includes(order.status)) {
+              if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
               setIsPollingStatus(false);
               setShowPaymentModal(false);
               return;
@@ -288,6 +302,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
         if (attempts < maxAttempts) {
           pollingTimerRef.current = setTimeout(check, 2000);
         } else {
+          if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
           setIsPollingStatus(false);
         }
       };
@@ -478,7 +493,126 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
     );
   }
 
-  if (activeOrder && ['FAILED', 'CANCELLED', 'EXPIRED'].includes(activeOrder.status)) {
+  if (activeOrder && activeOrder.status === 'EXPIRED') {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-12 animate-in fade-in zoom-in-95 duration-300">
+        <div className="bg-slate-900 border border-amber-500/40 rounded-3xl p-8 sm:p-10 space-y-8 text-center shadow-2xl">
+          {/* Expired Badge */}
+          <div className="inline-flex p-4 bg-amber-500/10 border border-amber-500/30 rounded-3xl text-amber-400">
+            <Clock className="w-12 h-12 stroke-[2.5]" />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-3xl font-black text-slate-100 tracking-tight">Top-up Expired</h1>
+            <p className="text-sm font-semibold text-amber-300">Top-up expired. Please create a new top-up.</p>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              The payment checkout window for this order has elapsed. Your wallet balance remains untouched and no charges were made.
+            </p>
+          </div>
+
+          {/* Order Reference Box */}
+          <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-5 text-left text-xs font-mono space-y-2">
+            <div className="flex items-center justify-between text-slate-400">
+              <span>Order ID</span>
+              <div className="flex items-center gap-1.5 text-slate-200">
+                <span>{activeOrder.id.slice(0, 8)}...</span>
+                <button
+                  onClick={() => handleCopyOrderId(activeOrder.id)}
+                  className="hover:text-amber-400 transition-colors cursor-pointer"
+                  title="Copy full order ID"
+                >
+                  {copiedOrderId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-slate-400">
+              <span>Status</span>
+              <span className="text-amber-400 font-bold">{activeOrder.status}</span>
+            </div>
+            <div className="flex items-center justify-between text-slate-400">
+              <span>Attempted Amount</span>
+              <span className="text-slate-200">{formatCurrency(activeOrder.top_up_amount)}</span>
+            </div>
+          </div>
+
+          {/* Action CTAs */}
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={handleResetForNewTopUp}
+              className="w-full py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <PlusCircle className="w-5 h-5" />
+              <span>Create New Top-up</span>
+            </button>
+
+            <button
+              onClick={handleBack}
+              className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
+            >
+              Back to Wallet
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeOrder && activeOrder.status === 'CANCELLED') {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-12 animate-in fade-in zoom-in-95 duration-300">
+        <div className="bg-slate-900 border border-slate-700/60 rounded-3xl p-8 sm:p-10 space-y-8 text-center shadow-2xl">
+          {/* Cancelled Badge */}
+          <div className="inline-flex p-4 bg-slate-800/80 border border-slate-700 rounded-3xl text-slate-400">
+            <XCircle className="w-12 h-12 stroke-[2.5]" />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-3xl font-black text-slate-100 tracking-tight">Top-up Cancelled</h1>
+            <p className="text-sm font-semibold text-slate-300">Top-up was cancelled. No charges were made.</p>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              You cancelled the payment checkout session before completing the transaction. Your wallet balance remains unchanged.
+            </p>
+          </div>
+
+          {/* Order Reference Box */}
+          <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-5 text-left text-xs font-mono space-y-2">
+            <div className="flex items-center justify-between text-slate-400">
+              <span>Order ID</span>
+              <span className="text-slate-200">{activeOrder.id.slice(0, 8)}...</span>
+            </div>
+            <div className="flex items-center justify-between text-slate-400">
+              <span>Status</span>
+              <span className="text-slate-400 font-bold">{activeOrder.status}</span>
+            </div>
+            <div className="flex items-center justify-between text-slate-400">
+              <span>Attempted Amount</span>
+              <span className="text-slate-200">{formatCurrency(activeOrder.top_up_amount)}</span>
+            </div>
+          </div>
+
+          {/* Action CTAs */}
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={handleResetForNewTopUp}
+              className="w-full py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <PlusCircle className="w-5 h-5" />
+              <span>Start New Top-up</span>
+            </button>
+
+            <button
+              onClick={handleBack}
+              className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
+            >
+              Back to Wallet
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeOrder && activeOrder.status === 'FAILED') {
     return (
       <div className="max-w-xl mx-auto px-4 py-12 animate-in fade-in zoom-in-95 duration-300">
         <div className="bg-slate-900 border border-rose-500/40 rounded-3xl p-8 sm:p-10 space-y-8 text-center shadow-2xl">
@@ -489,9 +623,9 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
           <div className="space-y-2">
             <h1 className="text-3xl font-black text-slate-100 tracking-tight">Payment Failed</h1>
-            <p className="text-sm font-semibold text-rose-300">No wallet balance was added.</p>
+            <p className="text-sm font-semibold text-rose-300">Payment could not be completed.</p>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              Your payment provider did not confirm this transaction or it was cancelled. Your wallet balance remains untouched.
+              Your payment provider did not confirm this transaction. Your wallet balance remains untouched.
             </p>
           </div>
 

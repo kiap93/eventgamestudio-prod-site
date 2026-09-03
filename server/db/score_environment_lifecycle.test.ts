@@ -3,8 +3,10 @@ import {
   submitEventScore,
   getEventHighScores,
   clearEventHighScores,
+  clearEventTestScores,
+  isEventTestScoresCleared,
 } from './highScores';
-import { localEventsCache } from './events';
+import { localEventsCache, runEventLifecycleMaintenance } from './events';
 import { EventRecord } from './types';
 
 async function runTests() {
@@ -282,6 +284,100 @@ async function runTests() {
     throw new Error(`Expected server to ignore client spoof and assign live, got ${liveSpoofSubmission.score_environment}`);
   }
   console.log('✓ Client flag isTest=true on live event ignored: server authoritatively recorded live');
+
+  // Test 6: Automatic test score clearing when event reaches configured start date
+  console.log('\n[Test 6] Automatic test score clearing on start date with idempotency and live score preservation');
+  const autoClearEventId = 'auto-clear-event-' + Date.now();
+  const autoClearEvent: EventRecord = {
+    id: autoClearEventId,
+    organization_id: 'org-autoclear',
+    name: 'Auto Clear Test Event',
+    game_id: 'catch-brand',
+    game_theme_id: 'theme-1',
+    status: 'scheduled',
+    payment_status: 'PAID',
+    start_date: today, // Start date is reached today!
+    end_date: futureEnd,
+    starts_at: `${today}T00:00:00.000Z`,
+    expires_at: `${futureEnd}T23:59:59.999Z`,
+    public_token: 'token-autoclear',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  localEventsCache.set(autoClearEventId, autoClearEvent);
+
+  // Directly seed two TEST scores and one LIVE score to verify selective clearing
+  const testScoreRecord1 = {
+    id: 'test-score-1',
+    event_id: autoClearEventId,
+    player_name: 'Setup Tester 1',
+    score: 800,
+    score_environment: 'test' as const,
+    score_mode: 'TEST' as const,
+    is_test: true,
+    metadata: { score_environment: 'test' },
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+  };
+  const testScoreRecord2 = {
+    id: 'test-score-2',
+    event_id: autoClearEventId,
+    player_name: 'Setup Tester 2',
+    score: 1200,
+    score_environment: 'test' as const,
+    score_mode: 'TEST' as const,
+    is_test: true,
+    metadata: { score_environment: 'test' },
+    created_at: new Date(Date.now() - 1800000).toISOString(),
+  };
+  const liveScoreRecord = {
+    id: 'live-score-preserved',
+    event_id: autoClearEventId,
+    player_name: 'Official Attendee',
+    score: 5000,
+    score_environment: 'live' as const,
+    score_mode: 'LIVE' as const,
+    is_test: false,
+    metadata: { score_environment: 'live' },
+    created_at: new Date().toISOString(),
+  };
+
+  // Seed into high scores cache
+  const { localHighScoresCache } = await import('./highScores');
+  localHighScoresCache.set(autoClearEventId, [testScoreRecord1, testScoreRecord2, liveScoreRecord]);
+
+  // Verify before clearing: 3 total scores in cache
+  const beforeScores = localHighScoresCache.get(autoClearEventId) || [];
+  if (beforeScores.length !== 3) {
+    throw new Error(`Expected 3 scores before clearing, got ${beforeScores.length}`);
+  }
+
+  // Run automatic maintenance (which automatically checks reached start date)
+  const maintenanceResult = await runEventLifecycleMaintenance(undefined, now);
+  console.log(`✓ Maintenance completed. Cleared events count: ${maintenanceResult.testScoresClearedCount}`);
+
+  // Verify that TEST scores were removed, and LIVE score is preserved!
+  const afterScores = localHighScoresCache.get(autoClearEventId) || [];
+  if (afterScores.length !== 1) {
+    throw new Error(`Expected exactly 1 score remaining, got ${afterScores.length}`);
+  }
+  if (afterScores[0].id !== 'live-score-preserved' || afterScores[0].player_name !== 'Official Attendee') {
+    throw new Error(`Expected remaining score to be 'Official Attendee', got ${afterScores[0].player_name}`);
+  }
+  console.log('✓ TEST scores removed and LIVE score strictly preserved');
+
+  // Verify idempotency: running maintenance again or clearEventTestScores again produces zero errors and preserves LIVE scores
+  const secondMaintenance = await runEventLifecycleMaintenance(undefined, now);
+  const scoresAfterSecondRun = localHighScoresCache.get(autoClearEventId) || [];
+  if (scoresAfterSecondRun.length !== 1 || scoresAfterSecondRun[0].id !== 'live-score-preserved') {
+    throw new Error(`Idempotency failure: live score corrupted or duplicated on second run`);
+  }
+  console.log('✓ Operation is idempotent: second execution preserved LIVE scores with no unintended side effects');
+
+  const isCleared = isEventTestScoresCleared(autoClearEventId, autoClearEvent);
+  if (!isCleared) {
+    throw new Error(`Expected isEventTestScoresCleared to be true for ${autoClearEventId}`);
+  }
+  console.log('✓ isEventTestScoresCleared returns true');
 
   console.log('\n=============================================');
   console.log('ALL SCORE ENVIRONMENT LIFECYCLE TESTS PASSED!');

@@ -12,6 +12,7 @@ import {
   deriveEventLifecycleStatus,
   getNormalizedEventDates,
   getNormalizedCurrentDate,
+  localEventsCache,
 } from './events.js';
 import { isUUID } from './themes.js';
 import {
@@ -29,7 +30,7 @@ const LOCAL_HIGH_SCORES_FILE = path.join(process.cwd(), 'uploads', 'event_high_s
 const TEST_SCORES_CLEARED_FILE = path.join(process.cwd(), 'uploads', 'event_test_scores_cleared.json');
 
 // In-memory cache for quick access and test fallback: Map<eventId, EventHighScoreRecord[]>
-const localHighScoresCache = new Map<string, EventHighScoreRecord[]>();
+export const localHighScoresCache = new Map<string, EventHighScoreRecord[]>();
 
 // Persistent tracking of events that have transitioned to LIVE and had their TEST scores cleared
 const testScoresClearedEvents = new Set<string>();
@@ -113,6 +114,11 @@ export function determineScoreEnvironment(
   const { startDate } = getNormalizedEventDates(event);
   const curDate = getNormalizedCurrentDate(now);
 
+  // Before the configured start date, the event is strictly in pre-event TEST mode (including Setup Day)
+  if (startDate && curDate < startDate) {
+    return 'test';
+  }
+
   const rawStatus = (event.status || '').toUpperCase();
   const eventStatus = (event.event_status || '').toUpperCase();
   const isScheduled = rawStatus === 'SCHEDULED' || eventStatus === 'SCHEDULED';
@@ -126,8 +132,10 @@ export function determineScoreEnvironment(
 }
 
 /**
- * Clear test scores for an event when it transitions to LIVE mode.
- * Ensures TEST scores are purged exactly once so the LIVE leaderboard starts fresh.
+ * Clear test scores for an event when it transitions to LIVE mode or reaches its configured start date.
+ * - Strictly removes all TEST scores.
+ * - Strictly preserves LIVE scores if any already exist.
+ * - Idempotent and safe across multiple worker instances.
  */
 export async function clearEventTestScores(
   eventId: string,
@@ -137,7 +145,7 @@ export async function clearEventTestScores(
 
   let clearedCount = 0;
 
-  // 1. Clear from local cache
+  // 1. Clear from local cache (strictly preserving LIVE scores)
   const cached = localHighScoresCache.get(eventId) || [];
   const remaining = cached.filter((s) => {
     const isTest =
@@ -188,27 +196,58 @@ export async function clearEventTestScores(
         .delete()
         .eq('event_id', eventId)
         .eq('metadata->>is_test', 'true');
+
+      // Update test_scores_cleared_at on the event record in database
+      const nowIso = new Date().toISOString();
+      await supabase
+        .from('events')
+        .update({
+          test_scores_cleared_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq('id', eventId);
     } catch (err: any) {
       console.warn('Notice from Supabase clearEventTestScores:', err.message);
     }
   }
 
+  // 3. Mark in persistent set and local events cache
   testScoresClearedEvents.add(eventId);
   saveTestScoresCleared();
+
+  const cachedEv = localEventsCache.get(eventId);
+  if (cachedEv) {
+    cachedEv.test_scores_cleared_at = new Date().toISOString();
+    localEventsCache.set(eventId, cachedEv);
+  }
 
   return { clearedCount };
 }
 
 /**
- * Ensures test scores have been cleared when an event transitions into LIVE mode.
- * Runs exactly once per event.
+ * Checks if test scores have already been cleared for this event.
+ */
+export function isEventTestScoresCleared(eventId: string, event?: any): boolean {
+  if (!eventId || eventId === 'undefined') return false;
+  if (event?.test_scores_cleared_at) return true;
+  if (testScoresClearedEvents.has(eventId)) return true;
+  const cached = localEventsCache.get(eventId);
+  if (cached?.test_scores_cleared_at) return true;
+  return false;
+}
+
+/**
+ * Ensures test scores have been cleared when an event transitions into LIVE mode or reaches start date.
+ * Idempotent: runs exactly once per event.
  */
 export async function ensureTestScoresClearedForLiveEvent(
   eventId: string,
   event: any,
   env?: Record<string, any>
 ): Promise<boolean> {
-  if (testScoresClearedEvents.has(eventId)) {
+  if (!eventId || eventId === 'undefined') return false;
+
+  if (isEventTestScoresCleared(eventId, event)) {
     return false;
   }
 

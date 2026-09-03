@@ -2630,6 +2630,69 @@ export async function getTopupOrderById(
 }
 
 /**
+ * Retrieve a top-up order by payment reference or Stripe session ID.
+ */
+export async function findTopupOrderByReference(
+  referenceOrSessionId: string,
+  env?: Record<string, any>
+): Promise<TopupOrderRecord | null> {
+  if (!referenceOrSessionId || typeof referenceOrSessionId !== 'string') return null;
+  const cleanId = referenceOrSessionId.trim();
+  if (!cleanId) return null;
+
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+
+    // 1. Direct payment_reference match
+    const { data: byRef } = await supabase
+      .from('wallet_topup_orders')
+      .select('*')
+      .eq('payment_reference', cleanId)
+      .maybeSingle();
+    if (byRef) return byRef as TopupOrderRecord;
+
+    // 2. Stripe session ID match (STRIPE_cs_... or cs_...)
+    if (cleanId.startsWith('cs_')) {
+      const { data: byPrefixedRef } = await supabase
+        .from('wallet_topup_orders')
+        .select('*')
+        .eq('payment_reference', `STRIPE_${cleanId}`)
+        .maybeSingle();
+      if (byPrefixedRef) return byPrefixedRef as TopupOrderRecord;
+    }
+
+    // 3. Metadata check for stripe_session_id or sessionId
+    const { data: byMetaSession } = await supabase
+      .from('wallet_topup_orders')
+      .select('*')
+      .filter('metadata->>stripe_session_id', 'eq', cleanId)
+      .maybeSingle();
+    if (byMetaSession) return byMetaSession as TopupOrderRecord;
+
+    const { data: byMetaId } = await supabase
+      .from('wallet_topup_orders')
+      .select('*')
+      .filter('metadata->>sessionId', 'eq', cleanId)
+      .maybeSingle();
+    if (byMetaId) return byMetaId as TopupOrderRecord;
+  }
+
+  // Fallback to local cache in dev/test
+  for (const order of localTopupOrdersCache.values()) {
+    if (
+      order.payment_reference === cleanId ||
+      order.payment_reference === `STRIPE_${cleanId}` ||
+      order.metadata?.stripe_session_id === cleanId ||
+      order.metadata?.sessionId === cleanId
+    ) {
+      return order;
+    }
+  }
+
+  return null;
+}
+
+/**
  * List all top-up orders for an organization.
  */
 export async function listTopupOrdersByOrganization(
@@ -3113,4 +3176,101 @@ export async function preparePendingTopupOrder(
 
 export async function getPendingTopupOrder(orderId: string, env?: Record<string, any>): Promise<TopupOrderRecord | null> {
   return getTopupOrderById(orderId, env);
+}
+
+/**
+ * Attaches checkout session information (Stripe Checkout Session ID, checkout URL, payment reference, and expiry)
+ * to a wallet top-up order.
+ */
+export async function attachCheckoutSessionToTopupOrder(
+  orderId: string,
+  sessionInfo: {
+    sessionId: string;
+    checkoutUrl: string;
+    paymentReference?: string;
+    paymentMethod?: string;
+    expiresAt?: string;
+  },
+  env?: Record<string, any>
+): Promise<TopupOrderRecord | null> {
+  const now = new Date().toISOString();
+
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    const { data: existingData, error: fetchError } = await supabase
+      .from('wallet_topup_orders')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (fetchError || !existingData) {
+      console.warn(`[attachCheckoutSessionToTopupOrder] Order ${orderId} not found in Supabase`);
+      return null;
+    }
+
+    const currentMetadata = (existingData.metadata && typeof existingData.metadata === 'object') ? existingData.metadata : {};
+    const mergedMetadata = {
+      ...currentMetadata,
+      stripe_session_id: sessionInfo.sessionId,
+      sessionId: sessionInfo.sessionId,
+      checkout_url: sessionInfo.checkoutUrl,
+      checkout_expires_at: sessionInfo.expiresAt,
+    };
+
+    const updatePayload: any = {
+      metadata: mergedMetadata,
+      updated_at: now,
+    };
+
+    if (sessionInfo.paymentReference) {
+      updatePayload.payment_reference = sessionInfo.paymentReference;
+    }
+    if (sessionInfo.paymentMethod) {
+      updatePayload.payment_method = sessionInfo.paymentMethod;
+    }
+    if (sessionInfo.expiresAt) {
+      updatePayload.expired_at = sessionInfo.expiresAt;
+    }
+
+    const { data: updatedData, error: updateError } = await supabase
+      .from('wallet_topup_orders')
+      .update(updatePayload)
+      .eq('id', orderId)
+      .select('*')
+      .maybeSingle();
+
+    if (!updateError && updatedData) {
+      const updatedOrder = updatedData as TopupOrderRecord;
+      localTopupOrdersCache.set(updatedOrder.id, updatedOrder);
+      return updatedOrder;
+    }
+  }
+
+  // Fallback to local memory / JSON cache
+  const cachedOrder = localTopupOrdersCache.get(orderId);
+  if (cachedOrder) {
+    const currentMetadata = (cachedOrder.metadata && typeof cachedOrder.metadata === 'object') ? cachedOrder.metadata : {};
+    cachedOrder.metadata = {
+      ...currentMetadata,
+      stripe_session_id: sessionInfo.sessionId,
+      sessionId: sessionInfo.sessionId,
+      checkout_url: sessionInfo.checkoutUrl,
+      checkout_expires_at: sessionInfo.expiresAt,
+    };
+    if (sessionInfo.paymentReference) {
+      cachedOrder.payment_reference = sessionInfo.paymentReference;
+    }
+    if (sessionInfo.paymentMethod) {
+      cachedOrder.payment_method = sessionInfo.paymentMethod;
+    }
+    if (sessionInfo.expiresAt) {
+      cachedOrder.expired_at = sessionInfo.expiresAt;
+    }
+    cachedOrder.updated_at = now;
+    localTopupOrdersCache.set(orderId, cachedOrder);
+    saveLocalStores();
+    return cachedOrder;
+  }
+
+  return null;
 }

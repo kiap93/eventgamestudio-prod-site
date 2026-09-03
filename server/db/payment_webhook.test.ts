@@ -39,7 +39,7 @@ function assertEqual(actual: any, expected: any, testName: string) {
   }
 }
 
-async function ensureTestOrg(orgId: string) {
+async function ensureTestOrg(orgId: string): Promise<string> {
   const supabase = getSupabaseServerClient();
   try {
     const { data: users } = await supabase.from('users').select('id').limit(1);
@@ -52,8 +52,9 @@ async function ensureTestOrg(orgId: string) {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
+    return validOwnerId;
   } catch {
-    // Ignore in local mode
+    return '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
   }
 }
 
@@ -63,8 +64,7 @@ async function runTests() {
   console.log('======================================================\n');
 
   const testOrgId = crypto.randomUUID();
-  const testUserId = crypto.randomUUID();
-  await ensureTestOrg(testOrgId);
+  const testUserId = await ensureTestOrg(testOrgId);
 
   // ----------------------------------------------------
   // TEST GROUP 1: CRYPTOGRAPHIC SIGNATURE VERIFICATION

@@ -190,6 +190,7 @@ export interface EventRecord {
   event_price?: number;
   event_currency?: string;
   public_token: string;
+  test_scores_cleared_at?: string | null;
   created_by?: string | null;
   created_at: string;
   updated_at: string;

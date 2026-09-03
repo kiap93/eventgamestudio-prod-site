@@ -148,6 +148,7 @@ import {
   verifyAndProcessPaymentWebhook,
   generateWebhookSignature,
   getPaymentWebhookSecret,
+  syncTopupOrderExpiration,
 } from './server/payment/index.js';
 
 import {
@@ -4858,7 +4859,7 @@ export default {
 
         const orderId = getTopupOrderMatch[2] || getTopupOrderMatch[1];
         try {
-          const order = await getTopupOrderById(orderId, env);
+          let order = await getTopupOrderById(orderId, env);
           if (!order) {
             return errorResponse('Top-up order not found', 404, cors);
           }
@@ -4867,6 +4868,14 @@ export default {
           const isDev = isUserDeveloperAdmin(auth.user, env);
           if (!isMember && !isDev) {
             return errorResponse('Forbidden: Access denied to this top-up order', 403, cors);
+          }
+
+          // If order is PENDING, synchronize expiration / timeout status (including Stripe Checkout expiration)
+          if (order.status === 'PENDING') {
+            const url = new URL(request.url);
+            const sessionIdQuery = url.searchParams.get('session_id') || url.searchParams.get('sessionId') || undefined;
+            const statusQuery = url.searchParams.get('status') || undefined;
+            order = await syncTopupOrderExpiration(order, { sessionId: sessionIdQuery, status: statusQuery }, env);
           }
 
           return jsonResponse({ order }, 200, cors);

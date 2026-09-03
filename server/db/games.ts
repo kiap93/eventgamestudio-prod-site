@@ -123,12 +123,14 @@ async function safeUpdateGame(
   return { data: null, error: new Error('Failed to update game after multiple fallback attempts') };
 }
 
+const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+
 export async function getGameById(gameId: string, env?: Record<string, any>): Promise<GameRecord | null> {
   if (localGamesCache.has(gameId)) {
     return localGamesCache.get(gameId)!;
   }
-  if (!isSupabaseConfigured(env)) {
-    const match = CATALOG_GAMES.find((g) => g.slug === gameId || g.game_type === gameId) || CATALOG_GAMES[0];
+  if (!isSupabaseConfigured(env) || !isUUID(gameId)) {
+    const match = CATALOG_GAMES.find((g) => g.slug === gameId || g.game_type === gameId || (g as any).id === gameId) || CATALOG_GAMES[0];
     return {
       id: gameId,
       organization_id: null,

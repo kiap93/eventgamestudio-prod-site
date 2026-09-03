@@ -11,6 +11,7 @@ import {
   AlertCircle,
   RefreshCw,
   ShieldCheck,
+  Clock,
 } from 'lucide-react';
 
 export interface PaymentCheckoutModalProps {
@@ -81,7 +82,8 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
             const data = await res.json();
             const updatedOrder: TopupOrderRecord = data.order;
 
-            if (updatedOrder.status === 'PAID') {
+            if (['PAID', 'COMPLETED'].includes(updatedOrder.status)) {
+              if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
               setIsPollingStatus(false);
               setIsProcessingPayment(false);
               window.dispatchEvent(new CustomEvent('wallet_updated'));
@@ -89,12 +91,19 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
               return;
             }
 
-            if (['FAILED', 'CANCELLED', 'EXPIRED'].includes(updatedOrder.status)) {
+            if (['EXPIRED', 'CANCELLED', 'FAILED'].includes(updatedOrder.status)) {
+              if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
               setIsPollingStatus(false);
               setIsProcessingPayment(false);
-              setPaymentError('Payment was declined or cancelled by the provider.');
+              const message =
+                updatedOrder.status === 'EXPIRED'
+                  ? 'Top-up expired. Please create a new top-up.'
+                  : updatedOrder.status === 'CANCELLED'
+                  ? 'Top-up was cancelled.'
+                  : 'Payment was declined or failed by the provider.';
+              setPaymentError(message);
               if (onPaymentFailed) {
-                onPaymentFailed(updatedOrder, 'Payment was declined or cancelled by the provider.');
+                onPaymentFailed(updatedOrder, message);
               }
               return;
             }
@@ -106,9 +115,10 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
         if (attempts < maxAttempts) {
           pollingTimerRef.current = setTimeout(check, 1500);
         } else {
+          if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
           setIsPollingStatus(false);
           setIsProcessingPayment(false);
-          setPaymentError('Payment confirmation timed out. Please check your wallet status.');
+          setPaymentError('Top-up confirmation timed out. Please check your wallet status or create a new top-up.');
         }
       };
 
@@ -118,7 +128,9 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
   );
 
   // Handle triggering payment webhook
-  const handleSimulatePaymentCompletion = async (statusToTrigger: 'payment.succeeded' | 'payment.failed') => {
+  const handleSimulatePaymentCompletion = async (
+    statusToTrigger: 'payment.succeeded' | 'payment.failed' | 'checkout.session.expired'
+  ) => {
     if (!organizationId || !order?.id) return;
 
     try {
@@ -134,6 +146,8 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
           failureReason:
             statusToTrigger === 'payment.failed'
               ? 'Card declined by issuing bank (Insufficient funds)'
+              : statusToTrigger === 'checkout.session.expired'
+              ? 'Checkout session expired after timeout'
               : undefined,
         }),
       });
@@ -241,9 +255,32 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
 
         {/* Payment Error Display */}
         {paymentError && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-            <span>{paymentError}</span>
+          <div
+            className={`p-3.5 rounded-xl border text-xs space-y-1.5 ${
+              paymentError.toLowerCase().includes('expired')
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
+            }`}
+          >
+            <div className="flex items-center gap-2 font-semibold">
+              {paymentError.toLowerCase().includes('expired') ? (
+                <Clock className="w-4 h-4 shrink-0 text-amber-400" />
+              ) : (
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              )}
+              <span>{paymentError}</span>
+            </div>
+            {paymentError.toLowerCase().includes('expired') && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition-colors cursor-pointer"
+                >
+                  Create New Top-up
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -298,15 +335,27 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
                 )}
               </button>
 
-              <button
-                type="button"
-                disabled={isProcessingPayment || isPollingStatus}
-                onClick={() => handleSimulatePaymentCompletion('payment.failed')}
-                className="w-full py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                <span>Simulate Webhook: Failed</span>
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={isProcessingPayment || isPollingStatus}
+                  onClick={() => handleSimulatePaymentCompletion('checkout.session.expired')}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Simulate: Expired</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isProcessingPayment || isPollingStatus}
+                  onClick={() => handleSimulatePaymentCompletion('payment.failed')}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Simulate: Failed</span>
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -165,6 +165,7 @@ import {
   verifyAndProcessPaymentWebhook,
   generateWebhookSignature,
   getPaymentWebhookSecret,
+  syncTopupOrderExpiration,
 } from './server/payment/index.js';
 
 import {
@@ -4423,7 +4424,7 @@ const handleGetTopupOrder = async (req: AuthenticatedRequest, res: express.Respo
       return;
     }
 
-    const order = await getTopupOrderById(orderId);
+    let order = await getTopupOrderById(orderId);
     if (!order) {
       res.status(404).json({ error: 'Top-up order not found' });
       return;
@@ -4435,6 +4436,13 @@ const handleGetTopupOrder = async (req: AuthenticatedRequest, res: express.Respo
     if (!isMember && !isDev) {
       res.status(403).json({ error: 'Access denied to this top-up order' });
       return;
+    }
+
+    // If order is PENDING, synchronize expiration / timeout status (including Stripe Checkout expiration)
+    if (order.status === 'PENDING') {
+      const sessionIdQuery = (req.query.session_id as string) || (req.query.sessionId as string);
+      const statusQuery = req.query.status as string;
+      order = await syncTopupOrderExpiration(order, { sessionId: sessionIdQuery, status: statusQuery });
     }
 
     res.json({ order });

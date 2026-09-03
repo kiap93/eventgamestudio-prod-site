@@ -18510,5 +18510,273 @@
     },
     "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
     "created_at": "2026-09-03T02:06:14.686Z"
+  },
+  {
+    "id": "8a561a11-2e31-4043-a612-c57ede3cd0f9",
+    "organization_id": "b4f52010-e1d1-47c7-956a-0163ab247575",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 3000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "ref_sub_1_1788404999069",
+    "description": "First split top-up of RM3,000",
+    "metadata": {
+      "topup_amount": 3000
+    },
+    "created_by": null,
+    "created_at": "2026-09-03T03:09:59.212+00:00"
+  },
+  {
+    "id": "440fbc3c-716b-41f3-a01f-6f36f0a8249a",
+    "organization_id": "b4f52010-e1d1-47c7-956a-0163ab247575",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 3000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "ref_sub_2_1788405000009",
+    "description": "Second split top-up of RM3,000",
+    "metadata": {
+      "topup_amount": 3000
+    },
+    "created_by": null,
+    "created_at": "2026-09-03T03:10:00.362+00:00"
+  },
+  {
+    "id": "098fc3c0-e762-4c0b-80eb-fc9953915ed6",
+    "organization_id": "d9028855-bdb7-4a4e-8048-57e0aace74e1",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 10000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "wh_stripe_charge_1788405002102",
+    "description": "Stripe Checkout RM10,000",
+    "metadata": {
+      "topup_amount": 10000
+    },
+    "created_by": null,
+    "created_at": "2026-09-03T03:10:02.233+00:00"
+  },
+  {
+    "id": "4f578180-ca7b-4862-aab9-38bcae869482",
+    "organization_id": "d9028855-bdb7-4a4e-8048-57e0aace74e1",
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 700,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "wh_stripe_charge_1788405002102_promo",
+    "description": "Promotional 7% Top-up Credit on RM10000.00 deposit",
+    "metadata": {
+      "reward_rate": "7%",
+      "parent_topup_id": "098fc3c0-e762-4c0b-80eb-fc9953915ed6",
+      "qualifying_amount": 10000
+    },
+    "created_by": null,
+    "created_at": "2026-09-03T03:10:02.358+00:00"
+  },
+  {
+    "id": "acdea01c-6fa1-4abf-aa29-94f910f50220",
+    "amount": 6000,
+    "status": "COMPLETED",
+    "currency": "MYR",
+    "event_id": null,
+    "metadata": {
+      "reason": "Payment gateway confirmation",
+      "payment_method": "fpx",
+      "topup_order_id": "82050462-7378-4cf0-8c3f-778efcf69871",
+      "payment_reference": "PAY_REF_6K_001"
+    },
+    "created_at": "2026-09-03T03:10:04.735157+00:00",
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "description": "Top-up Order 82050462",
+    "balance_type": "PAID_BALANCE",
+    "reference_id": "topup_order_82050462-7378-4cf0-8c3f-778efcf69871",
+    "organization_id": "29a3e129-7c50-478d-9252-499ed40c37be",
+    "transaction_type": "TOPUP"
+  },
+  {
+    "id": "8332b275-7aa9-4628-a609-a69d1b36dcb7",
+    "amount": 300,
+    "status": "COMPLETED",
+    "currency": "MYR",
+    "event_id": null,
+    "metadata": {
+      "reward_rate": "5%",
+      "topup_order_id": "82050462-7378-4cf0-8c3f-778efcf69871",
+      "parent_topup_id": "acdea01c-6fa1-4abf-aa29-94f910f50220",
+      "qualifying_amount": 6000
+    },
+    "created_at": "2026-09-03T03:10:04.735157+00:00",
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "description": "Promotional 5% Top-up Credit on RM6000.00 deposit",
+    "balance_type": "TOPUP_CREDIT",
+    "reference_id": "topup_order_82050462-7378-4cf0-8c3f-778efcf69871_promo",
+    "organization_id": "29a3e129-7c50-478d-9252-499ed40c37be",
+    "transaction_type": "TOPUP_CREDIT"
+  },
+  {
+    "id": "198e5bf7-4209-4a82-b2a6-1c0b6dc9c036",
+    "organization_id": "8e1370eb-7197-45b2-9f8a-a3e3f871fd3a",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 3000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "ref_sub_1_1788405351734",
+    "description": "First split top-up of RM3,000",
+    "metadata": {
+      "topup_amount": 3000
+    },
+    "created_by": null,
+    "created_at": "2026-09-03T03:15:51.896+00:00"
+  },
+  {
+    "id": "79c14c02-daa8-4464-a8af-f580c5141770",
+    "organization_id": "8e1370eb-7197-45b2-9f8a-a3e3f871fd3a",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 3000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "ref_sub_2_1788405352528",
+    "description": "Second split top-up of RM3,000",
+    "metadata": {
+      "topup_amount": 3000
+    },
+    "created_by": null,
+    "created_at": "2026-09-03T03:15:52.697+00:00"
+  },
+  {
+    "id": "380f26c3-085b-459f-92eb-b3f1dc25fe03",
+    "organization_id": "09ec8d0e-27d7-4249-b0c4-b8ed73cc3aa2",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 10000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "wh_stripe_charge_1788405353875",
+    "description": "Stripe Checkout RM10,000",
+    "metadata": {
+      "topup_amount": 10000
+    },
+    "created_by": null,
+    "created_at": "2026-09-03T03:15:54.016+00:00"
+  },
+  {
+    "id": "b5b542b2-e1dc-4df1-bc11-5f3c05c68afb",
+    "organization_id": "09ec8d0e-27d7-4249-b0c4-b8ed73cc3aa2",
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 700,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "wh_stripe_charge_1788405353875_promo",
+    "description": "Promotional 7% Top-up Credit on RM10000.00 deposit",
+    "metadata": {
+      "reward_rate": "7%",
+      "parent_topup_id": "380f26c3-085b-459f-92eb-b3f1dc25fe03",
+      "qualifying_amount": 10000
+    },
+    "created_by": null,
+    "created_at": "2026-09-03T03:15:54.166+00:00"
+  },
+  {
+    "id": "b30a05a3-4bd9-4836-85af-4a5d12834998",
+    "amount": 6000,
+    "status": "COMPLETED",
+    "currency": "MYR",
+    "event_id": null,
+    "metadata": {
+      "reason": "Payment gateway confirmation",
+      "payment_method": "fpx",
+      "topup_order_id": "b7ce720c-fad2-4165-afba-42ff16d197b3",
+      "payment_reference": "PAY_REF_6K_001"
+    },
+    "created_at": "2026-09-03T03:15:56.666681+00:00",
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "description": "Top-up Order B7CE720C",
+    "balance_type": "PAID_BALANCE",
+    "reference_id": "topup_order_b7ce720c-fad2-4165-afba-42ff16d197b3",
+    "organization_id": "80b5b5a8-670e-47be-a8ba-295a2dd041ae",
+    "transaction_type": "TOPUP"
+  },
+  {
+    "id": "92eb7fbf-8b23-4e96-b26e-b7da78dceeb3",
+    "amount": 300,
+    "status": "COMPLETED",
+    "currency": "MYR",
+    "event_id": null,
+    "metadata": {
+      "reward_rate": "5%",
+      "topup_order_id": "b7ce720c-fad2-4165-afba-42ff16d197b3",
+      "parent_topup_id": "b30a05a3-4bd9-4836-85af-4a5d12834998",
+      "qualifying_amount": 6000
+    },
+    "created_at": "2026-09-03T03:15:56.666681+00:00",
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "description": "Promotional 5% Top-up Credit on RM6000.00 deposit",
+    "balance_type": "TOPUP_CREDIT",
+    "reference_id": "topup_order_b7ce720c-fad2-4165-afba-42ff16d197b3_promo",
+    "organization_id": "80b5b5a8-670e-47be-a8ba-295a2dd041ae",
+    "transaction_type": "TOPUP_CREDIT"
+  },
+  {
+    "id": "3858f019-0866-4aed-9a04-a4e9c67b9683",
+    "amount": 6000,
+    "status": "COMPLETED",
+    "currency": "MYR",
+    "event_id": null,
+    "metadata": {
+      "reason": "Verified payment.succeeded webhook",
+      "provider": "payment_provider",
+      "processed_at": "2026-09-03T03:32:06.963Z",
+      "webhook_type": "payment.succeeded",
+      "payment_method": "payment_gateway",
+      "topup_order_id": "21fc673b-fa15-49c7-8e20-794d5ce3bf56",
+      "webhook_event_id": "evt_1788406326833",
+      "payment_reference": "pay_stripe_1788406326833"
+    },
+    "created_at": "2026-09-03T03:32:07.161617+00:00",
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "description": "Top-up Order 21FC673B",
+    "balance_type": "PAID_BALANCE",
+    "reference_id": "topup_order_21fc673b-fa15-49c7-8e20-794d5ce3bf56",
+    "organization_id": "8c7ef2c2-b517-4112-867a-954a27da6c83",
+    "transaction_type": "TOPUP"
+  },
+  {
+    "id": "35098523-3410-4d10-821a-622dde69fd2c",
+    "amount": 300,
+    "status": "COMPLETED",
+    "currency": "MYR",
+    "event_id": null,
+    "metadata": {
+      "provider": "payment_provider",
+      "reward_rate": "5%",
+      "processed_at": "2026-09-03T03:32:06.963Z",
+      "webhook_type": "payment.succeeded",
+      "topup_order_id": "21fc673b-fa15-49c7-8e20-794d5ce3bf56",
+      "parent_topup_id": "3858f019-0866-4aed-9a04-a4e9c67b9683",
+      "webhook_event_id": "evt_1788406326833",
+      "qualifying_amount": 6000
+    },
+    "created_at": "2026-09-03T03:32:07.161617+00:00",
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "description": "Promotional 5% Top-up Credit on RM6000.00 deposit",
+    "balance_type": "TOPUP_CREDIT",
+    "reference_id": "topup_order_21fc673b-fa15-49c7-8e20-794d5ce3bf56_promo",
+    "organization_id": "8c7ef2c2-b517-4112-867a-954a27da6c83",
+    "transaction_type": "TOPUP_CREDIT"
   }
 ]
