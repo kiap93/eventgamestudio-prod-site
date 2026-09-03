@@ -16,6 +16,7 @@ export interface GameShellProps {
   eventId?: string;
   publicToken?: string;
   isEventPreview?: boolean;
+  isEventTest?: boolean;
   allowImmersiveFullscreen?: boolean;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
@@ -33,6 +34,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   eventId,
   publicToken,
   isEventPreview,
+  isEventTest,
   allowImmersiveFullscreen = true,
   isFullscreen: controlledFullscreen,
   onToggleFullscreen: controlledToggleFullscreen,
@@ -181,6 +183,7 @@ export const GameShell: React.FC<GameShellProps> = ({
             eventId={eventId}
             publicToken={publicToken}
             isEventPreview={isEventPreview}
+            isEventTest={isEventTest}
             isMuted={isMuted}
             isFullscreen={isFullscreen}
             onToggleFullscreen={handleToggleFullscreen}

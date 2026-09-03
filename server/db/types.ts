@@ -641,11 +641,16 @@ export interface WalletAuditRecord {
 // EVENT HIGH SCORES TYPES
 // ----------------------------------------------------
 
+export type ScoreEnvironment = 'PREVIEW' | 'TEST' | 'LIVE' | 'test' | 'live';
+
 export interface EventHighScoreRecord {
   id: string;
   event_id: string;
   player_name: string;
   score: number;
+  score_environment?: 'test' | 'live' | 'TEST' | 'LIVE';
+  score_mode?: 'TEST' | 'LIVE';
+  is_test?: boolean;
   metadata?: Record<string, any>;
   created_at: string;
 }

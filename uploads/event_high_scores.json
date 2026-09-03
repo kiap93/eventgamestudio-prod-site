@@ -1,1 +1,257 @@
-[]
+[
+  {
+    "id": "39911010-682e-42dd-a924-a840cf69557c",
+    "event_id": "test-lifecycle-event-1788399798060",
+    "player_name": "Tester Alpha",
+    "score": 1500,
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "score_mode": "TEST",
+      "score_environment": "TEST",
+      "is_test": true,
+      "is_official": false
+    },
+    "created_at": "2026-09-03T01:43:18.132Z"
+  },
+  {
+    "id": "f34616a6-3082-4e96-bc86-546be40337b6",
+    "event_id": "test-lifecycle-event-1788399828458",
+    "player_name": "Live Champion",
+    "score": 3000,
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "score_mode": "LIVE",
+      "score_environment": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T01:43:48.535Z"
+  },
+  {
+    "id": "16dd9d63-98a5-4106-8160-c4b653ba8fe7",
+    "event_id": "test-lifecycle-event-1788400077545",
+    "player_name": "Live Champion",
+    "score": 3000,
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "score_mode": "LIVE",
+      "score_environment": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T01:47:57.627Z"
+  },
+  {
+    "id": "c78d9be3-794a-4ca2-b545-f3c6f78ec04b",
+    "event_id": "test-lifecycle-event-1788401108146",
+    "player_name": "Live Champion",
+    "score": 3000,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T02:05:08.227Z"
+  },
+  {
+    "id": "cc3aca25-38ed-4e8f-b246-1f8ea7dda486",
+    "event_id": "test-lifecycle-event-1788401108146",
+    "player_name": "ClientSpoofTest",
+    "score": 2600,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isTest": true,
+      "isPreview": true,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T02:05:08.239Z"
+  },
+  {
+    "id": "3f803568-a30b-49ce-ac68-609e8385790d",
+    "event_id": "test-lifecycle-event-1788401108146",
+    "player_name": "SpoofAttemptTestToLive",
+    "score": 1111,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isTest": false,
+      "isPreview": false,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T02:05:08.235Z"
+  },
+  {
+    "id": "e99913ca-af80-4bfe-a044-83099d576ec6",
+    "event_id": "sched-auth-test-1788401108235",
+    "player_name": "ClientSpoofLive",
+    "score": 2500,
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isTest": false,
+      "isPreview": false,
+      "score_environment": "test",
+      "score_mode": "TEST",
+      "is_test": true,
+      "is_official": false
+    },
+    "created_at": "2026-09-03T02:05:08.237Z"
+  },
+  {
+    "id": "05cf240b-4a8a-475b-99c0-9a90b15bfdf9",
+    "event_id": "test-lifecycle-event-1788401167727",
+    "player_name": "Live Champion",
+    "score": 3000,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T02:06:07.806Z"
+  },
+  {
+    "id": "3d3d42dc-6f51-4521-8d3e-4f853bf802e6",
+    "event_id": "test-lifecycle-event-1788401167727",
+    "player_name": "ClientSpoofTest",
+    "score": 2600,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isTest": true,
+      "isPreview": true,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T02:06:07.821Z"
+  },
+  {
+    "id": "1a554857-a145-4753-8ff2-55c610848f22",
+    "event_id": "test-lifecycle-event-1788401167727",
+    "player_name": "SpoofAttemptTestToLive",
+    "score": 1111,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isTest": false,
+      "isPreview": false,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T02:06:07.817Z"
+  },
+  {
+    "id": "7aeda9af-ab89-4115-8cb3-422e19af780a",
+    "event_id": "sched-auth-test-1788401167817",
+    "player_name": "ClientSpoofLive",
+    "score": 2500,
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isTest": false,
+      "isPreview": false,
+      "score_environment": "test",
+      "score_mode": "TEST",
+      "is_test": true,
+      "is_official": false
+    },
+    "created_at": "2026-09-03T02:06:07.819Z"
+  },
+  {
+    "id": "55fda7cd-3f14-4528-a0f3-b13fed88dde6",
+    "event_id": "test-lifecycle-event-1788401265031",
+    "player_name": "Live Champion",
+    "score": 3000,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T02:07:45.117Z"
+  },
+  {
+    "id": "00f94822-6a53-4120-8a27-26aec0720915",
+    "event_id": "test-lifecycle-event-1788401265031",
+    "player_name": "ClientSpoofTest",
+    "score": 2600,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isTest": true,
+      "isPreview": true,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T02:07:45.130Z"
+  },
+  {
+    "id": "24f10a6c-1f8f-49b2-8b9b-841fdf59e910",
+    "event_id": "test-lifecycle-event-1788401265031",
+    "player_name": "SpoofAttemptTestToLive",
+    "score": 1111,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isTest": false,
+      "isPreview": false,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T02:07:45.125Z"
+  },
+  {
+    "id": "f7ddfe69-4171-4c6e-a33d-b16462e90eed",
+    "event_id": "sched-auth-test-1788401265126",
+    "player_name": "ClientSpoofLive",
+    "score": 2500,
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isTest": false,
+      "isPreview": false,
+      "score_environment": "test",
+      "score_mode": "TEST",
+      "is_test": true,
+      "is_official": false
+    },
+    "created_at": "2026-09-03T02:07:45.128Z"
+  }
+]

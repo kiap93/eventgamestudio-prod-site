@@ -2526,9 +2526,9 @@ app.get('/api/public/events/:publicToken/high-scores', async (req, res) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
     const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
 
-    const event = await getEventByPublicToken(publicToken, undefined, { allowUnpaid: false });
+    const event = await getEventByPublicToken(publicToken, undefined, { allowUnpaid: true });
     if (!event) {
-      res.status(404).json({ error: 'Event not found or payment pending' });
+      res.status(404).json({ error: 'Event not found' });
       return;
     }
 
@@ -2558,9 +2558,9 @@ app.post('/api/public/events/:publicToken/high-scores', highScoreRateLimiter, as
       return;
     }
 
-    const event = await getEventByPublicToken(publicToken, undefined, { allowUnpaid: false });
+    const event = await getEventByPublicToken(publicToken, undefined, { allowUnpaid: true });
     if (!event) {
-      res.status(404).json({ error: 'Event not found or payment pending' });
+      res.status(404).json({ error: 'Event not found' });
       return;
     }
 

@@ -10,17 +10,55 @@ import {
 import { TopupOrderRecord } from '../db/types.js';
 
 let stripeClientInstance: Stripe | null = null;
+let lastResolvedSecretKey: string | null = null;
 
 /**
- * Lazy initializer for Stripe client (server-side only)
+ * Lazy initializer for Stripe client (server-side and Cloudflare Worker compatible)
  */
 export function getStripeClient(env?: Record<string, any>): Stripe | null {
-  const secretKey =
+  const rawKey =
     env?.STRIPE_SECRET_KEY ||
-    (typeof process !== 'undefined' ? process.env.STRIPE_SECRET_KEY : undefined);
+    env?.STRIPE_API_KEY ||
+    env?.STRIPE_KEY ||
+    env?.STRIPE_SECRET ||
+    env?.STRIPE_SK ||
+    env?.stripe_secret_key ||
+    env?.stripe_api_key ||
+    env?.stripe_sk ||
+    env?.stripeSecretKey ||
+    (typeof process !== 'undefined'
+      ? process.env.STRIPE_SECRET_KEY ||
+        process.env.STRIPE_API_KEY ||
+        process.env.STRIPE_KEY ||
+        process.env.STRIPE_SECRET ||
+        process.env.STRIPE_SK ||
+        process.env.stripe_secret_key
+      : undefined) ||
+    (typeof globalThis !== 'undefined'
+      ? (globalThis as any).STRIPE_SECRET_KEY ||
+        (globalThis as any).STRIPE_API_KEY ||
+        (globalThis as any).env?.STRIPE_SECRET_KEY ||
+        (globalThis as any).process?.env?.STRIPE_SECRET_KEY
+      : undefined);
+
+  if (!rawKey || typeof rawKey !== 'string') return null;
+
+  // Trim whitespace and remove accidental surrounding quotes (e.g. "sk_live_..." or 'sk_test_...')
+  const secretKey = rawKey.trim().replace(/^["']|["']$/g, '');
   if (!secretKey) return null;
-  if (!stripeClientInstance) {
-    stripeClientInstance = new Stripe(secretKey);
+
+  if (!stripeClientInstance || lastResolvedSecretKey !== secretKey) {
+    try {
+      // Use createFetchHttpClient for Cloudflare Workers / Edge runtimes if available
+      const fetchHttpClient = typeof (Stripe as any).createFetchHttpClient === 'function'
+        ? (Stripe as any).createFetchHttpClient()
+        : undefined;
+
+      stripeClientInstance = new Stripe(secretKey, fetchHttpClient ? { httpClient: fetchHttpClient } : undefined);
+    } catch {
+      stripeClientInstance = new Stripe(secretKey);
+    }
+    lastResolvedSecretKey = secretKey;
   }
   return stripeClientInstance;
 }

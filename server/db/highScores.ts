@@ -3,8 +3,16 @@ import {
   EventHighScoreRecord,
   EventLeaderboardEntry,
   EventScoreStats,
+  ScoreEnvironment,
 } from './types.js';
-import { getEventById, getEventByPublicToken, isEventPlayable, deriveEventLifecycleStatus } from './events.js';
+import {
+  getEventById,
+  getEventByPublicToken,
+  isEventPlayable,
+  deriveEventLifecycleStatus,
+  getNormalizedEventDates,
+  getNormalizedCurrentDate,
+} from './events.js';
 import { isUUID } from './themes.js';
 import {
   calculateMemoryMatchScore,
@@ -18,9 +26,13 @@ import crypto from 'node:crypto';
 
 // Local storage fallback file path for mock / test environments
 const LOCAL_HIGH_SCORES_FILE = path.join(process.cwd(), 'uploads', 'event_high_scores.json');
+const TEST_SCORES_CLEARED_FILE = path.join(process.cwd(), 'uploads', 'event_test_scores_cleared.json');
 
 // In-memory cache for quick access and test fallback: Map<eventId, EventHighScoreRecord[]>
 const localHighScoresCache = new Map<string, EventHighScoreRecord[]>();
+
+// Persistent tracking of events that have transitioned to LIVE and had their TEST scores cleared
+const testScoresClearedEvents = new Set<string>();
 
 function loadLocalHighScores(): void {
   try {
@@ -55,8 +67,154 @@ function saveLocalHighScores(): void {
   }
 }
 
+function loadTestScoresCleared(): void {
+  try {
+    if (fs.existsSync(TEST_SCORES_CLEARED_FILE)) {
+      const raw = fs.readFileSync(TEST_SCORES_CLEARED_FILE, 'utf-8');
+      const list = JSON.parse(raw) as string[];
+      if (Array.isArray(list)) {
+        for (const id of list) {
+          if (id) testScoresClearedEvents.add(id);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Warning: Could not load test scores cleared file:', err);
+  }
+}
+
+function saveTestScoresCleared(): void {
+  try {
+    const dir = path.dirname(TEST_SCORES_CLEARED_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(TEST_SCORES_CLEARED_FILE, JSON.stringify(Array.from(testScoresClearedEvents), null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Warning: Could not save test scores cleared file:', err);
+  }
+}
+
 // Initial load
 loadLocalHighScores();
+loadTestScoresCleared();
+
+/**
+ * Determines whether an event is in TEST or LIVE scoring mode.
+ * - If current date is before start date (or status is SCHEDULED/DRAFT) -> 'test'
+ * - Once current date reaches start date and event is active -> 'live'
+ * Server authoritatively determines environment based on event/session context.
+ */
+export function determineScoreEnvironment(
+  event: any,
+  now: Date | string = new Date()
+): 'test' | 'live' {
+  if (!event) return 'live';
+  const { startDate } = getNormalizedEventDates(event);
+  const curDate = getNormalizedCurrentDate(now);
+
+  const rawStatus = (event.status || '').toUpperCase();
+  const eventStatus = (event.event_status || '').toUpperCase();
+  const isScheduled = rawStatus === 'SCHEDULED' || eventStatus === 'SCHEDULED';
+
+  // An event in SCHEDULED status before its start date is in pre-event TEST mode
+  if (isScheduled && (!startDate || curDate < startDate)) {
+    return 'test';
+  }
+
+  return 'live';
+}
+
+/**
+ * Clear test scores for an event when it transitions to LIVE mode.
+ * Ensures TEST scores are purged exactly once so the LIVE leaderboard starts fresh.
+ */
+export async function clearEventTestScores(
+  eventId: string,
+  env?: Record<string, any>
+): Promise<{ clearedCount: number }> {
+  if (!eventId || eventId === 'undefined') return { clearedCount: 0 };
+
+  let clearedCount = 0;
+
+  // 1. Clear from local cache
+  const cached = localHighScoresCache.get(eventId) || [];
+  const remaining = cached.filter((s) => {
+    const isTest =
+      s.score_environment === 'test' ||
+      s.score_environment === 'TEST' ||
+      s.score_mode === 'TEST' ||
+      s.is_test === true ||
+      s.metadata?.score_environment === 'test' ||
+      s.metadata?.score_environment === 'TEST' ||
+      s.metadata?.score_mode === 'TEST' ||
+      s.metadata?.is_test === true;
+    if (isTest) clearedCount++;
+    return !isTest;
+  });
+  localHighScoresCache.set(eventId, remaining);
+  saveLocalHighScores();
+
+  // 2. Clear from Supabase if UUID
+  if (isUUID(eventId)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      await supabase
+        .from('event_high_scores')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('score_environment', 'test');
+
+      await supabase
+        .from('event_high_scores')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('score_mode', 'TEST');
+
+      await supabase
+        .from('event_high_scores')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('metadata->>score_mode', 'TEST');
+
+      await supabase
+        .from('event_high_scores')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('metadata->>score_environment', 'test');
+
+      await supabase
+        .from('event_high_scores')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('metadata->>is_test', 'true');
+    } catch (err: any) {
+      console.warn('Notice from Supabase clearEventTestScores:', err.message);
+    }
+  }
+
+  testScoresClearedEvents.add(eventId);
+  saveTestScoresCleared();
+
+  return { clearedCount };
+}
+
+/**
+ * Ensures test scores have been cleared when an event transitions into LIVE mode.
+ * Runs exactly once per event.
+ */
+export async function ensureTestScoresClearedForLiveEvent(
+  eventId: string,
+  event: any,
+  env?: Record<string, any>
+): Promise<boolean> {
+  if (testScoresClearedEvents.has(eventId)) {
+    return false;
+  }
+
+  await clearEventTestScores(eventId, env);
+  return true;
+}
 
 /**
  * Sanitizes and formats player nickname safely
@@ -70,6 +228,7 @@ export function sanitizePlayerName(name?: string | null): string {
 /**
  * Submit a game score to an Event High Score Board.
  * Untrusted score input is validated on the server.
+ * Supports PREVIEW, TEST, and LIVE scoring tiers.
  */
 export async function submitEventScore(
   params: {
@@ -84,6 +243,9 @@ export async function submitEventScore(
   rank: number;
   isNewHighScore: boolean;
   totalEntries: number;
+  mode: 'TEST' | 'LIVE';
+  score_environment: 'test' | 'live';
+  is_test?: boolean;
 }> {
   const { event_id, metadata = {} } = params;
 
@@ -93,10 +255,22 @@ export async function submitEventScore(
     throw err;
   }
 
+  // Reject studio preview score submissions from reaching official event leaderboards
+  if (
+    metadata.score_environment === 'PREVIEW' ||
+    metadata.isStudioPreview === true ||
+    (metadata.isEventPreview === true && !metadata.isEventTest && !metadata.is_test && metadata.score_environment !== 'TEST')
+  ) {
+    const err: any = new Error('Studio preview scores cannot be submitted to event leaderboards');
+    err.status = 403;
+    err.code = 'PREVIEW_SCORE_FORBIDDEN';
+    throw err;
+  }
+
   // Verify event existence (supports UUID, token, or local id)
   let event = await getEventById(event_id, env);
   if (!event) {
-    event = await getEventByPublicToken(event_id, env);
+    event = await getEventByPublicToken(event_id, env, { allowUnpaid: true });
   }
   if (!event) {
     const err: any = new Error(`Event with ID or token "${event_id}" was not found`);
@@ -104,57 +278,58 @@ export async function submitEventScore(
     throw err;
   }
 
-  // Reject explicit test / preview score submissions from reaching official event leaderboards
-  if (metadata.isEventPreview === true || metadata.isPreview === true || metadata.isTest === true) {
-    const err: any = new Error('Preview test scores cannot be submitted to official event leaderboards');
-    err.status = 403;
-    err.code = 'PREVIEW_SCORE_FORBIDDEN';
+  const rawStatus = (event.status || '').toLowerCase();
+  const eventStatus = (event.event_status || '').toUpperCase();
+  const payStatus = (event.payment_status || '').toUpperCase();
+  const cancelReason = event.cancel_reason || null;
+
+  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
+    const err: any = new Error('Cannot submit scores to a cancelled event');
+    err.status = 400;
+    err.code = 'EVENT_CANCELLED';
     throw err;
   }
 
-  // Authoritative server-side playable & lifecycle check
-  if (!isEventPlayable(event)) {
-    const rawStatus = (event.status || '').toLowerCase();
-    const eventStatus = (event.event_status || '').toUpperCase();
-    const payStatus = (event.payment_status || '').toUpperCase();
-    const cancelReason = event.cancel_reason || null;
+  if (rawStatus === 'draft' || eventStatus === 'DRAFT') {
+    const err: any = new Error('Cannot submit scores to an unpaid or draft event');
+    err.status = 403;
+    err.code = 'PAYMENT_REQUIRED';
+    throw err;
+  }
 
-    if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
-      const err: any = new Error('Cannot submit scores to a cancelled event');
-      err.status = 400;
-      err.code = 'EVENT_CANCELLED';
-      throw err;
-    }
+  const now = new Date();
+  const { startDate, endDate } = getNormalizedEventDates(event);
+  const curDate = getNormalizedCurrentDate(now);
+  const derivedStatus = deriveEventLifecycleStatus(event, now);
 
+  if (derivedStatus === 'COMPLETED' || (endDate && curDate > endDate)) {
+    const err: any = new Error('Cannot submit scores to a completed event');
+    err.status = 403;
+    err.code = 'EVENT_COMPLETED';
+    throw err;
+  }
+
+  // Determine scoring environment:
+  // Server-authoritative determination based on event/session context:
+  // Client-provided flags (metadata.isTest, metadata.isPreview, etc.) must NOT be authoritative.
+  const authoritativeEnv = determineScoreEnvironment(event, now);
+  const isTest = authoritativeEnv === 'test';
+  const scoreEnvironment: 'test' | 'live' = isTest ? 'test' : 'live';
+
+  const resolvedEventId = event.id;
+
+  if (scoreEnvironment === 'live') {
+    // Official live scoring requires payment
     if (payStatus !== 'PAID') {
-      const err: any = new Error('Cannot submit scores to an unpaid or draft event');
+      const err: any = new Error('Cannot submit live scores to an unpaid or draft event');
       err.status = 403;
       err.code = 'PAYMENT_REQUIRED';
       throw err;
     }
 
-    const derivedStatus = deriveEventLifecycleStatus(event);
-    if (derivedStatus === 'SCHEDULED') {
-      const err: any = new Error('Cannot submit scores before the event has started');
-      err.status = 403;
-      err.code = 'EVENT_NOT_STARTED';
-      throw err;
-    }
-
-    if (derivedStatus === 'COMPLETED') {
-      const err: any = new Error('Cannot submit scores to a completed event');
-      err.status = 403;
-      err.code = 'EVENT_COMPLETED';
-      throw err;
-    }
-
-    const err: any = new Error('Event is not currently active for score submission');
-    err.status = 403;
-    err.code = 'EVENT_NOT_PLAYABLE';
-    throw err;
+    // Clear TEST scores exactly once when the event transitions to LIVE mode
+    await ensureTestScoresClearedForLiveEvent(resolvedEventId, event, env);
   }
-
-  const resolvedEventId = event.id;
 
   // Validate game compatibility if metadata specifies a gameType
   if (metadata.gameType && event.game?.game_type) {
@@ -168,6 +343,38 @@ export async function submitEventScore(
   // Idempotency check: if sessionId / playId is provided, check if already recorded
   const sessionId = metadata.sessionId || metadata.session_id || metadata.playId || metadata.play_id;
   let currentEventScores = localHighScoresCache.get(resolvedEventId) || [];
+
+  // Filter relevant scores according to current environment:
+  // In LIVE mode: only compare against official LIVE scores
+  // In TEST mode: compare against TEST scores
+  if (scoreEnvironment === 'live') {
+    currentEventScores = currentEventScores.filter((s) => {
+      const isItemTest =
+        s.score_environment === 'test' ||
+        s.score_environment === 'TEST' ||
+        s.score_mode === 'TEST' ||
+        s.is_test === true ||
+        s.metadata?.score_environment === 'test' ||
+        s.metadata?.score_environment === 'TEST' ||
+        s.metadata?.score_mode === 'TEST' ||
+        s.metadata?.is_test === true;
+      return !isItemTest;
+    });
+  } else {
+    currentEventScores = currentEventScores.filter((s) => {
+      const isItemTest =
+        s.score_environment === 'test' ||
+        s.score_environment === 'TEST' ||
+        s.score_mode === 'TEST' ||
+        s.is_test === true ||
+        s.metadata?.score_environment === 'test' ||
+        s.metadata?.score_environment === 'TEST' ||
+        s.metadata?.score_mode === 'TEST' ||
+        s.metadata?.is_test === true ||
+        (!s.score_environment && !s.score_mode);
+      return isItemTest;
+    });
+  }
 
   if (sessionId && typeof sessionId === 'string' && sessionId.trim()) {
     const existingSessionRecord = currentEventScores.find(
@@ -184,6 +391,9 @@ export async function submitEventScore(
         rank: rank > 0 ? rank : 1,
         isNewHighScore: false,
         totalEntries: currentEventScores.length,
+        mode: isTest ? 'TEST' : 'LIVE',
+        score_environment: scoreEnvironment,
+        is_test: isTest,
       };
     }
   }
@@ -247,7 +457,16 @@ export async function submitEventScore(
     event_id: resolvedEventId,
     player_name: playerName,
     score: scoreNum,
-    metadata,
+    score_environment: scoreEnvironment,
+    score_mode: isTest ? 'TEST' : 'LIVE',
+    is_test: isTest,
+    metadata: {
+      ...metadata,
+      score_environment: scoreEnvironment,
+      score_mode: isTest ? 'TEST' : 'LIVE',
+      is_test: isTest,
+      is_official: !isTest,
+    },
     created_at: createdAt,
   };
 
@@ -259,31 +478,49 @@ export async function submitEventScore(
   const isNewHighScore = scoreNum > currentHighest;
 
   // Insert into local cache
-  currentEventScores.push(newRecord);
-  // Sort descending by score, then ascending by created_at
-  currentEventScores.sort((a, b) => {
+  const allEventScores = localHighScoresCache.get(resolvedEventId) || [];
+  allEventScores.push(newRecord);
+  allEventScores.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
-  localHighScoresCache.set(resolvedEventId, currentEventScores);
+  localHighScoresCache.set(resolvedEventId, allEventScores);
   saveLocalHighScores();
 
   // Try saving into Supabase if it's a valid UUID
   if (isUUID(resolvedEventId)) {
     try {
       const supabase = getSupabaseServerClient(env);
-      const { data, error } = await supabase
+      let insertPayload: Record<string, any> = {
+        id: recordId,
+        event_id: resolvedEventId,
+        player_name: playerName,
+        score: scoreNum,
+        score_environment: scoreEnvironment,
+        score_mode: isTest ? 'TEST' : 'LIVE',
+        is_test: isTest,
+        metadata: newRecord.metadata,
+        created_at: createdAt,
+      };
+
+      let { data, error } = await supabase
         .from('event_high_scores')
-        .insert({
-          id: recordId,
-          event_id: resolvedEventId,
-          player_name: playerName,
-          score: scoreNum,
-          metadata,
-          created_at: createdAt,
-        })
+        .insert(insertPayload)
         .select('*')
         .single();
+
+      if (error && (error.message?.includes('column') || error.code === '42703')) {
+        // Fallback for older database versions without new columns
+        delete insertPayload.score_environment;
+        delete insertPayload.score_mode;
+        delete insertPayload.is_test;
+        const retryRes = await supabase
+          .from('event_high_scores')
+          .insert(insertPayload)
+          .select('*')
+          .single();
+        error = retryRes.error;
+      }
 
       if (error) {
         if (!isLocalFallbackAllowed(env)) {
@@ -299,7 +536,12 @@ export async function submitEventScore(
     }
   }
 
-  // Calculate player's 1-based rank
+  // Calculate player's 1-based rank within current mode
+  currentEventScores.push(newRecord);
+  currentEventScores.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
   const rank = currentEventScores.findIndex((s) => s.id === recordId) + 1;
 
   return {
@@ -307,12 +549,16 @@ export async function submitEventScore(
     rank: rank > 0 ? rank : 1,
     isNewHighScore,
     totalEntries: currentEventScores.length,
+    mode: isTest ? 'TEST' : 'LIVE',
+    score_environment: scoreEnvironment,
+    is_test: isTest,
   };
 }
 
 /**
  * Retrieve high score leaderboard for a specific event with rank.
  * Scores from Event A NEVER appear in Event B.
+ * Respects 3-tier score environments (TEST vs LIVE).
  */
 export async function getEventHighScores(
   eventId: string,
@@ -323,36 +569,58 @@ export async function getEventHighScores(
   totalCount: number;
   page: number;
   limit: number;
+  score_environment: 'test' | 'live';
+  is_test_mode: boolean;
 }> {
   if (!eventId || typeof eventId !== 'string' || eventId === 'undefined' || eventId === 'null' || !eventId.trim()) {
-    return { scores: [], totalCount: 0, page: 1, limit: 20 };
+    return { scores: [], totalCount: 0, page: 1, limit: 20, score_environment: 'live', is_test_mode: false };
   }
 
   const limit = Math.min(Math.max(1, options.limit || 20), 100);
   const page = Math.max(1, options.page || 1);
   const offset = (page - 1) * limit;
 
+  // Resolve event to check current lifecycle environment
+  let event = await getEventById(eventId, env).catch(() => null);
+  if (!event) {
+    event = await getEventByPublicToken(eventId, env, { allowUnpaid: true }).catch(() => null);
+  }
+
+  const scoreEnvironment = event ? determineScoreEnvironment(event) : 'live';
+  const isTestMode = scoreEnvironment === 'test';
+
+  // If live, ensure pre-event test scores have been cleared exactly once
+  if (event && scoreEnvironment === 'live') {
+    await ensureTestScoresClearedForLiveEvent(event.id, event, env);
+  }
+
   if (!isUUID(eventId)) {
-    try {
-      const ev = await getEventByPublicToken(eventId, env);
-      if (ev && isUUID(ev.id)) {
-        return getEventHighScores(ev.id, options, env);
-      }
-    } catch {
-      // ignore
+    if (event && isUUID(event.id)) {
+      return getEventHighScores(event.id, options, env);
     }
     if (!isLocalFallbackAllowed(env)) {
       throw new Error(`Event ID "${eventId}" is not a valid UUID in production.`);
     }
-    return getLocalEventHighScores(eventId, limit, page);
+    const localRes = getLocalEventHighScores(eventId, limit, page, scoreEnvironment);
+    return { ...localRes, score_environment: scoreEnvironment, is_test_mode: isTestMode };
   }
 
   try {
     const supabase = getSupabaseServerClient(env);
-    const { data, error, count } = await supabase
+    let query = supabase
       .from('event_high_scores')
       .select('*', { count: 'exact' })
-      .eq('event_id', eventId)
+      .eq('event_id', eventId);
+
+    // In LIVE mode: NEVER return TEST scores
+    if (scoreEnvironment === 'live') {
+      query = query
+        .neq('score_environment', 'test')
+        .neq('score_mode', 'TEST')
+        .neq('metadata->>score_mode', 'TEST');
+    }
+
+    const { data, error, count } = await query
       .order('score', { ascending: false })
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1);
@@ -362,38 +630,57 @@ export async function getEventHighScores(
         throw new Error(`Database error fetching leaderboard: ${error.message}`);
       }
       console.warn(`Notice from Supabase getEventHighScores (${error.message}). Reading from local cache.`);
-      return getLocalEventHighScores(eventId, limit, page);
+      const localRes = getLocalEventHighScores(eventId, limit, page, scoreEnvironment);
+      return { ...localRes, score_environment: scoreEnvironment, is_test_mode: isTestMode };
     }
 
     if (data) {
-      const entries: EventLeaderboardEntry[] = data.map((item: any, idx: number) => ({
-        id: item.id,
-        event_id: item.event_id,
-        player_name: item.player_name,
-        score: item.score,
-        metadata: item.metadata,
-        created_at: item.created_at,
-        rank: offset + idx + 1,
-      }));
+      const entries: EventLeaderboardEntry[] = data.map((item: any, idx: number) => {
+        const itemIsTest =
+          item.score_environment === 'test' ||
+          item.score_environment === 'TEST' ||
+          item.score_mode === 'TEST' ||
+          item.is_test === true ||
+          item.metadata?.score_environment === 'test' ||
+          item.metadata?.score_environment === 'TEST' ||
+          item.metadata?.score_mode === 'TEST' ||
+          item.metadata?.is_test === true;
+
+        const itemScoreEnv: 'test' | 'live' = itemIsTest ? 'test' : 'live';
+
+        return {
+          id: item.id,
+          event_id: item.event_id,
+          player_name: item.player_name,
+          score: item.score,
+          score_environment: itemScoreEnv,
+          score_mode: itemIsTest ? 'TEST' : 'LIVE',
+          is_test: itemIsTest,
+          metadata: item.metadata,
+          created_at: item.created_at,
+          rank: offset + idx + 1,
+        };
+      });
 
       return {
         scores: entries,
         totalCount: count ?? entries.length,
         page,
         limit,
+        score_environment: scoreEnvironment,
+        is_test_mode: isTestMode,
       };
     }
 
-    if (!isLocalFallbackAllowed(env)) {
-      return { scores: [], totalCount: 0, page, limit };
-    }
-    return getLocalEventHighScores(eventId, limit, page);
+    const localRes = getLocalEventHighScores(eventId, limit, page, scoreEnvironment);
+    return { ...localRes, score_environment: scoreEnvironment, is_test_mode: isTestMode };
   } catch (err: any) {
     if (!isLocalFallbackAllowed(env)) {
       throw err;
     }
     console.warn('Error reading high scores from Supabase, using local fallback:', err.message);
-    return getLocalEventHighScores(eventId, limit, page);
+    const localRes = getLocalEventHighScores(eventId, limit, page, scoreEnvironment);
+    return { ...localRes, score_environment: scoreEnvironment, is_test_mode: isTestMode };
   }
 }
 
@@ -403,16 +690,31 @@ export async function getEventHighScores(
 function getLocalEventHighScores(
   eventId: string,
   limit: number,
-  page: number
+  page: number,
+  scoreEnvironment: 'test' | 'live' | 'TEST' | 'LIVE' = 'live'
 ): {
   scores: EventLeaderboardEntry[];
   totalCount: number;
   page: number;
   limit: number;
 } {
+  const isTargetTest = String(scoreEnvironment).toLowerCase() === 'test';
   const allScores = localHighScoresCache.get(eventId) || [];
-  // Ensure sorted by score desc, then created_at asc
-  const sorted = [...allScores].sort((a, b) => {
+  // Filter by score environment
+  const filtered = allScores.filter((s) => {
+    const isTest =
+      s.score_environment === 'test' ||
+      s.score_environment === 'TEST' ||
+      s.score_mode === 'TEST' ||
+      s.is_test === true ||
+      s.metadata?.score_environment === 'test' ||
+      s.metadata?.score_environment === 'TEST' ||
+      s.metadata?.score_mode === 'TEST' ||
+      s.metadata?.is_test === true;
+    return isTargetTest ? isTest || (!s.score_environment && !s.score_mode) : !isTest;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
@@ -421,10 +723,26 @@ function getLocalEventHighScores(
   const offset = (page - 1) * limit;
   const pageItems = sorted.slice(offset, offset + limit);
 
-  const scores: EventLeaderboardEntry[] = pageItems.map((item, idx) => ({
-    ...item,
-    rank: offset + idx + 1,
-  }));
+  const scores: EventLeaderboardEntry[] = pageItems.map((item, idx) => {
+    const itemIsTest =
+      item.score_environment === 'test' ||
+      item.score_environment === 'TEST' ||
+      item.score_mode === 'TEST' ||
+      item.is_test === true ||
+      item.metadata?.score_environment === 'test' ||
+      item.metadata?.score_environment === 'TEST' ||
+      item.metadata?.score_mode === 'TEST' ||
+      item.metadata?.is_test === true ||
+      isTargetTest;
+
+    return {
+      ...item,
+      score_environment: itemIsTest ? 'test' : 'live',
+      score_mode: itemIsTest ? 'TEST' : 'LIVE',
+      is_test: itemIsTest,
+      rank: offset + idx + 1,
+    };
+  });
 
   return {
     scores,
@@ -440,8 +758,8 @@ function getLocalEventHighScores(
 export async function getEventScoreStats(
   eventId: string,
   env?: Record<string, any>
-): Promise<EventScoreStats> {
-  const { scores, totalCount } = await getEventHighScores(eventId, { limit: 1000 }, env);
+): Promise<EventScoreStats & { score_environment?: 'test' | 'live' | 'TEST' | 'LIVE'; is_test_mode?: boolean }> {
+  const { scores, totalCount, score_environment, is_test_mode } = await getEventHighScores(eventId, { limit: 1000 }, env);
 
   if (scores.length === 0) {
     return {
@@ -455,6 +773,8 @@ export async function getEventScoreStats(
       averageMoves: null,
       averageDuration: null,
       gameTypeBreakdown: {},
+      score_environment,
+      is_test_mode,
     };
   }
 
@@ -548,6 +868,8 @@ export async function getEventScoreStats(
     averageMoves,
     averageDuration,
     gameTypeBreakdown: formattedBreakdown,
+    score_environment,
+    is_test_mode,
   };
 }
 
@@ -600,6 +922,10 @@ export async function clearEventHighScores(
   // Clear in local cache
   localHighScoresCache.set(eventId, []);
   saveLocalHighScores();
+
+  // Record that test scores were cleared
+  testScoresClearedEvents.add(eventId);
+  saveTestScoresCleared();
 
   // Clear in Supabase if valid UUID
   if (isUUID(eventId)) {

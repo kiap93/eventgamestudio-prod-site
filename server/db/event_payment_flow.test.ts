@@ -36,7 +36,7 @@ async function runTests() {
       game_theme_id: theme.id,
       name: 'Underfunded Event',
       starts_at: new Date(Date.now() + 86400000).toISOString(),
-      expires_at: new Date(Date.now() + 172800000).toISOString(),
+      expires_at: new Date(Date.now() + 86400000 + 3600000).toISOString(),
       status: 'scheduled',
       payment_mode: 'WELCOME_CREDIT',
     });
@@ -88,7 +88,7 @@ async function runTests() {
     game_theme_id: theme.id,
     name: 'Successfully Funded Event',
     starts_at: new Date(Date.now() + 86400000).toISOString(),
-    expires_at: new Date(Date.now() + 172800000).toISOString(),
+    expires_at: new Date(Date.now() + 86400000 + 3600000).toISOString(),
     status: 'scheduled',
     payment_mode: 'WELCOME_CREDIT',
   });

@@ -40,6 +40,7 @@ interface ArcadeUIProps {
   eventId?: string;
   publicToken?: string;
   isEventPreview?: boolean;
+  isEventTest?: boolean;
   isMuted: boolean;
   onToggleMute: () => void;
   cameraActive: boolean;
@@ -66,6 +67,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   eventId,
   publicToken,
   isEventPreview = false,
+  isEventTest = false,
   isMuted,
   onToggleMute,
   cameraActive,
@@ -204,8 +206,8 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     if (e) e.preventDefault();
     if (isSubmittingScore || scoreSubmitted) return;
 
-    // Strict separation: Preview / test runs NEVER submit official scores
-    if (isEventPreview) {
+    // Strict separation: Studio preview runs without test context NEVER submit official scores
+    if (isEventPreview && !isEventTest) {
       return;
     }
 
@@ -278,6 +280,8 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             greenCaught: stats.greenCaught,
             orangeCaught: stats.orangeCaught,
             duriansMissed: stats.duriansMissed,
+            score_environment: isEventTest ? 'TEST' : undefined,
+            is_test: isEventTest ? true : undefined,
           },
         }),
       });
@@ -727,28 +731,37 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                       </div>
                     </div>
 
-                    {/* Preview Test Notice vs Official Score Submission Box */}
-                    {isEventPreview ? (
+                    {/* Preview Test Notice vs Official / Test Score Submission Box */}
+                    {isEventPreview && !isEventTest ? (
                       <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-2.5 sm:p-3 mb-3 text-left">
                         <div className="flex items-center justify-between mb-1">
                           <span className="flex items-center gap-1.5 text-amber-400 font-black text-xs uppercase tracking-wider">
                             <Trophy className="w-3.5 h-3.5" /> TEST SCORE: {stats.score}
                           </span>
                           <span className="text-[9px] text-amber-300/80 font-mono uppercase bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                            Test Only
+                            Studio Preview
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-300 leading-snug">
-                          This is a test score. It will not be added to the live event leaderboard.
+                          This is a studio preview score. It will not be added to the live event leaderboard.
                         </p>
                       </div>
                     ) : !scoreSubmitted ? (
                       <form onSubmit={handleSubmitScore} className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 mb-3 text-left">
+                        {isEventTest && (
+                          <div className="mb-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-300">
+                            <div className="font-bold flex items-center gap-1">
+                              <Trophy className="w-3 h-3 text-amber-400 shrink-0" />
+                              <span>PRE-EVENT TEST MODE</span>
+                            </div>
+                            <p className="text-slate-300 mt-0.5">Test scores are saved for validation and will be cleared when the event starts.</p>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-xs text-slate-300 font-bold mb-1.5">
                           <span className="flex items-center gap-1.5 text-amber-400">
-                            <Trophy className="w-3.5 h-3.5" /> High Score Submission
+                            <Trophy className="w-3.5 h-3.5" /> {isEventTest ? 'Submit Test Score' : 'High Score Submission'}
                           </span>
-                          <span className="text-[10px] text-slate-500 font-mono">Leaderboard</span>
+                          <span className="text-[10px] text-slate-500 font-mono">{isEventTest ? 'Test Leaderboard' : 'Leaderboard'}</span>
                         </div>
                         <div className="flex gap-2">
                           <input

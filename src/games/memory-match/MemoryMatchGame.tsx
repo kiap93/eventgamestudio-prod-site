@@ -102,6 +102,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   eventId,
   publicToken,
   isEventPreview = false,
+  isEventTest = false,
   onStatsChange,
   onGameStateChange,
   isMuted = false,
@@ -554,7 +555,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     if (playerNameInput && typeof playerNameInput === 'object' && 'preventDefault' in playerNameInput) {
       playerNameInput.preventDefault();
     }
-    if (isEventPreview) {
+    if (isEventPreview && !isEventTest) {
       return { success: false, error: 'Preview test scores are not submitted to the leaderboard.' };
     }
     if (isSubmittingScore || scoreSubmitted) return;
@@ -576,6 +577,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       sessionId,
       gameVersion: MEMORY_MATCH_GAME_VERSION,
       scoringVersion: MEMORY_MATCH_SCORING_VERSION,
+      score_environment: isEventTest ? 'TEST' : undefined,
+      is_test: isEventTest ? true : undefined,
     };
 
     if (!hasEventContext) {
@@ -1366,6 +1369,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             loadingLeaderboard={loadingLeaderboard}
             currentPlayerName={playerName}
             isEventPreview={isEventPreview}
+            isEventTest={isEventTest}
             scoreSubmitted={scoreSubmitted}
             submittedRank={submittedRank}
             isSubmittingScore={isSubmittingScore}

@@ -106,6 +106,7 @@ export interface ResultElementContentProps {
   isSimulation?: boolean;
   isEditor?: boolean;
   isEventPreview?: boolean;
+  isEventTest?: boolean;
   onAction?: (action: string) => void;
   renderChild?: (child: ResultScreenElement, parentW: number, parentH: number) => React.ReactNode;
   leaderboardData?: EventLeaderboardEntry[];
@@ -128,6 +129,7 @@ interface LeaderboardElementRendererProps {
   isSimulation?: boolean;
   isEditor?: boolean;
   isEventPreview?: boolean;
+  isEventTest?: boolean;
   leaderboardData?: EventLeaderboardEntry[];
   loadingLeaderboard?: boolean;
   leaderboardError?: string | null;
@@ -148,6 +150,7 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
   isSimulation = false,
   isEditor = false,
   isEventPreview = false,
+  isEventTest = false,
   leaderboardData,
   loadingLeaderboard = false,
   leaderboardError = null,
@@ -478,18 +481,18 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
         className="mt-2 pt-2 border-t border-slate-800/80 shrink-0 select-auto"
         onClick={(e) => isEditor && e.stopPropagation()}
       >
-        {isEventPreview ? (
+        {isEventPreview && !isEventTest ? (
           <div className="p-2 min-h-[38px] sm:min-h-[44px] rounded-lg bg-amber-500/10 border border-amber-500/30 flex flex-col justify-center gap-0.5 text-left px-2.5">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1 text-amber-400 font-bold text-xs uppercase tracking-wide">
-                <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" /> TEST SCORE: {stats?.score !== undefined ? stats.score.toLocaleString() : 0}
+                <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" /> PREVIEW SCORE: {stats?.score !== undefined ? stats.score.toLocaleString() : 0}
               </span>
               <span className="text-[9px] text-amber-300/80 font-mono uppercase bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
-                Preview Test
+                Studio Preview
               </span>
             </div>
             <p className="text-[10px] text-slate-300">
-              This is a test score. It will not be added to the live event leaderboard.
+              This is a studio preview score. It will not be added to the live event leaderboard.
             </p>
           </div>
         ) : !isSubmitted ? (
@@ -497,6 +500,15 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
             onSubmit={handleScoreSubmit}
             className="space-y-1.5"
           >
+            {isEventTest && (
+              <div className="p-1.5 rounded bg-amber-500/10 border border-amber-500/30 text-[9px] text-amber-300 flex items-center justify-between">
+                <span className="font-bold flex items-center gap-1">
+                  <Trophy className="w-3 h-3 text-amber-400 shrink-0" />
+                  PRE-EVENT TEST MODE
+                </span>
+                <span className="text-slate-400 text-[8px]">Cleared on event start</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5">
               <input
                 type="text"
@@ -573,6 +585,7 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
   isSimulation = false,
   isEditor = false,
   isEventPreview = false,
+  isEventTest = false,
   onAction,
   renderChild,
   leaderboardData,
@@ -1048,6 +1061,7 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
           isSimulation={isSimulation}
           isEditor={isEditor}
           isEventPreview={isEventPreview}
+          isEventTest={isEventTest}
           leaderboardData={leaderboardData}
           loadingLeaderboard={loadingLeaderboard}
           leaderboardError={leaderboardError}

@@ -2666,9 +2666,9 @@ export default {
           return errorResponse('Public token required', 422, cors);
         }
 
-        const event = await getEventByPublicToken(publicToken, env, { allowUnpaid: false });
+        const event = await getEventByPublicToken(publicToken, env, { allowUnpaid: true });
         if (!event) {
-          return errorResponse('Event not found or payment pending', 404, cors);
+          return errorResponse('Event not found', 404, cors);
         }
 
         const limit = Number(url.searchParams.get('limit') || 20);
@@ -2689,9 +2689,9 @@ export default {
           return errorResponse('Public token required', 422, cors);
         }
 
-        const event = await getEventByPublicToken(publicToken, env, { allowUnpaid: false });
+        const event = await getEventByPublicToken(publicToken, env, { allowUnpaid: true });
         if (!event) {
-          return errorResponse('Event not found or payment pending', 404, cors);
+          return errorResponse('Event not found', 404, cors);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;

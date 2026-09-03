@@ -40,6 +40,7 @@ export interface ResultScreenRendererProps {
   className?: string;
   isSimulation?: boolean;
   isEventPreview?: boolean;
+  isEventTest?: boolean;
 }
 
 export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
@@ -61,6 +62,7 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
   className = '',
   isSimulation = false,
   isEventPreview = false,
+  isEventTest = false,
 }) => {
   const bg = resolveScreenBackground(resultConfig, theme);
   const canvasWidth = resultConfig?.canvas?.width || 1000;
@@ -106,6 +108,7 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
           stats={stats}
           isSimulation={isSimulation}
           isEventPreview={isEventPreview}
+          isEventTest={isEventTest}
           onAction={onAction}
           renderChild={(child, pW, pH) => renderElement(child, pW, pH, false)}
           leaderboardData={leaderboardData}

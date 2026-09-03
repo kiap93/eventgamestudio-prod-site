@@ -26,6 +26,7 @@ export interface GameComponentProps<TConfig extends BaseGameConfig = BaseGameCon
   eventId?: string;
   publicToken?: string;
   isEventPreview?: boolean;
+  isEventTest?: boolean;
   onStatsChange?: (stats: GameStats) => void;
   onGameStateChange?: (state: GameState) => void;
   isMuted: boolean;
