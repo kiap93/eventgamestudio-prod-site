@@ -12829,5 +12829,31 @@
     "showcase_credit_granted": false,
     "created_at": "2026-09-03T04:38:07.338Z",
     "updated_at": "2026-09-03T04:38:08.039Z"
+  },
+  {
+    "id": "eb9f7c1b-b714-49b1-aea6-6d53d82b77d6",
+    "organization_id": "392da212-452a-444c-8423-e7bceb323565",
+    "paid_balance": 0,
+    "welcome_credit": 800,
+    "showcase_credit": 0,
+    "topup_credit": 0,
+    "currency": "MYR",
+    "welcome_credit_granted": true,
+    "showcase_credit_granted": false,
+    "created_at": "2026-09-03T07:15:37.537Z",
+    "updated_at": "2026-09-03T07:15:37.537Z"
+  },
+  {
+    "id": "ad6b57ed-f01f-42c7-854d-1a9d0fd752fd",
+    "organization_id": "e6f00e3d-2b70-44d0-9854-337a696f4564",
+    "paid_balance": 0,
+    "welcome_credit": 800,
+    "showcase_credit": 0,
+    "topup_credit": 0,
+    "currency": "MYR",
+    "welcome_credit_granted": true,
+    "showcase_credit_granted": false,
+    "created_at": "2026-09-03T07:15:51.474Z",
+    "updated_at": "2026-09-03T07:15:51.474Z"
   }
 ]

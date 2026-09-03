@@ -12,9 +12,12 @@ import {
   AlertTriangle,
   Medal,
   Calendar,
+  FlaskConical,
+  CheckCircle,
 } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
 import { EventLeaderboardEntry, EventScoreStats } from '../../types';
+import { isEventBeforeStartDate } from '../../lib/dateUtils';
 
 interface EventLeaderboardModalProps {
   isOpen: boolean;
@@ -31,16 +34,21 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
 }) => {
   const [scores, setScores] = useState<EventLeaderboardEntry[]>([]);
   const [stats, setStats] = useState<EventScoreStats | null>(null);
+  const [testScoresCount, setTestScoresCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
   // Actions state
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [showClearTestScoresConfirm, setShowClearTestScoresConfirm] = useState(false);
+  const [isClearingTestScores, setIsClearingTestScores] = useState(false);
 
   const isOwnerOrAdmin = ['owner', 'admin'].includes(userRole || '');
+  const isBeforeStartDate = isEventBeforeStartDate(event);
 
   const fetchScores = async () => {
     if (!event?.id) return;
@@ -57,11 +65,24 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
         const pubData = await pubRes.json();
         setScores(pubData.scores || []);
         setStats(null);
+        setTestScoresCount(
+          (pubData.scores || []).filter(
+            (s: any) => s.score_environment === 'test' || s.is_test || s.score_mode === 'TEST'
+          ).length
+        );
         return;
       }
       const data = await res.json();
       setScores(data.scores || []);
       setStats(data.stats || null);
+      if (typeof data.test_scores_count === 'number') {
+        setTestScoresCount(data.test_scores_count);
+      } else {
+        const count = (data.scores || []).filter(
+          (s: any) => s.score_environment === 'test' || s.is_test || s.score_mode === 'TEST'
+        ).length;
+        setTestScoresCount(count);
+      }
     } catch (err: any) {
       console.error('Fetch scores error:', err);
       setError(err.message || 'Could not load leaderboard data');
@@ -75,8 +96,36 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
       fetchScores();
       setSearchTerm('');
       setShowClearConfirm(false);
+      setShowClearTestScoresConfirm(false);
+      setSuccessMessage(null);
     }
   }, [isOpen, event?.id]);
+
+  const handleClearTestScores = async () => {
+    if (!event?.id) return;
+    setIsClearingTestScores(true);
+    try {
+      const res = await apiFetch(`/api/events/${event.id}/test-scores/clear`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to clear test scores');
+      }
+      setShowClearTestScoresConfirm(false);
+      setSuccessMessage('Test scores cleared.');
+      setScores([]);
+      setTestScoresCount(0);
+      await fetchScores();
+      setTimeout(() => {
+        setSuccessMessage((prev) => (prev === 'Test scores cleared.' ? null : prev));
+      }, 5000);
+    } catch (err: any) {
+      alert(err.message || 'Error clearing test scores');
+    } finally {
+      setIsClearingTestScores(false);
+    }
+  };
 
   const handleDeleteScore = async (scoreId: string) => {
     if (!event?.id) return;
@@ -121,6 +170,13 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
   };
 
   if (!isOpen || !event) return null;
+
+  const displayTestScoresCount =
+    testScoresCount !== null
+      ? testScoresCount
+      : scores.filter(
+          (s: any) => s.score_environment === 'test' || s.is_test || s.score_mode === 'TEST'
+        ).length;
 
   const filteredScores = scores.filter((s) =>
     s.player_name.toLowerCase().includes(searchTerm.toLowerCase().trim())
@@ -225,6 +281,65 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
               <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 font-medium">
                 Avg {stats.averageDuration}s Duration
               </span>
+            )}
+          </div>
+        )}
+
+        {/* Success Notification Banner */}
+        {successMessage && (
+          <div id="test-scores-success-banner" className="mx-4 mt-3 p-3 bg-emerald-950/70 border border-emerald-800/80 rounded-xl text-emerald-300 text-xs flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="font-semibold">{successMessage}</span>
+            </div>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="text-emerald-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Pre-Event Test Scores Section (Visible only BEFORE start date) */}
+        {isBeforeStartDate && (
+          <div
+            id="test-scores-section"
+            className="mx-4 mt-3 p-3.5 bg-purple-950/20 border border-purple-900/50 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center shrink-0">
+                <FlaskConical className="w-4 h-4 text-purple-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-slate-100">Test Scores</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-500/20 border border-purple-500/30 text-purple-300">
+                    Pre-Event
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 font-mono mt-0.5">
+                  {displayTestScoresCount} {displayTestScoresCount === 1 ? 'test score' : 'test scores'}
+                </p>
+              </div>
+            </div>
+
+            {isOwnerOrAdmin && (
+              <button
+                id="btn-clear-test-scores"
+                type="button"
+                onClick={() => setShowClearTestScoresConfirm(true)}
+                disabled={displayTestScoresCount === 0 || isClearingTestScores}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                  displayTestScoresCount === 0
+                    ? 'bg-slate-800/40 text-slate-500 border border-slate-800/80 cursor-not-allowed'
+                    : 'bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 hover:border-purple-400 active:scale-95'
+                }`}
+                title={displayTestScoresCount === 0 ? 'No test scores to clear' : 'Clear all test scores'}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear Test Scores</span>
+              </button>
             )}
           </div>
         )}
@@ -402,6 +517,56 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
               >
                 {isClearing ? 'Resetting...' : 'Yes, Reset Leaderboard'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Clear Test Scores Confirmation Dialog */}
+        {showClearTestScoresConfirm && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-slate-900 border border-purple-900/60 rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Clear all test scores?</h3>
+                  <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                    This will permanently remove all TEST scores for this event. LIVE scores will not be affected.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  id="btn-cancel-clear-test-scores"
+                  type="button"
+                  onClick={() => setShowClearTestScoresConfirm(false)}
+                  disabled={isClearingTestScores}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  id="btn-confirm-clear-test-scores"
+                  type="button"
+                  onClick={handleClearTestScores}
+                  disabled={isClearingTestScores}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-purple-600/25 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isClearingTestScores ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Clearing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Clear Test Scores</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}

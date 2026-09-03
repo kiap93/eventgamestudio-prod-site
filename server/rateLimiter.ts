@@ -1,5 +1,51 @@
 import type { Request as ExpressRequest, Response as ExpressResponse, NextFunction } from 'express';
 
+/**
+ * ==============================================================================
+ * Event Game Studio - API Rate Limiting Module
+ * ==============================================================================
+ *
+ * ARCHITECTURAL NOTICE & DEPLOYMENT TOPOLOGY:
+ * -------------------------------------------
+ * 1. Worker-Local / Process-Local In-Memory Scope:
+ *    - The in-memory sliding window algorithm implemented here operates strictly
+ *      within the local memory of the current Node.js process or Cloudflare Worker isolate.
+ *    - Cloudflare Workers execute across hundreds of edge Points of Presence (PoPs) globally,
+ *      and within each PoP, multiple Worker isolates may run concurrently.
+ *    - Consequently, this in-memory rate limiter is NOT globally distributed across edge nodes.
+ *      Requests arriving at different edge data centers (or separate isolate lifecycles)
+ *      maintain their own independent in-memory counters.
+ *    - Single-node / isolate memory resets whenever a container redeploys, an isolate goes
+ *      idle, or a new version is released.
+ *
+ * 2. Purpose as a Zero-Latency First Layer:
+ *    - Serves as an immediate, 0ms-latency, zero-dependency first line of defense against
+ *      single-host script loops, brute-force attacks, and volumetric request floods hitting
+ *      an instance.
+ *    - Does NOT introduce external network dependencies (such as Redis or third-party rate
+ *      limiting APIs) which would add latency, failure modes, and operational costs.
+ *
+ * 3. Legitimate Event Gameplay Protection:
+ *    - At live physical events (corporate booths, carnivals, conferences, weddings), dozens
+ *      or hundreds of attendees share the exact same venue Wi-Fi network or cellular NAT IP.
+ *    - The High Score submission rate limiter (`highScoreRateLimiter`) is deliberately sized
+ *      generously (300 requests / 60 seconds per IP, ~5 requests/second) to prevent false-positive
+ *      HTTP 429 errors from locking out genuine attendees during competitive tournament gameplay.
+ *    - Score idempotency and replay protection are enforced server-side and database-side via
+ *      Migration 029 (unique `(event_id, session_id)` index and status checks), preventing
+ *      malicious leaderboard duplication without needing over-restrictive single-IP throttles.
+ *    - Public event viewing and leaderboard polling endpoints (GET requests) are exempted from
+ *      mutating rate limiters to allow spectator screens and leaderboard dashboards to poll smoothly.
+ *
+ * 4. Production Globally Distributed Edge Rate Limiting:
+ *    - When enterprise-scale global rate limiting is required, Cloudflare-native Rate Limiting
+ *      (WAF Rate Limiting rules at the Cloudflare dashboard level, or a `[[ratelimits]]` binding
+ *      exposed on `env.RATE_LIMITER`) can be layered in front of or inside this module.
+ *    - If `env.RATE_LIMITER` is bound in Cloudflare Worker configuration, `checkWorkerRateLimit`
+ *      can invoke Cloudflare's native distributed edge rate limiter seamlessly.
+ * ==============================================================================
+ */
+
 export interface RateLimitOptions {
   windowMs: number;
   max: number;
@@ -311,11 +357,16 @@ export const uploadRateLimiter = createRateLimiter({
 /**
  * 8. High Score Submission Rate Limiter:
  * Protects POST /api/events/:id/high-scores and /api/public/events/:token/high-scores.
- * 30 submissions per 60 seconds per IP.
+ * Sized generously (300 submissions per 60 seconds per IP, ~5 submissions/second)
+ * to ensure live event venues with shared Wi-Fi networks (where dozens or hundreds
+ * of attendees submit scores from the same NAT IP) do not suffer false-positive 429
+ * errors during active gameplay.
+ * Replay protection and duplicate score prevention are enforced by database-level
+ * idempotency (Migration 029: unique event_id + session_id constraint).
  */
 export const highScoreRateLimiter = createRateLimiter({
   windowMs: 60 * 1000,
-  max: 30,
+  max: 300,
   keyPrefix: 'high_scores',
   message: 'High score submission limit reached. Please wait a few moments before submitting again.',
 });
@@ -333,7 +384,7 @@ export const generalApiRateLimiter = createRateLimiter({
 });
 
 /**
- * Worker / Edge Rate Limiter Helper
+ * Worker / Edge Rate Limiter Helper (Synchronous In-Memory First Layer)
  */
 export function checkWorkerRateLimit(
   request: Request,
@@ -373,4 +424,49 @@ export function checkWorkerRateLimit(
     allowed: true,
     headers,
   };
+}
+
+/**
+ * Cloudflare-Native Distributed Rate Limiter Support:
+ * If a Cloudflare Workers Rate Limiting binding (e.g. env.RATE_LIMITER or env.API_RATE_LIMITER)
+ * is bound in wrangler.toml, this helper invokes Cloudflare's globally distributed edge rate
+ * limiter first, then falls back to the in-memory sliding window layer.
+ */
+export async function checkWorkerRateLimitWithCloudflare(
+  request: Request,
+  options: RateLimitOptions,
+  env?: { RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> }; [key: string]: any },
+  userId?: string
+): Promise<{
+  allowed: boolean;
+  headers: Record<string, string>;
+  errorResponse?: { error: string; message: string; retryAfterSeconds: number };
+}> {
+  const clientKey = getWorkerClientKey(request, options.keyPrefix || 'worker', userId);
+
+  // 1. Check Cloudflare-native edge rate limiter if bound
+  if (env && typeof env.RATE_LIMITER?.limit === 'function') {
+    try {
+      const cfResult = await env.RATE_LIMITER.limit({ key: clientKey });
+      if (!cfResult.success) {
+        return {
+          allowed: false,
+          headers: {
+            'Retry-After': '60',
+            'X-RateLimit-Source': 'cloudflare-edge',
+          },
+          errorResponse: {
+            error: 'Too Many Requests',
+            message: options.message || 'Edge rate limit exceeded. Please wait a moment before trying again.',
+            retryAfterSeconds: 60,
+          },
+        };
+      }
+    } catch (cfErr) {
+      console.warn('Cloudflare native rate limiting check failed, falling back to local sliding window:', cfErr);
+    }
+  }
+
+  // 2. Fall back to / execute in-memory sliding window bucket
+  return checkWorkerRateLimit(request, options, userId);
 }

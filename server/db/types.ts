@@ -649,11 +649,21 @@ export interface EventHighScoreRecord {
   event_id: string;
   player_name: string;
   score: number;
+  session_id?: string | null;
   score_environment?: 'test' | 'live' | 'TEST' | 'LIVE';
   score_mode?: 'TEST' | 'LIVE';
   is_test?: boolean;
   metadata?: Record<string, any>;
   created_at: string;
+}
+
+export interface SubmitEventScoreParams {
+  event_id: string;
+  player_name?: string | null;
+  score: number;
+  session_id?: string | null;
+  sessionId?: string | null;
+  metadata?: Record<string, any>;
 }
 
 export interface EventLeaderboardEntry extends EventHighScoreRecord {

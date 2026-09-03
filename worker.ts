@@ -122,6 +122,9 @@ import {
   getEventScoreStats,
   deleteEventScore,
   clearEventHighScores,
+  manualClearEventTestScores,
+  getEventTestScoresCount,
+  isEventBeforeStartDate,
   getGoogleMailSettings,
   saveGoogleMailSettings,
   disconnectGoogleMail,
@@ -187,6 +190,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'https://eventgamestudio.com',
   'https://www.eventgamestudio.com',
   'https://app.eventgamestudio.com',
+  'https://eventgamestudio.pages.dev',
 ];
 
 export function isAllowedOrigin(origin: string | null | undefined, requestUrl: string, env?: Env): boolean {
@@ -248,23 +252,28 @@ export function isAllowedOrigin(origin: string | null | undefined, requestUrl: s
 
     const hostname = originUrl.hostname.toLowerCase();
 
-    // 3. Platform & domain matching (EventGameStudio subdomains, Workers, Pages, Cloud Run)
+    // 3. EventGameStudio apex and tenant subdomains (Production & all environments)
+    // Legitimate tenant organizations operate on vanity/branded subdomains: *.eventgamestudio.com
     if (
       hostname === 'eventgamestudio.com' ||
-      hostname.endsWith('.eventgamestudio.com') ||
-      hostname.endsWith('.workers.dev') ||
-      hostname.endsWith('.pages.dev') ||
-      hostname.endsWith('.run.app')
+      hostname.endsWith('.eventgamestudio.com')
     ) {
       return true;
     }
 
-    // 4. In development mode only, permit localhost
+    // 4. Development / staging environment exemptions (NOT permitted in production)
+    // In dev/staging: permit localhost, 127.0.0.1, and cloud preview environments (*.run.app, *.pages.dev, *.workers.dev).
+    // In production: broad wildcard platforms (*.workers.dev, *.pages.dev, *.run.app) are STRICTLY forbidden
+    // to prevent unauthorized third-party Workers, Pages, or Cloud Run containers from making credentialed requests.
+    // If a specific deployment origin is required in production, it must be explicitly configured via ALLOWED_ORIGINS.
     if (!isProduction) {
       if (
         hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
-        hostname.endsWith('.localhost')
+        hostname.endsWith('.localhost') ||
+        hostname.endsWith('.workers.dev') ||
+        hostname.endsWith('.pages.dev') ||
+        hostname.endsWith('.run.app')
       ) {
         return true;
       }
@@ -500,8 +509,14 @@ export default {
       // Rate Limiting Enforcement on API Routes
       // ==========================================
       if (pathname.startsWith('/api') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        // 0. Payment Webhook Exception (POST /api/webhooks/*, POST /api/wallet/webhooks/*)
+        // Authenticated via cryptographic HMAC signatures. Exempt from client IP limits to prevent webhook drops.
+        if (pathname.includes('/webhooks')) {
+          // Bypasses IP-based rate limiting to proceed to cryptographic signature verification
+        }
+
         // 1. Auth Rate Limiting (POST /api/auth/google, POST /api/auth/*)
-        if (pathname.startsWith('/api/auth/')) {
+        else if (pathname.startsWith('/api/auth/')) {
           const authLimit = checkWorkerRateLimit(request, {
             windowMs: 60 * 1000,
             max: 10,
@@ -582,7 +597,7 @@ export default {
         else if (pathname.includes('/high-scores') && method === 'POST') {
           const scoreLimit = checkWorkerRateLimit(request, {
             windowMs: 60 * 1000,
-            max: 30,
+            max: 300, // Sized generously (300/min per IP, ~5/sec) so shared venue Wi-Fi does not choke tournament gameplay
             keyPrefix: 'worker_high_scores',
             message: 'Too many score submissions. Please wait a moment before submitting another score.',
           });
@@ -2699,7 +2714,7 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const { player_name, score, metadata } = body;
+        const { player_name, score, metadata, session_id, sessionId } = body;
 
         if (score === undefined || score === null || isNaN(Number(score))) {
           return errorResponse('Valid numerical score is required', 422, cors);
@@ -2711,6 +2726,7 @@ export default {
               event_id: event.id,
               player_name,
               score: Number(score),
+              session_id: session_id || sessionId,
               metadata,
             },
             env
@@ -2755,12 +2771,54 @@ export default {
 
         const leaderboard = await getEventHighScores(eventId, { limit, page }, env);
         const stats = await getEventScoreStats(eventId, env);
+        const testScoresCount = await getEventTestScoresCount(eventId, env);
+        const isBeforeStart = isEventBeforeStartDate(event);
 
         return jsonResponse({
           event_id: eventId,
           event_name: event.name,
           ...leaderboard,
           stats,
+          test_scores_count: testScoresCount,
+          is_before_start_date: isBeforeStart,
+        }, 200, cors);
+      }
+
+      // POST /api/events/:eventId/test-scores/clear (Manual Clear Test Scores)
+      const clearTestScoresParams =
+        parseRoute('/api/events/:eventId/test-scores/clear', pathname) ||
+        parseRoute('/api/events/:eventId/admin/test-scores/clear', pathname);
+      if (clearTestScoresParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = clearTestScoresParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
+        if (!isMember || !['owner', 'admin'].includes(role || '')) {
+          return errorResponse('Permission denied: Only organization owners and admins can clear test scores', 403, cors);
+        }
+
+        // Safety rule: Event must NOT have reached its start date
+        if (!isEventBeforeStartDate(event)) {
+          return jsonResponse({
+            error: 'Cannot manually clear test scores: Event has already reached its start date or is live.',
+            code: 'EVENT_ALREADY_STARTED',
+          }, 400, cors);
+        }
+
+        const result = await manualClearEventTestScores(eventId, env);
+        return jsonResponse({
+          success: true,
+          message: 'Test scores cleared.',
+          clearedCount: result.clearedCount,
+          deleted_count: result.deleted_count,
         }, 200, cors);
       }
 
@@ -2845,7 +2903,7 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const { player_name, score, metadata } = body;
+        const { player_name, score, metadata, session_id, sessionId } = body;
 
         if (score === undefined || score === null || isNaN(Number(score))) {
           return errorResponse('Valid numerical score is required', 422, cors);
@@ -2857,6 +2915,7 @@ export default {
               event_id: eventId,
               player_name,
               score: Number(score),
+              session_id: session_id || sessionId,
               metadata,
             },
             env

@@ -135,6 +135,30 @@ export function getNormalizedCurrentDate(currentDate?: string | Date | null): st
 }
 
 /**
+ * Checks whether an event is strictly before its configured start date (Asia/Singapore calendar date).
+ * In this pre-event window (including Setup Day), the event is in TEST mode and TEST scores can be manually cleared.
+ */
+export function isEventBeforeStartDate(
+  event: any,
+  currentDate?: string | Date | null
+): boolean {
+  if (!event) return false;
+  const rawStatus = (event.status || '').toLowerCase();
+  const eventStatus = (event.event_status || '').toUpperCase();
+  if (
+    rawStatus === 'cancelled' ||
+    eventStatus === 'CANCELLED' ||
+    event.cancel_reason
+  ) {
+    return false;
+  }
+  const { startDate } = getNormalizedEventDates(event);
+  if (!startDate) return false;
+  const curDate = getNormalizedCurrentDate(currentDate);
+  return curDate < startDate;
+}
+
+/**
  * Checks whether an event's Live URL is currently accessible.
  *
  * Canonical Rule:
@@ -1106,7 +1130,10 @@ export async function getEventByPublicToken(
   const theme = await getThemeById(eventRecord.game_theme_id, env);
 
   let game: GameRecord | null = null;
-  if (theme?.game_id) {
+  if (eventRecord.game_id) {
+    game = await getGameById(eventRecord.game_id, env);
+  }
+  if (!game && theme?.game_id) {
     game = await getGameById(theme.game_id, env);
   }
 
@@ -1156,6 +1183,7 @@ export async function getEventByPublicToken(
     paid_amount: eventRecord.paid_amount !== undefined ? eventRecord.paid_amount : (isPaid ? storedPrice : 0),
     discount_amount: eventRecord.discount_amount || 0,
     calculated_status: calculateEventStatus(eventRecord),
+    game_id: eventRecord.game_id || theme?.game_id || game?.id || null,
     game_theme: theme,
     game: game
       ? {
@@ -1168,6 +1196,106 @@ export async function getEventByPublicToken(
     organization_name: orgName,
     organization_slug: orgSlug,
   };
+}
+
+/**
+ * Authoritatively resolves the game type ('memory-match' | 'catch-brand' | string) for an event.
+ * Inspects event.game.game_type, event.game.slug, event.game_id, event.game_theme, and fallback metadata.
+ * Does NOT rely on untrusted client metadata.
+ */
+export async function resolveEventGameType(
+  event: any,
+  env?: Record<string, any>
+): Promise<'memory-match' | 'catch-brand' | string> {
+  if (!event) return 'catch-brand';
+
+  // 1. Direct game object on event
+  if (event.game) {
+    if (event.game.game_type) {
+      const gt = String(event.game.game_type).toLowerCase().trim();
+      if (gt === 'memory-match' || gt === 'catch-brand') return gt;
+    }
+    if (event.game.slug) {
+      const slug = String(event.game.slug).toLowerCase().trim();
+      if (slug === 'memory-match') return 'memory-match';
+      if (slug === 'catch-brand') return 'catch-brand';
+    }
+  }
+
+  // 2. Direct event.game_id
+  if (event.game_id) {
+    const gid = String(event.game_id).toLowerCase().trim();
+    if (gid === 'memory-match') return 'memory-match';
+    if (gid === 'catch-brand') return 'catch-brand';
+
+    try {
+      const gameRecord = await getGameById(event.game_id, env);
+      if (gameRecord) {
+        const gt = (gameRecord.game_type || gameRecord.slug || '').toLowerCase().trim();
+        if (gt === 'memory-match') return 'memory-match';
+        if (gt === 'catch-brand') return 'catch-brand';
+      }
+    } catch {
+      // Ignore lookup failure, continue
+    }
+  }
+
+  // 3. Check event theme
+  const theme = event.game_theme || (event.game_theme_id ? await getThemeById(event.game_theme_id, env).catch(() => null) : null);
+  if (theme) {
+    if (theme.game_type) {
+      const tgt = String(theme.game_type).toLowerCase().trim();
+      if (tgt === 'memory-match') return 'memory-match';
+      if (tgt === 'catch-brand') return 'catch-brand';
+    }
+    if (theme.game_slug) {
+      const tgs = String(theme.game_slug).toLowerCase().trim();
+      if (tgs === 'memory-match') return 'memory-match';
+      if (tgs === 'catch-brand') return 'catch-brand';
+    }
+    if (theme.base_theme_id) {
+      const bti = String(theme.base_theme_id).toLowerCase().trim();
+      if (bti === 'memory-match' || bti === 'memory-carnival') return 'memory-match';
+      if (bti === 'catch-brand' || bti === 'carnival') return 'catch-brand';
+    }
+    if (theme.id) {
+      const tid = String(theme.id).toLowerCase().trim();
+      if (tid === 'memory-match' || tid === 'memory-carnival') return 'memory-match';
+      if (tid === 'catch-brand' || tid === 'carnival') return 'catch-brand';
+    }
+    if (theme.slug) {
+      const tslug = String(theme.slug).toLowerCase().trim();
+      if (tslug === 'memory-match' || tslug === 'memory-carnival' || tslug.includes('memory')) return 'memory-match';
+    }
+    if (theme.game_id) {
+      try {
+        const themeGame = await getGameById(theme.game_id, env);
+        if (themeGame) {
+          const tgt = (themeGame.game_type || themeGame.slug || '').toLowerCase().trim();
+          if (tgt === 'memory-match') return 'memory-match';
+          if (tgt === 'catch-brand') return 'catch-brand';
+        }
+      } catch {
+        // Ignore lookup failure
+      }
+    }
+  }
+
+  // 4. String checks on event.game_theme_id
+  if (event.game_theme_id) {
+    const gtid = String(event.game_theme_id).toLowerCase().trim();
+    if (gtid === 'memory-match' || gtid === 'memory-carnival' || gtid.includes('memory')) {
+      return 'memory-match';
+    }
+  }
+
+  // 5. Fallback check on event name or slug
+  const eventName = (event.name || event.slug || '').toLowerCase();
+  if (eventName.includes('memory-match') || eventName.includes('memory match') || eventName.includes('brand memory match')) {
+    return 'memory-match';
+  }
+
+  return 'catch-brand';
 }
 
 /**

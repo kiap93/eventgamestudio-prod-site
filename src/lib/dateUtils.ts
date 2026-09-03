@@ -329,6 +329,30 @@ export function shouldShowPreviewHeader(
 }
 
 /**
+ * Checks whether an event is strictly before its configured start date (Asia/Singapore calendar date).
+ * During this pre-event window (including Setup Day), the event is in TEST mode and TEST scores can be manually cleared.
+ */
+export function isEventBeforeStartDate(
+  event: any,
+  currentDate?: string | Date | null
+): boolean {
+  if (!event) return false;
+  const rawStatus = (event.status || '').toLowerCase();
+  const eventStatus = (event.event_status || '').toUpperCase();
+  if (
+    rawStatus === 'cancelled' ||
+    eventStatus === 'CANCELLED' ||
+    event.cancel_reason
+  ) {
+    return false;
+  }
+  const { startDate } = getNormalizedEventDates(event);
+  if (!startDate) return false;
+  const curDate = getNormalizedCurrentDate(currentDate);
+  return curDate < startDate;
+}
+
+/**
  * Returns comprehensive availability state breakdown for an event.
  */
 export function getEventAvailabilityState(
@@ -341,6 +365,7 @@ export function getEventAvailabilityState(
   endDate: string;
   liveOpenDate: string;
   currentDate: string;
+  isBeforeStartDate: boolean;
   isBeforeLiveWindow: boolean;
   isInsideLiveWindow: boolean;
   isAfterLiveWindow: boolean;
@@ -360,6 +385,7 @@ export function getEventAvailabilityState(
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event || {});
   const curDate = getNormalizedCurrentDate(currentDate);
 
+  const isBeforeStartDate = Boolean(startDate && curDate < startDate);
   const isBeforeLiveWindow = Boolean(liveOpenDate && curDate < liveOpenDate);
   const isInsideLiveWindow = Boolean(
     liveOpenDate && endDate && curDate >= liveOpenDate && curDate <= endDate
@@ -401,6 +427,7 @@ export function getEventAvailabilityState(
     endDate,
     liveOpenDate,
     currentDate: curDate,
+    isBeforeStartDate: curDate < startDate,
     isBeforeLiveWindow,
     isInsideLiveWindow,
     isAfterLiveWindow,

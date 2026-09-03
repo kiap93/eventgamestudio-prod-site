@@ -170,22 +170,46 @@ async function runCorsTests() {
     assert(prodWithExplicitLocal === true, 'Allows localhost in production only if explicitly configured in ALLOWED_ORIGINS');
   }
 
-  // Test 9: Platform Domain Matching (Cloudflare Workers, Pages, Cloud Run, EventGameStudio subdomains)
+  // Test 9: Platform Domain Policy & Anti-Wildcard Production Guardrails
   {
-    console.log('\n[Test 9: Platform Domain Policy]');
-    const workerOrigin = 'https://eventgamestudio.kiap93-kmj.workers.dev';
-    const pagesOrigin = 'https://eventgamestudio.pages.dev';
-    const cloudRunOrigin = 'https://ais-dev-preview.asia-southeast1.run.app';
+    console.log('\n[Test 9: Platform Domain Policy & Anti-Wildcard Production Guardrails]');
+    const arbitraryWorker = 'https://random-attacker.workers.dev';
+    const arbitraryPages = 'https://malicious-phishing.pages.dev';
+    const arbitraryCloudRun = 'https://untrusted-service.run.app';
+    const prodPagesOrigin = 'https://eventgamestudio.pages.dev';
     const subDomainOrigin = 'https://custom-org.eventgamestudio.com';
+    const devCloudRun = 'https://ais-dev-p7yr75yish7jjotmam3wdk-897229651653.asia-southeast1.run.app';
+    const stagingWorker = 'https://staging-preview.workers.dev';
+    const stagingPages = 'https://staging-branch.pages.dev';
 
-    assert(isOriginAllowed(workerOrigin, { isProduction: true }) === true, 'Allows *.workers.dev origin in production');
-    assert(isOriginAllowed(pagesOrigin, { isProduction: true }) === true, 'Allows *.pages.dev origin in production');
-    assert(isOriginAllowed(cloudRunOrigin, { isProduction: true }) === true, 'Allows *.run.app origin in production');
-    assert(isOriginAllowed(subDomainOrigin, { isProduction: true }) === true, 'Allows *.eventgamestudio.com subdomains in production');
+    // 1. In PRODUCTION:
+    // Required production domains:
+    assert(isOriginAllowed(prodPagesOrigin, { isProduction: true }) === true, 'Allows real production frontend https://eventgamestudio.pages.dev in production');
+    assert(isOriginAllowed(subDomainOrigin, { isProduction: true }) === true, 'Allows *.eventgamestudio.com tenant subdomains in production');
 
-    const headers = getCorsHeaders(workerOrigin, undefined, { isProduction: true });
-    assert(headers['Access-Control-Allow-Origin'] === workerOrigin, 'Sets exact Access-Control-Allow-Origin for *.workers.dev');
-    assert(headers['Access-Control-Allow-Credentials'] === 'true', 'Sets credentials for *.workers.dev');
+    // Broad wildcards are strictly rejected in production:
+    assert(isOriginAllowed(arbitraryWorker, { isProduction: true }) === false, 'STRICTLY rejects arbitrary *.workers.dev origin in production');
+    assert(isOriginAllowed(arbitraryPages, { isProduction: true }) === false, 'STRICTLY rejects arbitrary *.pages.dev origin in production');
+    assert(isOriginAllowed(arbitraryCloudRun, { isProduction: true }) === false, 'STRICTLY rejects arbitrary *.run.app origin in production');
+
+    const headersProd = getCorsHeaders(arbitraryWorker, undefined, { isProduction: true });
+    assert(headersProd['Access-Control-Allow-Origin'] === undefined, 'Does not emit Access-Control-Allow-Origin for arbitrary *.workers.dev in production');
+
+    // If a specific worker or run.app origin is explicitly added to ALLOWED_ORIGINS:
+    const explicitlyConfigured = isOriginAllowed(arbitraryWorker, {
+      isProduction: true,
+      allowedOrigins: arbitraryWorker,
+    });
+    assert(explicitlyConfigured === true, 'Allows specific *.workers.dev in production ONLY if explicitly declared in ALLOWED_ORIGINS');
+
+    // 2. In DEVELOPMENT / STAGING:
+    assert(isOriginAllowed(devCloudRun, { isProduction: false }) === true, 'Allows *.run.app preview sandbox in development/staging');
+    assert(isOriginAllowed(stagingWorker, { isProduction: false }) === true, 'Allows *.workers.dev preview sandbox in development/staging');
+    assert(isOriginAllowed(stagingPages, { isProduction: false }) === true, 'Allows *.pages.dev preview sandbox in development/staging');
+
+    const devHeaders = getCorsHeaders(devCloudRun, undefined, { isProduction: false });
+    assert(devHeaders['Access-Control-Allow-Origin'] === devCloudRun, 'Reflects exact allowed preview origin in development');
+    assert(devHeaders['Access-Control-Allow-Credentials'] === 'true', 'Sets credentials for allowed preview origin in development');
   }
 
   console.log('\n======================================================');

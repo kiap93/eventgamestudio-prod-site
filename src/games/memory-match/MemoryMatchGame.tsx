@@ -629,6 +629,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         body: JSON.stringify({
           player_name: trimmedName,
           score,
+          session_id: sessionId,
           metadata: metadataPayload,
         }),
       });

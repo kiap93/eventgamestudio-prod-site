@@ -1536,9 +1536,15 @@ CREATE TABLE IF NOT EXISTS public.event_high_scores (
   event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
   player_name VARCHAR(50) NOT NULL DEFAULT 'Player',
   score INTEGER NOT NULL DEFAULT 0 CHECK (score >= 0),
+  session_id VARCHAR(100),
   metadata JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Global leaderboard idempotency constraint
+CREATE UNIQUE INDEX IF NOT EXISTS uq_event_high_scores_event_session
+  ON public.event_high_scores (event_id, session_id)
+  WHERE session_id IS NOT NULL AND session_id <> '';
 
 CREATE INDEX IF NOT EXISTS idx_event_high_scores_event_score 
   ON public.event_high_scores (event_id, score DESC, created_at ASC);

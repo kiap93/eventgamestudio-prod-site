@@ -123,10 +123,16 @@ export function isProductionEnvironment(env?: Record<string, any>): boolean {
 /**
  * PRODUCTION SAFETY RULE:
  * Local in-memory or JSON-file fallback is strictly prohibited in production mode and Cloudflare Workers.
- * Fallback is only enabled when NODE_ENV !== 'production' and not on Cloudflare Workers,
- * or when an explicit development/test flag (ALLOW_LOCAL_FALLBACK=true) is explicitly passed.
+ * Production configuration CANNOT accidentally enable local storage via flags or environment variables.
+ * Fallback is only enabled in development/test when NODE_ENV !== 'production' and not running on Cloudflare Workers.
  */
 export function isLocalFallbackAllowed(env?: Record<string, any>): boolean {
+  // CRITICAL: In production or Cloudflare Workers, local fallback is strictly prohibited.
+  // Production configuration cannot accidentally enable local storage under any circumstances.
+  if (isProductionEnvironment(env)) {
+    return false;
+  }
+
   const procEnv = typeof process !== 'undefined' ? process.env : {};
   const explicitAllow =
     env?.ALLOW_LOCAL_FALLBACK === 'true' ||
@@ -137,11 +143,6 @@ export function isLocalFallbackAllowed(env?: Record<string, any>): boolean {
     env?.ENABLE_LOCAL_FALLBACK === true;
 
   if (explicitAllow) return true;
-
-  // In production or Cloudflare Workers, local fallback is strictly prohibited
-  if (isProductionEnvironment(env)) {
-    return false;
-  }
 
   // Allowed in local dev / test mock sandbox without production flags
   return true;
@@ -156,6 +157,21 @@ export function assertProductionSafe(operationName: string, env?: Record<string,
     throw new Error(
       `Fatal: Financial database operation "${operationName}" cannot proceed without a valid Supabase database connection in production/Worker environment. Local database fallback is strictly disabled for financial integrity.`
     );
+  }
+}
+
+/**
+ * Guard assertion for production leaderboard operations.
+ * Throws a fatal error if execution is in production mode or Cloudflare Workers without a configured Supabase database.
+ * Ensures local JSON/file fallback is never silently used in production.
+ */
+export function assertProductionLeaderboardSafe(operationName: string, env?: Record<string, any>): void {
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    if (!isSupabaseConfigured(env)) {
+      throw new Error(
+        `Fatal: Production leaderboard operation "${operationName}" requires a valid Supabase/PostgreSQL database connection. Local JSON/file fallback is strictly prohibited in production.`
+      );
+    }
   }
 }
 

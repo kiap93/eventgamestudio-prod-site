@@ -131,6 +131,9 @@ import {
   getEventScoreStats,
   deleteEventScore,
   clearEventHighScores,
+  manualClearEventTestScores,
+  getEventTestScoresCount,
+  isEventBeforeStartDate,
 } from './server/db/index.js';
 
 import {
@@ -251,6 +254,16 @@ app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 // Global API rate limiter on all mutating endpoints to prevent volumetric request flood
 app.use('/api', (req, res, next) => {
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    // 1. High-score submissions have their own venue-scale rate limiter (highScoreRateLimiter: 300/min)
+    //    and must not be choked by the general 120/min mutating API limiter on shared venue Wi-Fi.
+    if (req.path.includes('/high-scores')) {
+      return next();
+    }
+    // 2. Webhook endpoints are authenticated via cryptographic signatures (HMAC SHA256 / Stripe)
+    //    and must not be throttled by user IP limits during batch event deliveries.
+    if (req.path.includes('/webhooks')) {
+      return next();
+    }
     return generalApiRateLimiter(req, res, next);
   }
   next();
@@ -2496,7 +2509,7 @@ app.get('/api/events/:eventId/high-scores', async (req, res) => {
 app.post('/api/events/:eventId/high-scores', highScoreRateLimiter, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { player_name, score, metadata } = req.body;
+    const { player_name, score, metadata, session_id, sessionId } = req.body;
 
     if (score === undefined || score === null) {
       res.status(422).json({ error: 'Score is required' });
@@ -2507,6 +2520,7 @@ app.post('/api/events/:eventId/high-scores', highScoreRateLimiter, async (req, r
       event_id: eventId,
       player_name,
       score: Number(score),
+      session_id: session_id || sessionId,
       metadata: typeof metadata === 'object' ? metadata : {},
     });
 
@@ -2555,7 +2569,7 @@ app.get('/api/public/events/:publicToken/high-scores', async (req, res) => {
 app.post('/api/public/events/:publicToken/high-scores', highScoreRateLimiter, async (req, res) => {
   try {
     const { publicToken } = req.params;
-    const { player_name, score, metadata } = req.body;
+    const { player_name, score, metadata, session_id, sessionId } = req.body;
 
     if (score === undefined || score === null) {
       res.status(422).json({ error: 'Score is required' });
@@ -2572,6 +2586,7 @@ app.post('/api/public/events/:publicToken/high-scores', highScoreRateLimiter, as
       event_id: event.id,
       player_name,
       score: Number(score),
+      session_id: session_id || sessionId,
       metadata: typeof metadata === 'object' ? metadata : {},
     });
 
@@ -2610,16 +2625,21 @@ app.get('/api/events/:eventId/admin/high-scores', authenticateJWT, async (req: A
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
     const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
 
-    const [leaderboard, stats] = await Promise.all([
+    const [leaderboard, stats, testScoresCount] = await Promise.all([
       getEventHighScores(eventId, { limit, page }),
       getEventScoreStats(eventId),
+      getEventTestScoresCount(eventId),
     ]);
+
+    const isBeforeStart = isEventBeforeStartDate(event);
 
     res.json({
       event_id: eventId,
       event_name: event.name,
       ...leaderboard,
       stats,
+      test_scores_count: testScoresCount,
+      is_before_start_date: isBeforeStart,
     });
   } catch (err: any) {
     console.error('Admin get high scores error:', err);
@@ -2655,6 +2675,55 @@ app.delete('/api/events/:eventId/high-scores/:scoreId', authenticateJWT, async (
     res.status(500).json({ error: err.message });
   }
 });
+
+/**
+ * POST /api/events/:eventId/test-scores/clear
+ * Admin endpoint: Manually clear TEST scores for an event BEFORE its start date.
+ * Rejects if event has already reached its start date.
+ * Leaves LIVE scores untouched.
+ */
+app.post(
+  ['/api/events/:eventId/test-scores/clear', '/api/events/:eventId/admin/test-scores/clear'],
+  authenticateJWT,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const user = req.user!;
+      const { eventId } = req.params;
+
+      const event = await getEventById(eventId);
+      if (!event) {
+        res.status(404).json({ error: 'Event not found' });
+        return;
+      }
+
+      const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+      if (!isMember || !['owner', 'admin'].includes(role || '')) {
+        res.status(403).json({ error: 'Permission denied: Only event owners and admins can clear test scores' });
+        return;
+      }
+
+      // Safety rule: Event must NOT have reached its start date
+      if (!isEventBeforeStartDate(event)) {
+        res.status(400).json({
+          error: 'Cannot manually clear test scores: Event has already reached its start date or is live.',
+          code: 'EVENT_ALREADY_STARTED',
+        });
+        return;
+      }
+
+      const result = await manualClearEventTestScores(eventId);
+      res.json({
+        success: true,
+        message: 'Test scores cleared.',
+        clearedCount: result.clearedCount,
+        deleted_count: result.deleted_count,
+      });
+    } catch (err: any) {
+      console.error('Manual clear test scores error:', err);
+      res.status(err.status || 500).json({ error: err.message, code: err.code });
+    }
+  }
+);
 
 /**
  * POST /api/events/:eventId/high-scores/clear

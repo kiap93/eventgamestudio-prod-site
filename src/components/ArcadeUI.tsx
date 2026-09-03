@@ -102,6 +102,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
   const [submittedRank, setSubmittedRank] = useState<number | null>(null);
   const [submittedScoreId, setSubmittedScoreId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string>(() => `cb_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
   const [leaderboardScores, setLeaderboardScores] = useState<EventLeaderboardEntry[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
@@ -276,7 +277,10 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
         body: JSON.stringify({
           player_name: trimmedName,
           score: stats.score,
+          session_id: sessionId,
           metadata: {
+            sessionId,
+            session_id: sessionId,
             greenCaught: stats.greenCaught,
             orangeCaught: stats.orangeCaught,
             duriansMissed: stats.duriansMissed,

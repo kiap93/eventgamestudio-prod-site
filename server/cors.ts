@@ -14,6 +14,7 @@ export const DEFAULT_ALLOWED_ORIGINS = [
   'https://eventgamestudio.com',
   'https://www.eventgamestudio.com',
   'https://app.eventgamestudio.com',
+  'https://eventgamestudio.pages.dev',
 ];
 
 export interface CorsOptions {
@@ -107,23 +108,28 @@ export function isOriginAllowed(
 
     const hostname = originUrl.hostname.toLowerCase();
 
-    // 3. Platform & domain matching (EventGameStudio subdomains, Workers, Pages, Cloud Run)
+    // 3. EventGameStudio apex and tenant subdomains (Production & all environments)
+    // Legitimate tenant organizations operate on vanity/branded subdomains: *.eventgamestudio.com
     if (
       hostname === 'eventgamestudio.com' ||
-      hostname.endsWith('.eventgamestudio.com') ||
-      hostname.endsWith('.workers.dev') ||
-      hostname.endsWith('.pages.dev') ||
-      hostname.endsWith('.run.app')
+      hostname.endsWith('.eventgamestudio.com')
     ) {
       return true;
     }
 
-    // 4. Development / staging environment exemptions (NOT in production)
+    // 4. Development / staging environment exemptions (NOT permitted in production)
+    // In dev/staging: permit localhost, 127.0.0.1, and cloud preview environments (*.run.app, *.pages.dev, *.workers.dev).
+    // In production: broad wildcard platforms (*.workers.dev, *.pages.dev, *.run.app) are STRICTLY forbidden
+    // to prevent unauthorized third-party Workers, Pages, or Cloud Run containers from making credentialed requests.
+    // If a specific deployment origin is required in production, it must be explicitly configured via ALLOWED_ORIGINS.
     if (!isProduction) {
       if (
         hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
-        hostname.endsWith('.localhost')
+        hostname.endsWith('.localhost') ||
+        hostname.endsWith('.workers.dev') ||
+        hostname.endsWith('.pages.dev') ||
+        hostname.endsWith('.run.app')
       ) {
         return true;
       }
