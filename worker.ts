@@ -110,7 +110,9 @@ import {
   getTopupQuote,
   createTopupOrder,
   getTopupOrderById,
+  findTopupOrderByReference,
   listTopupOrdersByOrganization,
+  TopupOrderRecord,
   processTopupOrderStatus,
   reconcileTopupOrder,
   recordWalletAuditEvent,
@@ -149,6 +151,7 @@ import {
   generateWebhookSignature,
   getPaymentWebhookSecret,
   syncTopupOrderExpiration,
+  getStripeClient,
 } from './server/payment/index.js';
 
 import {
@@ -4665,7 +4668,13 @@ export default {
       // ----------------------------------------------------
       // PAYMENT PROVIDER WEBHOOK (PUBLIC CRYPTOGRAPHIC VERIFICATION)
       // ----------------------------------------------------
-      if ((pathname === '/api/webhooks/payment' || pathname === '/api/wallet/webhooks/payment') && method === 'POST') {
+      if (
+        (pathname === '/api/webhooks/payment' ||
+          pathname === '/api/webhooks/stripe' ||
+          pathname === '/api/wallet/webhooks/payment' ||
+          pathname === '/api/wallet/webhooks/stripe') &&
+        method === 'POST'
+      ) {
         const rawBody = await request.text();
         const signature =
           request.headers.get('stripe-signature') ||
@@ -4849,19 +4858,56 @@ export default {
       }
 
       // GET /api/wallet/topups/:id & GET /api/organizations/:orgId/wallet/topup-orders/:id
-      const getTopupOrderMatch =
-        (pathname.match(/^\/api\/wallet\/topups\/([^\/]+)$/) && method === 'GET') ||
-        (pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup-orders\/([^\/]+)$/) && method === 'GET');
+      const orgGetTopupOrderMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup-orders\/([^\/]+)$/);
+      const legacyGetTopupOrderMatch = pathname.match(/^\/api\/wallet\/topups\/([^\/]+)$/);
 
-      if (getTopupOrderMatch) {
+      if ((orgGetTopupOrderMatch || legacyGetTopupOrderMatch) && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const orderId = getTopupOrderMatch[2] || getTopupOrderMatch[1];
+        const routeOrgId = orgGetTopupOrderMatch ? orgGetTopupOrderMatch[1] : null;
+        const rawOrderId = orgGetTopupOrderMatch ? orgGetTopupOrderMatch[2] : legacyGetTopupOrderMatch![1];
+        const url = new URL(request.url);
+        const sessionIdQuery = url.searchParams.get('session_id') || url.searchParams.get('sessionId') || undefined;
+        const statusQuery = url.searchParams.get('status') || undefined;
+
         try {
-          let order = await getTopupOrderById(orderId, env);
+          let order: TopupOrderRecord | null = null;
+          if (rawOrderId && rawOrderId !== 'undefined' && rawOrderId !== 'null' && rawOrderId !== 'lookup' && rawOrderId !== 'by-session') {
+            order = await getTopupOrderById(rawOrderId, env);
+          }
+
+          // Step 3 Fallback lookup by session_id when order_id is missing or not found
+          if (!order && sessionIdQuery) {
+            // 1. Direct database reference lookup
+            order = await findTopupOrderByReference(sessionIdQuery, env);
+
+            // 2. Stripe Checkout Session server-side retrieval and metadata order_id extraction
+            if (!order && sessionIdQuery.startsWith('cs_') && !sessionIdQuery.startsWith('cs_egs_')) {
+              const stripe = getStripeClient(env);
+              if (stripe) {
+                try {
+                  const stripeSession = await stripe.checkout.sessions.retrieve(sessionIdQuery);
+                  const trustedOrderId =
+                    stripeSession.metadata?.order_id ||
+                    stripeSession.metadata?.orderId;
+                  if (trustedOrderId) {
+                    order = await getTopupOrderById(trustedOrderId, env);
+                  }
+                } catch (stripeErr: any) {
+                  console.warn(`[Worker Get Topup Order] Failed to retrieve Stripe session ${sessionIdQuery}:`, stripeErr.message);
+                }
+              }
+            }
+          }
+
           if (!order) {
             return errorResponse('Top-up order not found', 404, cors);
+          }
+
+          // STRICT ORGANIZATION ISOLATION: User must belong to the order's organization
+          if (routeOrgId && routeOrgId !== order.organization_id) {
+            return errorResponse('Forbidden: Organization mismatch on top-up order', 403, cors);
           }
 
           const { isMember } = await verifyOrgMembershipAndPermission(auth.user.id, order.organization_id, undefined, env);
@@ -4870,11 +4916,8 @@ export default {
             return errorResponse('Forbidden: Access denied to this top-up order', 403, cors);
           }
 
-          // If order is PENDING, synchronize expiration / timeout status (including Stripe Checkout expiration)
+          // If order is PENDING, synchronize expiration / timeout status (including Stripe Checkout expiration & reconciliation)
           if (order.status === 'PENDING') {
-            const url = new URL(request.url);
-            const sessionIdQuery = url.searchParams.get('session_id') || url.searchParams.get('sessionId') || undefined;
-            const statusQuery = url.searchParams.get('status') || undefined;
             order = await syncTopupOrderExpiration(order, { sessionId: sessionIdQuery, status: statusQuery }, env);
           }
 
@@ -4885,16 +4928,16 @@ export default {
       }
 
       // GET /api/wallet/topups & GET /api/organizations/:orgId/wallet/topup-orders
-      const listTopupOrdersMatch =
-        (pathname === '/api/wallet/topups' && method === 'GET') ||
-        (pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup-orders$/) && method === 'GET');
+      const orgListTopupOrdersMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup-orders$/);
+      const legacyListTopupOrdersMatch = pathname === '/api/wallet/topups';
 
-      if (listTopupOrdersMatch) {
+      if ((orgListTopupOrdersMatch || legacyListTopupOrdersMatch) && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const orgMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/topup-orders$/);
-        const orgId = orgMatch ? orgMatch[1] : url.searchParams.get('organization_id') || url.searchParams.get('orgId');
+        const orgId = orgListTopupOrdersMatch
+          ? orgListTopupOrdersMatch[1]
+          : url.searchParams.get('organization_id') || url.searchParams.get('orgId');
 
         if (!orgId || !isUUID(orgId)) {
           return errorResponse('Valid organization ID (UUID) is required', 400, cors);
@@ -4915,15 +4958,14 @@ export default {
       }
 
       // POST /api/wallet/topups/:id/process-status & POST /api/wallet/topups/:id/status & POST /api/organizations/:orgId/wallet/topup-orders/:id/process-status
-      const processStatusMatch =
-        (pathname.match(/^\/api\/wallet\/topups\/([^\/]+)\/(?:process-status|status)$/) && method === 'POST') ||
-        (pathname.match(/^\/api\/organizations\/[^\/]+\/wallet\/topup-orders\/([^\/]+)\/process-status$/) && method === 'POST');
+      const orgProcessStatusMatch = pathname.match(/^\/api\/organizations\/[^\/]+\/wallet\/topup-orders\/([^\/]+)\/process-status$/);
+      const legacyProcessStatusMatch = pathname.match(/^\/api\/wallet\/topups\/([^\/]+)\/(?:process-status|status)$/);
 
-      if (processStatusMatch) {
+      if ((orgProcessStatusMatch || legacyProcessStatusMatch) && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const orderId = processStatusMatch[1];
+        const orderId = orgProcessStatusMatch ? orgProcessStatusMatch[1] : legacyProcessStatusMatch![1];
         try {
           const order = await getTopupOrderById(orderId, env);
           if (!order) {

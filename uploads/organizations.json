@@ -1096,5 +1096,14 @@
     "logo_url": null,
     "created_at": "2026-09-03T02:06:14.622Z",
     "updated_at": "2026-09-03T02:06:14.622Z"
+  },
+  {
+    "id": "595a7a60-02e6-421d-b125-bdc8fc8ee72e",
+    "name": "Auto Welcome Org Test",
+    "slug": "auto-welcome-org-test-873811",
+    "owner_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "logo_url": null,
+    "created_at": "2026-09-03T04:03:39.340Z",
+    "updated_at": "2026-09-03T04:03:39.340Z"
   }
 ]

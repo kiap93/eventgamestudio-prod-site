@@ -2651,8 +2651,8 @@ export async function findTopupOrderByReference(
       .maybeSingle();
     if (byRef) return byRef as TopupOrderRecord;
 
-    // 2. Stripe session ID match (STRIPE_cs_... or cs_...)
-    if (cleanId.startsWith('cs_')) {
+    // 2. Stripe session ID or Payment Intent match (STRIPE_cs_... or STRIPE_pi_...)
+    if (cleanId.startsWith('cs_') || cleanId.startsWith('pi_')) {
       const { data: byPrefixedRef } = await supabase
         .from('wallet_topup_orders')
         .select('*')
@@ -2661,7 +2661,7 @@ export async function findTopupOrderByReference(
       if (byPrefixedRef) return byPrefixedRef as TopupOrderRecord;
     }
 
-    // 3. Metadata check for stripe_session_id or sessionId
+    // 3. Metadata check for stripe_session_id, sessionId, checkout_session_id, stripe_payment_intent
     const { data: byMetaSession } = await supabase
       .from('wallet_topup_orders')
       .select('*')
@@ -2675,6 +2675,20 @@ export async function findTopupOrderByReference(
       .filter('metadata->>sessionId', 'eq', cleanId)
       .maybeSingle();
     if (byMetaId) return byMetaId as TopupOrderRecord;
+
+    const { data: byMetaCheckout } = await supabase
+      .from('wallet_topup_orders')
+      .select('*')
+      .filter('metadata->>checkout_session_id', 'eq', cleanId)
+      .maybeSingle();
+    if (byMetaCheckout) return byMetaCheckout as TopupOrderRecord;
+
+    const { data: byMetaPi } = await supabase
+      .from('wallet_topup_orders')
+      .select('*')
+      .filter('metadata->>stripe_payment_intent', 'eq', cleanId)
+      .maybeSingle();
+    if (byMetaPi) return byMetaPi as TopupOrderRecord;
   }
 
   // Fallback to local cache in dev/test
@@ -2683,7 +2697,10 @@ export async function findTopupOrderByReference(
       order.payment_reference === cleanId ||
       order.payment_reference === `STRIPE_${cleanId}` ||
       order.metadata?.stripe_session_id === cleanId ||
-      order.metadata?.sessionId === cleanId
+      order.metadata?.sessionId === cleanId ||
+      order.metadata?.checkout_session_id === cleanId ||
+      order.metadata?.stripe_payment_intent === cleanId ||
+      order.metadata?.paymentIntentId === cleanId
     ) {
       return order;
     }

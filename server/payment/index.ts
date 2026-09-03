@@ -164,16 +164,20 @@ export function verifyWebhookSignature(
   try {
     // 1. Check if signature is in Stripe format (t=xxx,v1=yyy)
     if (signatureHeader.includes('t=') && signatureHeader.includes('v1=')) {
-      const parts = signatureHeader.split(',').reduce((acc, item) => {
-        const [k, v] = item.trim().split('=');
-        if (k && v) acc[k] = v;
-        return acc;
-      }, {} as Record<string, string>);
+      const items = signatureHeader.split(',');
+      let timestampStr: string | undefined;
+      const v1Signatures: string[] = [];
 
-      const timestampStr = parts['t'];
-      const v1Sig = parts['v1'];
+      for (const item of items) {
+        const eqIdx = item.indexOf('=');
+        if (eqIdx === -1) continue;
+        const k = item.slice(0, eqIdx).trim();
+        const v = item.slice(eqIdx + 1).trim();
+        if (k === 't') timestampStr = v;
+        if (k === 'v1') v1Signatures.push(v);
+      }
 
-      if (!timestampStr || !v1Sig) {
+      if (!timestampStr || v1Signatures.length === 0) {
         return { isValid: false, error: 'Malformed stripe-signature header' };
       }
 
@@ -190,15 +194,17 @@ export function verifyWebhookSignature(
 
       const signedPayload = `${timestamp}.${rawBody}`;
       const expectedSig = crypto.createHmac('sha256', secret).update(signedPayload).digest('hex');
+      const expectedBuffer = Buffer.from(expectedSig, 'utf8');
 
-      if (Buffer.byteLength(expectedSig) !== Buffer.byteLength(v1Sig)) {
-        return { isValid: false, error: 'Signature length mismatch' };
+      let isMatch = false;
+      for (const v1Sig of v1Signatures) {
+        if (Buffer.byteLength(expectedSig) === Buffer.byteLength(v1Sig)) {
+          if (crypto.timingSafeEqual(expectedBuffer, Buffer.from(v1Sig, 'utf8'))) {
+            isMatch = true;
+            break;
+          }
+        }
       }
-
-      const isMatch = crypto.timingSafeEqual(
-        Buffer.from(expectedSig, 'utf8'),
-        Buffer.from(v1Sig, 'utf8')
-      );
 
       return { isValid: isMatch, error: isMatch ? undefined : 'Signature verification failed', timestamp };
     }
@@ -426,9 +432,16 @@ export async function verifyAndProcessPaymentWebhook(
   let order: TopupOrderRecord | null = null;
   if (orderId) {
     order = await getTopupOrderById(orderId, env);
-  } else {
-    // Fallback: look up by Stripe Session ID or Payment Intent ID
-    const candidateRef = dataObject.id || dataObject.payment_intent;
+  }
+
+  // Fallback: look up by Stripe Session ID or Payment Intent ID if order not found by ID
+  if (!order) {
+    const candidateRef =
+      dataObject.id ||
+      (typeof dataObject.payment_intent === 'string' ? dataObject.payment_intent : dataObject.payment_intent?.id) ||
+      dataObject.metadata?.sessionId ||
+      dataObject.metadata?.stripe_session_id;
+
     if (candidateRef) {
       order = await findTopupOrderByReference(candidateRef, env);
       if (order) {
@@ -832,11 +845,16 @@ export async function syncTopupOrderExpiration(
 
           if (currencyMatches && amountMatches && orgMatches) {
             console.log(`[Topup Sync] Stripe Checkout session ${cleanSessionId} is PAID. Reconciling order ${order.id} to PAID.`);
+            const paymentIntentId =
+              typeof stripeSession.payment_intent === 'string'
+                ? stripeSession.payment_intent
+                : (stripeSession.payment_intent as any)?.id || null;
+
             const settleResult = await processTopupOrderStatus(
               {
                 orderId: order.id,
                 newStatus: 'PAID',
-                paymentReference: (stripeSession.payment_intent as string) || `STRIPE_${stripeSession.id}`,
+                paymentReference: paymentIntentId || `STRIPE_${stripeSession.id}`,
                 paymentMethod: stripeSession.payment_method_types?.[0] || 'card',
                 reason: 'Authoritative Stripe Checkout Session completion verified via API reconciliation',
                 metadata: {
@@ -844,7 +862,7 @@ export async function syncTopupOrderExpiration(
                   stripe_session_id: cleanSessionId,
                   stripe_session_status: stripeSession.status,
                   stripe_payment_status: stripeSession.payment_status,
-                  stripe_payment_intent: stripeSession.payment_intent,
+                  stripe_payment_intent: paymentIntentId,
                   paid_at: new Date(now).toISOString(),
                   reconciled_at: new Date(now).toISOString(),
                   sync_source: 'stripe_api_reconciliation',

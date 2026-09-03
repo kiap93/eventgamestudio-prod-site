@@ -170,7 +170,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
     const sessionIdParam = params.get('session_id') || params.get('sessionId');
     const statusParam = params.get('status');
 
-    if (orderIdParam && currentOrganization?.id) {
+    if ((orderIdParam || sessionIdParam) && currentOrganization?.id) {
       const loadExistingOrder = async () => {
         try {
           const queryParams = new URLSearchParams();
@@ -178,8 +178,9 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           if (statusParam) queryParams.set('status', statusParam);
           const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
 
+          const endpointId = orderIdParam || 'lookup';
           const res = await apiFetch(
-            `/api/organizations/${currentOrganization.id}/wallet/topup-orders/${orderIdParam}${queryString}`
+            `/api/organizations/${currentOrganization.id}/wallet/topup-orders/${endpointId}${queryString}`
           );
           if (res.ok) {
             const data = await res.json();

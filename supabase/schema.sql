@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS public.events (
   paid_amount NUMERIC(10, 2) DEFAULT 0.00,
   discount_amount NUMERIC(10, 2) DEFAULT 0.00,
   public_token TEXT UNIQUE NOT NULL,
+  test_scores_cleared_at TIMESTAMPTZ,
   created_by UUID REFERENCES public.users (id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())

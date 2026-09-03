@@ -99,7 +99,9 @@ import {
   getPendingTopupOrder,
   createTopupOrder,
   getTopupOrderById,
+  findTopupOrderByReference,
   listTopupOrdersByOrganization,
+  TopupOrderRecord,
   processTopupOrderStatus,
   reconcileTopupOrder,
   recordWalletAuditEvent,
@@ -166,6 +168,7 @@ import {
   generateWebhookSignature,
   getPaymentWebhookSecret,
   syncTopupOrderExpiration,
+  getStripeClient,
 } from './server/payment/index.js';
 
 import {
@@ -4418,19 +4421,51 @@ app.post('/api/organizations/:orgId/wallet/topup-orders', walletRateLimiter, aut
  */
 const handleGetTopupOrder = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
-    const orderId = req.params.id || req.params.orderId;
-    if (!orderId) {
-      res.status(400).json({ error: 'Order ID is required' });
-      return;
+    const routeOrgId = req.params.orgId;
+    const rawOrderId = req.params.id || req.params.orderId;
+    const sessionIdQuery = (req.query.session_id as string) || (req.query.sessionId as string);
+    const statusQuery = req.query.status as string;
+
+    let order: TopupOrderRecord | null = null;
+    if (rawOrderId && rawOrderId !== 'undefined' && rawOrderId !== 'null' && rawOrderId !== 'lookup' && rawOrderId !== 'by-session') {
+      order = await getTopupOrderById(rawOrderId);
     }
 
-    let order = await getTopupOrderById(orderId);
+    // Step 3 Fallback lookup by session_id when order_id is missing or not found
+    if (!order && sessionIdQuery) {
+      // 1. Direct database reference lookup
+      order = await findTopupOrderByReference(sessionIdQuery);
+
+      // 2. Stripe Checkout Session server-side retrieval and metadata order_id extraction
+      if (!order && sessionIdQuery.startsWith('cs_') && !sessionIdQuery.startsWith('cs_egs_')) {
+        const stripe = getStripeClient();
+        if (stripe) {
+          try {
+            const stripeSession = await stripe.checkout.sessions.retrieve(sessionIdQuery);
+            const trustedOrderId =
+              stripeSession.metadata?.order_id ||
+              stripeSession.metadata?.orderId;
+            if (trustedOrderId) {
+              order = await getTopupOrderById(trustedOrderId);
+            }
+          } catch (stripeErr: any) {
+            console.warn(`[Get Topup Order] Failed to retrieve Stripe session ${sessionIdQuery}:`, stripeErr.message);
+          }
+        }
+      }
+    }
+
     if (!order) {
       res.status(404).json({ error: 'Top-up order not found' });
       return;
     }
 
     // STRICT ORGANIZATION ISOLATION: User must belong to the order's organization
+    if (routeOrgId && routeOrgId !== order.organization_id) {
+      res.status(403).json({ error: 'Organization mismatch on top-up order' });
+      return;
+    }
+
     const { isMember } = await verifyOrgMembershipAndPermission(req.user!.id, order.organization_id);
     const isDev = isUserDeveloperAdmin(req.user);
     if (!isMember && !isDev) {
@@ -4438,10 +4473,8 @@ const handleGetTopupOrder = async (req: AuthenticatedRequest, res: express.Respo
       return;
     }
 
-    // If order is PENDING, synchronize expiration / timeout status (including Stripe Checkout expiration)
+    // If order is PENDING, synchronize expiration / timeout status (including Stripe Checkout expiration & reconciliation)
     if (order.status === 'PENDING') {
-      const sessionIdQuery = (req.query.session_id as string) || (req.query.sessionId as string);
-      const statusQuery = req.query.status as string;
       order = await syncTopupOrderExpiration(order, { sessionId: sessionIdQuery, status: statusQuery });
     }
 
@@ -4679,7 +4712,9 @@ const handlePaymentWebhook = async (req: express.Request, res: express.Response)
 };
 
 app.post('/api/webhooks/payment', handlePaymentWebhook);
+app.post('/api/webhooks/stripe', handlePaymentWebhook);
 app.post('/api/wallet/webhooks/payment', handlePaymentWebhook);
+app.post('/api/wallet/webhooks/stripe', handlePaymentWebhook);
 
 /**
  * POST /api/developer/wallet/test-webhook
