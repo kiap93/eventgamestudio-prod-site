@@ -7,6 +7,7 @@ import { createServer as createViteServer } from 'vite';
 
 import {
   upsertGoogleUser,
+  updateUserProfile,
   getUserOrganizations,
   createOrganization,
   getOrganizationById,
@@ -456,6 +457,61 @@ app.post('/api/auth/switch-org', authRateLimiter, authenticateJWT, async (req: A
     res.status(500).json({ error: err.message });
   }
 });
+
+/**
+ * PATCH /api/auth/profile
+ * PUT /api/auth/profile
+ * Safely updates user profile fields (name, avatar_url).
+ *
+ * CRITICAL SECURITY / PRIVILEGE ESCALATION PREVENTION:
+ * Users cannot directly execute UPDATE on public.users via Supabase client.
+ * All profile changes MUST flow through this endpoint using service role.
+ * Attempts to modify 'is_developer' or other privileged fields are strictly rejected.
+ */
+const handleUpdateProfile = async (req: AuthenticatedRequest, res: express.Response) => {
+  try {
+    const user = req.user!;
+    const body = req.body || {};
+
+    // 1. Strictly block any privilege escalation attempts
+    const forbiddenFields = ['is_developer', 'is_admin', 'role', 'email', 'id', 'created_at', 'updated_at', 'google_id'];
+    for (const field of forbiddenFields) {
+      if (field in body) {
+        res.status(400).json({
+          error: `Modifying protected field '${field}' is strictly prohibited`,
+        });
+        return;
+      }
+    }
+
+    const { name, avatar_url } = body;
+    if (name === undefined && avatar_url === undefined) {
+      res.status(400).json({ error: 'At least one field (name or avatar_url) must be provided' });
+      return;
+    }
+
+    const updatedUser = await updateUserProfile(user.id, { name, avatar_url });
+
+    res.json({
+      success: true,
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        avatar_url: updatedUser.avatar_url,
+        is_developer: updatedUser.is_developer === true,
+      },
+    });
+  } catch (err: any) {
+    console.error('Update profile error:', err);
+    res.status(400).json({ error: err.message || 'Failed to update profile' });
+  }
+};
+
+app.patch('/api/auth/profile', authRateLimiter, authenticateJWT, handleUpdateProfile);
+app.put('/api/auth/profile', authRateLimiter, authenticateJWT, handleUpdateProfile);
+app.patch('/api/user/profile', authRateLimiter, authenticateJWT, handleUpdateProfile);
+app.put('/api/user/profile', authRateLimiter, authenticateJWT, handleUpdateProfile);
 
 // ----------------------------------------------------
 // ORGANIZATIONS API ENDPOINTS
@@ -2012,6 +2068,22 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       return;
     }
 
+    // Security check: Reject any client attempt to set initial event status to PAID or LIVE, or inject sensitive fields
+    if (
+      (req.body.payment_status && String(req.body.payment_status).toUpperCase() !== 'UNPAID') ||
+      (req.body.event_status && String(req.body.event_status).toUpperCase() !== 'DRAFT') ||
+      (req.body.status && !['draft', 'pending_payment'].includes(String(req.body.status).toLowerCase())) ||
+      req.body.paid_amount !== undefined ||
+      req.body.discount_amount !== undefined ||
+      req.body.payment_mode !== undefined ||
+      req.body.cancel_reason !== undefined
+    ) {
+      res.status(400).json({
+        error: 'Direct initialization of event payment, paid amounts, or live lifecycle status is strictly prohibited.',
+      });
+      return;
+    }
+
     // Create event with DRAFT event_status and UNPAID payment_status (no wallet balance deducted)
     const created = await createEvent({
       organization_id: organizationId,
@@ -2124,10 +2196,14 @@ app.post('/api/events/:eventId/pay', walletRateLimiter, authenticateJWT, async (
 });
 
 /**
- * PUT /api/events/:eventId
+ * PUT & PATCH /api/events/:eventId
  * Update event parameters (supports live theme correction)
  */
-app.put('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.all('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  if (req.method !== 'PUT' && req.method !== 'PATCH') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -2144,6 +2220,31 @@ app.put('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       return;
     }
 
+    // Security check: Block attempts to mutate sensitive / lifecycle / payment columns via standard event edit
+    const forbiddenFields = [
+      'payment_status',
+      'event_status',
+      'status',
+      'paid_amount',
+      'discount_amount',
+      'event_price',
+      'payment_mode',
+      'cancel_reason',
+      'organization_id',
+      'public_token',
+      'created_by',
+      'test_scores_cleared_at',
+      'id',
+    ];
+    for (const field of forbiddenFields) {
+      if (req.body[field] !== undefined) {
+        res.status(400).json({
+          error: `Modifying protected field '${field}' is strictly prohibited. Event payment, pricing, and lifecycle statuses can only be modified through authoritative payment and lifecycle workflows.`,
+        });
+        return;
+      }
+    }
+
     const {
       name,
       game_theme_id,
@@ -2154,7 +2255,6 @@ app.put('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       endDate,
       starts_at,
       expires_at,
-      status,
     } = req.body;
 
     const updated = await updateEvent(eventId, {
@@ -2167,7 +2267,6 @@ app.put('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       endDate,
       starts_at,
       expires_at,
-      status,
     });
 
     const enriched = await getEventById(updated.id);

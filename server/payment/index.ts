@@ -12,10 +12,13 @@ import {
   clearOutstandingBalance,
   cancelActiveCheckoutSession,
   expireActiveCheckoutSession,
+  claimCheckoutSessionCreation,
+  releaseCheckoutSessionClaim,
   toCents,
   fromCents,
 } from '../db/wallet.js';
 import { TopupOrderRecord } from '../db/types.js';
+import { isProductionEnvironment, isSupabaseConfigured } from '../supabase.js';
 
 export {
   getOutstandingBalance,
@@ -24,6 +27,8 @@ export {
   clearOutstandingBalance,
   cancelActiveCheckoutSession,
   expireActiveCheckoutSession,
+  claimCheckoutSessionCreation,
+  releaseCheckoutSessionClaim,
 };
 
 /**
@@ -468,8 +473,11 @@ async function executeCreatePaymentSession(
         },
         env
       );
-    } catch (attachErr) {
-      console.warn(`[Payment Session] Could not record outstanding metadata on order ${currentOrder.id}:`, attachErr);
+    } catch (attachErr: any) {
+      console.error(`[Payment Session] Could not record outstanding metadata on order ${currentOrder.id}:`, attachErr);
+      if (isProductionEnvironment(env) || isSupabaseConfigured(env)) {
+        throw new Error(`Financial session attachment failed: ${attachErr.message}`);
+      }
     }
 
     return {
@@ -617,7 +625,146 @@ async function executeCreatePaymentSession(
     });
   }
 
-  const attempt = (Number(currentOrder.metadata?.checkout_attempt) || 1) + 1;
+  // --------------------------------------------------------------------------
+  // DATABASE-LEVEL ATOMIC CHECKOUT CLAIM & DISTRIBUTED CONCURRENCY LOCK
+  // --------------------------------------------------------------------------
+  // Concept:
+  // PENDING order -> atomic "claim checkout creation" -> only ONE request wins -> Stripe Checkout -> save session
+  // Others wait/re-read the order. This guarantees distributed safety across Cloudflare Workers.
+  const claimId = `claim_${crypto.randomUUID()}`;
+  let claimResult = await claimCheckoutSessionCreation(
+    currentOrder.id,
+    { claimId, timeoutSeconds: 30 },
+    env
+  );
+
+  // If active session was already created by another worker, reuse it immediately:
+  if (claimResult.alreadyHasSession && (claimResult.sessionId || claimResult.order)) {
+    const activeOrder = claimResult.order || (await getTopupOrderById(currentOrder.id, env)) || currentOrder;
+    const activeMeta = (activeOrder.metadata && typeof activeOrder.metadata === 'object') ? activeOrder.metadata : {};
+    const activeSessionId = activeMeta.stripe_session_id || activeMeta.sessionId || claimResult.sessionId;
+    const activeCheckoutUrl = activeMeta.checkout_url || claimResult.checkoutUrl;
+    const activeExpiresAt = activeMeta.checkout_expires_at || activeOrder.expired_at || claimResult.expiresAt;
+
+    return {
+      sessionId: activeSessionId || '',
+      checkoutUrl: activeCheckoutUrl || `${baseUrl}/wallet/top-up?order_id=${activeOrder.id}&session_id=${activeSessionId}&checkout=true`,
+      paymentReference: activeOrder.payment_reference || `STRIPE_${activeSessionId}`,
+      paymentMethod: activeOrder.payment_method || 'card',
+      orderId: activeOrder.id,
+      amount: activeOrder.total_due || Number(activeOrder.top_up_amount) || totalDue,
+      currency: activeOrder.currency,
+      expiresAt: activeExpiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      totalDue: activeOrder.total_due || Number(activeOrder.top_up_amount) || totalDue,
+      payableAmount: activeOrder.payable_amount !== undefined ? activeOrder.payable_amount : currentPayable,
+      outstandingAmount: activeOrder.included_outstanding_amount !== undefined ? activeOrder.included_outstanding_amount : existingOutstanding,
+      sessionCreated: false,
+      status: 'SESSION_CREATED',
+      message: 'Active valid Stripe Checkout Session reused',
+    };
+  }
+
+  // If another distributed worker holds the claim: "Others wait/re-read the order"
+  if (claimResult.waitRequired || (claimResult.inProgress && !claimResult.claimed)) {
+    const maxWaitMs = 10000;
+    const pollIntervalMs = 250;
+    const startTime = Date.now();
+    let resolvedSession: PaymentSessionResult | null = null;
+
+    while (Date.now() - startTime < maxWaitMs) {
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+
+      const refreshedOrder = await getTopupOrderById(currentOrder.id, env);
+      if (refreshedOrder) {
+        const refMeta = (refreshedOrder.metadata && typeof refreshedOrder.metadata === 'object') ? refreshedOrder.metadata : {};
+        const refSessionId = refMeta.stripe_session_id || refMeta.sessionId;
+        const refCheckoutUrl = refMeta.checkout_url;
+        const refExpiresAt = refMeta.checkout_expires_at || refreshedOrder.expired_at;
+        const refCancelled =
+          Boolean(refMeta.checkout_cancelled) ||
+          Boolean(refMeta.cancelled_at) ||
+          refMeta.session_status === 'cancelled';
+
+        if (refSessionId && !refCancelled) {
+          let isExpired = false;
+          if (refExpiresAt && new Date(refExpiresAt).getTime() <= Date.now()) {
+            isExpired = true;
+          }
+          if (!isExpired) {
+            resolvedSession = {
+              sessionId: refSessionId,
+              checkoutUrl:
+                refCheckoutUrl ||
+                `${baseUrl}/wallet/top-up?order_id=${refreshedOrder.id}&session_id=${refSessionId}&checkout=true`,
+              paymentReference: refreshedOrder.payment_reference || `STRIPE_${refSessionId}`,
+              paymentMethod: refreshedOrder.payment_method || 'card',
+              orderId: refreshedOrder.id,
+              amount: refreshedOrder.total_due || Number(refreshedOrder.top_up_amount) || totalDue,
+              currency: refreshedOrder.currency,
+              expiresAt: refExpiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              totalDue: refreshedOrder.total_due || Number(refreshedOrder.top_up_amount) || totalDue,
+              payableAmount:
+                refreshedOrder.payable_amount !== undefined
+                  ? refreshedOrder.payable_amount
+                  : currentPayable,
+              outstandingAmount:
+                refreshedOrder.included_outstanding_amount !== undefined
+                  ? refreshedOrder.included_outstanding_amount
+                  : existingOutstanding,
+              sessionCreated: false,
+              status: 'SESSION_CREATED',
+              message: 'Active valid Stripe Checkout Session reused',
+            };
+            break;
+          }
+        }
+
+        // If other worker finished without setting session (e.g. error released claim)
+        if (!refMeta.checkout_in_progress) {
+          break;
+        }
+      }
+    }
+
+    if (resolvedSession) {
+      return resolvedSession;
+    }
+
+    // Re-attempt claim after waiting
+    claimResult = await claimCheckoutSessionCreation(
+      currentOrder.id,
+      { claimId, timeoutSeconds: 30 },
+      env
+    );
+
+    if (claimResult.alreadyHasSession && (claimResult.sessionId || claimResult.order)) {
+      const activeOrder = claimResult.order || (await getTopupOrderById(currentOrder.id, env)) || currentOrder;
+      const activeMeta = (activeOrder.metadata && typeof activeOrder.metadata === 'object') ? activeOrder.metadata : {};
+      const activeSessionId = activeMeta.stripe_session_id || activeMeta.sessionId || claimResult.sessionId;
+      const activeCheckoutUrl = activeMeta.checkout_url || claimResult.checkoutUrl;
+      const activeExpiresAt = activeMeta.checkout_expires_at || activeOrder.expired_at || claimResult.expiresAt;
+
+      return {
+        sessionId: activeSessionId || '',
+        checkoutUrl: activeCheckoutUrl || `${baseUrl}/wallet/top-up?order_id=${activeOrder.id}&session_id=${activeSessionId}&checkout=true`,
+        paymentReference: activeOrder.payment_reference || `STRIPE_${activeSessionId}`,
+        paymentMethod: activeOrder.payment_method || 'card',
+        orderId: activeOrder.id,
+        amount: activeOrder.total_due || Number(activeOrder.top_up_amount) || totalDue,
+        currency: activeOrder.currency,
+        expiresAt: activeExpiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        totalDue: activeOrder.total_due || Number(activeOrder.top_up_amount) || totalDue,
+        payableAmount: activeOrder.payable_amount !== undefined ? activeOrder.payable_amount : currentPayable,
+        outstandingAmount: activeOrder.included_outstanding_amount !== undefined ? activeOrder.included_outstanding_amount : existingOutstanding,
+        sessionCreated: false,
+        status: 'SESSION_CREATED',
+        message: 'Active valid Stripe Checkout Session reused',
+      };
+    }
+  }
+
+  // Claim won by this request! The attempt number is strictly allocated by database lock.
+  const attempt = claimResult.attempt || (Number(currentOrder.metadata?.checkout_attempt) || 0) + 1;
 
   let sessionId = `cs_egs_${crypto.randomBytes(16).toString('hex')}`;
   let checkoutUrl = `${baseUrl}/wallet/top-up?order_id=${currentOrder.id}&session_id=${sessionId}&checkout=true`;
@@ -693,6 +840,11 @@ async function executeCreatePaymentSession(
       }
     } catch (stripeErr: any) {
       console.error('Stripe Checkout Session creation error:', stripeErr);
+      try {
+        await releaseCheckoutSessionClaim(currentOrder.id, claimId, env);
+      } catch (releaseErr) {
+        console.warn('Failed to release checkout session claim on error:', releaseErr);
+      }
       throw new Error(`Stripe Checkout Session initialization failed: ${stripeErr.message}`);
     }
   }
@@ -735,14 +887,22 @@ async function executeCreatePaymentSession(
         includedOutstandingAmount: existingOutstanding,
         extraMetadata: {
           checkout_attempt: attempt,
+          checkout_in_progress: false,
+          checkout_claim_id: null,
           checkout_cancelled: false,
           previous_sessions: previousSessions,
         },
       },
       env
     );
-  } catch (attachErr) {
-    console.warn(`[Payment Session] Could not attach checkout session to order ${currentOrder.id}:`, attachErr);
+  } catch (attachErr: any) {
+    console.error(`[Payment Session] Could not attach checkout session to order ${currentOrder.id}:`, attachErr);
+    try {
+      await releaseCheckoutSessionClaim(currentOrder.id, claimId, env);
+    } catch {}
+    if (isProductionEnvironment(env) || isSupabaseConfigured(env)) {
+      throw new Error(`Financial session attachment failed: ${attachErr.message}`);
+    }
   }
 
   return {

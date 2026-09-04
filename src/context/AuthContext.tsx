@@ -63,6 +63,7 @@ interface AuthContextType {
     settings_config?: any;
   }) => Promise<void>;
   uploadAsset: (file: File) => Promise<string>;
+  updateUserProfile: (data: { name?: string; avatar_url?: string | null }) => Promise<User>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -443,6 +444,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return data.url;
   };
 
+  const updateUserProfile = async (data: { name?: string; avatar_url?: string | null }): Promise<User> => {
+    const res = await authFetch('/api/auth/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to update profile');
+    }
+
+    const resData = await res.json();
+    setCurrentUser(resData.user);
+    return resData.user;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -471,6 +489,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         cloneAllSystemThemes,
         updateGameCustomization,
         uploadAsset,
+        updateUserProfile,
       }}
     >
       {children}

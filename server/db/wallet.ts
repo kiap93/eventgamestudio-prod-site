@@ -539,6 +539,7 @@ export async function getOutstandingBalance(
   // In production, require primary database to be configured
   if (isProd && !isSupabaseConfigured(env)) {
     assertProductionSafe('getOutstandingBalance', env);
+    throw new Error('Database error querying outstanding balance: Primary database not available in production');
   }
 
   if (isSupabaseConfigured(env)) {
@@ -552,7 +553,7 @@ export async function getOutstandingBalance(
 
       if (error) {
         console.error('Fatal: Failed to query outstanding_balance from database:', error);
-        // DB read fails -> FAIL CLOSED in production or when Supabase is configured
+        // DB read fails -> FAIL CLOSED in production or whenever Supabase is configured
         throw new Error(`Database error querying outstanding balance: ${error.message}`);
       }
 
@@ -568,14 +569,12 @@ export async function getOutstandingBalance(
         return balance;
       }
 
-      // No row found in Supabase: brand new organization has 0.00 outstanding balance
+      // No row found in Supabase: organization has 0.00 outstanding balance
       return 0.0;
     } catch (err: any) {
       console.error('Fatal: Database connection failed querying outstanding balance:', err.message);
-      // DB read fails -> FAIL CLOSED
-      if (isProd || isSupabaseConfigured(env)) {
-        throw new Error(`Database error querying outstanding balance: ${err.message}`);
-      }
+      // DB read fails -> FAIL CLOSED. NEVER silently fall back to local cache.
+      throw new Error(`Database error querying outstanding balance: ${err.message}`);
     }
   }
 
@@ -583,7 +582,7 @@ export async function getOutstandingBalance(
     throw new Error('Database error querying outstanding balance: Primary database not available');
   }
 
-  // Development/Test mock fallback only when Supabase is not configured
+  // Development/Test mock fallback strictly when Supabase is not configured
   assertProductionSafe('getOutstandingBalance', env);
   const cached = localWalletsCache.get(organizationId);
   return Math.max(0, fromCents(toCents(cached?.outstanding_balance || 0)));
@@ -595,6 +594,7 @@ export async function getOutstandingBalance(
  * PRODUCTION SAFETY:
  * In production or whenever Supabase is configured:
  * DB write failure -> FAIL CLOSED (throws error, never claims success without DB confirmation).
+ * Never update local cache or claim success if Supabase did not confirm it.
  */
 export async function setOutstandingBalance(
   organizationId: string,
@@ -611,6 +611,7 @@ export async function setOutstandingBalance(
   // In production, require primary database to be configured
   if (isProd && !isSupabaseConfigured(env)) {
     assertProductionSafe('setOutstandingBalance', env);
+    throw new Error('Database error updating outstanding balance: Primary database not available in production');
   }
 
   if (isSupabaseConfigured(env)) {
@@ -642,7 +643,7 @@ export async function setOutstandingBalance(
 
       const confirmedAmount = fromCents(toCents(Number(data.outstanding_balance)));
 
-      // Never claim success unless database confirmed the update
+      // Never claim success or update cache unless database confirmed the update
       if (isLocalFallbackAllowed(env)) {
         const existing = localWalletsCache.get(organizationId);
         if (existing) {
@@ -672,9 +673,7 @@ export async function setOutstandingBalance(
       console.error('Fatal: Error writing outstanding_balance to database:', err.message);
       // In production or whenever Supabase is configured: FAIL CLOSED!
       // Never claim outstanding balance was updated successfully if Supabase did not confirm it.
-      if (isProd || isSupabaseConfigured(env)) {
-        throw new Error(`Database error updating outstanding balance: ${err.message}`);
-      }
+      throw new Error(`Database error updating outstanding balance: ${err.message}`);
     }
   }
 
@@ -722,7 +721,12 @@ export async function addOutstandingBalance(
 }
 
 /**
- * Clear or reduce an organization's outstanding balance after successful payment settlement.
+ * Administrative helper to reset or manually adjust an organization's outstanding balance.
+ *
+ * ARCHITECTURAL MANDATE:
+ * In the final architecture, payment settlement does NOT call this helper as a secondary step.
+ * All payment settlement operations (wallet credit + top-up order status PAID + outstanding balance reduction)
+ * MUST be executed atomically inside the single database transaction of `process_topup_order_atomic`.
  */
 export async function clearOutstandingBalance(
   organizationId: string,
@@ -3020,6 +3024,7 @@ export async function processTopupOrderStatus(
     promoCreditTransaction?: WalletTransactionRecord | null;
     wallet: WalletBalanceSummary;
   };
+  wallet?: any;
   message?: string;
 }> {
   const { orderId, newStatus, paymentReference, paymentMethod, processedBy, reason, metadata, isTrustedSettlement } = params;
@@ -3094,20 +3099,11 @@ export async function processTopupOrderStatus(
       }
 
       if (newStatus === 'PAID' && !data.is_idempotent_replay) {
-        // Outstanding balance deduction is performed atomically within the process_topup_order_atomic RPC.
-        // If the RPC returned the updated outstanding_balance, it was already settled atomically in the DB transaction.
-        // Only if an older RPC did not handle it (i.e. (data.wallet as any)?.outstanding_balance === undefined)
-        // do we fall back to a separate clearOutstandingBalance call (which is also fail-closed).
-        const includedOutstanding = Math.max(
-          Number(order.included_outstanding_amount || 0),
-          Number(order.metadata?.included_outstanding_amount || 0),
-          Number((data.order as any)?.included_outstanding_amount || 0),
-          Number((data.order as any)?.metadata?.included_outstanding_amount || 0)
-        );
-        if (includedOutstanding > 0 && (data.wallet as any)?.outstanding_balance === undefined) {
-          await clearOutstandingBalance(order.organization_id, includedOutstanding, env);
-        }
-
+        // FINAL ARCHITECTURE:
+        // The process_topup_order_atomic RPC handles wallet credit, top-up order status PAID,
+        // and outstanding balance reduction in a single ACID database transaction.
+        // There is no secondary clearOutstandingBalance() step, guaranteeing that inconsistent
+        // financial states (wallet credited while outstanding balance remains) are structurally impossible.
         await recordWalletAuditEvent(
           {
             organizationId: order.organization_id,
@@ -3170,6 +3166,24 @@ export async function processTopupOrderStatus(
 
     // 3. Process Status Transitions
     if (newStatus === 'PAID') {
+      // Calculate promo credit based on qualifying tier
+      let promoCredit = 0;
+      let tierRate = '0%';
+      if (order.top_up_amount >= 10000) {
+        promoCredit = fromCents(Math.round(toCents(order.top_up_amount) * 0.07));
+        tierRate = '7%';
+      } else if (order.top_up_amount >= 6000) {
+        promoCredit = fromCents(Math.round(toCents(order.top_up_amount) * 0.05));
+        tierRate = '5%';
+      }
+
+      // Extract included outstanding balance to deduct atomically
+      const includedOutstanding = Math.max(
+        Number(order.included_outstanding_amount || 0),
+        Number(order.metadata?.included_outstanding_amount || 0),
+        Number(metadata?.included_outstanding_amount || 0)
+      );
+
       // A. Update Order State to PAID
       order.status = 'PAID';
       order.paid_at = now;
@@ -3181,31 +3195,92 @@ export async function processTopupOrderStatus(
         order.metadata = { ...(order.metadata || {}), ...metadata };
       }
 
-      // Save updated order
       localTopupOrdersCache.set(order.id, order);
-      saveLocalStores();
 
-      // B. Create SEPARATE ledger entries via Wallet Engine
+      // B. Create separate ledger entries
       // 1) PAID_BALANCE (+ RM top_up_amount)
-      // 2) TOPUP_CREDIT (+ RM expected_credit_amount)
-      const ledgerResult = await createTopup(
-        {
-          organizationId: order.organization_id,
-          amount: order.top_up_amount,
-          currency: order.currency,
-          referenceId: `topup_order_${order.id}`,
-          description: `Top-up Order ${order.id.slice(0, 8).toUpperCase()}`,
+      const topupTxn: WalletTransactionRecord = {
+        id: `txn_topup_${order.id}`,
+        organization_id: order.organization_id,
+        event_id: null,
+        transaction_type: 'TOPUP',
+        balance_type: 'PAID_BALANCE',
+        amount: order.top_up_amount,
+        currency: order.currency || 'MYR',
+        status: 'COMPLETED',
+        reference_id: `topup_order_${order.id}`,
+        description: `Top-up Order ${order.id.slice(0, 8).toUpperCase()}`,
+        metadata: {
+          topup_order_id: order.id,
+          payment_reference: order.payment_reference,
+          payment_method: order.payment_method,
+          reason,
+          ...(order.metadata || {}),
+        },
+        created_by: processedBy || order.user_id,
+        created_at: now,
+      };
+      localTransactionsCache.set(topupTxn.id, topupTxn);
+
+      // 2) TOPUP_CREDIT (+ RM promoCredit) if tier qualifies
+      let promoTxn: WalletTransactionRecord | null = null;
+      if (promoCredit > 0) {
+        promoTxn = {
+          id: `txn_topup_${order.id}_promo`,
+          organization_id: order.organization_id,
+          event_id: null,
+          transaction_type: 'TOPUP_CREDIT',
+          balance_type: 'TOPUP_CREDIT',
+          amount: promoCredit,
+          currency: order.currency || 'MYR',
+          status: 'COMPLETED',
+          reference_id: `topup_order_${order.id}_promo`,
+          description: `Promotional ${tierRate} Top-up Credit on RM${order.top_up_amount.toFixed(2)} deposit`,
           metadata: {
+            parent_topup_id: topupTxn.id,
             topup_order_id: order.id,
-            payment_reference: order.payment_reference,
-            payment_method: order.payment_method,
-            reason,
+            qualifying_amount: order.top_up_amount,
+            reward_rate: tierRate,
             ...(order.metadata || {}),
           },
-          createdBy: processedBy || order.user_id,
-        },
-        env
-      );
+          created_by: processedBy || order.user_id,
+          created_at: now,
+        };
+        localTransactionsCache.set(promoTxn.id, promoTxn);
+      }
+
+      // C. ATOMIC UPDATE: Credit paid_balance and topup_credit while simultaneously deducting outstanding_balance
+      const currentWallet: OrganizationWalletRecord = localWalletsCache.get(order.organization_id) || {
+        id: crypto.randomUUID(),
+        organization_id: order.organization_id,
+        paid_balance: 0,
+        welcome_credit: 0,
+        showcase_credit: 0,
+        topup_credit: 0,
+        outstanding_balance: 0,
+        currency: order.currency || 'MYR',
+        welcome_credit_granted: false,
+        showcase_credit_granted: false,
+        created_at: now,
+        updated_at: now,
+      };
+
+      const newPaidBalance = fromCents(toCents(currentWallet.paid_balance) + toCents(order.top_up_amount));
+      const newTopupCredit = fromCents(toCents(currentWallet.topup_credit) + toCents(promoCredit));
+      const currentOutstandingCents = toCents(currentWallet.outstanding_balance || 0);
+      const includedOutstandingCents = toCents(includedOutstanding);
+      const newOutstandingBalance = fromCents(Math.max(0, currentOutstandingCents - includedOutstandingCents));
+
+      const updatedWallet: OrganizationWalletRecord = {
+        ...currentWallet,
+        paid_balance: newPaidBalance,
+        topup_credit: newTopupCredit,
+        outstanding_balance: newOutstandingBalance,
+        updated_at: now,
+      };
+
+      localWalletsCache.set(order.organization_id, updatedWallet);
+      saveLocalStores();
 
       // Record PAYMENT_COMPLETED audit event
       await recordWalletAuditEvent(
@@ -3225,20 +3300,18 @@ export async function processTopupOrderStatus(
         env
       );
 
-      // Clear outstanding balance if included in this order
-      const includedOutstanding = Math.max(
-        Number(order.included_outstanding_amount || 0),
-        Number(order.metadata?.included_outstanding_amount || 0)
-      );
-      if (includedOutstanding > 0) {
-        await clearOutstandingBalance(order.organization_id, includedOutstanding, env);
-      }
+      const walletSummary = await getWalletBalance(order.organization_id, env);
 
       return {
         order,
         alreadyProcessed: false,
-        ledgerResult,
-        message: `Top-up order successfully marked as PAID. Wallet credited with RM${order.top_up_amount.toFixed(2)} cash balance and RM${order.expected_credit_amount.toFixed(2)} promotional credits.`,
+        ledgerResult: {
+          topupTransaction: topupTxn,
+          promoCreditTransaction: promoTxn,
+          wallet: walletSummary,
+        },
+        wallet: walletSummary,
+        message: `Top-up order successfully marked as PAID. Wallet credited with RM${order.top_up_amount.toFixed(2)} cash balance and RM${promoCredit.toFixed(2)} promotional credits.`,
       };
     }
 
@@ -3487,7 +3560,12 @@ export async function attachCheckoutSessionToTopupOrder(
       .eq('id', orderId)
       .maybeSingle();
 
-    if (fetchError || !existingData) {
+    if (fetchError) {
+      console.error('Fatal: Failed to fetch topup order from Supabase:', fetchError);
+      throw new Error(`Database error fetching topup order: ${fetchError.message}`);
+    }
+
+    if (!existingData) {
       console.warn(`[attachCheckoutSessionToTopupOrder] Order ${orderId} not found in Supabase`);
       return null;
     }
@@ -3495,6 +3573,8 @@ export async function attachCheckoutSessionToTopupOrder(
     const currentMetadata = (existingData.metadata && typeof existingData.metadata === 'object') ? existingData.metadata : {};
     const mergedMetadata = {
       ...currentMetadata,
+      checkout_in_progress: false,
+      checkout_claim_id: null,
       stripe_session_id: sessionInfo.sessionId,
       sessionId: sessionInfo.sessionId,
       checkout_url: sessionInfo.checkoutUrl,
@@ -3513,6 +3593,15 @@ export async function attachCheckoutSessionToTopupOrder(
     if (sessionInfo.totalDue !== undefined && sessionInfo.totalDue > 0) {
       updatePayload.top_up_amount = sessionInfo.totalDue;
     }
+    if (sessionInfo.totalDue !== undefined) {
+      updatePayload.total_due = sessionInfo.totalDue;
+    }
+    if (sessionInfo.includedOutstandingAmount !== undefined) {
+      updatePayload.included_outstanding_amount = sessionInfo.includedOutstandingAmount;
+    }
+    if (sessionInfo.payableAmount !== undefined) {
+      updatePayload.payable_amount = sessionInfo.payableAmount;
+    }
     if (sessionInfo.paymentReference) {
       updatePayload.payment_reference = sessionInfo.paymentReference;
     }
@@ -3530,9 +3619,16 @@ export async function attachCheckoutSessionToTopupOrder(
       .select('*')
       .maybeSingle();
 
-    if (!updateError && updatedData) {
+    if (updateError) {
+      console.error('Fatal: Failed to attach checkout session in database:', updateError);
+      throw new Error(`Database error attaching checkout session to order: ${updateError.message}`);
+    }
+
+    if (updatedData) {
       const updatedOrder = updatedData as TopupOrderRecord;
-      localTopupOrdersCache.set(updatedOrder.id, updatedOrder);
+      if (isLocalFallbackAllowed(env)) {
+        localTopupOrdersCache.set(updatedOrder.id, updatedOrder);
+      }
       return updatedOrder;
     }
   }
@@ -3543,6 +3639,8 @@ export async function attachCheckoutSessionToTopupOrder(
     const currentMetadata = (cachedOrder.metadata && typeof cachedOrder.metadata === 'object') ? cachedOrder.metadata : {};
     cachedOrder.metadata = {
       ...currentMetadata,
+      checkout_in_progress: false,
+      checkout_claim_id: null,
       stripe_session_id: sessionInfo.sessionId,
       sessionId: sessionInfo.sessionId,
       checkout_url: sessionInfo.checkoutUrl,
@@ -3683,3 +3781,334 @@ export async function expireActiveCheckoutSession(
   saveLocalStores();
   return order;
 }
+
+export interface CheckoutSessionClaimResult {
+  success: boolean;
+  claimed: boolean;
+  attempt?: number;
+  claimId?: string;
+  inProgress?: boolean;
+  waitRequired?: boolean;
+  alreadyHasSession?: boolean;
+  sessionId?: string;
+  checkoutUrl?: string;
+  expiresAt?: string;
+  order?: TopupOrderRecord;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * Atomically claims checkout session creation for a PENDING top-up order.
+ *
+ * Distributed Concurrency Guarantee:
+ * When multiple distributed worker instances (e.g. Cloudflare Workers / containers) receive simultaneous
+ * checkout requests for the same order, this function performs an exclusive row lock:
+ * 1. Exactly ONE worker instance acquires the claim (claimed = true) and receives a strictly monotonic
+ *    checkout attempt sequence number for Stripe idempotency.
+ * 2. If an active, non-expired checkout session already exists, it is immediately returned for reuse.
+ * 3. Subsequent workers receive waitRequired = true and inProgress = true so they can wait and re-read
+ *    the authoritative session once created, completely preventing duplicate Stripe Checkout Sessions.
+ */
+export async function claimCheckoutSessionCreation(
+  orderId: string,
+  options: {
+    claimId?: string;
+    timeoutSeconds?: number;
+  } = {},
+  env?: Record<string, any>
+): Promise<CheckoutSessionClaimResult> {
+  const claimId = options.claimId || `claim_${crypto.randomUUID()}`;
+  const timeoutSeconds = options.timeoutSeconds || 30;
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    // 1. Try atomic PostgreSQL RPC if provisioned
+    try {
+      const { data, error } = await supabase.rpc('claim_checkout_session_creation', {
+        p_order_id: orderId,
+        p_claim_id: claimId,
+        p_timeout_seconds: timeoutSeconds,
+      });
+
+      if (!error && data) {
+        return {
+          success: Boolean(data.success),
+          claimed: Boolean(data.claimed),
+          attempt: data.attempt,
+          claimId: data.claim_id || claimId,
+          inProgress: Boolean(data.in_progress),
+          waitRequired: Boolean(data.wait_required),
+          alreadyHasSession: Boolean(data.already_has_session),
+          sessionId: data.session_id,
+          checkoutUrl: data.checkout_url,
+          expiresAt: data.expires_at,
+          order: data.order as TopupOrderRecord,
+          message: data.message,
+          error: data.error,
+        };
+      }
+
+      if (error && error.code !== 'PGRST202' && error.code !== '42883') {
+        console.error('Fatal: Failed to claim checkout session creation via RPC:', error);
+        if (isProductionEnvironment(env)) {
+          throw new Error(`Financial database error claiming checkout session: ${error.message}`);
+        }
+      }
+    } catch (rpcErr: any) {
+      if (isProductionEnvironment(env) && !rpcErr.message?.includes('PGRST202') && !rpcErr.message?.includes('42883')) {
+        throw rpcErr;
+      }
+    }
+
+    // Direct database query & conditional update with optimistic/row lock pattern
+    const { data: existingOrder, error: fetchErr } = await supabase
+      .from('wallet_topup_orders')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (fetchErr) {
+      console.error('Fatal: Failed to fetch order for checkout claim:', fetchErr);
+      throw new Error(`Database error fetching order: ${fetchErr.message}`);
+    }
+    if (!existingOrder) {
+      return { success: false, claimed: false, error: 'order_not_found', message: 'Order not found' };
+    }
+    if (existingOrder.status !== 'PENDING') {
+      return { success: false, claimed: false, error: 'order_not_pending', message: `Order is in status ${existingOrder.status}` };
+    }
+
+    const metadata = (existingOrder.metadata && typeof existingOrder.metadata === 'object') ? existingOrder.metadata : {};
+    const existingSessionId = metadata.stripe_session_id || metadata.sessionId;
+    const existingCheckoutUrl = metadata.checkout_url;
+    const existingExpiresAt = metadata.checkout_expires_at || existingOrder.expired_at;
+    const isCancelled = Boolean(metadata.checkout_cancelled) || Boolean(metadata.cancelled_at) || metadata.session_status === 'cancelled';
+
+    if (existingSessionId && !isCancelled) {
+      let isExpired = false;
+      if (existingExpiresAt && new Date(existingExpiresAt).getTime() <= Date.now()) {
+        isExpired = true;
+      }
+      if (!isExpired) {
+        return {
+          success: true,
+          claimed: false,
+          alreadyHasSession: true,
+          sessionId: existingSessionId,
+          checkoutUrl: existingCheckoutUrl,
+          expiresAt: existingExpiresAt,
+          order: existingOrder as TopupOrderRecord,
+          message: 'Active checkout session already exists on order',
+        };
+      }
+    }
+
+    const inProgress = Boolean(metadata.checkout_in_progress);
+    const claimedAt = metadata.checkout_claimed_at ? new Date(metadata.checkout_claimed_at).getTime() : 0;
+    const claimedBy = metadata.checkout_claim_id;
+    const currentAttempt = Number(metadata.checkout_attempt) || 0;
+
+    if (inProgress && claimedAt && (Date.now() - claimedAt) < timeoutSeconds * 1000) {
+      if (claimedBy === claimId) {
+        return {
+          success: true,
+          claimed: true,
+          attempt: currentAttempt,
+          claimId,
+          order: existingOrder as TopupOrderRecord,
+        };
+      }
+      return {
+        success: true,
+        claimed: false,
+        inProgress: true,
+        waitRequired: true,
+        attempt: currentAttempt,
+        order: existingOrder as TopupOrderRecord,
+        message: 'Checkout session creation in progress by another worker',
+      };
+    }
+
+    const newAttempt = currentAttempt + 1;
+    const updatedMetadata = {
+      ...metadata,
+      checkout_in_progress: true,
+      checkout_claim_id: claimId,
+      checkout_claimed_at: nowIso,
+      checkout_attempt: newAttempt,
+    };
+
+    const { data: updatedOrder, error: updateErr } = await supabase
+      .from('wallet_topup_orders')
+      .update({
+        metadata: updatedMetadata,
+        updated_at: nowIso,
+      })
+      .eq('id', orderId)
+      .select('*')
+      .maybeSingle();
+
+    if (updateErr) {
+      console.error('Fatal: Failed to acquire checkout claim in database:', updateErr);
+      throw new Error(`Database error acquiring checkout claim: ${updateErr.message}`);
+    }
+
+    return {
+      success: true,
+      claimed: true,
+      attempt: newAttempt,
+      claimId,
+      order: (updatedOrder || existingOrder) as TopupOrderRecord,
+      message: 'Checkout creation claim acquired',
+    };
+  }
+
+  // Local memory / dev fallback
+  const cached = localTopupOrdersCache.get(orderId);
+  if (!cached) {
+    return { success: false, claimed: false, error: 'order_not_found', message: 'Order not found' };
+  }
+  if (cached.status !== 'PENDING') {
+    return { success: false, claimed: false, error: 'order_not_pending', message: `Order is in status ${cached.status}` };
+  }
+
+  const meta = (cached.metadata && typeof cached.metadata === 'object') ? cached.metadata : {};
+  const existingSessionId = meta.stripe_session_id || meta.sessionId;
+  const existingCheckoutUrl = meta.checkout_url;
+  const existingExpiresAt = meta.checkout_expires_at || cached.expired_at;
+  const isCancelled = Boolean(meta.checkout_cancelled) || Boolean(meta.cancelled_at) || meta.session_status === 'cancelled';
+
+  if (existingSessionId && !isCancelled) {
+    let isExpired = false;
+    if (existingExpiresAt && new Date(existingExpiresAt).getTime() <= Date.now()) {
+      isExpired = true;
+    }
+    if (!isExpired) {
+      return {
+        success: true,
+        claimed: false,
+        alreadyHasSession: true,
+        sessionId: existingSessionId,
+        checkoutUrl: existingCheckoutUrl,
+        expiresAt: existingExpiresAt,
+        order: cached,
+        message: 'Active checkout session already exists on order',
+      };
+    }
+  }
+
+  const inProg = Boolean(meta.checkout_in_progress);
+  const claimedAt = meta.checkout_claimed_at ? new Date(meta.checkout_claimed_at).getTime() : 0;
+  const claimedBy = meta.checkout_claim_id;
+  const currentAttempt = Number(meta.checkout_attempt) || 0;
+
+  if (inProg && claimedAt && (Date.now() - claimedAt) < timeoutSeconds * 1000) {
+    if (claimedBy === claimId) {
+      return {
+        success: true,
+        claimed: true,
+        attempt: currentAttempt,
+        claimId,
+        order: cached,
+      };
+    }
+    return {
+      success: true,
+      claimed: false,
+      inProgress: true,
+      waitRequired: true,
+      attempt: currentAttempt,
+      order: cached,
+      message: 'Checkout session creation in progress by another worker',
+    };
+  }
+
+  const newAttempt = currentAttempt + 1;
+  cached.metadata = {
+    ...meta,
+    checkout_in_progress: true,
+    checkout_claim_id: claimId,
+    checkout_claimed_at: nowIso,
+    checkout_attempt: newAttempt,
+  };
+  cached.updated_at = nowIso;
+  localTopupOrdersCache.set(orderId, cached);
+
+  return {
+    success: true,
+    claimed: true,
+    attempt: newAttempt,
+    claimId,
+    order: cached,
+    message: 'Checkout creation claim acquired',
+  };
+}
+
+/**
+ * Releases a checkout session creation claim (e.g. if Stripe call failed).
+ */
+export async function releaseCheckoutSessionClaim(
+  orderId: string,
+  claimId?: string,
+  env?: Record<string, any>
+): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    try {
+      const { data, error } = await supabase.rpc('release_checkout_session_claim', {
+        p_order_id: orderId,
+        p_claim_id: claimId || null,
+      });
+      if (!error && data) {
+        return Boolean(data.success);
+      }
+    } catch {
+      // RPC fallback
+    }
+
+    const { data: existing } = await supabase
+      .from('wallet_topup_orders')
+      .select('metadata')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (existing) {
+      const meta = existing.metadata || {};
+      if (!claimId || meta.checkout_claim_id === claimId) {
+        await supabase
+          .from('wallet_topup_orders')
+          .update({
+            metadata: {
+              ...meta,
+              checkout_in_progress: false,
+              checkout_claim_id: null,
+            },
+            updated_at: nowIso,
+          })
+          .eq('id', orderId);
+      }
+    }
+    return true;
+  }
+
+  const cached = localTopupOrdersCache.get(orderId);
+  if (cached) {
+    const meta = cached.metadata || {};
+    if (!claimId || meta.checkout_claim_id === claimId) {
+      cached.metadata = {
+        ...meta,
+        checkout_in_progress: false,
+        checkout_claim_id: null,
+      };
+      cached.updated_at = nowIso;
+      localTopupOrdersCache.set(orderId, cached);
+    }
+  }
+  return true;
+}
+

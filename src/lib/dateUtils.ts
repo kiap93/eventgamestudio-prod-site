@@ -263,12 +263,32 @@ export function canAccessLiveEvent(
     return false;
   }
 
+  const nowDt = currentDate ? (currentDate instanceof Date ? currentDate : new Date(currentDate)) : new Date();
+  const nowTime = nowDt.getTime();
+
+  // 3. Expired timestamp check: if expires_at has passed, event is not playable
+  const expiresTime = event.expires_at ? new Date(event.expires_at).getTime() : NaN;
+  if (!isNaN(expiresTime) && nowTime >= expiresTime) {
+    return false;
+  }
+
+  // 4. Stored expired/completed status check
+  if (rawStatus === 'expired' || rawStatus === 'completed' || eventStatus === 'COMPLETED') {
+    return false;
+  }
+
+  // 5. Future start timestamp check: if starts_at is in the future, event is not yet playable
+  const startsTime = event.starts_at ? new Date(event.starts_at).getTime() : NaN;
+  if (!isNaN(startsTime) && nowTime < startsTime) {
+    return false;
+  }
+
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
   if (!startDate || !endDate || !liveOpenDate) return false;
 
   const curDate = getNormalizedCurrentDate(currentDate);
 
-  // 3. Current calendar date >= liveOpenDate (start_date - 1 day) AND current_date <= end_date
+  // 6. Current calendar date >= liveOpenDate (start_date - 1 day) AND current_date <= end_date
   return curDate >= liveOpenDate && curDate <= endDate;
 }
 

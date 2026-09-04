@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { getUserById, getUserByEmail, getMember } from './db/index.js';
 import { UserRecord, OrgMemberRecord, OrgRole } from './db/types.js';
 import { getSupabaseServerClient } from './supabase.js';
+import { verifyGoogleJwt, VerifyGoogleTokenOptions } from './google_jwks.js';
 
 // Ephemeral in-memory dev secret ONLY for local Node.js development servers,
 // NEVER allowed in production or Cloudflare Worker / serverless runtime environments.
@@ -105,7 +106,8 @@ export async function verifyAppToken(
 
 export async function verifyGoogleIdToken(
   idToken: string,
-  env?: Record<string, any>
+  env?: Record<string, any>,
+  options?: VerifyGoogleTokenOptions
 ): Promise<{
   sub: string;
   email: string;
@@ -140,59 +142,14 @@ export async function verifyGoogleIdToken(
     };
   }
 
-  // Strictly verify Google ID Token using Google OAuth2 TokenInfo API
+  // Strictly verify Google ID token locally using Google's published JWKS signing keys
   try {
-    const resp = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => '');
-      throw new Error(`Google TokenInfo verification failed (${resp.status}): ${errText || 'Invalid signature or expired token'}`);
-    }
-
-    const data = (await resp.json()) as any;
-
-    if (!data.sub || !data.email) {
-      throw new Error('Invalid Google ID token payload: missing sub or email');
-    }
-
-    // Verify Issuer
-    const validIssuers = ['accounts.google.com', 'https://accounts.google.com'];
-    if (!data.iss || !validIssuers.includes(data.iss)) {
-      throw new Error(`Invalid Google ID token issuer: ${data.iss}`);
-    }
-
-    // Verify Expiration
-    const nowInSeconds = Math.floor(Date.now() / 1000);
-    if (data.exp && parseInt(data.exp, 10) < nowInSeconds) {
-      throw new Error('Google ID token has expired');
-    }
-
-    // Verify Audience if client ID is configured in server env
-    const expectedClientId =
-      env?.VITE_GOOGLE_CLIENT_ID ||
-      env?.GOOGLE_CLIENT_ID ||
-      procEnv.VITE_GOOGLE_CLIENT_ID ||
-      procEnv.GOOGLE_CLIENT_ID;
-
-    if (expectedClientId && data.aud !== expectedClientId) {
-      throw new Error(`Google ID token audience mismatch. Expected: ${expectedClientId}, got: ${data.aud}`);
-    }
-
-    // Verify email_verified
-    const isEmailVerified = data.email_verified === 'true' || data.email_verified === true;
-    if (!isEmailVerified) {
-      throw new Error('Google account email is not verified');
-    }
-
-    return {
-      sub: data.sub,
-      email: data.email,
-      name: data.name || data.email.split('@')[0],
-      picture: data.picture,
-      email_verified: true,
-    };
+    const verified = await verifyGoogleJwt(idToken, env, options);
+    return verified;
   } catch (err: any) {
-    console.error('verifyGoogleIdToken error:', err.message);
-    throw new Error('Failed to verify Google ID Token: ' + (err.message || err));
+    // Detailed error logged server-side only; generic message returned to caller
+    console.error('[AUTH] Google ID token verification failed:', err?.message || err);
+    throw new Error('Invalid or expired Google ID token');
   }
 }
 
@@ -400,3 +357,12 @@ export async function authenticateDeveloperAdmin(
 export function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
+
+export {
+  verifyGoogleJwt,
+  clearGoogleJwksCache,
+  getGoogleJwksCacheStats,
+  parseCacheControlMaxAge,
+} from './google_jwks.js';
+export type { VerifyGoogleTokenOptions } from './google_jwks.js';
+

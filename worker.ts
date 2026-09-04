@@ -2,6 +2,7 @@ import {
   getUserById,
   getUserByEmail,
   upsertGoogleUser,
+  updateUserProfile,
   getUserOrganizations,
   createOrganization,
   getOrganizationById,
@@ -691,40 +692,45 @@ export default {
           return errorResponse('Missing idToken', 422, cors);
         }
 
-        const googleUser = await verifyGoogleIdToken(idToken, env);
-        const user = await upsertGoogleUser(googleUser, env);
+        try {
+          const googleUser = await verifyGoogleIdToken(idToken, env);
+          const user = await upsertGoogleUser(googleUser, env);
 
-        if (!user) {
-          return errorResponse('Failed to create or load user record in Supabase', 500, cors);
-        }
+          if (!user) {
+            return errorResponse('Failed to create or load user record in Supabase', 500, cors);
+          }
 
-        const memberships = await getUserOrganizations(user.id, env);
-        let activeOrgId: string | undefined = undefined;
-        let activeRole: string | undefined = undefined;
+          const memberships = await getUserOrganizations(user.id, env);
+          let activeOrgId: string | undefined = undefined;
+          let activeRole: string | undefined = undefined;
 
-        if (memberships.length > 0) {
-          activeOrgId = memberships[0].id;
-          activeRole = memberships[0].role;
-        }
+          if (memberships.length > 0) {
+            activeOrgId = memberships[0].id;
+            activeRole = memberships[0].role;
+          }
 
-        const token = await signAppToken(user.id, activeOrgId, activeRole as any, undefined, env);
+          const token = await signAppToken(user.id, activeOrgId, activeRole as any, undefined, env);
 
-        return jsonResponse(
-          {
-            token,
-            user: {
-              id: user.id,
-              email: user.email,
-              name: user.name,
-              avatar_url: user.avatar_url,
-              is_developer: user.is_developer === true,
+          return jsonResponse(
+            {
+              token,
+              user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                avatar_url: user.avatar_url,
+                is_developer: user.is_developer === true,
+              },
+              organizations: memberships,
+              activeOrganizationId: activeOrgId || null,
             },
-            organizations: memberships,
-            activeOrganizationId: activeOrgId || null,
-          },
-          200,
-          cors
-        );
+            200,
+            cors
+          );
+        } catch (err: any) {
+          console.error('Google Auth Error:', err);
+          return errorResponse('Google authentication failed: ' + (err.message || 'Invalid token'), 401, cors);
+        }
       }
 
       if (pathname === '/api/auth/me' && method === 'GET') {
@@ -805,6 +811,50 @@ export default {
           200,
           cors
         );
+      }
+
+      // ==========================================
+      // Profile Routes (Privilege Escalation Protected)
+      // ==========================================
+      if ((pathname === '/api/auth/profile' || pathname === '/api/user/profile') && (method === 'PATCH' || method === 'PUT')) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const body = (await request.json().catch(() => ({}))) as any;
+
+        // Strictly block any privilege escalation attempts
+        const forbiddenFields = ['is_developer', 'is_admin', 'role', 'email', 'id', 'created_at', 'updated_at', 'google_id'];
+        for (const field of forbiddenFields) {
+          if (field in body) {
+            return errorResponse(`Modifying protected field '${field}' is strictly prohibited`, 400, cors);
+          }
+        }
+
+        const { name, avatar_url } = body;
+        if (name === undefined && avatar_url === undefined) {
+          return errorResponse('At least one field (name or avatar_url) must be provided', 400, cors);
+        }
+
+        try {
+          const updatedUser = await updateUserProfile(user.id, { name, avatar_url }, env);
+          return jsonResponse(
+            {
+              success: true,
+              user: {
+                id: updatedUser.id,
+                email: updatedUser.email,
+                name: updatedUser.name,
+                avatar_url: updatedUser.avatar_url,
+                is_developer: updatedUser.is_developer === true,
+              },
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to update profile', 400, cors);
+        }
       }
 
       // ==========================================
@@ -1268,7 +1318,13 @@ export default {
           return errorResponse('Invitation expired', 410, cors);
         }
 
-        const googleUser = await verifyGoogleIdToken(idToken, env);
+        let googleUser;
+        try {
+          googleUser = await verifyGoogleIdToken(idToken, env);
+        } catch (err: any) {
+          console.error('Google ID token verification failed for invite:', err);
+          return errorResponse('Google authentication failed: ' + (err.message || 'Invalid token'), 401, cors);
+        }
 
         if (googleUser.email.toLowerCase() !== invite.email.toLowerCase()) {
           return errorResponse(
@@ -2305,6 +2361,19 @@ export default {
           return errorResponse('Start date and End date are required', 422, cors);
         }
 
+        // Security check: Reject any client attempt to set initial event status to PAID or LIVE, or inject sensitive fields
+        if (
+          (body.payment_status && String(body.payment_status).toUpperCase() !== 'UNPAID') ||
+          (body.event_status && String(body.event_status).toUpperCase() !== 'DRAFT') ||
+          (body.status && !['draft', 'pending_payment'].includes(String(body.status).toLowerCase())) ||
+          body.paid_amount !== undefined ||
+          body.discount_amount !== undefined ||
+          body.payment_mode !== undefined ||
+          body.cancel_reason !== undefined
+        ) {
+          return errorResponse('Direct initialization of event payment, paid amounts, or live lifecycle status is strictly prohibited.', 400, cors);
+        }
+
         try {
           // Create event with DRAFT event_status and UNPAID payment_status (no wallet balance deducted)
           const created = await createEvent(
@@ -2420,7 +2489,7 @@ export default {
       }
 
       const updateEventParams = parseRoute('/api/events/:eventId', pathname);
-      if (updateEventParams && method === 'PUT') {
+      if (updateEventParams && (method === 'PUT' || method === 'PATCH')) {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
@@ -2438,6 +2507,33 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
+
+        // Security check: Block attempts to mutate sensitive / lifecycle / payment columns via standard event edit
+        const forbiddenFields = [
+          'payment_status',
+          'event_status',
+          'status',
+          'paid_amount',
+          'discount_amount',
+          'event_price',
+          'payment_mode',
+          'cancel_reason',
+          'organization_id',
+          'public_token',
+          'created_by',
+          'test_scores_cleared_at',
+          'id',
+        ];
+        for (const field of forbiddenFields) {
+          if (body[field] !== undefined) {
+            return errorResponse(
+              `Modifying protected field '${field}' is strictly prohibited. Event payment, pricing, and lifecycle statuses can only be modified through authoritative payment and lifecycle workflows.`,
+              400,
+              cors
+            );
+          }
+        }
+
         const {
           name,
           game_theme_id,
@@ -2448,7 +2544,6 @@ export default {
           endDate,
           starts_at,
           expires_at,
-          status,
         } = body;
 
         const updated = await updateEvent(
@@ -2463,7 +2558,6 @@ export default {
             endDate,
             starts_at,
             expires_at,
-            status,
           },
           env
         );

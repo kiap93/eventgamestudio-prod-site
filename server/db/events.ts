@@ -202,12 +202,32 @@ export function canAccessLiveEvent(
     return false;
   }
 
+  const nowDt = currentDate ? (currentDate instanceof Date ? currentDate : new Date(currentDate)) : new Date();
+  const nowTime = nowDt.getTime();
+
+  // 3. Expired timestamp check: if expires_at has passed, event is not playable
+  const expiresTime = event.expires_at ? new Date(event.expires_at).getTime() : NaN;
+  if (!isNaN(expiresTime) && nowTime >= expiresTime) {
+    return false;
+  }
+
+  // 4. Stored expired/completed status check
+  if (rawStatus === 'expired' || rawStatus === 'completed' || eventStatus === 'COMPLETED') {
+    return false;
+  }
+
+  // 5. Future start timestamp check: if starts_at is in the future, event is not yet playable
+  const startsTime = event.starts_at ? new Date(event.starts_at).getTime() : NaN;
+  if (!isNaN(startsTime) && nowTime < startsTime) {
+    return false;
+  }
+
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
   if (!startDate || !endDate || !liveOpenDate) return false;
 
   const curDate = getNormalizedCurrentDate(currentDate);
 
-  // 3. Current calendar date >= liveOpenDate (start_date - 1 day) AND current_date <= end_date
+  // 6. Current calendar date >= liveOpenDate (start_date - 1 day) AND current_date <= end_date
   return curDate >= liveOpenDate && curDate <= endDate;
 }
 
@@ -292,13 +312,20 @@ export function calculateEventStatus(
     return 'cancelled';
   }
 
+  const nowDt = now ? (now instanceof Date ? now : new Date(now)) : new Date();
+  const nowTime = nowDt.getTime();
+  const expiresTime = event.expires_at ? new Date(event.expires_at).getTime() : NaN;
+  const isExpiredByTimestamp = !isNaN(expiresTime) && nowTime >= expiresTime;
+
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
   const curDate = getNormalizedCurrentDate(now);
-  const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
+  const isExpiredByDate = Boolean(endDate && curDate > endDate);
 
-  if (endDate && curDate > endDate) {
+  if (isExpiredByTimestamp || isExpiredByDate || rawStatus === 'expired' || rawStatus === 'completed' || eventStatus === 'COMPLETED') {
     return 'expired';
   }
+
+  const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 
   if (!isPaid) {
     if (rawStatus === 'draft' || eventStatus === 'DRAFT') {
@@ -307,7 +334,11 @@ export function calculateEventStatus(
     return 'pending_payment';
   }
 
-  if (liveOpenDate && curDate < liveOpenDate) {
+  const startsTime = event.starts_at ? new Date(event.starts_at).getTime() : NaN;
+  const isBeforeStartsTime = !isNaN(startsTime) && nowTime < startsTime;
+  const isBeforeLiveOpenDate = Boolean(liveOpenDate && curDate < liveOpenDate);
+
+  if (isBeforeStartsTime || isBeforeLiveOpenDate || rawStatus === 'scheduled' || eventStatus === 'SCHEDULED') {
     return 'scheduled';
   }
 
@@ -339,9 +370,9 @@ export function isEventPlayable(
  * Derives the canonical uppercase event_status lifecycle enum:
  * 1. CANCELLED -> 'CANCELLED'
  * 2. unpaid / pending payment -> 'DRAFT' | 'PENDING_PAYMENT' | 'CANCELLED' (if expired)
- * 3. paid + curDate > endDate -> 'COMPLETED'
- * 4. paid + curDate < liveOpenDate -> 'SCHEDULED'
- * 5. paid + liveOpenDate <= curDate <= endDate -> 'LIVE'
+ * 3. paid + expired (timestamp or date) -> 'COMPLETED'
+ * 4. paid + before start -> 'SCHEDULED'
+ * 5. paid + live -> 'LIVE'
  */
 export function deriveEventLifecycleStatus(
   event: {
@@ -367,13 +398,19 @@ export function deriveEventLifecycleStatus(
     return 'CANCELLED';
   }
 
+  const nowDt = now ? (now instanceof Date ? now : new Date(now)) : new Date();
+  const nowTime = nowDt.getTime();
+  const expiresTime = event.expires_at ? new Date(event.expires_at).getTime() : NaN;
+  const isExpiredByTimestamp = !isNaN(expiresTime) && nowTime >= expiresTime;
+
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
   const curDate = getNormalizedCurrentDate(now);
+  const isExpiredByDate = Boolean(endDate && curDate > endDate);
   const isPaid = payStatus === 'PAID';
 
   // 2. unpaid / pending payment
   if (!isPaid) {
-    if (endDate && curDate > endDate) {
+    if (isExpiredByDate || isExpiredByTimestamp) {
       return 'CANCELLED';
     }
     if (eventStatus === 'DRAFT' || rawStatus === 'draft') {
@@ -383,17 +420,21 @@ export function deriveEventLifecycleStatus(
   }
 
   // 3. Paid events:
-  // Paid + curDate > endDate -> COMPLETED
-  if ((endDate && curDate > endDate) || eventStatus === 'COMPLETED' || rawStatus === 'expired' || rawStatus === 'completed') {
+  // Paid + expired (stored LIVE status CANNOT override expired timestamp)
+  if (isExpiredByTimestamp || isExpiredByDate || eventStatus === 'COMPLETED' || rawStatus === 'expired' || rawStatus === 'completed') {
     return 'COMPLETED';
   }
 
-  // Paid + before liveOpenDate (start_date - 1 day) -> SCHEDULED
-  if (liveOpenDate && curDate < liveOpenDate) {
+  // Paid + before start timestamp or before liveOpenDate (start_date - 1 day) -> SCHEDULED
+  const startsTime = event.starts_at ? new Date(event.starts_at).getTime() : NaN;
+  const isBeforeStartsTime = !isNaN(startsTime) && nowTime < startsTime;
+  const isBeforeLiveOpenDate = Boolean(liveOpenDate && curDate < liveOpenDate);
+
+  if (isBeforeStartsTime || isBeforeLiveOpenDate || rawStatus === 'scheduled' || eventStatus === 'SCHEDULED') {
     return 'SCHEDULED';
   }
 
-  // Paid + liveOpenDate <= curDate <= endDate -> LIVE
+  // Paid + within active window -> LIVE
   return 'LIVE';
 }
 

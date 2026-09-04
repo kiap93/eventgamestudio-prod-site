@@ -273,10 +273,46 @@ CREATE POLICY "Users can view own user record"
   ON public.users FOR SELECT
   USING (id = auth.uid() OR public.is_developer_admin());
 
+-- PRIVILEGE ESCALATION PREVENTION:
+-- Direct client updates to public.users are strictly forbidden to prevent authenticated users
+-- from modifying privileged columns like is_developer.
+-- Profile updates (name, avatar_url) must be routed through the server API via service_role.
 DROP POLICY IF EXISTS "Users can update own user record" ON public.users;
-CREATE POLICY "Users can update own user record"
-  ON public.users FOR UPDATE
-  USING (id = auth.uid());
+REVOKE UPDATE ON public.users FROM authenticated;
+REVOKE UPDATE ON public.users FROM anon;
+
+CREATE OR REPLACE FUNCTION public.prevent_user_privilege_escalation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Prevent modifying primary key
+  IF NEW.id IS DISTINCT FROM OLD.id THEN
+    RAISE EXCEPTION 'User ID is immutable';
+  END IF;
+
+  -- Block email alterations via direct client updates (emails are managed via verified OAuth)
+  IF NEW.email IS DISTINCT FROM OLD.email AND (auth.role() = 'authenticated' OR auth.role() = 'anon') THEN
+    RAISE EXCEPTION 'User email cannot be modified directly';
+  END IF;
+
+  -- Block privilege escalation: is_developer cannot be altered by non-service-role clients
+  IF NEW.is_developer IS DISTINCT FROM OLD.is_developer THEN
+    IF (auth.role() = 'authenticated' OR auth.role() = 'anon') OR (auth.uid() IS NOT NULL AND auth.role() != 'service_role') THEN
+      RAISE EXCEPTION 'Privilege escalation rejected: modifying is_developer is strictly prohibited';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_user_privilege_escalation ON public.users;
+CREATE TRIGGER trg_prevent_user_privilege_escalation
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_user_privilege_escalation();
 
 -- ORGANIZATIONS POLICIES
 DROP POLICY IF EXISTS "Members can view their organizations" ON public.organizations;
@@ -342,31 +378,119 @@ CREATE POLICY "Anyone can view system games"
   ON public.games FOR SELECT
   USING (is_system = true OR organization_id IS NULL);
 
+-- GAMES POLICIES (BACKEND-WRITE-ONLY)
+-- Normal authenticated organization members can SELECT games subject to tenant membership or system availability.
+-- Direct client INSERT, UPDATE, and DELETE are strictly disallowed.
+-- All mutations must be processed through the backend server API via service_role.
+DROP POLICY IF EXISTS "Developer admins can manage all games" ON public.games;
+DROP POLICY IF EXISTS "Owners, admins, designers can insert games" ON public.games;
+DROP POLICY IF EXISTS "Owners, admins, designers can update games" ON public.games;
+DROP POLICY IF EXISTS "Owners and admins can delete games" ON public.games;
+
+DROP POLICY IF EXISTS "Anyone can view system games" ON public.games;
+CREATE POLICY "Anyone can view system games"
+  ON public.games FOR SELECT
+  USING (is_system = true OR organization_id IS NULL);
+
 DROP POLICY IF EXISTS "Members can view organization games" ON public.games;
 CREATE POLICY "Members can view organization games"
   ON public.games FOR SELECT
-  USING (organization_id IS NOT NULL AND public.is_org_member(organization_id));
+  USING (organization_id IS NOT NULL AND (public.is_org_member(organization_id) OR public.is_developer_admin()));
 
-DROP POLICY IF EXISTS "Owners, admins, designers can insert games" ON public.games;
-CREATE POLICY "Owners, admins, designers can insert games"
-  ON public.games FOR INSERT
-  WITH CHECK (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
+-- Revoke direct table-level mutation privileges from client roles
+REVOKE INSERT, UPDATE, DELETE ON public.games FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.games FROM anon;
+GRANT SELECT ON public.games TO authenticated;
+GRANT SELECT ON public.games TO anon;
 
-DROP POLICY IF EXISTS "Owners, admins, designers can update games" ON public.games;
-CREATE POLICY "Owners, admins, designers can update games"
-  ON public.games FOR UPDATE
-  USING (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
+-- Defense-in-depth trigger function for public.games
+CREATE OR REPLACE FUNCTION public.prevent_game_unauthorized_client_mutations()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_role text;
+  v_uid text;
+BEGIN
+  BEGIN
+    v_role := current_setting('request.jwt.claim.role', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_role := NULL;
+  END;
 
-DROP POLICY IF EXISTS "Owners and admins can delete games" ON public.games;
-CREATE POLICY "Owners and admins can delete games"
-  ON public.games FOR DELETE
-  USING (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin'));
+  IF v_role IS NULL THEN
+    BEGIN
+      v_role := auth.role();
+    EXCEPTION WHEN OTHERS THEN
+      v_role := NULL;
+    END;
+  END IF;
 
--- GAME THEMES POLICIES
+  BEGIN
+    v_uid := current_setting('request.jwt.claim.sub', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_uid := NULL;
+  END;
+
+  IF v_uid IS NULL THEN
+    BEGIN
+      v_uid := auth.uid()::text;
+    EXCEPTION WHEN OTHERS THEN
+      v_uid := NULL;
+    END;
+  END IF;
+
+  IF v_role IN ('authenticated', 'anon') OR (v_uid IS NOT NULL AND (v_role IS NULL OR v_role != 'service_role')) THEN
+    RAISE EXCEPTION 'Direct client mutation on games is strictly prohibited. All game operations must be routed through the server API.';
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+        RAISE EXCEPTION 'Direct update of organization_id on games is strictly prohibited';
+      END IF;
+      IF NEW.game_type IS DISTINCT FROM OLD.game_type THEN
+        RAISE EXCEPTION 'Direct update of game_type on games is strictly prohibited';
+      END IF;
+      IF NEW.slug IS DISTINCT FROM OLD.slug THEN
+        RAISE EXCEPTION 'Direct update of slug on games is strictly prohibited';
+      END IF;
+      IF NEW.is_system IS DISTINCT FROM OLD.is_system THEN
+        RAISE EXCEPTION 'Direct update of is_system on games is strictly prohibited';
+      END IF;
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      RAISE EXCEPTION 'Direct client insert on games is strictly prohibited';
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      RAISE EXCEPTION 'Direct client deletion of games is strictly prohibited';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_game_unauthorized_client_mutations ON public.games;
+CREATE TRIGGER trg_prevent_game_unauthorized_client_mutations
+  BEFORE INSERT OR UPDATE OR DELETE ON public.games
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_game_unauthorized_client_mutations();
+
+-- GAME THEMES POLICIES (BACKEND-WRITE-ONLY)
+-- Normal authenticated organization members can SELECT themes subject to tenant membership or system availability.
+-- Direct client INSERT, UPDATE, and DELETE are strictly disallowed.
+-- All mutations must be processed through the backend server API via service_role.
 DROP POLICY IF EXISTS "Developer admins can manage all themes" ON public.game_themes;
-CREATE POLICY "Developer admins can manage all themes"
-  ON public.game_themes FOR ALL
-  USING (public.is_developer_admin());
+DROP POLICY IF EXISTS "Owners, admins, designers can insert themes" ON public.game_themes;
+DROP POLICY IF EXISTS "Owners, admins, designers can update themes" ON public.game_themes;
+DROP POLICY IF EXISTS "Owners and admins can delete themes" ON public.game_themes;
 
 DROP POLICY IF EXISTS "Anyone can view system themes" ON public.game_themes;
 CREATE POLICY "Anyone can view system themes"
@@ -376,43 +500,218 @@ CREATE POLICY "Anyone can view system themes"
 DROP POLICY IF EXISTS "Members can view organization themes" ON public.game_themes;
 CREATE POLICY "Members can view organization themes"
   ON public.game_themes FOR SELECT
-  USING (organization_id IS NOT NULL AND public.is_org_member(organization_id));
+  USING (organization_id IS NOT NULL AND (public.is_org_member(organization_id) OR public.is_developer_admin()));
 
-DROP POLICY IF EXISTS "Owners, admins, designers can insert themes" ON public.game_themes;
-CREATE POLICY "Owners, admins, designers can insert themes"
-  ON public.game_themes FOR INSERT
-  WITH CHECK (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
+-- Revoke direct table-level mutation privileges from client roles
+REVOKE INSERT, UPDATE, DELETE ON public.game_themes FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.game_themes FROM anon;
+GRANT SELECT ON public.game_themes TO authenticated;
+GRANT SELECT ON public.game_themes TO anon;
 
-DROP POLICY IF EXISTS "Owners, admins, designers can update themes" ON public.game_themes;
-CREATE POLICY "Owners, admins, designers can update themes"
-  ON public.game_themes FOR UPDATE
-  USING (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin', 'designer'));
+-- Defense-in-depth trigger function for public.game_themes
+CREATE OR REPLACE FUNCTION public.prevent_game_theme_unauthorized_client_mutations()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_role text;
+  v_uid text;
+BEGIN
+  BEGIN
+    v_role := current_setting('request.jwt.claim.role', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_role := NULL;
+  END;
 
-DROP POLICY IF EXISTS "Owners and admins can delete themes" ON public.game_themes;
-CREATE POLICY "Owners and admins can delete themes"
-  ON public.game_themes FOR DELETE
-  USING (organization_id IS NOT NULL AND public.get_org_role(organization_id) IN ('owner', 'admin'));
+  IF v_role IS NULL THEN
+    BEGIN
+      v_role := auth.role();
+    EXCEPTION WHEN OTHERS THEN
+      v_role := NULL;
+    END;
+  END IF;
 
--- EVENTS POLICIES
+  BEGIN
+    v_uid := current_setting('request.jwt.claim.sub', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_uid := NULL;
+  END;
+
+  IF v_uid IS NULL THEN
+    BEGIN
+      v_uid := auth.uid()::text;
+    EXCEPTION WHEN OTHERS THEN
+      v_uid := NULL;
+    END;
+  END IF;
+
+  IF v_role IN ('authenticated', 'anon') OR (v_uid IS NOT NULL AND (v_role IS NULL OR v_role != 'service_role')) THEN
+    RAISE EXCEPTION 'Direct client mutation on game_themes is strictly prohibited. All theme operations must be routed through the server API.';
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+        RAISE EXCEPTION 'Direct update of organization_id on game_themes is strictly prohibited';
+      END IF;
+      IF NEW.game_id IS DISTINCT FROM OLD.game_id THEN
+        RAISE EXCEPTION 'Direct update of game_id on game_themes is strictly prohibited (game association is immutable)';
+      END IF;
+      IF NEW.is_system IS DISTINCT FROM OLD.is_system THEN
+        RAISE EXCEPTION 'Direct update of is_system on game_themes is strictly prohibited';
+      END IF;
+      IF NEW.ownership_type IS DISTINCT FROM OLD.ownership_type THEN
+        RAISE EXCEPTION 'Direct update of ownership_type on game_themes is strictly prohibited';
+      END IF;
+      IF OLD.is_system = true OR OLD.organization_id IS NULL THEN
+        RAISE EXCEPTION 'Direct mutation of system themes is strictly prohibited. System themes are read-only templates.';
+      END IF;
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      IF NEW.is_system = true OR NEW.organization_id IS NULL THEN
+        RAISE EXCEPTION 'Direct creation of system themes is strictly prohibited';
+      END IF;
+      RAISE EXCEPTION 'Direct client insert on game_themes is strictly prohibited';
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      RAISE EXCEPTION 'Direct client deletion of game_themes is strictly prohibited';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_game_theme_unauthorized_client_mutations ON public.game_themes;
+CREATE TRIGGER trg_prevent_game_theme_unauthorized_client_mutations
+  BEFORE INSERT OR UPDATE OR DELETE ON public.game_themes
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_game_theme_unauthorized_client_mutations();
+
+-- EVENTS POLICIES (BACKEND-WRITE-ONLY)
+-- Normal authenticated organization members can SELECT events subject to tenant membership.
+-- Direct client INSERT, UPDATE, and DELETE are strictly disallowed.
+-- All mutations must be processed through the backend server API via service_role.
 DROP POLICY IF EXISTS "Members can view organization events" ON public.events;
 CREATE POLICY "Members can view organization events"
   ON public.events FOR SELECT
   USING (public.is_org_member(organization_id) OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Owners, admins, designers can insert events" ON public.events;
-CREATE POLICY "Owners, admins, designers can insert events"
-  ON public.events FOR INSERT
-  WITH CHECK (public.get_org_role(organization_id) IN ('owner', 'admin', 'designer') OR public.is_developer_admin());
-
 DROP POLICY IF EXISTS "Owners, admins, designers can update events" ON public.events;
-CREATE POLICY "Owners, admins, designers can update events"
-  ON public.events FOR UPDATE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin', 'designer') OR public.is_developer_admin());
-
 DROP POLICY IF EXISTS "Owners and admins can delete events" ON public.events;
-CREATE POLICY "Owners and admins can delete events"
-  ON public.events FOR DELETE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin') OR public.is_developer_admin());
+
+-- Revoke direct table-level write privileges from client roles
+REVOKE INSERT, UPDATE, DELETE ON public.events FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.events FROM anon;
+GRANT SELECT ON public.events TO authenticated;
+GRANT SELECT ON public.events TO anon;
+
+-- Defense-in-depth trigger: Block any direct client mutation and safeguard sensitive columns
+CREATE OR REPLACE FUNCTION public.prevent_event_unauthorized_client_mutations()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_role text;
+  v_uid text;
+BEGIN
+  BEGIN
+    v_role := current_setting('request.jwt.claim.role', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_role := NULL;
+  END;
+
+  IF v_role IS NULL THEN
+    BEGIN
+      v_role := auth.role();
+    EXCEPTION WHEN OTHERS THEN
+      v_role := NULL;
+    END;
+  END IF;
+
+  BEGIN
+    v_uid := current_setting('request.jwt.claim.sub', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_uid := NULL;
+  END;
+
+  IF v_uid IS NULL THEN
+    BEGIN
+      v_uid := auth.uid()::text;
+    EXCEPTION WHEN OTHERS THEN
+      v_uid := NULL;
+    END;
+  END IF;
+
+  IF v_role IN ('authenticated', 'anon') OR (v_uid IS NOT NULL AND (v_role IS NULL OR v_role != 'service_role')) THEN
+    RAISE EXCEPTION 'Direct client mutation on events is strictly prohibited. All event operations must be routed through the server API.';
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      IF NEW.payment_status IS DISTINCT FROM OLD.payment_status THEN
+        RAISE EXCEPTION 'Direct update of payment_status is strictly prohibited';
+      END IF;
+      IF NEW.event_status IS DISTINCT FROM OLD.event_status THEN
+        RAISE EXCEPTION 'Direct update of event_status is strictly prohibited';
+      END IF;
+      IF NEW.status IS DISTINCT FROM OLD.status THEN
+        RAISE EXCEPTION 'Direct update of status is strictly prohibited';
+      END IF;
+      IF NEW.paid_amount IS DISTINCT FROM OLD.paid_amount THEN
+        RAISE EXCEPTION 'Direct update of paid_amount is strictly prohibited';
+      END IF;
+      IF NEW.discount_amount IS DISTINCT FROM OLD.discount_amount THEN
+        RAISE EXCEPTION 'Direct update of discount_amount is strictly prohibited';
+      END IF;
+      IF NEW.event_price IS DISTINCT FROM OLD.event_price THEN
+        RAISE EXCEPTION 'Direct update of event_price is strictly prohibited';
+      END IF;
+      IF NEW.payment_mode IS DISTINCT FROM OLD.payment_mode THEN
+        RAISE EXCEPTION 'Direct update of payment_mode is strictly prohibited';
+      END IF;
+      IF NEW.cancel_reason IS DISTINCT FROM OLD.cancel_reason THEN
+        RAISE EXCEPTION 'Direct update of cancel_reason is strictly prohibited';
+      END IF;
+      IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+        RAISE EXCEPTION 'Direct update of organization_id is strictly prohibited';
+      END IF;
+      IF NEW.public_token IS DISTINCT FROM OLD.public_token THEN
+        RAISE EXCEPTION 'Direct update of public_token is strictly prohibited';
+      END IF;
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      IF UPPER(COALESCE(NEW.payment_status, '')) = 'PAID' OR UPPER(COALESCE(NEW.event_status, '')) = 'LIVE' OR LOWER(COALESCE(NEW.status, '')) = 'live' THEN
+        RAISE EXCEPTION 'Direct insert of PAID or LIVE event is strictly prohibited';
+      END IF;
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      RAISE EXCEPTION 'Direct client deletion of events is strictly prohibited';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_event_unauthorized_client_mutations ON public.events;
+CREATE TRIGGER trg_prevent_event_unauthorized_client_mutations
+  BEFORE INSERT OR UPDATE OR DELETE ON public.events
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_event_unauthorized_client_mutations();
 
 -- ------------------------------------------------------------------------------
 -- 9. SUPABASE STORAGE SETUP (game-assets bucket)
@@ -1476,7 +1775,7 @@ BEGIN
     v_included_outstanding := GREATEST(
       0.00,
       COALESCE(
-        v_order.included_outstanding_amount,
+        NULLIF(v_order.included_outstanding_amount, 0),
         NULLIF((v_order.metadata->>'included_outstanding_amount'), '')::numeric,
         NULLIF((p_metadata->>'included_outstanding_amount'), '')::numeric,
         0.00
@@ -2056,6 +2355,202 @@ GRANT EXECUTE ON FUNCTION public.process_event_payment_atomic(
 GRANT EXECUTE ON FUNCTION public.process_event_payment_atomic(
   UUID, UUID, TEXT, NUMERIC, NUMERIC, TEXT, UUID, TEXT, JSONB
 ) TO postgres;
+
+-- ------------------------------------------------------------------------------
+-- 17. ATOMIC DISTRIBUTED CHECKOUT CLAIM & CONCURRENCY LOCK
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.claim_checkout_session_creation(
+  p_order_id UUID,
+  p_claim_id TEXT,
+  p_timeout_seconds INT DEFAULT 30
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_order public.wallet_topup_orders%ROWTYPE;
+  v_now TIMESTAMPTZ := timezone('utc'::text, now());
+  v_in_progress BOOLEAN := false;
+  v_claimed_at TIMESTAMPTZ;
+  v_claimed_by TEXT;
+  v_current_attempt INT := 0;
+  v_new_attempt INT := 1;
+  v_timeout_seconds INT := GREATEST(5, LEAST(120, COALESCE(p_timeout_seconds, 30)));
+  v_session_id TEXT;
+  v_checkout_url TEXT;
+  v_expires_at TIMESTAMPTZ;
+  v_is_cancelled BOOLEAN := false;
+BEGIN
+  -- 1. Lock the top-up order exclusively
+  SELECT * INTO v_order
+  FROM public.wallet_topup_orders
+  WHERE id = p_order_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'claimed', false,
+      'error', 'order_not_found',
+      'message', 'Top-up order not found'
+    );
+  END IF;
+
+  -- 2. Verify status is PENDING
+  IF v_order.status != 'PENDING' THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'claimed', false,
+      'error', 'order_not_pending',
+      'status', v_order.status,
+      'message', 'Cannot checkout order in status ' || v_order.status
+    );
+  END IF;
+
+  -- 3. Check if there is already an active, valid session on this order
+  v_session_id := COALESCE(v_order.metadata->>'stripe_session_id', v_order.metadata->>'sessionId');
+  v_checkout_url := v_order.metadata->>'checkout_url';
+  v_expires_at := NULLIF(v_order.metadata->>'checkout_expires_at', '')::TIMESTAMPTZ;
+  IF v_expires_at IS NULL THEN
+    v_expires_at := v_order.expired_at;
+  END IF;
+
+  v_is_cancelled := COALESCE((v_order.metadata->>'checkout_cancelled')::boolean, false)
+                 OR COALESCE((v_order.metadata->>'session_status' = 'cancelled'), false)
+                 OR (v_order.metadata->>'cancelled_at' IS NOT NULL);
+
+  IF v_session_id IS NOT NULL AND v_session_id != '' AND NOT v_is_cancelled THEN
+    IF v_expires_at IS NULL OR v_expires_at > v_now THEN
+      RETURN jsonb_build_object(
+        'success', true,
+        'claimed', false,
+        'already_has_session', true,
+        'session_id', v_session_id,
+        'checkout_url', v_checkout_url,
+        'expires_at', v_expires_at,
+        'order', to_jsonb(v_order),
+        'message', 'Active checkout session already exists on order'
+      );
+    END IF;
+  END IF;
+
+  -- 4. Check if another worker currently holds an active, unexpired claim
+  v_in_progress := COALESCE((v_order.metadata->>'checkout_in_progress')::boolean, false);
+  v_claimed_at := NULLIF(v_order.metadata->>'checkout_claimed_at', '')::TIMESTAMPTZ;
+  v_claimed_by := v_order.metadata->>'checkout_claim_id';
+  v_current_attempt := COALESCE((v_order.metadata->>'checkout_attempt')::int, 0);
+
+  IF v_in_progress AND v_claimed_at IS NOT NULL AND (v_now - v_claimed_at) < (v_timeout_seconds || ' seconds')::interval THEN
+    IF v_claimed_by = p_claim_id THEN
+      RETURN jsonb_build_object(
+        'success', true,
+        'claimed', true,
+        'attempt', v_current_attempt,
+        'claim_id', p_claim_id,
+        'order', to_jsonb(v_order),
+        'message', 'Existing claim re-acquired by same caller'
+      );
+    END IF;
+
+    RETURN jsonb_build_object(
+      'success', true,
+      'claimed', false,
+      'in_progress', true,
+      'wait_required', true,
+      'attempt', v_current_attempt,
+      'claimed_at', v_claimed_at,
+      'order', to_jsonb(v_order),
+      'message', 'Checkout session creation in progress by another worker'
+    );
+  END IF;
+
+  -- 5. No active claim or previous claim timed out. THIS REQUEST WINS THE CLAIM!
+  v_new_attempt := v_current_attempt + 1;
+
+  UPDATE public.wallet_topup_orders
+  SET
+    metadata = v_order.metadata || jsonb_build_object(
+      'checkout_in_progress', true,
+      'checkout_claim_id', p_claim_id,
+      'checkout_claimed_at', v_now,
+      'checkout_attempt', v_new_attempt
+    ),
+    updated_at = v_now
+  WHERE id = p_order_id
+  RETURNING * INTO v_order;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'claimed', true,
+    'in_progress', true,
+    'wait_required', false,
+    'attempt', v_new_attempt,
+    'claim_id', p_claim_id,
+    'order', to_jsonb(v_order),
+    'message', 'Checkout creation claim acquired'
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.release_checkout_session_claim(
+  p_order_id UUID,
+  p_claim_id TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_order public.wallet_topup_orders%ROWTYPE;
+  v_now TIMESTAMPTZ := timezone('utc'::text, now());
+  v_claimed_by TEXT;
+BEGIN
+  SELECT * INTO v_order
+  FROM public.wallet_topup_orders
+  WHERE id = p_order_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'order_not_found');
+  END IF;
+
+  v_claimed_by := v_order.metadata->>'checkout_claim_id';
+
+  IF p_claim_id IS NULL OR v_claimed_by = p_claim_id THEN
+    UPDATE public.wallet_topup_orders
+    SET
+      metadata = v_order.metadata || jsonb_build_object(
+        'checkout_in_progress', false,
+        'checkout_claim_id', null
+      ),
+      updated_at = v_now
+    WHERE id = p_order_id
+    RETURNING * INTO v_order;
+
+    RETURN jsonb_build_object('success', true, 'released', true, 'order', to_jsonb(v_order));
+  END IF;
+
+  RETURN jsonb_build_object('success', true, 'released', false, 'message', 'Claim held by different worker');
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.claim_checkout_session_creation(UUID, TEXT, INT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.claim_checkout_session_creation(UUID, TEXT, INT) FROM anon;
+REVOKE ALL ON FUNCTION public.claim_checkout_session_creation(UUID, TEXT, INT) FROM authenticated;
+
+REVOKE ALL ON FUNCTION public.release_checkout_session_claim(UUID, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.release_checkout_session_claim(UUID, TEXT) FROM anon;
+REVOKE ALL ON FUNCTION public.release_checkout_session_claim(UUID, TEXT) FROM authenticated;
+
+GRANT EXECUTE ON FUNCTION public.claim_checkout_session_creation(UUID, TEXT, INT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.claim_checkout_session_creation(UUID, TEXT, INT) TO postgres;
+
+GRANT EXECUTE ON FUNCTION public.release_checkout_session_claim(UUID, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.release_checkout_session_claim(UUID, TEXT) TO postgres;
+
 
 
 

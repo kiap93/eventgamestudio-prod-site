@@ -71,25 +71,82 @@ async function runMigrationIntegrityTests() {
     );
   }
 
-  // Verify all files in migrations directory have valid format and unique timestamps
+  // Verify all files in migrations directory are canonical timestamp migrations
   const migrationFiles = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql'));
-  assert.ok(migrationFiles.length >= 35, 'Scenario 17: Must have all migrations');
+  assert.strictEqual(
+    migrationFiles.length,
+    7,
+    `Scenario 17: migrations/ must contain exactly the 7 canonical migrations, found ${migrationFiles.length}`
+  );
 
-  const timestamps = new Set<string>();
-  for (const file of migrationFiles) {
-    const match = file.match(/^(\d{14})_(.+)\.sql$/);
+  const canonicalFiles = [
+    '20260903000000_initial_baseline.sql',
+    '20260903010000_add_outstanding_balance_to_organization_wallets.sql',
+    '20260904000000_atomic_outstanding_balance_settlement.sql',
+    '20260904010000_atomic_checkout_claim.sql',
+    '20260904020000_prevent_user_privilege_escalation.sql',
+    '20260904030000_events_backend_write_only.sql',
+    '20260904040000_games_themes_backend_write_only.sql',
+  ];
+
+  for (const file of canonicalFiles) {
     assert.ok(
-      match,
-      `Scenario 17: File ${file} must have valid YYYYMMDDHHMMSS_name.sql timestamp format`
+      migrationFiles.includes(file),
+      `Scenario 17: Canonical migration ${file} must exist in migrations/`
     );
-    const ts = match[1];
-    assert.ok(!timestamps.has(ts), `Scenario 17: Duplicate timestamp found in migrations: ${ts}`);
-    timestamps.add(ts);
+  }
+
+  for (const file of migrationFiles) {
+    const isTimestamp = /^(\d{14})_(.+)\.sql$/.test(file);
+    assert.ok(
+      isTimestamp,
+      `Scenario 17: File ${file} must match canonical timestamp format (YYYYMMDDHHMMSS_name.sql)`
+    );
 
     // SQL syntax basic check: non-empty, valid UTF-8
     const content = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
     assert.ok(content.trim().length > 0, `Scenario 17: Migration ${file} must not be empty`);
   }
+
+  // --------------------------------------------------------------------------
+  // Scenario 17b: Verify Strategy B (Baseline 2026-09-03 + Post-Baseline)
+  // --------------------------------------------------------------------------
+  console.log('Scenario 17b: Verifying Strategy B (Baseline Date Snapshot + Post-Baseline Migrations)...');
+  const postBaselineTs = path.resolve(migrationsDir, '20260903010000_add_outstanding_balance_to_organization_wallets.sql');
+  const postBaselineAtomicSettlement = path.resolve(migrationsDir, '20260904000000_atomic_outstanding_balance_settlement.sql');
+  const postBaselineClaim = path.resolve(migrationsDir, '20260904010000_atomic_checkout_claim.sql');
+  const migrationsDoc = path.resolve(process.cwd(), 'supabase/MIGRATIONS.md');
+
+  assert.ok(fs.existsSync(postBaselineTs), 'Strategy B: Migration 20260903010000 must exist as post-baseline timestamp migration');
+  assert.ok(fs.existsSync(postBaselineAtomicSettlement), 'Strategy B: Migration 20260904000000 must exist');
+  assert.ok(fs.existsSync(postBaselineClaim), 'Strategy B: Migration 20260904010000 must exist');
+  assert.ok(fs.existsSync(migrationsDoc), 'Strategy B: supabase/MIGRATIONS.md documentation must exist');
+
+  // Verify baseline file explicitly documents Strategy B and date boundary
+  assert.ok(
+    baselineSql.includes('2026-09-03 00:00:00 UTC') || baselineSql.includes('HISTORICAL BASELINE MIGRATION'),
+    'Strategy B: Baseline file must clearly document snapshot date and baseline scope'
+  );
+
+  // Verify post-baseline adds outstanding_balance
+  const postBaselineTsSql = fs.readFileSync(postBaselineTs, 'utf-8');
+  assert.ok(
+    postBaselineTsSql.includes('outstanding_balance'),
+    'Strategy B: Post-baseline migration 20260903010000 must define outstanding_balance'
+  );
+
+  // Verify complete schema file contains both baseline objects AND post-baseline additions
+  const completeSchemaSql = fs.readFileSync(schemaFile, 'utf-8');
+  assert.ok(
+    completeSchemaSql.includes('outstanding_balance'),
+    'Strategy B: Complete schema.sql must contain outstanding_balance'
+  );
+  assert.ok(
+    completeSchemaSql.includes('claim_checkout_session_creation'),
+    'Strategy B: Complete schema.sql must contain claim_checkout_session_creation'
+  );
+
+  console.log('  ✓ PASSED: Strategy B verified - baseline is defined as 2026-09-03 00:00:00 UTC, migration 031 and 20260903010000 provide post-baseline outstanding balance, and schema.sql contains the complete cumulative current schema.');
 
   console.log(`  ✓ PASSED: Baseline contains all ${requiredTables.length} tables, complete indexes, triggers, and functions; ${migrationFiles.length} migration files are cleanly ordered and formatted`);
 
@@ -100,7 +157,7 @@ async function runMigrationIntegrityTests() {
   assert.ok(fs.existsSync(historyDir), 'Scenario 18: migrations_history directory must exist');
 
   const historyFiles = fs.readdirSync(historyDir).filter(f => f.endsWith('.sql'));
-  assert.strictEqual(historyFiles.length, 34, 'Scenario 18: migrations_history must retain all 34 historical files');
+  assert.strictEqual(historyFiles.length, 36, 'Scenario 18: migrations_history must retain all 36 historical files');
 
   // Verify audit markdown exists
   const auditFile = path.join(historyDir, 'MIGRATIONS_AUDIT.md');
@@ -142,6 +199,8 @@ async function runMigrationIntegrityTests() {
     '027_automatic_test_score_clearing.sql',
     '028_fix_wallet_topup_settlement_atomic.sql',
     '029_leaderboard_idempotency_constraint.sql',
+    '030_add_google_mail_settings.sql',
+    '031_add_outstanding_balance_to_organization_wallets.sql',
   ];
 
   for (const hf of expectedHistoricalFiles) {

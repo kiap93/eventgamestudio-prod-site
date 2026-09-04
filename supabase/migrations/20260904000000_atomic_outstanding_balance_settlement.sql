@@ -1,5 +1,7 @@
--- MIGRATION: 20260904000000_atomic_outstanding_balance_settlement.sql
--- Description: Makes outstanding balance deduction atomic with top-up order settlement in process_topup_order_atomic
+-- Migration: 20260904000000_atomic_outstanding_balance_settlement.sql
+-- Description: Upgrades process_topup_order_atomic to atomically deduct outstanding balance
+--              included in wallet top-up orders upon settlement, preventing race conditions.
+-- Architecture: Strategy B - Post-baseline migration.
 
 CREATE OR REPLACE FUNCTION public.process_topup_order_atomic(
   p_order_id UUID,
@@ -14,15 +16,14 @@ CREATE OR REPLACE FUNCTION public.process_topup_order_atomic(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
 AS $$
 DECLARE
-  v_now TIMESTAMPTZ := NOW();
   v_order public.wallet_topup_orders%ROWTYPE;
   v_wallet public.organization_wallets%ROWTYPE;
   v_topup_txn public.wallet_transactions%ROWTYPE;
   v_promo_txn public.wallet_transactions%ROWTYPE;
-  v_promo_credit NUMERIC(12,2) := 0.00;
+  v_now TIMESTAMPTZ := timezone('utc'::text, now());
+  v_promo_credit NUMERIC := 0.00;
   v_tier_rate TEXT := '0%';
   v_existing_topup public.wallet_transactions%ROWTYPE;
   v_existing_promo public.wallet_transactions%ROWTYPE;
@@ -244,7 +245,7 @@ BEGIN
     v_included_outstanding := GREATEST(
       0.00,
       COALESCE(
-        v_order.included_outstanding_amount,
+        NULLIF(v_order.included_outstanding_amount, 0),
         NULLIF((v_order.metadata->>'included_outstanding_amount'), '')::numeric,
         NULLIF((p_metadata->>'included_outstanding_amount'), '')::numeric,
         0.00
@@ -279,25 +280,132 @@ BEGIN
     );
   END IF;
 
-  -- 6. Process Terminal Status Updates (FAILED, EXPIRED, CANCELLED)
-  UPDATE public.wallet_topup_orders
-  SET
-    status = p_status,
-    updated_at = v_now,
-    notes = COALESCE(p_reason, v_order.notes),
-    metadata = v_order.metadata || COALESCE(p_metadata, '{}'::jsonb)
-  WHERE id = p_order_id
-  RETURNING * INTO v_order;
+  -- 6. Process Non-PAID Transitions (FAILED, EXPIRED, CANCELLED)
+  IF p_status = 'FAILED' THEN
+    UPDATE public.wallet_topup_orders
+    SET
+      status = 'FAILED',
+      failed_at = v_now,
+      updated_at = v_now,
+      notes = COALESCE(p_reason, notes),
+      metadata = metadata || COALESCE(p_metadata, '{}'::jsonb)
+    WHERE id = p_order_id
+    RETURNING * INTO v_order;
 
-  RETURN jsonb_build_object(
-    'success', true,
-    'is_idempotent_replay', false,
-    'order', to_jsonb(v_order),
-    'message', 'Top-up order status updated to ' || p_status || '.'
+    RETURN jsonb_build_object(
+      'success', true,
+      'is_idempotent_replay', false,
+      'order', to_jsonb(v_order),
+      'message', 'Top-up order marked as FAILED. No funds or credits were added to the wallet.'
+    );
+  ELSIF p_status = 'EXPIRED' THEN
+    UPDATE public.wallet_topup_orders
+    SET
+      status = 'EXPIRED',
+      expired_at = v_now,
+      updated_at = v_now,
+      notes = COALESCE(p_reason, notes),
+      metadata = metadata || COALESCE(p_metadata, '{}'::jsonb)
+    WHERE id = p_order_id
+    RETURNING * INTO v_order;
+
+    RETURN jsonb_build_object(
+      'success', true,
+      'is_idempotent_replay', false,
+      'order', to_jsonb(v_order),
+      'message', 'Top-up order marked as EXPIRED. No funds or credits were added to the wallet.'
+    );
+  ELSIF p_status = 'CANCELLED' THEN
+    UPDATE public.wallet_topup_orders
+    SET
+      status = 'CANCELLED',
+      cancelled_at = v_now,
+      updated_at = v_now,
+      notes = COALESCE(p_reason, notes),
+      metadata = metadata || COALESCE(p_metadata, '{}'::jsonb)
+    WHERE id = p_order_id
+    RETURNING * INTO v_order;
+
+    RETURN jsonb_build_object(
+      'success', true,
+      'is_idempotent_replay', false,
+      'order', to_jsonb(v_order),
+      'message', 'Top-up order marked as CANCELLED. No funds or credits were added to the wallet.'
+    );
+  END IF;
+
+  RAISE EXCEPTION 'Unsupported status transition: %', p_status;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.settle_wallet_topup_order(
+  p_order_id UUID,
+  p_organization_id UUID,
+  p_status TEXT,
+  p_payment_reference TEXT DEFAULT NULL,
+  p_payment_method TEXT DEFAULT NULL,
+  p_processed_by UUID DEFAULT NULL,
+  p_reason TEXT DEFAULT NULL,
+  p_metadata JSONB DEFAULT '{}'::jsonb
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Authoritative settlement is delegated directly to the canonical process_topup_order_atomic function
+  RETURN public.process_topup_order_atomic(
+    p_order_id := p_order_id,
+    p_organization_id := p_organization_id,
+    p_status := p_status,
+    p_payment_reference := p_payment_reference,
+    p_payment_method := p_payment_method,
+    p_processed_by := p_processed_by,
+    p_reason := p_reason,
+    p_metadata := p_metadata
   );
 END;
 $$;
 
--- Secure execution
-REVOKE ALL ON FUNCTION public.process_topup_order_atomic(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB) FROM PUBLIC, anon, authenticated;
+CREATE OR REPLACE FUNCTION public.settle_wallet_topup_order_atomic(
+  p_order_id UUID,
+  p_organization_id UUID,
+  p_status TEXT,
+  p_payment_reference TEXT DEFAULT NULL,
+  p_payment_method TEXT DEFAULT NULL,
+  p_processed_by UUID DEFAULT NULL,
+  p_reason TEXT DEFAULT NULL,
+  p_metadata JSONB DEFAULT '{}'::jsonb
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN public.process_topup_order_atomic(
+    p_order_id := p_order_id,
+    p_organization_id := p_organization_id,
+    p_status := p_status,
+    p_payment_reference := p_payment_reference,
+    p_payment_method := p_payment_method,
+    p_processed_by := p_processed_by,
+    p_reason := p_reason,
+    p_metadata := p_metadata
+  );
+END;
+$$;
+
+-- Security grant & revoke privileges
+REVOKE ALL ON FUNCTION public.settle_wallet_topup_order(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.settle_wallet_topup_order(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB) FROM anon;
+REVOKE ALL ON FUNCTION public.settle_wallet_topup_order(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.settle_wallet_topup_order(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB) TO service_role;
+GRANT EXECUTE ON FUNCTION public.settle_wallet_topup_order(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB) TO postgres;
+
+REVOKE ALL ON FUNCTION public.process_topup_order_atomic(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.process_topup_order_atomic(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB) FROM anon;
+REVOKE ALL ON FUNCTION public.process_topup_order_atomic(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.process_topup_order_atomic(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB) TO service_role;
+GRANT EXECUTE ON FUNCTION public.process_topup_order_atomic(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT, JSONB) TO postgres;
+
+NOTIFY pgrst, 'reload schema';

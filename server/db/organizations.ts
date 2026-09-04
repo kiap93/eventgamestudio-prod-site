@@ -13,7 +13,7 @@ import {
 } from './types.js';
 import { grantWelcomeCredit, getWalletBalance, getWalletTransactions } from './wallet.js';
 import { getUserById } from './users.js';
-import { getOrgMembers, OrgMemberWithUserDetails } from './members.js';
+import { getOrgMembers, addMember, OrgMemberWithUserDetails } from './members.js';
 import { getEventsByOrgId } from './events.js';
 import crypto from 'node:crypto';
 
@@ -239,6 +239,18 @@ export async function createOrganization(
     assertProductionSafe('createOrganization', env);
     localOrgsCache.set(id, orgRecord);
     try {
+      await addMember(
+        {
+          organization_id: orgRecord.id,
+          user_id: params.owner_id,
+          role: 'owner',
+        },
+        env
+      );
+    } catch {
+      // ignore
+    }
+    try {
       await grantWelcomeCredit(
         {
           organizationId: orgRecord.id,
@@ -280,6 +292,18 @@ export async function createOrganization(
 
   const organization = data as OrganizationRecord;
   localOrgsCache.set(organization.id, organization);
+  try {
+    await addMember(
+      {
+        organization_id: organization.id,
+        user_id: params.owner_id,
+        role: 'owner',
+      },
+      env
+    );
+  } catch {
+    // ignore
+  }
 
   // Automatically grant the one-time Welcome Credit to the new Organization's wallet
   try {

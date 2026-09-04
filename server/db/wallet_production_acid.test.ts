@@ -22,6 +22,7 @@ import {
   processEventPayment,
   getOutstandingBalance,
   setOutstandingBalance,
+  attachCheckoutSessionToTopupOrder,
 } from './wallet.js';
 import { createOrganization } from './organizations.js';
 import { isSupabaseConfigured } from '../supabase.js';
@@ -218,6 +219,43 @@ async function runProductionAcidTests() {
     setOutstandingThrewError = true;
   }
   assertTrue(setOutstandingThrewError, 'setOutstandingBalance throws error when Supabase fails in production mode (FAIL CLOSED)');
+
+  // Test 12: setOutstandingBalance failure must NOT update local cache
+  // Pre-seed local cache with RM1.00
+  await setOutstandingBalance(testOrgId, 1.00); // in dev mode (no env)
+  let devBalance = await getOutstandingBalance(testOrgId);
+  assertEqual(devBalance, 1.00, 'Dev cache initialized with RM1.00 outstanding balance');
+
+  // Attempt to set to RM0.00 in mock production where Supabase fails
+  let failedSetThrew = false;
+  try {
+    await setOutstandingBalance(testOrgId, 0.00, mockProdEnv);
+  } catch (err) {
+    failedSetThrew = true;
+  }
+  assertTrue(failedSetThrew, 'setOutstandingBalance threw on failed DB update in production');
+
+  // Verify that local cache was NOT overwritten to RM0.00!
+  const postFailBalance = await getOutstandingBalance(testOrgId); // read in dev mode
+  assertEqual(postFailBalance, 1.00, 'Local cache was NOT modified after failed DB write; outstanding balance did not silently disappear');
+
+  // Test 13: attachCheckoutSessionToTopupOrder in production when database is down must throw (FAIL CLOSED)
+  let attachSessionThrew = false;
+  try {
+    await attachCheckoutSessionToTopupOrder(
+      crypto.randomUUID(),
+      {
+        sessionId: 'test_session_123',
+        checkoutUrl: 'https://checkout.example.com',
+        totalDue: 2.00,
+        includedOutstandingAmount: 1.00,
+      },
+      mockProdEnv
+    );
+  } catch (err: any) {
+    attachSessionThrew = true;
+  }
+  assertTrue(attachSessionThrew, 'attachCheckoutSessionToTopupOrder throws error when Supabase fails in production mode (FAIL CLOSED)');
 
   console.log('\n======================================================');
   console.log(` RESULTS: ${passed} PASSED, ${failed} FAILED`);

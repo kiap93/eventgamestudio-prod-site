@@ -84,12 +84,14 @@ export async function createUser(
     email: string;
     name: string;
     avatar_url?: string | null;
+    is_developer?: boolean;
   },
   env?: Record<string, any>
 ): Promise<UserRecord> {
   const supabase = getSupabaseServerClient(env);
   const id = userData.id || crypto.randomUUID();
   const now = new Date().toISOString();
+  const isDeveloper = userData.is_developer === true;
 
   const { data, error } = await supabase
     .from('users')
@@ -99,6 +101,7 @@ export async function createUser(
       email: userData.email.trim().toLowerCase(),
       name: userData.name,
       avatar_url: userData.avatar_url || null,
+      is_developer: isDeveloper,
       created_at: now,
       updated_at: now,
     })
@@ -113,6 +116,7 @@ export async function createUser(
         email: userData.email.trim().toLowerCase(),
         name: userData.name,
         avatar_url: userData.avatar_url || null,
+        is_developer: isDeveloper,
         created_at: now,
         updated_at: now,
       };
@@ -124,6 +128,7 @@ export async function createUser(
   }
 
   const user = data as UserRecord;
+  user.is_developer = user.is_developer === true;
   localUsersCache.set(user.id, user);
   return user;
 }
@@ -136,12 +141,23 @@ export async function updateUser(
   const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
 
+  // Defense-in-depth: whitelist safe fields only, strictly dropping is_developer or any unauthorized attributes
+  const safePayload: Record<string, any> = {
+    updated_at: now,
+  };
+  if (typeof updates.name === 'string') {
+    safePayload.name = updates.name.trim();
+  }
+  if (updates.avatar_url !== undefined) {
+    safePayload.avatar_url = updates.avatar_url;
+  }
+  if (updates.google_id !== undefined) {
+    safePayload.google_id = updates.google_id;
+  }
+
   const { data, error } = await supabase
     .from('users')
-    .update({
-      ...updates,
-      updated_at: now,
-    })
+    .update(safePayload)
     .eq('id', id)
     .select()
     .single();
@@ -152,7 +168,7 @@ export async function updateUser(
       if (existing) {
         const updated: UserRecord = {
           ...existing,
-          ...updates,
+          ...safePayload,
           updated_at: now,
         };
         localUsersCache.set(id, updated);
@@ -166,6 +182,48 @@ export async function updateUser(
   const user = data as UserRecord;
   localUsersCache.set(user.id, user);
   return user;
+}
+
+/**
+ * Safely updates user profile fields (name, avatar_url).
+ * Strictly validates input and prevents mutation of any privileged or identity columns.
+ */
+export async function updateUserProfile(
+  id: string,
+  profile: {
+    name?: string;
+    avatar_url?: string | null;
+  },
+  env?: Record<string, any>
+): Promise<UserRecord> {
+  const safeUpdates: Partial<Pick<UserRecord, 'name' | 'avatar_url'>> = {};
+
+  if (profile.name !== undefined) {
+    if (typeof profile.name !== 'string') {
+      throw new Error('Name must be a string');
+    }
+    const trimmed = profile.name.trim();
+    if (!trimmed || trimmed.length > 100) {
+      throw new Error('Name must be between 1 and 100 characters');
+    }
+    safeUpdates.name = trimmed;
+  }
+
+  if (profile.avatar_url !== undefined) {
+    if (profile.avatar_url === null || profile.avatar_url === '') {
+      safeUpdates.avatar_url = null;
+    } else if (typeof profile.avatar_url === 'string') {
+      const trimmedUrl = profile.avatar_url.trim();
+      if (trimmedUrl.length > 1000) {
+        throw new Error('Avatar URL cannot exceed 1000 characters');
+      }
+      safeUpdates.avatar_url = trimmedUrl;
+    } else {
+      throw new Error('Avatar URL must be a string or null');
+    }
+  }
+
+  return updateUser(id, safeUpdates, env);
 }
 
 export async function upsertGoogleUser(

@@ -1,6 +1,8 @@
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isLocalFallbackAllowed, isSupabaseConfigured } from '../supabase.js';
 import { OrgMemberRecord, OrgRole } from './types.js';
 import crypto from 'node:crypto';
+
+export const localMembersCache = new Map<string, OrgMemberRecord>();
 
 export interface OrgMemberWithUserDetails {
   id: string;
@@ -26,8 +28,29 @@ export async function getMember(organizationId: string, userId: string, env?: Re
     .maybeSingle();
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      for (const m of localMembersCache.values()) {
+        if (m.organization_id === organizationId && m.user_id === userId) {
+          return m;
+        }
+      }
+      return null;
+    }
     console.error('Error in getMember:', error);
     throw new Error(`Failed to get organization member: ${error.message}`);
+  }
+
+  if (data) {
+    localMembersCache.set(data.id, data as OrgMemberRecord);
+  } else {
+    // Check fallback cache if no remote data returned under fallback mode
+    if (isLocalFallbackAllowed(env)) {
+      for (const m of localMembersCache.values()) {
+        if (m.organization_id === organizationId && m.user_id === userId) {
+          return m;
+        }
+      }
+    }
   }
 
   return data as OrgMemberRecord | null;
@@ -42,11 +65,17 @@ export async function getMemberById(memberId: string, env?: Record<string, any>)
     .maybeSingle();
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      return localMembersCache.get(memberId) || null;
+    }
     console.error('Error in getMemberById:', error);
     throw new Error(`Failed to get member by id: ${error.message}`);
   }
 
-  return data as OrgMemberRecord | null;
+  if (data) {
+    localMembersCache.set(data.id, data as OrgMemberRecord);
+  }
+  return (data as OrgMemberRecord) || localMembersCache.get(memberId) || null;
 }
 
 export async function getOrgMembers(organizationId: string, env?: Record<string, any>): Promise<OrgMemberWithUserDetails[]> {
@@ -153,10 +182,23 @@ export async function addMember(
   },
   env?: Record<string, any>
 ): Promise<OrgMemberRecord> {
-  const supabase = getSupabaseServerClient(env);
   const id = params.id || crypto.randomUUID();
   const now = new Date().toISOString();
 
+  const memRecord: OrgMemberRecord = {
+    id,
+    organization_id: params.organization_id,
+    user_id: params.user_id,
+    role: params.role,
+    created_at: now,
+  };
+
+  if (!isSupabaseConfigured(env)) {
+    localMembersCache.set(id, memRecord);
+    return memRecord;
+  }
+
+  const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('organization_members')
     .insert({
@@ -170,11 +212,17 @@ export async function addMember(
     .single();
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      localMembersCache.set(id, memRecord);
+      return memRecord;
+    }
     console.error('Error in addMember:', error);
     throw new Error(`Failed to add organization member: ${error.message}`);
   }
 
-  return data as OrgMemberRecord;
+  const record = (data as OrgMemberRecord) || memRecord;
+  localMembersCache.set(record.id, record);
+  return record;
 }
 
 export async function updateMemberRole(

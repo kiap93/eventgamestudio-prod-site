@@ -28,8 +28,8 @@ During parallel branch development and feature rollouts, several migration files
 ## 2. Historical Preservation Policy
 
 In accordance with strict production database safety principles:
-- **No Rewriting of Applied Migrations**: Migrations that may already have been executed against production/staging databases (`001` through `029`) have their versions, filenames, and contents preserved without modification.
-- **Archive Preserved**: All 34 original historical files (including colliding files and branches) are archived verbatim in `supabase/migrations_history/`.
+- **No Rewriting of Applied Migrations**: Migrations that may already have been executed against production/staging databases (`001` through `031`) have their versions, filenames, and contents preserved without modification.
+- **Archive Preserved**: All 36 original historical files (including colliding files and branches, through 031) are archived verbatim in `supabase/migrations_history/`.
 
 ---
 
@@ -47,39 +47,43 @@ To resolve collisions for new deployment environments while preserving compatibi
    - Created `030_add_google_mail_settings.sql` using idempotent DDL (`CREATE TABLE IF NOT EXISTS public.google_mail_settings`, `CREATE POLICY ...`).
    - For existing databases where the table may already exist, migration 030 safely no-ops without error and marks itself applied in `schema_migrations`.
    - For new databases, migration 030 runs in strict chronological order after 029.
+3. **Historical Archive Preservation**:
+   - Both `030_add_google_mail_settings.sql` and `031_add_outstanding_balance_to_organization_wallets.sql` are preserved in `supabase/migrations_history/` alongside `001`–`029`.
 
 ---
 
 ## 4. Final Clean Migration Directory
 
-The active `supabase/migrations/` directory now contains a strictly sequential, continuous, and non-conflicting series from `001` to `030`:
-- `001_upgrade_to_multiple_games.sql`
-- `002_add_game_layout_config.sql`
-- `003_remove_theme_active_state.sql`
-- `004_developer_admin_system_themes.sql`
-- `005_remove_games_active_theme_id.sql`
-- `006_prevent_duplicate_system_games.sql`
-- `007_ensure_all_games_columns_and_reload_cache.sql`
-- `008_wallet_engine_and_ledger.sql`
-- `009_create_event_showcase_tables.sql`
-- `010_event_showcase_review_workflow.sql`
-- `011_atomic_event_payment_rpc.sql`
-- `012_create_wallet_topup_orders.sql`
-- `013_create_event_high_scores.sql`
-- `014_lock_topup_settlement_security.sql`
-- `015_add_event_pricing.sql`
-- `016_link_events_to_games_with_restrict.sql`
-- `017_add_theme_game_config.sql`
-- `018_separate_event_lifecycle_and_payment_status.sql`
-- `019_lock_down_rls_and_storage_security.sql`
-- `020_ensure_wallet_topup_orders_columns_and_reload_cache.sql`
-- `021_migrate_memory_match_theme_game_config.sql`
-- `022_fix_atomic_event_payment_record_unassigned.sql`
-- `023_fix_settle_wallet_topup_order_unassigned.sql`
-- `024_restrict_financial_rpcs_to_service_role.sql`
-- `025_score_environment_lifecycle.sql`
-- `026_add_database_score_environment.sql`
-- `027_automatic_test_score_clearing.sql`
-- `028_fix_wallet_topup_settlement_atomic.sql`
-- `029_leaderboard_idempotency_constraint.sql`
-- `030_add_google_mail_settings.sql`
+The active `supabase/migrations/` directory now contains ONLY the 4 canonical timestamp migrations:
+- `20260903000000_initial_baseline.sql`
+- `20260903010000_add_outstanding_balance_to_organization_wallets.sql`
+- `20260904000000_atomic_outstanding_balance_settlement.sql`
+- `20260904010000_atomic_checkout_claim.sql`
+
+---
+
+## 5. Baseline Architecture & Post-Baseline Sequence (Strategy B)
+
+### 5.1 The Baseline Boundary Date
+The baseline migration file `20260903000000_initial_baseline.sql` is formally defined as:
+- **Production Schema Snapshot as of 2026-09-03 00:00:00 UTC**.
+- Equivalent to cumulative migrations 001 through 030.
+- Contains the 14 core platform tables and initial financial RPCs.
+- **Explicitly does NOT contain `outstanding_balance`** on `organization_wallets` or post-baseline order fields.
+
+### 5.2 Post-Baseline Delta (Migration 031 & Subsequent Migrations)
+The schema evolved post-baseline via the following strictly chronological sequence:
+1. **Migration 031 / `20260903010000_add_outstanding_balance_to_organization_wallets.sql`**:
+   - Added `outstanding_balance` column to `organization_wallets`.
+   - Added `included_outstanding_amount`, `payable_amount`, `total_due` to `wallet_topup_orders`.
+   - Updated constraint to allow `top_up_amount >= 0.00`.
+2. **Migration `20260904000000_atomic_outstanding_balance_settlement.sql`**:
+   - Upgraded `process_topup_order_atomic` and `settle_wallet_topup_order_atomic` to atomically deduct outstanding balance upon order settlement.
+3. **Migration `20260904010000_atomic_checkout_claim.sql`**:
+   - Added `claim_checkout_session_creation` and `release_checkout_session_claim` for distributed concurrency locking across worker instances.
+
+### 5.3 Canonical Single-File Snapshot
+`supabase/schema.sql` is maintained as the single-file cumulative latest schema containing the baseline plus all post-baseline additions.
+
+For complete developer guidelines and migration runbook, refer to `supabase/MIGRATIONS.md`.
+
