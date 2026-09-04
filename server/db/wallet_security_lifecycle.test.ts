@@ -195,7 +195,7 @@ async function runSecurityTests() {
           order_id: testOrderPending.id,
           organization_id: orgAId,
         },
-        payment_method: 'fpx',
+        payment_method: 'card',
         status: 'succeeded',
       },
     },

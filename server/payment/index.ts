@@ -6,10 +6,47 @@ import {
   processTopupOrderStatus,
   recordWalletAuditEvent,
   attachCheckoutSessionToTopupOrder,
+  getOutstandingBalance,
+  setOutstandingBalance,
+  addOutstandingBalance,
+  clearOutstandingBalance,
   toCents,
   fromCents,
 } from '../db/wallet.js';
 import { TopupOrderRecord } from '../db/types.js';
+
+export {
+  getOutstandingBalance,
+  setOutstandingBalance,
+  addOutstandingBalance,
+  clearOutstandingBalance,
+};
+
+/**
+ * Authoritative supported payment methods configuration.
+ * Currently, only Credit / Debit Card ('card') is configured and supported by Stripe Checkout.
+ * Online Banking / FPX is not supported by the Stripe configuration and must not be advertised.
+ */
+export const SUPPORTED_PAYMENT_METHODS = [
+  {
+    id: 'card',
+    name: 'Credit / Debit Card',
+    description: 'Visa, Mastercard, American Express',
+    enabled: true,
+  },
+] as const;
+
+export type SupportedPaymentMethod = (typeof SUPPORTED_PAYMENT_METHODS)[number]['id'];
+
+export function isPaymentMethodSupported(method?: string | null): boolean {
+  if (!method) return true; // Default fallback to card is permitted
+  const normalized = method.toLowerCase().trim();
+  return SUPPORTED_PAYMENT_METHODS.some((m) => m.id === normalized && m.enabled);
+}
+
+export function getSupportedPaymentMethods() {
+  return SUPPORTED_PAYMENT_METHODS.filter((m) => m.enabled).map((m) => ({ ...m }));
+}
 
 let stripeClientInstance: Stripe | null = null;
 let lastResolvedSecretKey: string | null = null;
@@ -65,11 +102,76 @@ export function getStripeClient(env?: Record<string, any>): Stripe | null {
   return stripeClientInstance;
 }
 
+export const STRIPE_MINIMUM_AMOUNT_MYR = 2.00;
+
+/**
+ * Server-authoritative total due calculation:
+ * total due = current payable amount + any existing outstanding amount
+ */
+export function calculateTotalDue(
+  payableAmount: number,
+  existingOutstandingAmount: number
+): number {
+  const payableCents = toCents(Math.max(0, Number(payableAmount) || 0));
+  const outstandingCents = toCents(Math.max(0, Number(existingOutstandingAmount) || 0));
+  return fromCents(payableCents + outstandingCents);
+}
+
+export type PaymentAmountEvaluation =
+  | { action: 'ZERO_AMOUNT'; totalDue: 0; shouldCreateSession: false; message: string }
+  | { action: 'PERSIST_OUTSTANDING'; totalDue: number; shouldCreateSession: false; message: string }
+  | { action: 'CREATE_SESSION'; totalDue: number; shouldCreateSession: true; message: string };
+
+/**
+ * Server-authoritative evaluation of payable amount and outstanding balance:
+ * - RM0.00 -> do not create Checkout Session
+ * - RM0.01 - RM1.99 -> do not create Checkout Session, persist as outstanding balance
+ * - RM2.00+ -> create Stripe Checkout Session
+ *
+ * Enforces:
+ * - Do NOT silently round RM1.00 to RM2.00
+ * - Do NOT charge more than actual amount owed
+ */
+export function evaluatePaymentAmount(
+  payableAmount: number,
+  existingOutstandingAmount: number
+): PaymentAmountEvaluation {
+  const totalDue = calculateTotalDue(payableAmount, existingOutstandingAmount);
+  const totalDueCents = toCents(totalDue);
+  const minCents = toCents(STRIPE_MINIMUM_AMOUNT_MYR);
+
+  if (totalDueCents <= 0) {
+    return {
+      action: 'ZERO_AMOUNT',
+      totalDue: 0,
+      shouldCreateSession: false,
+      message: 'Total due is RM0.00. Do not create Checkout Session.',
+    };
+  }
+
+  if (totalDueCents < minCents) {
+    return {
+      action: 'PERSIST_OUTSTANDING',
+      totalDue,
+      shouldCreateSession: false,
+      message: `Total due (RM${totalDue.toFixed(2)}) is below Stripe minimum of RM2.00. Persist as outstanding balance.`,
+    };
+  }
+
+  return {
+    action: 'CREATE_SESSION',
+    totalDue,
+    shouldCreateSession: true,
+    message: `Total due (RM${totalDue.toFixed(2)}) meets Stripe minimum. Create Stripe Checkout Session.`,
+  };
+}
+
 export interface PaymentSessionConfig {
   order: TopupOrderRecord;
   originUrl?: string;
   customerEmail?: string;
   env?: Record<string, any>;
+  payableAmount?: number;
 }
 
 export interface PaymentSessionResult {
@@ -81,6 +183,12 @@ export interface PaymentSessionResult {
   amount: number;
   currency: string;
   expiresAt: string;
+  totalDue?: number;
+  payableAmount?: number;
+  outstandingAmount?: number;
+  sessionCreated?: boolean;
+  status?: 'SESSION_CREATED' | 'OUTSTANDING_BALANCE_RECORDED' | 'ZERO_AMOUNT_NO_SESSION';
+  message?: string;
 }
 
 export interface WebhookVerificationParams {
@@ -233,16 +341,106 @@ export function verifyWebhookSignature(
 
 /**
  * Create a payment checkout session for a Top Up Order.
+ *
+ * SERVER-AUTHORITATIVE STRIPE MINIMUM PAYMENT HANDLING:
+ * total due = current payable amount + any existing outstanding amount
+ * - RM0.00 -> do not create Checkout Session
+ * - RM0.01-RM1.99 -> do not create Checkout Session, persist amount as outstanding balance
+ * - RM2.00+ -> create Stripe Checkout Session
+ *
+ * Guaranteed boundaries:
+ * - Do NOT silently round RM1.00 to RM2.00
+ * - Do NOT charge more than actual amount owed
+ * - Outstanding balance remains in DB until confirmed successful settlement
+ * - Replaces any expired/cancelled attempt without losing outstanding balance
  */
 export async function createPaymentSession(
   config: PaymentSessionConfig
 ): Promise<PaymentSessionResult> {
-  const { order, originUrl, customerEmail, env } = config;
+  const { order, originUrl, customerEmail, env, payableAmount } = config;
 
   if (order.status !== 'PENDING') {
     throw new Error(`Cannot create payment session for order in status ${order.status}. Only PENDING orders can be checked out.`);
   }
 
+  // Reject checkout for orders with unsupported payment methods
+  if (order.payment_method && !isPaymentMethodSupported(order.payment_method)) {
+    throw new Error(
+      `Unsupported payment method '${order.payment_method}'. Currently supported payment methods: ${SUPPORTED_PAYMENT_METHODS.map((m) => m.id).join(', ')}.`
+    );
+  }
+
+  // 1. Determine Current Payable Amount and Existing Outstanding Amount
+  const currentPayable = payableAmount !== undefined ? Number(payableAmount) : Number(order.top_up_amount);
+  const existingOutstanding = await getOutstandingBalance(order.organization_id, env);
+
+  // 2. Server-Authoritative Evaluation of Total Due
+  const evaluation = evaluatePaymentAmount(currentPayable, existingOutstanding);
+  const totalDue = evaluation.totalDue;
+
+  // Case 1: RM0.00 -> Do NOT create Checkout Session
+  if (evaluation.action === 'ZERO_AMOUNT') {
+    return {
+      sessionId: '',
+      checkoutUrl: '',
+      paymentReference: '',
+      paymentMethod: '',
+      orderId: order.id,
+      amount: 0,
+      currency: order.currency,
+      expiresAt: '',
+      totalDue: 0,
+      payableAmount: currentPayable,
+      outstandingAmount: existingOutstanding,
+      sessionCreated: false,
+      status: 'ZERO_AMOUNT_NO_SESSION',
+      message: evaluation.message,
+    };
+  }
+
+  // Case 2: RM0.01–RM1.99 -> Do NOT create Checkout Session. Persist amount as outstanding balance!
+  if (evaluation.action === 'PERSIST_OUTSTANDING') {
+    // Persist totalDue as the organization's new outstanding balance
+    await setOutstandingBalance(order.organization_id, totalDue, env);
+
+    // Update top-up order record with outstanding metadata
+    try {
+      await attachCheckoutSessionToTopupOrder(
+        order.id,
+        {
+          sessionId: `outstanding_${order.id}`,
+          checkoutUrl: '',
+          paymentReference: `OUTSTANDING_${order.id}`,
+          paymentMethod: 'outstanding_balance',
+          totalDue,
+          payableAmount: currentPayable,
+          includedOutstandingAmount: totalDue,
+        },
+        env
+      );
+    } catch (attachErr) {
+      console.warn(`[Payment Session] Could not record outstanding metadata on order ${order.id}:`, attachErr);
+    }
+
+    return {
+      sessionId: '',
+      checkoutUrl: '',
+      paymentReference: `OUTSTANDING_${order.id}`,
+      paymentMethod: 'outstanding_balance',
+      orderId: order.id,
+      amount: totalDue,
+      currency: order.currency,
+      expiresAt: '',
+      totalDue,
+      payableAmount: currentPayable,
+      outstandingAmount: totalDue,
+      sessionCreated: false,
+      status: 'OUTSTANDING_BALANCE_RECORDED',
+      message: evaluation.message,
+    };
+  }
+
+  // Case 3: RM2.00+ -> Create Stripe Checkout Session for totalDue
   const baseUrl = originUrl || (typeof process !== 'undefined' ? process.env.APP_URL : '') || '';
   const stripe = getStripeClient(env);
   const isProduction =
@@ -263,13 +461,18 @@ export async function createPaymentSession(
   let sessionId = `cs_egs_${crypto.randomBytes(16).toString('hex')}`;
   let checkoutUrl = `${baseUrl}/wallet/top-up?order_id=${order.id}&session_id=${sessionId}&checkout=true`;
   let paymentReference = `PAY_REF_${order.id.slice(0, 8).toUpperCase()}_${Date.now()}`;
-  let paymentMethod = 'card_or_fpx';
+  let paymentMethod = 'card';
   let expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   // If Stripe API secret key is configured, create live Stripe Checkout Session
   if (stripe) {
     try {
-      const formattedAmountCents = Math.round(order.top_up_amount * 100);
+      const formattedAmountCents = toCents(totalDue);
+      const lineItemName =
+        existingOutstanding > 0
+          ? `Wallet Top-Up: ${order.currency} ${totalDue.toFixed(2)} (includes RM${existingOutstanding.toFixed(2)} outstanding)`
+          : `Wallet Top-Up: ${order.currency} ${totalDue.toFixed(2)}`;
+
       const stripeSession = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
@@ -277,7 +480,7 @@ export async function createPaymentSession(
             price_data: {
               currency: order.currency.toLowerCase(),
               product_data: {
-                name: `Wallet Top-Up: ${order.currency} ${order.top_up_amount.toFixed(2)}`,
+                name: lineItemName,
                 description: `EventGameStudio Wallet Top-Up for organization ${order.organization_id}`,
               },
               unit_amount: formattedAmountCents,
@@ -293,6 +496,9 @@ export async function createPaymentSession(
           order_id: order.id,
           organization_id: order.organization_id,
           user_id: order.user_id || '',
+          payable_amount: currentPayable.toFixed(2),
+          outstanding_amount: existingOutstanding.toFixed(2),
+          total_due: totalDue.toFixed(2),
           purpose: 'wallet_top_up',
         },
         payment_intent_data: {
@@ -300,6 +506,9 @@ export async function createPaymentSession(
             order_id: order.id,
             organization_id: order.organization_id,
             user_id: order.user_id || '',
+            payable_amount: currentPayable.toFixed(2),
+            outstanding_amount: existingOutstanding.toFixed(2),
+            total_due: totalDue.toFixed(2),
             purpose: 'wallet_top_up',
           },
         },
@@ -325,13 +534,16 @@ export async function createPaymentSession(
       eventType: 'PAYMENT_CREATED',
       orderId: order.id,
       paymentReference,
-      amount: order.top_up_amount,
+      amount: totalDue,
       currency: order.currency,
       metadata: {
         sessionId,
         expiresAt,
         paymentMethod,
         provider: stripe ? 'stripe' : 'payment_gateway',
+        payableAmount: currentPayable,
+        outstandingAmount: existingOutstanding,
+        totalDue,
       },
     },
     env
@@ -347,6 +559,9 @@ export async function createPaymentSession(
         paymentReference,
         paymentMethod,
         expiresAt,
+        totalDue,
+        payableAmount: currentPayable,
+        includedOutstandingAmount: existingOutstanding,
       },
       env
     );
@@ -360,9 +575,15 @@ export async function createPaymentSession(
     paymentReference,
     paymentMethod,
     orderId: order.id,
-    amount: order.top_up_amount,
+    amount: totalDue,
     currency: order.currency,
     expiresAt,
+    totalDue,
+    payableAmount: currentPayable,
+    outstandingAmount: existingOutstanding,
+    sessionCreated: true,
+    status: 'SESSION_CREATED',
+    message: evaluation.message,
   };
 }
 
@@ -480,14 +701,21 @@ export async function verifyAndProcessPaymentWebhook(
       : undefined;
 
   let receivedAmount: number | undefined = undefined;
+  const effectiveOrderAmount =
+    order.total_due !== undefined && order.total_due > 0
+      ? order.total_due
+      : order.metadata?.total_due !== undefined && Number(order.metadata.total_due) > 0
+      ? Number(order.metadata.total_due)
+      : order.top_up_amount;
+  const expectedCents = toCents(effectiveOrderAmount);
+
   if (rawAmountValue !== undefined) {
-    const expectedCents = toCents(order.top_up_amount);
     // If sent as cents (standard for Stripe checkout session/payment intent/charges)
     if (dataObject.amount_total !== undefined || dataObject.amount_received !== undefined) {
       receivedAmount = fromCents(rawAmountValue);
-    } else if (Math.round(rawAmountValue) === expectedCents) {
+    } else if (Math.round(rawAmountValue) === expectedCents || Math.round(rawAmountValue) === toCents(order.top_up_amount)) {
       receivedAmount = fromCents(rawAmountValue);
-    } else if (rawAmountValue === order.top_up_amount) {
+    } else if (rawAmountValue === effectiveOrderAmount || rawAmountValue === order.top_up_amount) {
       receivedAmount = rawAmountValue;
     } else if (
       dataObject.object === 'checkout.session' ||
@@ -502,13 +730,12 @@ export async function verifyAndProcessPaymentWebhook(
 
   if (receivedAmount !== undefined) {
     const receivedCents = toCents(receivedAmount);
-    const expectedCents = toCents(order.top_up_amount);
-    if (receivedCents !== expectedCents) {
+    if (receivedCents !== expectedCents && receivedCents !== toCents(order.top_up_amount)) {
       console.warn(
-        `[Payment Webhook] Rejected: Amount mismatch on order ${order.id}. Expected RM${order.top_up_amount.toFixed(2)} (${expectedCents} cents), received RM${receivedAmount.toFixed(2)} (${receivedCents} cents)`
+        `[Payment Webhook] Rejected: Amount mismatch on order ${order.id}. Expected RM${effectiveOrderAmount.toFixed(2)} (${expectedCents} cents), received RM${receivedAmount.toFixed(2)} (${receivedCents} cents)`
       );
       const err: any = new Error(
-        `Payment amount mismatch: expected RM${order.top_up_amount.toFixed(2)}, received RM${receivedAmount.toFixed(2)}`
+        `Payment amount mismatch: expected RM${effectiveOrderAmount.toFixed(2)}, received RM${receivedAmount.toFixed(2)}`
       );
       err.status = 422;
       err.code = 'AMOUNT_MISMATCH';

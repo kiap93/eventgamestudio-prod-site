@@ -19,7 +19,8 @@
     "test:showcase": "tsx server/db/showcase_reward.test.ts",
     "test:upload-security": "tsx server/db/showcase_direct_upload_security.test.ts",
     "test:mm-scoring": "tsx server/db/memory_match_scoring.test.ts",
-    "test:score-lifecycle": "tsx server/db/score_environment_lifecycle.test.ts"
+    "test:score-lifecycle": "tsx server/db/score_environment_lifecycle.test.ts",
+    "test:payment-methods": "tsx server/db/payment_method_alignment.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

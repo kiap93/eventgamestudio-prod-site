@@ -172,6 +172,9 @@ import {
   getPaymentWebhookSecret,
   syncTopupOrderExpiration,
   getStripeClient,
+  SUPPORTED_PAYMENT_METHODS,
+  isPaymentMethodSupported,
+  getSupportedPaymentMethods,
 } from './server/payment/index.js';
 
 import {
@@ -4459,6 +4462,16 @@ const handleCreateTopupOrder = async (req: AuthenticatedRequest, res: express.Re
       return;
     }
 
+    const requestedPaymentMethod = payment_method || paymentMethod;
+    if (requestedPaymentMethod && !isPaymentMethodSupported(requestedPaymentMethod)) {
+      res.status(400).json({
+        error: `Payment method '${requestedPaymentMethod}' is not supported. Currently supported payment methods: ${SUPPORTED_PAYMENT_METHODS.map((m) => m.id).join(', ')}.`,
+        code: 'UNSUPPORTED_PAYMENT_METHOD',
+        supported_methods: SUPPORTED_PAYMENT_METHODS.map((m) => m.id),
+      });
+      return;
+    }
+
     const order = await createTopupOrder({
       organizationId: orgId,
       userId: req.user!.id,
@@ -4730,6 +4743,23 @@ const handleCreateCheckoutSession = async (req: AuthenticatedRequest, res: expre
 
 app.post('/api/wallet/topups/:id/checkout', walletRateLimiter, authenticateJWT, handleCreateCheckoutSession);
 app.post('/api/organizations/:orgId/wallet/topup-orders/:id/checkout', walletRateLimiter, authenticateJWT, handleCreateCheckoutSession);
+
+/**
+ * GET /api/payment/methods
+ * GET /api/wallet/payment-methods
+ * GET /api/organizations/:orgId/wallet/payment-methods
+ * Authoritative list of supported payment methods.
+ */
+const handleGetPaymentMethods = (_req: express.Request, res: express.Response) => {
+  res.json({
+    payment_methods: getSupportedPaymentMethods(),
+    supported_methods: SUPPORTED_PAYMENT_METHODS.map((m) => m.id),
+  });
+};
+
+app.get('/api/payment/methods', handleGetPaymentMethods);
+app.get('/api/wallet/payment-methods', handleGetPaymentMethods);
+app.get('/api/organizations/:orgId/wallet/payment-methods', handleGetPaymentMethods);
 
 /**
  * POST /api/webhooks/payment

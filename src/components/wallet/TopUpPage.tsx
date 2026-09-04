@@ -26,7 +26,6 @@ import {
   Check,
   ChevronRight,
   CreditCard,
-  Building,
   Lock,
   ExternalLink,
   XCircle,
@@ -60,7 +59,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
   const [activeOrder, setActiveOrder] = useState<TopupOrderRecord | null>(null);
   const [checkoutSession, setCheckoutSession] = useState<PaymentCheckoutSession | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'fpx'>('card');
+  const selectedPaymentMethod = 'card';
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isPollingStatus, setIsPollingStatus] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -285,6 +284,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
           body: JSON.stringify({
             amount: activeAmount,
             currency: currencyCode,
+            payment_method: 'card',
             notes: `Top-up order of RM${activeAmount.toFixed(2)}`,
           }),
         }
@@ -1047,34 +1047,21 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
             </div>
 
             {/* Payment Method Selection */}
-            <div className="space-y-3">
-              <label className="text-xs font-bold text-slate-300">Select Payment Method</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedPaymentMethod('card')}
-                  className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer ${
-                    selectedPaymentMethod === 'card'
-                      ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-2 ring-amber-500/20'
-                      : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <CreditCard className="w-6 h-6 text-amber-400" />
-                  <span className="text-xs font-bold">Credit / Debit Card</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedPaymentMethod('fpx')}
-                  className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer ${
-                    selectedPaymentMethod === 'fpx'
-                      ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-2 ring-amber-500/20'
-                      : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <Building className="w-6 h-6 text-cyan-400" />
-                  <span className="text-xs font-bold">Online Banking (FPX)</span>
-                </button>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300">Payment Method</label>
+              <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold block text-slate-100">Credit / Debit Card</span>
+                    <span className="text-[11px] text-slate-400">Visa, Mastercard, American Express</span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Active
+                </span>
               </div>
             </div>
 

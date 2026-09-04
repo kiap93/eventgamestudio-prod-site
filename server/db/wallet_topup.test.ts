@@ -266,7 +266,7 @@ async function runTests() {
     orderId: order6k.id,
     newStatus: 'PAID',
     paymentReference: 'PAY_REF_6K_001',
-    paymentMethod: 'fpx',
+    paymentMethod: 'card',
     reason: 'Payment gateway confirmation',
     isTrustedSettlement: true,
   });
