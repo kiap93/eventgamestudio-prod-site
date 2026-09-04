@@ -15,12 +15,18 @@ import {
   createTopupOrder,
   getTopupOrderById,
   getWalletBalance,
+  getOutstandingBalance,
+  setOutstandingBalance,
+  clearOutstandingBalance,
 } from './wallet.js';
 import {
   createPaymentSession,
   verifyAndProcessPaymentWebhook,
   generateWebhookSignature,
   getPaymentWebhookSecret,
+  evaluatePaymentAmount,
+  calculateTotalDue,
+  STRIPE_MINIMUM_AMOUNT_MYR,
 } from '../payment/index.js';
 
 // Explicit test webhook secret for test environment
@@ -783,6 +789,273 @@ async function runTests() {
     assertEqual(err.code, 'ORDER_NOT_FOUND', 'Non-existent order rejected with ORDER_NOT_FOUND');
     assertEqual(err.status, 404, 'Non-existent order status is 404');
   }
+
+  // ----------------------------------------------------
+  // TEST GROUP 14: STRIPE MINIMUM PAYMENT LOGIC (BLOCKER 1)
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 14: Stripe Minimum Payment Logic & Evaluation ---');
+
+  // Test 14.1: RM0.00 -> Do NOT create Checkout Session
+  const zeroEval = evaluatePaymentAmount(0, 0);
+  assertEqual(zeroEval.action, 'ZERO_AMOUNT', 'RM0.00 evaluates to ZERO_AMOUNT action');
+  assertEqual(zeroEval.shouldCreateSession, false, 'RM0.00 shouldCreateSession is false');
+  assertEqual(zeroEval.totalDue, 0, 'RM0.00 totalDue is 0');
+
+  const zeroOrder = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 0,
+    currency: 'MYR',
+  });
+  const zeroSession = await createPaymentSession({
+    order: zeroOrder,
+    payableAmount: 0,
+  });
+  assertEqual(zeroSession.sessionCreated, false, 'RM0.00 createPaymentSession returns sessionCreated = false');
+  assertEqual(zeroSession.status, 'ZERO_AMOUNT_NO_SESSION', 'RM0.00 status is ZERO_AMOUNT_NO_SESSION');
+  assertEqual(zeroSession.totalDue, 0, 'RM0.00 session totalDue is 0');
+  assertEqual(zeroSession.checkoutUrl, '', 'RM0.00 has no checkoutUrl');
+
+  // Test 14.2: RM0.50 -> Do NOT create Checkout Session. Persist as outstanding balance.
+  await clearOutstandingBalance(testOrgId);
+  const rm050Eval = evaluatePaymentAmount(0.50, 0);
+  assertEqual(rm050Eval.action, 'PERSIST_OUTSTANDING', 'RM0.50 evaluates to PERSIST_OUTSTANDING action');
+  assertEqual(rm050Eval.shouldCreateSession, false, 'RM0.50 shouldCreateSession is false');
+  assertEqual(rm050Eval.totalDue, 0.50, 'RM0.50 totalDue is 0.50');
+
+  const rm050Order = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 0.50,
+    currency: 'MYR',
+  });
+  const rm050Session = await createPaymentSession({ order: rm050Order });
+  assertEqual(rm050Session.sessionCreated, false, 'RM0.50 sessionCreated is false');
+  assertEqual(rm050Session.status, 'OUTSTANDING_BALANCE_RECORDED', 'RM0.50 status is OUTSTANDING_BALANCE_RECORDED');
+  assertEqual(rm050Session.totalDue, 0.50, 'RM0.50 totalDue is exactly 0.50');
+  assertEqual(rm050Session.outstandingAmount, 0.50, 'RM0.50 outstandingAmount is 0.50');
+  const orgBal050 = await getOutstandingBalance(testOrgId);
+  assertEqual(orgBal050, 0.50, 'RM0.50 persisted to database as outstanding balance');
+
+  // Test 14.3: RM1.00 -> Do NOT create Checkout Session. Do NOT silently round to RM2.00.
+  await clearOutstandingBalance(testOrgId);
+  const rm100Eval = evaluatePaymentAmount(1.00, 0);
+  assertEqual(rm100Eval.action, 'PERSIST_OUTSTANDING', 'RM1.00 evaluates to PERSIST_OUTSTANDING action');
+  assertEqual(rm100Eval.shouldCreateSession, false, 'RM1.00 shouldCreateSession is false');
+  assertEqual(rm100Eval.totalDue, 1.00, 'RM1.00 totalDue is 1.00 (not rounded)');
+
+  const rm100Order = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 1.00,
+    currency: 'MYR',
+  });
+  const rm100Session = await createPaymentSession({ order: rm100Order });
+  assertEqual(rm100Session.sessionCreated, false, 'RM1.00 sessionCreated is false');
+  assertEqual(rm100Session.status, 'OUTSTANDING_BALANCE_RECORDED', 'RM1.00 status is OUTSTANDING_BALANCE_RECORDED');
+  assertEqual(rm100Session.totalDue, 1.00, 'RM1.00 totalDue is exactly 1.00');
+  assertEqual(rm100Session.outstandingAmount, 1.00, 'RM1.00 outstandingAmount is 1.00');
+  const orgBal100 = await getOutstandingBalance(testOrgId);
+  assertEqual(orgBal100, 1.00, 'RM1.00 persisted to database as outstanding balance');
+
+  // Test 14.4: RM1.99 -> Do NOT create Checkout Session. Persist as outstanding balance.
+  await clearOutstandingBalance(testOrgId);
+  const rm199Eval = evaluatePaymentAmount(1.99, 0);
+  assertEqual(rm199Eval.action, 'PERSIST_OUTSTANDING', 'RM1.99 evaluates to PERSIST_OUTSTANDING action');
+  assertEqual(rm199Eval.shouldCreateSession, false, 'RM1.99 shouldCreateSession is false');
+  assertEqual(rm199Eval.totalDue, 1.99, 'RM1.99 totalDue is 1.99');
+
+  const rm199Order = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 1.99,
+    currency: 'MYR',
+  });
+  const rm199Session = await createPaymentSession({ order: rm199Order });
+  assertEqual(rm199Session.sessionCreated, false, 'RM1.99 sessionCreated is false');
+  assertEqual(rm199Session.status, 'OUTSTANDING_BALANCE_RECORDED', 'RM1.99 status is OUTSTANDING_BALANCE_RECORDED');
+  assertEqual(rm199Session.totalDue, 1.99, 'RM1.99 totalDue is exactly 1.99');
+  const orgBal199 = await getOutstandingBalance(testOrgId);
+  assertEqual(orgBal199, 1.99, 'RM1.99 persisted to database as outstanding balance');
+
+  // Test 14.5: RM2.00 -> Create Stripe Checkout Session
+  await clearOutstandingBalance(testOrgId);
+  const rm200Eval = evaluatePaymentAmount(2.00, 0);
+  assertEqual(rm200Eval.action, 'CREATE_SESSION', 'RM2.00 evaluates to CREATE_SESSION action');
+  assertEqual(rm200Eval.shouldCreateSession, true, 'RM2.00 shouldCreateSession is true');
+  assertEqual(rm200Eval.totalDue, 2.00, 'RM2.00 totalDue is 2.00');
+
+  const rm200Order = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 2.00,
+    currency: 'MYR',
+  });
+  const rm200Session = await createPaymentSession({ order: rm200Order });
+  assertEqual(rm200Session.sessionCreated, true, 'RM2.00 sessionCreated is true');
+  assertEqual(rm200Session.status, 'SESSION_CREATED', 'RM2.00 status is SESSION_CREATED');
+  assertEqual(rm200Session.totalDue, 2.00, 'RM2.00 totalDue is 2.00');
+  assertEqual(rm200Session.amount, 2.00, 'RM2.00 session amount is 2.00');
+  assertEqual(typeof rm200Session.sessionId === 'string' && rm200Session.sessionId.length > 0, true, 'RM2.00 sessionId is generated');
+
+  // Test 14.6: Outstanding RM1.00 + new RM0.50 -> Total RM1.50 (< RM2.00)
+  await setOutstandingBalance(testOrgId, 1.00);
+  const comb1Eval = evaluatePaymentAmount(0.50, 1.00);
+  assertEqual(comb1Eval.action, 'PERSIST_OUTSTANDING', 'RM1.00 out + RM0.50 new evaluates to PERSIST_OUTSTANDING');
+  assertEqual(comb1Eval.totalDue, 1.50, 'RM1.00 out + RM0.50 new totalDue is 1.50');
+
+  const comb1Order = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 0.50,
+    currency: 'MYR',
+  });
+  const comb1Session = await createPaymentSession({ order: comb1Order });
+  assertEqual(comb1Session.sessionCreated, false, 'RM1.50 combined sessionCreated is false');
+  assertEqual(comb1Session.status, 'OUTSTANDING_BALANCE_RECORDED', 'RM1.50 combined status is OUTSTANDING_BALANCE_RECORDED');
+  assertEqual(comb1Session.totalDue, 1.50, 'RM1.50 combined totalDue is 1.50');
+  const orgBalComb1 = await getOutstandingBalance(testOrgId);
+  assertEqual(orgBalComb1, 1.50, 'Persisted outstanding balance updated to RM1.50');
+
+  // Test 14.7: Outstanding RM1.00 + new RM1.00 -> Total RM2.00 (>= RM2.00) -> Create Session
+  await setOutstandingBalance(testOrgId, 1.00);
+  const comb2Eval = evaluatePaymentAmount(1.00, 1.00);
+  assertEqual(comb2Eval.action, 'CREATE_SESSION', 'RM1.00 out + RM1.00 new evaluates to CREATE_SESSION');
+  assertEqual(comb2Eval.totalDue, 2.00, 'RM1.00 out + RM1.00 new totalDue is exactly 2.00');
+
+  const comb2Order = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 1.00,
+    currency: 'MYR',
+  });
+  const comb2Session = await createPaymentSession({ order: comb2Order });
+  assertEqual(comb2Session.sessionCreated, true, 'RM2.00 combined sessionCreated is true');
+  assertEqual(comb2Session.status, 'SESSION_CREATED', 'RM2.00 combined status is SESSION_CREATED');
+  assertEqual(comb2Session.totalDue, 2.00, 'RM2.00 combined totalDue is 2.00');
+  assertEqual(comb2Session.payableAmount, 1.00, 'RM2.00 combined payableAmount is 1.00');
+  assertEqual(comb2Session.outstandingAmount, 1.00, 'RM2.00 combined outstandingAmount is 1.00');
+
+  // Prior to settlement, outstanding balance MUST remain in DB (never lost on checkout creation)
+  const orgBalPreSettle = await getOutstandingBalance(testOrgId);
+  assertEqual(orgBalPreSettle, 1.00, 'Outstanding balance remains RM1.00 in DB before settlement');
+
+  // Test 14.8: Outstanding RM1.50 + new RM10.00 -> Total RM11.50 (>= RM2.00)
+  await setOutstandingBalance(testOrgId, 1.50);
+  const comb3Eval = evaluatePaymentAmount(10.00, 1.50);
+  assertEqual(comb3Eval.action, 'CREATE_SESSION', 'RM1.50 out + RM10.00 new evaluates to CREATE_SESSION');
+  assertEqual(comb3Eval.totalDue, 11.50, 'RM1.50 out + RM10.00 new totalDue is 11.50');
+
+  const comb3Order = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 10.00,
+    currency: 'MYR',
+  });
+  const comb3Session = await createPaymentSession({ order: comb3Order });
+  assertEqual(comb3Session.sessionCreated, true, 'RM11.50 combined sessionCreated is true');
+  assertEqual(comb3Session.totalDue, 11.50, 'RM11.50 combined totalDue is 11.50');
+  assertEqual(comb3Session.outstandingAmount, 1.50, 'RM11.50 combined includes RM1.50 outstanding');
+
+  // ----------------------------------------------------
+  // TEST GROUP 15: OUTSTANDING LIFECYCLE & WEBHOOK SETTLEMENT
+  // ----------------------------------------------------
+  console.log('\n--- Test Group 15: Outstanding Lifecycle & Webhook Settlement ---');
+
+  // Test 15.1: Failed / Cancelled checkout MUST leave outstanding balance intact
+  await setOutstandingBalance(testOrgId, 1.00);
+  const failedTestOrder = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 2.00,
+    currency: 'MYR',
+  });
+  await createPaymentSession({ order: failedTestOrder });
+
+  // Webhook delivers failure for this session
+  const failWebhookPayload = JSON.stringify({
+    id: `evt_fail_out_${Date.now()}`,
+    type: 'payment.failed',
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `pay_fail_out_${Date.now()}`,
+        amount: 300, // 300 cents = RM3.00
+        currency: 'MYR',
+        metadata: {
+          order_id: failedTestOrder.id,
+          organization_id: testOrgId,
+        },
+        status: 'failed',
+      },
+    },
+  });
+  const { signatureHeader: failSig } = generateWebhookSignature(failWebhookPayload, secret);
+  const failResult = await verifyAndProcessPaymentWebhook({
+    rawBody: failWebhookPayload,
+    signature: failSig,
+  });
+  assertEqual(failResult.success, true, 'Failure webhook processed successfully');
+  assertEqual(failResult.status, 'FAILED', 'Order marked FAILED');
+
+  // CRITICAL: Outstanding balance must STILL be RM1.00!
+  const balAfterFail = await getOutstandingBalance(testOrgId);
+  assertEqual(balAfterFail, 1.00, 'Outstanding balance remains RM1.00 after failed/cancelled checkout');
+
+  // Test 15.2: Confirmed successful payment settlement MUST clear outstanding balance
+  await setOutstandingBalance(testOrgId, 1.00);
+  const successTestOrder = await createTopupOrder({
+    organizationId: testOrgId,
+    userId: testUserId,
+    amount: 2.00,
+    currency: 'MYR',
+  });
+  const successSession = await createPaymentSession({ order: successTestOrder });
+  assertEqual(successSession.totalDue, 3.00, 'Success test totalDue is RM3.00');
+
+  const successWebhookPayload = JSON.stringify({
+    id: `evt_succ_out_${Date.now()}`,
+    type: 'payment.succeeded',
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `pay_succ_out_${Date.now()}`,
+        amount: 300, // 300 cents = RM3.00 (total due)
+        currency: 'MYR',
+        metadata: {
+          order_id: successTestOrder.id,
+          organization_id: testOrgId,
+        },
+        status: 'succeeded',
+      },
+    },
+  });
+  const { signatureHeader: succSig } = generateWebhookSignature(successWebhookPayload, secret);
+  const succResult = await verifyAndProcessPaymentWebhook({
+    rawBody: successWebhookPayload,
+    signature: succSig,
+  });
+  assertEqual(succResult.success, true, 'Success webhook processed successfully');
+  assertEqual(succResult.status, 'PAID', 'Order transitioned to PAID');
+
+  // CRITICAL: Outstanding balance must be cleared to RM0.00 upon confirmed payment settlement!
+  const balAfterSuccess = await getOutstandingBalance(testOrgId);
+  assertEqual(balAfterSuccess, 0, 'Outstanding balance is cleared to RM0.00 after successful settlement');
+
+  // Test 15.3: Webhook Idempotency on Settled Order
+  const dupSuccResult = await verifyAndProcessPaymentWebhook({
+    rawBody: successWebhookPayload,
+    signature: succSig,
+  });
+  assertEqual(dupSuccResult.isDuplicate, true, 'Duplicate webhook flagged isDuplicate = true');
+  assertEqual(dupSuccResult.alreadyProcessed, true, 'Duplicate webhook flagged alreadyProcessed = true');
+  const balAfterDup = await getOutstandingBalance(testOrgId);
+  assertEqual(balAfterDup, 0, 'Outstanding balance remains RM0.00 on duplicate webhook');
+
+  // Test 15.4: Database Persistence across sessions / wallet summary query
+  await setOutstandingBalance(testOrgId, 1.75);
+  const walletSummary = await getWalletBalance(testOrgId);
+  assertEqual(walletSummary.outstanding_balance, 1.75, 'Wallet summary correctly reflects persistent outstanding_balance = RM1.75');
 
   // Summary
   console.log('\n======================================================');

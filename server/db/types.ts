@@ -421,6 +421,7 @@ export interface OrganizationWalletRecord {
   welcome_credit: number;
   showcase_credit: number;
   topup_credit: number;
+  outstanding_balance?: number;
   currency: string;
   welcome_credit_granted: boolean;
   showcase_credit_granted: boolean;
@@ -451,6 +452,7 @@ export interface WalletBalanceSummary {
   welcome_credit: number;
   showcase_credit: number;
   topup_credit: number;
+  outstanding_balance: number;
   total_balance: number;
   total_credit: number;
   welcome_credit_granted: boolean;
@@ -586,6 +588,9 @@ export interface TopupOrderRecord {
   expected_credit_amount: number;
   bonus_percentage?: number;
   total_wallet_value?: number;
+  included_outstanding_amount?: number;
+  payable_amount?: number;
+  total_due?: number;
   status: TopupOrderStatus;
   payment_reference: string | null;
   payment_method?: string | null;

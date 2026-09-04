@@ -102,6 +102,7 @@ export interface WalletBalanceSummary {
   welcome_credit: number;
   showcase_credit: number;
   topup_credit: number;
+  outstanding_balance?: number;
   total_balance: number;
   total_credit: number;
   welcome_credit_granted: boolean;
@@ -321,6 +322,24 @@ export interface PendingTopupOrder {
   created_by?: string;
   notes?: string;
 }
+
+export type SupportedPaymentMethod = 'card';
+
+export interface PaymentMethodInfo {
+  id: SupportedPaymentMethod;
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
+export const SUPPORTED_PAYMENT_METHODS: readonly PaymentMethodInfo[] = [
+  {
+    id: 'card',
+    name: 'Credit / Debit Card',
+    description: 'Visa, Mastercard, American Express',
+    enabled: true,
+  },
+] as const;
 
 export interface PaymentCheckoutSession {
   sessionId: string;

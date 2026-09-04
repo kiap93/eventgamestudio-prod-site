@@ -155,6 +155,9 @@ import {
   getPaymentWebhookSecret,
   syncTopupOrderExpiration,
   getStripeClient,
+  SUPPORTED_PAYMENT_METHODS,
+  isPaymentMethodSupported,
+  getSupportedPaymentMethods,
 } from './server/payment/index.js';
 
 import {
@@ -4804,6 +4807,23 @@ export default {
         }
       }
 
+      // GET /api/payment/methods & GET /api/wallet/payment-methods & GET /api/organizations/:orgId/wallet/payment-methods
+      if (
+        (pathname === '/api/payment/methods' ||
+          pathname === '/api/wallet/payment-methods' ||
+          pathname.match(/^\/api\/organizations\/[^\/]+\/wallet\/payment-methods$/)) &&
+        method === 'GET'
+      ) {
+        return jsonResponse(
+          {
+            payment_methods: getSupportedPaymentMethods(),
+            supported_methods: SUPPORTED_PAYMENT_METHODS.map((m) => m.id),
+          },
+          200,
+          cors
+        );
+      }
+
       // POST /api/wallet/topups & POST /api/organizations/:orgId/wallet/topup-orders
       const isCreateTopupOrderRoute =
         (pathname === '/api/wallet/topups' && method === 'POST') ||
@@ -4830,6 +4850,15 @@ export default {
         const amount = Number(body.amount);
         if (isNaN(amount) || amount <= 0) {
           return errorResponse('Top-up amount must be a positive number greater than 0', 400, cors);
+        }
+
+        const requestedPaymentMethod = body.payment_method || body.paymentMethod;
+        if (requestedPaymentMethod && !isPaymentMethodSupported(requestedPaymentMethod)) {
+          return errorResponse(
+            `Payment method '${requestedPaymentMethod}' is not supported. Currently supported payment methods: ${SUPPORTED_PAYMENT_METHODS.map((m) => m.id).join(', ')}.`,
+            400,
+            cors
+          );
         }
 
         try {

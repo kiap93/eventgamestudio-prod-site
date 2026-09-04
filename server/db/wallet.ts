@@ -412,6 +412,22 @@ export async function recalculateWalletBalances(
   const topupCredit = Math.max(0, fromCents(topupCreditCents));
 
   const now = new Date().toISOString();
+  let outstandingBalance = localWalletsCache.get(organizationId)?.outstanding_balance || 0;
+  if (isProdDb) {
+    try {
+      const { data: orgWallet } = await supabase
+        .from('organization_wallets')
+        .select('outstanding_balance')
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+      if (orgWallet && orgWallet.outstanding_balance !== undefined && orgWallet.outstanding_balance !== null) {
+        outstandingBalance = Number(orgWallet.outstanding_balance) || 0;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const walletRecord: OrganizationWalletRecord = {
     id: localWalletsCache.get(organizationId)?.id || crypto.randomUUID(),
     organization_id: organizationId,
@@ -419,6 +435,7 @@ export async function recalculateWalletBalances(
     welcome_credit: welcomeCredit,
     showcase_credit: showcaseCredit,
     topup_credit: topupCredit,
+    outstanding_balance: outstandingBalance,
     currency: 'MYR',
     welcome_credit_granted: welcomeCreditGranted,
     showcase_credit_granted: showcaseCreditGranted,
@@ -435,6 +452,7 @@ export async function recalculateWalletBalances(
           welcome_credit: welcomeCredit,
           showcase_credit: showcaseCredit,
           topup_credit: topupCredit,
+          outstanding_balance: outstandingBalance,
           currency: 'MYR',
           welcome_credit_granted: welcomeCreditGranted,
           showcase_credit_granted: showcaseCreditGranted,
@@ -467,6 +485,7 @@ export async function recalculateWalletBalances(
     welcome_credit: welcomeCredit,
     showcase_credit: showcaseCredit,
     topup_credit: topupCredit,
+    outstanding_balance: outstandingBalance,
     total_balance: fromCents(totalBalanceCents),
     total_credit: fromCents(totalCreditCents),
     welcome_credit_granted: welcomeCreditGranted,
@@ -508,6 +527,119 @@ export async function getShowcaseCredit(organizationId: string, env?: Record<str
 export async function getTopupCredit(organizationId: string, env?: Record<string, any>): Promise<number> {
   const summary = await getWalletBalance(organizationId, env);
   return summary.topup_credit;
+}
+
+/**
+ * Retrieve the current outstanding balance for an organization.
+ */
+export async function getOutstandingBalance(
+  organizationId: string,
+  env?: Record<string, any>
+): Promise<number> {
+  if (!organizationId) return 0.0;
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase
+        .from('organization_wallets')
+        .select('outstanding_balance')
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+      if (!error && data && data.outstanding_balance !== undefined && data.outstanding_balance !== null) {
+        return Math.max(0, fromCents(toCents(Number(data.outstanding_balance))));
+      }
+    } catch (err: any) {
+      console.warn('Notice querying outstanding_balance from database:', err.message);
+    }
+  }
+  const cached = localWalletsCache.get(organizationId);
+  return Math.max(0, fromCents(toCents(cached?.outstanding_balance || 0)));
+}
+
+/**
+ * Server-authoritatively persist the outstanding balance for an organization.
+ */
+export async function setOutstandingBalance(
+  organizationId: string,
+  amount: number,
+  env?: Record<string, any>
+): Promise<number> {
+  if (!organizationId) {
+    throw new Error('Organization ID is required to set outstanding balance');
+  }
+  const numericAmount = Math.max(0, fromCents(toCents(Number(amount) || 0)));
+  const now = new Date().toISOString();
+
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { error } = await supabase
+        .from('organization_wallets')
+        .update({
+          outstanding_balance: numericAmount,
+          updated_at: now,
+        })
+        .eq('organization_id', organizationId);
+
+      if (error) {
+        console.warn('Notice: updating outstanding_balance in database failed:', error.message);
+      }
+    } catch (err: any) {
+      console.warn('Notice writing outstanding_balance to database:', err.message);
+    }
+  }
+
+  const existing = localWalletsCache.get(organizationId);
+  if (existing) {
+    existing.outstanding_balance = numericAmount;
+    existing.updated_at = now;
+  } else {
+    localWalletsCache.set(organizationId, {
+      id: crypto.randomUUID(),
+      organization_id: organizationId,
+      paid_balance: 0,
+      welcome_credit: 0,
+      showcase_credit: 0,
+      topup_credit: 0,
+      outstanding_balance: numericAmount,
+      currency: 'MYR',
+      welcome_credit_granted: false,
+      showcase_credit_granted: false,
+      created_at: now,
+      updated_at: now,
+    });
+  }
+  saveLocalStores();
+  return numericAmount;
+}
+
+/**
+ * Add an amount to an organization's existing outstanding balance.
+ */
+export async function addOutstandingBalance(
+  organizationId: string,
+  amount: number,
+  env?: Record<string, any>
+): Promise<number> {
+  const current = await getOutstandingBalance(organizationId, env);
+  const updated = fromCents(toCents(current) + toCents(Number(amount) || 0));
+  return setOutstandingBalance(organizationId, updated, env);
+}
+
+/**
+ * Clear or reduce an organization's outstanding balance after successful payment settlement.
+ */
+export async function clearOutstandingBalance(
+  organizationId: string,
+  amountToClear?: number,
+  env?: Record<string, any>
+): Promise<number> {
+  if (amountToClear === undefined) {
+    return setOutstandingBalance(organizationId, 0, env);
+  }
+  const current = await getOutstandingBalance(organizationId, env);
+  const updated = Math.max(0, fromCents(toCents(current) - toCents(Number(amountToClear) || 0)));
+  return setOutstandingBalance(organizationId, updated, env);
 }
 
 /**
@@ -1727,12 +1859,15 @@ export async function processEventPayment(
     const showcaseBal = Number(payload.wallet?.showcase_credit ?? 0);
     const topupBal = Number(payload.wallet?.topup_credit ?? 0);
 
+    const outstandingBal = await getOutstandingBalance(organizationId, env);
+
     const walletResult: WalletBalanceSummary = {
       organization_id: organizationId,
       paid_balance: paidBal,
       welcome_credit: welcomeBal,
       showcase_credit: showcaseBal,
       topup_credit: topupBal,
+      outstanding_balance: outstandingBal,
       total_balance: paidBal + welcomeBal + showcaseBal + topupBal,
       total_credit: welcomeBal + showcaseBal + topupBal,
       currency: 'MYR',
@@ -2468,7 +2603,10 @@ export async function createTopupOrder(
   },
   env?: Record<string, any>
 ): Promise<TopupOrderRecord> {
-  const { organizationId, userId, amount, currency = 'MYR', paymentReference, paymentMethod, notes, metadata } = params;
+  const organizationId = params.organizationId || (params as any).organization_id;
+  const userId = params.userId || (params as any).user_id;
+  const amount = params.amount !== undefined ? params.amount : (params as any).top_up_amount;
+  const { currency = 'MYR', paymentReference, paymentMethod, notes, metadata } = params;
 
   if (!organizationId) {
     throw new Error('Organization ID is required to create a top-up order');
@@ -2478,13 +2616,13 @@ export async function createTopupOrder(
   }
 
   const numericAmount = Number(amount);
-  if (isNaN(numericAmount) || numericAmount <= 0) {
-    throw new Error('Top-up amount must be a positive number greater than 0');
+  if (isNaN(numericAmount) || numericAmount < 0) {
+    throw new Error('Top-up amount must be a non-negative number');
   }
 
   const sanitizedAmount = fromCents(toCents(numericAmount));
-  if (sanitizedAmount <= 0) {
-    throw new Error('Top-up amount must be greater than zero');
+  if (sanitizedAmount < 0) {
+    throw new Error('Top-up amount must be greater than or equal to zero');
   }
 
   // Calculate promotional credit using the central Wallet Engine
@@ -2842,7 +2980,14 @@ export async function processTopupOrderStatus(
           localTopupOrdersCache.set(data.order.id, data.order);
         }
         if (data.wallet) {
-          localWalletsCache.set(order.organization_id, data.wallet);
+          const existingWallet = localWalletsCache.get(order.organization_id);
+          localWalletsCache.set(order.organization_id, {
+            ...existingWallet,
+            ...data.wallet,
+            outstanding_balance: (data.wallet as any).outstanding_balance !== undefined
+              ? (data.wallet as any).outstanding_balance
+              : (existingWallet?.outstanding_balance !== undefined ? existingWallet.outstanding_balance : 0),
+          });
         }
         if (data.topup_transaction) {
           localTransactionsCache.set(data.topup_transaction.id, data.topup_transaction);
@@ -2854,6 +2999,17 @@ export async function processTopupOrderStatus(
       }
 
       if (newStatus === 'PAID' && !data.is_idempotent_replay) {
+        // Clear outstanding balance if included in this order
+        const includedOutstanding = Math.max(
+          Number(order.included_outstanding_amount || 0),
+          Number(order.metadata?.included_outstanding_amount || 0),
+          Number((data.order as any)?.included_outstanding_amount || 0),
+          Number((data.order as any)?.metadata?.included_outstanding_amount || 0)
+        );
+        if (includedOutstanding > 0) {
+          await clearOutstandingBalance(order.organization_id, includedOutstanding, env);
+        }
+
         await recordWalletAuditEvent(
           {
             organizationId: order.organization_id,
@@ -2970,6 +3126,15 @@ export async function processTopupOrderStatus(
         },
         env
       );
+
+      // Clear outstanding balance if included in this order
+      const includedOutstanding = Math.max(
+        Number(order.included_outstanding_amount || 0),
+        Number(order.metadata?.included_outstanding_amount || 0)
+      );
+      if (includedOutstanding > 0) {
+        await clearOutstandingBalance(order.organization_id, includedOutstanding, env);
+      }
 
       return {
         order,
@@ -3207,6 +3372,9 @@ export async function attachCheckoutSessionToTopupOrder(
     paymentReference?: string;
     paymentMethod?: string;
     expiresAt?: string;
+    totalDue?: number;
+    includedOutstandingAmount?: number;
+    payableAmount?: number;
   },
   env?: Record<string, any>
 ): Promise<TopupOrderRecord | null> {
@@ -3232,6 +3400,9 @@ export async function attachCheckoutSessionToTopupOrder(
       sessionId: sessionInfo.sessionId,
       checkout_url: sessionInfo.checkoutUrl,
       checkout_expires_at: sessionInfo.expiresAt,
+      ...(sessionInfo.totalDue !== undefined ? { total_due: sessionInfo.totalDue } : {}),
+      ...(sessionInfo.includedOutstandingAmount !== undefined ? { included_outstanding_amount: sessionInfo.includedOutstandingAmount } : {}),
+      ...(sessionInfo.payableAmount !== undefined ? { payable_amount: sessionInfo.payableAmount } : {}),
     };
 
     const updatePayload: any = {
@@ -3239,6 +3410,9 @@ export async function attachCheckoutSessionToTopupOrder(
       updated_at: now,
     };
 
+    if (sessionInfo.totalDue !== undefined && sessionInfo.totalDue > 0) {
+      updatePayload.top_up_amount = sessionInfo.totalDue;
+    }
     if (sessionInfo.paymentReference) {
       updatePayload.payment_reference = sessionInfo.paymentReference;
     }
@@ -3273,7 +3447,22 @@ export async function attachCheckoutSessionToTopupOrder(
       sessionId: sessionInfo.sessionId,
       checkout_url: sessionInfo.checkoutUrl,
       checkout_expires_at: sessionInfo.expiresAt,
+      ...(sessionInfo.totalDue !== undefined ? { total_due: sessionInfo.totalDue } : {}),
+      ...(sessionInfo.includedOutstandingAmount !== undefined ? { included_outstanding_amount: sessionInfo.includedOutstandingAmount } : {}),
+      ...(sessionInfo.payableAmount !== undefined ? { payable_amount: sessionInfo.payableAmount } : {}),
     };
+    if (sessionInfo.totalDue !== undefined && sessionInfo.totalDue > 0) {
+      cachedOrder.top_up_amount = sessionInfo.totalDue;
+    }
+    if (sessionInfo.totalDue !== undefined) {
+      cachedOrder.total_due = sessionInfo.totalDue;
+    }
+    if (sessionInfo.includedOutstandingAmount !== undefined) {
+      cachedOrder.included_outstanding_amount = sessionInfo.includedOutstandingAmount;
+    }
+    if (sessionInfo.payableAmount !== undefined) {
+      cachedOrder.payable_amount = sessionInfo.payableAmount;
+    }
     if (sessionInfo.paymentReference) {
       cachedOrder.payment_reference = sessionInfo.paymentReference;
     }
