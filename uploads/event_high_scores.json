@@ -1193,5 +1193,96 @@
       "score_environment": "live"
     },
     "created_at": "2026-09-03T07:16:19.845Z"
+  },
+  {
+    "id": "ea21cd29-11f3-43fa-8d8e-73e775d80618",
+    "event_id": "test-lifecycle-event-1788427418862",
+    "player_name": "Live Champion",
+    "score": 3000,
+    "session_id": null,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "catch-brand",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T09:23:38.946Z"
+  },
+  {
+    "id": "4d211db0-c305-4853-9911-182a6bc1d964",
+    "event_id": "test-lifecycle-event-1788427418862",
+    "player_name": "ClientSpoofTest",
+    "score": 2600,
+    "session_id": null,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isTest": true,
+      "isPreview": true,
+      "score_environment": "live",
+      "gameType": "catch-brand",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T09:23:38.959Z"
+  },
+  {
+    "id": "8c9e1145-df66-4c8a-abca-63959c6aeb38",
+    "event_id": "test-lifecycle-event-1788427418862",
+    "player_name": "SpoofAttemptTestToLive",
+    "score": 1111,
+    "session_id": null,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isTest": false,
+      "isPreview": false,
+      "score_environment": "live",
+      "gameType": "catch-brand",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-03T09:23:38.953Z"
+  },
+  {
+    "id": "1018e23d-72eb-4849-8444-cf642e40a0e4",
+    "event_id": "sched-auth-test-1788427418953",
+    "player_name": "ClientSpoofLive",
+    "score": 2500,
+    "session_id": null,
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isTest": false,
+      "isPreview": false,
+      "score_environment": "test",
+      "gameType": "catch-brand",
+      "score_mode": "TEST",
+      "is_test": true,
+      "is_official": false
+    },
+    "created_at": "2026-09-03T09:23:38.955Z"
+  },
+  {
+    "id": "live-score-preserved",
+    "event_id": "auto-clear-event-1788427418959",
+    "player_name": "Official Attendee",
+    "score": 5000,
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "score_environment": "live"
+    },
+    "created_at": "2026-09-03T09:23:38.959Z"
   }
 ]

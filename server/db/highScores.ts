@@ -22,7 +22,7 @@ import {
   localEventsCache,
   resolveEventGameType,
 } from './events.js';
-import { isUUID } from './themes.js';
+import { isUUID, getThemeById } from './themes.js';
 import {
   calculateMemoryMatchScore,
   validateMemoryMatchResult,
@@ -842,9 +842,47 @@ async function executeSubmitEventScore(
       ? metadata.matchedPairs
       : (metadata.matchedPairs !== undefined && metadata.matchedPairs !== null && !isNaN(Number(metadata.matchedPairs)) ? Number(metadata.matchedPairs) : undefined);
 
-    const totalPairs = typeof metadata.totalPairs === 'number' && metadata.totalPairs > 0
-      ? Math.floor(metadata.totalPairs)
-      : 8;
+    // Authoritatively resolve total pairs from event configuration:
+    let authoritativeTotalPairs = 8;
+    try {
+      const anyEvent = event as any;
+      const themeId = anyEvent.game_theme_id || anyEvent.theme_id || anyEvent.theme?.id;
+      let themeRecord: any = anyEvent.theme || null;
+      if (!themeRecord && themeId) {
+        themeRecord = await getThemeById(themeId, env);
+      }
+      if (themeRecord?.game_config) {
+        const gc = themeRecord.game_config;
+        const rows = Number(gc.board?.rows) || Number(gc.grid?.rows);
+        const cols = Number(gc.board?.cols) || Number(gc.grid?.cols);
+        if (rows && cols) {
+          const totalCards = rows * cols;
+          if (totalCards % 2 === 0 && totalCards > 0) {
+            authoritativeTotalPairs = totalCards / 2;
+          }
+        } else if (Array.isArray(gc.pairs) && gc.pairs.length > 0) {
+          authoritativeTotalPairs = gc.pairs.length;
+        }
+      }
+    } catch {
+      authoritativeTotalPairs = 8;
+    }
+
+    // Client cannot change totalPairs by sending metadata:
+    if (
+      metadata.totalPairs !== undefined &&
+      metadata.totalPairs !== null &&
+      Number(metadata.totalPairs) !== authoritativeTotalPairs
+    ) {
+      const err: any = new Error(
+        `Client cannot change totalPairs: event configuration requires ${authoritativeTotalPairs} pairs, received ${metadata.totalPairs}`
+      );
+      err.status = 422;
+      err.code = 'INVALID_MEMORY_MATCH_SCORE';
+      throw err;
+    }
+
+    const totalPairs = authoritativeTotalPairs;
 
     const validation = validateMemoryMatchResult({
       moves: moves as any,
