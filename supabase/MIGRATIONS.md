@@ -15,6 +15,7 @@ In accordance with **Strategy B** (explicit baseline date boundary + post-baseli
 | **Post-Baseline 4** | `supabase/migrations/20260904020000_prevent_user_privilege_escalation.sql` | **User Privilege Escalation Protection**: Triggers preventing non-service_role tampering with `is_developer` flag. |
 | **Post-Baseline 5** | `supabase/migrations/20260904030000_events_backend_write_only.sql` | **Events Backend-Write-Only**: Revokes direct client mutations on `events`, enforces server API authority. |
 | **Post-Baseline 6** | `supabase/migrations/20260904040000_games_themes_backend_write_only.sql` | **Games & Themes Backend-Write-Only**: Revokes direct client mutations on `games` & `game_themes`, enforces immutable game-theme association and system template protection. |
+| **Post-Baseline 7** | `supabase/migrations/20260904050000_leaderboard_rls_live_window.sql` | **Leaderboard RLS Live Window**: Restricts public SELECT on `event_high_scores` strictly to paid events in their active live window and hides test scores. |
 | **Complete Cumulative Schema** | `supabase/schema.sql` | **Latest Canonical Single-File Snapshot**: Contains all tables, indexes, RLS policies, `outstanding_balance`, and all RPCs. |
 
 ---

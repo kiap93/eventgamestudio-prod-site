@@ -75,8 +75,8 @@ async function runMigrationIntegrityTests() {
   const migrationFiles = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql'));
   assert.strictEqual(
     migrationFiles.length,
-    7,
-    `Scenario 17: migrations/ must contain exactly the 7 canonical migrations, found ${migrationFiles.length}`
+    8,
+    `Scenario 17: migrations/ must contain exactly the 8 canonical migrations, found ${migrationFiles.length}`
   );
 
   const canonicalFiles = [
@@ -87,6 +87,7 @@ async function runMigrationIntegrityTests() {
     '20260904020000_prevent_user_privilege_escalation.sql',
     '20260904030000_events_backend_write_only.sql',
     '20260904040000_games_themes_backend_write_only.sql',
+    '20260904050000_leaderboard_rls_live_window.sql',
   ];
 
   for (const file of canonicalFiles) {

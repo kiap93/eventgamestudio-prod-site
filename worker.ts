@@ -126,6 +126,7 @@ import {
   manualClearEventTestScores,
   getEventTestScoresCount,
   isEventBeforeStartDate,
+  determineScoreEnvironment,
   getGoogleMailSettings,
   saveGoogleMailSettings,
   disconnectGoogleMail,
@@ -172,7 +173,7 @@ import {
 } from './server/auth.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
-import { checkWorkerRateLimit } from './server/rateLimiter.js';
+import { checkWorkerRateLimit, isVenueRequest } from './server/rateLimiter.js';
 
 export interface Env {
   NODE_ENV?: string;
@@ -512,6 +513,25 @@ export default {
       // ==========================================
       // Rate Limiting Enforcement on API Routes
       // ==========================================
+      // A. Public Event & Leaderboard Read Rate Limiting (GET /api/public/events/*)
+      if (pathname.startsWith('/api/public/events/') && method === 'GET') {
+        const isScoresRead = pathname.endsWith('/high-scores');
+        const readLimit = checkWorkerRateLimit(request, {
+          windowMs: 60 * 1000,
+          max: 60,
+          venueAllowanceMax: 180,
+          isVenueRequest,
+          keyPrefix: isScoresRead ? 'worker_public_scores_get' : 'worker_public_event_get',
+          message: isScoresRead
+            ? 'Leaderboard lookup rate limit reached. Please wait a moment before refreshing scores.'
+            : 'Public event lookup rate limit reached. Please wait a moment before trying again.',
+        });
+        if (!readLimit.allowed) {
+          return jsonResponse(readLimit.errorResponse, 429, { ...cors, ...readLimit.headers });
+        }
+      }
+
+      // B. Mutating API Routes Rate Limiting (POST, PUT, PATCH, DELETE)
       if (pathname.startsWith('/api') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
         // 0. Payment Webhook Exception (POST /api/webhooks/*, POST /api/wallet/webhooks/*)
         // Authenticated via cryptographic HMAC signatures. Exempt from client IP limits to prevent webhook drops.
@@ -1692,12 +1712,17 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
+        if (body.is_system && !isUserDeveloperAdmin(user, env)) {
+          return errorResponse('Only developer admins can create system themes', 403, cors);
+        }
+
         const {
           game_id,
           name,
           slug,
           description,
           status,
+          styling,
           branding,
           background_url,
           basket_config,
@@ -1722,6 +1747,7 @@ export default {
               slug,
               description,
               status,
+              styling: styling || visuals_config,
               branding,
               background_url,
               basket_config,
@@ -1735,7 +1761,7 @@ export default {
             env
           );
 
-          return jsonResponse({ theme }, 201, cors);
+          return jsonResponse({ ...theme, theme }, 201, cors);
         } catch (err: any) {
           console.error('Error in worker createTheme:', err);
           return errorResponse(err.message || 'Failed to create theme', 500, cors);
@@ -1769,11 +1795,26 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
+
+        if (body.game_id !== undefined && body.game_id !== theme.game_id) {
+          return errorResponse('Theme game association is immutable and cannot be modified', 400, cors);
+        }
+        if (body.is_system !== undefined && body.is_system !== theme.is_system) {
+          return errorResponse('Theme is_system status cannot be modified', 400, cors);
+        }
+        if (body.organization_id !== undefined && body.organization_id !== theme.organization_id) {
+          return errorResponse('Theme organization_id cannot be modified', 400, cors);
+        }
+        if (body.ownership_type !== undefined && body.ownership_type !== (theme.ownership_type || 'organization')) {
+          return errorResponse('Theme ownership_type cannot be modified', 400, cors);
+        }
+
         const {
           name,
           slug,
           description,
           status,
+          styling,
           branding,
           background_url,
           basket_config,
@@ -1793,6 +1834,7 @@ export default {
               slug,
               description,
               status,
+              styling: styling !== undefined ? styling : visuals_config,
               branding,
               background_url,
               basket_config,
@@ -1806,7 +1848,7 @@ export default {
             env
           );
 
-          return jsonResponse({ theme: updatedTheme }, 200, cors);
+          return jsonResponse({ ...updatedTheme, theme: updatedTheme }, 200, cors);
         } catch (err: any) {
           console.error('Error in worker updateTheme:', err);
           return errorResponse(err.message || 'Failed to update theme', 500, cors);
@@ -1935,19 +1977,22 @@ export default {
         const { gameId } = updateGameParams;
         const organizationId = auth.jwtPayload?.organizationId;
         const body = (await request.json().catch(() => ({}))) as any;
+
+        if (
+          body.organization_id !== undefined ||
+          body.game_type !== undefined ||
+          body.slug !== undefined ||
+          body.is_system !== undefined
+        ) {
+          return errorResponse('Cannot alter structural columns (organization_id, game_type, slug, is_system) on games', 400, cors);
+        }
+
         const { background_url, basket_config, items_config, settings_config, name } = body;
+        const resolvedSettingsConfig = settings_config !== undefined ? settings_config : body.settings;
 
         const game = await getGameById(gameId, env);
         if (!game) {
           return errorResponse('Game not found', 404, cors);
-        }
-
-        const isSystemGame = Boolean(game.is_system) || !game.organization_id;
-        if (isSystemGame) {
-          // Platform/system games are customized via themes or developer admin
-          if (!isUserDeveloperAdmin(user, env)) {
-            return errorResponse('System baseline games cannot be directly modified. Create a custom theme instead.', 403, cors);
-          }
         }
 
         const targetOrgId = game.organization_id || organizationId;
@@ -1955,11 +2000,15 @@ export default {
           return errorResponse('No active organization context found', 422, cors);
         }
 
+        if (game.organization_id && game.organization_id !== organizationId && !isUserDeveloperAdmin(user, env)) {
+          return errorResponse('Access denied: Game belongs to another organization', 403, cors);
+        }
+
         let requiredPerm = 'game.view';
         if (background_url !== undefined) requiredPerm = 'game.background.edit';
         else if (items_config !== undefined) requiredPerm = 'game.items.edit';
         else if (basket_config !== undefined) requiredPerm = 'game.basket.edit';
-        else if (settings_config !== undefined) requiredPerm = 'game.settings.edit';
+        else if (resolvedSettingsConfig !== undefined) requiredPerm = 'game.settings.edit';
 
         if (targetOrgId) {
           const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, targetOrgId, requiredPerm, env);
@@ -1978,13 +2027,13 @@ export default {
             background_url,
             basket_config,
             items_config,
-            settings_config,
+            settings_config: resolvedSettingsConfig,
             name,
           },
           env
         );
 
-        return jsonResponse({ game: updatedGame }, 200, cors);
+        return jsonResponse({ ...updatedGame, game: updatedGame }, 200, cors);
       }
 
       const getGameThemesParams = parseRoute('/api/games/:gameId/themes', pathname);
@@ -2789,6 +2838,24 @@ export default {
 
         const limit = Number(url.searchParams.get('limit') || 20);
         const page = Number(url.searchParams.get('page') || 1);
+
+        // Security check: Public high scores are only available if the event is in the public live window
+        // (PAID, within live window, not cancelled) and never exposes pre-event TEST scores
+        const isLiveAllowed = canAccessLiveEvent(event);
+        const scoreEnvironment = determineScoreEnvironment(event);
+
+        if (!isLiveAllowed || scoreEnvironment === 'test') {
+          return jsonResponse({
+            event_id: event.id,
+            event_name: event.name,
+            scores: [],
+            totalCount: 0,
+            page,
+            limit,
+            score_environment: 'test',
+            is_test_mode: true,
+          }, 200, cors);
+        }
 
         const result = await getEventHighScores(event.id, { limit, page }, env);
         return jsonResponse({

@@ -101,7 +101,7 @@ async function runTests() {
   // Add balance to org wallet to pay
   await createTopup({
     organizationId: orgId,
-    amount: 1400,
+    amount: event1.event_price || 1400,
     referenceId: 'test_topup_case4',
   }, env);
 
@@ -175,7 +175,7 @@ async function runTests() {
   console.log('--- Test Case 8: Pay & Activate one PENDING_PAYMENT Event -> Slot is Freed ---');
   await createTopup({
     organizationId: orgId,
-    amount: 1400,
+    amount: pendingEventB.event_price || 1400,
     referenceId: 'test_topup_case8',
   }, env);
 
@@ -222,7 +222,7 @@ async function runTests() {
   // Top-up org wallet with funds for the event
   await createTopup({
     organizationId: orgId,
-    amount: 1400,
+    amount: sepEvent.event_price || 1400,
     referenceId: 'test_topup_sep_event',
   }, env);
 
@@ -238,7 +238,7 @@ async function runTests() {
   assert.strictEqual(sepEventAfterMaint?.event_status, 'LIVE', 'Event status must be LIVE/scheduled');
 
   const balanceAfter = await getWalletBalance(orgId, env);
-  assert.strictEqual(balanceAfter.paid_balance, balanceBefore.paid_balance - 1400, 'RM1400 deducted from wallet');
+  assert.strictEqual(balanceAfter.paid_balance, balanceBefore.paid_balance - (sepEvent.event_price || 1400), 'Event price deducted from wallet');
   console.log('  ✓ PASS: Setup Day worker atomically deducts wallet balance and stamps PAID/LIVE');
 
   console.log('--- Test Case 12: Worker Idempotency on Setup Day ---');

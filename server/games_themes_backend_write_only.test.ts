@@ -5,7 +5,7 @@ import worker from '../worker.js';
 import { signAppToken } from './auth.js';
 import { createUser } from './db/users.js';
 import { createOrganization } from './db/organizations.js';
-import { ensureDefaultGame } from './db/games.js';
+import { ensureDefaultGame, getAvailableGamesForStudio, createGame } from './db/games.js';
 import { createTheme, getThemeById } from './db/themes.js';
 
 let passed = 0;
@@ -215,8 +215,13 @@ async function runGamesThemesBackendWriteOnlyTests() {
     owner_id: otherUser.id,
   }, workerEnv);
 
-  const catchBrandGame = await ensureDefaultGame(org.id, 'Catch The Brand Game', workerEnv);
-  const memoryMatchGame = await ensureDefaultGame(org.id, 'Memory Match Game', workerEnv);
+  const games = await getAvailableGamesForStudio(org.id, workerEnv);
+  const catchBrandGame = games.find((g) => g.game_type === 'catch-brand') || games[0];
+  const memoryMatchGame = games.find((g) => g.game_type === 'memory-match') || games[1] || await createGame({
+    organization_id: org.id,
+    name: 'Memory Match Game',
+    game_type: 'memory-match',
+  }, workerEnv);
 
   // System theme (read-only template)
   const systemTheme = await createTheme({

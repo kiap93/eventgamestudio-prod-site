@@ -135,6 +135,7 @@ import {
   manualClearEventTestScores,
   getEventTestScoresCount,
   isEventBeforeStartDate,
+  determineScoreEnvironment,
 } from './server/db/index.js';
 
 import {
@@ -149,7 +150,16 @@ import {
   AuthenticatedRequest,
 } from './server/auth.js';
 
-import { PaymentMode } from './server/db/types.js';
+import {
+  PaymentMode,
+  ALLOWED_IMAGE_MIME_TYPES,
+  ALLOWED_VIDEO_MIME_TYPES,
+  ALLOWED_AUDIO_MIME_TYPES,
+  MAX_IMAGE_SIZE,
+  MAX_VIDEO_SIZE,
+} from './server/db/types.js';
+
+import { validateUploadedFile, isSvgContent } from './server/fileValidation.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
 
@@ -164,6 +174,8 @@ import {
   uploadRateLimiter,
   highScoreRateLimiter,
   generalApiRateLimiter,
+  publicEventRateLimiter,
+  publicHighScoreReadRateLimiter,
 } from './server/rateLimiter.js';
 
 import {
@@ -1141,48 +1153,23 @@ app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'
       return;
     }
 
-    // 5. Validate File
+    // 5. Validate File (Magic bytes inspection, strict MIME & extension consistency, SVG rejection)
     if (!req.file || !req.file.buffer || req.file.buffer.length === 0) {
       res.status(422).json({ error: 'No file uploaded', code: 'NO_FILE_UPLOADED' });
       return;
     }
 
-    const ALLOWED_MIME_TYPES = new Set([
-      'image/png',
-      'image/jpeg',
-      'image/jpg',
-      'image/webp',
-      'image/svg+xml',
-      'image/gif',
-      'image/x-icon',
-      'image/vnd.microsoft.icon',
-      'audio/mpeg',
-      'audio/mp3',
-      'audio/wav',
-      'audio/ogg',
-      'audio/x-wav',
-      'audio/aac',
-      'video/mp4',
-      'video/webm',
-      'video/quicktime',
-    ]);
-    const ext = path.extname(req.file.originalname || '').toLowerCase();
-    const allowedExts = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.ico', '.mp3', '.wav', '.ogg', '.aac', '.mp4', '.webm', '.mov']);
-    const mimeType = (req.file.mimetype || 'application/octet-stream').toLowerCase();
-
-    if (!ALLOWED_MIME_TYPES.has(mimeType) && !allowedExts.has(ext)) {
-      res.status(422).json({
-        error: `Unsupported file format (${mimeType}). Allowed formats: PNG, JPG, JPEG, WEBP, SVG, GIF, MP3, WAV, OGG, MP4.`,
-        code: 'UNSUPPORTED_FILE_TYPE',
-      });
-      return;
-    }
-
     const MAX_ASSET_SIZE = 25 * 1024 * 1024; // 25MB
-    if (req.file.size > MAX_ASSET_SIZE || req.file.buffer.length > MAX_ASSET_SIZE) {
+    const validation = validateUploadedFile(req.file.buffer, {
+      originalName: req.file.originalname,
+      declaredMime: req.file.mimetype,
+      maxSizeBytes: MAX_ASSET_SIZE,
+    });
+
+    if (!validation.valid) {
       res.status(422).json({
-        error: `File size exceeds maximum allowed limit of 25MB (${((req.file.size || req.file.buffer.length) / (1024 * 1024)).toFixed(1)}MB provided).`,
-        code: 'FILE_TOO_LARGE',
+        error: validation.error,
+        code: validation.code,
       });
       return;
     }
@@ -1190,6 +1177,7 @@ app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'
     // 6. Generate storage path and 7. Upload
     const safeOrgId = orgId.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
     const safeCategory = category.replace(/[^a-zA-Z0-9_-]/g, '') || 'general';
+    const safeExt = validation.extension || '.png';
 
     try {
       // Attempt Supabase Storage upload
@@ -1198,7 +1186,7 @@ app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'
         category: safeCategory as any,
         fileBuffer: req.file.buffer,
         originalName: req.file.originalname,
-        mimeType: req.file.mimetype || mimeType,
+        mimeType: validation.mimeType,
       });
 
       res.json({ url: result.url, path: result.path });
@@ -1206,7 +1194,6 @@ app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'
       console.warn('Supabase storage upload fallback:', storageErr.message);
 
       // Fallback to local disk storage if Supabase credentials are not yet configured in dev
-      const safeExt = ext || '.png';
       const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${safeExt}`;
       const localFilePath = path.join(uploadDir, filename);
       fs.writeFileSync(localFilePath, req.file.buffer);
@@ -1444,12 +1431,18 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
       return;
     }
 
+    if (req.body.is_system && !isUserDeveloperAdmin(user)) {
+      res.status(403).json({ error: 'Only developer admins can create system themes' });
+      return;
+    }
+
     const {
       name,
       slug,
       game_id,
       description,
       status,
+      styling,
       branding,
       background_url,
       basket_config,
@@ -1473,6 +1466,7 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
       slug,
       description,
       status,
+      styling: styling || visuals_config,
       branding,
       background_url,
       basket_config,
@@ -1484,7 +1478,7 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
       game_config,
     });
 
-    res.status(201).json({ theme });
+    res.status(201).json({ ...theme, theme });
   } catch (err: any) {
     console.error('Create theme error:', err);
     res.status(500).json({ error: err.message });
@@ -1522,11 +1516,29 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       return;
     }
 
+    if (req.body.game_id !== undefined && req.body.game_id !== theme.game_id) {
+      res.status(400).json({ error: 'Theme game association is immutable and cannot be modified' });
+      return;
+    }
+    if (req.body.is_system !== undefined && req.body.is_system !== theme.is_system) {
+      res.status(400).json({ error: 'Theme is_system status cannot be modified' });
+      return;
+    }
+    if (req.body.organization_id !== undefined && req.body.organization_id !== theme.organization_id) {
+      res.status(400).json({ error: 'Theme organization_id cannot be modified' });
+      return;
+    }
+    if (req.body.ownership_type !== undefined && req.body.ownership_type !== (theme.ownership_type || 'organization')) {
+      res.status(400).json({ error: 'Theme ownership_type cannot be modified' });
+      return;
+    }
+
     const {
       name,
       slug,
       description,
       status,
+      styling,
       branding,
       background_url,
       basket_config,
@@ -1543,6 +1555,7 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       slug,
       description,
       status,
+      styling: styling !== undefined ? styling : visuals_config,
       branding,
       background_url,
       basket_config,
@@ -1554,7 +1567,7 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       game_config,
     });
 
-    res.json({ theme: updatedTheme });
+    res.json({ ...updatedTheme, theme: updatedTheme });
   } catch (err: any) {
     console.error('Update theme error:', err);
     res.status(500).json({ error: err.message });
@@ -1733,7 +1746,21 @@ app.put('/api/games/:gameId/customization', authenticateJWT, async (req: Authent
   try {
     const user = req.user!;
     const { gameId } = req.params;
-    const { background_url, basket_config, items_config, settings_config, name } = req.body;
+    const organizationId = req.jwtPayload?.organizationId;
+    const body = req.body || {};
+
+    if (
+      body.organization_id !== undefined ||
+      body.game_type !== undefined ||
+      body.slug !== undefined ||
+      body.is_system !== undefined
+    ) {
+      res.status(400).json({ error: 'Cannot alter structural columns (organization_id, game_type, slug, is_system) on games' });
+      return;
+    }
+
+    const { background_url, basket_config, items_config, settings_config, name } = body;
+    const resolvedSettingsConfig = settings_config !== undefined ? settings_config : body.settings;
 
     const game = await getGameById(gameId);
     if (!game) {
@@ -1741,32 +1768,45 @@ app.put('/api/games/:gameId/customization', authenticateJWT, async (req: Authent
       return;
     }
 
+    const targetOrgId = game.organization_id || organizationId;
+    if (!targetOrgId && !isUserDeveloperAdmin(user)) {
+      res.status(422).json({ error: 'No active organization context found' });
+      return;
+    }
+
+    if (game.organization_id && game.organization_id !== organizationId && !isUserDeveloperAdmin(user)) {
+      res.status(403).json({ error: 'Access denied: Game belongs to another organization' });
+      return;
+    }
+
     let requiredPerm = 'game.view';
     if (background_url !== undefined) requiredPerm = 'game.background.edit';
     else if (items_config !== undefined) requiredPerm = 'game.items.edit';
     else if (basket_config !== undefined) requiredPerm = 'game.basket.edit';
-    else if (settings_config !== undefined) requiredPerm = 'game.settings.edit';
+    else if (resolvedSettingsConfig !== undefined) requiredPerm = 'game.settings.edit';
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, game.organization_id, requiredPerm);
-    if (!isMember) {
-      res.status(403).json({ error: 'Access denied: Not an organization member' });
-      return;
-    }
+    if (targetOrgId) {
+      const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, targetOrgId, requiredPerm);
+      if (!isMember) {
+        res.status(403).json({ error: 'Access denied: Not an organization member' });
+        return;
+      }
 
-    if (role === 'viewer') {
-      res.status(403).json({ error: 'Viewers cannot modify game customization' });
-      return;
+      if (role === 'viewer') {
+        res.status(403).json({ error: 'Viewers cannot modify game customization' });
+        return;
+      }
     }
 
     const updatedGame = await updateGameCustomization(gameId, {
       background_url,
       basket_config,
       items_config,
-      settings_config,
+      settings_config: resolvedSettingsConfig,
       name,
     });
 
-    res.json({ game: updatedGame });
+    res.json({ ...updatedGame, game: updatedGame });
   } catch (err: any) {
     console.error('Update game customization error:', err);
     res.status(500).json({ error: err.message });
@@ -2471,7 +2511,7 @@ app.get('/api/events/:eventId/preview', authenticateJWT, async (req: Authenticat
  *   AND current_date <= event_end_date
  *   AND not cancelled
  */
-app.get('/api/public/events/:publicToken', async (req, res) => {
+app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -2646,7 +2686,7 @@ app.post('/api/events/:eventId/high-scores', highScoreRateLimiter, async (req, r
  * GET /api/public/events/:publicToken/high-scores
  * Public endpoint to get high scores by public event token (PAID events only)
  */
-app.get('/api/public/events/:publicToken/high-scores', async (req, res) => {
+app.get('/api/public/events/:publicToken/high-scores', publicHighScoreReadRateLimiter, async (req, res) => {
   try {
     const { publicToken } = req.params;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
@@ -2655,6 +2695,25 @@ app.get('/api/public/events/:publicToken/high-scores', async (req, res) => {
     const event = await getEventByPublicToken(publicToken, undefined, { allowUnpaid: true });
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    // Security check: Public high scores are only available if the event is in the public live window
+    // (PAID, within live window, not cancelled) and never exposes pre-event TEST scores
+    const isLiveAllowed = canAccessLiveEvent(event);
+    const scoreEnvironment = determineScoreEnvironment(event);
+
+    if (!isLiveAllowed || scoreEnvironment === 'test') {
+      res.json({
+        event_id: event.id,
+        event_name: event.name,
+        scores: [],
+        totalCount: 0,
+        page,
+        limit,
+        score_environment: 'test',
+        is_test_mode: true,
+      });
       return;
     }
 
@@ -3296,32 +3355,48 @@ app.post('/api/events/:eventId/showcase/media/upload-url', uploadRateLimiter, au
       return;
     }
 
-    const lowerMime = fileType.toLowerCase();
+    const lowerMime = fileType.toLowerCase().trim();
+    const rawFileName = fileName.trim();
+    const dotIdx = rawFileName.lastIndexOf('.');
+    const ext = dotIdx !== -1 ? rawFileName.slice(dotIdx).toLowerCase() : '';
 
-    // Validate type and size
+    // Explicitly reject SVG for security reasons
+    if (ext === '.svg' || lowerMime.includes('svg')) {
+      res.status(422).json({
+        error: 'SVG uploads are not permitted for security reasons. Please upload raster images (PNG, JPEG, WEBP).',
+        code: 'SVG_NOT_ALLOWED',
+      });
+      return;
+    }
+
+    // Validate type and size strictly against allowed lists
     if (normalizedMediaType === 'IMAGE') {
       if (!ALLOWED_IMAGE_MIME_TYPES.has(lowerMime)) {
         res.status(422).json({
-          error: `Unsupported image format (${fileType}). Supported formats: JPG, JPEG, PNG, WEBP.`,
+          error: `Unsupported image format (${fileType}). Supported formats: PNG, JPEG, WEBP.`,
+          code: 'UNSUPPORTED_FILE_TYPE',
         });
         return;
       }
       if (fileSize > MAX_IMAGE_SIZE) {
         res.status(422).json({
           error: `Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+          code: 'FILE_TOO_LARGE',
         });
         return;
       }
     } else {
-      if (!ALLOWED_VIDEO_MIME_TYPES.has(lowerMime) && !lowerMime.startsWith('video/')) {
+      if (!ALLOWED_VIDEO_MIME_TYPES.has(lowerMime)) {
         res.status(422).json({
           error: `Unsupported video format (${fileType}). Supported formats: MP4, WEBM, MOV.`,
+          code: 'UNSUPPORTED_FILE_TYPE',
         });
         return;
       }
       if (fileSize > MAX_VIDEO_SIZE) {
         res.status(422).json({
           error: `Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+          code: 'FILE_TOO_LARGE',
         });
         return;
       }
@@ -3434,28 +3509,41 @@ app.post(
         return;
       }
 
-      // 3. Validate MIME Type and File Size
-      const mimeType = (req.file.mimetype || 'application/octet-stream').toLowerCase();
-      const fileSize = req.file.size || req.file.buffer.length;
-      const isImage = ALLOWED_IMAGE_MIME_TYPES.has(mimeType) || mimeType.startsWith('image/');
-      const isVideo = ALLOWED_VIDEO_MIME_TYPES.has(mimeType) || mimeType.startsWith('video/');
+      // 3. Validate MIME Type, File Size, Magic Bytes, and Reject SVG
+      const validation = validateUploadedFile(req.file.buffer, {
+        originalName: queryFilename || req.file.originalname,
+        declaredMime: req.file.mimetype,
+        maxSizeBytes: MAX_VIDEO_SIZE,
+      });
+
+      if (!validation.valid) {
+        res.status(422).json({ error: validation.error, code: validation.code });
+        return;
+      }
+
+      const isImage = validation.mediaType === 'image';
+      const isVideo = validation.mediaType === 'video';
 
       if (!isImage && !isVideo) {
         res.status(422).json({
-          error: `Unsupported media format (${req.file.mimetype}). Supported formats: JPG, PNG, WEBP, MP4, WEBM, MOV.`,
+          error: `Unsupported media format (${req.file.mimetype}). Supported formats: PNG, JPEG, WEBP, MP4, WEBM, MOV.`,
+          code: 'UNSUPPORTED_FILE_TYPE',
         });
         return;
       }
 
+      const fileSize = req.file.buffer.length;
       if (isImage && fileSize > MAX_IMAGE_SIZE) {
         res.status(422).json({
           error: `Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+          code: 'FILE_TOO_LARGE',
         });
         return;
       }
       if (isVideo && fileSize > MAX_VIDEO_SIZE) {
         res.status(422).json({
           error: `Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+          code: 'FILE_TOO_LARGE',
         });
         return;
       }
@@ -3463,7 +3551,7 @@ app.post(
       // 4. Storage Path Validation & Sandboxing (Never Trust Client-Provided Arbitrary Path)
       const expectedPrefix = `organizations/${event.organization_id}/showcases/${showcase.id}/`;
       const originalName = queryFilename || req.file.originalname || (isImage ? 'image.png' : 'video.mp4');
-      const ext = path.extname(originalName) || (isImage ? '.png' : '.mp4');
+      const ext = validation.extension || (isImage ? '.png' : '.mp4');
       const randomHex = crypto.randomBytes(8).toString('hex');
       const safeUniqueName = `${Date.now()}-${randomHex}${ext}`;
 
@@ -3480,7 +3568,7 @@ app.post(
         const { error: uploadErr } = await supabase.storage
           .from('game-assets')
           .upload(storagePath, req.file.buffer, {
-            contentType: mimeType,
+            contentType: validation.mimeType,
             upsert: true,
           });
 

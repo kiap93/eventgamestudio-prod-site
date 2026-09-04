@@ -346,11 +346,23 @@ export async function updateGameCustomization(
   const { data, error } = await safeUpdateGame(supabase, gameId, payload);
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      const existing = (await getGameById(gameId, env)) || ({} as GameRecord);
+      const updated = {
+        ...existing,
+        ...payload,
+        id: gameId,
+      } as GameRecord;
+      localGamesCache.set(gameId, updated);
+      return updated;
+    }
     console.error('Error in updateGameCustomization:', error);
     throw new Error(`Failed to update game: ${error.message}`);
   }
 
-  return data as GameRecord;
+  const result = data as GameRecord;
+  localGamesCache.set(gameId, result);
+  return result;
 }
 
 // ============================================================================

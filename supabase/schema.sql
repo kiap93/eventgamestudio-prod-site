@@ -156,6 +156,8 @@ CREATE TABLE IF NOT EXISTS public.events (
   game_theme_id UUID NOT NULL REFERENCES public.game_themes (id) ON DELETE RESTRICT,
   name TEXT NOT NULL,
   event_date TEXT,
+  start_date TEXT,
+  end_date TEXT,
   starts_at TIMESTAMPTZ NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'live', 'expired', 'cancelled', 'pending_payment', 'active', 'completed')),
@@ -183,6 +185,8 @@ CREATE INDEX IF NOT EXISTS idx_events_event_status ON public.events (event_statu
 CREATE INDEX IF NOT EXISTS idx_events_payment_status ON public.events (payment_status);
 CREATE INDEX IF NOT EXISTS idx_events_starts_at ON public.events (starts_at);
 CREATE INDEX IF NOT EXISTS idx_events_expires_at ON public.events (expires_at);
+CREATE INDEX IF NOT EXISTS idx_events_start_date ON public.events (start_date);
+CREATE INDEX IF NOT EXISTS idx_events_end_date ON public.events (end_date);
 CREATE INDEX IF NOT EXISTS idx_events_starts_expires ON public.events (starts_at, expires_at);
 CREATE INDEX IF NOT EXISTS idx_events_lifecycle_cron ON public.events (event_status, starts_at, payment_status);
 CREATE INDEX IF NOT EXISTS idx_events_completed_cron ON public.events (payment_status, expires_at, event_status);
@@ -1950,7 +1954,7 @@ DROP POLICY IF EXISTS "Org members and developer admins can insert high scores" 
 DROP POLICY IF EXISTS "Event managers can delete high scores" ON public.event_high_scores;
 DROP POLICY IF EXISTS "Developer admins can update high scores" ON public.event_high_scores;
 
--- Hardened SELECT: Only allow viewing scores for live/paid events or when user belongs to the event's organization
+-- Hardened SELECT: Only allow viewing scores for live window/paid events or when user belongs to the event's organization
 CREATE POLICY "Anyone can view high scores of published events"
   ON public.event_high_scores
   FOR SELECT
@@ -1959,10 +1963,42 @@ CREATE POLICY "Anyone can view high scores of published events"
       SELECT 1 FROM public.events e
       WHERE e.id = event_high_scores.event_id
         AND (
-          e.event_status = 'LIVE'
-          OR e.payment_status = 'PAID'
-          OR (auth.uid() IS NOT NULL AND public.get_org_role(e.organization_id) IS NOT NULL)
+          -- Path 1: Organization members and developer admins can always view their own event scores (including test scores)
+          (auth.uid() IS NOT NULL AND public.get_org_role(e.organization_id) IS NOT NULL)
           OR public.is_developer_admin()
+          -- Path 2: Public access requires the event to actually be in the public live window
+          OR (
+            e.payment_status = 'PAID'
+            AND COALESCE(e.status, '') != 'cancelled'
+            AND COALESCE(e.event_status, '') != 'CANCELLED'
+            AND e.cancel_reason IS NULL
+            AND (NOW() AT TIME ZONE 'Asia/Singapore')::date >= (
+              COALESCE(
+                CASE WHEN e.start_date ~ '^\d{4}-\d{2}-\d{2}$' THEN e.start_date::date ELSE NULL END,
+                CASE WHEN e.event_date ~ '^\d{4}-\d{2}-\d{2}$' THEN e.event_date::date ELSE NULL END,
+                (e.starts_at AT TIME ZONE 'Asia/Singapore')::date
+              ) - 1
+            )
+            AND (NOW() AT TIME ZONE 'Asia/Singapore')::date <= (
+              COALESCE(
+                CASE WHEN e.end_date ~ '^\d{4}-\d{2}-\d{2}$' THEN e.end_date::date ELSE NULL END,
+                (e.expires_at AT TIME ZONE 'Asia/Singapore')::date,
+                CASE WHEN e.start_date ~ '^\d{4}-\d{2}-\d{2}$' THEN e.start_date::date ELSE NULL END,
+                CASE WHEN e.event_date ~ '^\d{4}-\d{2}-\d{2}$' THEN e.event_date::date ELSE NULL END,
+                (e.starts_at AT TIME ZONE 'Asia/Singapore')::date
+              )
+            )
+            -- TEST scores should NEVER be exposed to public queries
+            AND (event_high_scores.score_environment IS NULL OR event_high_scores.score_environment NOT IN ('test', 'TEST'))
+            AND (event_high_scores.score_mode IS NULL OR event_high_scores.score_mode != 'TEST')
+            AND (event_high_scores.is_test IS NOT TRUE)
+            AND (event_high_scores.metadata IS NULL OR (
+              (event_high_scores.metadata->>'score_mode') IS DISTINCT FROM 'TEST'
+              AND (event_high_scores.metadata->>'score_environment') IS DISTINCT FROM 'test'
+              AND (event_high_scores.metadata->>'score_environment') IS DISTINCT FROM 'TEST'
+              AND (event_high_scores.metadata->>'is_test') IS DISTINCT FROM 'true'
+            ))
+          )
         )
     )
   );

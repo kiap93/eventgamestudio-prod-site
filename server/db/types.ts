@@ -237,6 +237,7 @@ export interface GameThemeRecord {
   items_config: ThemeDropItem[];
   physics_config: ThemePhysicsConfig;
   visuals_config: ThemeVisualsConfig;
+  styling?: any;
   sounds_config: ThemeSoundsConfig;
   layout?: GameLayoutConfig;
   game_config?: Record<string, any>;
@@ -709,13 +710,19 @@ export const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/webp',
 ]);
 
+export const ALLOWED_AUDIO_MIME_TYPES = new Set([
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/wave',
+  'audio/ogg',
+]);
+
 export const ALLOWED_VIDEO_MIME_TYPES = new Set([
   'video/mp4',
   'video/webm',
   'video/quicktime',
-  'video/x-matroska',
-  'video/ogg',
-  'video/3gpp',
 ]);
 
 export const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB

@@ -801,9 +801,10 @@ export function canCancelEvent(
 }
 
 /**
- * Generate a short, unique, user-friendly alphanumeric token for public event links (e.g. 7KQ2M9X)
+ * Generate a cryptographically secure, collision-resistant alphanumeric token for public event links (e.g. 7KQ2M9X4F8P3W6YJ)
+ * Uses 16 characters from a 32-character alphabet (80 bits of entropy), preventing capability credential enumeration.
  */
-export function generatePublicToken(length: number = 7): string {
+export function generatePublicToken(length: number = 16): string {
   const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // base32 without ambiguous 0/O/1/I
   const bytes = crypto.randomBytes(length);
   let result = '';

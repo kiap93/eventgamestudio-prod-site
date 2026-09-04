@@ -1,4 +1,4 @@
-import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
+import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed } from '../supabase.js';
 import {
   GameThemeRecord,
   ThemeBrandingConfig,
@@ -1097,30 +1097,11 @@ export async function getThemeById(
     .maybeSingle();
 
   if (error) {
-    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
       const allSystemThemes = await getAllSystemThemes(env);
       const matchedSystem = allSystemThemes.find((t) => t.id === themeId);
       if (matchedSystem) return matchedSystem;
-      return {
-        id: themeId,
-        organization_id: null as any,
-        game_id: null,
-        name: 'Default Test Theme',
-        slug: 'default-test-theme',
-        status: 'active',
-        is_system: true,
-        is_default: true,
-        branding: NEUTRAL_GAME_THEME_DEFAULTS.branding,
-        basket_config: NEUTRAL_GAME_THEME_DEFAULTS.basket_config,
-        items_config: NEUTRAL_GAME_THEME_DEFAULTS.items_config,
-        physics_config: {} as any,
-        visuals_config: {} as any,
-        sounds_config: {} as any,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        game_name: 'Catch The Brand',
-        game_slug: 'catch-brand',
-      } as unknown as GameThemeRecord;
+      return null;
     }
     console.error('Error in getThemeById:', error);
     throw new Error(`Failed to get theme: ${error.message}`);
@@ -1242,12 +1223,14 @@ export async function createTheme(
     slug?: string;
     description?: string | null;
     status?: 'active' | 'archived' | 'draft';
+    is_system?: boolean;
     branding?: ThemeBrandingConfig;
     background_url?: string | null;
     basket_config?: ThemeBasketConfig;
     items_config?: ThemeDropItem[];
     physics_config?: ThemePhysicsConfig;
     visuals_config?: ThemeVisualsConfig;
+    styling?: any;
     sounds_config?: ThemeSoundsConfig;
     layout?: any;
     game_config?: any;
@@ -1348,6 +1331,7 @@ export async function createTheme(
     items_config: params.items_config ?? defaultTemplate.items_config,
     physics_config: params.physics_config ?? defaultTemplate.physics_config,
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
+    styling: (params as any).styling ?? params.visuals_config ?? defaultTemplate.visuals_config,
     sounds_config: params.sounds_config ?? defaultTemplate.sounds_config,
     layout: params.layout ?? defaultTemplate.layout,
     game_config: params.game_config ?? (defaultTemplate as any).game_config ?? {},
@@ -1380,6 +1364,7 @@ export async function createTheme(
     items_config: params.items_config ?? defaultTemplate.items_config,
     physics_config: params.physics_config ?? defaultTemplate.physics_config,
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
+    styling: (params as any).styling ?? params.visuals_config ?? defaultTemplate.visuals_config,
     sounds_config: params.sounds_config ?? defaultTemplate.sounds_config,
     layout: params.layout ?? defaultTemplate.layout,
     game_config: params.game_config ?? {},
@@ -1388,7 +1373,7 @@ export async function createTheme(
   });
 
   if (error) {
-    if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
       localThemesCache.set(id, newTheme);
       return newTheme;
     }
@@ -1397,12 +1382,17 @@ export async function createTheme(
   }
 
   const item = data as any;
-  return await enrichThemeWithGameData(item, env, {
+  if ((params as any).styling) {
+    item.styling = (params as any).styling;
+  }
+  const enriched = await enrichThemeWithGameData(item, env, {
     fallbackGameId: resolvedGameId,
     fallbackGameName: resolvedGameName,
     fallbackGameSlug: resolvedGameSlug,
     fallbackGameType: resolvedGameType,
   });
+  localThemesCache.set(id, enriched);
+  return enriched;
 }
 
 export async function updateTheme(
@@ -1426,16 +1416,31 @@ export async function updateTheme(
   const { data, error } = await safeUpdateTheme(supabase, themeId, payload);
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      const existingTheme = (await getThemeById(themeId, env)) || ({} as GameThemeRecord);
+      const updatedTheme = {
+        ...existingTheme,
+        ...payload,
+        id: themeId,
+      } as GameThemeRecord;
+      localThemesCache.set(themeId, updatedTheme);
+      return updatedTheme;
+    }
     console.error('Error in updateTheme:', error);
     throw new Error(`Failed to update theme: ${error.message}`);
   }
 
   const item = data as any;
-  return await enrichThemeWithGameData(item, env, {
+  if ((updates as any).styling) {
+    item.styling = (updates as any).styling;
+  }
+  const enriched = await enrichThemeWithGameData(item, env, {
     fallbackGameId: existing?.game_id,
     fallbackGameName: existing?.game_name,
     fallbackGameSlug: existing?.game_slug,
   });
+  localThemesCache.set(themeId, enriched);
+  return enriched;
 }
 
 export async function duplicateTheme(
@@ -1483,6 +1488,8 @@ export async function deleteTheme(themeId: string, env?: Record<string, any>): P
     throw new Error('System themes are read-only templates and cannot be deleted.');
   }
 
+  localThemesCache.delete(themeId);
+
   const supabase = getSupabaseServerClient(env);
   const { error } = await supabase
     .from('game_themes')
@@ -1490,6 +1497,9 @@ export async function deleteTheme(themeId: string, env?: Record<string, any>): P
     .eq('id', themeId);
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      return;
+    }
     console.error('Error in deleteTheme:', error);
     throw new Error(`Failed to delete theme: ${error.message}`);
   }

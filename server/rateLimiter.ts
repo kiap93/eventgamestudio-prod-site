@@ -54,6 +54,8 @@ export interface RateLimitOptions {
   keyGenerator?: (req: any) => string;
   skipSuccessfulRequests?: boolean;
   skipFailedRequests?: boolean;
+  venueAllowanceMax?: number;
+  isVenueRequest?: (req: any) => boolean;
 }
 
 export interface RateLimitResult {
@@ -211,6 +213,59 @@ export function getWorkerClientKey(request: Request, keyPrefix = 'ip', userId?: 
 }
 
 /**
+ * Detects if an incoming request qualifies for venue allowances
+ * (e.g., event venue kiosks, tournament display TV screens, organizer spectator projectors).
+ * Supported indicators:
+ *  - Header: X-Venue-Mode: true, X-Venue-Allowance: true, or X-Venue-Display: true
+ *  - Query param: ?venue=true / ?venue=1 / ?display=true / ?display=1 / ?tournament=true
+ */
+export function isVenueRequest(reqOrRequest: any): boolean {
+  if (!reqOrRequest) return false;
+
+  // 1. Fetch / Cloudflare Worker Request
+  if (typeof reqOrRequest.headers?.get === 'function') {
+    const req = reqOrRequest as Request;
+    const h = (
+      req.headers.get('x-venue-mode') ||
+      req.headers.get('x-venue-allowance') ||
+      req.headers.get('x-venue-display') ||
+      ''
+    ).toLowerCase();
+    if (h === 'true' || h === '1') return true;
+
+    try {
+      const url = new URL(req.url);
+      const q = (
+        url.searchParams.get('venue') ||
+        url.searchParams.get('display') ||
+        url.searchParams.get('tournament') ||
+        ''
+      ).toLowerCase();
+      if (q === 'true' || q === '1') return true;
+    } catch {
+      // ignore url parse error
+    }
+    return false;
+  }
+
+  // 2. Express Request
+  const headers = reqOrRequest.headers || {};
+  const h = (
+    headers['x-venue-mode'] ||
+    headers['x-venue-allowance'] ||
+    headers['x-venue-display'] ||
+    ''
+  ).toString().toLowerCase();
+  if (h === 'true' || h === '1') return true;
+
+  const query = reqOrRequest.query || {};
+  const q = (query.venue || query.display || query.tournament || '').toString().toLowerCase();
+  if (q === 'true' || q === '1') return true;
+
+  return false;
+}
+
+/**
  * Express middleware generator for rate limiting
  */
 export function createRateLimiter(options: RateLimitOptions) {
@@ -222,10 +277,15 @@ export function createRateLimiter(options: RateLimitOptions) {
   } = options;
 
   return (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
+    let effectiveMax = max;
+    if (options.venueAllowanceMax && options.isVenueRequest && options.isVenueRequest(req)) {
+      effectiveMax = options.venueAllowanceMax;
+    }
+
     const clientKey = options.keyGenerator
       ? `${keyPrefix}:${options.keyGenerator(req)}`
       : getExpressClientKey(req, keyPrefix);
-    const result = checkRateLimit(clientKey, { windowMs, max, keyPrefix });
+    const result = checkRateLimit(clientKey, { ...options, max: effectiveMax, keyPrefix });
 
     // Set standard RateLimit headers
     res.setHeader('RateLimit-Limit', result.limit.toString());
@@ -384,6 +444,36 @@ export const generalApiRateLimiter = createRateLimiter({
 });
 
 /**
+ * 10. Public Event Read Rate Limiter:
+ * Protects GET /api/public/events/:publicToken from capability credential enumeration and scraping.
+ * Baseline of 60 requests per 60 seconds per IP, with a venue allowance of up to 180 requests/minute
+ * for event kiosks, shared venue Wi-Fi, and live tournament displays.
+ */
+export const publicEventRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 60,
+  venueAllowanceMax: 180,
+  isVenueRequest,
+  keyPrefix: 'public_event_get',
+  message: 'Public event lookup rate limit reached. Please wait a moment before trying again.',
+});
+
+/**
+ * 11. Public High Score Read Rate Limiter:
+ * Protects GET /api/public/events/:publicToken/high-scores from high-frequency polling and scraping.
+ * Baseline of 60 requests per 60 seconds per IP, with a venue allowance of up to 180 requests/minute
+ * for live tournament displays, TV screens, and spectator monitors.
+ */
+export const publicHighScoreReadRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 60,
+  venueAllowanceMax: 180,
+  isVenueRequest,
+  keyPrefix: 'public_scores_get',
+  message: 'Leaderboard lookup rate limit reached. Please wait a moment before refreshing scores.',
+});
+
+/**
  * Worker / Edge Rate Limiter Helper (Synchronous In-Memory First Layer)
  */
 export function checkWorkerRateLimit(
@@ -395,8 +485,13 @@ export function checkWorkerRateLimit(
   headers: Record<string, string>;
   errorResponse?: { error: string; message: string; retryAfterSeconds: number };
 } {
+  let effectiveMax = options.max;
+  if (options.venueAllowanceMax && options.isVenueRequest && options.isVenueRequest(request)) {
+    effectiveMax = options.venueAllowanceMax;
+  }
+
   const clientKey = getWorkerClientKey(request, options.keyPrefix || 'worker', userId);
-  const result = checkRateLimit(clientKey, options);
+  const result = checkRateLimit(clientKey, { ...options, max: effectiveMax });
 
   const headers: Record<string, string> = {
     'RateLimit-Limit': result.limit.toString(),
