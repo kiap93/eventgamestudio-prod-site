@@ -2723,13 +2723,19 @@ export default {
           return errorResponse('Valid numerical score is required', 422, cors);
         }
 
+        const incomingSessionId =
+          session_id !== undefined ? session_id :
+          sessionId !== undefined ? sessionId :
+          (metadata && typeof metadata === 'object' && metadata.sessionId !== undefined ? metadata.sessionId :
+          (metadata && typeof metadata === 'object' && metadata.session_id !== undefined ? metadata.session_id : undefined));
+
         try {
           const result = await submitEventScore(
             {
               event_id: event.id,
               player_name,
               score: Number(score),
-              session_id: session_id || sessionId,
+              session_id: incomingSessionId,
               metadata,
             },
             env
@@ -2912,13 +2918,19 @@ export default {
           return errorResponse('Valid numerical score is required', 422, cors);
         }
 
+        const incomingSessionId =
+          session_id !== undefined ? session_id :
+          sessionId !== undefined ? sessionId :
+          (metadata && typeof metadata === 'object' && metadata.sessionId !== undefined ? metadata.sessionId :
+          (metadata && typeof metadata === 'object' && metadata.session_id !== undefined ? metadata.session_id : undefined));
+
         try {
           const result = await submitEventScore(
             {
               event_id: eventId,
               player_name,
               score: Number(score),
-              session_id: session_id || sessionId,
+              session_id: incomingSessionId,
               metadata,
             },
             env

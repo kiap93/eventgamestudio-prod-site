@@ -10,7 +10,7 @@ import { submitEventScore, clearEventHighScores } from './highScores.js';
 import { createOrganization } from './organizations.js';
 import { createGame } from './games.js';
 import { createTheme } from './themes.js';
-import { createEvent } from './events.js';
+import { createEvent, resolveAuthoritativeMemoryMatchConfig } from './events.js';
 
 async function runMemoryMatchServerValidationTests() {
   console.log('====================================================');
@@ -156,8 +156,8 @@ async function runMemoryMatchServerValidationTests() {
     assert.strictEqual(err.status, 422, 'Scenario 11: Expected 422 status');
     assert.strictEqual(err.code, 'INVALID_MEMORY_MATCH_SCORE', 'Scenario 11: Expected INVALID_MEMORY_MATCH_SCORE');
     assert.ok(
-      err.message.includes('Client cannot change totalPairs'),
-      `Scenario 11: Error message should mention totalPairs tampering, got: ${err.message}`
+      err.message.includes('Client cannot change totalPairs') || err.message.includes('Score mismatch') || err.message.includes('totalPairs'),
+      `Scenario 11: Error message should mention totalPairs tampering or score mismatch, got: ${err.message}`
     );
   }
   assert.strictEqual(
@@ -300,6 +300,198 @@ async function runMemoryMatchServerValidationTests() {
   assert.strictEqual(validNoGameTypeRes.score.metadata?.moves, 16, 'Scenario 12e: moves preserved');
   assert.strictEqual(validNoGameTypeRes.score.metadata?.matchedPairs, 8, 'Scenario 12e: matchedPairs preserved');
   console.log('  ✓ PASSED: Client cannot bypass Memory Match validation by omitting gameType; server enforces full rules');
+
+  // --------------------------------------------------------------------------
+  // Scenario 13: Authoritative pair count enforcement & cross-game fallback prevention
+  // --------------------------------------------------------------------------
+  console.log('\nScenario 13: Authoritative pair count enforcement & cross-game fallback prevention...');
+
+  // 13a. Actual event = 8 pairs, client claims = 48 pairs -> REJECT
+  console.log('  13a: actual event = 8 pairs, client claims = 48 pairs -> REJECT');
+  let claims48MatchedRejected = false;
+  try {
+    await submitEventScore({
+      event_id: mmEvent.id, // 8-pair event
+      player_name: 'Claim48MatchedOn8Event',
+      score: 5000,
+      metadata: {
+        moves: 50,
+        duration: 60,
+        matchedPairs: 48, // Claims 48 matched pairs on an 8-pair event!
+        totalPairs: 48,
+        sessionId: 'session_claim_48_matched_on_8',
+      },
+    });
+  } catch (err: any) {
+    claims48MatchedRejected = true;
+    assert.strictEqual(err.status, 422, '13a: Expected 422 status');
+    assert.strictEqual(err.code, 'INVALID_MEMORY_MATCH_SCORE', '13a: Expected INVALID_MEMORY_MATCH_SCORE');
+  }
+  assert.strictEqual(claims48MatchedRejected, true, '13a: Client claiming 48 pairs on an 8-pair event must be rejected');
+
+  let claims48TotalPairsRejected = false;
+  try {
+    await submitEventScore({
+      event_id: mmEvent.id, // 8-pair event
+      player_name: 'Claim48TotalPairsOn8Event',
+      score: 1200,
+      metadata: {
+        moves: 12,
+        duration: 25,
+        matchedPairs: 8,
+        totalPairs: 48, // Claims totalPairs is 48 on an 8-pair event!
+        sessionId: 'session_claim_48_total_on_8',
+      },
+    });
+  } catch (err: any) {
+    claims48TotalPairsRejected = true;
+    assert.strictEqual(err.status, 422, '13a: Expected 422 status');
+    assert.strictEqual(err.code, 'INVALID_MEMORY_MATCH_SCORE', '13a: Expected INVALID_MEMORY_MATCH_SCORE');
+  }
+  assert.strictEqual(claims48TotalPairsRejected, true, '13a: Client claiming totalPairs=48 on an 8-pair event must be rejected');
+
+  // 13b. Actual event = 48 pairs, client claims = 8 pairs -> server still uses 48
+  console.log('  13b: actual event = 48 pairs, client claims = 8 pairs -> server still uses 48');
+  const mmTheme48 = await createTheme({
+    organization_id: org.id,
+    game_id: mmGame.id,
+    name: '48 Pairs Memory Match Theme',
+    game_type: 'memory-match',
+    game_config: {
+      totalPairs: 48,
+      board: {
+        rows: 8,
+        cols: 12,
+        layoutMode: 'grid',
+      },
+    },
+  });
+
+  const mmEvent48 = await createEvent({
+    organization_id: org.id,
+    game_id: mmGame.id,
+    game_theme_id: mmTheme48.id,
+    name: '48 Pairs Memory Match Live Event ' + Date.now(),
+    status: 'live',
+    payment_status: 'PAID',
+    event_status: 'LIVE',
+    starts_at: new Date(Date.now() - 3600000).toISOString(),
+    expires_at: new Date(Date.now() + 86400000).toISOString(),
+  });
+
+  // Client matched 8 pairs so far and client-provided metadata claims totalPairs: 8.
+  // The server MUST NOT trust client's 8 pairs; server MUST use authoritative 48 pairs.
+  // Since totalPairs is 48, 8 matched pairs is NOT a victory (no completion bonus, isVictory: false).
+  const expectedPartialScore48 = calculateMemoryMatchScore({
+    moves: 14,
+    duration: 25,
+    matchedPairs: 8,
+    totalPairs: 48, // Evaluated with authoritative 48!
+  });
+
+  const submitOn48Res = await submitEventScore({
+    event_id: mmEvent48.id,
+    player_name: 'PlayerOn48Event',
+    score: expectedPartialScore48,
+    metadata: {
+      moves: 14,
+      duration: 25,
+      matchedPairs: 8,
+      totalPairs: 8, // Client claims 8 pairs!
+      sessionId: 'session_client_claims_8_on_48',
+    },
+  });
+
+  assert.strictEqual(
+    submitOn48Res.score.metadata?.totalPairs,
+    48,
+    '13b: Server MUST still use authoritative 48 totalPairs regardless of client metadata claim of 8'
+  );
+  assert.strictEqual(
+    submitOn48Res.score.metadata?.isVictory,
+    false,
+    '13b: 8 matched pairs out of authoritative 48 pairs is not a victory'
+  );
+
+  // If client tries to submit an 8-pair victory score (e.g. including completion bonus for 8/8) on the 48-pair event:
+  const forgedVictoryScore8 = calculateMemoryMatchScore({
+    moves: 14,
+    duration: 25,
+    matchedPairs: 8,
+    totalPairs: 8, // Forged score claiming full board completion!
+  });
+
+  let forgedVictoryOn48Rejected = false;
+  try {
+    await submitEventScore({
+      event_id: mmEvent48.id,
+      player_name: 'ForgedVictoryPlayer',
+      score: forgedVictoryScore8,
+      metadata: {
+        moves: 14,
+        duration: 25,
+        matchedPairs: 8,
+        totalPairs: 8, // Client claims victory for 8 pairs
+        sessionId: 'session_forged_victory_on_48',
+      },
+    });
+  } catch (err: any) {
+    forgedVictoryOn48Rejected = true;
+    assert.strictEqual(err.status, 422, '13b: Expected 422 status');
+    assert.strictEqual(err.code, 'INVALID_MEMORY_MATCH_SCORE', '13b: Expected INVALID_MEMORY_MATCH_SCORE');
+  }
+  assert.strictEqual(
+    forgedVictoryOn48Rejected,
+    true,
+    '13b: Submitting score based on client pair count instead of authoritative 48 pairs must be rejected'
+  );
+
+  // 13c. Verify server resolves correct theme/configuration and CANNOT fall back to another game's configuration
+  console.log('  13c: verify server resolves correct theme/configuration and cannot fall back cross-game');
+  const resolved8 = await resolveAuthoritativeMemoryMatchConfig(mmEvent);
+  assert.strictEqual(resolved8.authoritativeTotalPairs, 8, '13c: Event 1 resolves to 8 pairs');
+  assert.strictEqual(resolved8.theme?.id, mmTheme2x8.id, '13c: Event 1 resolves to its 2x8 theme');
+
+  const resolved48 = await resolveAuthoritativeMemoryMatchConfig(mmEvent48);
+  assert.strictEqual(resolved48.authoritativeTotalPairs, 48, '13c: Event 2 resolves to 48 pairs');
+  assert.strictEqual(resolved48.theme?.id, mmTheme48.id, '13c: Event 2 resolves to its 48-pair theme');
+
+  // Verify that an event configured with Catch The Brand theme CANNOT be resolved or used as Memory Match config:
+  const cbTheme = await createTheme({
+    organization_id: org.id,
+    name: 'Catch The Brand Theme',
+    game_type: 'catch-brand',
+    game_slug: 'catch-brand',
+    items_config: [
+      { id: 'item_1', name: 'Durian', points: 10, speedMultiplier: 1, spawnWeight: 50, enabled: true, isHazard: false },
+    ],
+  });
+
+  const crossGameEvent = await createEvent({
+    organization_id: org.id,
+    game_id: mmGame.id,
+    game_theme_id: cbTheme.id,
+    name: 'Cross Game Test Event ' + Date.now(),
+    status: 'live',
+    payment_status: 'PAID',
+    event_status: 'LIVE',
+    starts_at: new Date(Date.now() - 3600000).toISOString(),
+    expires_at: new Date(Date.now() + 86400000).toISOString(),
+  });
+
+  let crossGameFallbackPrevented = false;
+  try {
+    await resolveAuthoritativeMemoryMatchConfig(crossGameEvent);
+  } catch (err: any) {
+    crossGameFallbackPrevented = true;
+    assert.strictEqual(err.code, 'THEME_GAME_MISMATCH', '13c: Expected THEME_GAME_MISMATCH error code');
+  }
+  assert.strictEqual(
+    crossGameFallbackPrevented,
+    true,
+    '13c: Server must reject cross-game configuration fallback to catch-brand'
+  );
+  console.log('  ✓ PASSED: Server authoritatively enforced totalPairs and prevented cross-game fallback');
 
   // Clean up
   await clearEventHighScores(mmEvent.id);

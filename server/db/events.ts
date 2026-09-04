@@ -1299,6 +1299,140 @@ export async function resolveEventGameType(
 }
 
 /**
+ * Resolves the server-authoritative Memory Match configuration for an event.
+ * Follows the strict resolution hierarchy:
+ * submitted event
+ *       ↓
+ * authoritative event/theme/game configuration
+ *       ↓
+ * Memory Match configuration
+ *       ↓
+ * authoritative totalPairs
+ *
+ * Enforces:
+ * 1. Resolves actual event and theme from authoritative database/store.
+ * 2. Theme must belong to Memory Match (cannot fall back to another game's configuration e.g. catch-brand).
+ * 3. Never trusts client-provided metadata.totalPairs.
+ */
+export async function resolveAuthoritativeMemoryMatchConfig(
+  event: any,
+  env?: Record<string, any>
+): Promise<{
+  authoritativeTotalPairs: number;
+  theme: any | null;
+  gameConfig: any | null;
+  gameType: string;
+}> {
+  if (!event) {
+    const err: any = new Error('Event not found');
+    err.status = 404;
+    err.code = 'EVENT_NOT_FOUND';
+    throw err;
+  }
+
+  // 1. Resolve event game type
+  const gameType = await resolveEventGameType(event, env);
+  if (gameType !== 'memory-match') {
+    const err: any = new Error(
+      `Event game type mismatch: Expected 'memory-match' but event is '${gameType}'. Cross-game configuration fallback is forbidden.`
+    );
+    err.status = 422;
+    err.code = 'INVALID_GAME_TYPE';
+    throw err;
+  }
+
+  // 2. Resolve theme
+  let themeRecord: any = event.game_theme || event.theme || null;
+  const themeId = event.game_theme_id || event.theme_id || (themeRecord && themeRecord.id);
+  if (!themeRecord && themeId) {
+    try {
+      themeRecord = await getThemeById(themeId, env);
+    } catch {
+      themeRecord = null;
+    }
+  }
+
+  // 3. Cross-game theme verification (cannot fall back to another game's configuration)
+  if (themeRecord) {
+    const themeGameType = (themeRecord.game_type || themeRecord.game_slug || '').toLowerCase().trim();
+    if (themeGameType && themeGameType !== 'memory-match') {
+      const err: any = new Error(
+        `Theme game mismatch: Event requires Memory Match, but theme is configured for '${themeGameType}'. Cross-game configuration fallback is forbidden.`
+      );
+      err.status = 422;
+      err.code = 'THEME_GAME_MISMATCH';
+      throw err;
+    }
+
+    if (
+      themeRecord.base_theme_id === 'carnival' ||
+      themeRecord.id === 'carnival' ||
+      themeRecord.base_theme_id === 'catch-brand' ||
+      themeRecord.id === 'catch-brand'
+    ) {
+      const err: any = new Error(
+        `Theme game mismatch: Theme '${themeRecord.id}' belongs to catch-brand. Cross-game configuration fallback is forbidden.`
+      );
+      err.status = 422;
+      err.code = 'THEME_GAME_MISMATCH';
+      throw err;
+    }
+  }
+
+  // 4. Resolve Memory Match configuration (event custom override first, then theme game_config)
+  let rawConfig = event.game_config || themeRecord?.game_config || null;
+  if (typeof rawConfig === 'string') {
+    try {
+      rawConfig = JSON.parse(rawConfig);
+    } catch {
+      rawConfig = null;
+    }
+  }
+
+  let authoritativeTotalPairs = 8; // Default 4x4 layout = 8 pairs
+
+  if (rawConfig && typeof rawConfig === 'object') {
+    // Priority A: Explicit totalPairs / total_pairs
+    if (typeof rawConfig.totalPairs === 'number' && rawConfig.totalPairs > 0) {
+      authoritativeTotalPairs = Math.floor(rawConfig.totalPairs);
+    } else if (typeof rawConfig.total_pairs === 'number' && rawConfig.total_pairs > 0) {
+      authoritativeTotalPairs = Math.floor(rawConfig.total_pairs);
+    } else if (typeof rawConfig.board?.totalPairs === 'number' && rawConfig.board.totalPairs > 0) {
+      authoritativeTotalPairs = Math.floor(rawConfig.board.totalPairs);
+    } else if (typeof rawConfig.gameplay?.totalPairs === 'number' && rawConfig.gameplay.totalPairs > 0) {
+      authoritativeTotalPairs = Math.floor(rawConfig.gameplay.totalPairs);
+    } else {
+      // Priority B: Board/Grid rows and cols
+      const rows = Number(rawConfig.board?.rows) || Number(rawConfig.grid?.rows);
+      const cols = Number(rawConfig.board?.cols) || Number(rawConfig.grid?.cols);
+      if (rows > 0 && cols > 0) {
+        const totalCards = (rows * cols) % 2 === 0 ? rows * cols : rows * cols - 1;
+        const calculatedPairs = Math.floor(totalCards / 2);
+        if (calculatedPairs > 0) {
+          authoritativeTotalPairs = calculatedPairs;
+        }
+      } else if (Array.isArray(rawConfig.pairs) && rawConfig.pairs.length > 0) {
+        // Priority C: Pairs array length
+        authoritativeTotalPairs = rawConfig.pairs.length;
+      }
+    }
+  } else if (themeRecord && Array.isArray(themeRecord.items_config) && themeRecord.items_config.length > 0) {
+    // Legacy fallback ONLY if theme is verified Memory Match
+    const themeGameType = (themeRecord.game_type || themeRecord.game_slug || '').toLowerCase().trim();
+    if (themeGameType === 'memory-match' || (!themeGameType && !themeRecord.basket_config)) {
+      authoritativeTotalPairs = Math.min(themeRecord.items_config.length, 8);
+    }
+  }
+
+  return {
+    authoritativeTotalPairs,
+    theme: themeRecord,
+    gameConfig: rawConfig,
+    gameType: 'memory-match',
+  };
+}
+
+/**
  * Create a new Event record in the database.
  * Verifies that the referenced Game exists and is active.
  * Verifies that the referenced Game Theme belongs to the chosen Game and Organization.

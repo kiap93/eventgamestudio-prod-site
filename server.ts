@@ -2519,12 +2519,18 @@ app.post('/api/events/:eventId/high-scores', highScoreRateLimiter, async (req, r
       return;
     }
 
+    const incomingSessionId =
+      session_id !== undefined ? session_id :
+      sessionId !== undefined ? sessionId :
+      (metadata && typeof metadata === 'object' && metadata.sessionId !== undefined ? metadata.sessionId :
+      (metadata && typeof metadata === 'object' && metadata.session_id !== undefined ? metadata.session_id : undefined));
+
     const result = await submitEventScore({
       event_id: eventId,
       player_name,
       score: Number(score),
-      session_id: session_id || sessionId,
-      metadata: typeof metadata === 'object' ? metadata : {},
+      session_id: incomingSessionId,
+      metadata: typeof metadata === 'object' && metadata ? metadata : {},
     });
 
     res.status(201).json({
@@ -2585,12 +2591,18 @@ app.post('/api/public/events/:publicToken/high-scores', highScoreRateLimiter, as
       return;
     }
 
+    const incomingSessionId =
+      session_id !== undefined ? session_id :
+      sessionId !== undefined ? sessionId :
+      (metadata && typeof metadata === 'object' && metadata.sessionId !== undefined ? metadata.sessionId :
+      (metadata && typeof metadata === 'object' && metadata.session_id !== undefined ? metadata.session_id : undefined));
+
     const result = await submitEventScore({
       event_id: event.id,
       player_name,
       score: Number(score),
-      session_id: session_id || sessionId,
-      metadata: typeof metadata === 'object' ? metadata : {},
+      session_id: incomingSessionId,
+      metadata: typeof metadata === 'object' && metadata ? metadata : {},
     });
 
     res.status(201).json({

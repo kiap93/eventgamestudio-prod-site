@@ -10,6 +10,8 @@ import {
   setOutstandingBalance,
   addOutstandingBalance,
   clearOutstandingBalance,
+  cancelActiveCheckoutSession,
+  expireActiveCheckoutSession,
   toCents,
   fromCents,
 } from '../db/wallet.js';
@@ -20,6 +22,8 @@ export {
   setOutstandingBalance,
   addOutstandingBalance,
   clearOutstandingBalance,
+  cancelActiveCheckoutSession,
+  expireActiveCheckoutSession,
 };
 
 /**
@@ -353,28 +357,74 @@ export function verifyWebhookSignature(
  * - Do NOT charge more than actual amount owed
  * - Outstanding balance remains in DB until confirmed successful settlement
  * - Replaces any expired/cancelled attempt without losing outstanding balance
+ * - Prevents duplicate active Stripe Checkout Sessions for the same top-up order
+ * - Safely deduplicates concurrent requests / double-clicks
  */
+
+// Per-order in-flight session creation mutex / promise de-duplication
+const inFlightCheckoutSessions = new Map<string, Promise<PaymentSessionResult>>();
+
+export function _clearInFlightCheckoutSessionsForTests() {
+  inFlightCheckoutSessions.clear();
+}
+
+export function _getInFlightCheckoutSessionsCount() {
+  return inFlightCheckoutSessions.size;
+}
+
 export async function createPaymentSession(
+  config: PaymentSessionConfig
+): Promise<PaymentSessionResult> {
+  const { order } = config;
+  if (!order || !order.id) {
+    throw new Error('Valid top-up order is required to create a payment session');
+  }
+
+  // 1. IN-FLIGHT CONCURRENCY DEDUPLICATION (Double-click / simultaneous request protection)
+  // If a session creation is already in-flight for this exact order, await and return the exact same promise!
+  const existingInFlight = inFlightCheckoutSessions.get(order.id);
+  if (existingInFlight) {
+    return await existingInFlight;
+  }
+
+  const sessionPromise = (async () => {
+    try {
+      return await executeCreatePaymentSession(config);
+    } finally {
+      inFlightCheckoutSessions.delete(order.id);
+    }
+  })();
+
+  inFlightCheckoutSessions.set(order.id, sessionPromise);
+  return await sessionPromise;
+}
+
+async function executeCreatePaymentSession(
   config: PaymentSessionConfig
 ): Promise<PaymentSessionResult> {
   const { order, originUrl, customerEmail, env, payableAmount } = config;
 
-  if (order.status !== 'PENDING') {
-    throw new Error(`Cannot create payment session for order in status ${order.status}. Only PENDING orders can be checked out.`);
-  }
+  // 1. Always re-fetch the freshest order from the authoritative database/cache
+  const currentOrder = (await getTopupOrderById(order.id, env)) || order;
 
-  // Reject checkout for orders with unsupported payment methods
-  if (order.payment_method && !isPaymentMethodSupported(order.payment_method)) {
+  if (currentOrder.status !== 'PENDING') {
     throw new Error(
-      `Unsupported payment method '${order.payment_method}'. Currently supported payment methods: ${SUPPORTED_PAYMENT_METHODS.map((m) => m.id).join(', ')}.`
+      `Cannot create payment session for order in status ${currentOrder.status}. Only PENDING orders can be checked out.`
     );
   }
 
-  // 1. Determine Current Payable Amount and Existing Outstanding Amount
-  const currentPayable = payableAmount !== undefined ? Number(payableAmount) : Number(order.top_up_amount);
-  const existingOutstanding = await getOutstandingBalance(order.organization_id, env);
+  // Reject checkout for orders with unsupported payment methods
+  if (currentOrder.payment_method && !isPaymentMethodSupported(currentOrder.payment_method)) {
+    throw new Error(
+      `Unsupported payment method '${currentOrder.payment_method}'. Currently supported payment methods: ${SUPPORTED_PAYMENT_METHODS.map((m) => m.id).join(', ')}.`
+    );
+  }
 
-  // 2. Server-Authoritative Evaluation of Total Due
+  // 2. Determine Current Payable Amount and Existing Outstanding Amount
+  const currentPayable = payableAmount !== undefined ? Number(payableAmount) : Number(currentOrder.top_up_amount);
+  const existingOutstanding = await getOutstandingBalance(currentOrder.organization_id, env);
+
+  // 3. Server-Authoritative Evaluation of Total Due
   const evaluation = evaluatePaymentAmount(currentPayable, existingOutstanding);
   const totalDue = evaluation.totalDue;
 
@@ -385,9 +435,9 @@ export async function createPaymentSession(
       checkoutUrl: '',
       paymentReference: '',
       paymentMethod: '',
-      orderId: order.id,
+      orderId: currentOrder.id,
       amount: 0,
-      currency: order.currency,
+      currency: currentOrder.currency,
       expiresAt: '',
       totalDue: 0,
       payableAmount: currentPayable,
@@ -401,16 +451,16 @@ export async function createPaymentSession(
   // Case 2: RM0.01–RM1.99 -> Do NOT create Checkout Session. Persist amount as outstanding balance!
   if (evaluation.action === 'PERSIST_OUTSTANDING') {
     // Persist totalDue as the organization's new outstanding balance
-    await setOutstandingBalance(order.organization_id, totalDue, env);
+    await setOutstandingBalance(currentOrder.organization_id, totalDue, env);
 
     // Update top-up order record with outstanding metadata
     try {
       await attachCheckoutSessionToTopupOrder(
-        order.id,
+        currentOrder.id,
         {
-          sessionId: `outstanding_${order.id}`,
+          sessionId: `outstanding_${currentOrder.id}`,
           checkoutUrl: '',
-          paymentReference: `OUTSTANDING_${order.id}`,
+          paymentReference: `OUTSTANDING_${currentOrder.id}`,
           paymentMethod: 'outstanding_balance',
           totalDue,
           payableAmount: currentPayable,
@@ -419,17 +469,17 @@ export async function createPaymentSession(
         env
       );
     } catch (attachErr) {
-      console.warn(`[Payment Session] Could not record outstanding metadata on order ${order.id}:`, attachErr);
+      console.warn(`[Payment Session] Could not record outstanding metadata on order ${currentOrder.id}:`, attachErr);
     }
 
     return {
       sessionId: '',
       checkoutUrl: '',
-      paymentReference: `OUTSTANDING_${order.id}`,
+      paymentReference: `OUTSTANDING_${currentOrder.id}`,
       paymentMethod: 'outstanding_balance',
-      orderId: order.id,
+      orderId: currentOrder.id,
       amount: totalDue,
-      currency: order.currency,
+      currency: currentOrder.currency,
       expiresAt: '',
       totalDue,
       payableAmount: currentPayable,
@@ -440,7 +490,7 @@ export async function createPaymentSession(
     };
   }
 
-  // Case 3: RM2.00+ -> Create Stripe Checkout Session for totalDue
+  // Case 3: RM2.00+ -> Check if active valid Checkout Session ALREADY exists!
   const baseUrl = originUrl || (typeof process !== 'undefined' ? process.env.APP_URL : '') || '';
   const stripe = getStripeClient(env);
   const isProduction =
@@ -458,61 +508,181 @@ export async function createPaymentSession(
     throw err;
   }
 
+  // Check for existing checkout session on currentOrder
+  const existingSessionId =
+    currentOrder.metadata?.stripe_session_id ||
+    currentOrder.metadata?.sessionId;
+  let existingCheckoutUrl = currentOrder.metadata?.checkout_url;
+  let existingExpiresAt =
+    currentOrder.metadata?.checkout_expires_at ||
+    currentOrder.expired_at ||
+    currentOrder.metadata?.expiresAt;
+
+  const isSessionCancelled =
+    Boolean(currentOrder.metadata?.checkout_cancelled) ||
+    Boolean(currentOrder.metadata?.cancelled_at) ||
+    currentOrder.metadata?.session_status === 'cancelled' ||
+    currentOrder.metadata?.session_status === 'CANCELLED';
+
+  let isSessionActiveAndValid = false;
+  let sessionInvalidReason = '';
+
+  if (existingSessionId && !isSessionCancelled) {
+    let isTimestampExpired = false;
+    if (existingExpiresAt) {
+      const expiresTime = new Date(existingExpiresAt).getTime();
+      if (!isNaN(expiresTime) && expiresTime <= Date.now()) {
+        isTimestampExpired = true;
+        sessionInvalidReason = 'checkout_session_expired';
+      }
+    }
+
+    if (!isTimestampExpired) {
+      if (stripe && existingSessionId.startsWith('cs_') && !existingSessionId.startsWith('cs_egs_')) {
+        try {
+          const stripeSession = await stripe.checkout.sessions.retrieve(existingSessionId);
+          if (stripeSession.status === 'open') {
+            if (stripeSession.expires_at && stripeSession.expires_at * 1000 <= Date.now()) {
+              isSessionActiveAndValid = false;
+              sessionInvalidReason = 'stripe_session_expired';
+            } else {
+              isSessionActiveAndValid = true;
+              if (!existingCheckoutUrl && stripeSession.url) {
+                existingCheckoutUrl = stripeSession.url;
+              }
+              if (stripeSession.expires_at) {
+                existingExpiresAt = new Date(stripeSession.expires_at * 1000).toISOString();
+              }
+            }
+          } else if (stripeSession.status === 'expired') {
+            isSessionActiveAndValid = false;
+            sessionInvalidReason = 'stripe_session_expired';
+          } else if (stripeSession.status === 'complete' || stripeSession.payment_status === 'paid') {
+            isSessionActiveAndValid = false;
+            sessionInvalidReason = 'stripe_session_already_paid';
+          } else {
+            isSessionActiveAndValid = false;
+            sessionInvalidReason = `stripe_session_status_${stripeSession.status}`;
+          }
+        } catch (retrieveErr: any) {
+          console.warn(`[Payment Checkout] Failed to retrieve Stripe session ${existingSessionId}:`, retrieveErr.message);
+          isSessionActiveAndValid = false;
+          sessionInvalidReason = 'stripe_session_retrieve_failed';
+        }
+      } else {
+        // Mock / local test mode session: active if checkoutUrl exists and not expired/cancelled
+        if (existingCheckoutUrl) {
+          isSessionActiveAndValid = true;
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // IF ACTIVE VALID SESSION EXISTS: REUSE IT! NEVER CREATE DUPLICATE SESSIONS!
+  // --------------------------------------------------------------------------
+  if (isSessionActiveAndValid && existingSessionId) {
+    return {
+      sessionId: existingSessionId,
+      checkoutUrl: existingCheckoutUrl || `${baseUrl}/wallet/top-up?order_id=${currentOrder.id}&session_id=${existingSessionId}&checkout=true`,
+      paymentReference: currentOrder.payment_reference || `STRIPE_${existingSessionId}`,
+      paymentMethod: currentOrder.payment_method || 'card',
+      orderId: currentOrder.id,
+      amount: currentOrder.total_due || Number(currentOrder.top_up_amount) || totalDue,
+      currency: currentOrder.currency,
+      expiresAt: existingExpiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      totalDue: currentOrder.total_due || Number(currentOrder.top_up_amount) || totalDue,
+      payableAmount: currentOrder.payable_amount !== undefined ? currentOrder.payable_amount : currentPayable,
+      outstandingAmount: currentOrder.included_outstanding_amount !== undefined ? currentOrder.included_outstanding_amount : existingOutstanding,
+      sessionCreated: false, // Flag explicitly indicating reused session, not newly created
+      status: 'SESSION_CREATED',
+      message: 'Active valid Stripe Checkout Session reused',
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // CREATE NEW CHECKOUT SESSION (When previous session is expired/cancelled/missing)
+  // --------------------------------------------------------------------------
+  const previousSessions = Array.isArray(currentOrder.metadata?.previous_sessions)
+    ? [...currentOrder.metadata.previous_sessions]
+    : [];
+
+  if (existingSessionId) {
+    previousSessions.push({
+      sessionId: existingSessionId,
+      checkoutUrl: existingCheckoutUrl,
+      expiredAt: existingExpiresAt,
+      invalidatedAt: new Date().toISOString(),
+      reason: sessionInvalidReason || (isSessionCancelled ? 'session_cancelled' : 'session_invalid_or_expired'),
+    });
+  }
+
+  const attempt = (Number(currentOrder.metadata?.checkout_attempt) || 1) + 1;
+
   let sessionId = `cs_egs_${crypto.randomBytes(16).toString('hex')}`;
-  let checkoutUrl = `${baseUrl}/wallet/top-up?order_id=${order.id}&session_id=${sessionId}&checkout=true`;
-  let paymentReference = `PAY_REF_${order.id.slice(0, 8).toUpperCase()}_${Date.now()}`;
+  let checkoutUrl = `${baseUrl}/wallet/top-up?order_id=${currentOrder.id}&session_id=${sessionId}&checkout=true`;
+  let paymentReference = `PAY_REF_${currentOrder.id.slice(0, 8).toUpperCase()}_${Date.now()}`;
   let paymentMethod = 'card';
   let expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-  // If Stripe API secret key is configured, create live Stripe Checkout Session
+  // If Stripe API secret key is configured, create live Stripe Checkout Session with idempotency key
   if (stripe) {
     try {
       const formattedAmountCents = toCents(totalDue);
       const lineItemName =
         existingOutstanding > 0
-          ? `Wallet Top-Up: ${order.currency} ${totalDue.toFixed(2)} (includes RM${existingOutstanding.toFixed(2)} outstanding)`
-          : `Wallet Top-Up: ${order.currency} ${totalDue.toFixed(2)}`;
+          ? `Wallet Top-Up: ${currentOrder.currency} ${totalDue.toFixed(2)} (includes RM${existingOutstanding.toFixed(2)} outstanding)`
+          : `Wallet Top-Up: ${currentOrder.currency} ${totalDue.toFixed(2)}`;
 
-      const stripeSession = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [
-          {
-            price_data: {
-              currency: order.currency.toLowerCase(),
-              product_data: {
-                name: lineItemName,
-                description: `EventGameStudio Wallet Top-Up for organization ${order.organization_id}`,
+      const idempotencyKey = `stripe_cs_${currentOrder.id}_att_${attempt}_${formattedAmountCents}`;
+
+      const stripeSession = await stripe.checkout.sessions.create(
+        {
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              price_data: {
+                currency: currentOrder.currency.toLowerCase(),
+                product_data: {
+                  name: lineItemName,
+                  description: `EventGameStudio Wallet Top-Up for organization ${currentOrder.organization_id}`,
+                },
+                unit_amount: formattedAmountCents,
               },
-              unit_amount: formattedAmountCents,
+              quantity: 1,
             },
-            quantity: 1,
-          },
-        ],
-        mode: 'payment',
-        customer_email: customerEmail || undefined,
-        success_url: `${baseUrl}/wallet/top-up?order_id=${order.id}&session_id={CHECKOUT_SESSION_ID}&status=success`,
-        cancel_url: `${baseUrl}/wallet/top-up?order_id=${order.id}&status=cancelled`,
-        metadata: {
-          order_id: order.id,
-          organization_id: order.organization_id,
-          user_id: order.user_id || '',
-          payable_amount: currentPayable.toFixed(2),
-          outstanding_amount: existingOutstanding.toFixed(2),
-          total_due: totalDue.toFixed(2),
-          purpose: 'wallet_top_up',
-        },
-        payment_intent_data: {
+          ],
+          mode: 'payment',
+          customer_email: customerEmail || undefined,
+          success_url: `${baseUrl}/wallet/top-up?order_id=${currentOrder.id}&session_id={CHECKOUT_SESSION_ID}&status=success`,
+          cancel_url: `${baseUrl}/wallet/top-up?order_id=${currentOrder.id}&status=cancelled`,
           metadata: {
-            order_id: order.id,
-            organization_id: order.organization_id,
-            user_id: order.user_id || '',
+            order_id: currentOrder.id,
+            organization_id: currentOrder.organization_id,
+            user_id: currentOrder.user_id || '',
             payable_amount: currentPayable.toFixed(2),
             outstanding_amount: existingOutstanding.toFixed(2),
             total_due: totalDue.toFixed(2),
             purpose: 'wallet_top_up',
+            checkout_attempt: attempt.toString(),
+          },
+          payment_intent_data: {
+            metadata: {
+              order_id: currentOrder.id,
+              organization_id: currentOrder.organization_id,
+              user_id: currentOrder.user_id || '',
+              payable_amount: currentPayable.toFixed(2),
+              outstanding_amount: existingOutstanding.toFixed(2),
+              total_due: totalDue.toFixed(2),
+              purpose: 'wallet_top_up',
+              checkout_attempt: attempt.toString(),
+            },
           },
         },
-      });
+        {
+          idempotencyKey,
+        }
+      );
 
       sessionId = stripeSession.id;
       checkoutUrl = stripeSession.url || checkoutUrl;
@@ -530,12 +700,12 @@ export async function createPaymentSession(
   // Record PAYMENT_CREATED audit event
   await recordWalletAuditEvent(
     {
-      organizationId: order.organization_id,
+      organizationId: currentOrder.organization_id,
       eventType: 'PAYMENT_CREATED',
-      orderId: order.id,
+      orderId: currentOrder.id,
       paymentReference,
       amount: totalDue,
-      currency: order.currency,
+      currency: currentOrder.currency,
       metadata: {
         sessionId,
         expiresAt,
@@ -544,6 +714,7 @@ export async function createPaymentSession(
         payableAmount: currentPayable,
         outstandingAmount: existingOutstanding,
         totalDue,
+        checkoutAttempt: attempt,
       },
     },
     env
@@ -552,7 +723,7 @@ export async function createPaymentSession(
   // Attach session info and expiration window to the top-up order record
   try {
     await attachCheckoutSessionToTopupOrder(
-      order.id,
+      currentOrder.id,
       {
         sessionId,
         checkoutUrl,
@@ -562,11 +733,16 @@ export async function createPaymentSession(
         totalDue,
         payableAmount: currentPayable,
         includedOutstandingAmount: existingOutstanding,
+        extraMetadata: {
+          checkout_attempt: attempt,
+          checkout_cancelled: false,
+          previous_sessions: previousSessions,
+        },
       },
       env
     );
   } catch (attachErr) {
-    console.warn(`[Payment Session] Could not attach checkout session to order ${order.id}:`, attachErr);
+    console.warn(`[Payment Session] Could not attach checkout session to order ${currentOrder.id}:`, attachErr);
   }
 
   return {
@@ -574,16 +750,16 @@ export async function createPaymentSession(
     checkoutUrl,
     paymentReference,
     paymentMethod,
-    orderId: order.id,
+    orderId: currentOrder.id,
     amount: totalDue,
-    currency: order.currency,
+    currency: currentOrder.currency,
     expiresAt,
     totalDue,
     payableAmount: currentPayable,
     outstandingAmount: existingOutstanding,
     sessionCreated: true,
     status: 'SESSION_CREATED',
-    message: evaluation.message,
+    message: 'Stripe Checkout Session created successfully',
   };
 }
 

@@ -21,6 +21,7 @@ import {
   isEventBeforeStartDate,
   localEventsCache,
   resolveEventGameType,
+  resolveAuthoritativeMemoryMatchConfig,
 } from './events.js';
 import { isUUID, getThemeById } from './themes.js';
 import {
@@ -36,6 +37,125 @@ import crypto from 'node:crypto';
 // Local storage fallback file path for mock / test environments
 const LOCAL_HIGH_SCORES_FILE = path.join(process.cwd(), 'uploads', 'event_high_scores.json');
 const TEST_SCORES_CLEARED_FILE = path.join(process.cwd(), 'uploads', 'event_test_scores_cleared.json');
+
+/**
+ * Safe Session ID allowlist regex:
+ * Supports:
+ * - Catch The Brand generated IDs: cb_[timestamp]_[rand]
+ * - Memory Match generated IDs: mm_[timestamp]_[rand]
+ * - Standard UUIDs: e.g. 550e8400-e29b-41d4-a716-446655440000
+ * - Platform / test tokens: session_[...], test_session_[...], cs_egs_[...]
+ *
+ * Strictly forbids:
+ * - Empty strings and whitespace
+ * - Values exceeding 100 characters
+ * - Quotes (', ", `)
+ * - PostgREST / SQL filter characters (., ,, (, ), :, ;, =, %, etc.)
+ * - Any character outside [a-zA-Z0-9_-]
+ */
+export const SAFE_SESSION_ID_REGEX = /^[a-zA-Z0-9_-]{1,100}$/;
+
+export interface SessionIdValidationResult {
+  isValid: boolean;
+  error?: string;
+  code?: string;
+  status?: number;
+}
+
+export function checkSessionIdValidity(sessionId: unknown): SessionIdValidationResult {
+  if (sessionId === undefined || sessionId === null) {
+    return {
+      isValid: false,
+      error: 'Session ID cannot be empty',
+      code: 'INVALID_SESSION_ID',
+      status: 422,
+    };
+  }
+
+  if (typeof sessionId !== 'string') {
+    return {
+      isValid: false,
+      error: 'Session ID must be a string',
+      code: 'INVALID_SESSION_ID',
+      status: 422,
+    };
+  }
+
+  const trimmed = sessionId.trim();
+  if (trimmed.length === 0) {
+    return {
+      isValid: false,
+      error: 'Session ID cannot be empty',
+      code: 'INVALID_SESSION_ID',
+      status: 422,
+    };
+  }
+
+  if (trimmed.length > 100) {
+    return {
+      isValid: false,
+      error: `Session ID is excessively long (${trimmed.length} characters, maximum 100 allowed)`,
+      code: 'INVALID_SESSION_ID',
+      status: 422,
+    };
+  }
+
+  if (trimmed.includes("'") || trimmed.includes('"') || trimmed.includes('`')) {
+    return {
+      isValid: false,
+      error: 'Session ID contains invalid characters: quotes are not allowed',
+      code: 'INVALID_SESSION_ID',
+      status: 422,
+    };
+  }
+
+  // Filter-expression alteration characters: PostgREST commas, dots, parentheses, semicolons, colons, slashes, operators, spaces
+  if (/[,.();:=&%\\/$\s*+~!?^<>{}\[\]|]/.test(trimmed)) {
+    return {
+      isValid: false,
+      error: 'Session ID contains invalid filter-expression characters',
+      code: 'INVALID_SESSION_ID',
+      status: 422,
+    };
+  }
+
+  if (!SAFE_SESSION_ID_REGEX.test(trimmed)) {
+    return {
+      isValid: false,
+      error: 'Malformed session ID: only alphanumeric characters, underscores, and hyphens are allowed',
+      code: 'INVALID_SESSION_ID',
+      status: 422,
+    };
+  }
+
+  return { isValid: true };
+}
+
+export function isValidSessionId(sessionId: unknown): boolean {
+  return checkSessionIdValidity(sessionId).isValid;
+}
+
+export function validateSessionId(sessionId: unknown, options?: { required?: boolean }): string {
+  if (sessionId === undefined) {
+    if (options?.required) {
+      const err: any = new Error('Session ID cannot be empty');
+      err.status = 422;
+      err.code = 'INVALID_SESSION_ID';
+      throw err;
+    }
+    return `session_${crypto.randomUUID().replace(/-/g, '')}`;
+  }
+
+  const result = checkSessionIdValidity(sessionId);
+  if (!result.isValid) {
+    const err: any = new Error(result.error);
+    err.status = result.status || 422;
+    err.code = result.code || 'INVALID_SESSION_ID';
+    throw err;
+  }
+
+  return (sessionId as string).trim();
+}
 
 // In-memory cache for quick access and test fallback: Map<eventId, EventHighScoreRecord[]>
 export const localHighScoresCache = new Map<string, EventHighScoreRecord[]>();
@@ -565,39 +685,52 @@ export async function submitEventScore(
     throw err;
   }
 
-  // Session ID extraction & normalization
-  const rawSessionId =
-    params.session_id ||
-    params.sessionId ||
-    metadata.sessionId ||
-    metadata.session_id ||
-    metadata.playId ||
-    metadata.play_id;
-  const cleanSessionId = typeof rawSessionId === 'string' && rawSessionId.trim() ? rawSessionId.trim() : undefined;
+  // Session ID extraction & strict validation
+  const hasProvidedSessionId =
+    'session_id' in params ||
+    'sessionId' in params ||
+    Boolean(metadata && ('sessionId' in metadata || 'session_id' in metadata || 'playId' in metadata || 'play_id' in metadata));
 
-  if (cleanSessionId) {
-    metadata.sessionId = cleanSessionId;
-    metadata.session_id = cleanSessionId;
+  const candidateSessionId =
+    params.session_id !== undefined ? params.session_id :
+    params.sessionId !== undefined ? params.sessionId :
+    metadata.sessionId !== undefined ? metadata.sessionId :
+    metadata.session_id !== undefined ? metadata.session_id :
+    metadata.playId !== undefined ? metadata.playId :
+    metadata.play_id !== undefined ? metadata.play_id :
+    undefined;
+
+  if (hasProvidedSessionId) {
+    if (candidateSessionId === undefined || candidateSessionId === null || (typeof candidateSessionId === 'string' && !candidateSessionId.trim())) {
+      const err: any = new Error('Session ID cannot be empty');
+      err.status = 422;
+      err.code = 'INVALID_SESSION_ID';
+      throw err;
+    }
   }
+
+  // Strictly validate candidateSessionId against safe format allowlist
+  const cleanSessionId = validateSessionId(candidateSessionId, { required: hasProvidedSessionId });
+
+  // Consistently synchronize validated session ID across params and metadata
+  params.session_id = cleanSessionId;
+  metadata.sessionId = cleanSessionId;
+  metadata.session_id = cleanSessionId;
 
   // Concurrency guard: deduplicate simultaneous submissions in the same runtime process
-  if (cleanSessionId) {
-    const inFlightKey = `${event_id.trim()}:${cleanSessionId}`;
-    const existingInFlight = inFlightScoreSubmissions.get(inFlightKey);
-    if (existingInFlight) {
-      return await existingInFlight;
-    }
-
-    const submissionExecution = executeSubmitEventScore(params, cleanSessionId, metadata, env);
-    inFlightScoreSubmissions.set(inFlightKey, submissionExecution);
-    try {
-      return await submissionExecution;
-    } finally {
-      inFlightScoreSubmissions.delete(inFlightKey);
-    }
+  const inFlightKey = `${event_id.trim()}:${cleanSessionId}`;
+  const existingInFlight = inFlightScoreSubmissions.get(inFlightKey);
+  if (existingInFlight) {
+    return await existingInFlight;
   }
 
-  return await executeSubmitEventScore(params, cleanSessionId, metadata, env);
+  const submissionExecution = executeSubmitEventScore(params, cleanSessionId, metadata, env);
+  inFlightScoreSubmissions.set(inFlightKey, submissionExecution);
+  try {
+    return await submissionExecution;
+  } finally {
+    inFlightScoreSubmissions.delete(inFlightKey);
+  }
 }
 
 /**
@@ -775,6 +908,13 @@ async function executeSubmitEventScore(
     // Database is the authoritative source of truth across worker instances.
     if (isUUID(resolvedEventId)) {
       try {
+        if (!SAFE_SESSION_ID_REGEX.test(cleanSessionId)) {
+          const err: any = new Error('Invalid session ID for database query filter');
+          err.status = 422;
+          err.code = 'INVALID_SESSION_ID';
+          throw err;
+        }
+
         const supabase = getSupabaseServerClient(env);
         const { data: existingDbRow, error: fetchErr } = await supabase
           .from('event_high_scores')
@@ -843,45 +983,46 @@ async function executeSubmitEventScore(
       : (metadata.matchedPairs !== undefined && metadata.matchedPairs !== null && !isNaN(Number(metadata.matchedPairs)) ? Number(metadata.matchedPairs) : undefined);
 
     // Authoritatively resolve total pairs from event configuration:
-    let authoritativeTotalPairs = 8;
-    try {
-      const anyEvent = event as any;
-      const themeId = anyEvent.game_theme_id || anyEvent.theme_id || anyEvent.theme?.id;
-      let themeRecord: any = anyEvent.theme || null;
-      if (!themeRecord && themeId) {
-        themeRecord = await getThemeById(themeId, env);
-      }
-      if (themeRecord?.game_config) {
-        const gc = themeRecord.game_config;
-        const rows = Number(gc.board?.rows) || Number(gc.grid?.rows);
-        const cols = Number(gc.board?.cols) || Number(gc.grid?.cols);
-        if (rows && cols) {
-          const totalCards = rows * cols;
-          if (totalCards % 2 === 0 && totalCards > 0) {
-            authoritativeTotalPairs = totalCards / 2;
-          }
-        } else if (Array.isArray(gc.pairs) && gc.pairs.length > 0) {
-          authoritativeTotalPairs = gc.pairs.length;
-        }
-      }
-    } catch {
-      authoritativeTotalPairs = 8;
+    // submitted event -> authoritative event/theme/game config -> Memory Match config -> authoritative totalPairs
+    const mmConfig = await resolveAuthoritativeMemoryMatchConfig(event, env);
+    const authoritativeTotalPairs = mmConfig.authoritativeTotalPairs;
+
+    // Validate:
+    // 1. matchedPairs >= 0
+    if (typeof matchedPairs !== 'number' || isNaN(matchedPairs) || matchedPairs < 0 || !Number.isInteger(matchedPairs)) {
+      const err: any = new Error('Matched pairs must be a non-negative integer');
+      err.status = 422;
+      err.code = 'INVALID_MEMORY_MATCH_SCORE';
+      throw err;
     }
 
-    // Client cannot change totalPairs by sending metadata:
-    if (
-      metadata.totalPairs !== undefined &&
-      metadata.totalPairs !== null &&
-      Number(metadata.totalPairs) !== authoritativeTotalPairs
-    ) {
+    // 2. matchedPairs <= authoritative totalPairs
+    if (matchedPairs > authoritativeTotalPairs) {
       const err: any = new Error(
-        `Client cannot change totalPairs: event configuration requires ${authoritativeTotalPairs} pairs, received ${metadata.totalPairs}`
+        `Matched pairs (${matchedPairs}) cannot exceed authoritative total pairs (${authoritativeTotalPairs})`
       );
       err.status = 422;
       err.code = 'INVALID_MEMORY_MATCH_SCORE';
       throw err;
     }
 
+    // 3. Client claimed totalPairs cannot exceed authoritative totalPairs
+    if (
+      metadata.totalPairs !== undefined &&
+      metadata.totalPairs !== null &&
+      Number(metadata.totalPairs) > authoritativeTotalPairs
+    ) {
+      const err: any = new Error(
+        `Client claimed totalPairs (${metadata.totalPairs}) exceeds authoritative total pairs (${authoritativeTotalPairs})`
+      );
+      err.status = 422;
+      err.code = 'INVALID_MEMORY_MATCH_SCORE';
+      throw err;
+    }
+
+    // NEVER trust client-provided metadata.totalPairs for authoritative score validation!
+    // The server always uses the authoritativeTotalPairs derived from event configuration:
+    // (If actual event = 48 pairs and client claims = 8 pairs, the server still uses 48)
     const totalPairs = authoritativeTotalPairs;
 
     const validation = validateMemoryMatchResult({
@@ -1047,6 +1188,13 @@ async function executeSubmitEventScore(
           error.message?.includes('unique constraint'));
 
       if (isUniqueViolation && cleanSessionId) {
+        if (!SAFE_SESSION_ID_REGEX.test(cleanSessionId)) {
+          const err: any = new Error('Invalid session ID for database query filter');
+          err.status = 422;
+          err.code = 'INVALID_SESSION_ID';
+          throw err;
+        }
+
         // Handled gracefully: another concurrent request/worker won the insert race.
         // Fetch the winner's canonical database record.
         const { data: winningRow } = await supabase

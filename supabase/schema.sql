@@ -1262,6 +1262,7 @@ DECLARE
   v_existing_promo_found BOOLEAN := false;
   v_topup_txn_created BOOLEAN := false;
   v_promo_txn_created BOOLEAN := false;
+  v_included_outstanding NUMERIC(12,2) := 0.00;
 BEGIN
   -- 1. Input validations
   IF p_order_id IS NULL THEN
@@ -1324,6 +1325,7 @@ BEGIN
           'welcome_credit', COALESCE(v_wallet.welcome_credit, 0.00),
           'showcase_credit', COALESCE(v_wallet.showcase_credit, 0.00),
           'topup_credit', COALESCE(v_wallet.topup_credit, 0.00),
+          'outstanding_balance', COALESCE(v_wallet.outstanding_balance, 0.00),
           'currency', COALESCE(v_wallet.currency, 'MYR')
         ),
         'message', 'Top-up order is already marked as PAID and credited (idempotent no-op).'
@@ -1361,9 +1363,11 @@ BEGIN
         welcome_credit,
         showcase_credit,
         topup_credit,
+        outstanding_balance,
         currency
       ) VALUES (
         p_organization_id,
+        0.00,
         0.00,
         0.00,
         0.00,
@@ -1468,10 +1472,23 @@ BEGIN
       v_promo_txn_created := true;
     END IF;
 
+    -- Extract included outstanding balance from order record or metadata
+    v_included_outstanding := GREATEST(
+      0.00,
+      COALESCE(
+        v_order.included_outstanding_amount,
+        NULLIF((v_order.metadata->>'included_outstanding_amount'), '')::numeric,
+        NULLIF((p_metadata->>'included_outstanding_amount'), '')::numeric,
+        0.00
+      )
+    );
+
+    -- ATOMIC UPDATE: Credit paid balance and top-up credit while simultaneously deducting outstanding balance
     UPDATE public.organization_wallets
     SET
       paid_balance = paid_balance + v_order.top_up_amount,
       topup_credit = topup_credit + v_promo_credit,
+      outstanding_balance = GREATEST(0.00, COALESCE(outstanding_balance, 0.00) - v_included_outstanding),
       updated_at = v_now
     WHERE organization_id = p_organization_id
     RETURNING * INTO v_wallet;
@@ -1487,6 +1504,7 @@ BEGIN
         'welcome_credit', v_wallet.welcome_credit,
         'showcase_credit', v_wallet.showcase_credit,
         'topup_credit', v_wallet.topup_credit,
+        'outstanding_balance', COALESCE(v_wallet.outstanding_balance, 0.00),
         'currency', v_wallet.currency
       ),
       'message', 'Top-up order successfully marked as PAID. Wallet credited with RM' || ROUND(v_order.top_up_amount, 2)::text || ' cash balance and RM' || ROUND(v_promo_credit, 2)::text || ' promotional credits.'

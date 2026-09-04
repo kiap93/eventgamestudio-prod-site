@@ -8,7 +8,7 @@ import {
   ThemeVisualsConfig,
   ThemeSoundsConfig,
 } from './types.js';
-import { CATALOG_GAMES } from './games.js';
+import { CATALOG_GAMES, getGameById } from './games.js';
 import crypto from 'node:crypto';
 
 const localThemesCache = new Map<string, GameThemeRecord>();
@@ -1236,6 +1236,8 @@ export async function createTheme(
   params: {
     organization_id: string;
     game_id?: string | null;
+    game_type?: string;
+    game_slug?: string;
     name: string;
     slug?: string;
     description?: string | null;
@@ -1258,37 +1260,65 @@ export async function createTheme(
   const slug = params.slug || params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
   let resolvedGameId = params.game_id;
-  let resolvedGameType = 'catch-brand';
+  let resolvedGameType = params.game_type || 'catch-brand';
   let resolvedGameName = 'Catch The Brand';
-  let resolvedGameSlug = 'catch-brand';
+  let resolvedGameSlug = params.game_slug || 'catch-brand';
 
   if (resolvedGameId) {
-    const { data: g } = await supabase
-      .from('games')
-      .select('id, name, slug, game_type')
-      .eq('id', resolvedGameId)
-      .maybeSingle();
-    if (g) {
-      resolvedGameType = g.game_type || (g.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
-      resolvedGameName = g.name;
-      resolvedGameSlug = g.slug;
-    } else if (resolvedGameId === 'c782cc78-d2f6-4e70-ac90-bbf9824c62f9' || resolvedGameId === 'memory-match') {
-      resolvedGameType = 'memory-match';
-      resolvedGameName = 'Brand Memory Match';
-      resolvedGameSlug = 'memory-match';
+    try {
+      const localGame = await getGameById(resolvedGameId, env);
+      if (localGame) {
+        resolvedGameType = params.game_type || localGame.game_type || (localGame.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+        resolvedGameName = localGame.name;
+        resolvedGameSlug = params.game_slug || localGame.slug;
+      } else {
+        const { data: g } = await supabase
+          .from('games')
+          .select('id, name, slug, game_type')
+          .eq('id', resolvedGameId)
+          .maybeSingle();
+        if (g) {
+          resolvedGameType = params.game_type || g.game_type || (g.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+          resolvedGameName = g.name;
+          resolvedGameSlug = params.game_slug || g.slug;
+        } else if (resolvedGameId === 'c782cc78-d2f6-4e70-ac90-bbf9824c62f9' || resolvedGameId === 'memory-match') {
+          resolvedGameType = 'memory-match';
+          resolvedGameName = 'Brand Memory Match';
+          resolvedGameSlug = 'memory-match';
+        }
+      }
+    } catch {
+      // ignore
     }
   } else {
-    const { data: games } = await supabase
-      .from('games')
-      .select('id, name, slug, game_type')
-      .eq('organization_id', params.organization_id)
-      .limit(1);
-    if (games && games.length > 0) {
-      resolvedGameId = games[0].id;
-      resolvedGameType = games[0].game_type || (games[0].slug === 'memory-match' ? 'memory-match' : 'catch-brand');
-      resolvedGameName = games[0].name;
-      resolvedGameSlug = games[0].slug;
+    try {
+      const { data: games } = await supabase
+        .from('games')
+        .select('id, name, slug, game_type')
+        .eq('organization_id', params.organization_id)
+        .limit(1);
+      if (games && games.length > 0) {
+        resolvedGameId = games[0].id;
+        resolvedGameType = games[0].game_type || (games[0].slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+        resolvedGameName = games[0].name;
+        resolvedGameSlug = games[0].slug;
+      }
+    } catch {
+      // ignore
     }
+  }
+
+  if (
+    !params.game_type &&
+    resolvedGameType !== 'memory-match' &&
+    ((params.name && params.name.toLowerCase().includes('memory')) ||
+      params.game_config?.board ||
+      params.game_config?.totalPairs ||
+      params.game_config?.total_pairs)
+  ) {
+    resolvedGameType = 'memory-match';
+    resolvedGameName = 'Brand Memory Match';
+    resolvedGameSlug = 'memory-match';
   }
 
   const isMemory = resolvedGameType === 'memory-match';

@@ -20,6 +20,8 @@ import {
   createTopupOrder,
   processTopupOrderStatus,
   processEventPayment,
+  getOutstandingBalance,
+  setOutstandingBalance,
 } from './wallet.js';
 import { createOrganization } from './organizations.js';
 import { isSupabaseConfigured } from '../supabase.js';
@@ -198,6 +200,24 @@ async function runProductionAcidTests() {
     createOrgThrewError = true;
   }
   assertTrue(createOrgThrewError, 'createOrganization throws error when Supabase fails in production mode');
+
+  // Test 10: getOutstandingBalance in production when database is down must throw (FAIL CLOSED)
+  let getOutstandingThrewError = false;
+  try {
+    await getOutstandingBalance(testOrgId, mockProdEnv);
+  } catch (err: any) {
+    getOutstandingThrewError = true;
+  }
+  assertTrue(getOutstandingThrewError, 'getOutstandingBalance throws error when Supabase fails in production mode (FAIL CLOSED)');
+
+  // Test 11: setOutstandingBalance in production when database is down must throw (FAIL CLOSED)
+  let setOutstandingThrewError = false;
+  try {
+    await setOutstandingBalance(testOrgId, 100.00, mockProdEnv);
+  } catch (err: any) {
+    setOutstandingThrewError = true;
+  }
+  assertTrue(setOutstandingThrewError, 'setOutstandingBalance throws error when Supabase fails in production mode (FAIL CLOSED)');
 
   console.log('\n======================================================');
   console.log(` RESULTS: ${passed} PASSED, ${failed} FAILED`);

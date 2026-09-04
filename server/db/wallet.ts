@@ -412,21 +412,7 @@ export async function recalculateWalletBalances(
   const topupCredit = Math.max(0, fromCents(topupCreditCents));
 
   const now = new Date().toISOString();
-  let outstandingBalance = localWalletsCache.get(organizationId)?.outstanding_balance || 0;
-  if (isProdDb) {
-    try {
-      const { data: orgWallet } = await supabase
-        .from('organization_wallets')
-        .select('outstanding_balance')
-        .eq('organization_id', organizationId)
-        .maybeSingle();
-      if (orgWallet && orgWallet.outstanding_balance !== undefined && orgWallet.outstanding_balance !== null) {
-        outstandingBalance = Number(orgWallet.outstanding_balance) || 0;
-      }
-    } catch {
-      // ignore
-    }
-  }
+  const outstandingBalance = await getOutstandingBalance(organizationId, env);
 
   const walletRecord: OrganizationWalletRecord = {
     id: localWalletsCache.get(organizationId)?.id || crypto.randomUUID(),
@@ -461,10 +447,16 @@ export async function recalculateWalletBalances(
         { onConflict: 'organization_id' }
       );
       if (upsertError) {
-        console.warn('Notice: could not upsert organization_wallets cache table:', upsertError.message);
+        console.error('Fatal: could not upsert organization_wallets cache table:', upsertError.message);
+        if (!isLocalFallbackAllowed(env)) {
+          throw new Error(`Failed to update organization wallet in database: ${upsertError.message}`);
+        }
       }
     } catch (err: any) {
-      console.warn('Notice writing organization_wallets cache to Supabase:', err.message);
+      console.error('Fatal: writing organization_wallets cache to Supabase failed:', err.message);
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Failed to update organization wallet in database: ${err.message}`);
+      }
     }
     if (isLocalFallbackAllowed(env)) {
       localWalletsCache.set(organizationId, walletRecord);
@@ -531,12 +523,24 @@ export async function getTopupCredit(organizationId: string, env?: Record<string
 
 /**
  * Retrieve the current outstanding balance for an organization.
+ *
+ * PRODUCTION SAFETY:
+ * In production or whenever Supabase is configured:
+ * DB read failure -> FAIL CLOSED (throws error, never silently falls back to local cache).
  */
 export async function getOutstandingBalance(
   organizationId: string,
   env?: Record<string, any>
 ): Promise<number> {
   if (!organizationId) return 0.0;
+
+  const isProd = isProductionEnvironment(env) || !isLocalFallbackAllowed(env);
+
+  // In production, require primary database to be configured
+  if (isProd && !isSupabaseConfigured(env)) {
+    assertProductionSafe('getOutstandingBalance', env);
+  }
+
   if (isSupabaseConfigured(env)) {
     try {
       const supabase = getSupabaseServerClient(env);
@@ -545,19 +549,52 @@ export async function getOutstandingBalance(
         .select('outstanding_balance')
         .eq('organization_id', organizationId)
         .maybeSingle();
-      if (!error && data && data.outstanding_balance !== undefined && data.outstanding_balance !== null) {
-        return Math.max(0, fromCents(toCents(Number(data.outstanding_balance))));
+
+      if (error) {
+        console.error('Fatal: Failed to query outstanding_balance from database:', error);
+        // DB read fails -> FAIL CLOSED in production or when Supabase is configured
+        throw new Error(`Database error querying outstanding balance: ${error.message}`);
       }
+
+      if (data && data.outstanding_balance !== undefined && data.outstanding_balance !== null) {
+        const balance = Math.max(0, fromCents(toCents(Number(data.outstanding_balance))));
+        // Keep local cache in sync only if local fallback is allowed
+        if (isLocalFallbackAllowed(env)) {
+          const cached = localWalletsCache.get(organizationId);
+          if (cached) {
+            cached.outstanding_balance = balance;
+          }
+        }
+        return balance;
+      }
+
+      // No row found in Supabase: brand new organization has 0.00 outstanding balance
+      return 0.0;
     } catch (err: any) {
-      console.warn('Notice querying outstanding_balance from database:', err.message);
+      console.error('Fatal: Database connection failed querying outstanding balance:', err.message);
+      // DB read fails -> FAIL CLOSED
+      if (isProd || isSupabaseConfigured(env)) {
+        throw new Error(`Database error querying outstanding balance: ${err.message}`);
+      }
     }
   }
+
+  if (isProd) {
+    throw new Error('Database error querying outstanding balance: Primary database not available');
+  }
+
+  // Development/Test mock fallback only when Supabase is not configured
+  assertProductionSafe('getOutstandingBalance', env);
   const cached = localWalletsCache.get(organizationId);
   return Math.max(0, fromCents(toCents(cached?.outstanding_balance || 0)));
 }
 
 /**
  * Server-authoritatively persist the outstanding balance for an organization.
+ *
+ * PRODUCTION SAFETY:
+ * In production or whenever Supabase is configured:
+ * DB write failure -> FAIL CLOSED (throws error, never claims success without DB confirmation).
  */
 export async function setOutstandingBalance(
   organizationId: string,
@@ -569,26 +606,84 @@ export async function setOutstandingBalance(
   }
   const numericAmount = Math.max(0, fromCents(toCents(Number(amount) || 0)));
   const now = new Date().toISOString();
+  const isProd = isProductionEnvironment(env) || !isLocalFallbackAllowed(env);
+
+  // In production, require primary database to be configured
+  if (isProd && !isSupabaseConfigured(env)) {
+    assertProductionSafe('setOutstandingBalance', env);
+  }
 
   if (isSupabaseConfigured(env)) {
     try {
       const supabase = getSupabaseServerClient(env);
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('organization_wallets')
-        .update({
-          outstanding_balance: numericAmount,
-          updated_at: now,
-        })
-        .eq('organization_id', organizationId);
+        .upsert(
+          {
+            organization_id: organizationId,
+            outstanding_balance: numericAmount,
+            updated_at: now,
+          },
+          { onConflict: 'organization_id' }
+        )
+        .select('outstanding_balance')
+        .maybeSingle();
 
       if (error) {
-        console.warn('Notice: updating outstanding_balance in database failed:', error.message);
+        console.error('Fatal: Failed to update outstanding_balance in database:', error);
+        // DB write fails -> FAIL CLOSED
+        throw new Error(`Database error updating outstanding balance: ${error.message}`);
       }
+
+      if (!data || data.outstanding_balance === undefined || data.outstanding_balance === null) {
+        console.error('Fatal: Database did not confirm outstanding_balance update');
+        throw new Error('Database did not confirm outstanding balance update');
+      }
+
+      const confirmedAmount = fromCents(toCents(Number(data.outstanding_balance)));
+
+      // Never claim success unless database confirmed the update
+      if (isLocalFallbackAllowed(env)) {
+        const existing = localWalletsCache.get(organizationId);
+        if (existing) {
+          existing.outstanding_balance = confirmedAmount;
+          existing.updated_at = now;
+        } else {
+          localWalletsCache.set(organizationId, {
+            id: crypto.randomUUID(),
+            organization_id: organizationId,
+            paid_balance: 0,
+            welcome_credit: 0,
+            showcase_credit: 0,
+            topup_credit: 0,
+            outstanding_balance: confirmedAmount,
+            currency: 'MYR',
+            welcome_credit_granted: false,
+            showcase_credit_granted: false,
+            created_at: now,
+            updated_at: now,
+          });
+        }
+        saveLocalStores();
+      }
+
+      return confirmedAmount;
     } catch (err: any) {
-      console.warn('Notice writing outstanding_balance to database:', err.message);
+      console.error('Fatal: Error writing outstanding_balance to database:', err.message);
+      // In production or whenever Supabase is configured: FAIL CLOSED!
+      // Never claim outstanding balance was updated successfully if Supabase did not confirm it.
+      if (isProd || isSupabaseConfigured(env)) {
+        throw new Error(`Database error updating outstanding balance: ${err.message}`);
+      }
     }
   }
 
+  if (isProd) {
+    throw new Error('Database error updating outstanding balance: Primary database not available in production');
+  }
+
+  // Development/Test mock fallback only when Supabase is not configured
+  assertProductionSafe('setOutstandingBalance', env);
   const existing = localWalletsCache.get(organizationId);
   if (existing) {
     existing.outstanding_balance = numericAmount;
@@ -2776,7 +2871,7 @@ export async function findTopupOrderByReference(
 ): Promise<TopupOrderRecord | null> {
   if (!referenceOrSessionId || typeof referenceOrSessionId !== 'string') return null;
   const cleanId = referenceOrSessionId.trim();
-  if (!cleanId) return null;
+  if (!cleanId || cleanId.length > 120 || !/^[a-zA-Z0-9_-]{1,120}$/.test(cleanId)) return null;
 
   if (isSupabaseConfigured(env)) {
     const supabase = getSupabaseServerClient(env);
@@ -2999,14 +3094,17 @@ export async function processTopupOrderStatus(
       }
 
       if (newStatus === 'PAID' && !data.is_idempotent_replay) {
-        // Clear outstanding balance if included in this order
+        // Outstanding balance deduction is performed atomically within the process_topup_order_atomic RPC.
+        // If the RPC returned the updated outstanding_balance, it was already settled atomically in the DB transaction.
+        // Only if an older RPC did not handle it (i.e. (data.wallet as any)?.outstanding_balance === undefined)
+        // do we fall back to a separate clearOutstandingBalance call (which is also fail-closed).
         const includedOutstanding = Math.max(
           Number(order.included_outstanding_amount || 0),
           Number(order.metadata?.included_outstanding_amount || 0),
           Number((data.order as any)?.included_outstanding_amount || 0),
           Number((data.order as any)?.metadata?.included_outstanding_amount || 0)
         );
-        if (includedOutstanding > 0) {
+        if (includedOutstanding > 0 && (data.wallet as any)?.outstanding_balance === undefined) {
           await clearOutstandingBalance(order.organization_id, includedOutstanding, env);
         }
 
@@ -3375,6 +3473,7 @@ export async function attachCheckoutSessionToTopupOrder(
     totalDue?: number;
     includedOutstandingAmount?: number;
     payableAmount?: number;
+    extraMetadata?: Record<string, any>;
   },
   env?: Record<string, any>
 ): Promise<TopupOrderRecord | null> {
@@ -3403,6 +3502,7 @@ export async function attachCheckoutSessionToTopupOrder(
       ...(sessionInfo.totalDue !== undefined ? { total_due: sessionInfo.totalDue } : {}),
       ...(sessionInfo.includedOutstandingAmount !== undefined ? { included_outstanding_amount: sessionInfo.includedOutstandingAmount } : {}),
       ...(sessionInfo.payableAmount !== undefined ? { payable_amount: sessionInfo.payableAmount } : {}),
+      ...(sessionInfo.extraMetadata || {}),
     };
 
     const updatePayload: any = {
@@ -3450,6 +3550,7 @@ export async function attachCheckoutSessionToTopupOrder(
       ...(sessionInfo.totalDue !== undefined ? { total_due: sessionInfo.totalDue } : {}),
       ...(sessionInfo.includedOutstandingAmount !== undefined ? { included_outstanding_amount: sessionInfo.includedOutstandingAmount } : {}),
       ...(sessionInfo.payableAmount !== undefined ? { payable_amount: sessionInfo.payableAmount } : {}),
+      ...(sessionInfo.extraMetadata || {}),
     };
     if (sessionInfo.totalDue !== undefined && sessionInfo.totalDue > 0) {
       cachedOrder.top_up_amount = sessionInfo.totalDue;
@@ -3479,4 +3580,106 @@ export async function attachCheckoutSessionToTopupOrder(
   }
 
   return null;
+}
+
+/**
+ * Cancels the active checkout session of a PENDING top-up order.
+ * The order remains in PENDING status, allowing a fresh checkout session to be created.
+ */
+export async function cancelActiveCheckoutSession(
+  orderId: string,
+  reason: string = 'Checkout session cancelled by user',
+  env?: Record<string, any>
+): Promise<TopupOrderRecord | null> {
+  const order = await getTopupOrderById(orderId, env);
+  if (!order || order.status !== 'PENDING') {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const currentMetadata = (order.metadata && typeof order.metadata === 'object') ? order.metadata : {};
+  const updatedMetadata = {
+    ...currentMetadata,
+    checkout_cancelled: true,
+    session_status: 'cancelled',
+    cancelled_at: now,
+    cancel_reason: reason,
+  };
+
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('wallet_topup_orders')
+      .update({
+        metadata: updatedMetadata,
+        updated_at: now,
+      })
+      .eq('id', orderId)
+      .select('*')
+      .maybeSingle();
+
+    if (!error && data) {
+      const updatedOrder = data as TopupOrderRecord;
+      localTopupOrdersCache.set(updatedOrder.id, updatedOrder);
+      return updatedOrder;
+    }
+  }
+
+  // Local fallback
+  order.metadata = updatedMetadata;
+  order.updated_at = now;
+  localTopupOrdersCache.set(order.id, order);
+  saveLocalStores();
+  return order;
+}
+
+/**
+ * Expire the active checkout session of a PENDING top-up order.
+ * Sets the expiration timestamp to the past. The order remains PENDING.
+ */
+export async function expireActiveCheckoutSession(
+  orderId: string,
+  env?: Record<string, any>
+): Promise<TopupOrderRecord | null> {
+  const order = await getTopupOrderById(orderId, env);
+  if (!order || order.status !== 'PENDING') {
+    return null;
+  }
+
+  const expiredTimestamp = new Date(Date.now() - 3600000).toISOString();
+  const now = new Date().toISOString();
+  const currentMetadata = (order.metadata && typeof order.metadata === 'object') ? order.metadata : {};
+  const updatedMetadata = {
+    ...currentMetadata,
+    checkout_expires_at: expiredTimestamp,
+    session_status: 'expired',
+  };
+
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('wallet_topup_orders')
+      .update({
+        expired_at: expiredTimestamp,
+        metadata: updatedMetadata,
+        updated_at: now,
+      })
+      .eq('id', orderId)
+      .select('*')
+      .maybeSingle();
+
+    if (!error && data) {
+      const updatedOrder = data as TopupOrderRecord;
+      localTopupOrdersCache.set(updatedOrder.id, updatedOrder);
+      return updatedOrder;
+    }
+  }
+
+  // Local fallback
+  order.expired_at = expiredTimestamp;
+  order.metadata = updatedMetadata;
+  order.updated_at = now;
+  localTopupOrdersCache.set(order.id, order);
+  saveLocalStores();
+  return order;
 }
