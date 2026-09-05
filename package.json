@@ -18,9 +18,13 @@
     "test:credits": "tsx server/db/wallet_credits.test.ts",
     "test:showcase": "tsx server/db/showcase_reward.test.ts",
     "test:upload-security": "tsx server/db/showcase_direct_upload_security.test.ts",
+    "test:upload-validation": "tsx server/db/upload_magic_bytes_and_svg_rejection.test.ts",
+    "test:bucket-limits": "tsx server/db/storage_bucket_limits.test.ts",
+    "test:auth-bearer": "tsx server/auth_bearer_only.test.ts",
     "test:mm-scoring": "tsx server/db/memory_match_scoring.test.ts",
     "test:score-lifecycle": "tsx server/db/score_environment_lifecycle.test.ts",
-    "test:payment-methods": "tsx server/db/payment_method_alignment.test.ts"
+    "test:payment-methods": "tsx server/db/payment_method_alignment.test.ts",
+    "test:event-permissions": "tsx server/event_permissions.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

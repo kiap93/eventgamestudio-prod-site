@@ -718,11 +718,16 @@ CREATE TRIGGER trg_prevent_event_unauthorized_client_mutations
   EXECUTE FUNCTION public.prevent_event_unauthorized_client_mutations();
 
 -- ------------------------------------------------------------------------------
--- 9. SUPABASE STORAGE SETUP (game-assets bucket)
+-- 9. SUPABASE STORAGE SETUP (game-assets and showcase-media buckets)
 -- ------------------------------------------------------------------------------
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('game-assets', 'game-assets', true)
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES 
+  ('game-assets', 'game-assets', true, 26214400, ARRAY['image/png', 'image/jpeg', 'image/webp', 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/aac']),
+  ('showcase-media', 'showcase-media', true, 209715200, ARRAY['image/png', 'image/jpeg', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime'])
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 DROP POLICY IF EXISTS "Public read access for game-assets" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated users can upload game-assets" ON storage.objects;
@@ -731,12 +736,17 @@ DROP POLICY IF EXISTS "Organization members can upload to their org folder in ga
 DROP POLICY IF EXISTS "Organization members can update their org assets in game-assets" ON storage.objects;
 DROP POLICY IF EXISTS "Organization members can delete their org assets in game-assets" ON storage.objects;
 
+DROP POLICY IF EXISTS "Public read access for showcase-media" ON storage.objects;
+DROP POLICY IF EXISTS "Organization members can upload to their org folder in showcase-media" ON storage.objects;
+DROP POLICY IF EXISTS "Organization members can update their org assets in showcase-media" ON storage.objects;
+DROP POLICY IF EXISTS "Organization members can delete their org assets in showcase-media" ON storage.objects;
+
 -- Public CDN read access (assets like backgrounds and themes are publicly viewable by URL)
 CREATE POLICY "Public read access for game-assets"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'game-assets');
 
--- Strict tenant-scoped upload policy:
+-- Strict tenant-scoped upload policy for game-assets:
 -- Confined to caller's organization path: organizations/<organization_id>/...
 CREATE POLICY "Organization members can upload to their org folder in game-assets"
   ON storage.objects FOR INSERT
@@ -753,7 +763,7 @@ CREATE POLICY "Organization members can upload to their org folder in game-asset
     )
   );
 
--- Strict tenant-scoped update policy
+-- Strict tenant-scoped update policy for game-assets
 CREATE POLICY "Organization members can update their org assets in game-assets"
   ON storage.objects FOR UPDATE
   USING (
@@ -769,11 +779,64 @@ CREATE POLICY "Organization members can update their org assets in game-assets"
     )
   );
 
--- Strict tenant-scoped delete policy
+-- Strict tenant-scoped delete policy for game-assets
 CREATE POLICY "Organization members can delete their org assets in game-assets"
   ON storage.objects FOR DELETE
   USING (
     bucket_id = 'game-assets'
+    AND auth.uid() IS NOT NULL
+    AND (
+      public.is_developer_admin()
+      OR (
+        (storage.foldername(name))[1] = 'organizations'
+        AND (storage.foldername(name))[2] IS NOT NULL
+        AND public.get_org_role(((storage.foldername(name))[2])::uuid) IN ('owner', 'admin')
+      )
+    )
+  );
+
+-- Public CDN read access for showcase-media
+CREATE POLICY "Public read access for showcase-media"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'showcase-media');
+
+-- Strict tenant-scoped upload policy for showcase-media
+CREATE POLICY "Organization members can upload to their org folder in showcase-media"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'showcase-media'
+    AND auth.uid() IS NOT NULL
+    AND (
+      public.is_developer_admin()
+      OR (
+        (storage.foldername(name))[1] = 'organizations'
+        AND (storage.foldername(name))[2] IS NOT NULL
+        AND public.get_org_role(((storage.foldername(name))[2])::uuid) IN ('owner', 'admin', 'designer', 'member')
+      )
+    )
+  );
+
+-- Strict tenant-scoped update policy for showcase-media
+CREATE POLICY "Organization members can update their org assets in showcase-media"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'showcase-media'
+    AND auth.uid() IS NOT NULL
+    AND (
+      public.is_developer_admin()
+      OR (
+        (storage.foldername(name))[1] = 'organizations'
+        AND (storage.foldername(name))[2] IS NOT NULL
+        AND public.get_org_role(((storage.foldername(name))[2])::uuid) IN ('owner', 'admin', 'designer', 'member')
+      )
+    )
+  );
+
+-- Strict tenant-scoped delete policy for showcase-media
+CREATE POLICY "Organization members can delete their org assets in showcase-media"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'showcase-media'
     AND auth.uid() IS NOT NULL
     AND (
       public.is_developer_admin()

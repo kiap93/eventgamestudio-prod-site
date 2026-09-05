@@ -4,13 +4,62 @@ import { ALLOWED_IMAGE_MIME_TYPES, ALLOWED_VIDEO_MIME_TYPES } from './types.js';
 import crypto from 'node:crypto';
 
 export const ASSET_BUCKET = 'game-assets';
+export const SHOWCASE_BUCKET = 'showcase-media';
+
+export const ASSET_BUCKET_FILE_SIZE_LIMIT = 25 * 1024 * 1024; // 25MB
+export const SHOWCASE_BUCKET_FILE_SIZE_LIMIT = 200 * 1024 * 1024; // 200MB
 
 let bucketCheckPromise: Promise<void> | null = null;
 
+export function resetStorageBucketCheckForTesting(): void {
+  bucketCheckPromise = null;
+}
+
+export interface StorageBucketConfig {
+  id: string;
+  name: string;
+  fileSizeLimit: number;
+  allowedMimeTypes?: string[];
+}
+
+export const STORAGE_BUCKET_DEFINITIONS: StorageBucketConfig[] = [
+  {
+    id: ASSET_BUCKET,
+    name: ASSET_BUCKET,
+    fileSizeLimit: ASSET_BUCKET_FILE_SIZE_LIMIT, // 25MB
+    allowedMimeTypes: [
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+      'audio/mpeg',
+      'audio/mp3',
+      'audio/wav',
+      'audio/ogg',
+      'audio/aac',
+    ],
+  },
+  {
+    id: SHOWCASE_BUCKET,
+    name: SHOWCASE_BUCKET,
+    fileSizeLimit: SHOWCASE_BUCKET_FILE_SIZE_LIMIT, // 200MB
+    allowedMimeTypes: [
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
+    ],
+  },
+];
+
 /**
- * Ensure that the game-assets bucket exists in Supabase Storage.
+ * Ensure that both storage buckets exist in Supabase Storage with correct file size limits:
+ * - game-assets: 25MB (general assets: images, audio)
+ * - showcase-media: 200MB (showcase media: images 25MB, videos up to 200MB)
+ * Also actively upgrades existing buckets if their fileSizeLimit was previously configured lower.
  */
-export async function ensureStorageBucket(env?: Record<string, any>): Promise<void> {
+export async function ensureStorageBuckets(env?: Record<string, any>): Promise<void> {
   if (bucketCheckPromise) return bucketCheckPromise;
 
   bucketCheckPromise = (async () => {
@@ -22,16 +71,34 @@ export async function ensureStorageBucket(env?: Record<string, any>): Promise<vo
         return;
       }
 
-      const exists = buckets?.some((b) => b.name === ASSET_BUCKET || b.id === ASSET_BUCKET);
-      if (!exists) {
-        const { error: createError } = await supabase.storage.createBucket(ASSET_BUCKET, {
-          public: true,
-          fileSizeLimit: 10485760, // 10MB
-        });
-        if (createError) {
-          console.warn('Notice: Could not auto-create bucket game-assets:', createError.message);
+      for (const config of STORAGE_BUCKET_DEFINITIONS) {
+        const existing = buckets?.find((b) => b.name === config.id || b.id === config.id);
+        if (!existing) {
+          const { error: createError } = await supabase.storage.createBucket(config.id, {
+            public: true,
+            fileSizeLimit: config.fileSizeLimit,
+            allowedMimeTypes: config.allowedMimeTypes,
+          });
+          if (createError) {
+            console.warn(`Notice: Could not auto-create bucket ${config.id}:`, createError.message);
+          } else {
+            console.log(`Successfully created Supabase Storage bucket: ${config.id} (${config.fileSizeLimit / (1024 * 1024)}MB limit)`);
+          }
         } else {
-          console.log('Successfully created Supabase Storage bucket: game-assets');
+          // If the bucket exists, update its fileSizeLimit to match the required architecture
+          // (upgrading from the previous 10MB default conflict to 25MB for game-assets and 200MB for showcase-media).
+          try {
+            const { error: updateError } = await supabase.storage.updateBucket(config.id, {
+              public: true,
+              fileSizeLimit: config.fileSizeLimit,
+              allowedMimeTypes: config.allowedMimeTypes,
+            });
+            if (updateError) {
+              console.warn(`Notice: Could not update bucket ${config.id} settings:`, updateError.message);
+            }
+          } catch (updateErr: any) {
+            console.warn(`Notice: Could not update bucket ${config.id}:`, updateErr?.message);
+          }
         }
       }
     } catch (err: any) {
@@ -41,6 +108,8 @@ export async function ensureStorageBucket(env?: Record<string, any>): Promise<vo
 
   return bucketCheckPromise;
 }
+
+export const ensureStorageBucket = ensureStorageBuckets;
 
 export const ALLOWED_ASSET_CATEGORIES = new Set([
   'logos',
@@ -64,23 +133,41 @@ export async function uploadGameAsset(
   },
   env?: Record<string, any>
 ): Promise<{ url: string; path: string }> {
+  const rawCategory = (params.category || 'general').toLowerCase();
+  const category = rawCategory.replace(/[^a-zA-Z0-9_-]/g, '') || 'general';
+
+  let allowedMediaTypes: ('image' | 'audio' | 'video')[] | undefined;
+  if (category === 'audio') {
+    allowedMediaTypes = ['audio'];
+  } else if (category === 'showcases') {
+    allowedMediaTypes = ['image', 'video'];
+  } else if (category === 'general') {
+    allowedMediaTypes = ['image', 'audio', 'video'];
+  } else {
+    // logos, backgrounds, baskets, items, themes, branding
+    allowedMediaTypes = ['image'];
+  }
+
+  const isShowcase = category === 'showcases';
+  const targetBucket = isShowcase ? SHOWCASE_BUCKET : ASSET_BUCKET;
+  const maxSizeBytes = isShowcase ? SHOWCASE_BUCKET_FILE_SIZE_LIMIT : ASSET_BUCKET_FILE_SIZE_LIMIT;
+
   // Authoritative validation of magic bytes, mime type, extension, and strict SVG rejection
   const validation = validateUploadedFile(params.fileBuffer, {
     originalName: params.originalName,
     declaredMime: params.mimeType,
-    maxSizeBytes: 25 * 1024 * 1024,
+    maxSizeBytes,
+    allowedMediaTypes,
   });
   if (!validation.valid) {
     throw new Error(`File validation failed: ${validation.error}`);
   }
 
   const supabase = getSupabaseServerClient(env);
-  await ensureStorageBucket(env);
+  await ensureStorageBuckets(env);
 
   const rawOrgId = params.organizationId || 'default';
   const orgId = rawOrgId.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
-  const rawCategory = (params.category || 'general').toLowerCase();
-  const category = rawCategory.replace(/[^a-zA-Z0-9_-]/g, '') || 'general';
   
   const ext = validation.extension.replace(/[^a-zA-Z0-9.]/g, '') || '.png';
 
@@ -91,19 +178,19 @@ export async function uploadGameAsset(
   const storagePath = `organizations/${orgId}/${category}/${uniqueName}`;
 
   const { error: uploadError } = await supabase.storage
-    .from(ASSET_BUCKET)
+    .from(targetBucket)
     .upload(storagePath, params.fileBuffer, {
       contentType: validation.mimeType || 'image/png',
       upsert: true,
     });
 
   if (uploadError) {
-    console.error('Supabase Storage upload error:', uploadError);
+    console.error(`Supabase Storage (${targetBucket}) upload error:`, uploadError);
     throw new Error(`Failed to upload asset to Supabase Storage: ${uploadError.message}`);
   }
 
   const { data: publicData } = supabase.storage
-    .from(ASSET_BUCKET)
+    .from(targetBucket)
     .getPublicUrl(storagePath);
 
   if (!publicData || !publicData.publicUrl) {
@@ -136,6 +223,7 @@ export async function createSignedUploadUrlForShowcase(
   path: string;
   publicUrl: string;
   directUploadUrl: string;
+  bucket: string;
 }> {
   const rawMime = (params.mimeType || '').toLowerCase().trim();
   const rawFileName = (params.fileName || '').trim();
@@ -157,7 +245,7 @@ export async function createSignedUploadUrlForShowcase(
   }
 
   const supabase = getSupabaseServerClient(env);
-  await ensureStorageBucket(env);
+  await ensureStorageBuckets(env);
 
   const safeExt = ext || (params.mediaType === 'VIDEO' ? '.mp4' : '.png');
 
@@ -172,7 +260,7 @@ export async function createSignedUploadUrlForShowcase(
 
   try {
     const { data: signedData, error: signedError } = await supabase.storage
-      .from(ASSET_BUCKET)
+      .from(SHOWCASE_BUCKET)
       .createSignedUploadUrl(storagePath);
 
     if (!signedError && signedData) {
@@ -180,11 +268,11 @@ export async function createSignedUploadUrlForShowcase(
       token = signedData.token;
     }
   } catch (err: any) {
-    console.warn('Could not generate Supabase signed upload URL:', err.message);
+    console.warn(`Could not generate Supabase signed upload URL for ${SHOWCASE_BUCKET}:`, err.message);
   }
 
   const { data: publicData } = supabase.storage
-    .from(ASSET_BUCKET)
+    .from(SHOWCASE_BUCKET)
     .getPublicUrl(storagePath);
 
   const publicUrl = publicData?.publicUrl || `/uploads/${uniqueName}`;
@@ -199,6 +287,7 @@ export async function createSignedUploadUrlForShowcase(
     path: storagePath,
     publicUrl,
     directUploadUrl,
+    bucket: SHOWCASE_BUCKET,
   };
 }
 

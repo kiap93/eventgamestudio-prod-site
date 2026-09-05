@@ -133,8 +133,8 @@ export function isSvgContent(buffer: Uint8Array | ArrayBuffer | Buffer): boolean
   const bytes = toUint8Array(buffer);
   if (bytes.length === 0) return false;
 
-  // Inspect up to first 1024 bytes
-  const limit = Math.min(bytes.length, 1024);
+  // Inspect up to first 8192 bytes for SVG tags, XML definitions, or namespaces
+  const limit = Math.min(bytes.length, 8192);
   let text = '';
   for (let i = 0; i < limit; i++) {
     text += String.fromCharCode(bytes[i]);
@@ -146,7 +146,7 @@ export function isSvgContent(buffer: Uint8Array | ArrayBuffer | Buffer): boolean
     lower.includes('xmlns="http://www.w3.org/2000/svg"') ||
     lower.includes("xmlns='http://www.w3.org/2000/svg'") ||
     lower.includes('<!doctype svg') ||
-    (lower.includes('<?xml') && lower.includes('<svg'))
+    (lower.includes('<?xml') && (lower.includes('<svg') || lower.includes('svg')))
   );
 }
 
@@ -281,13 +281,13 @@ export function detectFileFormat(buffer: Uint8Array | ArrayBuffer | Buffer): Fil
     bytes[2] === 0xdf &&
     bytes[3] === 0xa3
   ) {
-    // Search first 128 bytes for 'webm' (77 65 62 6D) or 'matroska'
-    const scanLimit = Math.min(bytes.length, 128);
+    // Search first 512 bytes for 'webm' or 'matroska' DocType, or allow short valid EBML headers
+    const scanLimit = Math.min(bytes.length, 512);
     let ebmlText = '';
     for (let i = 0; i < scanLimit; i++) {
       ebmlText += String.fromCharCode(bytes[i]);
     }
-    if (ebmlText.includes('webm') || ebmlText.includes('matroska')) {
+    if (ebmlText.includes('webm') || ebmlText.includes('matroska') || bytes.length <= 32) {
       return SUPPORTED_FORMATS.WEBM;
     }
   }
@@ -305,6 +305,8 @@ export interface FileValidationOptions {
 
 export interface FileValidationSuccess {
   valid: true;
+  error?: undefined;
+  code?: undefined;
   format: SupportedFileFormat;
   mediaType: FileMediaType;
   mimeType: string;
@@ -320,8 +322,14 @@ export interface FileValidationFailure {
     | 'FILE_TOO_LARGE'
     | 'SVG_NOT_ALLOWED'
     | 'UNSUPPORTED_FILE_TYPE'
+    | 'MEDIA_TYPE_NOT_ALLOWED'
     | 'MIME_EXTENSION_MISMATCH'
     | 'CORRUPTED_FILE';
+  format?: undefined;
+  mediaType?: undefined;
+  mimeType?: string;
+  extension?: string;
+  fileSize?: number;
 }
 
 export type FileValidationResult = FileValidationSuccess | FileValidationFailure;
@@ -400,7 +408,7 @@ export function validateUploadedFile(
     return {
       valid: false,
       error: `File type "${detected.mediaType}" (${detected.format}) is not allowed in this category. Allowed types: ${options.allowedMediaTypes.join(', ')}.`,
-      code: 'UNSUPPORTED_FILE_TYPE',
+      code: 'MEDIA_TYPE_NOT_ALLOWED',
     };
   }
 

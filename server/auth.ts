@@ -163,14 +163,10 @@ export async function authenticateJWT(
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7).trim();
-  } else if (req.query?.token && typeof req.query.token === 'string') {
-    token = req.query.token.trim();
-  } else if (req.query?.auth_token && typeof req.query.auth_token === 'string') {
-    token = req.query.auth_token.trim();
   }
 
   if (!token) {
-    res.status(401).json({ error: 'Unauthenticated: Missing or invalid Authorization header or token parameter' });
+    res.status(401).json({ error: 'Unauthenticated: Missing or invalid Authorization header (Bearer token required)' });
     return;
   }
 
@@ -224,76 +220,145 @@ export async function authenticateJWT(
   }
 }
 
+export type EventPermission =
+  | 'event.view'
+  | 'event.create'
+  | 'event.edit'
+  | 'event.cancel'
+  | 'event.pay'
+  | 'event.manage';
+
+export type GamePermission =
+  | 'game.view'
+  | 'game.items.view'
+  | 'game.background.edit'
+  | 'game.items.edit'
+  | 'game.basket.edit'
+  | 'game.settings.edit';
+
+export type OrgPermission =
+  | 'organization.members.view'
+  | 'organization.members.invite'
+  | 'organization.members.remove'
+  | 'organization.settings.edit'
+  | 'organization.delete';
+
+export type WalletPermission =
+  | 'wallet.view'
+  | 'wallet.topup'
+  | 'wallet.transactions.view';
+
+export type AppPermission = EventPermission | GamePermission | OrgPermission | WalletPermission | string;
+
 export const PERMISSIONS: Record<OrgRole, string[]> = {
   owner: [
+    // Event management
+    'event.view',
+    'event.create',
+    'event.edit',
+    'event.cancel',
+    'event.pay',
+    'event.manage',
+    // Game/Theme editing
     'game.view',
+    'game.items.view',
     'game.background.edit',
     'game.items.edit',
     'game.basket.edit',
     'game.settings.edit',
+    // Organization administration
     'organization.members.view',
     'organization.members.invite',
     'organization.members.remove',
     'organization.settings.edit',
     'organization.delete',
+    // Wallet management
     'wallet.view',
     'wallet.topup',
     'wallet.transactions.view',
   ],
   admin: [
+    // Event management
+    'event.view',
+    'event.create',
+    'event.edit',
+    'event.cancel',
+    'event.pay',
+    'event.manage',
+    // Game/Theme editing
     'game.view',
+    'game.items.view',
     'game.background.edit',
     'game.items.edit',
     'game.basket.edit',
     'game.settings.edit',
+    // Organization administration
     'organization.members.view',
     'organization.members.invite',
     'organization.members.remove',
     'organization.settings.edit',
+    // Wallet management
     'wallet.view',
     'wallet.topup',
     'wallet.transactions.view',
   ],
   designer: [
+    // Event viewing only (designers can view and preview events, but cannot create, edit, pay, cancel, or manage events)
+    'event.view',
+    // Game/Theme editing (primary designer capability)
     'game.view',
+    'game.items.view',
     'game.background.edit',
     'game.items.edit',
     'game.basket.edit',
     'game.settings.edit',
+    // Wallet viewing
     'wallet.view',
     'wallet.transactions.view',
   ],
   viewer: [
+    // View-only permissions
+    'event.view',
     'game.view',
+    'game.items.view',
     'wallet.view',
     'wallet.transactions.view',
   ],
 };
+
+export function hasRolePermission(role: OrgRole | string, permission: string): boolean {
+  const allowed = PERMISSIONS[role as OrgRole] || [];
+  return allowed.includes(permission);
+}
 
 export async function verifyOrgMembershipAndPermission(
   userId: string,
   organizationId: string,
   requiredPermission?: string,
   env?: Record<string, any>
-): Promise<{ isMember: boolean; role?: OrgRole; member?: OrgMemberRecord }> {
+): Promise<{ isMember: boolean; role?: OrgRole; member?: OrgMemberRecord; hasPermission: boolean }> {
   try {
     const member = await getMember(organizationId, userId, env);
 
     if (!member) {
-      return { isMember: false };
+      return { isMember: false, hasPermission: false };
     }
 
     if (requiredPermission) {
       const allowed = PERMISSIONS[member.role] || [];
-      if (!allowed.includes(requiredPermission)) {
-        return { isMember: true, role: member.role, member }; // member exists, lacks permission
-      }
+      const hasPerm = allowed.includes(requiredPermission);
+      return {
+        isMember: true,
+        role: member.role,
+        member,
+        hasPermission: hasPerm,
+      };
     }
 
-    return { isMember: true, role: member.role, member };
+    return { isMember: true, role: member.role, member, hasPermission: true };
   } catch (err) {
     console.error('Error in verifyOrgMembershipAndPermission:', err);
-    return { isMember: false };
+    return { isMember: false, hasPermission: false };
   }
 }
 

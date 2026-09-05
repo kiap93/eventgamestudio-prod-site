@@ -105,6 +105,9 @@ import {
   getShowcaseMedia,
   getShowcaseMediaById,
   createSignedUploadUrlForShowcase,
+  ASSET_BUCKET,
+  SHOWCASE_BUCKET,
+  ensureStorageBuckets,
   createShowcaseMedia,
   reorderShowcaseMedia,
   deleteShowcaseMedia,
@@ -174,6 +177,7 @@ import {
 
 import { getSupabaseServerClient } from './server/supabase.js';
 import { checkWorkerRateLimit, isVenueRequest } from './server/rateLimiter.js';
+import { validateUploadedFile } from './server/fileValidation.js';
 
 export interface Env {
   NODE_ENV?: string;
@@ -301,9 +305,6 @@ const ALLOWED_VIDEO_MIME_TYPES = new Set([
   'video/mp4',
   'video/webm',
   'video/quicktime',
-  'video/x-matroska',
-  'video/ogg',
-  'video/3gpp',
 ]);
 
 const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
@@ -375,22 +376,17 @@ async function authenticateWorkerRequest(
   jwtPayload?: AppJWTPayload;
   errorResponse?: Response;
 }> {
-  const url = new URL(request.url);
   const authHeader = request.headers.get('Authorization');
   let token = '';
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7).trim();
-  } else if (url.searchParams.get('token')) {
-    token = url.searchParams.get('token')!.trim();
-  } else if (url.searchParams.get('auth_token')) {
-    token = url.searchParams.get('auth_token')!.trim();
   }
 
   if (!token) {
     return {
       authenticated: false,
-      errorResponse: errorResponse('Unauthenticated: Missing or invalid Authorization header or token parameter', 401, cors),
+      errorResponse: errorResponse('Unauthenticated: Missing or invalid Authorization header (Bearer token required)', 401, cors),
     };
   }
 
@@ -1465,44 +1461,49 @@ export default {
           );
         }
 
-        // 4. Validate File MIME & Size
-        const ALLOWED_MIME_TYPES = new Set([
-          'image/png',
-          'image/jpeg',
-          'image/jpg',
-          'image/webp',
-          'image/svg+xml',
-          'image/gif',
-          'image/x-icon',
-          'image/vnd.microsoft.icon',
-          'audio/mpeg',
-          'audio/mp3',
-          'audio/wav',
-          'audio/ogg',
-          'audio/x-wav',
-          'audio/aac',
-          'video/mp4',
-          'video/webm',
-          'video/quicktime',
-        ]);
+        // 4. Validate File (Magic bytes inspection, strict MIME & extension consistency, SVG rejection)
         const fileName = file.name || 'uploaded_asset.png';
-        const dotIdx = fileName.lastIndexOf('.');
-        const ext = dotIdx !== -1 ? fileName.slice(dotIdx).toLowerCase() : '.png';
-        const allowedExts = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.ico', '.mp3', '.wav', '.ogg', '.aac', '.mp4', '.webm', '.mov']);
+        const rawMime = file.type || 'application/octet-stream';
+        const MAX_ASSET_SIZE = 25 * 1024 * 1024; // 25MB
 
-        const mimeType = (file.type || 'application/octet-stream').toLowerCase();
-        if (!ALLOWED_MIME_TYPES.has(mimeType) && !allowedExts.has(ext)) {
-          return errorResponse(
-            `Unsupported file format (${mimeType}). Allowed formats: PNG, JPG, JPEG, WEBP, SVG, GIF, MP3, WAV, OGG, MP4.`,
+        if (file.size > MAX_ASSET_SIZE) {
+          return jsonResponse(
+            {
+              error: `File size exceeds maximum allowed limit of 25MB (${(file.size / (1024 * 1024)).toFixed(1)}MB provided).`,
+              code: 'FILE_TOO_LARGE',
+            },
             422,
             cors
           );
         }
 
-        const MAX_ASSET_SIZE = 25 * 1024 * 1024; // 25MB
-        if (file.size > MAX_ASSET_SIZE) {
-          return errorResponse(
-            `File size exceeds maximum allowed limit of 25MB (${(file.size / (1024 * 1024)).toFixed(1)}MB provided).`,
+        const arrayBuffer = await file.arrayBuffer();
+        const fileBuffer = new Uint8Array(arrayBuffer);
+
+        let allowedMediaTypes: ('image' | 'audio' | 'video')[] | undefined;
+        if (category === 'audio') {
+          allowedMediaTypes = ['audio'];
+        } else if (category === 'showcases') {
+          allowedMediaTypes = ['image', 'video'];
+        } else if (category === 'general') {
+          allowedMediaTypes = ['image', 'audio', 'video'];
+        } else {
+          allowedMediaTypes = ['image'];
+        }
+
+        const validation = validateUploadedFile(fileBuffer, {
+          originalName: fileName,
+          declaredMime: rawMime,
+          maxSizeBytes: MAX_ASSET_SIZE,
+          allowedMediaTypes,
+        });
+
+        if (!validation.valid) {
+          return jsonResponse(
+            {
+              error: validation.error,
+              code: validation.code,
+            },
             422,
             cors
           );
@@ -1512,14 +1513,13 @@ export default {
         const safeCategory = category.replace(/[^a-zA-Z0-9_-]/g, '') || 'general';
 
         try {
-          const arrayBuffer = await file.arrayBuffer();
           const result = await uploadGameAsset(
             {
               organizationId: safeOrgId,
               category: safeCategory as any,
-              fileBuffer: new Uint8Array(arrayBuffer),
+              fileBuffer,
               originalName: fileName,
-              mimeType: mimeType || 'image/png',
+              mimeType: validation.mimeType,
             },
             env
           );
@@ -2087,9 +2087,9 @@ export default {
           return errorResponse('No active organization selected', 422, cors);
         }
 
-        const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.view', env);
-        if (!isMember) {
-          return errorResponse('Forbidden: You are not a member of this organization', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'event.view', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Forbidden: You do not have permission to view events', 403, cors);
         }
 
         const events = await getEventsByOrgId(organizationId, env);
@@ -2109,8 +2109,8 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view', env);
-        if (!isMember) {
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view', env);
+        if (!isMember || !hasPermission) {
           return errorResponse('Forbidden: Access denied to this event preview', 403, cors);
         }
 
@@ -2181,8 +2181,8 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view', env);
-        if (!isMember) {
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view', env);
+        if (!isMember || !hasPermission) {
           return errorResponse('Forbidden: Access denied to this event', 403, cors);
         }
 
@@ -2201,8 +2201,8 @@ export default {
           return errorResponse('No active organization selected', 422, cors);
         }
 
-        const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.view', env);
-        if (!isMember) {
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'event.view', env);
+        if (!isMember || !hasPermission) {
           return errorResponse('Permission denied: Not a member of this organization', 403, cors);
         }
 
@@ -2375,9 +2375,9 @@ export default {
           return errorResponse('No active organization selected', 422, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot create events', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'event.create', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can create events', 403, cors);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
@@ -2484,9 +2484,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot pay for events', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.pay', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can pay for events', 403, cors);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
@@ -2550,9 +2550,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot edit events', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can edit event configuration', 403, cors);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
@@ -2628,8 +2628,8 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || !['owner', 'admin'].includes(role || '')) {
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.manage', env);
+        if (!isMember || !hasPermission) {
           return errorResponse('Permission denied: Only owners and admins can delete events', 403, cors);
         }
 
@@ -2650,8 +2650,8 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.view', env);
-        if (!isMember) {
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view', env);
+        if (!isMember || !hasPermission) {
           return errorResponse('Permission denied', 403, cors);
         }
 
@@ -2673,9 +2673,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot cancel events', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.cancel', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can cancel events', 403, cors);
         }
 
         const eligibility = canCancelEvent(event);
@@ -2970,8 +2970,8 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || !['owner', 'admin'].includes(role || '')) {
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.manage', env);
+        if (!isMember || !hasPermission) {
           return errorResponse('Permission denied: Only organization owners and admins can clear test scores', 403, cors);
         }
 
@@ -3006,8 +3006,8 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || !['owner', 'admin'].includes(role || '')) {
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.manage', env);
+        if (!isMember || !hasPermission) {
           return errorResponse('Permission denied: Only organization owners and admins can reset event leaderboards', 403, cors);
         }
 
@@ -3032,9 +3032,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot delete scores', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.manage', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can delete scores', 403, cors);
         }
 
         await deleteEventScore(eventId, scoreId, env);
@@ -3463,20 +3463,65 @@ export default {
           return errorResponse('mediaType must be IMAGE or VIDEO', 422, cors);
         }
 
-        const lowerMime = fileType.toLowerCase();
+        const lowerMime = fileType.toLowerCase().trim();
+        const rawFileName = fileName.trim();
+        const dotIdx = rawFileName.lastIndexOf('.');
+        const ext = dotIdx !== -1 ? rawFileName.slice(dotIdx).toLowerCase() : '';
+
+        // Explicitly reject SVG for security reasons
+        if (ext === '.svg' || lowerMime.includes('svg')) {
+          return jsonResponse(
+            {
+              error: 'SVG uploads are not permitted for security reasons. Please upload raster images (PNG, JPEG, WEBP).',
+              code: 'SVG_NOT_ALLOWED',
+            },
+            422,
+            cors
+          );
+        }
+
+        // Validate type and size strictly against allowed lists
         if (normalizedMediaType === 'IMAGE') {
           if (!ALLOWED_IMAGE_MIME_TYPES.has(lowerMime)) {
-            return errorResponse(`Unsupported image format (${fileType}). Supported formats: JPG, JPEG, PNG, WEBP.`, 422, cors);
+            return jsonResponse(
+              {
+                error: `Unsupported image format (${fileType}). Supported formats: PNG, JPEG, WEBP.`,
+                code: 'UNSUPPORTED_FILE_TYPE',
+              },
+              422,
+              cors
+            );
           }
           if (fileSize > MAX_IMAGE_SIZE) {
-            return errorResponse(`Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`, 422, cors);
+            return jsonResponse(
+              {
+                error: `Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+                code: 'FILE_TOO_LARGE',
+              },
+              422,
+              cors
+            );
           }
         } else {
-          if (!ALLOWED_VIDEO_MIME_TYPES.has(lowerMime) && !lowerMime.startsWith('video/')) {
-            return errorResponse(`Unsupported video format (${fileType}). Supported formats: MP4, WEBM, MOV.`, 422, cors);
+          if (!ALLOWED_VIDEO_MIME_TYPES.has(lowerMime)) {
+            return jsonResponse(
+              {
+                error: `Unsupported video format (${fileType}). Supported formats: MP4, WEBM, MOV.`,
+                code: 'UNSUPPORTED_FILE_TYPE',
+              },
+              422,
+              cors
+            );
           }
           if (fileSize > MAX_VIDEO_SIZE) {
-            return errorResponse(`Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`, 422, cors);
+            return jsonResponse(
+              {
+                error: `Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+                code: 'FILE_TOO_LARGE',
+              },
+              422,
+              cors
+            );
           }
         }
 
@@ -3597,26 +3642,56 @@ export default {
             return errorResponse('Permission denied: Viewers cannot upload showcase media', 403, cors);
           }
 
-          // 3. Validate MIME Type and File Size
-          const lowerMime = mimeType.toLowerCase();
-          const isImage = ALLOWED_IMAGE_MIME_TYPES.has(lowerMime) || lowerMime.startsWith('image/');
-          const isVideo = ALLOWED_VIDEO_MIME_TYPES.has(lowerMime) || lowerMime.startsWith('video/');
+          // 3. Validate MIME Type, File Size, Magic Bytes, and Reject SVG
+          const validation = validateUploadedFile(fileBuffer, {
+            originalName: queryFilename || originalName,
+            declaredMime: mimeType,
+            maxSizeBytes: MAX_VIDEO_SIZE,
+            allowedMediaTypes: ['image', 'video'],
+          });
+
+          if (!validation.valid) {
+            return jsonResponse({ error: validation.error, code: validation.code }, 422, cors);
+          }
+
+          const isImage = validation.mediaType === 'image';
+          const isVideo = validation.mediaType === 'video';
 
           if (!isImage && !isVideo) {
-            return errorResponse(`Unsupported media format (${mimeType}). Supported formats: JPG, PNG, WEBP, MP4, WEBM, MOV.`, 422, cors);
+            return jsonResponse(
+              {
+                error: `Unsupported media format (${mimeType}). Supported formats: PNG, JPEG, WEBP, MP4, WEBM, MOV.`,
+                code: 'UNSUPPORTED_FILE_TYPE',
+              },
+              422,
+              cors
+            );
           }
 
           if (isImage && fileSize > MAX_IMAGE_SIZE) {
-            return errorResponse(`Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`, 422, cors);
+            return jsonResponse(
+              {
+                error: `Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+                code: 'FILE_TOO_LARGE',
+              },
+              422,
+              cors
+            );
           }
           if (isVideo && fileSize > MAX_VIDEO_SIZE) {
-            return errorResponse(`Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`, 422, cors);
+            return jsonResponse(
+              {
+                error: `Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
+                code: 'FILE_TOO_LARGE',
+              },
+              422,
+              cors
+            );
           }
 
           // 4. Storage Path Validation & Sandboxing (Never Trust Client-Provided Arbitrary Path)
           const expectedPrefix = `organizations/${event.organization_id}/showcases/${showcase.id}/`;
-          const dotIndex = originalName.lastIndexOf('.');
-          const ext = dotIndex !== -1 ? originalName.slice(dotIndex) : isImage ? '.png' : '.mp4';
+          const ext = validation.extension || (isImage ? '.png' : '.mp4');
           const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(8)))
             .map((b) => b.toString(16).padStart(2, '0'))
             .join('');
@@ -3631,20 +3706,21 @@ export default {
           }
 
           const supabase = getSupabaseServerClient(env);
+          await ensureStorageBuckets(env);
           const { error: uploadErr } = await supabase.storage
-            .from('game-assets')
+            .from(SHOWCASE_BUCKET)
             .upload(storagePath, fileBuffer, {
-              contentType: lowerMime,
+              contentType: validation.mimeType,
               upsert: true,
             });
 
           if (uploadErr) {
-            console.warn('Supabase storage upload error:', uploadErr);
+            console.warn(`Supabase ${SHOWCASE_BUCKET} storage upload error:`, uploadErr);
             return errorResponse(uploadErr.message || 'Storage upload failed', 500, cors);
           }
 
           const { data: publicData } = supabase.storage
-            .from('game-assets')
+            .from(SHOWCASE_BUCKET)
             .getPublicUrl(storagePath);
 
           return jsonResponse(
@@ -3654,6 +3730,7 @@ export default {
               fileName: originalName,
               mediaType: isImage ? 'IMAGE' : 'VIDEO',
               fileSize,
+              bucket: SHOWCASE_BUCKET,
             },
             200,
             cors
@@ -5684,10 +5761,10 @@ export default {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, 'event.pay', env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if ((!isMember || (role !== 'owner' && role !== 'admin' && role !== 'designer')) && !isDev) {
-          return errorResponse('Forbidden: Insufficient permissions to pay for event', 403, cors);
+        if ((!isMember || !hasPermission) && !isDev) {
+          return errorResponse('Forbidden: Insufficient permissions to pay for event. Only owners and admins can pay for events.', 403, cors);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;

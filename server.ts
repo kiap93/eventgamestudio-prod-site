@@ -89,6 +89,9 @@ import {
   reorderShowcaseMedia,
   deleteShowcaseMedia,
   createSignedUploadUrlForShowcase,
+  ASSET_BUCKET,
+  SHOWCASE_BUCKET,
+  ensureStorageBuckets,
   getWalletBalance,
   getPaidBalance,
   getWelcomeCredit,
@@ -1160,10 +1163,22 @@ app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'
     }
 
     const MAX_ASSET_SIZE = 25 * 1024 * 1024; // 25MB
+    let allowedMediaTypes: ('image' | 'audio' | 'video')[] | undefined;
+    if (category === 'audio') {
+      allowedMediaTypes = ['audio'];
+    } else if (category === 'showcases') {
+      allowedMediaTypes = ['image', 'video'];
+    } else if (category === 'general') {
+      allowedMediaTypes = ['image', 'audio', 'video'];
+    } else {
+      allowedMediaTypes = ['image'];
+    }
+
     const validation = validateUploadedFile(req.file.buffer, {
       originalName: req.file.originalname,
       declaredMime: req.file.mimetype,
       maxSizeBytes: MAX_ASSET_SIZE,
+      allowedMediaTypes,
     });
 
     if (!validation.valid) {
@@ -1831,9 +1846,9 @@ app.get(['/api/events', '/api/organizations/:organizationId/events', '/api/organ
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.view');
-    if (!isMember) {
-      res.status(403).json({ error: 'Forbidden: You are not a member of this organization' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'event.view');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Forbidden: You do not have permission to view events' });
       return;
     }
 
@@ -1860,8 +1875,8 @@ app.get('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view');
-    if (!isMember) {
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view');
+    if (!isMember || !hasPermission) {
       res.status(403).json({ error: 'Forbidden: Access denied to this event' });
       return;
     }
@@ -1887,8 +1902,8 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.view');
-    if (!isMember) {
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'event.view');
+    if (!isMember || !hasPermission) {
       res.status(403).json({ error: 'Permission denied: Not a member of this organization' });
       return;
     }
@@ -2070,9 +2085,9 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot create events' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'event.create');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can create events' });
       return;
     }
 
@@ -2184,9 +2199,9 @@ app.post('/api/events/:eventId/pay', walletRateLimiter, authenticateJWT, async (
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot pay for events' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.pay');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can pay for events' });
       return;
     }
 
@@ -2254,9 +2269,9 @@ app.all('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot edit events' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can edit event configuration' });
       return;
     }
 
@@ -2332,8 +2347,8 @@ app.delete('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReq
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || !['owner', 'admin'].includes(role || '')) {
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.manage');
+    if (!isMember || !hasPermission) {
       res.status(403).json({ error: 'Permission denied: Only owners and admins can delete events' });
       return;
     }
@@ -2361,8 +2376,8 @@ app.get('/api/events/:eventId/cancellation-eligibility', authenticateJWT, async 
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.view');
-    if (!isMember) {
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view');
+    if (!isMember || !hasPermission) {
       res.status(403).json({ error: 'Permission denied' });
       return;
     }
@@ -2391,9 +2406,9 @@ app.post('/api/events/:eventId/cancel', eventRateLimiter, authenticateJWT, async
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot cancel events' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.cancel');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can cancel events' });
       return;
     }
 
@@ -2450,8 +2465,8 @@ app.get('/api/events/:eventId/preview', authenticateJWT, async (req: Authenticat
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view');
-    if (!isMember) {
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view');
+    if (!isMember || !hasPermission) {
       res.status(403).json({ error: 'Forbidden: Access denied to this event preview' });
       return;
     }
@@ -2789,8 +2804,8 @@ app.get('/api/events/:eventId/admin/high-scores', authenticateJWT, async (req: A
       return;
     }
 
-    const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view');
-    if (!isMember) {
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view');
+    if (!isMember || !hasPermission) {
       res.status(403).json({ error: 'Permission denied: Cannot view event score details' });
       return;
     }
@@ -2835,9 +2850,9 @@ app.delete('/api/events/:eventId/high-scores/:scoreId', authenticateJWT, async (
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Only event editors and admins can delete scores' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.manage');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can delete scores' });
       return;
     }
 
@@ -2869,8 +2884,8 @@ app.post(
         return;
       }
 
-      const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-      if (!isMember || !['owner', 'admin'].includes(role || '')) {
+      const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.manage');
+      if (!isMember || !hasPermission) {
         res.status(403).json({ error: 'Permission denied: Only event owners and admins can clear test scores' });
         return;
       }
@@ -2913,8 +2928,8 @@ app.post('/api/events/:eventId/high-scores/clear', authenticateJWT, async (req: 
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || !['owner', 'admin'].includes(role || '')) {
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.manage');
+    if (!isMember || !hasPermission) {
       res.status(403).json({ error: 'Permission denied: Only organization owners and admins can reset leaderboards' });
       return;
     }
@@ -3238,25 +3253,6 @@ app.post('/api/events/:eventId/showcase/unpublish', showcaseRateLimiter, authent
 // EVENT SHOWCASE MEDIA API ENDPOINTS
 // ----------------------------------------------------
 
-const ALLOWED_IMAGE_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/webp',
-]);
-
-const ALLOWED_VIDEO_MIME_TYPES = new Set([
-  'video/mp4',
-  'video/webm',
-  'video/quicktime',
-  'video/x-matroska',
-  'video/ogg',
-  'video/3gpp',
-]);
-
-const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
-const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
-
 /**
  * GET /api/events/:eventId/showcase/media
  * Get all media items for an event's showcase (ordered by sort_order)
@@ -3565,8 +3561,9 @@ app.post(
 
       try {
         const supabase = getSupabaseServerClient();
+        await ensureStorageBuckets();
         const { error: uploadErr } = await supabase.storage
-          .from('game-assets')
+          .from(SHOWCASE_BUCKET)
           .upload(storagePath, req.file.buffer, {
             contentType: validation.mimeType,
             upsert: true,
@@ -3574,7 +3571,7 @@ app.post(
 
         if (!uploadErr) {
           const { data: publicData } = supabase.storage
-            .from('game-assets')
+            .from(SHOWCASE_BUCKET)
             .getPublicUrl(storagePath);
 
           res.json({
@@ -3583,8 +3580,11 @@ app.post(
             fileName: originalName,
             mediaType: isImage ? 'IMAGE' : 'VIDEO',
             fileSize,
+            bucket: SHOWCASE_BUCKET,
           });
           return;
+        } else {
+          console.warn(`Supabase ${SHOWCASE_BUCKET} storage upload error:`, uploadErr.message);
         }
       } catch (sErr) {
         console.warn('Direct upload to Supabase storage fallback:', sErr);
@@ -5524,10 +5524,10 @@ app.post('/api/organizations/:orgId/wallet/pay-event', walletRateLimiter, authen
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user!.id, orgId, 'event.pay');
     const isDev = isUserDeveloperAdmin(req.user);
-    if ((!isMember || (role !== 'owner' && role !== 'admin' && role !== 'designer')) && !isDev) {
-      res.status(403).json({ error: 'Insufficient permissions to pay for event' });
+    if ((!isMember || !hasPermission) && !isDev) {
+      res.status(403).json({ error: 'Insufficient permissions to pay for event. Only owners and admins can pay for events.' });
       return;
     }
 
