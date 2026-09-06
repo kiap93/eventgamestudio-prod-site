@@ -287,6 +287,8 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             gameType={getThemeGameType(draftTheme, activeGame?.game_type_id || activeGame?.slug || 'catch-brand')}
             showCabinetFooter={false}
             className="w-full h-full"
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={handleToggleFullscreen}
           />
         </div>
       </div>

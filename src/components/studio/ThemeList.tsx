@@ -355,6 +355,8 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
             gameType={activeGame?.game_type_id || activeGame?.slug || 'catch-brand'}
             showCabinetFooter={false}
             className="w-full h-full"
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={handleToggleFullscreen}
           />
         </div>
       </div>

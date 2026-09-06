@@ -117,7 +117,7 @@ export const GameShell: React.FC<GameShellProps> = ({
     const isCurrentlyFs =
       !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
     if (!isCurrentlyFs) {
-      const el = document.documentElement;
+      const el = containerRef.current || document.documentElement;
       const reqFs =
         el.requestFullscreen ||
         (el as any).webkitRequestFullscreen ||

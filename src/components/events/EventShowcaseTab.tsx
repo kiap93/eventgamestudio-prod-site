@@ -388,6 +388,28 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
         </div>
       )}
 
+      {/* First Event Promotional Reward Notice */}
+      {(!showcase || showcase.reward_review_status !== 'REWARDED') && (
+        <div className="p-4 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl flex items-start gap-3">
+          <div className="p-2 bg-amber-500/20 border border-amber-500/30 rounded-xl text-amber-400 shrink-0 mt-0.5">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <div className="text-sm font-black text-amber-300">
+              🎉 This is your first event!
+            </div>
+            <p className="text-xs text-amber-100/90 font-medium leading-relaxed">
+              Upload your Showcase to earn RM300.
+            </p>
+            <div className="pt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-amber-300/80">
+              <span className="flex items-center gap-1">• Paid &amp; started event</span>
+              <span className="flex items-center gap-1">• Min 3 photos or 1 video</span>
+              <span className="flex items-center gap-1">• Min 50 characters description</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showcase && showcase.reward_review_status === 'AWAITING_APPROVAL' && (
         <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3">
           <Sparkles className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
@@ -396,7 +418,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
               <span>Eligible for RM300 Showcase Reward!</span>
             </div>
             <p className="text-xs text-amber-200/80 leading-relaxed">
-              Your showcase has met the minimum criteria (published with at least 3 photos/videos) and is in queue for developer reward distribution.
+              Your showcase has met all eligibility criteria (paid event, started/concluded, at least 3 photos or 1 video, at least 50 chars description) and is in queue for developer reward distribution.
             </p>
           </div>
         </div>
@@ -412,7 +434,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
             <div className="space-y-1">
               <h3 className="text-base font-bold text-slate-200">No Showcase Created Yet</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Create an Event Showcase to display your event photos, branding, and activation results. Normal showcases publish immediately without administrative pre-approval. Uploading at least 3 photos or videos qualifies your organization for an <strong className="text-amber-400">RM300 Showcase Reward</strong>!
+                Create an Event Showcase to display your event photos, branding, and activation results. Normal showcases publish immediately without administrative pre-approval.
               </p>
             </div>
           </div>

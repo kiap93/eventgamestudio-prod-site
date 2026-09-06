@@ -47,7 +47,7 @@ export interface ResponsiveLayoutState {
  * Resolves effective orientation based on viewport dimensions and configuration mode.
  * - 'portrait': Forces portrait presentation.
  * - 'landscape': Forces landscape presentation.
- * - 'auto' (default): Automatically detects orientation from dimensions (height > width).
+ * - 'auto' (default): Automatically detects orientation from dimensions (height > width * 1.05).
  */
 export function getOrientation(
   width: number,
@@ -57,8 +57,9 @@ export function getOrientation(
   if (preference === 'portrait') return 'portrait';
   if (preference === 'landscape') return 'landscape';
 
-  // Auto mode: viewportHeight > viewportWidth indicates portrait
-  if (height > 0 && width > 0 && height > width) {
+  // Auto mode: genuine vertical aspect ratio indicates portrait (requiring at least 5% vertical dominance
+  // to prevent accidental portrait flipping on square or near-square desktop modal containers).
+  if (height > 0 && width > 0 && height > width * 1.05) {
     return 'portrait';
   }
   return 'landscape';

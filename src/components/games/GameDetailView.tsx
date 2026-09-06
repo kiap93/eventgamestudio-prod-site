@@ -536,8 +536,8 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
           <div
             className={`bg-slate-900 border border-slate-800 flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${
               isFullscreen
-                ? 'w-full h-full rounded-none border-none'
-                : 'w-full max-w-4xl h-[88vh] rounded-3xl'
+                ? 'w-full h-full rounded-none border-none max-w-none max-h-none'
+                : 'w-full max-w-5xl xl:max-w-6xl h-[88vh] max-h-[840px] rounded-3xl'
             }`}
           >
             {/* Modal Header */}
@@ -598,6 +598,8 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                 gameType={game.game_type || 'catch-brand'}
                 organizationSlug={currentOrganization?.slug || 'preview'}
                 isStudioPreview={true}
+                isFullscreen={isFullscreen}
+                onToggleFullscreen={handleToggleFullscreen}
               />
             </div>
           </div>
