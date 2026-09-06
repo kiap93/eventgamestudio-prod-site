@@ -5,6 +5,8 @@ import {
   isMemoryMatchTheme,
   getThemeGameType,
   getMemoryMatchConfig,
+  getDropItemDisplaySize,
+  DEFAULT_MAX_DROP_ITEM_SIZE,
 } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
 import { MemoryMatchGame } from '../../games/memory-match/MemoryMatchGame';
@@ -28,6 +30,8 @@ import {
   Gamepad2,
   Flame,
   Star,
+  Smartphone,
+  Monitor,
 } from 'lucide-react';
 
 interface LiveThemePreviewProps {
@@ -50,6 +54,8 @@ interface SimulatedItem {
   rotation: number;
   rotSpeed: number;
   radius: number;
+  width: number;
+  height: number;
   collected: boolean;
 }
 
@@ -93,6 +99,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   const [isPlaying] = useState<boolean>(true);
   const [isInteractive, setIsInteractive] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [previewOrientation, setPreviewOrientation] = useState<'landscape' | 'portrait'>('landscape');
   const [restartKey, setRestartKey] = useState<number>(0);
 
   const isMemoryMatch = isMemoryMatchTheme(theme);
@@ -159,6 +166,20 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
       const itemSpeedMult = targetItem.speedMultiplier || 1.0;
       const finalSpeed = baseSpeed * speedMult * itemSpeedMult;
 
+      let initW = 56;
+      let initH = 56;
+      const cachedImg = getOrLoadImage(targetItem.imageUrl);
+      if (cachedImg && cachedImg.naturalWidth > 0 && cachedImg.naturalHeight > 0) {
+        const dims = getDropItemDisplaySize(
+          cachedImg.naturalWidth,
+          cachedImg.naturalHeight,
+          DEFAULT_MAX_DROP_ITEM_SIZE,
+          targetItem.scale
+        );
+        initW = dims.width;
+        initH = dims.height;
+      }
+
       const newItem: SimulatedItem = {
         id: `sim_${Date.now()}_${Math.random()}`,
         config: targetItem,
@@ -167,7 +188,9 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         speed: finalSpeed,
         rotation: 0,
         rotSpeed: (Math.random() - 0.5) * 4,
-        radius: 26,
+        radius: Math.max(initW, initH) / 2,
+        width: initW,
+        height: initH,
         collected: false,
       };
 
@@ -291,6 +314,20 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             const itemMult = chosen.speedMultiplier || 1.0;
             const finalSpeed = (baseSpeed + speedVariation) * globalMultiplier * itemMult;
 
+            let initW = 56;
+            let initH = 56;
+            const cachedImg = getOrLoadImage(chosen.imageUrl);
+            if (cachedImg && cachedImg.naturalWidth > 0 && cachedImg.naturalHeight > 0) {
+              const dims = getDropItemDisplaySize(
+                cachedImg.naturalWidth,
+                cachedImg.naturalHeight,
+                DEFAULT_MAX_DROP_ITEM_SIZE,
+                chosen.scale
+              );
+              initW = dims.width;
+              initH = dims.height;
+            }
+
             state.items.push({
               id: `item_${Date.now()}_${Math.random()}`,
               config: chosen,
@@ -299,7 +336,9 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               speed: finalSpeed,
               rotation: 0,
               rotSpeed: (Math.random() - 0.5) * 3,
-              radius: 28,
+              radius: Math.max(initW, initH) / 2,
+              width: initW,
+              height: initH,
               collected: false,
             });
           }
@@ -317,9 +356,11 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           item.y += item.speed * dt;
           item.rotation += item.rotSpeed * dt;
 
-          // Check Catch Collision
-          if (!item.collected && item.y >= basketY - 10 && item.y <= basketY + 30) {
-            if (Math.abs(item.x - state.basketX) <= catchHalfW + item.radius) {
+          // Check Catch Collision with proportional item bounds
+          const itemHalfW = (item.width || 56) / 2;
+          const itemHalfH = (item.height || 56) / 2;
+          if (!item.collected && item.y + itemHalfH >= basketY - 15 && item.y - itemHalfH <= basketY + 30) {
+            if (Math.abs(item.x - state.basketX) <= catchHalfW + itemHalfW) {
               item.collected = true;
               state.basketBounce = 1;
 
@@ -436,13 +477,23 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         ctx.rotate(item.rotation);
 
         const itemImg = getOrLoadImage(item.config.imageUrl);
-        if (itemImg) {
-          const sz = item.radius * 2;
-          ctx.drawImage(itemImg, -sz / 2, -sz / 2, sz, sz);
+        if (itemImg && itemImg.naturalWidth > 0 && itemImg.naturalHeight > 0) {
+          const dims = getDropItemDisplaySize(
+            itemImg.naturalWidth,
+            itemImg.naturalHeight,
+            DEFAULT_MAX_DROP_ITEM_SIZE,
+            item.config.scale
+          );
+          item.width = dims.width;
+          item.height = dims.height;
+          ctx.drawImage(itemImg, -dims.width / 2, -dims.height / 2, dims.width, dims.height);
         } else {
           // Draw high fidelity vector circle
+          const fallbackSize = 56;
+          item.width = fallbackSize;
+          item.height = fallbackSize;
           ctx.beginPath();
-          ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
+          ctx.arc(0, 0, fallbackSize / 2, 0, Math.PI * 2);
           ctx.fillStyle = item.config.isHazard
             ? '#e11d48'
             : item.config.isBonus
@@ -659,6 +710,24 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           </button>
 
           <button
+            onClick={() => setPreviewOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))}
+            className="px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+            title={`Switch preview to ${previewOrientation === 'landscape' ? 'Mobile Portrait (9:16)' : 'Landscape (16:9)'}`}
+          >
+            {previewOrientation === 'landscape' ? (
+              <>
+                <Smartphone className="w-3 h-3 text-amber-400" />
+                <span>Portrait</span>
+              </>
+            ) : (
+              <>
+                <Monitor className="w-3 h-3 text-sky-400" />
+                <span>Landscape</span>
+              </>
+            )}
+          </button>
+
+          <button
             onClick={() => setIsMuted(!isMuted)}
             className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
             title={isMuted ? 'Unmute preview sounds' : 'Mute preview sounds'}
@@ -680,13 +749,17 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         </div>
       </div>
 
-      {/* Main 16:9 Viewport with Scaled Layout Overlays */}
+      {/* Main Viewport with Scaled Layout Overlays */}
       <div
         ref={viewportRef}
         onPointerMove={handleContainerPointerMove}
         onPointerUp={handleContainerPointerUp}
         onPointerCancel={handleContainerPointerUp}
-        className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none flex items-center justify-center"
+        className={`relative ${
+          previewOrientation === 'portrait'
+            ? 'aspect-[9/16] max-h-[580px] w-auto mx-auto'
+            : 'aspect-[16/9] w-full'
+        } rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none flex items-center justify-center transition-all`}
       >
         {isMemoryMatch ? (
           /* MEMORY MATCH LIVE GAME SIMULATION - TRUE PROPORTIONAL SCALING */

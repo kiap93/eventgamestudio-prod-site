@@ -90,6 +90,7 @@ export interface ThemeDropItem {
   enabled: boolean;
   isHazard: boolean;
   isBonus?: boolean;
+  scale?: number; // Optional scale factor (e.g. 1.0, 1.5, 0.5) preserving aspect ratio
   collisionRadiusRatio?: number;
   collisionCenterXRatio?: number;
   collisionCenterYRatio?: number;
@@ -172,6 +173,8 @@ export interface ThemeSoundsConfig {
   hazardTone?: 'low_buzz' | 'spooky_screech' | 'firecracker_pop';
 }
 
+export type GameOrientation = 'auto' | 'portrait' | 'landscape';
+
 export interface GameLayoutElement {
   visible: boolean;
   x: number; // percentage from left (0 to 100)
@@ -181,6 +184,7 @@ export interface GameLayoutElement {
 }
 
 export interface GameLayoutConfig {
+  orientation?: GameOrientation;
   clientLogo: GameLayoutElement;
   scoreHud: GameLayoutElement;
   timer: GameLayoutElement;
@@ -189,7 +193,8 @@ export interface GameLayoutConfig {
   movesHud?: GameLayoutElement;
   pairsHud?: GameLayoutElement;
   memoryCardBoard?: GameLayoutElement;
-  [key: string]: GameLayoutElement | undefined;
+  portraitLayout?: Partial<GameLayoutConfig>;
+  [key: string]: any;
 }
 
 /**

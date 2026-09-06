@@ -222,8 +222,8 @@ async function runProductionAcidTests() {
 
   // Test 12: setOutstandingBalance failure must NOT update local cache
   // Pre-seed local cache with RM1.00
-  await setOutstandingBalance(testOrgId, 1.00); // in dev mode (no env)
-  let devBalance = await getOutstandingBalance(testOrgId);
+  await setOutstandingBalance(testOrgId, 1.00, mockDevEnv); // in dev mode
+  let devBalance = await getOutstandingBalance(testOrgId, mockDevEnv);
   assertEqual(devBalance, 1.00, 'Dev cache initialized with RM1.00 outstanding balance');
 
   // Attempt to set to RM0.00 in mock production where Supabase fails
@@ -236,7 +236,7 @@ async function runProductionAcidTests() {
   assertTrue(failedSetThrew, 'setOutstandingBalance threw on failed DB update in production');
 
   // Verify that local cache was NOT overwritten to RM0.00!
-  const postFailBalance = await getOutstandingBalance(testOrgId); // read in dev mode
+  const postFailBalance = await getOutstandingBalance(testOrgId, mockDevEnv); // read in dev mode
   assertEqual(postFailBalance, 1.00, 'Local cache was NOT modified after failed DB write; outstanding balance did not silently disappear');
 
   // Test 13: attachCheckoutSessionToTopupOrder in production when database is down must throw (FAIL CLOSED)

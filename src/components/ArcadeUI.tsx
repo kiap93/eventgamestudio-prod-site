@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Volume2,
   VolumeX,
@@ -30,7 +30,8 @@ import {
 import { GameState, GameStats, GameSettings, EventLeaderboardEntry } from '../types';
 import { GAME_DURATION_SECONDS } from '../game/config';
 import { GameTheme, THEME_REGISTRY, getActiveTheme } from '../themes';
-import { normalizeGameLayout, GameLayoutConfig, DESIGN_WIDTH, DESIGN_HEIGHT, useGameUiScale } from '../themes/layout';
+import { normalizeGameLayout, GameLayoutConfig } from '../themes/layout';
+import { useResponsiveLayout, getEffectiveGameLayout } from '../themes/responsive';
 import { apiFetch } from '../lib/api';
 
 interface ArcadeUIProps {
@@ -87,7 +88,9 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   onSelectTheme,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const uiScale = useGameUiScale(containerRef);
+  const orientationPreference = activeTheme?.layout?.orientation || 'auto';
+  const responsive = useResponsiveLayout(containerRef, orientationPreference);
+  const { isPortrait, uiScale, designWidth, designHeight } = responsive;
 
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
@@ -108,7 +111,10 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [gameOverTab, setGameOverTab] = useState<'summary' | 'leaderboard'>('summary');
 
-  const layout: GameLayoutConfig = normalizeGameLayout(activeTheme?.layout, 'catch-brand');
+  const layout: GameLayoutConfig = useMemo(
+    () => getEffectiveGameLayout(normalizeGameLayout(activeTheme?.layout, 'catch-brand'), isPortrait, 'catch-brand'),
+    [activeTheme?.layout, isPortrait]
+  );
 
   const goodItem =
     activeTheme?.items_config?.find((i) => !i.isHazard && !i.isBonus) ||
@@ -340,19 +346,19 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
       className="absolute inset-0 w-full h-full pointer-events-none select-none overflow-hidden font-mono z-30"
       style={{ '--game-ui-scale': uiScale } as React.CSSProperties}
     >
-      {/* LOGICAL 1024x576 RESPONSIVE UI LAYER */}
+      {/* LOGICAL RESPONSIVE UI LAYER (1024x576 in landscape, 576x1024 in portrait) */}
       <div
         className="game-ui-layer pointer-events-none select-none overflow-hidden"
         style={{
           position: 'absolute',
           top: '50%',
           left: '50%',
-          width: `${DESIGN_WIDTH}px`,
-          height: `${DESIGN_HEIGHT}px`,
-          minWidth: `${DESIGN_WIDTH}px`,
-          minHeight: `${DESIGN_HEIGHT}px`,
-          maxWidth: `${DESIGN_WIDTH}px`,
-          maxHeight: `${DESIGN_HEIGHT}px`,
+          width: `${designWidth}px`,
+          height: `${designHeight}px`,
+          minWidth: `${designWidth}px`,
+          minHeight: `${designHeight}px`,
+          maxWidth: `${designWidth}px`,
+          maxHeight: `${designHeight}px`,
           transform: `translate(-50%, -50%) scale(${uiScale})`,
           transformOrigin: 'center center',
         }}

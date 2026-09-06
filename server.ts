@@ -80,6 +80,13 @@ import {
   updateShowcase,
   publishShowcase,
   unpublishShowcase,
+  deleteShowcase,
+  blockShowcase,
+  unblockShowcase,
+  adminDeleteShowcase,
+  evaluateShowcaseRewardEligibility,
+  approveShowcaseReward,
+  rejectShowcaseReward,
   submitShowcaseForReview,
   approveShowcaseReview,
   rejectShowcaseReview,
@@ -163,6 +170,7 @@ import {
   ALLOWED_AUDIO_MIME_TYPES,
   MAX_IMAGE_SIZE,
   MAX_VIDEO_SIZE,
+  MAX_DIRECT_UPLOAD_SIZE,
 } from './server/db/types.js';
 
 import { validateUploadedFile, isSvgContent } from './server/fileValidation.js';
@@ -310,10 +318,11 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit for general theme assets
 });
 
-// Dedicated multer instance for showcase photos and large video files (up to 200MB)
+// Dedicated multer instance for small showcase direct fallback assets (max 10MB to protect memory).
+// Large files (up to 200MB) must be uploaded via signed Supabase Storage upload.
 const mediaUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 200 * 1024 * 1024 },
+  limits: { fileSize: MAX_DIRECT_UPLOAD_SIZE }, // 10MB maximum for direct in-memory upload
 });
 
 // ----------------------------------------------------
@@ -3166,8 +3175,8 @@ app.post('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT, 
       return;
     }
 
-    // Normal users can only initialize showcase with DRAFT status
-    const initialStatus = status === 'DRAFT' ? 'DRAFT' : 'DRAFT';
+    // In "Publish First, Moderate Later" model, default to PUBLISHED unless explicitly DRAFT or UNPUBLISHED
+    const initialStatus = status === 'DRAFT' || status === 'UNPUBLISHED' ? status : 'PUBLISHED';
 
     const showcase = await createShowcase({
       event_id: eventId,
@@ -3180,6 +3189,9 @@ app.post('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT, 
       status: initialStatus,
     });
 
+    // Evaluate reward eligibility asynchronously
+    evaluateShowcaseRewardEligibility(eventId).catch((err) => console.warn('Reward evaluation notice on creation:', err));
+
     res.status(201).json({ showcase });
   } catch (err: any) {
     console.error('Create showcase error:', err);
@@ -3189,7 +3201,7 @@ app.post('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT, 
 
 /**
  * PATCH /api/events/:eventId/showcase
- * Update showcase details
+ * Update showcase details - normal organizers can edit freely without approval lock
  */
 app.patch('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -3214,16 +3226,17 @@ app.patch('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT,
       return;
     }
 
-    // Enforce Review Editing Rules:
-    // SUBMITTED: Normal user cannot silently change the submitted version
-    if (existing.review_status === 'SUBMITTED') {
-      res.status(403).json({ error: 'Showcase is currently SUBMITTED and undergoing review. Edits cannot be made while under review.' });
+    // Enforce Moderation Security: BLOCKED showcases cannot be edited by normal users
+    if (existing.status === 'BLOCKED') {
+      res.status(403).json({
+        error: 'This showcase has been blocked by administrators and cannot be edited. Please contact support.',
+        code: 'SHOWCASE_BLOCKED',
+      });
       return;
     }
 
-    // APPROVED: Do not allow changes that invalidate the approved review
-    if (existing.review_status === 'APPROVED') {
-      res.status(403).json({ error: 'Showcase is APPROVED. Approved showcases are locked from modifications.' });
+    if (existing.status === 'DELETED' || existing.deleted_at) {
+      res.status(404).json({ error: 'Event Showcase has been deleted' });
       return;
     }
 
@@ -3234,12 +3247,11 @@ app.patch('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT,
       return;
     }
 
-    // Protect server-controlled status transitions:
-    // Normal users cannot directly set APPROVED or REJECTED or arbitrary statuses
+    // Normal users can only set visibility to PUBLISHED, UNPUBLISHED, or DRAFT
     let safeStatus: any = undefined;
     if (status !== undefined) {
-      if (status === 'APPROVED' || status === 'REJECTED') {
-        res.status(403).json({ error: 'Cannot set review status directly. Showcase approval is managed by developer review.' });
+      if (status === 'BLOCKED' || status === 'DELETED') {
+        res.status(403).json({ error: 'Cannot set administrative moderation status directly.' });
         return;
       }
       if (status === 'DRAFT' || status === 'UNPUBLISHED' || status === 'PUBLISHED') {
@@ -3256,6 +3268,9 @@ app.patch('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT,
       status: safeStatus,
     });
 
+    // Re-evaluate reward eligibility after update
+    evaluateShowcaseRewardEligibility(eventId).catch((err) => console.warn('Reward evaluation notice on update:', err));
+
     res.json({ showcase });
   } catch (err: any) {
     console.error('Update showcase error:', err);
@@ -3264,52 +3279,8 @@ app.patch('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT,
 });
 
 /**
- * POST /api/events/:eventId/showcase/submit
- * Submit showcase for developer review
- */
-app.post('/api/events/:eventId/showcase/submit', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  try {
-    const user = req.user!;
-    const { eventId } = req.params;
-
-    const event = await getEventById(eventId);
-    if (!event) {
-      res.status(404).json({ error: 'Event not found' });
-      return;
-    }
-
-    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
-    if (!isMember || !hasPermission) {
-      res.status(403).json({ error: 'Permission denied: Only owners and admins can submit showcases for review' });
-      return;
-    }
-
-    const existing = await getShowcaseByEventId(eventId);
-    if (!existing) {
-      res.status(404).json({ error: 'Showcase does not exist. Please create your showcase before submitting.' });
-      return;
-    }
-
-    if (existing.review_status === 'APPROVED') {
-      res.status(400).json({ error: 'Showcase has already been APPROVED and rewarded.' });
-      return;
-    }
-
-    const showcase = await submitShowcaseForReview(eventId);
-    res.json({ showcase, message: 'Showcase submitted for review successfully' });
-  } catch (err: any) {
-    console.error('Submit showcase error:', err);
-    if (err.code === 'MEDIA_REQUIREMENT_NOT_MET' || err.code === 'VALIDATION_ERROR') {
-      res.status(422).json({ error: err.message, code: err.code });
-      return;
-    }
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/**
  * POST /api/events/:eventId/showcase/publish
- * Publish showcase
+ * Publish showcase immediately
  */
 app.post('/api/events/:eventId/showcase/publish', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -3334,7 +3305,13 @@ app.post('/api/events/:eventId/showcase/publish', showcaseRateLimiter, authentic
       return;
     }
 
+    if (existing.status === 'BLOCKED') {
+      res.status(403).json({ error: 'Cannot publish a blocked showcase. Please contact support.', code: 'SHOWCASE_BLOCKED' });
+      return;
+    }
+
     const showcase = await publishShowcase(eventId);
+    evaluateShowcaseRewardEligibility(eventId).catch((err) => console.warn('Reward evaluation notice on publish:', err));
     res.json({ showcase });
   } catch (err: any) {
     console.error('Publish showcase error:', err);
@@ -3373,6 +3350,35 @@ app.post('/api/events/:eventId/showcase/unpublish', showcaseRateLimiter, authent
     res.json({ showcase });
   } catch (err: any) {
     console.error('Unpublish showcase error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/events/:eventId/showcase
+ * Delete event showcase
+ */
+app.delete('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can delete event showcases' });
+      return;
+    }
+
+    await deleteShowcase(eventId);
+    res.json({ success: true, message: 'Showcase deleted successfully' });
+  } catch (err: any) {
+    console.error('Delete showcase error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -3533,7 +3539,16 @@ app.post('/api/events/:eventId/showcase/media/upload-url', uploadRateLimiter, au
       fileName,
       mimeType: lowerMime,
       mediaType: normalizedMediaType as 'IMAGE' | 'VIDEO',
+      fileSize,
     });
+
+    if (!uploadInfo.signedUrl && fileSize > MAX_DIRECT_UPLOAD_SIZE) {
+      res.status(503).json({
+        error: 'Direct upload is restricted to 10MB to prevent memory pressure. Files up to 200MB require signed Supabase storage upload, but a signed URL could not be generated. Please check storage bucket configuration.',
+        code: 'SIGNED_UPLOAD_UNAVAILABLE',
+      });
+      return;
+    }
 
     res.json({
       uploadInfo: {
@@ -3559,7 +3574,23 @@ app.post(
   ['/api/events/showcase-media/direct-upload', '/api/events/:eventId/showcase/media/direct-upload'],
   uploadRateLimiter,
   authenticateJWT,
-  mediaUpload.single('file'),
+  (req, res, next) => {
+    mediaUpload.single('file')(req, res, (err: any) => {
+      if (err) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          res.status(413).json({
+            error: `Direct upload is restricted to small assets up to 10MB. Large showcase files (up to 200MB) must be uploaded via signed storage upload (/upload-url).`,
+            code: 'DIRECT_UPLOAD_SIZE_EXCEEDED',
+            maxDirectSizeBytes: MAX_DIRECT_UPLOAD_SIZE,
+          });
+          return;
+        }
+        res.status(400).json({ error: err.message || 'File upload error', code: 'UPLOAD_ERROR' });
+        return;
+      }
+      next();
+    });
+  },
   async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
@@ -3637,7 +3668,7 @@ app.post(
       const validation = validateUploadedFile(req.file.buffer, {
         originalName: queryFilename || req.file.originalname,
         declaredMime: req.file.mimetype,
-        maxSizeBytes: MAX_VIDEO_SIZE,
+        maxSizeBytes: MAX_DIRECT_UPLOAD_SIZE,
       });
 
       if (!validation.valid) {
@@ -3657,17 +3688,11 @@ app.post(
       }
 
       const fileSize = req.file.buffer.length;
-      if (isImage && fileSize > MAX_IMAGE_SIZE) {
-        res.status(422).json({
-          error: `Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
-          code: 'FILE_TOO_LARGE',
-        });
-        return;
-      }
-      if (isVideo && fileSize > MAX_VIDEO_SIZE) {
-        res.status(422).json({
-          error: `Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
-          code: 'FILE_TOO_LARGE',
+      if (fileSize > MAX_DIRECT_UPLOAD_SIZE) {
+        res.status(413).json({
+          error: `Direct upload is restricted to small assets up to 10MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided). Large showcase files (up to 200MB) must be uploaded via signed storage upload (/upload-url).`,
+          code: 'DIRECT_UPLOAD_SIZE_EXCEEDED',
+          maxDirectSizeBytes: MAX_DIRECT_UPLOAD_SIZE,
         });
         return;
       }
@@ -4310,7 +4335,7 @@ app.get('/api/admin/showcases', authenticateDeveloperAdmin, handleGetAdminShowca
  */
 const handleApproveShowcase = async (req: AuthenticatedRequest, res: any) => {
   try {
-    const { showcaseId } = req.params;
+    const showcaseId = req.params.id || req.params.showcaseId;
     const reviewerId = req.user?.id || 'admin';
 
     const result = await approveShowcaseReview(showcaseId, reviewerId);
@@ -4337,16 +4362,18 @@ const handleApproveShowcase = async (req: AuthenticatedRequest, res: any) => {
   }
 };
 
+app.post('/api/developer/showcases/:id/approve', authenticateDeveloperAdmin, handleApproveShowcase);
 app.post('/api/developer/showcases/:showcaseId/approve', authenticateDeveloperAdmin, handleApproveShowcase);
+app.post('/api/admin/showcases/:id/approve', authenticateDeveloperAdmin, handleApproveShowcase);
 app.post('/api/admin/showcases/:showcaseId/approve', authenticateDeveloperAdmin, handleApproveShowcase);
 
 /**
- * POST /api/developer/showcases/:showcaseId/reject (or /api/admin/showcases/:showcaseId/reject)
+ * POST /api/developer/showcases/:id/reject (or /api/admin/showcases/:id/reject)
  * Reject showcase review with required explanation reason
  */
 const handleRejectShowcase = async (req: AuthenticatedRequest, res: any) => {
   try {
-    const { showcaseId } = req.params;
+    const showcaseId = req.params.id || req.params.showcaseId;
     const reviewerId = req.user?.id || 'admin';
     const { reason, rejection_reason } = req.body;
     const finalReason = rejection_reason || reason;
@@ -4376,8 +4403,123 @@ const handleRejectShowcase = async (req: AuthenticatedRequest, res: any) => {
   }
 };
 
+app.post('/api/developer/showcases/:id/reject', authenticateDeveloperAdmin, handleRejectShowcase);
 app.post('/api/developer/showcases/:showcaseId/reject', authenticateDeveloperAdmin, handleRejectShowcase);
+app.post('/api/admin/showcases/:id/reject', authenticateDeveloperAdmin, handleRejectShowcase);
 app.post('/api/admin/showcases/:showcaseId/reject', authenticateDeveloperAdmin, handleRejectShowcase);
+
+// Explicit separated reward routes
+app.post('/api/developer/showcases/:id/reward/approve', authenticateDeveloperAdmin, handleApproveShowcase);
+app.post('/api/developer/showcases/:showcaseId/reward/approve', authenticateDeveloperAdmin, handleApproveShowcase);
+app.post('/api/admin/showcases/:id/reward/approve', authenticateDeveloperAdmin, handleApproveShowcase);
+app.post('/api/admin/showcases/:showcaseId/reward/approve', authenticateDeveloperAdmin, handleApproveShowcase);
+app.post('/api/developer/showcases/:id/reward/reject', authenticateDeveloperAdmin, handleRejectShowcase);
+app.post('/api/developer/showcases/:showcaseId/reward/reject', authenticateDeveloperAdmin, handleRejectShowcase);
+app.post('/api/admin/showcases/:id/reward/reject', authenticateDeveloperAdmin, handleRejectShowcase);
+app.post('/api/admin/showcases/:showcaseId/reward/reject', authenticateDeveloperAdmin, handleRejectShowcase);
+
+/**
+ * POST /api/developer/showcases/:id/block (or /api/admin/showcases/:id/block)
+ * Block showcase for inappropriate content with required moderation reason
+ */
+const handleBlockShowcase = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const showcaseId = req.params.id || req.params.showcaseId;
+    const moderatorId = req.user?.id || 'admin';
+    const { reason } = req.body;
+
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
+      res.status(422).json({ error: 'Moderation reason is required when blocking a showcase' });
+      return;
+    }
+
+    const updated = await blockShowcase(showcaseId, moderatorId, reason.trim());
+    res.json({
+      success: true,
+      showcase: updated,
+      message: 'Showcase has been blocked and removed from public access.',
+    });
+  } catch (err: any) {
+    console.error('Block showcase error:', err);
+    if (err.code === 'SHOWCASE_NOT_FOUND') {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.post('/api/developer/showcases/:id/block', authenticateDeveloperAdmin, handleBlockShowcase);
+app.post('/api/developer/showcases/:showcaseId/block', authenticateDeveloperAdmin, handleBlockShowcase);
+app.post('/api/admin/showcases/:id/block', authenticateDeveloperAdmin, handleBlockShowcase);
+app.post('/api/admin/showcases/:showcaseId/block', authenticateDeveloperAdmin, handleBlockShowcase);
+
+/**
+ * POST /api/developer/showcases/:id/unblock (or /api/admin/showcases/:id/unblock)
+ * Unblock a previously blocked showcase
+ */
+const handleUnblockShowcase = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const showcaseId = req.params.id || req.params.showcaseId;
+    const moderatorId = req.user?.id || 'admin';
+    const { reason } = req.body;
+
+    const updated = await unblockShowcase(showcaseId, moderatorId, reason);
+    res.json({
+      success: true,
+      showcase: updated,
+      message: 'Showcase has been unblocked and restored to public view.',
+    });
+  } catch (err: any) {
+    console.error('Unblock showcase error:', err);
+    if (err.code === 'SHOWCASE_NOT_FOUND') {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.post('/api/developer/showcases/:id/unblock', authenticateDeveloperAdmin, handleUnblockShowcase);
+app.post('/api/developer/showcases/:showcaseId/unblock', authenticateDeveloperAdmin, handleUnblockShowcase);
+app.post('/api/admin/showcases/:id/unblock', authenticateDeveloperAdmin, handleUnblockShowcase);
+app.post('/api/admin/showcases/:showcaseId/unblock', authenticateDeveloperAdmin, handleUnblockShowcase);
+
+/**
+ * DELETE /api/developer/showcases/:id (or /api/admin/showcases/:id)
+ * Admin soft delete showcase with moderation reason
+ */
+const handleAdminDeleteShowcase = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const showcaseId = req.params.id || req.params.showcaseId;
+    const moderatorId = req.user?.id || 'admin';
+    const { reason } = req.body;
+
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
+      res.status(422).json({ error: 'Deletion reason is required for administrative showcase deletion' });
+      return;
+    }
+
+    const updated = await adminDeleteShowcase(showcaseId, moderatorId, reason.trim());
+    res.json({
+      success: true,
+      showcase: updated,
+      message: 'Showcase deleted administratively.',
+    });
+  } catch (err: any) {
+    console.error('Admin delete showcase error:', err);
+    if (err.code === 'SHOWCASE_NOT_FOUND') {
+      res.status(404).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.delete('/api/developer/showcases/:id', authenticateDeveloperAdmin, handleAdminDeleteShowcase);
+app.delete('/api/developer/showcases/:showcaseId', authenticateDeveloperAdmin, handleAdminDeleteShowcase);
+app.delete('/api/admin/showcases/:id', authenticateDeveloperAdmin, handleAdminDeleteShowcase);
+app.delete('/api/admin/showcases/:showcaseId', authenticateDeveloperAdmin, handleAdminDeleteShowcase);
 
 // ----------------------------------------------------
 // PLATFORM & EVENT PRICING (DEVELOPER ADMIN)

@@ -1,5 +1,5 @@
 import React from 'react';
-import { GameTheme, getThemeGameType } from '../../themes/types';
+import { GameTheme, getThemeGameType, GameOrientation } from '../../themes/types';
 import {
   GameLayoutConfig,
   LayoutElementKey,
@@ -28,6 +28,9 @@ import {
   Info,
   Grid,
   Footprints,
+  Smartphone,
+  Monitor,
+  Compass,
 } from 'lucide-react';
 
 interface LayoutTabProps {
@@ -189,6 +192,68 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
           <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
           <span>Reset All Layout</span>
         </button>
+      </div>
+
+      {/* Target Device Orientation Setting */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+        <div>
+          <h4 className="text-xs font-black text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+            <Compass className="w-3.5 h-3.5 text-emerald-400" /> Target Orientation & Responsiveness
+          </h4>
+          <p className="text-xs text-slate-400 mt-1">
+            Choose how this theme displays on mobile devices and kiosks. In Auto mode, the game adapts seamlessly between portrait and landscape.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {[
+            {
+              id: 'auto' as GameOrientation,
+              title: 'Auto Responsive',
+              desc: 'Adapts to phone portrait or desktop landscape dynamically',
+              icon: <Compass className="w-4 h-4 text-emerald-400" />,
+            },
+            {
+              id: 'landscape' as GameOrientation,
+              title: 'Landscape Preferred',
+              desc: 'Best for widescreen kiosks, iPads & desktop monitors',
+              icon: <Monitor className="w-4 h-4 text-sky-400" />,
+            },
+            {
+              id: 'portrait' as GameOrientation,
+              title: 'Portrait Preferred',
+              desc: 'Optimized for mobile upright play & vertical totems',
+              icon: <Smartphone className="w-4 h-4 text-amber-400" />,
+            },
+          ].map((mode) => {
+            const currentOrientation = layout.orientation || 'auto';
+            const isSelected = currentOrientation === mode.id;
+
+            return (
+              <button
+                key={mode.id}
+                type="button"
+                onClick={() =>
+                  handleUpdateLayout((prev) => ({
+                    ...prev,
+                    orientation: mode.id,
+                  }))
+                }
+                className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1.5 ${
+                  isSelected
+                    ? 'bg-emerald-500/15 border-emerald-400/80 shadow-md ring-1 ring-emerald-400/40'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {mode.icon}
+                  <span className="text-xs font-black text-slate-200">{mode.title}</span>
+                </div>
+                <span className="text-[11px] text-slate-400 leading-snug">{mode.desc}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Elements Selection Tabs / Badges */}

@@ -1,12 +1,15 @@
 import Phaser from 'phaser';
 import { ThemeDropItem } from '../../themes/types';
 import { getActiveTheme } from '../../themes';
+import { getDropItemDisplaySize, DEFAULT_MAX_DROP_ITEM_SIZE } from '../../themes/itemSizing';
 
 export class FallingItem extends Phaser.Physics.Arcade.Sprite {
   public itemConfig: ThemeDropItem;
   public scoreValue: number;
   public fallSpeed: number;
   public isCollected: boolean = false;
+  public itemDisplayWidth: number = DEFAULT_MAX_DROP_ITEM_SIZE;
+  public itemDisplayHeight: number = DEFAULT_MAX_DROP_ITEM_SIZE;
   private rotSpeed: number;
 
   constructor(
@@ -31,8 +34,31 @@ export class FallingItem extends Phaser.Physics.Arcade.Sprite {
     this.setDepth(8);
     this.setOrigin(0.5, 0.5);
 
-    // Standard display size (66x66 px)
-    this.setDisplaySize(66, 66);
+    // Intrinsic image / texture frame dimensions
+    const imgSource = this.texture?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
+    const naturalWidth =
+      imgSource && 'naturalWidth' in imgSource && imgSource.naturalWidth > 0
+        ? imgSource.naturalWidth
+        : this.frame?.realWidth || this.frame?.width || this.texture?.source[0]?.width || 64;
+    const naturalHeight =
+      imgSource && 'naturalHeight' in imgSource && imgSource.naturalHeight > 0
+        ? imgSource.naturalHeight
+        : this.frame?.realHeight || this.frame?.height || this.texture?.source[0]?.height || 64;
+
+    const scaleMultiplier =
+      typeof itemConfig.scale === 'number' && itemConfig.scale > 0 ? itemConfig.scale : 1.0;
+
+    // Proportional display size: preserves intrinsic aspect ratio without distortion
+    const { width: displayW, height: displayH } = getDropItemDisplaySize(
+      naturalWidth,
+      naturalHeight,
+      DEFAULT_MAX_DROP_ITEM_SIZE,
+      scaleMultiplier
+    );
+
+    this.itemDisplayWidth = displayW;
+    this.itemDisplayHeight = displayH;
+    this.setDisplaySize(displayW, displayH);
 
     const body = this.body as Phaser.Physics.Arcade.Body;
     if (body) {
@@ -41,31 +67,47 @@ export class FallingItem extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
-   * Fits a centered circular physics body tightly around the inner item core based on item configuration.
+   * Updates the physics collision body to precisely match the proportional visual dimensions.
+   * For non-square items (e.g. 512x128 tickets, 128x256 bottles), the body bounds are scaled
+   * proportionally with the visual sprite, preventing oversized or mismatched hitboxes.
    */
   public updateCollisionBody() {
     const body = this.body as Phaser.Physics.Arcade.Body;
     if (!body || !this.texture) return;
 
-    const textureWidth = this.texture.source[0]?.width || 500;
-    const textureHeight = this.texture.source[0]?.height || 500;
+    const naturalWidth =
+      this.frame?.realWidth || this.frame?.width || this.texture.source[0]?.width || 64;
+    const naturalHeight =
+      this.frame?.realHeight || this.frame?.height || this.texture.source[0]?.height || 64;
 
-    const radiusRatio = this.itemConfig.collisionRadiusRatio ?? 0.30;
-    const centerXRatio = this.itemConfig.collisionCenterXRatio ?? 0.50;
-    const centerYRatio = this.itemConfig.collisionCenterYRatio ?? 0.54;
+    const aspectRatio = naturalWidth / naturalHeight;
+    const isRoughlySquare = aspectRatio >= 0.82 && aspectRatio <= 1.22;
 
-    const radius = textureWidth * radiusRatio;
-    const centerX = textureWidth * centerXRatio;
-    const centerY = textureHeight * centerYRatio;
+    if (isRoughlySquare && typeof this.itemConfig.collisionRadiusRatio === 'number') {
+      const radiusRatio = this.itemConfig.collisionRadiusRatio;
+      const centerXRatio = this.itemConfig.collisionCenterXRatio ?? 0.50;
+      const centerYRatio = this.itemConfig.collisionCenterYRatio ?? 0.54;
 
-    const offsetX = centerX - radius;
-    const offsetY = centerY - radius;
+      const radius = naturalWidth * radiusRatio;
+      const centerX = naturalWidth * centerXRatio;
+      const centerY = naturalHeight * centerYRatio;
 
-    body.setCircle(radius, offsetX, offsetY);
+      const offsetX = centerX - radius;
+      const offsetY = centerY - radius;
+
+      body.setCircle(radius, offsetX, offsetY);
+    } else {
+      // Non-square assets (tickets, banners, vertical icons) or default items:
+      // AABB box in source coordinates automatically scales by (scaleX, scaleY)
+      // to match itemDisplayWidth and itemDisplayHeight exactly.
+      body.setSize(naturalWidth, naturalHeight, true);
+    }
   }
 
-  public setDisplaySize(width: number, height: number): this {
+  public override setDisplaySize(width: number, height: number): this {
     super.setDisplaySize(width, height);
+    this.itemDisplayWidth = width;
+    this.itemDisplayHeight = height;
     this.updateCollisionBody();
     return this;
   }

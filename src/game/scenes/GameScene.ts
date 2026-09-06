@@ -150,7 +150,8 @@ export class GameScene extends Phaser.Scene {
       this.itemsGroup.getChildren().forEach((child) => {
         const item = child as FallingItem;
         if (item && item.active && !item.isCollected) {
-          if (item.y > GAME_HEIGHT + 20) {
+          const offscreenThreshold = GAME_HEIGHT + Math.max(30, (item.itemDisplayHeight || item.displayHeight || 64) / 2 + 10);
+          if (item.y > offscreenThreshold) {
             this.duriansMissed++;
             item.isCollected = true;
             item.destroy();

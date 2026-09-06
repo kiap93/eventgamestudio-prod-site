@@ -194,25 +194,25 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
         xhr.addEventListener('error', () => reject(new Error('Network error during file upload')));
         xhr.addEventListener('abort', () => reject(new Error('Upload was aborted')));
 
-        // If direct upload endpoint is used
-        if (uploadInfo.directUploadUrl) {
+        // Preferred production path: Direct signed Supabase storage upload (up to 200MB, zero server/worker RAM pressure)
+        if (uploadInfo.signedUrl) {
+          xhr.open('PUT', uploadInfo.signedUrl);
+          xhr.setRequestHeader('Content-Type', item.file.type || 'application/octet-stream');
+          xhr.send(item.file);
+        } else if (uploadInfo.directUploadUrl) {
+          // Direct Worker / server fallback upload strictly reserved for small assets (<= 10MB)
           const formData = new FormData();
           formData.append('file', item.file);
           formData.append('path', uploadInfo.path);
-          formData.append('filename', uploadInfo.fileName);
+          formData.append('filename', uploadInfo.fileName || uploadInfo.path.split('/').pop() || 'media-file');
 
           xhr.open('POST', uploadInfo.directUploadUrl);
           if (token) {
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
           }
           xhr.send(formData);
-        } else if (uploadInfo.signedUrl) {
-          // Direct signed URL upload
-          xhr.open('PUT', uploadInfo.signedUrl);
-          xhr.setRequestHeader('Content-Type', item.file.type || 'application/octet-stream');
-          xhr.send(item.file);
         } else {
-          reject(new Error('No valid upload URL available'));
+          reject(new Error('No valid upload destination available'));
         }
       });
 

@@ -1181,7 +1181,7 @@ CREATE TABLE IF NOT EXISTS public.event_showcases (
   client_name TEXT,
   client_logo_url TEXT,
   cover_image_url TEXT,
-  status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PUBLISHED', 'UNPUBLISHED')),
+  status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PUBLISHED', 'UNPUBLISHED', 'BLOCKED', 'DELETED')),
   review_status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (review_status IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED')),
   publication_status TEXT NOT NULL DEFAULT 'UNPUBLISHED' CHECK (publication_status IN ('UNPUBLISHED', 'PUBLISHED')),
   submitted_at TIMESTAMPTZ,
@@ -1191,10 +1191,44 @@ CREATE TABLE IF NOT EXISTS public.event_showcases (
   reward_transaction_id UUID REFERENCES public.wallet_transactions(id) ON DELETE SET NULL,
   reward_granted_at TIMESTAMPTZ,
   reward_status TEXT DEFAULT 'PENDING' CHECK (reward_status IN ('PENDING', 'REWARDED', 'NOT_ELIGIBLE')),
+  reward_review_status TEXT DEFAULT 'NOT_ELIGIBLE' CHECK (reward_review_status IN ('NOT_ELIGIBLE', 'AWAITING_APPROVAL', 'REWARDED', 'REJECTED')),
+  reward_reviewed_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  reward_reviewed_at TIMESTAMPTZ,
+  reward_rejection_reason TEXT,
+  moderated_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  moderated_at TIMESTAMPTZ,
+  moderation_reason TEXT,
+  deleted_at TIMESTAMPTZ,
   published_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+CREATE TABLE IF NOT EXISTS public.showcase_moderation_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  showcase_id UUID NOT NULL REFERENCES public.event_showcases(id) ON DELETE CASCADE,
+  moderator_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  action TEXT NOT NULL CHECK (action IN ('BLOCK', 'UNBLOCK', 'DELETE', 'RESTORE')),
+  reason TEXT NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_showcase_mod_logs_showcase_id ON public.showcase_moderation_logs(showcase_id);
+CREATE INDEX IF NOT EXISTS idx_showcase_mod_logs_moderator_id ON public.showcase_moderation_logs(moderator_id);
+CREATE INDEX IF NOT EXISTS idx_showcase_mod_logs_created_at ON public.showcase_moderation_logs(created_at DESC);
+
+ALTER TABLE public.showcase_moderation_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Developer admins can view moderation logs" ON public.showcase_moderation_logs;
+CREATE POLICY "Developer admins can view moderation logs"
+  ON public.showcase_moderation_logs FOR SELECT
+  USING (public.is_developer_admin());
+
+DROP POLICY IF EXISTS "Developer admins can insert moderation logs" ON public.showcase_moderation_logs;
+CREATE POLICY "Developer admins can insert moderation logs"
+  ON public.showcase_moderation_logs FOR INSERT
+  WITH CHECK (public.is_developer_admin());
 
 CREATE INDEX IF NOT EXISTS idx_event_showcases_event_id ON public.event_showcases (event_id);
 CREATE INDEX IF NOT EXISTS idx_event_showcases_org_id ON public.event_showcases (organization_id);
@@ -1228,38 +1262,155 @@ CREATE INDEX IF NOT EXISTS idx_event_showcase_media_sort_order ON public.event_s
 ALTER TABLE public.event_showcases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.event_showcase_media ENABLE ROW LEVEL SECURITY;
 
+-- Backend-write-only for event_showcases:
+-- 1. Drop client write policies
+DROP POLICY IF EXISTS "Owners, admins, designers can insert event showcases" ON public.event_showcases;
+DROP POLICY IF EXISTS "Owners, admins, designers can update event showcases" ON public.event_showcases;
+DROP POLICY IF EXISTS "Owners and admins can delete event showcases" ON public.event_showcases;
+DROP POLICY IF EXISTS "Anyone can insert event showcases" ON public.event_showcases;
+DROP POLICY IF EXISTS "Anyone can update event showcases" ON public.event_showcases;
+DROP POLICY IF EXISTS "Anyone can delete event showcases" ON public.event_showcases;
+
+-- 2. Ensure strict SELECT policy remains active for public active showcases, org members, and developer admins
 DROP POLICY IF EXISTS "Anyone can view published showcases or org members" ON public.event_showcases;
-CREATE POLICY "Anyone can view published showcases or org members"
+DROP POLICY IF EXISTS "Public can view active published showcases" ON public.event_showcases;
+CREATE POLICY "Public can view active published showcases"
   ON public.event_showcases FOR SELECT
   USING (
-    status = 'PUBLISHED' 
-    OR public.is_org_member(organization_id) 
+    (status = 'PUBLISHED' AND deleted_at IS NULL)
+    OR (public.is_org_member(organization_id) AND deleted_at IS NULL)
     OR public.is_developer_admin()
   );
 
-DROP POLICY IF EXISTS "Owners, admins, designers can insert event showcases" ON public.event_showcases;
-CREATE POLICY "Owners, admins, designers can insert event showcases"
-  ON public.event_showcases FOR INSERT
-  WITH CHECK (
-    public.get_org_role(organization_id) IN ('owner', 'admin', 'designer') 
-    OR public.is_developer_admin()
-  );
+-- 3. Revoke direct client mutation privileges
+REVOKE INSERT, UPDATE, DELETE ON public.event_showcases FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.event_showcases FROM anon;
+GRANT SELECT ON public.event_showcases TO authenticated;
+GRANT SELECT ON public.event_showcases TO anon;
+GRANT ALL ON public.event_showcases TO service_role;
+GRANT ALL ON public.event_showcases TO postgres;
 
-DROP POLICY IF EXISTS "Owners, admins, designers can update event showcases" ON public.event_showcases;
-CREATE POLICY "Owners, admins, designers can update event showcases"
-  ON public.event_showcases FOR UPDATE
-  USING (
-    public.get_org_role(organization_id) IN ('owner', 'admin', 'designer') 
-    OR public.is_developer_admin()
-  );
+-- 4. Defense-in-depth trigger blocking direct client mutations
+CREATE OR REPLACE FUNCTION public.prevent_event_showcase_unauthorized_client_mutations()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_role text;
+  v_uid text;
+BEGIN
+  BEGIN
+    v_role := current_setting('request.jwt.claim.role', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_role := NULL;
+  END;
 
-DROP POLICY IF EXISTS "Owners and admins can delete event showcases" ON public.event_showcases;
-CREATE POLICY "Owners and admins can delete event showcases"
-  ON public.event_showcases FOR DELETE
-  USING (
-    public.get_org_role(organization_id) IN ('owner', 'admin') 
-    OR public.is_developer_admin()
-  );
+  IF v_role IS NULL THEN
+    BEGIN
+      v_role := auth.role();
+    EXCEPTION WHEN OTHERS THEN
+      v_role := NULL;
+    END IF;
+  END IF;
+
+  BEGIN
+    v_uid := current_setting('request.jwt.claim.sub', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_uid := NULL;
+  END;
+
+  IF v_uid IS NULL THEN
+    BEGIN
+      v_uid := auth.uid()::text;
+    EXCEPTION WHEN OTHERS THEN
+      v_uid := NULL;
+    END IF;
+  END IF;
+
+  IF v_role IN ('authenticated', 'anon') OR (v_uid IS NOT NULL AND (v_role IS NULL OR v_role != 'service_role')) THEN
+    RAISE EXCEPTION 'Direct client mutation on event_showcases is strictly prohibited. All showcase operations must be routed through the server API.';
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      IF NEW.review_status IS DISTINCT FROM OLD.review_status THEN
+        RAISE EXCEPTION 'Direct update of review_status is strictly prohibited';
+      END IF;
+      IF NEW.reward_status IS DISTINCT FROM OLD.reward_status THEN
+        RAISE EXCEPTION 'Direct update of reward_status is strictly prohibited';
+      END IF;
+      IF NEW.reward_transaction_id IS DISTINCT FROM OLD.reward_transaction_id THEN
+        RAISE EXCEPTION 'Direct update of reward_transaction_id is strictly prohibited';
+      END IF;
+      IF NEW.reward_granted_at IS DISTINCT FROM OLD.reward_granted_at THEN
+        RAISE EXCEPTION 'Direct update of reward_granted_at is strictly prohibited';
+      END IF;
+      IF NEW.reward_review_status IS DISTINCT FROM OLD.reward_review_status THEN
+        RAISE EXCEPTION 'Direct update of reward_review_status is strictly prohibited';
+      END IF;
+      IF NEW.reward_reviewed_by IS DISTINCT FROM OLD.reward_reviewed_by THEN
+        RAISE EXCEPTION 'Direct update of reward_reviewed_by is strictly prohibited';
+      END IF;
+      IF NEW.reward_reviewed_at IS DISTINCT FROM OLD.reward_reviewed_at THEN
+        RAISE EXCEPTION 'Direct update of reward_reviewed_at is strictly prohibited';
+      END IF;
+      IF NEW.reward_rejection_reason IS DISTINCT FROM OLD.reward_rejection_reason THEN
+        RAISE EXCEPTION 'Direct update of reward_rejection_reason is strictly prohibited';
+      END IF;
+      IF NEW.publication_status IS DISTINCT FROM OLD.publication_status THEN
+        RAISE EXCEPTION 'Direct update of publication_status is strictly prohibited';
+      END IF;
+      IF NEW.published_at IS DISTINCT FROM OLD.published_at THEN
+        RAISE EXCEPTION 'Direct update of published_at is strictly prohibited';
+      END IF;
+      IF NEW.status IS DISTINCT FROM OLD.status THEN
+        RAISE EXCEPTION 'Direct update of status is strictly prohibited';
+      END IF;
+      IF NEW.moderated_by IS DISTINCT FROM OLD.moderated_by THEN
+        RAISE EXCEPTION 'Direct update of moderated_by is strictly prohibited';
+      END IF;
+      IF NEW.moderated_at IS DISTINCT FROM OLD.moderated_at THEN
+        RAISE EXCEPTION 'Direct update of moderated_at is strictly prohibited';
+      END IF;
+      IF NEW.moderation_reason IS DISTINCT FROM OLD.moderation_reason THEN
+        RAISE EXCEPTION 'Direct update of moderation_reason is strictly prohibited';
+      END IF;
+      IF NEW.deleted_at IS DISTINCT FROM OLD.deleted_at THEN
+        RAISE EXCEPTION 'Direct update of deleted_at is strictly prohibited';
+      END IF;
+      IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+        RAISE EXCEPTION 'Direct update of organization_id is strictly prohibited';
+      END IF;
+      IF NEW.event_id IS DISTINCT FROM OLD.event_id THEN
+        RAISE EXCEPTION 'Direct update of event_id is strictly prohibited';
+      END IF;
+      IF NEW.id IS DISTINCT FROM OLD.id THEN
+        RAISE EXCEPTION 'Direct update of id is strictly prohibited';
+      END IF;
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      RAISE EXCEPTION 'Direct client creation of event_showcases is strictly prohibited';
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      RAISE EXCEPTION 'Direct client deletion of event_showcases is strictly prohibited';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_event_showcase_unauthorized_client_mutations ON public.event_showcases;
+CREATE TRIGGER trg_prevent_event_showcase_unauthorized_client_mutations
+  BEFORE INSERT OR UPDATE OR DELETE ON public.event_showcases
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_event_showcase_unauthorized_client_mutations();
 
 DROP POLICY IF EXISTS "View showcase media for published or org members" ON public.event_showcase_media;
 CREATE POLICY "View showcase media for published or org members"

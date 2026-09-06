@@ -290,6 +290,7 @@ export function normalizeGameTheme(raw: any): GameTheme {
           enabled: item.enabled !== false,
           isHazard,
           isBonus,
+          scale: item.scale !== undefined ? Number(item.scale) : 1.0,
           collisionRadiusRatio: item.collisionRadiusRatio,
           collisionCenterXRatio: item.collisionCenterXRatio,
           collisionCenterYRatio: item.collisionCenterYRatio,

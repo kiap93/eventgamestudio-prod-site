@@ -10,6 +10,7 @@ import {
   saveGameSettings,
 } from '../../game/settings';
 import { GameTheme, setActiveThemeId, setActiveTheme as setRegistryActiveTheme } from '../../themes';
+import { useResponsiveLayout } from '../../themes/responsive';
 import { GameComponentProps, CatchBrandConfig } from '../types';
 
 export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
@@ -27,6 +28,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
   onToggleFullscreen,
 }) => {
   const gameRef = useRef<Phaser.Game | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<GameScene | null>(null);
 
@@ -274,12 +276,37 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
     setCameraActive(!cameraActive);
   };
 
+  const orientationPreference = activeTheme?.layout?.orientation || 'auto';
+  const responsive = useResponsiveLayout(viewportRef, orientationPreference);
+
+  const customBgUrl =
+    activeTheme?.background_url ||
+    activeTheme?.backgroundUrl ||
+    activeTheme?.theme_assets?.background;
+
   return (
     <div
+      ref={viewportRef}
       className="game-viewport relative w-full h-full flex items-center justify-center overflow-hidden bg-[#07130b]"
+      style={{
+        backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
+        ...(customBgUrl
+          ? {
+              backgroundImage: `url(${customBgUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center center',
+            }
+          : {}),
+      }}
     >
-      {/* 16:9 Proportionally Scaled Game Stage containing Canvas and UI overlay */}
-      <div className="game-stage relative w-full h-full aspect-[16/9] max-w-full max-h-full flex items-center justify-center overflow-hidden">
+      {/* Proportionally Scaled Game Stage containing Canvas and UI overlay */}
+      <div
+        className={`game-stage relative w-full h-full ${
+          responsive.isPortrait
+            ? 'aspect-[9/16] max-h-full w-auto'
+            : 'aspect-[16/9] max-w-full max-h-full'
+        } flex items-center justify-center overflow-hidden`}
+      >
         {/* Hidden Video for Gesture Tracking */}
         <video ref={videoRef} className="hidden" playsInline muted />
 

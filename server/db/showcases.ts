@@ -1,16 +1,26 @@
 import { getSupabaseServerClient, isLocalFallbackAllowed } from '../supabase.js';
-import { EventShowcaseRecord, ShowcaseStatus, ReviewStatus, PublicationStatus, RewardStatus } from './types.js';
+import {
+  EventShowcaseRecord,
+  ShowcaseStatus,
+  ReviewStatus,
+  PublicationStatus,
+  RewardStatus,
+  RewardReviewStatus,
+  ShowcaseModerationLog,
+} from './types.js';
 import { grantShowcaseCredit } from './wallet.js';
 import { getShowcaseMedia } from './showcaseMedia.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-// Local storage fallback path for environments where Supabase migration is not yet run
+// Local storage fallback paths for environments where Supabase migration is not yet run
 const LOCAL_SHOWCASES_FILE = path.join(process.cwd(), 'uploads', 'showcases.json');
+const LOCAL_MODERATION_LOGS_FILE = path.join(process.cwd(), 'uploads', 'showcase_moderation_logs.json');
 
 // In-memory cache for fast reads and reliable fallback
 const localShowcasesCache = new Map<string, EventShowcaseRecord>();
+const localModerationLogsCache: ShowcaseModerationLog[] = [];
 
 function loadLocalShowcases(): void {
   try {
@@ -42,7 +52,37 @@ function saveLocalShowcases(env?: Record<string, any>): void {
   }
 }
 
+function loadLocalModerationLogs(): void {
+  try {
+    if (!isLocalFallbackAllowed()) return;
+    if (fs.existsSync(LOCAL_MODERATION_LOGS_FILE)) {
+      const raw = fs.readFileSync(LOCAL_MODERATION_LOGS_FILE, 'utf-8');
+      const list = JSON.parse(raw) as ShowcaseModerationLog[];
+      localModerationLogsCache.length = 0;
+      localModerationLogsCache.push(...list);
+    }
+  } catch (err) {
+    console.warn('Warning: Could not read local moderation logs file:', err);
+  }
+}
+
+function saveLocalModerationLog(log: ShowcaseModerationLog, env?: Record<string, any>): void {
+  try {
+    if (!isLocalFallbackAllowed(env)) return;
+    localModerationLogsCache.push(log);
+    const dir = path.dirname(LOCAL_MODERATION_LOGS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(LOCAL_MODERATION_LOGS_FILE, JSON.stringify(localModerationLogsCache, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Warning: Could not save local moderation logs file:', err);
+  }
+}
+
 // Initial load
+loadLocalShowcases();
+loadLocalModerationLogs();
 loadLocalShowcases();
 
 /**
@@ -77,6 +117,10 @@ export async function getShowcaseByEventId(
         localShowcasesCache.set(eventId, record);
       }
       return record;
+    }
+
+    if (isLocalFallbackAllowed(env)) {
+      return localShowcasesCache.get(eventId) || null;
     }
 
     return null;
@@ -123,6 +167,12 @@ export async function getShowcaseById(
         localShowcasesCache.set(record.event_id, record);
       }
       return record;
+    }
+
+    if (isLocalFallbackAllowed(env)) {
+      for (const item of localShowcasesCache.values()) {
+        if (item.id === showcaseId) return item;
+      }
     }
 
     return null;
@@ -208,7 +258,8 @@ export async function createShowcase(
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  const status: ShowcaseStatus = params.status || 'DRAFT';
+  // In the "Publish First, Moderate Later" model, default to PUBLISHED unless explicitly DRAFT/UNPUBLISHED
+  const status: ShowcaseStatus = params.status || 'PUBLISHED';
   const publication_status: PublicationStatus = status === 'PUBLISHED' ? 'PUBLISHED' : 'UNPUBLISHED';
   const published_at = status === 'PUBLISHED' ? now : null;
 
@@ -224,6 +275,14 @@ export async function createShowcase(
     status,
     review_status: 'DRAFT',
     publication_status,
+    reward_review_status: 'NOT_ELIGIBLE',
+    reward_reviewed_by: null,
+    reward_reviewed_at: null,
+    reward_rejection_reason: null,
+    moderated_by: null,
+    moderated_at: null,
+    moderation_reason: null,
+    deleted_at: null,
     submitted_at: null,
     reviewed_at: null,
     reviewed_by: null,
@@ -273,6 +332,54 @@ export async function createShowcase(
 }
 
 /**
+ * Record a moderation action in the audit log
+ */
+export async function recordShowcaseModerationLog(
+  params: {
+    showcase_id: string;
+    moderator_id: string;
+    action: 'BLOCK' | 'UNBLOCK' | 'DELETE' | 'RESTORE';
+    reason: string;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<ShowcaseModerationLog> {
+  const id = crypto.randomUUID();
+  const created_at = new Date().toISOString();
+  const log: ShowcaseModerationLog = {
+    id,
+    showcase_id: params.showcase_id,
+    moderator_id: params.moderator_id,
+    action: params.action,
+    reason: params.reason,
+    metadata: params.metadata || {},
+    created_at,
+  };
+
+  try {
+    const supabase = getSupabaseServerClient(env);
+    const { error } = await supabase.from('showcase_moderation_logs').insert(log);
+    if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Failed to record moderation log: ${error.message}`);
+      }
+      saveLocalModerationLog(log, env);
+      return log;
+    }
+    if (isLocalFallbackAllowed(env)) {
+      saveLocalModerationLog(log, env);
+    }
+    return log;
+  } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
+    saveLocalModerationLog(log, env);
+    return log;
+  }
+}
+
+/**
  * Update an existing Event Showcase
  */
 export async function updateShowcase(
@@ -286,6 +393,14 @@ export async function updateShowcase(
     status?: ShowcaseStatus;
     review_status?: ReviewStatus;
     publication_status?: PublicationStatus;
+    reward_review_status?: RewardReviewStatus;
+    reward_reviewed_by?: string | null;
+    reward_reviewed_at?: string | null;
+    reward_rejection_reason?: string | null;
+    moderated_by?: string | null;
+    moderated_at?: string | null;
+    moderation_reason?: string | null;
+    deleted_at?: string | null;
     submitted_at?: string | null;
     reviewed_at?: string | null;
     reviewed_by?: string | null;
@@ -294,13 +409,28 @@ export async function updateShowcase(
     reward_granted_at?: string | null;
     reward_status?: RewardStatus | null;
   },
-  env?: Record<string, any>
+  env?: Record<string, any>,
+  bypassBlockedCheck: boolean = false
 ): Promise<EventShowcaseRecord> {
   const existing = await getShowcaseByEventId(eventId, env);
   if (!existing) {
     const err = new Error('Event Showcase not found');
     (err as any).code = 'SHOWCASE_NOT_FOUND';
     throw err;
+  }
+
+  // Security check: BLOCKED showcases cannot be updated by normal users
+  if (!bypassBlockedCheck) {
+    if (existing.status === 'BLOCKED') {
+      const err = new Error('Showcase has been blocked by administrators and cannot be modified.');
+      (err as any).code = 'SHOWCASE_BLOCKED';
+      throw err;
+    }
+    if (existing.status === 'DELETED' || existing.deleted_at) {
+      const err = new Error('Showcase has been deleted and cannot be modified.');
+      (err as any).code = 'SHOWCASE_DELETED';
+      throw err;
+    }
   }
 
   const now = new Date().toISOString();
@@ -334,6 +464,14 @@ export async function updateShowcase(
     status: newStatus,
     review_status: updates.review_status !== undefined ? updates.review_status : (existing.review_status || 'DRAFT'),
     publication_status: newPublicationStatus,
+    reward_review_status: updates.reward_review_status !== undefined ? updates.reward_review_status : (existing.reward_review_status || 'NOT_ELIGIBLE'),
+    reward_reviewed_by: updates.reward_reviewed_by !== undefined ? updates.reward_reviewed_by : (existing.reward_reviewed_by || null),
+    reward_reviewed_at: updates.reward_reviewed_at !== undefined ? updates.reward_reviewed_at : (existing.reward_reviewed_at || null),
+    reward_rejection_reason: updates.reward_rejection_reason !== undefined ? updates.reward_rejection_reason : (existing.reward_rejection_reason || null),
+    moderated_by: updates.moderated_by !== undefined ? updates.moderated_by : (existing.moderated_by || null),
+    moderated_at: updates.moderated_at !== undefined ? updates.moderated_at : (existing.moderated_at || null),
+    moderation_reason: updates.moderation_reason !== undefined ? updates.moderation_reason : (existing.moderation_reason || null),
+    deleted_at: updates.deleted_at !== undefined ? updates.deleted_at : (existing.deleted_at || null),
     submitted_at: updates.submitted_at !== undefined ? updates.submitted_at : (existing.submitted_at || null),
     reviewed_at: updates.reviewed_at !== undefined ? updates.reviewed_at : (existing.reviewed_at || null),
     reviewed_by: updates.reviewed_by !== undefined ? updates.reviewed_by : (existing.reviewed_by || null),
@@ -358,6 +496,14 @@ export async function updateShowcase(
         status: updatedRecord.status,
         review_status: updatedRecord.review_status,
         publication_status: updatedRecord.publication_status,
+        reward_review_status: updatedRecord.reward_review_status,
+        reward_reviewed_by: updatedRecord.reward_reviewed_by,
+        reward_reviewed_at: updatedRecord.reward_reviewed_at,
+        reward_rejection_reason: updatedRecord.reward_rejection_reason,
+        moderated_by: updatedRecord.moderated_by,
+        moderated_at: updatedRecord.moderated_at,
+        moderation_reason: updatedRecord.moderation_reason,
+        deleted_at: updatedRecord.deleted_at,
         submitted_at: updatedRecord.submitted_at,
         reviewed_at: updatedRecord.reviewed_at,
         reviewed_by: updatedRecord.reviewed_by,
@@ -400,7 +546,221 @@ export async function updateShowcase(
 }
 
 /**
- * Submit Showcase for Developer Review
+ * Block a showcase by moderator (removes from public access immediately)
+ */
+export async function blockShowcase(
+  showcaseId: string,
+  moderatorId: string,
+  reason: string,
+  env?: Record<string, any>
+): Promise<EventShowcaseRecord> {
+  if (!reason || !reason.trim()) {
+    const err = new Error('Moderation reason is required when blocking a showcase.');
+    (err as any).code = 'MODERATION_REASON_REQUIRED';
+    throw err;
+  }
+
+  const showcase = await getShowcaseById(showcaseId, env);
+  if (!showcase) {
+    const err = new Error('Showcase not found');
+    (err as any).code = 'SHOWCASE_NOT_FOUND';
+    throw err;
+  }
+
+  const now = new Date().toISOString();
+  const updated = await updateShowcase(
+    showcase.event_id,
+    {
+      status: 'BLOCKED',
+      publication_status: 'UNPUBLISHED',
+      moderated_by: moderatorId,
+      moderated_at: now,
+      moderation_reason: reason.trim(),
+    },
+    env,
+    true // bypassBlockedCheck
+  );
+
+  await recordShowcaseModerationLog(
+    {
+      showcase_id: showcase.id,
+      moderator_id: moderatorId,
+      action: 'BLOCK',
+      reason: reason.trim(),
+    },
+    env
+  );
+
+  return updated;
+}
+
+/**
+ * Unblock a blocked showcase
+ */
+export async function unblockShowcase(
+  showcaseId: string,
+  moderatorId: string,
+  reason?: string,
+  env?: Record<string, any>
+): Promise<EventShowcaseRecord> {
+  const showcase = await getShowcaseById(showcaseId, env);
+  if (!showcase) {
+    const err = new Error('Showcase not found');
+    (err as any).code = 'SHOWCASE_NOT_FOUND';
+    throw err;
+  }
+
+  const updated = await updateShowcase(
+    showcase.event_id,
+    {
+      status: 'PUBLISHED',
+      publication_status: 'PUBLISHED',
+      moderated_by: null,
+      moderated_at: null,
+      moderation_reason: null,
+    },
+    env,
+    true // bypassBlockedCheck
+  );
+
+  await recordShowcaseModerationLog(
+    {
+      showcase_id: showcase.id,
+      moderator_id: moderatorId,
+      action: 'UNBLOCK',
+      reason: reason ? reason.trim() : 'Unblocked by administrator',
+    },
+    env
+  );
+
+  return updated;
+}
+
+/**
+ * Soft delete showcase by admin with moderation audit log
+ */
+export async function adminDeleteShowcase(
+  showcaseId: string,
+  moderatorId: string,
+  reason: string,
+  env?: Record<string, any>
+): Promise<EventShowcaseRecord> {
+  if (!reason || !reason.trim()) {
+    const err = new Error('Deletion reason is required for administrative showcase deletion.');
+    (err as any).code = 'MODERATION_REASON_REQUIRED';
+    throw err;
+  }
+
+  const showcase = await getShowcaseById(showcaseId, env);
+  if (!showcase) {
+    const err = new Error('Showcase not found');
+    (err as any).code = 'SHOWCASE_NOT_FOUND';
+    throw err;
+  }
+
+  const now = new Date().toISOString();
+  const updated = await updateShowcase(
+    showcase.event_id,
+    {
+      status: 'DELETED',
+      publication_status: 'UNPUBLISHED',
+      deleted_at: now,
+      moderated_by: moderatorId,
+      moderated_at: now,
+      moderation_reason: reason.trim(),
+    },
+    env,
+    true
+  );
+
+  await recordShowcaseModerationLog(
+    {
+      showcase_id: showcase.id,
+      moderator_id: moderatorId,
+      action: 'DELETE',
+      reason: reason.trim(),
+    },
+    env
+  );
+
+  return updated;
+}
+
+/**
+ * Evaluate showcase eligibility for the one-time RM300 first-event showcase reward.
+ * Separate from showcase visibility!
+ */
+export async function evaluateShowcaseRewardEligibility(
+  eventId: string,
+  env?: Record<string, any>
+): Promise<EventShowcaseRecord> {
+  const showcase = await getShowcaseByEventId(eventId, env);
+  if (!showcase) {
+    const err = new Error('Showcase not found');
+    (err as any).code = 'SHOWCASE_NOT_FOUND';
+    throw err;
+  }
+
+  // If already rewarded, no change needed
+  if (showcase.reward_review_status === 'REWARDED' || showcase.reward_status === 'REWARDED') {
+    return showcase;
+  }
+
+  const supabase = getSupabaseServerClient(env);
+
+  // Check if organization already received showcase credit
+  const { data: orgWallet } = await supabase
+    .from('organization_wallets')
+    .select('showcase_credit_granted, showcase_credit')
+    .eq('organization_id', showcase.organization_id)
+    .maybeSingle();
+
+  if (orgWallet?.showcase_credit_granted || (orgWallet?.showcase_credit && orgWallet.showcase_credit > 0)) {
+    return await updateShowcase(
+      eventId,
+      {
+        reward_review_status: 'NOT_ELIGIBLE',
+        reward_status: 'NOT_ELIGIBLE',
+      },
+      env,
+      true
+    );
+  }
+
+  // Check event payment status
+  const { data: eventData } = await supabase
+    .from('events')
+    .select('payment_status, status')
+    .eq('id', eventId)
+    .maybeSingle();
+
+  const isPaid = eventData?.payment_status === 'PAID';
+  const mediaList = await getShowcaseMedia(showcase.id, showcase.organization_id, env);
+  const mediaCount = mediaList ? mediaList.length : 0;
+  const hasTitle = !!showcase.title && showcase.title.trim().length > 0;
+  const hasDesc = !!showcase.description && showcase.description.trim().length > 0;
+  const isEligible = isPaid && mediaCount >= 3 && hasTitle && hasDesc && showcase.status === 'PUBLISHED';
+
+  if (isEligible) {
+    return await updateShowcase(
+      eventId,
+      {
+        reward_review_status: 'AWAITING_APPROVAL',
+        reward_status: 'PENDING',
+        review_status: 'SUBMITTED', // For backward compatibility with legacy views
+      },
+      env,
+      true
+    );
+  }
+
+  return showcase;
+}
+
+/**
+ * Submit Showcase for First-Event Reward Review
+ * Ensures showcase is PUBLISHED and queues for first-event reward evaluation.
+ * Does NOT lock editing or gate visibility!
  */
 export async function submitShowcaseForReview(
   eventId: string,
@@ -413,28 +773,16 @@ export async function submitShowcaseForReview(
     throw err;
   }
 
-  // Validate editing rules
-  if (showcase.review_status === 'SUBMITTED') {
-    return showcase; // Already submitted
-  }
-  if (showcase.review_status === 'APPROVED') {
-    const err = new Error('Showcase is already APPROVED and cannot be resubmitted.');
-    (err as any).code = 'SHOWCASE_ALREADY_APPROVED';
+  if (showcase.status === 'BLOCKED') {
+    const err = new Error('Showcase has been blocked by administrators and cannot be submitted.');
+    (err as any).code = 'SHOWCASE_BLOCKED';
     throw err;
   }
 
   // Validate required Showcase content
   if (!showcase.title || !showcase.title.trim()) {
-    const err = new Error('Showcase title is required for submission.');
+    const err = new Error('Showcase title is required.');
     (err as any).code = 'VALIDATION_ERROR';
-    throw err;
-  }
-
-  // Validate required media: at least 1 showcase media asset is required
-  const mediaList = await getShowcaseMedia(showcase.id, showcase.organization_id, env);
-  if (!mediaList || mediaList.length === 0) {
-    const err = new Error('Please upload at least 1 photo or video to your Showcase gallery before submitting for review.');
-    (err as any).code = 'MEDIA_REQUIREMENT_NOT_MET';
     throw err;
   }
 
@@ -442,18 +790,24 @@ export async function submitShowcaseForReview(
   return await updateShowcase(
     eventId,
     {
+      status: 'PUBLISHED',
+      publication_status: 'PUBLISHED',
       review_status: 'SUBMITTED',
+      reward_review_status: 'AWAITING_APPROVAL',
+      reward_status: 'PENDING',
       submitted_at: now,
-      rejection_reason: null, // Clear previous rejection reason
+      rejection_reason: null,
+      reward_rejection_reason: null,
     },
-    env
+    env,
+    true
   );
 }
 
 /**
- * Approve Showcase and trigger RM300 reward grant
+ * Approve Showcase First-Event Reward and grant RM300 credit
  */
-export async function approveShowcaseReview(
+export async function approveShowcaseReward(
   showcaseId: string,
   reviewerId: string,
   env?: Record<string, any>
@@ -469,19 +823,13 @@ export async function approveShowcaseReview(
     throw err;
   }
 
-  // Verify review status
-  if (showcase.review_status === 'APPROVED' && showcase.reward_status === 'REWARDED') {
+  // If already rewarded, idempotent return
+  if (showcase.reward_review_status === 'REWARDED' && showcase.reward_status === 'REWARDED') {
     return {
       showcase,
       reward: null,
       alreadyRewarded: true,
     };
-  }
-
-  if (showcase.review_status !== 'SUBMITTED' && showcase.review_status !== 'APPROVED') {
-    const err = new Error(`Cannot approve showcase with status "${showcase.review_status}". It must be SUBMITTED first.`);
-    (err as any).code = 'INVALID_STATUS_TRANSITION';
-    throw err;
   }
 
   const now = new Date().toISOString();
@@ -506,17 +854,22 @@ export async function approveShowcaseReview(
   const updatedShowcase = await updateShowcase(
     showcase.event_id,
     {
+      reward_review_status: 'REWARDED',
+      reward_reviewed_by: reviewerId,
+      reward_reviewed_at: now,
+      reward_rejection_reason: null,
+      reward_transaction_id: rewardResult.transaction?.id || null,
+      reward_granted_at: showcase.reward_granted_at || now,
+      reward_status: 'REWARDED',
       review_status: 'APPROVED',
       reviewed_at: now,
       reviewed_by: reviewerId,
       rejection_reason: null,
-      reward_transaction_id: rewardResult.transaction?.id || null,
-      reward_granted_at: showcase.reward_granted_at || now,
-      reward_status: 'REWARDED',
       publication_status: 'PUBLISHED',
-      status: 'PUBLISHED',
+      status: showcase.status === 'BLOCKED' ? 'BLOCKED' : 'PUBLISHED',
     },
-    env
+    env,
+    true
   );
 
   return {
@@ -526,10 +879,14 @@ export async function approveShowcaseReview(
   };
 }
 
+// Alias for backward compatibility
+export const approveShowcaseReview = approveShowcaseReward;
+
 /**
- * Reject Showcase with mandatory reason
+ * Reject Showcase First-Event Reward with mandatory reason
+ * (Showcase visibility remains live/published - only the financial reward is rejected)
  */
-export async function rejectShowcaseReview(
+export async function rejectShowcaseReward(
   showcaseId: string,
   reviewerId: string,
   rejectionReason: string,
@@ -552,14 +909,23 @@ export async function rejectShowcaseReview(
   return await updateShowcase(
     showcase.event_id,
     {
+      reward_review_status: 'REJECTED',
+      reward_rejection_reason: rejectionReason.trim(),
+      reward_reviewed_by: reviewerId,
+      reward_reviewed_at: now,
+      reward_status: 'NOT_ELIGIBLE',
       review_status: 'REJECTED',
       rejection_reason: rejectionReason.trim(),
       reviewed_at: now,
       reviewed_by: reviewerId,
     },
-    env
+    env,
+    true
   );
 }
+
+// Alias for backward compatibility
+export const rejectShowcaseReview = rejectShowcaseReward;
 
 /**
  * List all showcases for developer admin review

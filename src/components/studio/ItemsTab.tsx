@@ -1,5 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { GameTheme, ThemeDropItem, isMemoryMatchTheme } from '../../themes';
+import {
+  GameTheme,
+  ThemeDropItem,
+  isMemoryMatchTheme,
+  getDropItemDisplaySize,
+  DEFAULT_MAX_DROP_ITEM_SIZE,
+} from '../../themes';
 import { MemoryMatchCardsCustomizer } from './games/MemoryMatchCustomizer';
 import {
   Sparkles,
@@ -26,6 +32,7 @@ interface DropItemArtworkUploadProps {
   itemId: string;
   imageUrl: string;
   itemName: string;
+  scale?: number;
   onUpload: (file: File) => Promise<void>;
   onRemove: () => void;
   isUploading: boolean;
@@ -34,12 +41,19 @@ interface DropItemArtworkUploadProps {
 const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
   imageUrl,
   itemName,
+  scale,
   onUpload,
   onRemove,
   isUploading,
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [imgDims, setImgDims] = useState<{
+    naturalW: number;
+    naturalH: number;
+    displayW: number;
+    displayH: number;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -119,6 +133,14 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
             <img
               src={imageUrl}
               alt={itemName || 'Sprite Artwork'}
+              onLoad={(e) => {
+                const nw = e.currentTarget.naturalWidth;
+                const nh = e.currentTarget.naturalHeight;
+                if (nw > 0 && nh > 0) {
+                  const d = getDropItemDisplaySize(nw, nh, DEFAULT_MAX_DROP_ITEM_SIZE, scale);
+                  setImgDims({ naturalW: nw, naturalH: nh, displayW: d.width, displayH: d.height });
+                }
+              }}
               className="max-h-24 max-w-full object-contain filter drop-shadow-md group-hover:scale-105 transition-transform duration-200 z-10"
               referrerPolicy="no-referrer"
             />
@@ -130,6 +152,14 @@ const DropItemArtworkUpload: React.FC<DropItemArtworkUploadProps> = ({
               </div>
             )}
           </div>
+
+          {/* Intrinsic Artwork Dimensions & In-Game Proportional Sizing Badge */}
+          {imgDims && (
+            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-950/90 border border-slate-800 rounded-xl text-[10px] font-mono text-slate-400 shadow-inner">
+              <span>Artwork: <strong className="text-slate-200">{imgDims.naturalW}×{imgDims.naturalH}px</strong></span>
+              <span className="text-emerald-400 font-semibold">Game Size: <strong>{imgDims.displayW}×{imgDims.displayH}px</strong></span>
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2">
             <input
@@ -556,14 +586,15 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                 itemId={itemId}
                 imageUrl={item.imageUrl || ''}
                 itemName={item.name}
+                scale={item.scale}
                 onUpload={(file) => handleItemUpload(file, index)}
                 onRemove={() => handleItemRemoveImage(index)}
                 isUploading={isUploading}
               />
 
-              {/* Speed Multiplier & Spawn Weight Sliders (Only for falling games) */}
+              {/* Speed Multiplier, Spawn Weight & Proportional Size Scale Sliders (Only for falling games) */}
               {!isMemoryMatch && (
-                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+                <div className="grid grid-cols-3 gap-2.5 pt-2 border-t border-slate-800/80">
                   <div className="space-y-1">
                     <div className="flex justify-between text-[11px] font-semibold text-slate-300">
                       <span>Speed</span>
@@ -588,7 +619,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
 
                   <div className="space-y-1">
                     <div className="flex justify-between text-[11px] font-semibold text-slate-300">
-                      <span>Spawn Weight</span>
+                      <span>Weight</span>
                       <span className="text-amber-400 font-mono">
                         {item.spawnWeight || 10} ({spawnPct}%)
                       </span>
@@ -605,6 +636,28 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                         })
                       }
                       className="w-full accent-amber-500 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] font-semibold text-slate-300">
+                      <span>Scale</span>
+                      <span className="text-emerald-400 font-mono">
+                        {(Number(item.scale) || 1.0).toFixed(1)}x
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2.0"
+                      step="0.1"
+                      value={item.scale || 1.0}
+                      onChange={(e) =>
+                        handleUpdateItem(index, {
+                          scale: parseFloat(e.target.value) || 1.0,
+                        })
+                      }
+                      className="w-full accent-emerald-500 cursor-pointer"
                     />
                   </div>
                 </div>

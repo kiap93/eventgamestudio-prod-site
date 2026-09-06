@@ -6,6 +6,7 @@ import {
   VolumeX,
   Pause,
   Play,
+  Square,
   Sparkles,
   Clock,
   Flame,
@@ -39,10 +40,8 @@ import {
   normalizeGameLayout,
   GameLayoutConfig,
   LayoutElementKey,
-  DESIGN_WIDTH,
-  DESIGN_HEIGHT,
-  useGameUiScale,
 } from '../../themes/layout';
+import { useResponsiveLayout, getEffectiveGameLayout } from '../../themes/responsive';
 import { GameLayoutHudOverlay } from '../../components/studio/GameLayoutHudOverlay';
 import { apiFetch } from '../../lib/api';
 import { ResultScreenRenderer } from './ResultScreenRenderer';
@@ -92,6 +91,7 @@ export interface MemoryMatchGameProps extends GameComponentProps<MemoryMatchConf
     isResize: boolean,
     e: React.PointerEvent<HTMLDivElement>
   ) => void;
+  onStopGame?: () => void;
 }
 
 export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
@@ -116,9 +116,12 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   selectedElementKey = null,
   onSelectElementKey,
   onElementPointerDown,
+  onStopGame,
 }) => {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const uiScale = useGameUiScale(viewportRef);
+  const orientationPreference = activeTheme?.layout?.orientation || 'auto';
+  const responsive = useResponsiveLayout(viewportRef, orientationPreference);
+  const { isPortrait, uiScale, designWidth, designHeight } = responsive;
 
   const memoryConfig = useMemo(() => getMemoryMatchConfig(activeTheme), [activeTheme]);
   const boardConfig = memoryConfig.board;
@@ -206,12 +209,25 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     activeTimeoutsRef.current.clear();
   }, []);
 
-  // Cleanup all pending timeouts on component unmount
+  // Centralized gameplay timer, countdown, and animation cleanup
+  const cleanupGameplay = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    clearCardTimeouts();
+  }, [clearCardTimeouts]);
+
+  // Cleanup all pending timers and timeouts on component unmount
   useEffect(() => {
     return () => {
-      clearCardTimeouts();
+      cleanupGameplay();
     };
-  }, [clearCardTimeouts]);
+  }, [cleanupGameplay]);
 
   // Stable callback and state refs to prevent premature timer teardowns
   const onGameStateChangeRef = useRef(onGameStateChange);
@@ -273,7 +289,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
   // Initialize fresh card deck on theme change or mount
   const initBoard = useCallback(() => {
-    clearCardTimeouts();
+    cleanupGameplay();
     const newDeck = createShuffledDeck(activeTheme);
     setCards(newDeck);
     setRandomPositions(generateCardPositions(newDeck.length, boardConfig, cardConfig));
@@ -285,26 +301,78 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     setComboStreak(0);
     setMaxComboStreak(0);
     setTimeRemaining(gameDuration);
+    timeRemainingRef.current = gameDuration;
+    movesRef.current = 0;
+    matchedPairsCountRef.current = 0;
     setIsVictory(false);
     setScoreSubmitted(false);
     setSubmittedRank(null);
     const newSession = `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     setSessionId(newSession);
     sessionIdRef.current = newSession;
-  }, [activeTheme, boardConfig, cardConfig, gameDuration, clearCardTimeouts]);
+  }, [activeTheme, boardConfig, cardConfig, gameDuration, cleanupGameplay]);
 
   // Only re-initialize board on mount or when theme/layout/card/duration configuration changes
   useEffect(() => {
+    cleanupGameplay();
     initBoard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [themeId, boardLayoutKey, cardConfigSignature, gameDuration]);
 
   // Main countdown trigger (3.. 2.. 1.. GO!)
   const startCountdown = useCallback(() => {
+    cleanupGameplay();
     initBoard();
     setCountdown(3);
     updateGameState('COUNTDOWN');
-  }, [initBoard, updateGameState]);
+  }, [cleanupGameplay, initBoard, updateGameState]);
+
+  // Centralized Stop Game function
+  const stopGame = useCallback(() => {
+    memorySounds.playButtonClick();
+
+    // 1. Terminate current game & cancel all running timers, countdown, and pending card delays
+    cleanupGameplay();
+
+    // 2. Invalidate session ID to safely abort any pending async operations or closures
+    const newSession = `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    setSessionId(newSession);
+    sessionIdRef.current = newSession;
+
+    // 3. Reset gameplay state, metrics, and score tracking
+    setIsLocked(false);
+    setFlippedIndices([]);
+    setScore(0);
+    setMoves(0);
+    setMatchedPairsCount(0);
+    setComboStreak(0);
+    setMaxComboStreak(0);
+    setTimeRemaining(gameDuration);
+    timeRemainingRef.current = gameDuration;
+    movesRef.current = 0;
+    matchedPairsCountRef.current = 0;
+    setIsVictory(false);
+    setScoreSubmitted(false);
+    setSubmittedRank(null);
+    setCountdown(3);
+
+    // 4. Reset cards to clean, fresh face-down state
+    const newDeck = createShuffledDeck(activeTheme);
+    setCards(newDeck);
+    setRandomPositions(generateCardPositions(newDeck.length, boardConfig, cardConfig));
+
+    // 5. Return to start / ready screen (START)
+    updateGameState('START');
+    onStopGame?.();
+  }, [
+    cleanupGameplay,
+    activeTheme,
+    boardConfig,
+    cardConfig,
+    gameDuration,
+    updateGameState,
+    onStopGame,
+  ]);
 
   // Dedicated countdown effect (3 -> 2 -> 1 -> PLAYING)
   useEffect(() => {
@@ -379,11 +447,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   // Handle Game Over / Victory
   const handleGameOver = useCallback(
     (won: boolean) => {
-      clearCardTimeouts();
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
+      cleanupGameplay();
       setIsVictory(won);
       setGameState('GAME_OVER');
       onGameStateChangeRef.current?.('GAME_OVER');
@@ -409,7 +473,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         fetchLeaderboard();
       }
     },
-    [gameDuration, totalPairs, fetchLeaderboard, showLeaderboard, clearCardTimeouts]
+    [gameDuration, totalPairs, fetchLeaderboard, showLeaderboard, cleanupGameplay]
   );
 
   const handleGameOverRef = useRef(handleGameOver);
@@ -681,8 +745,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const accuracyPercent = moves > 0 ? Math.min(100, Math.round((matchedPairsCount / moves) * 100)) : 0;
 
   const layout: GameLayoutConfig = useMemo(
-    () => normalizeGameLayout(activeTheme?.layout, 'memory-match'),
-    [activeTheme?.layout]
+    () => getEffectiveGameLayout(normalizeGameLayout(activeTheme?.layout, 'memory-match'), isPortrait, 'memory-match'),
+    [activeTheme?.layout, isPortrait]
   );
 
   const clientLogoUrl =
@@ -748,22 +812,29 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       className={`game-viewport relative w-full h-full min-w-0 min-h-0 overflow-hidden flex items-center justify-center select-none bg-[#07130b] ${className}`}
       style={{
         backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
+        ...(customBgUrl
+          ? {
+              backgroundImage: `url(${customBgUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center center',
+            }
+          : {}),
       }}
     >
       {/* ========================================================================= */}
-      {/* CANONICAL GAME SCALE WRAPPER: EXACT 1024x576 COORDINATE SPACE            */}
+      {/* CANONICAL GAME SCALE WRAPPER: EXACT 1024x576 OR 576x1024 COORDINATE SPACE */}
       {/* ========================================================================= */}
       <div
         style={{
           position: 'absolute',
           top: '50%',
           left: '50%',
-          width: `${DESIGN_WIDTH}px`,
-          height: `${DESIGN_HEIGHT}px`,
-          minWidth: `${DESIGN_WIDTH}px`,
-          minHeight: `${DESIGN_HEIGHT}px`,
-          maxWidth: `${DESIGN_WIDTH}px`,
-          maxHeight: `${DESIGN_HEIGHT}px`,
+          width: `${designWidth}px`,
+          height: `${designHeight}px`,
+          minWidth: `${designWidth}px`,
+          minHeight: `${designHeight}px`,
+          maxWidth: `${designWidth}px`,
+          maxHeight: `${designHeight}px`,
           transform: `translate(-50%, -50%) scale(${uiScale})`,
           transformOrigin: 'center center',
           backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
@@ -789,8 +860,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               left: `${boardX}%`,
               top: `${boardY}%`,
               transform: 'translate(-50%, -50%)',
-              width: `${Math.min(760, Math.round(410 * gridContainerAspect))}px`,
-              height: `${Math.min(410, Math.round(760 / gridContainerAspect))}px`,
+              width: `${Math.min(isPortrait ? 520 : 760, Math.round((isPortrait ? 650 : 410) * gridContainerAspect))}px`,
+              height: `${Math.min(isPortrait ? 650 : 410, Math.round((isPortrait ? 520 : 760) / gridContainerAspect))}px`,
               maxWidth: '100%',
               maxHeight: '100%',
               display: 'grid',
@@ -961,8 +1032,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               left: `${boardX}%`,
               top: `${boardY}%`,
               transform: 'translate(-50%, -50%)',
-              width: '540px',
-              height: '410px',
+              width: `${isPortrait ? 520 : 540}px`,
+              height: `${isPortrait ? 620 : 410}px`,
               maxWidth: '100%',
               maxHeight: '100%',
               zIndex: editableLayout && selectedElementKey === 'memoryCardBoard' ? 45 : 10,
@@ -1158,6 +1229,19 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         {/* 3. PERSISTENT IN-GAME CONTROLS DOCK (Top-Right)                           */}
         {/* ========================================================================= */}
         <div className="absolute top-3.5 right-4 z-40 pointer-events-auto flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-sm p-1.5 rounded-xl border border-slate-700/80 shadow-lg">
+          {/* Stop Game Button: Available during COUNTDOWN, PLAYING, and PAUSED */}
+          {(gameState === 'COUNTDOWN' || gameState === 'PLAYING' || gameState === 'PAUSED') && (
+            <button
+              onClick={stopGame}
+              className="p-1.5 sm:px-2 sm:py-1.5 rounded-lg bg-rose-950/80 border border-rose-600/70 text-rose-300 hover:bg-rose-900 hover:text-white transition-all font-mono text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
+              title="Stop Game (Return to Start Screen)"
+              aria-label="Stop Game"
+            >
+              <Square className="w-3.5 h-3.5 fill-current text-rose-400" />
+              <span className="hidden sm:inline">Stop</span>
+            </button>
+          )}
+
           {gameState === 'PLAYING' && (
             <button
               onClick={handlePause}
@@ -1326,6 +1410,14 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mt-4">
               Get Ready!
             </p>
+            <button
+              onClick={stopGame}
+              className="mt-6 px-3.5 py-1.5 bg-rose-950/70 hover:bg-rose-900 border border-rose-700/70 text-rose-300 hover:text-white rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer pointer-events-auto"
+              title="Stop Countdown"
+            >
+              <Square className="w-3 h-3 fill-current text-rose-400" />
+              <span>Stop Game</span>
+            </button>
           </div>
         )}
 
@@ -1350,6 +1442,13 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Restart Board</span>
+                </button>
+                <button
+                  onClick={stopGame}
+                  className="w-full py-2.5 bg-rose-950/50 hover:bg-rose-900/80 border border-rose-700/60 text-rose-300 hover:text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current text-rose-400" />
+                  <span>Stop Game</span>
                 </button>
               </div>
             </div>
@@ -1385,8 +1484,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               if (action === 'playAgain') {
                 startCountdown();
               } else if (action === 'exit') {
-                initBoard();
-                updateGameState('START');
+                stopGame();
               }
             }}
           />

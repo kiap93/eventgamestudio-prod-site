@@ -13,7 +13,7 @@
  */
 
 import assert from 'node:assert';
-import { ALLOWED_IMAGE_MIME_TYPES, ALLOWED_VIDEO_MIME_TYPES, MAX_IMAGE_SIZE, MAX_VIDEO_SIZE } from './types.js';
+import { ALLOWED_IMAGE_MIME_TYPES, ALLOWED_VIDEO_MIME_TYPES, MAX_IMAGE_SIZE, MAX_VIDEO_SIZE, MAX_DIRECT_UPLOAD_SIZE } from './types.js';
 
 console.log('--- Starting Showcase Direct Upload Security Pipeline Tests ---');
 
@@ -104,6 +104,15 @@ function validateShowcaseUploadRequest(params: {
 
   if (!isImage && !isVideo) {
     return { status: 422, error: `Unsupported media format (${params.mimeType})` };
+  }
+
+  // Direct upload memory-protection ceiling: strictly limited to small assets <= 10MB
+  if (size > MAX_DIRECT_UPLOAD_SIZE) {
+    return {
+      status: 413,
+      error: 'Direct upload is restricted to small assets up to 10MB. Large showcase files (up to 200MB) must use signed storage upload (/upload-url).',
+      code: 'DIRECT_UPLOAD_SIZE_EXCEEDED',
+    };
   }
 
   if (isImage && size > maxImageSize) {
@@ -221,16 +230,17 @@ async function runTests() {
   assert.strictEqual(t6.status, 422, 'Unsupported MIME type must be rejected with 422');
   console.log('✓ Test 6 Passed: Unsupported MIME type rejected (422)');
 
-  // Test 7: File exceeding size limits (e.g. 30MB image) should fail with 422
+  // Test 7: Direct upload exceeding 10MB ceiling (e.g. 15MB or 200MB video) rejected with 413
   const t7 = validateShowcaseUploadRequest({
     user: { id: 'user-admin' },
     eventId: 'event-org1-1',
-    mimeType: 'image/png',
-    fileSize: 30 * 1024 * 1024, // 30MB
+    mimeType: 'video/mp4',
+    fileSize: 15 * 1024 * 1024, // 15MB (exceeds 10MB direct ceiling, must use signed upload)
     mockDb,
   });
-  assert.strictEqual(t7.status, 422, 'Oversized image must be rejected with 422');
-  console.log('✓ Test 7 Passed: Oversized media file rejected (422)');
+  assert.strictEqual(t7.status, 413, 'File exceeding direct upload 10MB ceiling must be rejected with 413');
+  assert.strictEqual(t7.code, 'DIRECT_UPLOAD_SIZE_EXCEEDED');
+  console.log('✓ Test 7 Passed: File exceeding direct upload ceiling rejected with 413 (requires signed storage upload)');
 
   // Test 8: Authorized upload succeeds and returns sandboxed storage path
   const t8 = validateShowcaseUploadRequest({

@@ -24,6 +24,10 @@ import {
   X,
   Layers,
   ArrowUpRight,
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
+  Ban,
 } from 'lucide-react';
 
 export const DeveloperShowcaseReviews: React.FC = () => {
@@ -47,6 +51,18 @@ export const DeveloperShowcaseReviews: React.FC = () => {
 
   // Approve Modal / State
   const [approvingShowcase, setApprovingShowcase] = useState<AdminShowcaseListItem | null>(null);
+
+  // Block Modal
+  const [blockingShowcase, setBlockingShowcase] = useState<AdminShowcaseListItem | null>(null);
+  const [blockReason, setBlockReason] = useState<string>('');
+
+  // Unblock Modal
+  const [unblockingShowcase, setUnblockingShowcase] = useState<AdminShowcaseListItem | null>(null);
+  const [unblockReason, setUnblockReason] = useState<string>('');
+
+  // Delete Modal
+  const [deletingShowcase, setDeletingShowcase] = useState<AdminShowcaseListItem | null>(null);
+  const [deleteReason, setDeleteReason] = useState<string>('');
 
   const fetchShowcases = async () => {
     try {
@@ -170,14 +186,147 @@ export const DeveloperShowcaseReviews: React.FC = () => {
     }
   };
 
+  const handleBlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blockingShowcase) return;
+    if (!blockReason.trim()) {
+      setError('Please provide a moderation reason for blocking this showcase.');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setError(null);
+      setActionSuccess(null);
+
+      const res = await apiFetch(`/api/developer/showcases/${blockingShowcase.id}/block`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: blockReason.trim() }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to block showcase');
+      }
+
+      setActionSuccess('Showcase has been blocked and removed from public access.');
+      if (selectedShowcase?.id === blockingShowcase.id) {
+        setSelectedShowcase({
+          ...selectedShowcase,
+          status: 'BLOCKED',
+          publication_status: 'UNPUBLISHED',
+          moderation_reason: blockReason.trim(),
+          moderated_at: new Date().toISOString(),
+        });
+      }
+      setBlockingShowcase(null);
+      setBlockReason('');
+      fetchShowcases();
+      setTimeout(() => setActionSuccess(null), 5000);
+    } catch (err: any) {
+      console.error('Block showcase error:', err);
+      setError(err.message || 'Failed to block showcase');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUnblock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!unblockingShowcase) return;
+
+    try {
+      setActionLoading(true);
+      setError(null);
+      setActionSuccess(null);
+
+      const res = await apiFetch(`/api/developer/showcases/${unblockingShowcase.id}/unblock`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: unblockReason.trim() || undefined }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to unblock showcase');
+      }
+
+      setActionSuccess('Showcase has been unblocked and restored to public view.');
+      if (selectedShowcase?.id === unblockingShowcase.id) {
+        setSelectedShowcase({
+          ...selectedShowcase,
+          status: 'PUBLISHED',
+          publication_status: 'PUBLISHED',
+          moderation_reason: null,
+          moderated_at: null,
+        });
+      }
+      setUnblockingShowcase(null);
+      setUnblockReason('');
+      fetchShowcases();
+      setTimeout(() => setActionSuccess(null), 5000);
+    } catch (err: any) {
+      console.error('Unblock showcase error:', err);
+      setError(err.message || 'Failed to unblock showcase');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deletingShowcase) return;
+    if (!deleteReason.trim()) {
+      setError('Please provide a reason for soft deleting this showcase.');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setError(null);
+      setActionSuccess(null);
+
+      const res = await apiFetch(`/api/developer/showcases/${deletingShowcase.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ reason: deleteReason.trim() }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete showcase');
+      }
+
+      setActionSuccess('Showcase administratively soft-deleted and archived.');
+      if (selectedShowcase?.id === deletingShowcase.id) {
+        setSelectedShowcase({
+          ...selectedShowcase,
+          status: 'DELETED',
+          publication_status: 'UNPUBLISHED',
+          deleted_at: new Date().toISOString(),
+          moderation_reason: deleteReason.trim(),
+        });
+      }
+      setDeletingShowcase(null);
+      setDeleteReason('');
+      fetchShowcases();
+      setTimeout(() => setActionSuccess(null), 5000);
+    } catch (err: any) {
+      console.error('Delete showcase error:', err);
+      setError(err.message || 'Failed to delete showcase');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Filtered showcases
   const filteredShowcases = showcases.filter((sc) => {
     // Status filter
     if (filterStatus !== 'ALL') {
-      if (filterStatus === 'SUBMITTED' && sc.review_status !== 'SUBMITTED') return false;
-      if (filterStatus === 'APPROVED' && sc.review_status !== 'APPROVED') return false;
-      if (filterStatus === 'REJECTED' && sc.review_status !== 'REJECTED') return false;
-      if (filterStatus === 'DRAFT' && sc.review_status !== 'DRAFT') return false;
+      if (filterStatus === 'SUBMITTED' && (sc.review_status !== 'SUBMITTED' || sc.status === 'DELETED')) return false;
+      if (filterStatus === 'APPROVED' && (sc.review_status !== 'APPROVED' || sc.status === 'DELETED')) return false;
+      if (filterStatus === 'REJECTED' && (sc.review_status !== 'REJECTED' || sc.status === 'DELETED')) return false;
+      if (filterStatus === 'BLOCKED' && sc.status !== 'BLOCKED') return false;
+      if (filterStatus === 'DELETED' && sc.status !== 'DELETED') return false;
+      if (filterStatus === 'DRAFT' && (sc.review_status !== 'DRAFT' || sc.status === 'DELETED')) return false;
     }
 
     // Search query
@@ -194,9 +343,12 @@ export const DeveloperShowcaseReviews: React.FC = () => {
   });
 
   // Quick stats
-  const countSubmitted = showcases.filter((s) => s.review_status === 'SUBMITTED').length;
-  const countApproved = showcases.filter((s) => s.review_status === 'APPROVED').length;
-  const countRejected = showcases.filter((s) => s.review_status === 'REJECTED').length;
+  const countSubmitted = showcases.filter((s) => s.review_status === 'SUBMITTED' && s.status !== 'DELETED').length;
+  const countApproved = showcases.filter((s) => s.review_status === 'APPROVED' && s.status !== 'DELETED').length;
+  const countRejected = showcases.filter((s) => s.review_status === 'REJECTED' && s.status !== 'DELETED').length;
+  const countBlocked = showcases.filter((s) => s.status === 'BLOCKED').length;
+  const countDeleted = showcases.filter((s) => s.status === 'DELETED').length;
+  const countDraft = showcases.filter((s) => s.review_status === 'DRAFT' && s.status !== 'DELETED').length;
   const totalRewardedMYR = countApproved * 300;
 
   return (
@@ -209,11 +361,11 @@ export const DeveloperShowcaseReviews: React.FC = () => {
               <Gift className="w-5 h-5" />
             </span>
             <h1 className="text-xl font-black text-white tracking-tight">
-              Event Showcase Submissions & Review
+              Event Showcase Submissions & Moderation
             </h1>
           </div>
           <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
-            Review event marketing showcases submitted by organizations. Approving a showcase publishes it to the platform gallery and automatically grants <strong className="text-amber-400">RM300 Showcase Credit</strong> into the organization wallet.
+            Review event marketing showcases submitted by organizations. Approving a showcase publishes it to the platform gallery and automatically grants <strong className="text-amber-400">RM300 Showcase Credit</strong> into the organization wallet. Admins can also block sensitive showcases or perform administrative soft-deletes.
           </p>
         </div>
 
@@ -228,7 +380,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
           <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Pending Review</div>
           <div className="text-2xl font-black text-blue-400 flex items-center gap-2">
@@ -247,13 +399,25 @@ export const DeveloperShowcaseReviews: React.FC = () => {
         </div>
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
-          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Rewards Distributed</div>
+          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Blocked by Moderation</div>
+          <div className="text-2xl font-black text-rose-400 flex items-center gap-2">
+            <span>{countBlocked}</span>
+            {countBlocked > 0 && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold">
+                Hidden
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
+          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Rewards</div>
           <div className="text-2xl font-black text-amber-400">RM {totalRewardedMYR.toLocaleString()}</div>
         </div>
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
           <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Changes Requested</div>
-          <div className="text-2xl font-black text-rose-400">{countRejected}</div>
+          <div className="text-2xl font-black text-slate-300">{countRejected}</div>
         </div>
       </div>
 
@@ -281,14 +445,18 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             { id: 'SUBMITTED', label: 'Pending Review', count: countSubmitted, highlight: true },
             { id: 'APPROVED', label: 'Approved', count: countApproved },
             { id: 'REJECTED', label: 'Rejected', count: countRejected },
-            { id: 'DRAFT', label: 'Drafts', count: showcases.filter((s) => s.review_status === 'DRAFT').length },
+            { id: 'BLOCKED', label: 'Blocked', count: countBlocked, isBlocked: true },
+            { id: 'DELETED', label: 'Deleted', count: countDeleted },
+            { id: 'DRAFT', label: 'Drafts', count: countDraft },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setFilterStatus(tab.id)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 filterStatus === tab.id
-                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                  ? tab.isBlocked
+                    ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20'
+                    : 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
                   : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800'
               }`}
             >
@@ -296,9 +464,11 @@ export const DeveloperShowcaseReviews: React.FC = () => {
               <span
                 className={`text-[10px] px-1.5 py-0.2 rounded-md ${
                   filterStatus === tab.id
-                    ? 'bg-slate-950/30 text-slate-950 font-black'
+                    ? 'bg-slate-950/30 text-white font-black'
                     : tab.highlight && tab.count > 0
                     ? 'bg-blue-500/20 text-blue-300 font-bold'
+                    : tab.isBlocked && tab.count > 0
+                    ? 'bg-rose-500/20 text-rose-300 font-bold'
                     : 'bg-slate-800 text-slate-500'
                 }`}
               >
@@ -422,7 +592,24 @@ export const DeveloperShowcaseReviews: React.FC = () => {
 
                       {/* Review Status Badge */}
                       <td className="px-4 py-3">
-                        {isApproved ? (
+                        {sc.status === 'DELETED' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 border border-slate-700 text-slate-400">
+                            <Trash2 className="w-3 h-3 text-slate-500" />
+                            DELETED
+                          </span>
+                        ) : sc.status === 'BLOCKED' ? (
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/20 border border-rose-500/40 text-rose-300">
+                              <ShieldAlert className="w-3 h-3 text-rose-400" />
+                              BLOCKED
+                            </span>
+                            {sc.moderation_reason && (
+                              <div className="text-[10px] text-rose-400/80 line-clamp-1 max-w-[150px]" title={sc.moderation_reason}>
+                                {sc.moderation_reason}
+                              </div>
+                            )}
+                          </div>
+                        ) : isApproved ? (
                           <div className="space-y-1">
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
                               <CheckCircle2 className="w-3 h-3" />
@@ -452,7 +639,16 @@ export const DeveloperShowcaseReviews: React.FC = () => {
 
                       {/* Publication Status */}
                       <td className="px-4 py-3">
-                        {sc.status === 'PUBLISHED' || sc.publication_status === 'PUBLISHED' ? (
+                        {sc.status === 'DELETED' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-900 border border-slate-800 text-slate-500 line-through">
+                            Archived
+                          </span>
+                        ) : sc.status === 'BLOCKED' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/80 border border-rose-500/40 text-rose-300">
+                            <Ban className="w-2.5 h-2.5 text-rose-400" />
+                            Hidden (Blocked)
+                          </span>
+                        ) : sc.status === 'PUBLISHED' || sc.publication_status === 'PUBLISHED' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 border border-emerald-500/30 text-emerald-300">
                             <Globe className="w-2.5 h-2.5" />
                             Published
@@ -478,7 +674,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                           </button>
 
                           {/* Approve Action */}
-                          {isSubmitted && (
+                          {isSubmitted && sc.status !== 'DELETED' && sc.status !== 'BLOCKED' && (
                             <button
                               onClick={() => setApprovingShowcase(sc)}
                               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm shadow-emerald-600/30 cursor-pointer"
@@ -490,7 +686,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                           )}
 
                           {/* Reject Action */}
-                          {isSubmitted && (
+                          {isSubmitted && sc.status !== 'DELETED' && sc.status !== 'BLOCKED' && (
                             <button
                               onClick={() => {
                                 setRejectingShowcase(sc);
@@ -501,6 +697,49 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                             >
                               <X className="w-3.5 h-3.5" />
                               <span>Reject</span>
+                            </button>
+                          )}
+
+                          {/* Block Action */}
+                          {sc.status !== 'BLOCKED' && sc.status !== 'DELETED' && (
+                            <button
+                              onClick={() => {
+                                setBlockingShowcase(sc);
+                                setBlockReason('');
+                              }}
+                              className="p-1.5 rounded-lg bg-slate-900 hover:bg-amber-950/40 text-slate-400 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 transition-colors cursor-pointer"
+                              title="Block Showcase (Hide Publicly)"
+                            >
+                              <ShieldAlert className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* Unblock Action */}
+                          {sc.status === 'BLOCKED' && (
+                            <button
+                              onClick={() => {
+                                setUnblockingShowcase(sc);
+                                setUnblockReason('');
+                              }}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer"
+                              title="Unblock Showcase (Restore Public Access)"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Unblock</span>
+                            </button>
+                          )}
+
+                          {/* Soft Delete Action */}
+                          {sc.status !== 'DELETED' && (
+                            <button
+                              onClick={() => {
+                                setDeletingShowcase(sc);
+                                setDeleteReason('');
+                              }}
+                              className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-950/40 text-slate-500 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 transition-colors cursor-pointer"
+                              title="Admin Soft Delete Showcase"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
@@ -632,7 +871,16 @@ export const DeveloperShowcaseReviews: React.FC = () => {
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-bold text-white">{selectedShowcase.title}</h3>
-                  {selectedShowcase.review_status === 'APPROVED' ? (
+                  {selectedShowcase.status === 'DELETED' ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 border border-slate-700 text-slate-400">
+                      DELETED
+                    </span>
+                  ) : selectedShowcase.status === 'BLOCKED' ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 border border-rose-500/40 text-rose-300 flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3 text-rose-400" />
+                      BLOCKED BY ADMIN
+                    </span>
+                  ) : selectedShowcase.review_status === 'APPROVED' ? (
                     <div className="flex items-center gap-1.5">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
                         Approved
@@ -666,6 +914,42 @@ export const DeveloperShowcaseReviews: React.FC = () => {
 
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+              {/* Blocked Moderation Banner */}
+              {selectedShowcase.status === 'BLOCKED' && (
+                <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-3">
+                  <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1.5 flex-1">
+                    <div className="text-xs font-bold text-rose-300">Showcase Blocked by Moderation</div>
+                    <p className="text-xs text-rose-200/90 leading-relaxed bg-rose-950/50 p-2.5 rounded-xl border border-rose-500/20">
+                      <span className="font-semibold text-rose-300">Reason:</span> {selectedShowcase.moderation_reason || 'Violates community standards or sensitive content.'}
+                    </p>
+                    {selectedShowcase.moderated_at && (
+                      <div className="text-[10px] text-rose-400/80">
+                        Blocked on {new Date(selectedShowcase.moderated_at).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Soft-Deleted Banner */}
+              {selectedShowcase.status === 'DELETED' && (
+                <div className="p-4 bg-slate-800/60 border border-slate-700 rounded-2xl flex items-start gap-3">
+                  <Trash2 className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1 flex-1">
+                    <div className="text-xs font-bold text-slate-300">Showcase Administratively Soft-Deleted</div>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      {selectedShowcase.moderation_reason || 'Archived by developer administrator.'}
+                    </p>
+                    {selectedShowcase.deleted_at && (
+                      <div className="text-[10px] text-slate-500">
+                        Deleted at {new Date(selectedShowcase.deleted_at).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Cover & Client */}
               {selectedShowcase.cover_image_url && (
                 <div className="relative rounded-2xl overflow-hidden border border-slate-800 max-h-48 bg-slate-950">
@@ -775,38 +1059,244 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                     Latest Rejection Reason: {selectedShowcase.rejection_reason}
                   </div>
                 )}
+                {selectedShowcase.moderation_reason && (
+                  <div className="text-rose-400">
+                    Moderation / Deletion Note: {selectedShowcase.moderation_reason}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Modal Footer Controls */}
-            <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-end gap-2">
-              {selectedShowcase.review_status === 'SUBMITTED' && (
-                <>
+            <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {/* Block / Unblock buttons in preview */}
+                {selectedShowcase.status === 'BLOCKED' ? (
                   <button
                     onClick={() => {
-                      setRejectingShowcase(selectedShowcase);
-                      setRejectionReason('');
+                      setUnblockingShowcase(selectedShowcase);
+                      setUnblockReason('');
                     }}
-                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition-all cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer"
                   >
-                    Reject with Feedback
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Unblock Showcase</span>
                   </button>
+                ) : selectedShowcase.status !== 'DELETED' ? (
                   <button
-                    onClick={() => setApprovingShowcase(selectedShowcase)}
-                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+                    onClick={() => {
+                      setBlockingShowcase(selectedShowcase);
+                      setBlockReason('');
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-500/40 transition-all cursor-pointer"
                   >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Approve & Grant RM300</span>
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Block Showcase</span>
                   </button>
-                </>
-              )}
-              <button
-                onClick={() => setShowPreviewModal(false)}
-                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
-              >
-                Close
-              </button>
+                ) : null}
+
+                {/* Soft Delete button in preview */}
+                {selectedShowcase.status !== 'DELETED' && (
+                  <button
+                    onClick={() => {
+                      setDeletingShowcase(selectedShowcase);
+                      setDeleteReason('');
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedShowcase.review_status === 'SUBMITTED' && selectedShowcase.status !== 'BLOCKED' && selectedShowcase.status !== 'DELETED' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setRejectingShowcase(selectedShowcase);
+                        setRejectionReason('');
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition-all cursor-pointer"
+                    >
+                      Reject with Feedback
+                    </button>
+                    <button
+                      onClick={() => setApprovingShowcase(selectedShowcase)}
+                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Approve & Grant RM300</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => setShowPreviewModal(false)}
+                  className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Block Confirmation Modal */}
+      {blockingShowcase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-bold text-white">Block Showcase</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Blocking will immediately unpublish <strong className="text-slate-200">{blockingShowcase.title}</strong> and hide it from all public gallery pages.
+              </p>
+            </div>
+
+            <form onSubmit={handleBlock} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Reason for Blocking <span className="text-amber-400">*</span>
+                </label>
+                <textarea
+                  value={blockReason}
+                  onChange={(e) => setBlockReason(e.target.value)}
+                  rows={4}
+                  placeholder="e.g. Contains sensitive client proprietary assets, or violates community guidelines."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 focus:border-amber-500 outline-none resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setBlockingShowcase(null)}
+                  disabled={actionLoading}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading || !blockReason.trim()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer disabled:opacity-50"
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>{actionLoading ? 'Blocking...' : 'Confirm Block Showcase'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Unblock Confirmation Modal */}
+      {unblockingShowcase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-bold text-white">Unblock Showcase</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Restore <strong className="text-slate-200">{unblockingShowcase.title}</strong> to published status and make it visible in the public showcase gallery.
+              </p>
+            </div>
+
+            <form onSubmit={handleUnblock} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Optional Unblock / Resolution Note
+                </label>
+                <textarea
+                  value={unblockReason}
+                  onChange={(e) => setUnblockReason(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Sensitive assets reviewed and cleared with event organizer."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 focus:border-emerald-500 outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setUnblockingShowcase(null)}
+                  disabled={actionLoading}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all shadow-md shadow-emerald-500/20 cursor-pointer disabled:opacity-50"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>{actionLoading ? 'Unblocking...' : 'Confirm Unblock Showcase'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingShowcase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-bold text-white">Soft Delete Showcase</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Perform an administrative soft delete on <strong className="text-slate-200">{deletingShowcase.title}</strong>. This removes it from public discovery while preserving historical audit logs.
+              </p>
+            </div>
+
+            <form onSubmit={handleDelete} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Reason for Deletion <span className="text-rose-400">*</span>
+                </label>
+                <textarea
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Inappropriate content, copyright infringement, or spam."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 placeholder:text-slate-600 focus:border-rose-500 outline-none resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletingShowcase(null)}
+                  disabled={actionLoading}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading || !deleteReason.trim()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition-all shadow-md shadow-rose-600/20 cursor-pointer disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{actionLoading ? 'Deleting...' : 'Confirm Soft Delete'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

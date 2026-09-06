@@ -1,7 +1,8 @@
-export type ShowcaseStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED';
+export type ShowcaseStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED' | 'BLOCKED' | 'DELETED';
 export type ReviewStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
 export type PublicationStatus = 'UNPUBLISHED' | 'PUBLISHED';
 export type RewardStatus = 'PENDING' | 'REWARDED' | 'NOT_ELIGIBLE';
+export type RewardReviewStatus = 'NOT_ELIGIBLE' | 'AWAITING_APPROVAL' | 'REWARDED' | 'REJECTED';
 
 export interface EventShowcase {
   id: string;
@@ -15,6 +16,14 @@ export interface EventShowcase {
   status: ShowcaseStatus;
   review_status?: ReviewStatus;
   publication_status?: PublicationStatus;
+  reward_review_status?: RewardReviewStatus;
+  reward_reviewed_by?: string | null;
+  reward_reviewed_at?: string | null;
+  reward_rejection_reason?: string | null;
+  moderated_by?: string | null;
+  moderated_at?: string | null;
+  moderation_reason?: string | null;
+  deleted_at?: string | null;
   submitted_at?: string | null;
   reviewed_at?: string | null;
   reviewed_by?: string | null;
@@ -25,6 +34,16 @@ export interface EventShowcase {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ShowcaseModerationLog {
+  id: string;
+  showcase_id: string;
+  moderator_id: string;
+  action: 'BLOCK' | 'UNBLOCK' | 'DELETE' | 'RESTORE';
+  reason: string;
+  metadata?: Record<string, any>;
+  created_at: string;
 }
 
 export interface AdminShowcaseListItem extends EventShowcase {

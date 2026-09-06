@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { GameTheme, initActiveTheme, getThemeById, getThemeGameType } from '../../themes';
+import { useResponsiveLayout } from '../../themes/responsive';
 import { GameSettings, GameState, GameStats } from '../../types';
 import { getGameSettings, mapServerSettingsToGameSettings, setActiveGameSettings } from '../../game/settings';
 import { useAuth } from '../../context/AuthContext';
@@ -150,6 +151,8 @@ export const GameShell: React.FC<GameShellProps> = ({
   };
 
   const useImmersiveLayout = isFullscreen && allowImmersiveFullscreen;
+  const orientationPreference = activeTheme?.layout?.orientation || 'auto';
+  const responsive = useResponsiveLayout(containerRef, orientationPreference);
 
   return (
     <div
@@ -172,7 +175,11 @@ export const GameShell: React.FC<GameShellProps> = ({
           className={
             useImmersiveLayout
               ? 'relative w-full h-full min-w-0 min-h-0 max-w-none max-h-none p-0 m-0 overflow-hidden flex items-center justify-center border-0 border-none rounded-none bg-[#07130b] shadow-none'
-              : 'game-cabinet relative aspect-[16/9] bg-[#0c2012] border-2 sm:border-4 border-[#1e4627] rounded-2xl sm:rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.15)] overflow-hidden flex items-center justify-center'
+              : `game-cabinet relative ${
+                  responsive.isPortrait
+                    ? 'aspect-[9/16] max-h-[96vh] w-auto h-full max-w-full'
+                    : 'aspect-[16/9] max-w-full max-h-full'
+                } bg-[#0c2012] border-2 sm:border-4 border-[#1e4627] rounded-2xl sm:rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.15)] overflow-hidden flex items-center justify-center`
           }
         >
           {/* Dynamic Game Component */}

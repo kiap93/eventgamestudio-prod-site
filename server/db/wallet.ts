@@ -287,16 +287,13 @@ export async function getWalletAuditTrail(
       .range(queryOffset, queryOffset + queryLimit - 1);
 
     if (error) {
-      console.error('Error fetching wallet audit trail from database:', error);
+      console.warn('Notice fetching wallet audit trail from database, checking fallback:', error.message);
       if (!isLocalFallbackAllowed(effectiveEnv)) {
         throw new Error(`Database error fetching wallet audit trail: ${error.message}`);
       }
-    }
-
-    if (data) {
+    } else if (data) {
       return data as WalletAuditRecord[];
     }
-    return [];
   }
 
   assertProductionSafe('getWalletAuditTrail', effectiveEnv);
@@ -1236,6 +1233,34 @@ export async function consumeWelcomeCredit(
     throw new Error('Event ID is required');
   }
 
+  // Idempotency check: if event is already paid with welcome credit, return existing transactions without double-charging
+  try {
+    const { getEventById } = await import('./events.js');
+    const ev = await getEventById(eventId, env);
+    if (ev && (ev.payment_status === 'PAID' || (ev as any).event_status === 'LIVE')) {
+      const currentWallet = await getWalletBalance(organizationId, env);
+      const { transactions: orgTxns } = await getWalletTransactions(organizationId, undefined, env);
+      const creditTransaction = orgTxns.find(
+        (t) => (t.event_id === eventId || (referenceId && t.reference_id === referenceId)) &&
+               (t.balance_type === 'WELCOME_CREDIT' || t.transaction_type === 'CREDIT_USAGE')
+      );
+      const paidTransaction = orgTxns.find(
+        (t) => (t.event_id === eventId || (referenceId && t.reference_id === referenceId)) &&
+               (t.balance_type === 'PAID_BALANCE' || t.transaction_type === 'EVENT_PAYMENT')
+      );
+      if (creditTransaction && paidTransaction) {
+        return {
+          success: true,
+          creditTransaction,
+          paidTransaction,
+          wallet: currentWallet,
+        };
+      }
+    }
+  } catch (e) {
+    // Continue with standard payment process
+  }
+
   let resolvedEventPrice: number | undefined;
   try {
     const { getEventById } = await import('./events.js');
@@ -1971,6 +1996,30 @@ export async function processEventPayment(
 
   // PRODUCTION MODE: Atomic PostgreSQL RPC Transaction Block
   if (isSupabaseConfigured(env)) {
+    // Check if event is already marked as PAID for idempotent replay
+    if (eventId) {
+      try {
+        const { getEventById } = await import('./events.js');
+        const ev = await getEventById(eventId, env);
+        if (ev && (ev.payment_status === 'PAID' || (ev as any).event_status === 'LIVE')) {
+          const currentWallet = await getWalletBalance(organizationId, env);
+          const { transactions: orgTxns } = await getWalletTransactions(organizationId, undefined, env);
+          const existingTxns = orgTxns.filter((t) => t.event_id === eventId || (referenceId && t.reference_id === referenceId));
+          if (existingTxns.length > 0) {
+            return {
+              success: true,
+              transactions: existingTxns,
+              wallet: currentWallet,
+              paymentCalculation: prePaymentCalculation,
+              quote,
+            };
+          }
+        }
+      } catch (e) {
+        // Proceed to atomic transaction
+      }
+    }
+
     const supabase = getSupabaseServerClient(env);
     const { data, error } = await supabase.rpc('process_event_payment_atomic', {
       p_organization_id: organizationId,
@@ -1985,6 +2034,20 @@ export async function processEventPayment(
     });
 
     if (error) {
+      if (error.message && error.message.includes('Event is already marked as PAID')) {
+        const currentWallet = await getWalletBalance(organizationId, env);
+        const { transactions: orgTxns } = await getWalletTransactions(organizationId, undefined, env);
+        const existingTxns = orgTxns.filter((t) => t.event_id === eventId || (referenceId && t.reference_id === referenceId));
+        if (existingTxns.length > 0) {
+          return {
+            success: true,
+            transactions: existingTxns,
+            wallet: currentWallet,
+            paymentCalculation: prePaymentCalculation,
+            quote,
+          };
+        }
+      }
       console.error('Fatal: Supabase atomic payment transaction failed:', error);
       throw new Error(`Financial ledger transaction failed: ${error.message}`);
     }

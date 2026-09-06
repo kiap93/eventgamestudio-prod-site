@@ -473,7 +473,7 @@ export const CatchBrandItemsCustomizer: React.FC<CatchBrandItemsCustomizerProps>
               </div>
 
               {/* Item Details Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                 {/* Points */}
                 <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
                   <label className="text-slate-400 font-semibold">Points Value</label>
@@ -530,6 +530,27 @@ export const CatchBrandItemsCustomizer: React.FC<CatchBrandItemsCustomizerProps>
                       handleUpdateItem(idx, { speedMultiplier: parseFloat(e.target.value) || 1.0 })
                     }
                     className="w-full accent-emerald-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* Size Scale */}
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-slate-400 font-semibold">Proportional Scale</label>
+                    <span className="text-amber-400 font-mono font-bold">
+                      {(item.scale || 1.0).toFixed(1)}x
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2.0"
+                    step="0.1"
+                    value={item.scale || 1.0}
+                    onChange={(e) =>
+                      handleUpdateItem(idx, { scale: parseFloat(e.target.value) || 1.0 })
+                    }
+                    className="w-full accent-amber-500 cursor-pointer"
                   />
                 </div>
               </div>

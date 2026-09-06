@@ -18,6 +18,9 @@ In accordance with **Strategy B** (explicit baseline date boundary + post-baseli
 | **Post-Baseline 7** | `supabase/migrations/20260904050000_leaderboard_rls_live_window.sql` | **Leaderboard RLS Live Window**: Restricts public SELECT on `event_high_scores` strictly to paid events in their active live window and hides test scores. |
 | **Post-Baseline 8** | `supabase/migrations/20260904060000_storage_buckets_alignment.sql` | **Storage Bucket Limits & Media Alignment**: Sets 25MB limit on `game-assets`, provisions dedicated 200MB `showcase-media` bucket with tenant-scoped policies. |
 | **Post-Baseline 9** | `supabase/migrations/20260904070000_organizations_members_backend_write_only.sql` | **Organizations & Membership Backend-Write-Only**: Revokes direct client mutations on `organizations`, `organization_members`, and `organization_invitations`, enforcing single server API authority. |
+| **Post-Baseline 10** | `supabase/migrations/20260904080000_showcase_media_storage_path_verification.sql` | **Showcase Media Backend-Write-Only & Storage Validation**: Enforces storage path hierarchy, disallows SVG uploads, and revokes direct client mutations on `event_showcase_media`. |
+| **Post-Baseline 11** | `supabase/migrations/20260906000000_showcase_moderation_and_reward_decoupling.sql` | **Showcase Moderation & Reward Decoupling**: Decouples content visibility from financial reward, adds moderation audit log table (`showcase_moderation_logs`), and introduces `BLOCKED`/`DELETED` statuses. |
+| **Post-Baseline 12** | `supabase/migrations/20260906010000_event_showcases_backend_write_only.sql` | **Event Showcases Backend-Write-Only**: Revokes direct client mutation privileges (`INSERT`, `UPDATE`, `DELETE`) on `event_showcases`, preserves tenant SELECT, and installs defense-in-depth triggers protecting critical reward/moderation columns. |
 | **Complete Cumulative Schema** | `supabase/schema.sql` | **Latest Canonical Single-File Snapshot**: Contains all tables, indexes, RLS policies, `outstanding_balance`, and all RPCs. |
 
 ---
@@ -107,6 +110,9 @@ Contains the canonical timestamp migrations:
 - `20260904050000_leaderboard_rls_live_window.sql` — Leaderboard RLS live window protection
 - `20260904060000_storage_buckets_alignment.sql` — Storage bucket limits & dedicated showcase-media bucket
 - `20260904070000_organizations_members_backend_write_only.sql` — Organizations, members & invitations backend-write-only RLS hardening
+- `20260904080000_showcase_media_storage_path_verification.sql` — Showcase media backend-write-only & storage path security
+- `20260906000000_showcase_moderation_and_reward_decoupling.sql` — Showcase moderation & reward decoupling with audit log table
+- `20260906010000_event_showcases_backend_write_only.sql` — Event showcases backend-write-only RLS hardening & trigger protection
 
 ### Historical Archive (`supabase/migrations_history/`)
 Preserves the complete original sequential migration chain (`001_...` through `031_...`), branch collision variants (`013`, `014`, `017b`), and `MIGRATIONS_AUDIT.md`.

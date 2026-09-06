@@ -1,6 +1,6 @@
 import { getSupabaseServerClient } from '../supabase.js';
 import { validateUploadedFile } from '../fileValidation.js';
-import { ALLOWED_IMAGE_MIME_TYPES, ALLOWED_VIDEO_MIME_TYPES } from './types.js';
+import { ALLOWED_IMAGE_MIME_TYPES, ALLOWED_VIDEO_MIME_TYPES, MAX_DIRECT_UPLOAD_SIZE } from './types.js';
 import crypto from 'node:crypto';
 
 export const ASSET_BUCKET = 'game-assets';
@@ -215,6 +215,7 @@ export async function createSignedUploadUrlForShowcase(
     fileName: string;
     mimeType: string;
     mediaType: 'IMAGE' | 'VIDEO';
+    fileSize?: number;
   },
   env?: Record<string, any>
 ): Promise<{
@@ -222,7 +223,7 @@ export async function createSignedUploadUrlForShowcase(
   token?: string | null;
   path: string;
   publicUrl: string;
-  directUploadUrl: string;
+  directUploadUrl: string | null;
   bucket: string;
 }> {
   const rawMime = (params.mimeType || '').toLowerCase().trim();
@@ -277,9 +278,13 @@ export async function createSignedUploadUrlForShowcase(
 
   const publicUrl = publicData?.publicUrl || `/uploads/${uniqueName}`;
   const eventIdQuery = params.eventId ? `eventId=${encodeURIComponent(params.eventId)}&` : '';
-  const directUploadUrl = params.eventId
-    ? `/api/events/${encodeURIComponent(params.eventId)}/showcase/media/direct-upload?showcaseId=${encodeURIComponent(params.showcaseId)}&filename=${encodeURIComponent(uniqueName)}&path=${encodeURIComponent(storagePath)}`
-    : `/api/events/showcase-media/direct-upload?${eventIdQuery}showcaseId=${encodeURIComponent(params.showcaseId)}&filename=${encodeURIComponent(uniqueName)}&path=${encodeURIComponent(storagePath)}`;
+  // Reserve Worker / Express direct upload strictly for small assets (<= 10MB) as a fallback
+  const isEligibleForDirectUpload = !params.fileSize || params.fileSize <= MAX_DIRECT_UPLOAD_SIZE;
+  const directUploadUrl: string | null = isEligibleForDirectUpload
+    ? (params.eventId
+        ? `/api/events/${encodeURIComponent(params.eventId)}/showcase/media/direct-upload?showcaseId=${encodeURIComponent(params.showcaseId)}&filename=${encodeURIComponent(uniqueName)}&path=${encodeURIComponent(storagePath)}`
+        : `/api/events/showcase-media/direct-upload?${eventIdQuery}showcaseId=${encodeURIComponent(params.showcaseId)}&filename=${encodeURIComponent(uniqueName)}&path=${encodeURIComponent(storagePath)}`)
+    : null;
 
   return {
     signedUrl,

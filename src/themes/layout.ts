@@ -376,6 +376,10 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
   };
 
   const res: GameLayoutConfig = {
+    orientation: raw.orientation === 'portrait' || raw.orientation === 'landscape' || raw.orientation === 'auto'
+      ? raw.orientation
+      : 'auto',
+    ...(raw.portraitLayout && typeof raw.portraitLayout === 'object' ? { portraitLayout: raw.portraitLayout } : {}),
     clientLogo: normalizeElement('clientLogo', defaults.clientLogo),
     scoreHud: normalizeElement('scoreHud', defaults.scoreHud),
     timer: normalizeElement('timer', defaults.timer),

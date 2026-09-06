@@ -99,11 +99,17 @@ import {
   updateShowcase,
   publishShowcase,
   unpublishShowcase,
+  deleteShowcase,
+  blockShowcase,
+  unblockShowcase,
+  adminDeleteShowcase,
+  evaluateShowcaseRewardEligibility,
+  approveShowcaseReward,
+  rejectShowcaseReward,
   submitShowcaseForReview,
   approveShowcaseReview,
   rejectShowcaseReview,
   getAllShowcasesForAdmin,
-  deleteShowcase,
   getShowcaseMedia,
   getShowcaseMediaById,
   createSignedUploadUrlForShowcase,
@@ -312,6 +318,7 @@ const ALLOWED_VIDEO_MIME_TYPES = new Set([
 
 const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
 const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
+const MAX_DIRECT_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB direct in-memory upload limit to protect Worker RAM
 
 function corsHeaders(request: Request, env?: Env): Record<string, string> {
   const origin = request.headers.get('Origin');
@@ -3294,8 +3301,8 @@ export default {
           return errorResponse('Valid showcase title is required', 422, cors);
         }
 
-        // Normal users can only initialize showcase with DRAFT status
-        const initialStatus = status === 'DRAFT' ? 'DRAFT' : 'DRAFT';
+        // In "Publish First, Moderate Later" model, default to PUBLISHED unless explicitly DRAFT or UNPUBLISHED
+        const initialStatus = status === 'DRAFT' || status === 'UNPUBLISHED' ? status : 'PUBLISHED';
 
         try {
           const showcase = await createShowcase(
@@ -3311,6 +3318,8 @@ export default {
             },
             env
           );
+          // Evaluate reward eligibility asynchronously
+          evaluateShowcaseRewardEligibility(eventId, env).catch((err) => console.warn('Reward evaluation notice on creation:', err));
           return jsonResponse({ showcase }, 201, cors);
         } catch (err: any) {
           console.error('Create showcase error:', err);
@@ -3339,15 +3348,13 @@ export default {
           return errorResponse('Event Showcase not found', 404, cors);
         }
 
-        // Enforce Review Editing Rules:
-        // SUBMITTED: Normal user cannot silently change the submitted version
-        if (existing.review_status === 'SUBMITTED') {
-          return errorResponse('Showcase is currently SUBMITTED and undergoing review. Edits cannot be made while under review.', 403, cors);
+        // Enforce Moderation Security: BLOCKED showcases cannot be edited by normal users
+        if (existing.status === 'BLOCKED') {
+          return errorResponse('This showcase has been blocked by administrators and cannot be edited. Please contact support.', 403, cors);
         }
 
-        // APPROVED: Do not allow changes that invalidate the approved review
-        if (existing.review_status === 'APPROVED') {
-          return errorResponse('Showcase is APPROVED. Approved showcases are locked from modifications.', 403, cors);
+        if (existing.status === 'DELETED' || existing.deleted_at) {
+          return errorResponse('Event Showcase has been deleted', 404, cors);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
@@ -3357,12 +3364,11 @@ export default {
           return errorResponse('Showcase title cannot be empty', 422, cors);
         }
 
-        // Protect server-controlled status transitions:
-        // Normal users cannot directly set APPROVED or REJECTED or arbitrary statuses
+        // Normal users can only set visibility to PUBLISHED, UNPUBLISHED, or DRAFT
         let safeStatus: any = undefined;
         if (status !== undefined) {
-          if (status === 'APPROVED' || status === 'REJECTED') {
-            return errorResponse('Cannot set review status directly. Showcase approval is managed by developer review.', 403, cors);
+          if (status === 'BLOCKED' || status === 'DELETED') {
+            return errorResponse('Cannot set administrative moderation status directly.', 403, cors);
           }
           if (status === 'DRAFT' || status === 'UNPUBLISHED' || status === 'PUBLISHED') {
             safeStatus = status;
@@ -3382,48 +3388,12 @@ export default {
             },
             env
           );
+          // Re-evaluate reward eligibility after update
+          evaluateShowcaseRewardEligibility(eventId, env).catch((err) => console.warn('Reward evaluation notice on update:', err));
           return jsonResponse({ showcase }, 200, cors);
         } catch (err: any) {
           console.error('Update showcase error:', err);
           return errorResponse(err.message || 'Failed to update showcase', 500, cors);
-        }
-      }
-
-      // POST /api/events/:eventId/showcase/submit
-      const submitShowcaseParams = parseRoute('/api/events/:eventId/showcase/submit', pathname);
-      if (submitShowcaseParams && method === 'POST') {
-        const auth = await authenticateWorkerRequest(request, env, cors);
-        if (!auth.authenticated) return auth.errorResponse!;
-
-        const { eventId } = submitShowcaseParams;
-        const event = await getEventById(eventId, env);
-        if (!event) {
-          return errorResponse('Event not found', 404, cors);
-        }
-
-        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
-        if (!isMember || !hasPermission) {
-          return errorResponse('Permission denied: Only owners and admins can submit showcases for review', 403, cors);
-        }
-
-        const existing = await getShowcaseByEventId(eventId, env);
-        if (!existing) {
-          return errorResponse('Showcase does not exist. Please create your showcase before submitting.', 404, cors);
-        }
-
-        if (existing.review_status === 'APPROVED') {
-          return errorResponse('Showcase has already been APPROVED and rewarded.', 400, cors);
-        }
-
-        try {
-          const showcase = await submitShowcaseForReview(eventId, env);
-          return jsonResponse({ showcase, message: 'Showcase submitted for review successfully' }, 200, cors);
-        } catch (err: any) {
-          console.error('Submit showcase error:', err);
-          if (err.code === 'MEDIA_REQUIREMENT_NOT_MET' || err.code === 'VALIDATION_ERROR') {
-            return jsonResponse({ error: err.message, code: err.code }, 422, cors);
-          }
-          return errorResponse(err.message || 'Failed to submit showcase', 500, cors);
         }
       }
 
@@ -3449,8 +3419,13 @@ export default {
           return errorResponse('Event Showcase not found', 404, cors);
         }
 
+        if (existing.status === 'BLOCKED') {
+          return errorResponse('Cannot publish a blocked showcase. Please contact support.', 403, cors);
+        }
+
         try {
           const showcase = await publishShowcase(eventId, env);
+          evaluateShowcaseRewardEligibility(eventId, env).catch((err) => console.warn('Reward evaluation notice on publish:', err));
           return jsonResponse({ showcase }, 200, cors);
         } catch (err: any) {
           console.error('Publish showcase error:', err);
@@ -3486,6 +3461,32 @@ export default {
         } catch (err: any) {
           console.error('Unpublish showcase error:', err);
           return errorResponse(err.message || 'Failed to unpublish showcase', 500, cors);
+        }
+      }
+
+      // DELETE /api/events/:eventId/showcase
+      const deleteShowcaseParams = parseRoute('/api/events/:eventId/showcase', pathname);
+      if (deleteShowcaseParams && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const { eventId } = deleteShowcaseParams;
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can delete event showcases', 403, cors);
+        }
+
+        try {
+          await deleteShowcase(eventId, env);
+          return jsonResponse({ success: true, message: 'Showcase deleted successfully' }, 200, cors);
+        } catch (err: any) {
+          console.error('Delete showcase error:', err);
+          return errorResponse(err.message || 'Failed to delete showcase', 500, cors);
         }
       }
 
@@ -3643,9 +3644,21 @@ export default {
               fileName,
               mimeType: lowerMime,
               mediaType: normalizedMediaType as 'IMAGE' | 'VIDEO',
+              fileSize,
             },
             env
           );
+
+          if (!uploadInfo.signedUrl && fileSize > MAX_DIRECT_UPLOAD_SIZE) {
+            return jsonResponse(
+              {
+                error: `Direct upload is restricted to 10MB to prevent Worker memory pressure. Large showcase files (up to 200MB) require signed Supabase storage upload, but a signed URL could not be generated. Please check storage bucket configuration.`,
+                code: 'SIGNED_UPLOAD_UNAVAILABLE',
+              },
+              503,
+              cors
+            );
+          }
 
           return jsonResponse(
             {
@@ -3673,6 +3686,22 @@ export default {
         if (!auth.authenticated) return auth.errorResponse!;
 
         try {
+          const rawContentLength = request.headers.get('content-length');
+          if (rawContentLength) {
+            const contentLength = parseInt(rawContentLength, 10);
+            if (!isNaN(contentLength) && contentLength > MAX_DIRECT_UPLOAD_SIZE) {
+              return jsonResponse(
+                {
+                  error: `Direct upload is restricted to small assets up to 10MB (${(contentLength / (1024 * 1024)).toFixed(1)}MB provided). Large showcase files (up to 200MB) must be uploaded via signed storage upload (/upload-url).`,
+                  code: 'DIRECT_UPLOAD_SIZE_EXCEEDED',
+                  maxDirectSizeBytes: MAX_DIRECT_UPLOAD_SIZE,
+                },
+                413,
+                cors
+              );
+            }
+          }
+
           const formData = await request.formData().catch(() => null);
           let requestedPath = url.searchParams.get('path') || (formData?.get('path') as string) || undefined;
           const queryFilename = url.searchParams.get('filename') || (formData?.get('filename') as string) || undefined;
@@ -3755,7 +3784,7 @@ export default {
           const validation = validateUploadedFile(fileBuffer, {
             originalName: queryFilename || originalName,
             declaredMime: mimeType,
-            maxSizeBytes: MAX_VIDEO_SIZE,
+            maxSizeBytes: MAX_DIRECT_UPLOAD_SIZE,
             allowedMediaTypes: ['image', 'video'],
           });
 
@@ -3777,23 +3806,14 @@ export default {
             );
           }
 
-          if (isImage && fileSize > MAX_IMAGE_SIZE) {
+          if (fileSize > MAX_DIRECT_UPLOAD_SIZE) {
             return jsonResponse(
               {
-                error: `Image file size exceeds maximum limit of 25MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
-                code: 'FILE_TOO_LARGE',
+                error: `Direct upload is restricted to small assets up to 10MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided). Large showcase files (up to 200MB) must be uploaded via signed storage upload (/upload-url).`,
+                code: 'DIRECT_UPLOAD_SIZE_EXCEEDED',
+                maxDirectSizeBytes: MAX_DIRECT_UPLOAD_SIZE,
               },
-              422,
-              cors
-            );
-          }
-          if (isVideo && fileSize > MAX_VIDEO_SIZE) {
-            return jsonResponse(
-              {
-                error: `Video file size exceeds maximum limit of 200MB (${(fileSize / (1024 * 1024)).toFixed(1)}MB provided).`,
-                code: 'FILE_TOO_LARGE',
-              },
-              422,
+              413,
               cors
             );
           }
@@ -4438,9 +4458,15 @@ export default {
         }
       }
 
-      // POST /api/developer/showcases/:showcaseId/approve & /api/admin/showcases/:showcaseId/approve
-      const devApproveShowcase = parseRoute('/api/developer/showcases/:showcaseId/approve', pathname) ||
-                                parseRoute('/api/admin/showcases/:showcaseId/approve', pathname);
+      // POST /api/developer/showcases/:id/approve & :showcaseId/approve & /reward/approve
+      const devApproveShowcase = parseRoute('/api/developer/showcases/:id/approve', pathname) ||
+                                parseRoute('/api/developer/showcases/:showcaseId/approve', pathname) ||
+                                parseRoute('/api/admin/showcases/:id/approve', pathname) ||
+                                parseRoute('/api/admin/showcases/:showcaseId/approve', pathname) ||
+                                parseRoute('/api/developer/showcases/:id/reward/approve', pathname) ||
+                                parseRoute('/api/developer/showcases/:showcaseId/reward/approve', pathname) ||
+                                parseRoute('/api/admin/showcases/:id/reward/approve', pathname) ||
+                                parseRoute('/api/admin/showcases/:showcaseId/reward/approve', pathname);
       if (devApproveShowcase && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
@@ -4448,7 +4474,7 @@ export default {
           return errorResponse('Forbidden: Developer Admin access required', 403, cors);
         }
 
-        const { showcaseId } = devApproveShowcase;
+        const showcaseId = devApproveShowcase.id || devApproveShowcase.showcaseId;
         try {
           const result = await approveShowcaseReview(showcaseId, auth.user.id, env);
           return jsonResponse({
@@ -4472,9 +4498,15 @@ export default {
         }
       }
 
-      // POST /api/developer/showcases/:showcaseId/reject & /api/admin/showcases/:showcaseId/reject
-      const devRejectShowcase = parseRoute('/api/developer/showcases/:showcaseId/reject', pathname) ||
-                               parseRoute('/api/admin/showcases/:showcaseId/reject', pathname);
+      // POST /api/developer/showcases/:id/reject & :showcaseId/reject & /reward/reject
+      const devRejectShowcase = parseRoute('/api/developer/showcases/:id/reject', pathname) ||
+                               parseRoute('/api/developer/showcases/:showcaseId/reject', pathname) ||
+                               parseRoute('/api/admin/showcases/:id/reject', pathname) ||
+                               parseRoute('/api/admin/showcases/:showcaseId/reject', pathname) ||
+                               parseRoute('/api/developer/showcases/:id/reward/reject', pathname) ||
+                               parseRoute('/api/developer/showcases/:showcaseId/reward/reject', pathname) ||
+                               parseRoute('/api/admin/showcases/:id/reward/reject', pathname) ||
+                               parseRoute('/api/admin/showcases/:showcaseId/reward/reject', pathname);
       if (devRejectShowcase && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
@@ -4482,7 +4514,7 @@ export default {
           return errorResponse('Forbidden: Developer Admin access required', 403, cors);
         }
 
-        const { showcaseId } = devRejectShowcase;
+        const showcaseId = devRejectShowcase.id || devRejectShowcase.showcaseId;
         const body = (await request.json().catch(() => ({}))) as any;
         const { reason, rejection_reason } = body;
         const finalReason = rejection_reason || reason;
@@ -4507,6 +4539,110 @@ export default {
             return errorResponse(err.message, 422, cors);
           }
           return errorResponse(err.message || 'Failed to reject showcase', 500, cors);
+        }
+      }
+
+      // POST /api/developer/showcases/:id/block & :showcaseId/block & /admin/showcases/:id/block
+      const devBlockShowcase = parseRoute('/api/developer/showcases/:id/block', pathname) ||
+                               parseRoute('/api/developer/showcases/:showcaseId/block', pathname) ||
+                               parseRoute('/api/admin/showcases/:id/block', pathname) ||
+                               parseRoute('/api/admin/showcases/:showcaseId/block', pathname);
+      if (devBlockShowcase && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const showcaseId = devBlockShowcase.id || devBlockShowcase.showcaseId;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { reason } = body;
+
+        if (!reason || typeof reason !== 'string' || !reason.trim()) {
+          return errorResponse('Moderation reason is required when blocking a showcase', 422, cors);
+        }
+
+        try {
+          const updated = await blockShowcase(showcaseId, auth.user.id, reason.trim(), env);
+          return jsonResponse({
+            success: true,
+            showcase: updated,
+            message: 'Showcase has been blocked and removed from public access.',
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Block showcase error:', err);
+          if (err.code === 'SHOWCASE_NOT_FOUND') {
+            return errorResponse(err.message, 404, cors);
+          }
+          return errorResponse(err.message || 'Failed to block showcase', 500, cors);
+        }
+      }
+
+      // POST /api/developer/showcases/:id/unblock & :showcaseId/unblock & /admin/showcases/:id/unblock
+      const devUnblockShowcase = parseRoute('/api/developer/showcases/:id/unblock', pathname) ||
+                                 parseRoute('/api/developer/showcases/:showcaseId/unblock', pathname) ||
+                                 parseRoute('/api/admin/showcases/:id/unblock', pathname) ||
+                                 parseRoute('/api/admin/showcases/:showcaseId/unblock', pathname);
+      if (devUnblockShowcase && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const showcaseId = devUnblockShowcase.id || devUnblockShowcase.showcaseId;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { reason } = body;
+
+        try {
+          const updated = await unblockShowcase(showcaseId, auth.user.id, reason, env);
+          return jsonResponse({
+            success: true,
+            showcase: updated,
+            message: 'Showcase has been unblocked and restored to public view.',
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Unblock showcase error:', err);
+          if (err.code === 'SHOWCASE_NOT_FOUND') {
+            return errorResponse(err.message, 404, cors);
+          }
+          return errorResponse(err.message || 'Failed to unblock showcase', 500, cors);
+        }
+      }
+
+      // DELETE /api/developer/showcases/:id & :showcaseId & /admin/showcases/:id
+      const devDeleteShowcase = parseRoute('/api/developer/showcases/:id', pathname) ||
+                                parseRoute('/api/developer/showcases/:showcaseId', pathname) ||
+                                parseRoute('/api/admin/showcases/:id', pathname) ||
+                                parseRoute('/api/admin/showcases/:showcaseId', pathname);
+      if (devDeleteShowcase && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const showcaseId = devDeleteShowcase.id || devDeleteShowcase.showcaseId;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { reason } = body;
+
+        if (!reason || typeof reason !== 'string' || !reason.trim()) {
+          return errorResponse('Deletion reason is required for administrative showcase deletion', 422, cors);
+        }
+
+        try {
+          const updated = await adminDeleteShowcase(showcaseId, auth.user.id, reason.trim(), env);
+          return jsonResponse({
+            success: true,
+            showcase: updated,
+            message: 'Showcase deleted administratively.',
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin delete showcase error:', err);
+          if (err.code === 'SHOWCASE_NOT_FOUND') {
+            return errorResponse(err.message, 404, cors);
+          }
+          return errorResponse(err.message || 'Failed to delete showcase', 500, cors);
         }
       }
 
