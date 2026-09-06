@@ -33673,5 +33673,149 @@
     },
     "created_by": null,
     "created_at": "2026-09-06T06:37:53.309Z"
+  },
+  {
+    "id": "1ded115b-dfd2-4f1d-988f-d84bf5256c75",
+    "organization_id": "772c042c-0875-47c8-acaa-267d7d952a0f",
+    "event_id": "546b4e0b-a6a8-47c1-b70c-1ec098347b9b",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_b52bdc73-b204-47c1-a6e5-5c71d9dc74d8",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "admin": "Admin A",
+      "eventId": "546b4e0b-a6a8-47c1-b70c-1ec098347b9b",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD",
+      "event_id": "546b4e0b-a6a8-47c1-b70c-1ec098347b9b"
+    },
+    "created_by": "373fcd56-5db2-4355-82e6-f59d9daee3cd",
+    "created_at": "2026-09-06T13:55:10.342Z"
+  },
+  {
+    "id": "13e1b6a7-55cf-4ab0-a05e-9182dad192d9",
+    "organization_id": "3c0d4c03-4c78-4465-96a0-a428fa5f81c9",
+    "event_id": "f4fe6495-0c96-4981-93dc-8f7bbe87e605",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_adaba7b1-1c2d-45df-b241-975dbd42d520",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "admin": "Admin A",
+      "eventId": "f4fe6495-0c96-4981-93dc-8f7bbe87e605",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD",
+      "event_id": "f4fe6495-0c96-4981-93dc-8f7bbe87e605"
+    },
+    "created_by": "664e311f-9b12-41cb-a01b-46350c31d705",
+    "created_at": "2026-09-06T13:55:49.670Z"
+  },
+  {
+    "id": "78409b13-4d2e-4395-96a3-634eb22b2b9a",
+    "organization_id": "b648dbe5-f351-41a4-85ef-31b4a0fa3b67",
+    "event_id": "12a03a16-ed44-4235-a04f-0cf1f13ccb59",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_53f79d2e-8274-406a-a16a-3c73aa6af352",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "showcase_id": "53f79d2e-8274-406a-a16a-3c73aa6af352",
+      "event_id": "12a03a16-ed44-4235-a04f-0cf1f13ccb59",
+      "reviewed_by": "664e311f-9b12-41cb-a01b-46350c31d705",
+      "approved_at": "2026-09-06T13:55:49.775Z",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD"
+    },
+    "created_by": "664e311f-9b12-41cb-a01b-46350c31d705",
+    "created_at": "2026-09-06T13:55:49.776Z"
+  },
+  {
+    "id": "6b1959c9-0132-4cd1-b0db-3e837565b57a",
+    "organization_id": "caec5a97-6cdb-4f1c-8031-510d36ec0ca2",
+    "event_id": "b627cc0d-88df-4957-87e4-ace53abbf2dc",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_cae85e53-d1a2-4231-bb93-a6e5bbc1f3f5",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "showcase_id": "cae85e53-d1a2-4231-bb93-a6e5bbc1f3f5",
+      "event_id": "b627cc0d-88df-4957-87e4-ace53abbf2dc",
+      "reviewed_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+      "approved_at": "2026-09-06T13:56:10.429Z",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-09-06T13:56:10.430Z"
+  },
+  {
+    "id": "a68ef500-22c7-448a-a360-8c8d76e2799b",
+    "organization_id": "aa4d2454-bef5-4a88-9790-eb0ab3e5c9a0",
+    "event_id": "04a5a854-0428-4d65-abda-425cf7ce974a",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_5e1f22d7-cf4d-49e4-9607-0d9d866951ac",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "showcase_id": "5e1f22d7-cf4d-49e4-9607-0d9d866951ac",
+      "event_id": "04a5a854-0428-4d65-abda-425cf7ce974a",
+      "reviewed_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+      "approved_at": "2026-09-06T13:56:10.591Z",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-09-06T13:56:10.591Z"
+  },
+  {
+    "id": "a4e4258f-a06b-457b-a59b-efe31f1eb806",
+    "organization_id": "d210a4d3-1b5a-4524-b2fe-912f30f08e83",
+    "event_id": "324d8e70-6045-4312-8a94-7ed2099cad16",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_23e4dddc-df11-45d0-9f79-23bec0c5698c",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "admin": "Admin A",
+      "eventId": "324d8e70-6045-4312-8a94-7ed2099cad16",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD",
+      "event_id": "324d8e70-6045-4312-8a94-7ed2099cad16"
+    },
+    "created_by": "b121534a-0df9-4b18-996b-92ff1ec8c4eb",
+    "created_at": "2026-09-06T13:59:36.387Z"
+  },
+  {
+    "id": "9542db46-74d8-4558-b134-dd67e118fd16",
+    "organization_id": "17f06f82-f398-4486-a8d7-2b348da65d53",
+    "event_id": "64abd4bd-7f22-4d76-b0a4-3d55f5964fd2",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_59ae5f82-dbcf-4081-9c63-9fcac2af3d5d",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "showcase_id": "59ae5f82-dbcf-4081-9c63-9fcac2af3d5d",
+      "event_id": "64abd4bd-7f22-4d76-b0a4-3d55f5964fd2",
+      "reviewed_by": "b121534a-0df9-4b18-996b-92ff1ec8c4eb",
+      "approved_at": "2026-09-06T13:59:36.486Z",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD"
+    },
+    "created_by": "b121534a-0df9-4b18-996b-92ff1ec8c4eb",
+    "created_at": "2026-09-06T13:59:36.486Z"
   }
 ]

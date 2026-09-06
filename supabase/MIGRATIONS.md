@@ -113,6 +113,7 @@ Contains the canonical timestamp migrations:
 - `20260904080000_showcase_media_storage_path_verification.sql` — Showcase media backend-write-only & storage path security
 - `20260906000000_showcase_moderation_and_reward_decoupling.sql` — Showcase moderation & reward decoupling with audit log table
 - `20260906010000_event_showcases_backend_write_only.sql` — Event showcases backend-write-only RLS hardening & trigger protection
+- `20260906020000_atomic_showcase_credit_reward.sql` — Atomic PostgreSQL RPC & unique constraint preventing concurrent duplicate showcase reward grants
 
 ### Historical Archive (`supabase/migrations_history/`)
 Preserves the complete original sequential migration chain (`001_...` through `031_...`), branch collision variants (`013`, `014`, `017b`), and `MIGRATIONS_AUDIT.md`.
