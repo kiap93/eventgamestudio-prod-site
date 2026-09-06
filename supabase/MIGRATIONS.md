@@ -16,6 +16,8 @@ In accordance with **Strategy B** (explicit baseline date boundary + post-baseli
 | **Post-Baseline 5** | `supabase/migrations/20260904030000_events_backend_write_only.sql` | **Events Backend-Write-Only**: Revokes direct client mutations on `events`, enforces server API authority. |
 | **Post-Baseline 6** | `supabase/migrations/20260904040000_games_themes_backend_write_only.sql` | **Games & Themes Backend-Write-Only**: Revokes direct client mutations on `games` & `game_themes`, enforces immutable game-theme association and system template protection. |
 | **Post-Baseline 7** | `supabase/migrations/20260904050000_leaderboard_rls_live_window.sql` | **Leaderboard RLS Live Window**: Restricts public SELECT on `event_high_scores` strictly to paid events in their active live window and hides test scores. |
+| **Post-Baseline 8** | `supabase/migrations/20260904060000_storage_buckets_alignment.sql` | **Storage Bucket Limits & Media Alignment**: Sets 25MB limit on `game-assets`, provisions dedicated 200MB `showcase-media` bucket with tenant-scoped policies. |
+| **Post-Baseline 9** | `supabase/migrations/20260904070000_organizations_members_backend_write_only.sql` | **Organizations & Membership Backend-Write-Only**: Revokes direct client mutations on `organizations`, `organization_members`, and `organization_invitations`, enforcing single server API authority. |
 | **Complete Cumulative Schema** | `supabase/schema.sql` | **Latest Canonical Single-File Snapshot**: Contains all tables, indexes, RLS policies, `outstanding_balance`, and all RPCs. |
 
 ---
@@ -94,11 +96,17 @@ Rather than destructively mutating an already-applied historical baseline file, 
 The repository maintains an active canonical directory and an immutable historical archive:
 
 ### Active Directory (`supabase/migrations/`)
-Contains ONLY the 4 canonical timestamp migrations:
+Contains the canonical timestamp migrations:
 - `20260903000000_initial_baseline.sql` — Historical baseline (snapshot as of 2026-09-03 00:00:00 UTC)
 - `20260903010000_add_outstanding_balance_to_organization_wallets.sql` — Canonical timestamp equivalent of Migration 031 (chronologically ordered directly after the baseline)
 - `20260904000000_atomic_outstanding_balance_settlement.sql` — Atomic settlement RPC
 - `20260904010000_atomic_checkout_claim.sql` — Distributed checkout session claim
+- `20260904020000_prevent_user_privilege_escalation.sql` — User privilege escalation protection
+- `20260904030000_events_backend_write_only.sql` — Events backend-write-only RLS hardening
+- `20260904040000_games_themes_backend_write_only.sql` — Games & themes backend-write-only RLS hardening
+- `20260904050000_leaderboard_rls_live_window.sql` — Leaderboard RLS live window protection
+- `20260904060000_storage_buckets_alignment.sql` — Storage bucket limits & dedicated showcase-media bucket
+- `20260904070000_organizations_members_backend_write_only.sql` — Organizations, members & invitations backend-write-only RLS hardening
 
 ### Historical Archive (`supabase/migrations_history/`)
 Preserves the complete original sequential migration chain (`001_...` through `031_...`), branch collision variants (`013`, `014`, `017b`), and `MIGRATIONS_AUDIT.md`.

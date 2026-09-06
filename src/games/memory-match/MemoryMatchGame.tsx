@@ -363,7 +363,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     try {
       const url = publicToken
         ? `/api/public/events/${publicToken}/high-scores?limit=50`
-        : `/api/events/${eventId}/high-scores?limit=50`;
+        : `/api/events/${eventId}/admin/high-scores?limit=50`;
       const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -577,7 +577,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       sessionId,
       gameVersion: MEMORY_MATCH_GAME_VERSION,
       scoringVersion: MEMORY_MATCH_SCORING_VERSION,
-      score_environment: isEventTest ? 'TEST' : undefined,
+      score_environment: isEventTest ? 'test' : undefined,
       is_test: isEventTest ? true : undefined,
     };
 
@@ -618,10 +618,16 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       }
     }
 
+    // Public players must submit with publicToken; only organizer test sessions can submit via eventId
+    if (!publicToken && !isEventTest) {
+      setIsSubmittingScore(false);
+      return { success: false, error: 'Public score submission requires a valid event token.' };
+    }
+
     try {
       const url = publicToken
         ? `/api/public/events/${publicToken}/high-scores`
-        : `/api/events/${eventId}/high-scores`;
+        : `/api/events/${eventId}/admin/high-scores`;
 
       const res = await apiFetch(url, {
         method: 'POST',

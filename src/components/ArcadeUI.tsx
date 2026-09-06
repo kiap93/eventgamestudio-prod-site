@@ -171,7 +171,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     try {
       const url = publicToken
         ? `/api/public/events/${publicToken}/high-scores?limit=50`
-        : `/api/events/${eventId}/high-scores?limit=50`;
+        : `/api/events/${eventId}/admin/high-scores?limit=50`;
       const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -266,10 +266,17 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
       return;
     }
 
+    // Public players must submit with publicToken; only organizer test sessions can submit via eventId
+    if (!publicToken && !isEventTest) {
+      setLeaderboardError('Public score submission requires a valid event token.');
+      setIsSubmittingScore(false);
+      return;
+    }
+
     try {
       const url = publicToken
         ? `/api/public/events/${publicToken}/high-scores`
-        : `/api/events/${eventId}/high-scores`;
+        : `/api/events/${eventId}/admin/high-scores`;
 
       const res = await apiFetch(url, {
         method: 'POST',
@@ -281,10 +288,13 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
           metadata: {
             sessionId,
             session_id: sessionId,
+            gameType: 'catch-brand',
             greenCaught: stats.greenCaught,
             orangeCaught: stats.orangeCaught,
+            goldenCaught: stats.goldenCaught,
             duriansMissed: stats.duriansMissed,
-            score_environment: isEventTest ? 'TEST' : undefined,
+            itemsCaughtById: stats.itemsCaughtById,
+            score_environment: isEventTest ? 'test' : undefined,
             is_test: isEventTest ? true : undefined,
           },
         }),

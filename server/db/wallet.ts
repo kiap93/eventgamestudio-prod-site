@@ -1154,12 +1154,13 @@ export async function canUseWelcomeCredit(
     }
   }
   if (!eventPrice || eventPrice <= 0) {
-    try {
-      const { getPlatformPricingSettings } = await import('./platformSettings.js');
-      const settings = await getPlatformPricingSettings(env);
-      eventPrice = settings.default_price;
-    } catch (e) {
-      eventPrice = STANDARD_EVENT_PRICE;
+    const { getPlatformPricingSettings } = await import('./platformSettings.js');
+    const settings = await getPlatformPricingSettings(env);
+    eventPrice = settings.default_price;
+    if (!eventPrice || eventPrice <= 0) {
+      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
+      err.status = 503;
+      throw err;
     }
   }
 
@@ -1235,12 +1236,33 @@ export async function consumeWelcomeCredit(
     throw new Error('Event ID is required');
   }
 
+  let resolvedEventPrice: number | undefined;
+  try {
+    const { getEventById } = await import('./events.js');
+    const ev = await getEventById(eventId, env);
+    if (ev && ev.event_price) {
+      resolvedEventPrice = ev.event_price;
+    }
+  } catch (e) {
+    // ignore
+  }
+  if (!resolvedEventPrice || resolvedEventPrice <= 0) {
+    const { getPlatformPricingSettings } = await import('./platformSettings.js');
+    const settings = await getPlatformPricingSettings(env);
+    resolvedEventPrice = settings.default_price;
+    if (!resolvedEventPrice || resolvedEventPrice <= 0) {
+      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
+      err.status = 503;
+      throw err;
+    }
+  }
+
   const result = await processEventPayment(
     {
       organizationId,
       eventId,
       paymentMode: 'WELCOME_CREDIT',
-      eventPrice: STANDARD_EVENT_PRICE,
+      eventPrice: resolvedEventPrice,
       referenceId,
       createdBy,
       description,
@@ -1417,12 +1439,13 @@ export async function canUseShowcaseCredit(
     }
   }
   if (!eventPrice || eventPrice <= 0) {
-    try {
-      const { getPlatformPricingSettings } = await import('./platformSettings.js');
-      const settings = await getPlatformPricingSettings(env);
-      eventPrice = settings.default_price;
-    } catch (e) {
-      eventPrice = STANDARD_EVENT_PRICE;
+    const { getPlatformPricingSettings } = await import('./platformSettings.js');
+    const settings = await getPlatformPricingSettings(env);
+    eventPrice = settings.default_price;
+    if (!eventPrice || eventPrice <= 0) {
+      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
+      err.status = 503;
+      throw err;
     }
   }
 
@@ -1498,12 +1521,33 @@ export async function consumeShowcaseCredit(
     throw new Error('Event ID is required');
   }
 
+  let resolvedEventPrice: number | undefined;
+  try {
+    const { getEventById } = await import('./events.js');
+    const ev = await getEventById(eventId, env);
+    if (ev && ev.event_price) {
+      resolvedEventPrice = ev.event_price;
+    }
+  } catch (e) {
+    // ignore
+  }
+  if (!resolvedEventPrice || resolvedEventPrice <= 0) {
+    const { getPlatformPricingSettings } = await import('./platformSettings.js');
+    const settings = await getPlatformPricingSettings(env);
+    resolvedEventPrice = settings.default_price;
+    if (!resolvedEventPrice || resolvedEventPrice <= 0) {
+      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
+      err.status = 503;
+      throw err;
+    }
+  }
+
   const result = await processEventPayment(
     {
       organizationId,
       eventId,
       paymentMode: 'SHOWCASE_CREDIT',
-      eventPrice: STANDARD_EVENT_PRICE,
+      eventPrice: resolvedEventPrice,
       referenceId,
       createdBy,
       description,
@@ -1557,7 +1601,18 @@ export async function calculateEventPayment(
   },
   env?: Record<string, any>
 ): Promise<EventPaymentCalculation> {
-  const normalizedPrice = Math.max(0, fromCents(toCents(eventPrice || STANDARD_EVENT_PRICE)));
+  let resolvedPrice = eventPrice !== undefined && eventPrice !== null ? Number(eventPrice) : 0;
+  if (!resolvedPrice || isNaN(resolvedPrice) || resolvedPrice <= 0) {
+    const { getPlatformPricingSettings } = await import('./platformSettings.js');
+    const settings = await getPlatformPricingSettings(env);
+    resolvedPrice = settings.default_price;
+    if (!resolvedPrice || isNaN(resolvedPrice) || resolvedPrice <= 0) {
+      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
+      err.status = 503;
+      throw err;
+    }
+  }
+  const normalizedPrice = Math.max(0, fromCents(toCents(resolvedPrice)));
   const wallet = await getWalletBalance(organizationId, env);
 
   let paidAmount = 0;
@@ -1759,12 +1814,13 @@ export async function calculateEventPaymentQuote(
     }
   }
   if (!eventPrice || eventPrice <= 0) {
-    try {
-      const { getPlatformPricingSettings } = await import('./platformSettings.js');
-      const settings = await getPlatformPricingSettings(env);
-      eventPrice = settings.default_price;
-    } catch (e) {
-      eventPrice = STANDARD_EVENT_PRICE;
+    const { getPlatformPricingSettings } = await import('./platformSettings.js');
+    const settings = await getPlatformPricingSettings(env);
+    eventPrice = settings.default_price;
+    if (!eventPrice || eventPrice <= 0) {
+      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
+      err.status = 503;
+      throw err;
     }
   }
 
@@ -1887,15 +1943,31 @@ export async function processEventPayment(
     }
   }
   if (!eventPrice || eventPrice <= 0) {
-    try {
-      const { getPlatformPricingSettings } = await import('./platformSettings.js');
-      const settings = await getPlatformPricingSettings(env);
-      eventPrice = settings.default_price;
-    } catch (e) {
-      eventPrice = STANDARD_EVENT_PRICE;
+    const { getPlatformPricingSettings } = await import('./platformSettings.js');
+    const settings = await getPlatformPricingSettings(env);
+    eventPrice = settings.default_price;
+    if (!eventPrice || eventPrice <= 0) {
+      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
+      err.status = 503;
+      throw err;
     }
   }
   const topupCreditRequested = params.topupCreditRequested ?? params.topupCreditAmountToUse;
+
+  // Pre-calculate payment calculation and quote before balances are modified
+  const prePaymentCalculation = await calculateEventPayment(
+    eventPrice,
+    mode,
+    organizationId,
+    {
+      topupCreditRequested,
+      useWelcomeCredit: params.useWelcomeCredit,
+      useEventCredit: params.useEventCredit ?? params.useTopupCredit,
+      welcomeCreditRequested: params.welcomeCreditRequested,
+    },
+    env
+  );
+  const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
 
   // PRODUCTION MODE: Atomic PostgreSQL RPC Transaction Block
   if (isSupabaseConfigured(env)) {
@@ -1939,19 +2011,7 @@ export async function processEventPayment(
       transactions.push(payload.paid_transaction as WalletTransactionRecord);
     }
 
-    const calculation = await calculateEventPayment(
-      eventPrice,
-      mode,
-      organizationId,
-      {
-        topupCreditRequested,
-        useWelcomeCredit: params.useWelcomeCredit,
-        useEventCredit: params.useEventCredit ?? params.useTopupCredit,
-        welcomeCreditRequested: params.welcomeCreditRequested,
-      },
-      env
-    );
-    const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
+    const calculation = prePaymentCalculation;
 
     const paidBal = Number(payload.wallet?.paid_balance ?? 0);
     const welcomeBal = Number(payload.wallet?.welcome_credit ?? 0);

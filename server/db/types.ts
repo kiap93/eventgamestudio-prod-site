@@ -376,6 +376,7 @@ export interface EventShowcaseMediaRecord {
   organization_id: string;
   media_type: ShowcaseMediaType;
   media_url: string;
+  storage_path?: string | null;
   thumbnail_url: string | null;
   file_name: string;
   file_size: number;

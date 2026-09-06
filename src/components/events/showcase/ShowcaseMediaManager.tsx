@@ -225,6 +225,8 @@ export const ShowcaseMediaManager: React.FC<ShowcaseMediaManagerProps> = ({
         method: 'POST',
         body: JSON.stringify({
           media_type: item.mediaType,
+          storage_path: uploadInfo.path,
+          bucket: uploadInfo.bucket || 'showcase-media',
           media_url: finalPublicUrl,
           thumbnail_url: item.thumbnailUrl || null,
           file_name: item.file.name,

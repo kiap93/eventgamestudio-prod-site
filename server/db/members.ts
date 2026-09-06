@@ -101,6 +101,27 @@ export async function getOrgMembers(organizationId: string, env?: Record<string,
     .order('created_at', { ascending: true });
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      const results: OrgMemberWithUserDetails[] = [];
+      for (const m of localMembersCache.values()) {
+        if (m.organization_id === organizationId) {
+          results.push({
+            id: m.id,
+            organization_id: m.organization_id,
+            user_id: m.user_id,
+            role: m.role as OrgRole,
+            created_at: m.created_at,
+            email: '',
+            name: 'Team Member',
+            avatar_url: null,
+            user_name: 'Team Member',
+            user_email: '',
+            user_avatar: null,
+          });
+        }
+      }
+      return results;
+    }
     console.error('Error in getOrgMembers:', error);
     throw new Error(`Failed to list organization members: ${error.message}`);
   }
@@ -241,14 +262,27 @@ export async function updateMemberRole(
     .single();
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      for (const m of localMembersCache.values()) {
+        if (m.organization_id === organizationId && m.user_id === userId) {
+          m.role = role;
+          return m;
+        }
+      }
+    }
     console.error('Error in updateMemberRole:', error);
     throw new Error(`Failed to update member role: ${error.message}`);
   }
 
-  return data as OrgMemberRecord;
+  const record = data as OrgMemberRecord;
+  if (record) {
+    localMembersCache.set(record.id, record);
+  }
+  return record;
 }
 
 export async function removeMember(memberId: string, env?: Record<string, any>): Promise<void> {
+  localMembersCache.delete(memberId);
   const supabase = getSupabaseServerClient(env);
   const { error } = await supabase
     .from('organization_members')
@@ -256,6 +290,9 @@ export async function removeMember(memberId: string, env?: Record<string, any>):
     .eq('id', memberId);
 
   if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      return;
+    }
     console.error('Error in removeMember:', error);
     throw new Error(`Failed to remove organization member: ${error.message}`);
   }

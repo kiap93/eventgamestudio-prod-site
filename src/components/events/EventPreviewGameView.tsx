@@ -80,6 +80,75 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  // Authoritative Pricing State (event.event_price -> authoritative API quote -> loading/error state)
+  const [authoritativePrice, setAuthoritativePrice] = useState<number | null>(null);
+  const [loadingQuote, setLoadingQuote] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+
+  // Synchronize Authoritative Price: Check eventData.event_price first; if missing, request authoritative server quote
+  useEffect(() => {
+    if (!eventData) {
+      setAuthoritativePrice(null);
+      setLoadingQuote(false);
+      setQuoteError(null);
+      return;
+    }
+
+    if (typeof eventData.event_price === 'number' && eventData.event_price > 0) {
+      setAuthoritativePrice(eventData.event_price);
+      setLoadingQuote(false);
+      setQuoteError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchAuthoritativeQuote = async () => {
+      setLoadingQuote(true);
+      setQuoteError(null);
+      try {
+        const res = await apiFetch('/api/events/quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_id: eventData.id,
+            start_date: eventData.start_date,
+            end_date: eventData.end_date,
+            payment_mode: 'COMBINED_CREDIT',
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to fetch authoritative price quote');
+        }
+
+        const data = await res.json();
+        const price = data.calculation?.eventPrice ?? data.quote?.event_price ?? null;
+        if (!cancelled) {
+          if (typeof price === 'number' && price > 0) {
+            setAuthoritativePrice(price);
+          } else {
+            setQuoteError('Authoritative quote unavailable');
+          }
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error('Error fetching authoritative preview quote:', err);
+          setQuoteError(err.message || 'Price calculation failed');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingQuote(false);
+        }
+      }
+    };
+
+    fetchAuthoritativeQuote();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventData?.id, eventData?.event_price, eventData?.start_date, eventData?.end_date]);
+
   const fetchEvent = async () => {
     if (!eventId) {
       setError('Event ID is missing from preview URL');
@@ -395,7 +464,17 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
               <div className="flex items-center gap-2">
                 <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-semibold">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Payment Pending (RM {(eventData.event_price || 1400).toFixed(2)})</span>
+                  <span>
+                    {loadingQuote ? (
+                      'Payment Pending (Calculating quote...)'
+                    ) : authoritativePrice !== null ? (
+                      `Payment Pending (${eventData.event_currency || 'RM'} ${authoritativePrice.toFixed(2)})`
+                    ) : quoteError ? (
+                      'Payment Pending (Price unavailable)'
+                    ) : (
+                      'Payment Pending'
+                    )}
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -463,7 +542,10 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
         <EventPaymentModal
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
-          event={eventData}
+          event={{
+            ...eventData,
+            event_price: authoritativePrice ?? undefined,
+          }}
           onPaymentSuccess={(updated) => {
             setEventData((prev) => (prev ? { ...prev, ...updated, status: 'scheduled', payment_status: 'PAID' } : updated));
             setShowPaymentModal(false);

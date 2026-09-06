@@ -1,10 +1,12 @@
 import {
+  OrgRole,
   getUserById,
   getUserByEmail,
   upsertGoogleUser,
   updateUserProfile,
   getUserOrganizations,
   createOrganization,
+  updateOrganization,
   getOrganizationById,
   getOrgMembers,
   getMember,
@@ -105,6 +107,7 @@ import {
   getShowcaseMedia,
   getShowcaseMediaById,
   createSignedUploadUrlForShowcase,
+  validateAndResolveShowcaseMediaPath,
   ASSET_BUCKET,
   SHOWCASE_BUCKET,
   ensureStorageBuckets,
@@ -935,6 +938,53 @@ export default {
         );
       }
 
+      const orgPatchParams = parseRoute('/api/organizations/:organizationId', pathname);
+      if (orgPatchParams && (method === 'PATCH' || method === 'PUT')) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { organizationId } = orgPatchParams;
+
+        const { isMember, role: myRole } = await verifyOrgMembershipAndPermission(
+          user.id,
+          organizationId,
+          'organization.update',
+          env
+        );
+
+        if (!isMember || !['owner', 'admin'].includes(myRole || '')) {
+          return errorResponse('Permission denied to update organization', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+
+        // Reject attempts to tamper with protected fields
+        if (body.id !== undefined && body.id !== organizationId) {
+          return errorResponse('Direct mutation of organization id is strictly prohibited', 403, cors);
+        }
+        if (body.owner_id !== undefined) {
+          return errorResponse('Direct mutation of organization owner_id is strictly prohibited', 403, cors);
+        }
+        if (body.slug !== undefined) {
+          return errorResponse('Direct mutation of organization slug is strictly prohibited', 403, cors);
+        }
+
+        const updates: { name?: string; logo_url?: string | null } = {};
+        if (body.name !== undefined) {
+          if (typeof body.name !== 'string' || !body.name.trim()) {
+            return errorResponse('Organization name must be a non-empty string', 422, cors);
+          }
+          updates.name = body.name.trim();
+        }
+        if (body.logo_url !== undefined) {
+          updates.logo_url = body.logo_url || null;
+        }
+
+        const updated = await updateOrganization(organizationId, updates, env);
+        return jsonResponse({ organization: updated }, 200, cors);
+      }
+
       const orgMembersParams = parseRoute('/api/organizations/:organizationId/members', pathname);
       if (orgMembersParams && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
@@ -1271,6 +1321,59 @@ export default {
 
         await removeMember(memberId, env);
         return jsonResponse({ success: true }, 200, cors);
+      }
+
+      const updateMemberRoleParams = parseRoute('/api/organizations/:organizationId/members/:memberId', pathname);
+      if (updateMemberRoleParams && (method === 'PATCH' || method === 'PUT')) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { organizationId, memberId } = updateMemberRoleParams;
+
+        const { isMember, role: myRole } = await verifyOrgMembershipAndPermission(
+          user.id,
+          organizationId,
+          'organization.members.manage',
+          env
+        );
+
+        if (!isMember || !['owner', 'admin'].includes(myRole || '')) {
+          return errorResponse('Permission denied to update member roles', 403, cors);
+        }
+
+        const target = await getMemberById(memberId, env);
+        if (!target || target.organization_id !== organizationId) {
+          return errorResponse('Member not found in this organization', 404, cors);
+        }
+
+        if (target.role === 'owner') {
+          return errorResponse('Cannot alter the role of the organization owner', 403, cors);
+        }
+
+        if (myRole === 'admin' && target.role === 'admin') {
+          return errorResponse('Admins cannot alter the role of other admins', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const newRole = body.role;
+
+        const allowedRoles: OrgRole[] = ['admin', 'designer', 'viewer'];
+        if (!newRole || !allowedRoles.includes(newRole)) {
+          return errorResponse(`Invalid member role. Allowed roles: ${allowedRoles.join(', ')}`, 422, cors);
+        }
+
+        if (newRole === 'owner') {
+          return errorResponse('Direct promotion to owner is strictly prohibited', 403, cors);
+        }
+
+        // Admins cannot promote another user to admin (only owner can)
+        if (myRole === 'admin' && newRole === 'admin') {
+          return errorResponse('Only organization owners can grant admin role', 403, cors);
+        }
+
+        const updated = await updateMemberRole(organizationId, target.user_id, newRole, env);
+        return jsonResponse({ member: updated, message: 'Member role updated successfully' }, 200, cors);
       }
 
       // ==========================================
@@ -2011,13 +2114,13 @@ export default {
         else if (resolvedSettingsConfig !== undefined) requiredPerm = 'game.settings.edit';
 
         if (targetOrgId) {
-          const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, targetOrgId, requiredPerm, env);
+          const { isMember, role, hasPermission } = await verifyOrgMembershipAndPermission(user.id, targetOrgId, requiredPerm, env);
           if (!isMember) {
             return errorResponse('Access denied: Not an organization member', 403, cors);
           }
 
-          if (role === 'viewer') {
-            return errorResponse('Viewers cannot modify game customization', 403, cors);
+          if (!hasPermission || role === 'viewer') {
+            return errorResponse('Permission denied: Insufficient permissions to modify game customization', 403, cors);
           }
         }
 
@@ -2253,14 +2356,10 @@ export default {
             currency = pricing.currency;
             durationDays = pricing.durationDays;
             ruleLabel = pricing.ruleLabel;
-          } catch (e) {
-            try {
-              const settings = await getPlatformPricingSettings(env);
-              price = settings.default_price;
-              currency = settings.default_currency;
-            } catch {
-              price = STANDARD_EVENT_PRICE;
-            }
+          } catch (e: any) {
+            console.error('Authoritative pricing calculation failed in quote (worker):', e);
+            const isUnavailable = e?.message?.includes('Pricing service temporarily unavailable') || e?.status === 503;
+            return errorResponse('Pricing service temporarily unavailable', isUnavailable ? 503 : 500, cors);
           }
         }
 
@@ -2917,7 +3016,7 @@ export default {
         }
       }
 
-      // GET /api/events/:eventId/admin/high-scores (Organizer High Scores & Stats)
+      // GET & POST /api/events/:eventId/admin/high-scores (Organizer High Scores & Stats)
       const adminScoresParams = parseRoute('/api/events/:eventId/admin/high-scores', pathname);
       if (adminScoresParams && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
@@ -2931,15 +3030,15 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.view', env);
-        if (!isMember) {
-          return errorResponse('Permission denied', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Insufficient permissions to view event scores', 403, cors);
         }
 
         const limit = Number(url.searchParams.get('limit') || 100);
         const page = Number(url.searchParams.get('page') || 1);
 
-        const leaderboard = await getEventHighScores(eventId, { limit, page }, env);
+        const leaderboard = await getEventHighScores(eventId, { limit, page, scoreEnvironment: 'all', includeTestScores: true }, env);
         const stats = await getEventScoreStats(eventId, env);
         const testScoresCount = await getEventTestScoresCount(eventId, env);
         const isBeforeStart = isEventBeforeStartDate(event);
@@ -2952,6 +3051,68 @@ export default {
           test_scores_count: testScoresCount,
           is_before_start_date: isBeforeStart,
         }, 200, cors);
+      }
+
+      if (adminScoresParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = adminScoresParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Insufficient permissions to submit event scores', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { player_name, score, metadata = {}, session_id, sessionId } = body;
+
+        if (score === undefined || score === null || isNaN(Number(score))) {
+          return errorResponse('Valid numerical score is required', 422, cors);
+        }
+
+        const incomingSessionId =
+          session_id !== undefined ? session_id :
+          sessionId !== undefined ? sessionId :
+          (metadata && typeof metadata === 'object' && metadata.sessionId !== undefined ? metadata.sessionId :
+          (metadata && typeof metadata === 'object' && metadata.session_id !== undefined ? metadata.session_id : undefined));
+
+        // Security boundary: Internal organizer submissions via admin endpoint are strictly quarantined as test scores.
+        const safeMetadata = typeof metadata === 'object' && metadata ? { ...metadata } : {};
+        safeMetadata.isEventTest = true;
+        safeMetadata.is_test = true;
+        safeMetadata.score_environment = 'test';
+
+        try {
+          const result = await submitEventScore(
+            {
+              event_id: eventId,
+              player_name,
+              score: Number(score),
+              session_id: incomingSessionId,
+              metadata: safeMetadata,
+            },
+            env
+          );
+
+          return jsonResponse({
+            success: true,
+            event_id: eventId,
+            ...result,
+          }, 201, cors);
+        } catch (err: any) {
+          console.error('Submit organizer score error:', err);
+          return jsonResponse({
+            error: err.message || 'Failed to submit score',
+            code: err.code || 'SCORE_SUBMISSION_ERROR',
+          }, err.status || 400, cors);
+        }
       }
 
       // POST /api/events/:eventId/test-scores/clear (Manual Clear Test Scores)
@@ -2992,8 +3153,10 @@ export default {
         }, 200, cors);
       }
 
-      // POST /api/events/:eventId/high-scores/clear (Leaderboard Reset)
-      const clearScoresParams = parseRoute('/api/events/:eventId/high-scores/clear', pathname);
+      // POST /api/events/:eventId/high-scores/clear or /admin/high-scores/clear (Leaderboard Reset)
+      const clearScoresParams =
+        parseRoute('/api/events/:eventId/admin/high-scores/clear', pathname) ||
+        parseRoute('/api/events/:eventId/high-scores/clear', pathname);
       if (clearScoresParams && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
@@ -3018,8 +3181,10 @@ export default {
         }, 200, cors);
       }
 
-      // DELETE /api/events/:eventId/high-scores/:scoreId (Delete specific score)
-      const deleteScoreParams = parseRoute('/api/events/:eventId/high-scores/:scoreId', pathname);
+      // DELETE /api/events/:eventId/high-scores/:scoreId or /admin/high-scores/:scoreId (Delete specific score)
+      const deleteScoreParams =
+        parseRoute('/api/events/:eventId/admin/high-scores/:scoreId', pathname) ||
+        parseRoute('/api/events/:eventId/high-scores/:scoreId', pathname);
       if (deleteScoreParams && method === 'DELETE') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
@@ -3044,71 +3209,15 @@ export default {
         }, 200, cors);
       }
 
-      // GET /api/events/:eventId/high-scores
-      const eventScoresParams = parseRoute('/api/events/:eventId/high-scores', pathname);
-      if (eventScoresParams && method === 'GET') {
-        const { eventId } = eventScoresParams;
-        const event = await getEventById(eventId, env);
-        if (!event) {
-          return errorResponse('Event not found', 404, cors);
-        }
-
-        const limit = Number(url.searchParams.get('limit') || 20);
-        const page = Number(url.searchParams.get('page') || 1);
-
-        const result = await getEventHighScores(eventId, { limit, page }, env);
+      // Ambiguous middle endpoint REMOVED: /api/events/:eventId/high-scores
+      // Public scores are strictly via /api/public/events/:publicToken/high-scores (live scores only).
+      // Organizer scores are strictly via /api/events/:eventId/admin/high-scores (TEST + LIVE scores with authentication).
+      const deprecatedScoresParams = parseRoute('/api/events/:eventId/high-scores', pathname);
+      if (deprecatedScoresParams) {
         return jsonResponse({
-          event_id: eventId,
-          event_name: event.name,
-          ...result,
-        }, 200, cors);
-      }
-
-      // POST /api/events/:eventId/high-scores
-      if (eventScoresParams && method === 'POST') {
-        const { eventId } = eventScoresParams;
-        const event = await getEventById(eventId, env);
-        if (!event) {
-          return errorResponse('Event not found', 404, cors);
-        }
-
-        const body = (await request.json().catch(() => ({}))) as any;
-        const { player_name, score, metadata, session_id, sessionId } = body;
-
-        if (score === undefined || score === null || isNaN(Number(score))) {
-          return errorResponse('Valid numerical score is required', 422, cors);
-        }
-
-        const incomingSessionId =
-          session_id !== undefined ? session_id :
-          sessionId !== undefined ? sessionId :
-          (metadata && typeof metadata === 'object' && metadata.sessionId !== undefined ? metadata.sessionId :
-          (metadata && typeof metadata === 'object' && metadata.session_id !== undefined ? metadata.session_id : undefined));
-
-        try {
-          const result = await submitEventScore(
-            {
-              event_id: eventId,
-              player_name,
-              score: Number(score),
-              session_id: incomingSessionId,
-              metadata,
-            },
-            env
-          );
-
-          return jsonResponse({
-            success: true,
-            event_id: eventId,
-            ...result,
-          }, 201, cors);
-        } catch (err: any) {
-          console.error('Submit event score error:', err);
-          return jsonResponse({
-            error: err.message || 'Failed to submit score',
-            code: err.code || 'SCORE_SUBMISSION_ERROR',
-          }, err.status || 400, cors);
-        }
+          error: 'Endpoint removed. Public players must use /api/public/events/:publicToken/high-scores (live scores only). Organizers must use /api/events/:eventId/admin/high-scores (TEST + LIVE scores with authentication).',
+          code: 'ENDPOINT_REMOVED',
+        }, 404, cors);
       }
 
       // ==========================================
@@ -3135,8 +3244,8 @@ export default {
             const token = authHeader.substring(7);
             const payload = await verifyAppToken(token, undefined, env);
             if (payload && payload.sub) {
-              const { isMember } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'game.view', env);
-              isOrgMember = isMember;
+              const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'event.view', env);
+              isOrgMember = isMember && hasPermission;
             }
           } catch {
             // Ignore optional auth error
@@ -3168,9 +3277,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot create event showcases', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can create event showcases', 403, cors);
         }
 
         const existing = await getShowcaseByEventId(eventId, env);
@@ -3220,9 +3329,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot edit event showcases', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can edit event showcases', 403, cors);
         }
 
         const existing = await getShowcaseByEventId(eventId, env);
@@ -3292,9 +3401,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot submit showcases for review', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can submit showcases for review', 403, cors);
         }
 
         const existing = await getShowcaseByEventId(eventId, env);
@@ -3330,9 +3439,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot publish event showcases', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can publish event showcases', 403, cors);
         }
 
         const existing = await getShowcaseByEventId(eventId, env);
@@ -3361,9 +3470,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot unpublish event showcases', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can unpublish event showcases', 403, cors);
         }
 
         const existing = await getShowcaseByEventId(eventId, env);
@@ -3402,8 +3511,8 @@ export default {
             const token = authHeader.substring(7);
             const payload = await verifyAppToken(token, undefined, env);
             if (payload && payload.sub) {
-              const { isMember } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'game.view', env);
-              isOrgMember = isMember;
+              const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'event.view', env);
+              isOrgMember = isMember && hasPermission;
             }
           } catch {
             // Ignore optional auth error
@@ -3435,9 +3544,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot upload showcase media', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can upload showcase media', 403, cors);
         }
 
         const showcase = await getShowcaseByEventId(eventId, env);
@@ -3634,12 +3743,12 @@ export default {
           }
 
           // 2. Verify Organization Membership & Permissions
-          const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user!.id, event.organization_id, 'game.items.edit', env);
+          const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user!.id, event.organization_id, 'event.edit', env);
           if (!isMember) {
             return errorResponse('Permission denied: You are not a member of this organization', 403, cors);
           }
-          if (role === 'viewer') {
-            return errorResponse('Permission denied: Viewers cannot upload showcase media', 403, cors);
+          if (!hasPermission) {
+            return errorResponse('Permission denied: Only owners and admins can upload showcase media', 403, cors);
           }
 
           // 3. Validate MIME Type, File Size, Magic Bytes, and Reject SVG
@@ -3752,9 +3861,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot add showcase media', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can add showcase media', 403, cors);
         }
 
         const showcase = await getShowcaseByEventId(eventId, env);
@@ -3766,6 +3875,11 @@ export default {
         const {
           media_type,
           media_url,
+          storage_path,
+          storagePath,
+          upload_id,
+          bucket,
+          bucket_name,
           thumbnail_url,
           file_name,
           file_size,
@@ -3776,11 +3890,28 @@ export default {
         if (!media_type || (media_type !== 'IMAGE' && media_type !== 'VIDEO')) {
           return errorResponse('media_type must be IMAGE or VIDEO', 422, cors);
         }
-        if (!media_url || typeof media_url !== 'string') {
-          return errorResponse('media_url is required', 422, cors);
-        }
-        if (!file_name || typeof file_name !== 'string') {
-          return errorResponse('file_name is required', 422, cors);
+
+        const providedPath = storage_path || storagePath || upload_id;
+        const pathValidation = validateAndResolveShowcaseMediaPath({
+          storagePath: providedPath,
+          bucket: bucket || bucket_name,
+          organizationId: event.organization_id,
+          showcaseId: showcase.id,
+          mediaType: media_type as 'IMAGE' | 'VIDEO',
+          clientMediaUrl: media_url,
+          clientThumbnailUrl: thumbnail_url,
+          env,
+        });
+
+        if (!pathValidation.valid) {
+          return jsonResponse(
+            {
+              error: pathValidation.error,
+              code: pathValidation.code,
+            },
+            pathValidation.statusCode || 422,
+            cors
+          );
         }
 
         try {
@@ -3789,11 +3920,12 @@ export default {
               showcase_id: showcase.id,
               organization_id: event.organization_id,
               media_type,
-              media_url,
-              thumbnail_url: thumbnail_url || null,
-              file_name: file_name.trim(),
+              media_url: pathValidation.authoritativeMediaUrl,
+              storage_path: pathValidation.authoritativeStoragePath,
+              thumbnail_url: pathValidation.sanitizedThumbnailUrl,
+              file_name: (file_name && typeof file_name === 'string' ? file_name.trim() : pathValidation.fileName),
               file_size: Number(file_size) || 0,
-              mime_type: (mime_type || '').toLowerCase(),
+              mime_type: (mime_type || (media_type === 'VIDEO' ? 'video/mp4' : 'image/png')).toLowerCase(),
               sort_order: sort_order !== undefined ? Number(sort_order) : undefined,
             },
             env
@@ -3817,9 +3949,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot reorder showcase media', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can reorder showcase media', 403, cors);
         }
 
         const showcase = await getShowcaseByEventId(eventId, env);
@@ -3854,9 +3986,9 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'game.items.edit', env);
-        if (!isMember || role === 'viewer') {
-          return errorResponse('Permission denied: Viewers cannot delete showcase media', 403, cors);
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied: Only owners and admins can delete showcase media', 403, cors);
         }
 
         const showcase = await getShowcaseByEventId(eventId, env);
@@ -3871,6 +4003,17 @@ export default {
 
         if (media.showcase_id !== showcase.id || media.organization_id !== event.organization_id) {
           return errorResponse('Media does not belong to this event showcase', 403, cors);
+        }
+
+        // Clean up file in Supabase storage if storage_path is recorded
+        if (media.storage_path) {
+          try {
+            const { getSupabaseServerClient } = await import('./server/supabase.js');
+            const supabase = getSupabaseServerClient(env);
+            await supabase.storage.from(SHOWCASE_BUCKET).remove([media.storage_path]);
+          } catch (sErr: any) {
+            console.warn('Notice: Could not delete storage file:', sErr.message);
+          }
         }
 
         try {
@@ -4377,8 +4520,9 @@ export default {
           const settings = await getPlatformPricingSettings(env);
           return jsonResponse(settings, 200, cors);
         } catch (err: any) {
-          console.error('Get platform pricing error:', err);
-          return errorResponse(err.message || 'Failed to get platform pricing', 500, cors);
+          console.error('Get platform pricing error in worker:', err);
+          const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
+          return errorResponse('Pricing service temporarily unavailable', status, cors);
         }
       }
 
@@ -4394,8 +4538,9 @@ export default {
           const settings = await getPlatformPricingSettings(env);
           return jsonResponse({ success: true, settings }, 200, cors);
         } catch (err: any) {
-          console.error('Admin get pricing settings error:', err);
-          return errorResponse(err.message || 'Failed to get pricing settings', 500, cors);
+          console.error('Admin get pricing settings error in worker:', err);
+          const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
+          return errorResponse('Pricing service temporarily unavailable', status, cors);
         }
       }
 
@@ -4903,7 +5048,14 @@ export default {
 
         try {
           const wallet = await getWalletBalance(orgId, env);
-          return jsonResponse({ wallet, standard_event_price: STANDARD_EVENT_PRICE }, 200, cors);
+          let standardEventPrice: number | undefined;
+          try {
+            const settings = await getPlatformPricingSettings(env);
+            standardEventPrice = settings.default_price;
+          } catch {
+            // ignore
+          }
+          return jsonResponse({ wallet, standard_event_price: standardEventPrice }, 200, cors);
         } catch (err: any) {
           return errorResponse(err.message || 'Failed to get wallet', 500, cors);
         }
@@ -5692,7 +5844,17 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const price = body.event_price ? Number(body.event_price) : STANDARD_EVENT_PRICE;
+        let price = body.event_price !== undefined && body.event_price !== null ? Number(body.event_price) : undefined;
+        if (!price || isNaN(price) || price <= 0) {
+          try {
+            const settings = await getPlatformPricingSettings(env);
+            price = settings.default_price;
+          } catch (err: any) {
+            console.error('Failed to resolve authoritative price in calculate-event-payment (worker):', err);
+            const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
+            return errorResponse('Pricing service temporarily unavailable', status, cors);
+          }
+        }
         const mode = (body.payment_mode || 'FULL_PAID') as any;
 
         try {

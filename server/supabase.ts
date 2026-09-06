@@ -175,6 +175,23 @@ export function assertProductionLeaderboardSafe(operationName: string, env?: Rec
   }
 }
 
+/**
+ * Guard assertion for authoritative pricing operations.
+ * Throws a fatal 503 error if execution is in production mode or Cloudflare Workers without a configured Supabase database.
+ * Ensures local JSON/file fallback is never silently used in production for pricing.
+ */
+export function assertProductionPricingSafe(operationName: string, env?: Record<string, any>): void {
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    if (!isSupabaseConfigured(env)) {
+      const err: any = new Error(
+        `Pricing service temporarily unavailable: Authoritative pricing operation "${operationName}" requires a valid database connection in production.`
+      );
+      err.status = 503;
+      throw err;
+    }
+  }
+}
+
 export const supabase = {
   get client(): SupabaseClient {
     return getSupabaseServerClient();

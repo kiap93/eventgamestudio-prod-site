@@ -405,7 +405,7 @@ export const PublicEventGameView: React.FC = () => {
               name: activeEvent?.name || errorDetails?.event_name || 'Event Game',
               public_token: publicToken || '',
               organization_id: activeEvent?.organization_id || errorDetails?.organization_id,
-              event_price: activeEvent?.event_price || errorDetails?.event_price || 1400,
+              event_price: activeEvent?.event_price ?? errorDetails?.event_price ?? undefined,
               event_currency: activeEvent?.event_currency || errorDetails?.event_currency || 'MYR',
             }}
             onPaymentSuccess={async () => {

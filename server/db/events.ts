@@ -16,7 +16,8 @@ import {
   EventRefundDetermination,
   CancellationErrorCode,
 } from './types.js';
-import { getThemeById, isUUID, enrichThemesWithGameData } from './themes.js';
+import { getThemeById, isUUID, enrichThemesWithGameData, DEFAULT_CARNIVAL_THEME } from './themes.js';
+import { calculateCatchBrandSanityLimits, CatchBrandPhysicsSanityConfig } from '../games/catchBrandScoring.js';
 import { getGameById } from './games.js';
 import { getShowcaseByEventId, getShowcasesByOrgId } from './showcases.js';
 import {
@@ -1471,6 +1472,126 @@ export async function resolveAuthoritativeMemoryMatchConfig(
     theme: themeRecord,
     gameConfig: rawConfig,
     gameType: 'memory-match',
+  };
+}
+
+export interface AuthoritativeCatchBrandConfig extends CatchBrandPhysicsSanityConfig {
+  theme: any | null;
+  gameConfig: any | null;
+  gameType: string;
+}
+
+/**
+ * Authoritatively resolves Catch The Brand configuration from the event and theme records.
+ * Calculates physical gameplay limits, minimum spawn intervals, and score sanity ceiling.
+ */
+export async function resolveAuthoritativeCatchBrandConfig(
+  event: any,
+  env?: Record<string, any>
+): Promise<AuthoritativeCatchBrandConfig> {
+  if (!event) {
+    const err: any = new Error('Event not found');
+    err.status = 404;
+    err.code = 'EVENT_NOT_FOUND';
+    throw err;
+  }
+
+  // 1. Resolve event game type
+  const gameType = await resolveEventGameType(event, env);
+  if (gameType !== 'catch-brand') {
+    const err: any = new Error(
+      `Event game type mismatch: Expected 'catch-brand' but event is '${gameType}'. Cross-game configuration fallback is forbidden.`
+    );
+    err.status = 422;
+    err.code = 'INVALID_GAME_TYPE';
+    throw err;
+  }
+
+  // 2. Resolve theme
+  let themeRecord: any = event.game_theme || event.theme || null;
+  const themeId = event.game_theme_id || event.theme_id || (themeRecord && themeRecord.id);
+  if (!themeRecord && themeId) {
+    try {
+      themeRecord = await getThemeById(themeId, env);
+    } catch {
+      themeRecord = null;
+    }
+  }
+
+  // 3. Cross-game theme verification (cannot use memory-match theme for catch-brand)
+  if (themeRecord) {
+    const themeGameType = (themeRecord.game_type || themeRecord.game_slug || '').toLowerCase().trim();
+    if (themeGameType === 'memory-match') {
+      const err: any = new Error(
+        `Theme game mismatch: Event requires Catch The Brand, but theme is configured for '${themeGameType}'. Cross-game configuration fallback is forbidden.`
+      );
+      err.status = 422;
+      err.code = 'THEME_GAME_MISMATCH';
+      throw err;
+    }
+  }
+
+  // 4. Resolve raw custom game config if present
+  let rawConfig = event.game_config || null;
+  if (typeof rawConfig === 'string') {
+    try {
+      rawConfig = JSON.parse(rawConfig);
+    } catch {
+      rawConfig = null;
+    }
+  }
+
+  // Fallback defaults from DEFAULT_CARNIVAL_THEME
+  const defaultPhysics = DEFAULT_CARNIVAL_THEME.physics_config;
+  const defaultItems = DEFAULT_CARNIVAL_THEME.items_config;
+
+  // 5. Authoritative duration (seconds)
+  let gameDurationSeconds = 20;
+  if (typeof rawConfig?.gameDurationSeconds === 'number' && rawConfig.gameDurationSeconds > 0) {
+    gameDurationSeconds = rawConfig.gameDurationSeconds;
+  } else if (typeof rawConfig?.physics_config?.gameDurationSeconds === 'number' && rawConfig.physics_config.gameDurationSeconds > 0) {
+    gameDurationSeconds = rawConfig.physics_config.gameDurationSeconds;
+  } else if (typeof themeRecord?.physics_config?.gameDurationSeconds === 'number' && themeRecord.physics_config.gameDurationSeconds > 0) {
+    gameDurationSeconds = themeRecord.physics_config.gameDurationSeconds;
+  } else {
+    gameDurationSeconds = defaultPhysics?.gameDurationSeconds || 20;
+  }
+
+  // 6. Authoritative items
+  const rawItems = Array.isArray(rawConfig?.items_config) && rawConfig.items_config.length > 0
+    ? rawConfig.items_config
+    : Array.isArray(themeRecord?.items_config) && themeRecord.items_config.length > 0
+      ? themeRecord.items_config
+      : defaultItems || [];
+
+  // 7. Determine minimum spawn interval (ms)
+  const stages: any[] = Array.isArray(rawConfig?.physics_config?.difficultyStages) && rawConfig.physics_config.difficultyStages.length > 0
+    ? rawConfig.physics_config.difficultyStages
+    : Array.isArray(themeRecord?.physics_config?.difficultyStages) && themeRecord.physics_config.difficultyStages.length > 0
+      ? themeRecord.physics_config.difficultyStages
+      : defaultPhysics?.difficultyStages || [];
+
+  let minSpawnIntervalMs = 550; // default fastest stage
+  if (stages.length > 0) {
+    const validIntervals = stages
+      .map((s: any) => Number(s.spawnInterval))
+      .filter((n: number) => !isNaN(n) && n > 0);
+    if (validIntervals.length > 0) {
+      minSpawnIntervalMs = Math.min(...validIntervals);
+    }
+  }
+
+  const sanityLimits = calculateCatchBrandSanityLimits(
+    gameDurationSeconds,
+    minSpawnIntervalMs,
+    rawItems as any
+  );
+
+  return {
+    ...sanityLimits,
+    theme: themeRecord,
+    gameConfig: rawConfig,
+    gameType: 'catch-brand',
   };
 }
 

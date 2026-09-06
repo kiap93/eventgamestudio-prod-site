@@ -318,58 +318,285 @@ CREATE TRIGGER trg_prevent_user_privilege_escalation
   FOR EACH ROW
   EXECUTE FUNCTION public.prevent_user_privilege_escalation();
 
--- ORGANIZATIONS POLICIES
+-- ORGANIZATIONS POLICIES (BACKEND-WRITE-ONLY)
+-- Organization members and developer admins can SELECT their organizations.
+-- Direct client INSERT, UPDATE, and DELETE are strictly disallowed.
+-- All mutations must be processed through the backend server API via service_role.
 DROP POLICY IF EXISTS "Members can view their organizations" ON public.organizations;
 CREATE POLICY "Members can view their organizations"
   ON public.organizations FOR SELECT
   USING (public.is_org_member(id) OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Authenticated users can create organizations" ON public.organizations;
-CREATE POLICY "Authenticated users can create organizations"
-  ON public.organizations FOR INSERT
-  WITH CHECK (auth.uid() IS NOT NULL);
-
 DROP POLICY IF EXISTS "Owners and admins can update organization" ON public.organizations;
-CREATE POLICY "Owners and admins can update organization"
-  ON public.organizations FOR UPDATE
-  USING (public.get_org_role(id) IN ('owner', 'admin') OR public.is_developer_admin());
+DROP POLICY IF EXISTS "Owners and admins can delete organization" ON public.organizations;
 
--- MEMBERS POLICIES
+REVOKE INSERT, UPDATE, DELETE ON public.organizations FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.organizations FROM anon;
+GRANT SELECT ON public.organizations TO authenticated;
+GRANT SELECT ON public.organizations TO anon;
+
+CREATE OR REPLACE FUNCTION public.prevent_organization_unauthorized_client_mutations()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_role text;
+  v_uid text;
+BEGIN
+  BEGIN
+    v_role := current_setting('request.jwt.claim.role', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_role := NULL;
+  END;
+
+  IF v_role IS NULL THEN
+    BEGIN
+      v_role := auth.role();
+    EXCEPTION WHEN OTHERS THEN
+      v_role := NULL;
+    END;
+  END IF;
+
+  BEGIN
+    v_uid := current_setting('request.jwt.claim.sub', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_uid := NULL;
+  END;
+
+  IF v_uid IS NULL THEN
+    BEGIN
+      v_uid := auth.uid()::text;
+    EXCEPTION WHEN OTHERS THEN
+      v_uid := NULL;
+    END;
+  END IF;
+
+  IF v_role IN ('authenticated', 'anon') OR (v_uid IS NOT NULL AND (v_role IS NULL OR v_role != 'service_role')) THEN
+    RAISE EXCEPTION 'Direct client mutation on organizations is strictly prohibited. All organization operations must be routed through the server API.';
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.id IS DISTINCT FROM OLD.id THEN
+      RAISE EXCEPTION 'Direct update of organization id is strictly prohibited';
+    END IF;
+    IF NEW.owner_id IS DISTINCT FROM OLD.owner_id THEN
+      RAISE EXCEPTION 'Direct update of organization owner_id is strictly prohibited. Organization ownership cannot be changed directly.';
+    END IF;
+    IF NEW.slug IS DISTINCT FROM OLD.slug THEN
+      RAISE EXCEPTION 'Direct update of organization slug is strictly prohibited';
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      RAISE EXCEPTION 'Direct client creation of organizations is strictly prohibited';
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      RAISE EXCEPTION 'Direct client deletion of organizations is strictly prohibited';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_organization_unauthorized_client_mutations ON public.organizations;
+CREATE TRIGGER trg_prevent_organization_unauthorized_client_mutations
+  BEFORE INSERT OR UPDATE OR DELETE ON public.organizations
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_organization_unauthorized_client_mutations();
+
+-- ORGANIZATION MEMBERS POLICIES (BACKEND-WRITE-ONLY)
 DROP POLICY IF EXISTS "Members can view organization members" ON public.organization_members;
 CREATE POLICY "Members can view organization members"
   ON public.organization_members FOR SELECT
   USING (public.is_org_member(organization_id) OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Owners and admins can manage members" ON public.organization_members;
-CREATE POLICY "Owners and admins can manage members"
-  ON public.organization_members FOR INSERT
-  WITH CHECK (public.get_org_role(organization_id) IN ('owner', 'admin') OR public.is_developer_admin());
-
 DROP POLICY IF EXISTS "Owners and admins can update member roles" ON public.organization_members;
-CREATE POLICY "Owners and admins can update member roles"
-  ON public.organization_members FOR UPDATE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin') OR public.is_developer_admin());
-
 DROP POLICY IF EXISTS "Owners and admins can remove members" ON public.organization_members;
-CREATE POLICY "Owners and admins can remove members"
-  ON public.organization_members FOR DELETE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin') OR user_id = auth.uid() OR public.is_developer_admin());
 
--- INVITATIONS POLICIES
+REVOKE INSERT, UPDATE, DELETE ON public.organization_members FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.organization_members FROM anon;
+GRANT SELECT ON public.organization_members TO authenticated;
+GRANT SELECT ON public.organization_members TO anon;
+
+CREATE OR REPLACE FUNCTION public.prevent_organization_member_unauthorized_client_mutations()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_role text;
+  v_uid text;
+BEGIN
+  BEGIN
+    v_role := current_setting('request.jwt.claim.role', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_role := NULL;
+  END;
+
+  IF v_role IS NULL THEN
+    BEGIN
+      v_role := auth.role();
+    EXCEPTION WHEN OTHERS THEN
+      v_role := NULL;
+    END IF;
+  END IF;
+
+  BEGIN
+    v_uid := current_setting('request.jwt.claim.sub', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_uid := NULL;
+  END;
+
+  IF v_uid IS NULL THEN
+    BEGIN
+      v_uid := auth.uid()::text;
+    EXCEPTION WHEN OTHERS THEN
+      v_uid := NULL;
+    END;
+  END IF;
+
+  IF v_role IN ('authenticated', 'anon') OR (v_uid IS NOT NULL AND (v_role IS NULL OR v_role != 'service_role')) THEN
+    RAISE EXCEPTION 'Direct client mutation on organization_members is strictly prohibited. All membership operations must be routed through the server API.';
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      IF NEW.role IS DISTINCT FROM OLD.role THEN
+        RAISE EXCEPTION 'Direct update of member role is strictly prohibited';
+      END IF;
+      IF NEW.user_id IS DISTINCT FROM OLD.user_id THEN
+        RAISE EXCEPTION 'Direct update of member user_id is strictly prohibited';
+      END IF;
+      IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+        RAISE EXCEPTION 'Direct update of member organization_id is strictly prohibited';
+      END IF;
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      IF NEW.role IN ('owner', 'admin') THEN
+        RAISE EXCEPTION 'Direct creation of owner or admin membership is strictly prohibited';
+      END IF;
+      RAISE EXCEPTION 'Direct client creation of organization_members is strictly prohibited';
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      RAISE EXCEPTION 'Direct client deletion of organization_members is strictly prohibited';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_organization_member_unauthorized_client_mutations ON public.organization_members;
+CREATE TRIGGER trg_prevent_organization_member_unauthorized_client_mutations
+  BEFORE INSERT OR UPDATE OR DELETE ON public.organization_members
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_organization_member_unauthorized_client_mutations();
+
+-- ORGANIZATION INVITATIONS POLICIES (BACKEND-WRITE-ONLY)
 DROP POLICY IF EXISTS "Members can view invitations" ON public.organization_invitations;
 CREATE POLICY "Members can view invitations"
   ON public.organization_invitations FOR SELECT
   USING (public.is_org_member(organization_id) OR public.is_developer_admin());
 
 DROP POLICY IF EXISTS "Owners and admins can create invitations" ON public.organization_invitations;
-CREATE POLICY "Owners and admins can create invitations"
-  ON public.organization_invitations FOR INSERT
-  WITH CHECK (public.get_org_role(organization_id) IN ('owner', 'admin') OR public.is_developer_admin());
-
 DROP POLICY IF EXISTS "Owners and admins can delete invitations" ON public.organization_invitations;
-CREATE POLICY "Owners and admins can delete invitations"
-  ON public.organization_invitations FOR DELETE
-  USING (public.get_org_role(organization_id) IN ('owner', 'admin') OR public.is_developer_admin());
+DROP POLICY IF EXISTS "Owners and admins can update invitations" ON public.organization_invitations;
+
+REVOKE INSERT, UPDATE, DELETE ON public.organization_invitations FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.organization_invitations FROM anon;
+GRANT SELECT ON public.organization_invitations TO authenticated;
+GRANT SELECT ON public.organization_invitations TO anon;
+
+CREATE OR REPLACE FUNCTION public.prevent_organization_invitation_unauthorized_client_mutations()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_role text;
+  v_uid text;
+BEGIN
+  BEGIN
+    v_role := current_setting('request.jwt.claim.role', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_role := NULL;
+  END;
+
+  IF v_role IS NULL THEN
+    BEGIN
+      v_role := auth.role();
+    EXCEPTION WHEN OTHERS THEN
+      v_role := NULL;
+    END;
+  END IF;
+
+  BEGIN
+    v_uid := current_setting('request.jwt.claim.sub', true);
+  EXCEPTION WHEN OTHERS THEN
+    v_uid := NULL;
+  END;
+
+  IF v_uid IS NULL THEN
+    BEGIN
+      v_uid := auth.uid()::text;
+    EXCEPTION WHEN OTHERS THEN
+      v_uid := NULL;
+    END;
+  END IF;
+
+  IF v_role IN ('authenticated', 'anon') OR (v_uid IS NOT NULL AND (v_role IS NULL OR v_role != 'service_role')) THEN
+    RAISE EXCEPTION 'Direct client mutation on organization_invitations is strictly prohibited. All invitation operations must be routed through the server API.';
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      IF NEW.token IS DISTINCT FROM OLD.token OR NEW.token_hash IS DISTINCT FROM OLD.token_hash THEN
+        RAISE EXCEPTION 'Direct update of invitation token is strictly prohibited';
+      END IF;
+      IF NEW.role IS DISTINCT FROM OLD.role THEN
+        RAISE EXCEPTION 'Direct update of invitation role is strictly prohibited';
+      END IF;
+      IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+        RAISE EXCEPTION 'Direct update of invitation organization_id is strictly prohibited';
+      END IF;
+      IF NEW.status IS DISTINCT FROM OLD.status OR NEW.accepted_at IS DISTINCT FROM OLD.accepted_at THEN
+        RAISE EXCEPTION 'Direct update of invitation status is strictly prohibited';
+      END IF;
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      RAISE EXCEPTION 'Direct client creation of organization_invitations is strictly prohibited';
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    IF v_role IS DISTINCT FROM 'service_role' THEN
+      RAISE EXCEPTION 'Direct client deletion of organization_invitations is strictly prohibited';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_organization_invitation_unauthorized_client_mutations ON public.organization_invitations;
+CREATE TRIGGER trg_prevent_organization_invitation_unauthorized_client_mutations
+  BEFORE INSERT OR UPDATE OR DELETE ON public.organization_invitations
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_organization_invitation_unauthorized_client_mutations();
 
 -- GAMES POLICIES
 DROP POLICY IF EXISTS "Developer admins can manage all games" ON public.games;
@@ -982,6 +1209,7 @@ CREATE TABLE IF NOT EXISTS public.event_showcase_media (
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   media_type TEXT NOT NULL CHECK (media_type IN ('IMAGE', 'VIDEO')),
   media_url TEXT NOT NULL,
+  storage_path TEXT,
   thumbnail_url TEXT,
   file_name TEXT NOT NULL,
   file_size BIGINT NOT NULL DEFAULT 0,
@@ -993,6 +1221,7 @@ CREATE TABLE IF NOT EXISTS public.event_showcase_media (
 
 CREATE INDEX IF NOT EXISTS idx_event_showcase_media_showcase_id ON public.event_showcase_media (showcase_id);
 CREATE INDEX IF NOT EXISTS idx_event_showcase_media_org_id ON public.event_showcase_media (organization_id);
+CREATE INDEX IF NOT EXISTS idx_event_showcase_media_storage_path ON public.event_showcase_media (storage_path);
 CREATE INDEX IF NOT EXISTS idx_event_showcase_media_sort_order ON public.event_showcase_media (showcase_id, sort_order ASC);
 
 -- Showcase RLS
@@ -1045,29 +1274,48 @@ CREATE POLICY "View showcase media for published or org members"
     )
   );
 
+-- Trigger function to enforce storage path hierarchy and strictly prohibit arbitrary external URLs & SVG uploads
+CREATE OR REPLACE FUNCTION public.verify_showcase_media_record_security()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Storage path must follow organizations/<org_id>/showcases/<showcase_id>/<filename>
+  IF NEW.storage_path IS NOT NULL AND NEW.storage_path <> '' THEN
+    IF NOT (NEW.storage_path ~ ('^organizations/' || NEW.organization_id::text || '/showcases/' || NEW.showcase_id::text || '/[^/]+$')) THEN
+      RAISE EXCEPTION 'Showcase media storage_path must match pattern organizations/<organization_id>/showcases/<showcase_id>/<filename>';
+    END IF;
+  END IF;
+
+  -- Disallow SVG file names or svg extensions in media_url, file_name, or storage_path
+  IF LOWER(NEW.file_name) LIKE '%.svg' 
+     OR LOWER(NEW.media_url) LIKE '%.svg'
+     OR (NEW.storage_path IS NOT NULL AND LOWER(NEW.storage_path) LIKE '%.svg') THEN
+    RAISE EXCEPTION 'SVG showcase media files are strictly prohibited';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_verify_showcase_media_record_security ON public.event_showcase_media;
+CREATE TRIGGER trg_verify_showcase_media_record_security
+  BEFORE INSERT OR UPDATE ON public.event_showcase_media
+  FOR EACH ROW
+  EXECUTE FUNCTION public.verify_showcase_media_record_security();
+
+-- Transition event_showcase_media to backend-write-only:
+-- Revoke direct client mutations from authenticated and anon.
+-- Only server API with service_role can insert, update, or delete media items.
 DROP POLICY IF EXISTS "Owners, admins, designers can insert showcase media" ON public.event_showcase_media;
-CREATE POLICY "Owners, admins, designers can insert showcase media"
-  ON public.event_showcase_media FOR INSERT
-  WITH CHECK (
-    public.get_org_role(organization_id) IN ('owner', 'admin', 'designer') 
-    OR public.is_developer_admin()
-  );
-
 DROP POLICY IF EXISTS "Owners, admins, designers can update showcase media" ON public.event_showcase_media;
-CREATE POLICY "Owners, admins, designers can update showcase media"
-  ON public.event_showcase_media FOR UPDATE
-  USING (
-    public.get_org_role(organization_id) IN ('owner', 'admin', 'designer') 
-    OR public.is_developer_admin()
-  );
-
 DROP POLICY IF EXISTS "Owners, admins, designers can delete showcase media" ON public.event_showcase_media;
-CREATE POLICY "Owners, admins, designers can delete showcase media"
-  ON public.event_showcase_media FOR DELETE
-  USING (
-    public.get_org_role(organization_id) IN ('owner', 'admin', 'designer') 
-    OR public.is_developer_admin()
-  );
+
+REVOKE INSERT, UPDATE, DELETE ON public.event_showcase_media FROM authenticated, anon;
+GRANT SELECT ON public.event_showcase_media TO authenticated, anon;
+GRANT ALL ON public.event_showcase_media TO service_role;
 
 -- ------------------------------------------------------------------------------
 -- 15. ATOMIC EVENT PAYMENT RPC / TRANSACTION ENGINE

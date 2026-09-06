@@ -1,4 +1,4 @@
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isLocalFallbackAllowed } from '../supabase.js';
 import { EventShowcaseMediaRecord, ShowcaseMediaType } from './types.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -15,6 +15,7 @@ function ensureUploadsDir() {
 
 function readLocalMedia(): EventShowcaseMediaRecord[] {
   try {
+    if (!isLocalFallbackAllowed()) return [];
     ensureUploadsDir();
     if (!fs.existsSync(LOCAL_MEDIA_FILE)) {
       return [];
@@ -29,6 +30,7 @@ function readLocalMedia(): EventShowcaseMediaRecord[] {
 
 function writeLocalMedia(mediaList: EventShowcaseMediaRecord[]) {
   try {
+    if (!isLocalFallbackAllowed()) return;
     ensureUploadsDir();
     fs.writeFileSync(LOCAL_MEDIA_FILE, JSON.stringify(mediaList, null, 2), 'utf-8');
   } catch (err) {
@@ -61,6 +63,9 @@ export async function getShowcaseMedia(
     const { data, error } = await query;
 
     if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error fetching showcase media: ${error.message}`);
+      }
       console.warn('Supabase getShowcaseMedia query error, checking local fallback:', error.message);
       const localList = readLocalMedia().filter(
         (m) => m.showcase_id === showcaseId && (!orgId || m.organization_id === orgId)
@@ -70,6 +75,9 @@ export async function getShowcaseMedia(
 
     return (data || []) as EventShowcaseMediaRecord[];
   } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('getShowcaseMedia exception, returning local fallback:', err.message);
     const localList = readLocalMedia().filter(
       (m) => m.showcase_id === showcaseId && (!orgId || m.organization_id === orgId)
@@ -95,6 +103,9 @@ export async function getShowcaseMediaById(
       .maybeSingle();
 
     if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error fetching showcase media item: ${error.message}`);
+      }
       console.warn('Supabase getShowcaseMediaById query error, checking local fallback:', error.message);
       const localList = readLocalMedia();
       return localList.find((m) => m.id === mediaId) || null;
@@ -102,9 +113,14 @@ export async function getShowcaseMediaById(
 
     if (data) return data as EventShowcaseMediaRecord;
 
+    if (!isLocalFallbackAllowed(env)) return null;
+
     const localList = readLocalMedia();
     return localList.find((m) => m.id === mediaId) || null;
   } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('getShowcaseMediaById exception, checking local fallback:', err.message);
     const localList = readLocalMedia();
     return localList.find((m) => m.id === mediaId) || null;
@@ -120,6 +136,7 @@ export async function createShowcaseMedia(
     organization_id: string;
     media_type: ShowcaseMediaType;
     media_url: string;
+    storage_path?: string | null;
     thumbnail_url?: string | null;
     file_name: string;
     file_size: number;
@@ -146,6 +163,7 @@ export async function createShowcaseMedia(
     organization_id: params.organization_id,
     media_type: params.media_type,
     media_url: params.media_url,
+    storage_path: params.storage_path || null,
     thumbnail_url: params.thumbnail_url || null,
     file_name: params.file_name,
     file_size: params.file_size,
@@ -163,6 +181,9 @@ export async function createShowcaseMedia(
       .single();
 
     if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error creating showcase media: ${error.message}`);
+      }
       console.warn('Supabase createShowcaseMedia error, writing to local fallback:', error.message);
       const localList = readLocalMedia();
       localList.push(record);
@@ -170,15 +191,20 @@ export async function createShowcaseMedia(
       return record;
     }
 
-    // Also mirror to local fallback
-    const localList = readLocalMedia();
-    const idx = localList.findIndex((m) => m.id === id);
-    if (idx >= 0) localList[idx] = data as EventShowcaseMediaRecord;
-    else localList.push(data as EventShowcaseMediaRecord);
-    writeLocalMedia(localList);
+    // Also mirror to local fallback in dev
+    if (isLocalFallbackAllowed(env)) {
+      const localList = readLocalMedia();
+      const idx = localList.findIndex((m) => m.id === id);
+      if (idx >= 0) localList[idx] = data as EventShowcaseMediaRecord;
+      else localList.push(data as EventShowcaseMediaRecord);
+      writeLocalMedia(localList);
+    }
 
     return data as EventShowcaseMediaRecord;
   } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('createShowcaseMedia exception, writing to local fallback:', err.message);
     const localList = readLocalMedia();
     localList.push(record);
@@ -212,6 +238,9 @@ export async function updateShowcaseMedia(
       .single();
 
     if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error updating showcase media: ${error.message}`);
+      }
       console.warn('Supabase updateShowcaseMedia error, updating local fallback:', error.message);
       const localList = readLocalMedia();
       const idx = localList.findIndex((m) => m.id === mediaId);
@@ -223,15 +252,20 @@ export async function updateShowcaseMedia(
       return null;
     }
 
-    const localList = readLocalMedia();
-    const idx = localList.findIndex((m) => m.id === mediaId);
-    if (idx >= 0) {
-      localList[idx] = data as EventShowcaseMediaRecord;
-      writeLocalMedia(localList);
+    if (isLocalFallbackAllowed(env)) {
+      const localList = readLocalMedia();
+      const idx = localList.findIndex((m) => m.id === mediaId);
+      if (idx >= 0) {
+        localList[idx] = data as EventShowcaseMediaRecord;
+        writeLocalMedia(localList);
+      }
     }
 
     return data as EventShowcaseMediaRecord;
   } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('updateShowcaseMedia exception, updating local fallback:', err.message);
     const localList = readLocalMedia();
     const idx = localList.findIndex((m) => m.id === mediaId);
@@ -260,26 +294,38 @@ export async function reorderShowcaseMedia(
   try {
     for (let index = 0; index < mediaIds.length; index++) {
       const id = mediaIds[index];
-      await supabase
+      const { error } = await supabase
         .from('event_showcase_media')
         .update({ sort_order: index, updated_at: now })
         .eq('id', id)
         .eq('showcase_id', showcaseId);
+
+      if (error) {
+        if (!isLocalFallbackAllowed(env)) {
+          throw new Error(`Database error reordering showcase media: ${error.message}`);
+        }
+        console.warn('Supabase reorderShowcaseMedia error, updating local:', error.message);
+      }
     }
   } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('Supabase reorderShowcaseMedia error, updating local:', err.message);
   }
 
-  // Update in local fallback
-  const localList = readLocalMedia();
-  mediaIds.forEach((id, index) => {
-    const idx = localList.findIndex((m) => m.id === id && m.showcase_id === showcaseId);
-    if (idx >= 0) {
-      localList[idx].sort_order = index;
-      localList[idx].updated_at = now;
-    }
-  });
-  writeLocalMedia(localList);
+  // Update in local fallback only if allowed
+  if (isLocalFallbackAllowed(env)) {
+    const localList = readLocalMedia();
+    mediaIds.forEach((id, index) => {
+      const idx = localList.findIndex((m) => m.id === id && m.showcase_id === showcaseId);
+      if (idx >= 0) {
+        localList[idx].sort_order = index;
+        localList[idx].updated_at = now;
+      }
+    });
+    writeLocalMedia(localList);
+  }
 
   return getShowcaseMedia(showcaseId, orgId, env);
 }
@@ -304,16 +350,24 @@ export async function deleteShowcaseMedia(
       .eq('organization_id', orgId);
 
     if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error deleting showcase media: ${error.message}`);
+      }
       console.warn('Supabase deleteShowcaseMedia error, removing from local fallback:', error.message);
     }
   } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('deleteShowcaseMedia exception:', err.message);
   }
 
-  // Also remove from local fallback
-  const localList = readLocalMedia();
-  const filtered = localList.filter((m) => m.id !== mediaId);
-  writeLocalMedia(filtered);
+  // Also remove from local fallback if allowed
+  if (isLocalFallbackAllowed(env)) {
+    const localList = readLocalMedia();
+    const filtered = localList.filter((m) => m.id !== mediaId);
+    writeLocalMedia(filtered);
+  }
 
   return true;
 }

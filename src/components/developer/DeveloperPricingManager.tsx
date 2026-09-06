@@ -56,7 +56,7 @@ export const DeveloperPricingManager: React.FC = () => {
 
   // Default Price Edit State
   const [isEditingDefault, setIsEditingDefault] = useState<boolean>(false);
-  const [tempDefaultPrice, setTempDefaultPrice] = useState<string>('1400');
+  const [tempDefaultPrice, setTempDefaultPrice] = useState<string>('');
   const [tempDefaultCurrency, setTempDefaultCurrency] = useState<string>('MYR');
 
   // Pricing Rules Edit / Modal State
@@ -66,7 +66,7 @@ export const DeveloperPricingManager: React.FC = () => {
   const [ruleFormMinDays, setRuleFormMinDays] = useState<string>('1');
   const [ruleFormMaxDays, setRuleFormMaxDays] = useState<string>('1');
   const [ruleFormIsUnlimited, setRuleFormIsUnlimited] = useState<boolean>(false);
-  const [ruleFormPrice, setRuleFormPrice] = useState<string>('1400');
+  const [ruleFormPrice, setRuleFormPrice] = useState<string>('');
   const [ruleFormCurrency, setRuleFormCurrency] = useState<string>('MYR');
   const [ruleFormActive, setRuleFormActive] = useState<boolean>(true);
 
@@ -260,7 +260,7 @@ export const DeveloperPricingManager: React.FC = () => {
     setRuleFormMinDays('1');
     setRuleFormMaxDays('1');
     setRuleFormIsUnlimited(false);
-    setRuleFormPrice(String(pricingSettings.default_price || 1400));
+    setRuleFormPrice(pricingSettings?.default_price ? String(pricingSettings.default_price) : '');
     setRuleFormCurrency(pricingSettings.default_currency || 'MYR');
     setRuleFormActive(true);
   };
@@ -345,8 +345,13 @@ export const DeveloperPricingManager: React.FC = () => {
   // Open Edit Event Modal
   const handleOpenEditEvent = (event: AdminEventPricingItem) => {
     setSelectedEvent(event);
-    setTempEventPrice(String(event.effective_price || event.event_price || pricingSettings.default_price));
-    setTempEventCurrency(event.event_currency || pricingSettings.default_currency || 'MYR');
+    const duration = event.duration_days || calculateEventCalendarDays(event.start_date, event.end_date);
+    const matchedRule = pricingRules.find(
+      (r) => r.active && duration >= r.min_days && (r.max_days === null || duration <= r.max_days)
+    );
+    const resolvedPrice = event.effective_price ?? event.event_price ?? (matchedRule ? matchedRule.price : (pricingSettings?.default_price ?? ''));
+    setTempEventPrice(String(resolvedPrice || ''));
+    setTempEventCurrency(event.event_currency || pricingSettings?.default_currency || 'MYR');
   };
 
   // Handle saving individual event custom price
@@ -625,7 +630,7 @@ export const DeveloperPricingManager: React.FC = () => {
                       value={tempDefaultPrice}
                       onChange={(e) => setTempDefaultPrice(e.target.value)}
                       className="w-full bg-slate-950 border border-amber-500/40 rounded-xl pl-14 pr-4 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-                      placeholder="1400.00"
+                      placeholder="0.00"
                       required
                     />
                   </div>
@@ -972,12 +977,15 @@ export const DeveloperPricingManager: React.FC = () => {
               <tbody className="divide-y divide-slate-800/60 font-sans">
                 {filteredEvents.map((ev) => {
                   const isPaid = ev.payment_status === 'PAID';
-                  const effectivePrice = ev.effective_price || ev.event_price || pricingSettings.default_price;
+                  const duration = ev.duration_days || calculateEventCalendarDays(ev.start_date, ev.end_date);
+                  const matchedRule = pricingRules.find(
+                    (r) => r.active && duration >= r.min_days && (r.max_days === null || duration <= r.max_days)
+                  );
+                  const effectivePrice = ev.effective_price ?? ev.event_price ?? (matchedRule ? matchedRule.price : pricingSettings?.default_price ?? null);
                   const currency = ev.event_currency || pricingSettings.default_currency || 'MYR';
                   const eventStatus = (ev.event_status || ev.status || 'DRAFT').toUpperCase();
                   const paymentStatus = (ev.payment_status || (isPaid ? 'PAID' : 'UNPAID')).toUpperCase();
                   const isCancelled = eventStatus === 'CANCELLED';
-                  const duration = ev.duration_days || calculateEventCalendarDays(ev.start_date, ev.end_date);
 
                   return (
                     <tr key={ev.id} className="hover:bg-slate-800/40 transition-colors">
@@ -1010,12 +1018,18 @@ export const DeveloperPricingManager: React.FC = () => {
 
                       {/* Effective Price */}
                       <td className="px-5 py-4">
-                        <div className="font-mono font-bold text-sm text-amber-400">
-                          {currency} {effectivePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
-                        <div className="text-[10px] text-slate-500">
-                          Max Credit (20%): {currency} {(effectivePrice * 0.2).toFixed(2)}
-                        </div>
+                        {effectivePrice !== null ? (
+                          <>
+                            <div className="font-mono font-bold text-sm text-amber-400">
+                              {currency} {effectivePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              Max Credit (20%): {currency} {(effectivePrice * 0.2).toFixed(2)}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-xs text-slate-400 italic">Pending Quote</div>
+                        )}
                       </td>
 
                       {/* Pricing Status (Default vs Override) */}
@@ -1205,7 +1219,7 @@ export const DeveloperPricingManager: React.FC = () => {
                     value={ruleFormPrice}
                     onChange={(e) => setRuleFormPrice(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-amber-500"
-                    placeholder="1400.00"
+                    placeholder="0.00"
                   />
                 </div>
 
@@ -1282,7 +1296,16 @@ export const DeveloperPricingManager: React.FC = () => {
               <div className="flex justify-between">
                 <span className="text-slate-400">Current Effective Price:</span>
                 <span className="text-amber-400 font-mono font-bold">
-                  {selectedEvent.event_currency || 'MYR'} {(selectedEvent.effective_price || selectedEvent.event_price || pricingSettings.default_price).toFixed(2)}
+                  {(() => {
+                    const duration = selectedEvent.duration_days || calculateEventCalendarDays(selectedEvent.start_date, selectedEvent.end_date);
+                    const matchedRule = pricingRules.find(
+                      (r) => r.active && duration >= r.min_days && (r.max_days === null || duration <= r.max_days)
+                    );
+                    const curPrice = selectedEvent.effective_price ?? selectedEvent.event_price ?? (matchedRule ? matchedRule.price : pricingSettings?.default_price ?? null);
+                    return curPrice !== null
+                      ? `${selectedEvent.event_currency || pricingSettings?.default_currency || 'MYR'} ${curPrice.toFixed(2)}`
+                      : 'Pending Quote';
+                  })()}
                 </span>
               </div>
             </div>
@@ -1303,7 +1326,7 @@ export const DeveloperPricingManager: React.FC = () => {
                     value={tempEventPrice}
                     onChange={(e) => setTempEventPrice(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl pl-14 pr-4 py-2.5 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-                    placeholder="1400.00"
+                    placeholder="0.00"
                     required
                   />
                 </div>

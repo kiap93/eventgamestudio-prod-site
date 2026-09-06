@@ -57,20 +57,19 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
     try {
       const res = await apiFetch(`/api/events/${event.id}/admin/high-scores?limit=100`);
       if (!res.ok) {
-        // Fallback to public endpoint if admin endpoint fails
-        const pubRes = await apiFetch(`/api/events/${event.id}/high-scores?limit=100`);
-        if (!pubRes.ok) {
-          throw new Error('Failed to load event leaderboard');
+        // Fallback to public endpoint if public_token exists
+        if (event.public_token) {
+          const pubRes = await apiFetch(`/api/public/events/${event.public_token}/high-scores?limit=100`);
+          if (pubRes.ok) {
+            const pubData = await pubRes.json();
+            setScores(pubData.scores || []);
+            setStats(null);
+            setTestScoresCount(0);
+            return;
+          }
         }
-        const pubData = await pubRes.json();
-        setScores(pubData.scores || []);
-        setStats(null);
-        setTestScoresCount(
-          (pubData.scores || []).filter(
-            (s: any) => s.score_environment === 'test' || s.is_test || s.score_mode === 'TEST'
-          ).length
-        );
-        return;
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to load event leaderboard');
       }
       const data = await res.json();
       setScores(data.scores || []);
@@ -79,7 +78,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
         setTestScoresCount(data.test_scores_count);
       } else {
         const count = (data.scores || []).filter(
-          (s: any) => s.score_environment === 'test' || s.is_test || s.score_mode === 'TEST'
+          (s: any) => s.score_environment === 'test' || s.is_test
         ).length;
         setTestScoresCount(count);
       }
@@ -131,7 +130,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
     if (!event?.id) return;
     setDeletingId(scoreId);
     try {
-      const res = await apiFetch(`/api/events/${event.id}/high-scores/${scoreId}`, {
+      const res = await apiFetch(`/api/events/${event.id}/admin/high-scores/${scoreId}`, {
         method: 'DELETE',
       });
       if (!res.ok) {
@@ -152,7 +151,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
     if (!event?.id) return;
     setIsClearing(true);
     try {
-      const res = await apiFetch(`/api/events/${event.id}/high-scores/clear`, {
+      const res = await apiFetch(`/api/events/${event.id}/admin/high-scores/clear`, {
         method: 'POST',
       });
       if (!res.ok) {

@@ -1,4 +1,4 @@
-import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
+import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed, assertProductionPricingSafe } from '../supabase.js';
 import { PlatformPricingSettings, EventPricingRule } from './types.js';
 import { normalizeEventDateBoundaries } from './events.js';
 import fs from 'node:fs';
@@ -35,6 +35,7 @@ let localSettingsCache: Record<string, any> = {
 
 function loadLocalSettings(): void {
   try {
+    if (!isLocalFallbackAllowed()) return;
     if (fs.existsSync(LOCAL_PLATFORM_SETTINGS_FILE)) {
       const raw = fs.readFileSync(LOCAL_PLATFORM_SETTINGS_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
@@ -47,8 +48,9 @@ function loadLocalSettings(): void {
   }
 }
 
-function saveLocalSettings(): void {
+function saveLocalSettings(env?: Record<string, any>): void {
   try {
+    if (!isLocalFallbackAllowed(env)) return;
     const dir = path.dirname(LOCAL_PLATFORM_SETTINGS_FILE);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -205,9 +207,7 @@ export function calculateEventPriceFromDuration(
   matchedRule: EventPricingRule | null;
   ruleLabel: string;
 } {
-  const rules = settings.pricing_rules && settings.pricing_rules.length > 0
-    ? settings.pricing_rules
-    : DEFAULT_PRICING_RULES;
+  const rules = Array.isArray(settings?.pricing_rules) ? settings.pricing_rules : [];
 
   const matched = matchPricingRuleForDuration(durationDays, rules);
   if (matched) {
@@ -221,7 +221,12 @@ export function calculateEventPriceFromDuration(
 
   // Fallback: If no rule matches, use 1-day rule or default_price
   const day1Rule = rules.find((r) => r.min_days <= 1 && (r.max_days === null || r.max_days >= 1) && r.active);
-  const basePrice = day1Rule ? day1Rule.price : (settings.default_price || DEFAULT_EVENT_PRICE);
+  const basePrice = day1Rule ? day1Rule.price : settings.default_price;
+  if (!basePrice || isNaN(basePrice) || basePrice <= 0) {
+    const err: any = new Error('Pricing service temporarily unavailable: No valid duration rule or base price configured');
+    err.status = 503;
+    throw err;
+  }
   return {
     price: basePrice,
     currency: settings.default_currency || DEFAULT_EVENT_CURRENCY,
@@ -267,21 +272,48 @@ export async function calculateEventAuthoritativePrice(
 /**
  * Get current platform default event pricing configuration and duration pricing rules.
  * Server-authoritative source for new event creation pricing.
+ *
+ * FAIL-CLOSED ARCHITECTURE GUARANTEE:
+ * When Supabase is configured or in production:
+ * If the database is unavailable, times out, throws an error, or if the pricing record is missing:
+ * This function FAILS CLOSED by throwing:
+ *   "Pricing service temporarily unavailable"
+ * It NEVER silently catches errors, NEVER falls back to localSettingsCache,
+ * and NEVER invents a default production price (e.g. RM1,400).
  */
 export async function getPlatformPricingSettings(env?: Record<string, any>): Promise<PlatformPricingSettings> {
   const buildSettingsFromData = (val: any, updatedAt?: string, updatedBy?: string | null): PlatformPricingSettings => {
+    if (!val || typeof val !== 'object') {
+      const err: any = new Error('Pricing service temporarily unavailable: Invalid platform pricing configuration');
+      err.status = 503;
+      throw err;
+    }
+
     const price = Number(val.default_price);
-    const defaultPrice = !isNaN(price) && price > 0 ? price : DEFAULT_EVENT_PRICE;
     const defaultCurrency = val.default_currency || DEFAULT_EVENT_CURRENCY;
 
-    let rules: EventPricingRule[] = DEFAULT_PRICING_RULES;
+    let rules: EventPricingRule[] = [];
     if (Array.isArray(val.pricing_rules) && val.pricing_rules.length > 0) {
       rules = val.pricing_rules;
-    } else {
-      // Sync default_price into 1-day rule
+    } else if (!isNaN(price) && price > 0) {
+      // Sync default_price into standard duration rules
       rules = DEFAULT_PRICING_RULES.map((r) =>
-        r.id === 'rule_1d' ? { ...r, price: defaultPrice, currency: defaultCurrency } : { ...r, currency: defaultCurrency }
+        r.id === 'rule_1d' ? { ...r, price, currency: defaultCurrency } : { ...r, currency: defaultCurrency }
       );
+    } else {
+      const err: any = new Error('Pricing service temporarily unavailable: No valid pricing rules or default price configured');
+      err.status = 503;
+      throw err;
+    }
+
+    const defaultPrice = !isNaN(price) && price > 0
+      ? price
+      : (rules.find((r) => r.id === 'rule_1d')?.price || rules[0]?.price);
+
+    if (!defaultPrice || isNaN(defaultPrice) || defaultPrice <= 0) {
+      const err: any = new Error('Pricing service temporarily unavailable: Default event price is missing or invalid');
+      err.status = 503;
+      throw err;
     }
 
     return {
@@ -293,7 +325,20 @@ export async function getPlatformPricingSettings(env?: Record<string, any>): Pro
     };
   };
 
-  if (isSupabaseConfigured(env)) {
+  const isProd = !isLocalFallbackAllowed(env);
+  const hasSupabase = isSupabaseConfigured(env);
+
+  // 1. Production Mode Check: Database must be configured
+  if (isProd && !hasSupabase) {
+    const err: any = new Error('Pricing service temporarily unavailable: Database is not configured in production');
+    err.status = 503;
+    throw err;
+  }
+
+  // 2. Authoritative Database Mode (Production or whenever Supabase credentials are configured):
+  // FAIL CLOSED: If Supabase query fails, times out, or record is missing, THROW 503.
+  // NEVER fall back to localSettingsCache or invent RM1,400!
+  if (hasSupabase || isProd) {
     try {
       const supabase = getSupabaseServerClient(env);
       const { data, error } = await supabase
@@ -302,15 +347,34 @@ export async function getPlatformPricingSettings(env?: Record<string, any>): Pro
         .eq('key', 'event_pricing')
         .maybeSingle();
 
-      if (!error && data && data.value) {
-        const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        return buildSettingsFromData(val, data.updated_at, data.updated_by);
+      if (error) {
+        console.error('Database error fetching platform pricing settings:', error);
+        const err: any = new Error(`Pricing service temporarily unavailable: ${error.message}`);
+        err.status = 503;
+        throw err;
       }
-    } catch (err) {
-      console.warn('Notice loading platform settings from Supabase, using local fallback:', err);
+
+      if (!data || !data.value) {
+        console.error('Authoritative platform pricing settings record missing from database');
+        const err: any = new Error('Pricing service temporarily unavailable: Platform pricing settings not found in database');
+        err.status = 503;
+        throw err;
+      }
+
+      const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+      return buildSettingsFromData(val, data.updated_at, data.updated_by);
+    } catch (err: any) {
+      if (err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable')) {
+        throw err;
+      }
+      console.error('Fatal: Exception querying platform pricing settings from database:', err);
+      const failClosedErr: any = new Error(`Pricing service temporarily unavailable: ${err?.message || 'Database unavailable'}`);
+      failClosedErr.status = 503;
+      throw failClosedErr;
     }
   }
 
+  // 3. Isolated Local Offline Dev/Test Sandbox ONLY (when Supabase is NOT configured and local fallback is allowed):
   const cached = localSettingsCache.event_pricing || {};
   return buildSettingsFromData(cached, cached.updated_at, cached.updated_by);
 }
@@ -373,13 +437,46 @@ export async function updatePlatformPricingSettings(
     updated_by: updatedBy || null,
   };
 
+  if (!isLocalFallbackAllowed(env)) {
+    if (!isSupabaseConfigured(env)) {
+      const err: any = new Error('Pricing service temporarily unavailable: Database is not configured in production');
+      err.status = 503;
+      throw err;
+    }
+    const supabase = getSupabaseServerClient(env);
+    const { error } = await supabase
+      .from('platform_settings')
+      .upsert({
+        key: 'event_pricing',
+        value: valuePayload,
+        description: 'Platform default event pricing and duration rules for new events',
+        updated_by: updatedBy || null,
+        updated_at: now,
+      });
+
+    if (error) {
+      const err: any = new Error(`Pricing service temporarily unavailable: ${error.message}`);
+      err.status = 503;
+      throw err;
+    }
+
+    return {
+      default_price: newDefaultPrice,
+      default_currency: newCurrency,
+      pricing_rules: newRules,
+      updated_at: now,
+      updated_by: updatedBy || null,
+    };
+  }
+
+  // Development / test fallback flow:
   localSettingsCache.event_pricing = valuePayload;
-  saveLocalSettings();
+  saveLocalSettings(env);
 
   if (isSupabaseConfigured(env)) {
     try {
       const supabase = getSupabaseServerClient(env);
-      await supabase
+      const { error } = await supabase
         .from('platform_settings')
         .upsert({
           key: 'event_pricing',
@@ -388,8 +485,19 @@ export async function updatePlatformPricingSettings(
           updated_by: updatedBy || null,
           updated_at: now,
         });
-    } catch (err) {
-      console.warn('Notice saving platform settings to Supabase:', err);
+      if (error) {
+        const err: any = new Error(`Pricing service temporarily unavailable: ${error.message}`);
+        err.status = 503;
+        throw err;
+      }
+    } catch (err: any) {
+      if (err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable')) {
+        throw err;
+      }
+      console.error('Fatal: Exception saving platform pricing settings to database:', err);
+      const failClosedErr: any = new Error(`Pricing service temporarily unavailable: ${err?.message || 'Database unavailable'}`);
+      failClosedErr.status = 503;
+      throw failClosedErr;
     }
   }
 

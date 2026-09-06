@@ -491,20 +491,16 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
   // Selected Theme Details
   const selectedTheme = themes.find((t) => t.id === selectedThemeId) || themes[0];
-  const standardPrice = activeCalculation?.eventPrice ?? createdEvent?.event_price ?? 0;
-  const paidAmount = activeCalculation?.paidAmount ?? (
-    selectedPaymentMode === 'WELCOME_CREDIT' ? 600 :
-    selectedPaymentMode === 'SHOWCASE_CREDIT' ? 1100 :
-    selectedPaymentMode === 'TOPUP_CREDIT' ? 1120 : standardPrice
-  );
-  const totalDiscount = activeCalculation?.totalDiscount ?? (standardPrice - paidAmount);
+  const standardPrice = activeCalculation?.eventPrice ?? createdEvent?.event_price ?? null;
+  const paidAmount = activeCalculation?.paidAmount ?? (standardPrice !== null ? standardPrice : null);
+  const totalDiscount = activeCalculation?.totalDiscount ?? (standardPrice !== null && paidAmount !== null ? standardPrice - paidAmount : 0);
   const availableBalance = Number(
     activeCalculation?.availableBalances?.paid_balance ?? wallet?.paid_balance ?? 0
   );
 
-  const isServerPayable = activeCalculation ? activeCalculation.isPayable : availableBalance >= paidAmount;
-  const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && (!isServerPayable || availableBalance < paidAmount);
-  const needAmount = Math.max(0, paidAmount - availableBalance);
+  const isServerPayable = activeCalculation ? activeCalculation.isPayable : (paidAmount !== null && availableBalance >= paidAmount);
+  const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && activeCalculation !== null && (!isServerPayable || (paidAmount !== null && availableBalance < paidAmount));
+  const needAmount = paidAmount !== null ? Math.max(0, paidAmount - availableBalance) : 0;
 
   const publicUrl = activatedEvent || (createdEvent && (createdEvent.event_status === 'LIVE' || createdEvent.payment_status === 'PAID'))
     ? `${window.location.origin}/play/${activatedEvent?.public_token || createdEvent?.public_token}`
@@ -871,7 +867,13 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
                 <span className="text-slate-400">Event Price:</span>
                 <span className="font-mono font-bold text-amber-400">
-                  {formatCurrency(createdEvent.event_price || standardPrice)}
+                  {createdEvent.event_price
+                    ? formatCurrency(createdEvent.event_price)
+                    : standardPrice !== null
+                    ? formatCurrency(standardPrice)
+                    : loadingQuote
+                    ? 'Calculating quote...'
+                    : 'Pending Quote'}
                 </span>
               </div>
               <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
@@ -1061,7 +1063,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                         }`}
                       >
                         <div className="font-bold text-slate-200">Paid Balance</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">{formatCurrency(standardPrice)}</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          {standardPrice !== null ? formatCurrency(standardPrice) : loadingQuote ? 'Calculating...' : 'Pending Quote'}
+                        </div>
                       </button>
 
                       {wallet && wallet.welcome_credit > 0 && (
@@ -1081,7 +1085,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                             <Sparkles className="w-3 h-3" />
                             <span>Welcome Credit</span>
                           </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">Save RM800 (Pay RM600)</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {standardPrice !== null
+                              ? `Save ${formatCurrency(Math.min(wallet.welcome_credit, standardPrice))} (Pay ${formatCurrency(Math.max(0, standardPrice - wallet.welcome_credit))})`
+                              : `Apply ${formatCurrency(wallet.welcome_credit)} welcome credit`}
+                          </div>
                         </button>
                       )}
 
@@ -1102,7 +1110,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                             <Sparkles className="w-3 h-3" />
                             <span>Showcase Credit</span>
                           </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">Save RM300 (Pay RM1,100)</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {standardPrice !== null
+                              ? `Save ${formatCurrency(Math.min(wallet.showcase_credit, standardPrice))} (Pay ${formatCurrency(Math.max(0, standardPrice - wallet.showcase_credit))})`
+                              : `Apply ${formatCurrency(wallet.showcase_credit)} showcase credit`}
+                          </div>
                         </button>
                       )}
 
@@ -1123,7 +1135,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                             <Sparkles className="w-3 h-3" />
                             <span>Top-up Credit</span>
                           </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">Save up to 20% (RM280)</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {standardPrice !== null
+                              ? `Save up to 20% (${formatCurrency(Math.min(wallet.topup_credit, Math.round(standardPrice * 0.2)))})`
+                              : `Save up to 20% with promotional credit`}
+                          </div>
                         </button>
                       )}
                     </div>
@@ -1133,7 +1149,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
                     <div className="flex items-center justify-between text-slate-300">
                       <span>Event Price</span>
-                      <span className="font-mono font-bold">{formatCurrency(standardPrice)}</span>
+                      <span className="font-mono font-bold">
+                        {standardPrice !== null ? formatCurrency(standardPrice) : loadingQuote ? 'Calculating...' : 'Pending Quote'}
+                      </span>
                     </div>
 
                     {totalDiscount > 0 && (
@@ -1149,7 +1167,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                     <div className="flex items-center justify-between pt-1 border-t border-slate-800 font-semibold text-slate-100">
                       <span>Amount Required</span>
                       <span className="font-mono font-bold text-amber-400 text-sm">
-                        {formatCurrency(paidAmount)}
+                        {paidAmount !== null ? formatCurrency(paidAmount) : loadingQuote ? 'Calculating...' : 'Pending Quote'}
                       </span>
                     </div>
 
@@ -1176,9 +1194,13 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                       </p>
                       <button
                         type="button"
-                        disabled={isSubmittingTopUp}
-                        onClick={() => handleStartTopUpFlow(needAmount > 0 ? needAmount : 1400)}
-                        className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                        disabled={isSubmittingTopUp || needAmount <= 0}
+                        onClick={() => {
+                          if (needAmount > 0) {
+                            handleStartTopUpFlow(needAmount);
+                          }
+                        }}
+                        className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
                       >
                         {isSubmittingTopUp ? (
                           <>
@@ -1210,7 +1232,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
               <button
                 type="button"
-                disabled={submittingPayment || isInsufficientBalance || loadingQuote || !!quoteError}
+                disabled={submittingPayment || isInsufficientBalance || loadingQuote || paidAmount === null || !!quoteError}
                 onClick={handleConfirmPaymentAndActivate}
                 className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
               >
@@ -1221,7 +1243,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   </>
                 ) : (
                   <>
-                    <span>Pay {formatCurrency(paidAmount)} & Activate</span>
+                    <span>
+                      {paidAmount !== null ? `Pay ${formatCurrency(paidAmount)} & Activate` : 'Activate Event'}
+                    </span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

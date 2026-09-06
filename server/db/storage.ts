@@ -291,3 +291,283 @@ export async function createSignedUploadUrlForShowcase(
   };
 }
 
+/**
+ * Derives the authoritative public CDN URL for a showcase media storage path.
+ */
+export function getShowcaseMediaPublicUrl(storagePath: string, env?: Record<string, any>): string {
+  const supabase = getSupabaseServerClient(env);
+  const { data } = supabase.storage.from(SHOWCASE_BUCKET).getPublicUrl(storagePath);
+  const filename = storagePath.split('/').pop() || 'media';
+  return data?.publicUrl || `/uploads/${filename}`;
+}
+
+export interface ValidateShowcaseMediaPathParams {
+  storagePath?: string | null;
+  bucket?: string | null;
+  organizationId: string;
+  showcaseId: string;
+  mediaType: 'IMAGE' | 'VIDEO';
+  clientMediaUrl?: string | null;
+  clientThumbnailUrl?: string | null;
+  env?: Record<string, any>;
+}
+
+export interface ValidatedShowcaseMediaResult {
+  valid: boolean;
+  error?: string;
+  code?: string;
+  statusCode?: number;
+  authoritativeStoragePath: string;
+  authoritativeMediaUrl: string;
+  sanitizedThumbnailUrl: string | null;
+  fileName: string;
+  bucket: string;
+}
+
+/**
+ * Authoritatively validates and resolves a showcase media storage path and public URL.
+ * Strictly prevents clients from injecting arbitrary external URLs or cross-tenant paths.
+ */
+export function validateAndResolveShowcaseMediaPath(
+  params: ValidateShowcaseMediaPathParams
+): ValidatedShowcaseMediaResult {
+  const rawPath = (params.storagePath || '').trim();
+
+  // 1. Storage path is strictly required (no arbitrary client media_url allowed)
+  if (!rawPath) {
+    return {
+      valid: false,
+      error: 'storage_path (or upload_id) is required to register showcase media. Direct arbitrary media URLs are strictly prohibited.',
+      code: 'STORAGE_PATH_REQUIRED',
+      statusCode: 422,
+      authoritativeStoragePath: '',
+      authoritativeMediaUrl: '',
+      sanitizedThumbnailUrl: null,
+      fileName: '',
+      bucket: SHOWCASE_BUCKET,
+    };
+  }
+
+  // 2. Validate storage bucket
+  const requestedBucket = (params.bucket || '').trim();
+  if (requestedBucket && requestedBucket !== SHOWCASE_BUCKET) {
+    return {
+      valid: false,
+      error: `Invalid storage bucket '${requestedBucket}'. Showcase media must reside in the dedicated '${SHOWCASE_BUCKET}' bucket.`,
+      code: 'INVALID_STORAGE_BUCKET',
+      statusCode: 422,
+      authoritativeStoragePath: '',
+      authoritativeMediaUrl: '',
+      sanitizedThumbnailUrl: null,
+      fileName: '',
+      bucket: SHOWCASE_BUCKET,
+    };
+  }
+
+  // 3. Normalize path: strip leading slashes or bucket name if passed
+  let cleanPath = rawPath.replace(/^\/+/, '');
+  if (cleanPath.startsWith(`${SHOWCASE_BUCKET}/`)) {
+    cleanPath = cleanPath.slice(`${SHOWCASE_BUCKET}/`.length);
+  }
+
+  // 4. Verify path format and hierarchy: organizations/<organization_id>/showcases/<showcase_id>/<filename>
+  const parts = cleanPath.split('/');
+  if (parts.length < 5 || parts[0] !== 'organizations' || parts[2] !== 'showcases') {
+    return {
+      valid: false,
+      error: `Invalid storage path hierarchy. Path must strictly match: organizations/<organization_id>/showcases/<showcase_id>/<filename>`,
+      code: 'INVALID_STORAGE_PATH_HIERARCHY',
+      statusCode: 422,
+      authoritativeStoragePath: '',
+      authoritativeMediaUrl: '',
+      sanitizedThumbnailUrl: null,
+      fileName: '',
+      bucket: SHOWCASE_BUCKET,
+    };
+  }
+
+  const pathOrgId = parts[1];
+  const pathShowcaseId = parts[3];
+  const filename = parts.slice(4).join('/');
+
+  // 5. Tenant isolation check: path org must match event org
+  if (pathOrgId !== params.organizationId) {
+    return {
+      valid: false,
+      error: 'Unauthorized storage path: organization ID does not match the event organization.',
+      code: 'STORAGE_PATH_ORGANIZATION_MISMATCH',
+      statusCode: 403,
+      authoritativeStoragePath: '',
+      authoritativeMediaUrl: '',
+      sanitizedThumbnailUrl: null,
+      fileName: '',
+      bucket: SHOWCASE_BUCKET,
+    };
+  }
+
+  // 6. Showcase isolation check: path showcase must match target showcase
+  if (pathShowcaseId !== params.showcaseId) {
+    return {
+      valid: false,
+      error: 'Unauthorized storage path: showcase ID does not match the target showcase.',
+      code: 'STORAGE_PATH_SHOWCASE_MISMATCH',
+      statusCode: 403,
+      authoritativeStoragePath: '',
+      authoritativeMediaUrl: '',
+      sanitizedThumbnailUrl: null,
+      fileName: '',
+      bucket: SHOWCASE_BUCKET,
+    };
+  }
+
+  // 7. Prevent directory traversal and nested directories in filename
+  if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return {
+      valid: false,
+      error: 'Invalid storage path: directory traversal or nested folders in media filename are strictly prohibited.',
+      code: 'INVALID_STORAGE_FILENAME',
+      statusCode: 422,
+      authoritativeStoragePath: '',
+      authoritativeMediaUrl: '',
+      sanitizedThumbnailUrl: null,
+      fileName: '',
+      bucket: SHOWCASE_BUCKET,
+    };
+  }
+
+  // 8. Reject SVG files
+  const dotIdx = filename.lastIndexOf('.');
+  const ext = dotIdx !== -1 ? filename.slice(dotIdx).toLowerCase() : '';
+  if (ext === '.svg') {
+    return {
+      valid: false,
+      error: 'SVG media uploads are not permitted for security reasons.',
+      code: 'SVG_NOT_ALLOWED',
+      statusCode: 422,
+      authoritativeStoragePath: '',
+      authoritativeMediaUrl: '',
+      sanitizedThumbnailUrl: null,
+      fileName: '',
+      bucket: SHOWCASE_BUCKET,
+    };
+  }
+
+  // 9. Validate extension against media type
+  const isImage = params.mediaType === 'IMAGE';
+  if (isImage) {
+    const allowedImageExts = ['.png', '.jpg', '.jpeg', '.webp'];
+    if (!allowedImageExts.includes(ext)) {
+      return {
+        valid: false,
+        error: `Unsupported image format (${ext || 'no extension'}). Supported formats: PNG, JPEG, WEBP.`,
+        code: 'UNSUPPORTED_FILE_TYPE',
+        statusCode: 422,
+        authoritativeStoragePath: '',
+        authoritativeMediaUrl: '',
+        sanitizedThumbnailUrl: null,
+        fileName: '',
+        bucket: SHOWCASE_BUCKET,
+      };
+    }
+  } else {
+    const allowedVideoExts = ['.mp4', '.webm', '.mov'];
+    if (!allowedVideoExts.includes(ext)) {
+      return {
+        valid: false,
+        error: `Unsupported video format (${ext || 'no extension'}). Supported formats: MP4, WEBM, MOV.`,
+        code: 'UNSUPPORTED_FILE_TYPE',
+        statusCode: 422,
+        authoritativeStoragePath: '',
+        authoritativeMediaUrl: '',
+        sanitizedThumbnailUrl: null,
+        fileName: '',
+        bucket: SHOWCASE_BUCKET,
+      };
+    }
+  }
+
+  // 10. Authoritative public URL derivation & check clientMediaUrl
+  const authoritativeStoragePath = `organizations/${params.organizationId}/showcases/${params.showcaseId}/${filename}`;
+  const authoritativeMediaUrl = getShowcaseMediaPublicUrl(authoritativeStoragePath, params.env);
+
+  if (params.clientMediaUrl && typeof params.clientMediaUrl === 'string') {
+    const clientUrl = params.clientMediaUrl.trim();
+    if (clientUrl.startsWith('http://') || clientUrl.startsWith('https://')) {
+      const expectedSnippet = `/showcase-media/organizations/${params.organizationId}/showcases/${params.showcaseId}/${filename}`;
+      if (!clientUrl.includes(expectedSnippet)) {
+        return {
+          valid: false,
+          error: 'Arbitrary media_url is strictly rejected. Showcase media must originate from verified storage uploads in the dedicated showcase-media path.',
+          code: 'ARBITRARY_MEDIA_URL_REJECTED',
+          statusCode: 422,
+          authoritativeStoragePath: '',
+          authoritativeMediaUrl: '',
+          sanitizedThumbnailUrl: null,
+          fileName: '',
+          bucket: SHOWCASE_BUCKET,
+        };
+      }
+    } else if (!clientUrl.startsWith('/uploads/') && !clientUrl.startsWith('/storage/')) {
+      return {
+        valid: false,
+        error: 'Arbitrary media_url is strictly rejected. Invalid URL scheme.',
+        code: 'ARBITRARY_MEDIA_URL_REJECTED',
+        statusCode: 422,
+        authoritativeStoragePath: '',
+        authoritativeMediaUrl: '',
+        sanitizedThumbnailUrl: null,
+        fileName: '',
+        bucket: SHOWCASE_BUCKET,
+      };
+    }
+  }
+
+  // 11. Validate thumbnail_url if provided
+  let sanitizedThumbnailUrl: string | null = null;
+  if (params.clientThumbnailUrl && typeof params.clientThumbnailUrl === 'string') {
+    const thumb = params.clientThumbnailUrl.trim();
+    if (thumb.startsWith('data:image/')) {
+      sanitizedThumbnailUrl = thumb;
+    } else if (thumb.startsWith('/uploads/')) {
+      sanitizedThumbnailUrl = thumb;
+    } else if (thumb.startsWith('http://') || thumb.startsWith('https://')) {
+      const expectedFolder = `/showcase-media/organizations/${params.organizationId}/showcases/${params.showcaseId}/`;
+      if (!thumb.includes(expectedFolder)) {
+        return {
+          valid: false,
+          error: 'Arbitrary thumbnail_url is strictly rejected. Thumbnails must belong to the tenant showcase folder.',
+          code: 'ARBITRARY_THUMBNAIL_URL_REJECTED',
+          statusCode: 422,
+          authoritativeStoragePath: '',
+          authoritativeMediaUrl: '',
+          sanitizedThumbnailUrl: null,
+          fileName: '',
+          bucket: SHOWCASE_BUCKET,
+        };
+      }
+      sanitizedThumbnailUrl = thumb;
+    } else {
+      return {
+        valid: false,
+        error: 'Invalid thumbnail_url format.',
+        code: 'INVALID_THUMBNAIL_URL',
+        statusCode: 422,
+        authoritativeStoragePath: '',
+        authoritativeMediaUrl: '',
+        sanitizedThumbnailUrl: null,
+        fileName: '',
+        bucket: SHOWCASE_BUCKET,
+      };
+    }
+  }
+
+  return {
+    valid: true,
+    authoritativeStoragePath,
+    authoritativeMediaUrl,
+    sanitizedThumbnailUrl,
+    fileName: filename,
+    bucket: SHOWCASE_BUCKET,
+  };
+}
+

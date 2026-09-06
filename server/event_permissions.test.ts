@@ -385,6 +385,48 @@ async function runTests() {
   assert.strictEqual(ownerPutBody.event.name, 'Renamed by Owner');
   console.log('  ✓ 3h. Owner successfully modifies event configuration (PUT /api/events/:id)');
 
+  // Test 3i: Designer blocked from creating showcase (POST /api/events/:id/showcase)
+  const designerShowcaseRes = await worker.fetch(
+    new Request(`https://api.eventgamestudio.local/api/events/${event.id}/showcase`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${designerJwt}`,
+      },
+      body: JSON.stringify({
+        title: 'Unauthorized Showcase',
+      }),
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    designerShowcaseRes.status,
+    403,
+    'Designer must be blocked from creating event showcase'
+  );
+  console.log('  ✓ 3i. Designer blocked from creating event showcase (POST /api/events/:id/showcase)');
+
+  // Test 3j: Owner can create event showcase (POST /api/events/:id/showcase)
+  const ownerShowcaseRes = await worker.fetch(
+    new Request(`https://api.eventgamestudio.local/api/events/${event.id}/showcase`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ownerJwt}`,
+      },
+      body: JSON.stringify({
+        title: 'Official Gala Showcase',
+      }),
+    }),
+    workerEnv
+  );
+  assert.strictEqual(
+    ownerShowcaseRes.status,
+    201,
+    'Owner must be allowed to create event showcase'
+  );
+  console.log('  ✓ 3j. Owner successfully creates event showcase (POST /api/events/:id/showcase)');
+
   console.log('\n======================================================');
   console.log('All Granular Event Permission Tests Passed Successfully!');
   console.log('======================================================');

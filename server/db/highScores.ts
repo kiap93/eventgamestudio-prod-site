@@ -22,6 +22,7 @@ import {
   localEventsCache,
   resolveEventGameType,
   resolveAuthoritativeMemoryMatchConfig,
+  resolveAuthoritativeCatchBrandConfig,
 } from './events.js';
 import { isUUID, getThemeById } from './themes.js';
 import {
@@ -30,6 +31,11 @@ import {
   MEMORY_MATCH_GAME_VERSION,
   MEMORY_MATCH_SCORING_VERSION,
 } from '../games/memoryMatchScoring.js';
+import {
+  validateCatchBrandResult,
+  CATCH_BRAND_GAME_VERSION,
+  CATCH_BRAND_SCORING_VERSION,
+} from '../games/catchBrandScoring.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -807,9 +813,10 @@ async function executeSubmitEventScore(
   }
 
   // Determine scoring environment:
-  // Server-authoritative determination based on event/session context:
-  // Client-provided flags (metadata.isTest, metadata.isPreview, etc.) must NOT be authoritative.
-  const authoritativeEnv = determineScoreEnvironment(event, now);
+  // Explicit organizer internal test flag (isEventTest) quarantines score to TEST mode.
+  // Otherwise, authoritatively determined based on event date/lifecycle context (untrusted client flags cannot spoof server authority).
+  const isOrganizerAdminTest = metadata.isEventTest === true;
+  const authoritativeEnv = isOrganizerAdminTest ? 'test' : determineScoreEnvironment(event, now);
   const isTest = authoritativeEnv === 'test';
   const scoreEnvironment: 'test' | 'live' = isTest ? 'test' : 'live';
 
@@ -1054,11 +1061,34 @@ async function executeSubmitEventScore(
     metadata.duration = duration;
     metadata.isVictory = matchedPairs === totalPairs;
   } else if (eventGameType === 'catch-brand') {
-    // CATCH THE BRAND VALIDATION:
-    // Preserve existing Catch The Brand validation and behavior.
-    if (!metadata.gameType) {
-      metadata.gameType = 'catch-brand';
+    // AUTHORITATIVE CATCH THE BRAND SANITY & VALIDATION MODEL
+    // Enforce gameplay physical constraints derived from game duration,
+    // maximum spawn rate, maximum catch rate, item point values, and bonus rules.
+    const cbConfig = await resolveAuthoritativeCatchBrandConfig(event, env);
+
+    const validation = validateCatchBrandResult({
+      submittedScore: scoreNum,
+      config: cbConfig,
+      metadata,
+    });
+
+    if (!validation.isValid) {
+      const err: any = new Error(validation.reason || 'Invalid Catch The Brand score data');
+      err.status = 422;
+      err.code = validation.code || 'INVALID_CATCH_BRAND_SCORE';
+      throw err;
     }
+
+    if (validation.expectedScore !== undefined) {
+      scoreNum = validation.expectedScore;
+    }
+
+    // Embed authoritative Catch The Brand metadata
+    metadata.gameType = 'catch-brand';
+    metadata.gameVersion = metadata.gameVersion || CATCH_BRAND_GAME_VERSION;
+    metadata.scoringVersion = metadata.scoringVersion || CATCH_BRAND_SCORING_VERSION;
+    metadata.authoritativeMaxScore = cbConfig.maxPossibleScore;
+    metadata.authoritativeDuration = cbConfig.gameDurationSeconds;
   }
 
   // Validate score: must be a non-negative integer
@@ -1067,10 +1097,11 @@ async function executeSubmitEventScore(
     err.status = 422;
     throw err;
   }
-  // Sanity upper bound (e.g. 1,000,000 max achievable in game session)
+  // Sanity upper bound across all game types
   if (scoreNum > 1000000) {
     const err: any = new Error('Score exceeds maximum allowed session threshold');
     err.status = 422;
+    err.code = 'SCORE_EXCEEDS_MAXIMUM_POSSIBLE';
     throw err;
   }
 
@@ -1373,14 +1404,19 @@ async function executeSubmitEventScore(
  */
 export async function getEventHighScores(
   eventId: string,
-  options: { limit?: number; page?: number } = {},
+  options: {
+    limit?: number;
+    page?: number;
+    scoreEnvironment?: 'all' | 'test' | 'live';
+    includeTestScores?: boolean;
+  } = {},
   env?: Record<string, any>
 ): Promise<{
   scores: EventLeaderboardEntry[];
   totalCount: number;
   page: number;
   limit: number;
-  score_environment: 'test' | 'live';
+  score_environment: 'all' | 'test' | 'live';
   is_test_mode: boolean;
 }> {
   if (!eventId || typeof eventId !== 'string' || eventId === 'undefined' || eventId === 'null' || !eventId.trim()) {
@@ -1400,11 +1436,14 @@ export async function getEventHighScores(
     event = await getEventByPublicToken(eventId, env, { allowUnpaid: true }).catch(() => null);
   }
 
-  const scoreEnvironment = event ? determineScoreEnvironment(event) : 'live';
+  const returnAll = options.scoreEnvironment === 'all' || options.includeTestScores === true;
+  const scoreEnvironment: 'all' | 'test' | 'live' = returnAll
+    ? 'all'
+    : (options.scoreEnvironment || (event ? determineScoreEnvironment(event) : 'live'));
   const isTestMode = scoreEnvironment === 'test';
 
-  // If live, ensure pre-event test scores have been cleared exactly once
-  if (event && scoreEnvironment === 'live') {
+  // If live, ensure pre-event test scores have been cleared exactly once (only when viewing live scores exclusively)
+  if (event && scoreEnvironment === 'live' && !returnAll) {
     await ensureTestScoresClearedForLiveEvent(event.id, event, env);
   }
 
@@ -1426,8 +1465,8 @@ export async function getEventHighScores(
       .select('*', { count: 'exact' })
       .eq('event_id', eventId);
 
-    // In LIVE mode: NEVER return TEST scores
-    if (scoreEnvironment === 'live') {
+    // In LIVE mode: NEVER return TEST scores unless returnAll is requested (e.g. Organizer admin view)
+    if (scoreEnvironment === 'live' && !returnAll) {
       query = query
         .neq('score_environment', 'test')
         .neq('score_mode', 'TEST')
@@ -1517,28 +1556,31 @@ function getLocalEventHighScores(
   eventId: string,
   limit: number,
   page: number,
-  scoreEnvironment: 'test' | 'live' | 'TEST' | 'LIVE' = 'live'
+  scoreEnvironment: 'all' | 'test' | 'live' | 'TEST' | 'LIVE' = 'live'
 ): {
   scores: EventLeaderboardEntry[];
   totalCount: number;
   page: number;
   limit: number;
 } {
+  const isAll = String(scoreEnvironment).toLowerCase() === 'all';
   const isTargetTest = String(scoreEnvironment).toLowerCase() === 'test';
   const allScores = localHighScoresCache.get(eventId) || [];
   // Filter by score environment
-  const filtered = allScores.filter((s) => {
-    const isTest =
-      s.score_environment === 'test' ||
-      s.score_environment === 'TEST' ||
-      s.score_mode === 'TEST' ||
-      s.is_test === true ||
-      s.metadata?.score_environment === 'test' ||
-      s.metadata?.score_environment === 'TEST' ||
-      s.metadata?.score_mode === 'TEST' ||
-      s.metadata?.is_test === true;
-    return isTargetTest ? isTest || (!s.score_environment && !s.score_mode) : !isTest;
-  });
+  const filtered = isAll
+    ? allScores
+    : allScores.filter((s) => {
+        const isTest =
+          s.score_environment === 'test' ||
+          s.score_environment === 'TEST' ||
+          s.score_mode === 'TEST' ||
+          s.is_test === true ||
+          s.metadata?.score_environment === 'test' ||
+          s.metadata?.score_environment === 'TEST' ||
+          s.metadata?.score_mode === 'TEST' ||
+          s.metadata?.is_test === true;
+        return isTargetTest ? isTest || (!s.score_environment && !s.score_mode) : !isTest;
+      });
 
   const sorted = [...filtered].sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
@@ -1584,7 +1626,7 @@ function getLocalEventHighScores(
 export async function getEventScoreStats(
   eventId: string,
   env?: Record<string, any>
-): Promise<EventScoreStats & { score_environment?: 'test' | 'live' | 'TEST' | 'LIVE'; is_test_mode?: boolean }> {
+): Promise<EventScoreStats & { score_environment?: 'test' | 'live' | 'TEST' | 'LIVE' | 'all'; is_test_mode?: boolean }> {
   const { scores, totalCount, score_environment, is_test_mode } = await getEventHighScores(eventId, { limit: 1000 }, env);
 
   if (scores.length === 0) {

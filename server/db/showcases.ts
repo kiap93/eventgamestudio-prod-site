@@ -1,4 +1,4 @@
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isLocalFallbackAllowed } from '../supabase.js';
 import { EventShowcaseRecord, ShowcaseStatus, ReviewStatus, PublicationStatus, RewardStatus } from './types.js';
 import { grantShowcaseCredit } from './wallet.js';
 import { getShowcaseMedia } from './showcaseMedia.js';
@@ -14,6 +14,7 @@ const localShowcasesCache = new Map<string, EventShowcaseRecord>();
 
 function loadLocalShowcases(): void {
   try {
+    if (!isLocalFallbackAllowed()) return;
     if (fs.existsSync(LOCAL_SHOWCASES_FILE)) {
       const raw = fs.readFileSync(LOCAL_SHOWCASES_FILE, 'utf-8');
       const list = JSON.parse(raw) as EventShowcaseRecord[];
@@ -27,8 +28,9 @@ function loadLocalShowcases(): void {
   }
 }
 
-function saveLocalShowcases(): void {
+function saveLocalShowcases(env?: Record<string, any>): void {
   try {
+    if (!isLocalFallbackAllowed(env)) return;
     const list = Array.from(localShowcasesCache.values());
     const dir = path.dirname(LOCAL_SHOWCASES_FILE);
     if (!fs.existsSync(dir)) {
@@ -61,19 +63,27 @@ export async function getShowcaseByEventId(
       .maybeSingle();
 
     if (error) {
-      // If table does not exist or network issue, fallback to local cache
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error fetching showcase for event ${eventId}: ${error.message}`);
+      }
+      // If table does not exist or network issue in development, fallback to local cache
       console.warn(`Notice from Supabase query for event_showcases (${error.message}). Checking local fallback store.`);
       return localShowcasesCache.get(eventId) || null;
     }
 
     if (data) {
       const record = data as EventShowcaseRecord;
-      localShowcasesCache.set(eventId, record);
+      if (isLocalFallbackAllowed(env)) {
+        localShowcasesCache.set(eventId, record);
+      }
       return record;
     }
 
     return null;
-  } catch (err) {
+  } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('Error in getShowcaseByEventId, checking fallback:', err);
     return localShowcasesCache.get(eventId) || null;
   }
@@ -97,6 +107,9 @@ export async function getShowcaseById(
       .maybeSingle();
 
     if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error fetching showcase ${showcaseId}: ${error.message}`);
+      }
       console.warn(`Notice from Supabase query for event_showcase id (${error.message}). Checking local fallback store.`);
       for (const item of localShowcasesCache.values()) {
         if (item.id === showcaseId) return item;
@@ -106,12 +119,17 @@ export async function getShowcaseById(
 
     if (data) {
       const record = data as EventShowcaseRecord;
-      localShowcasesCache.set(record.event_id, record);
+      if (isLocalFallbackAllowed(env)) {
+        localShowcasesCache.set(record.event_id, record);
+      }
       return record;
     }
 
     return null;
-  } catch (err) {
+  } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('Error in getShowcaseById, checking fallback:', err);
     for (const item of localShowcasesCache.values()) {
       if (item.id === showcaseId) return item;
@@ -137,6 +155,9 @@ export async function getShowcasesByOrgId(
       .eq('organization_id', organizationId);
 
     if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error fetching showcases for organization ${organizationId}: ${error.message}`);
+      }
       console.warn(`Notice from Supabase query for event_showcases by org (${error.message}). Checking local fallback store.`);
       return Array.from(localShowcasesCache.values()).filter(
         (sc) => sc.organization_id === organizationId
@@ -144,11 +165,16 @@ export async function getShowcasesByOrgId(
     }
 
     const list = (data || []) as EventShowcaseRecord[];
-    for (const item of list) {
-      localShowcasesCache.set(item.event_id, item);
+    if (isLocalFallbackAllowed(env)) {
+      for (const item of list) {
+        localShowcasesCache.set(item.event_id, item);
+      }
     }
     return list;
-  } catch (err) {
+  } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('Error in getShowcasesByOrgId, checking fallback:', err);
     return Array.from(localShowcasesCache.values()).filter(
       (sc) => sc.organization_id === organizationId
@@ -219,21 +245,29 @@ export async function createShowcase(
       .single();
 
     if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error creating showcase: ${error.message}`);
+      }
       console.warn('Notice inserting into Supabase event_showcases:', error.message);
-      // Save to local cache & file
+      // Save to local cache & file in development
       localShowcasesCache.set(params.event_id, record);
-      saveLocalShowcases();
+      saveLocalShowcases(env);
       return record;
     }
 
     const saved = data as EventShowcaseRecord;
-    localShowcasesCache.set(params.event_id, saved);
-    saveLocalShowcases();
+    if (isLocalFallbackAllowed(env)) {
+      localShowcasesCache.set(params.event_id, saved);
+      saveLocalShowcases(env);
+    }
     return saved;
-  } catch (err) {
+  } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('Error saving showcase to Supabase, falling back to local file store:', err);
     localShowcasesCache.set(params.event_id, record);
-    saveLocalShowcases();
+    saveLocalShowcases(env);
     return record;
   }
 }
@@ -339,20 +373,28 @@ export async function updateShowcase(
       .single();
 
     if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error updating showcase: ${error.message}`);
+      }
       console.warn('Notice updating Supabase event_showcases:', error.message);
       localShowcasesCache.set(eventId, updatedRecord);
-      saveLocalShowcases();
+      saveLocalShowcases(env);
       return updatedRecord;
     }
 
     const saved = data as EventShowcaseRecord;
-    localShowcasesCache.set(eventId, saved);
-    saveLocalShowcases();
+    if (isLocalFallbackAllowed(env)) {
+      localShowcasesCache.set(eventId, saved);
+      saveLocalShowcases(env);
+    }
     return saved;
-  } catch (err) {
+  } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('Error updating showcase in Supabase, using local fallback:', err);
     localShowcasesCache.set(eventId, updatedRecord);
-    saveLocalShowcases();
+    saveLocalShowcases(env);
     return updatedRecord;
   }
 }
@@ -537,6 +579,9 @@ export async function getAllShowcasesForAdmin(
       .order('created_at', { ascending: false });
 
     if (error || !showcases) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error loading showcases for admin: ${error?.message || 'No data'}`);
+      }
       console.warn('Notice from Supabase query for admin event_showcases:', error?.message);
       // Fallback: build from local cache
       const list = Array.from(localShowcasesCache.values());
@@ -563,7 +608,10 @@ export async function getAllShowcasesForAdmin(
     }
 
     return enrichedList;
-  } catch (err) {
+  } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('Error in getAllShowcasesForAdmin, using fallback:', err);
     const list = Array.from(localShowcasesCache.values());
     return list.map((sc) => ({
@@ -637,13 +685,22 @@ export async function deleteShowcase(
 
   try {
     const supabase = getSupabaseServerClient(env);
-    await supabase.from('event_showcases').delete().eq('event_id', eventId);
+    const { error } = await supabase.from('event_showcases').delete().eq('event_id', eventId);
+    if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error deleting showcase: ${error.message}`);
+      }
+      console.warn('Error deleting showcase from Supabase:', error.message);
+    }
   } catch (err: any) {
+    if (!isLocalFallbackAllowed(env)) {
+      throw err;
+    }
     console.warn('Error deleting showcase from Supabase:', err.message);
   }
 
   localShowcasesCache.delete(eventId);
-  saveLocalShowcases();
+  saveLocalShowcases(env);
   return true;
 }
 

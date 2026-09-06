@@ -6,10 +6,12 @@ import multer from 'multer';
 import { createServer as createViteServer } from 'vite';
 
 import {
+  OrgRole,
   upsertGoogleUser,
   updateUserProfile,
   getUserOrganizations,
   createOrganization,
+  updateOrganization,
   getOrganizationById,
   getOrgMembers,
   getActiveOrgInvitations,
@@ -89,6 +91,7 @@ import {
   reorderShowcaseMedia,
   deleteShowcaseMedia,
   createSignedUploadUrlForShowcase,
+  validateAndResolveShowcaseMediaPath,
   ASSET_BUCKET,
   SHOWCASE_BUCKET,
   ensureStorageBuckets,
@@ -598,6 +601,62 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
 });
 
 /**
+ * PATCH /api/organizations/:organizationId
+ * Update organization metadata (name, logo_url)
+ */
+app.patch('/api/organizations/:organizationId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { organizationId } = req.params;
+
+    const { isMember, role: myRole } = await verifyOrgMembershipAndPermission(
+      user.id,
+      organizationId,
+      'organization.update'
+    );
+
+    if (!isMember || !['owner', 'admin'].includes(myRole || '')) {
+      res.status(403).json({ error: 'Permission denied to update organization' });
+      return;
+    }
+
+    const body = req.body || {};
+
+    // Reject attempts to tamper with protected fields
+    if (body.id !== undefined && body.id !== organizationId) {
+      res.status(403).json({ error: 'Direct mutation of organization id is strictly prohibited' });
+      return;
+    }
+    if (body.owner_id !== undefined) {
+      res.status(403).json({ error: 'Direct mutation of organization owner_id is strictly prohibited' });
+      return;
+    }
+    if (body.slug !== undefined) {
+      res.status(403).json({ error: 'Direct mutation of organization slug is strictly prohibited' });
+      return;
+    }
+
+    const updates: { name?: string; logo_url?: string | null } = {};
+    if (body.name !== undefined) {
+      if (typeof body.name !== 'string' || !body.name.trim()) {
+        res.status(422).json({ error: 'Organization name must be a non-empty string' });
+        return;
+      }
+      updates.name = body.name.trim();
+    }
+    if (body.logo_url !== undefined) {
+      updates.logo_url = body.logo_url || null;
+    }
+
+    const updated = await updateOrganization(organizationId, updates);
+    res.json({ organization: updated });
+  } catch (err: any) {
+    console.error('Update organization error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * GET /api/organizations/:organizationId/members
  * List members and pending invitations of an organization
  */
@@ -938,6 +997,70 @@ app.delete('/api/organizations/:organizationId/members/:memberId', authenticateJ
     res.json({ success: true });
   } catch (err: any) {
     console.error('Remove member error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PATCH /api/organizations/:organizationId/members/:memberId
+ * Update organization member role
+ */
+app.patch('/api/organizations/:organizationId/members/:memberId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { organizationId, memberId } = req.params;
+
+    const { isMember, role: myRole } = await verifyOrgMembershipAndPermission(
+      user.id,
+      organizationId,
+      'organization.members.manage'
+    );
+
+    if (!isMember || !['owner', 'admin'].includes(myRole || '')) {
+      res.status(403).json({ error: 'Permission denied to update member roles' });
+      return;
+    }
+
+    const target = await getMemberById(memberId);
+    if (!target || target.organization_id !== organizationId) {
+      res.status(404).json({ error: 'Member not found in this organization' });
+      return;
+    }
+
+    if (target.role === 'owner') {
+      res.status(403).json({ error: 'Cannot alter the role of the organization owner' });
+      return;
+    }
+
+    if (myRole === 'admin' && target.role === 'admin') {
+      res.status(403).json({ error: 'Admins cannot alter the role of other admins' });
+      return;
+    }
+
+    const body = req.body || {};
+    const newRole = body.role;
+
+    const allowedRoles: OrgRole[] = ['admin', 'designer', 'viewer'];
+    if (!newRole || !allowedRoles.includes(newRole)) {
+      res.status(422).json({ error: `Invalid member role. Allowed roles: ${allowedRoles.join(', ')}` });
+      return;
+    }
+
+    if (newRole === 'owner') {
+      res.status(403).json({ error: 'Direct promotion to owner is strictly prohibited' });
+      return;
+    }
+
+    // Admins cannot promote another user to admin (only owner can)
+    if (myRole === 'admin' && newRole === 'admin') {
+      res.status(403).json({ error: 'Only organization owners can grant admin role' });
+      return;
+    }
+
+    const updated = await updateMemberRole(organizationId, target.user_id, newRole);
+    res.json({ member: updated, message: 'Member role updated successfully' });
+  } catch (err: any) {
+    console.error('Update member role error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1801,14 +1924,14 @@ app.put('/api/games/:gameId/customization', authenticateJWT, async (req: Authent
     else if (resolvedSettingsConfig !== undefined) requiredPerm = 'game.settings.edit';
 
     if (targetOrgId) {
-      const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, targetOrgId, requiredPerm);
+      const { isMember, role, hasPermission } = await verifyOrgMembershipAndPermission(user.id, targetOrgId, requiredPerm);
       if (!isMember) {
         res.status(403).json({ error: 'Access denied: Not an organization member' });
         return;
       }
 
-      if (role === 'viewer') {
-        res.status(403).json({ error: 'Viewers cannot modify game customization' });
+      if (!hasPermission || role === 'viewer') {
+        res.status(403).json({ error: 'Permission denied: Insufficient permissions to modify game customization' });
         return;
       }
     }
@@ -1954,14 +2077,14 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
         currency = pricing.currency;
         durationDays = pricing.durationDays;
         ruleLabel = pricing.ruleLabel;
-      } catch (e) {
-        try {
-          const settings = await getPlatformPricingSettings();
-          price = settings.default_price;
-          currency = settings.default_currency;
-        } catch {
-          price = STANDARD_EVENT_PRICE;
-        }
+      } catch (e: any) {
+        console.error('Authoritative pricing calculation failed in quote:', e);
+        const status = e?.status === 503 || e?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
+        res.status(status).json({
+          error: 'Pricing service temporarily unavailable',
+          message: e?.message || 'Pricing service temporarily unavailable',
+        });
+        return;
       }
     }
 
@@ -2633,68 +2756,15 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
 // ----------------------------------------------------
 
 /**
- * GET /api/events/:eventId/high-scores
- * Get high scores / leaderboard for a specific event
+ * Ambiguous middle endpoint REMOVED: /api/events/:eventId/high-scores
+ * Public players must use /api/public/events/:publicToken/high-scores (live scores only).
+ * Organizers must use /api/events/:eventId/admin/high-scores (TEST + LIVE scores with authentication).
  */
-app.get('/api/events/:eventId/high-scores', async (req, res) => {
-  try {
-    const { eventId } = req.params;
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
-
-    const event = await getEventById(eventId);
-    if (!event) {
-      res.status(404).json({ error: 'Event not found' });
-      return;
-    }
-
-    const result = await getEventHighScores(eventId, { limit, page });
-    res.json({
-      event_id: eventId,
-      ...result,
-    });
-  } catch (err: any) {
-    console.error('Get event high scores error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/**
- * POST /api/events/:eventId/high-scores
- * Submit a score to an event's high score board
- */
-app.post('/api/events/:eventId/high-scores', highScoreRateLimiter, async (req, res) => {
-  try {
-    const { eventId } = req.params;
-    const { player_name, score, metadata, session_id, sessionId } = req.body;
-
-    if (score === undefined || score === null) {
-      res.status(422).json({ error: 'Score is required' });
-      return;
-    }
-
-    const incomingSessionId =
-      session_id !== undefined ? session_id :
-      sessionId !== undefined ? sessionId :
-      (metadata && typeof metadata === 'object' && metadata.sessionId !== undefined ? metadata.sessionId :
-      (metadata && typeof metadata === 'object' && metadata.session_id !== undefined ? metadata.session_id : undefined));
-
-    const result = await submitEventScore({
-      event_id: eventId,
-      player_name,
-      score: Number(score),
-      session_id: incomingSessionId,
-      metadata: typeof metadata === 'object' && metadata ? metadata : {},
-    });
-
-    res.status(201).json({
-      success: true,
-      ...result,
-    });
-  } catch (err: any) {
-    console.error('Submit event high score error:', err);
-    res.status(err.status || 422).json({ error: err.message });
-  }
+app.all('/api/events/:eventId/high-scores', (req, res) => {
+  res.status(404).json({
+    error: 'Endpoint removed. Public players must use /api/public/events/:publicToken/high-scores (live scores only). Organizers must use /api/events/:eventId/admin/high-scores (TEST + LIVE scores with authentication).',
+    code: 'ENDPOINT_REMOVED',
+  });
 });
 
 /**
@@ -2814,7 +2884,7 @@ app.get('/api/events/:eventId/admin/high-scores', authenticateJWT, async (req: A
     const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
 
     const [leaderboard, stats, testScoresCount] = await Promise.all([
-      getEventHighScores(eventId, { limit, page }),
+      getEventHighScores(eventId, { limit, page, scoreEnvironment: 'all', includeTestScores: true }),
       getEventScoreStats(eventId),
       getEventTestScoresCount(eventId),
     ]);
@@ -2836,10 +2906,68 @@ app.get('/api/events/:eventId/admin/high-scores', authenticateJWT, async (req: A
 });
 
 /**
- * DELETE /api/events/:eventId/high-scores/:scoreId
+ * POST /api/events/:eventId/admin/high-scores
+ * Organizer test score submission during preview / playtesting
+ * Strictly quarantined as test score in the database.
+ */
+app.post('/api/events/:eventId/admin/high-scores', authenticateJWT, highScoreRateLimiter, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+    const { player_name, score, metadata = {}, session_id, sessionId } = req.body;
+
+    if (score === undefined || score === null || isNaN(Number(score))) {
+      res.status(422).json({ error: 'Valid numerical score is required' });
+      return;
+    }
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Insufficient permissions to submit event scores' });
+      return;
+    }
+
+    const incomingSessionId =
+      session_id !== undefined ? session_id :
+      sessionId !== undefined ? sessionId :
+      (metadata && typeof metadata === 'object' && metadata.sessionId !== undefined ? metadata.sessionId :
+      (metadata && typeof metadata === 'object' && metadata.session_id !== undefined ? metadata.session_id : undefined));
+
+    const safeMetadata = typeof metadata === 'object' && metadata ? { ...metadata } : {};
+    safeMetadata.isEventTest = true;
+    safeMetadata.is_test = true;
+    safeMetadata.score_environment = 'test';
+
+    const result = await submitEventScore({
+      event_id: eventId,
+      player_name,
+      score: Number(score),
+      session_id: incomingSessionId,
+      metadata: safeMetadata,
+    });
+
+    res.status(201).json({
+      success: true,
+      event_id: eventId,
+      ...result,
+    });
+  } catch (err: any) {
+    console.error('Submit organizer high score error:', err);
+    res.status(err.status || 422).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/events/:eventId/admin/high-scores/:scoreId or /api/events/:eventId/high-scores/:scoreId
  * Admin endpoint: delete a single score entry
  */
-app.delete('/api/events/:eventId/high-scores/:scoreId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.delete(['/api/events/:eventId/admin/high-scores/:scoreId', '/api/events/:eventId/high-scores/:scoreId'], authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId, scoreId } = req.params;
@@ -2914,10 +3042,10 @@ app.post(
 );
 
 /**
- * POST /api/events/:eventId/high-scores/clear
+ * POST /api/events/:eventId/admin/high-scores/clear or /api/events/:eventId/high-scores/clear
  * Admin endpoint: clear/reset all scores for an event
  */
-app.post('/api/events/:eventId/high-scores/clear', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post(['/api/events/:eventId/admin/high-scores/clear', '/api/events/:eventId/high-scores/clear'], authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -2969,8 +3097,8 @@ app.get('/api/events/:eventId/showcase', async (req: AuthenticatedRequest, res) 
       try {
         const token = authHeader.split(' ')[1];
         const payload = await verifyAppToken(token);
-        const { isMember } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'game.view');
-        isOrgMember = isMember;
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'event.view');
+        isOrgMember = isMember && hasPermission;
       } catch {
         // Ignored, proceed as unauthenticated
       }
@@ -3019,9 +3147,9 @@ app.post('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT, 
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot create event showcases' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can create event showcases' });
       return;
     }
 
@@ -3074,9 +3202,9 @@ app.patch('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT,
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot edit event showcases' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can edit event showcases' });
       return;
     }
 
@@ -3150,9 +3278,9 @@ app.post('/api/events/:eventId/showcase/submit', showcaseRateLimiter, authentica
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot submit showcases for review' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can submit showcases for review' });
       return;
     }
 
@@ -3194,9 +3322,9 @@ app.post('/api/events/:eventId/showcase/publish', showcaseRateLimiter, authentic
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot publish event showcases' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can publish event showcases' });
       return;
     }
 
@@ -3229,9 +3357,9 @@ app.post('/api/events/:eventId/showcase/unpublish', showcaseRateLimiter, authent
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot unpublish event showcases' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can unpublish event showcases' });
       return;
     }
 
@@ -3280,8 +3408,8 @@ app.get('/api/events/:eventId/showcase/media', async (req: AuthenticatedRequest,
       try {
         const token = authHeader.split(' ')[1];
         const payload = await verifyAppToken(token);
-        const { isMember } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'game.view');
-        isOrgMember = isMember;
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'event.view');
+        isOrgMember = isMember && hasPermission;
       } catch {
         // Ignored
       }
@@ -3316,9 +3444,9 @@ app.post('/api/events/:eventId/showcase/media/upload-url', uploadRateLimiter, au
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot upload showcase media' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can upload showcase media' });
       return;
     }
 
@@ -3495,13 +3623,13 @@ app.post(
       }
 
       // 2. Verify Organization Membership & Permissions
-      const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
+      const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
       if (!isMember) {
         res.status(403).json({ error: 'Permission denied: You are not a member of this organization' });
         return;
       }
-      if (role === 'viewer') {
-        res.status(403).json({ error: 'Permission denied: Viewers cannot upload showcase media' });
+      if (!hasPermission) {
+        res.status(403).json({ error: 'Permission denied: Only owners and admins can upload showcase media' });
         return;
       }
 
@@ -3624,9 +3752,9 @@ app.post('/api/events/:eventId/showcase/media', showcaseRateLimiter, authenticat
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot add showcase media' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can add showcase media' });
       return;
     }
 
@@ -3639,6 +3767,11 @@ app.post('/api/events/:eventId/showcase/media', showcaseRateLimiter, authenticat
     const {
       media_type,
       media_url,
+      storage_path,
+      storagePath,
+      upload_id,
+      bucket,
+      bucket_name,
       thumbnail_url,
       file_name,
       file_size,
@@ -3651,13 +3784,22 @@ app.post('/api/events/:eventId/showcase/media', showcaseRateLimiter, authenticat
       return;
     }
 
-    if (!media_url || typeof media_url !== 'string') {
-      res.status(422).json({ error: 'media_url is required' });
-      return;
-    }
+    const providedPath = storage_path || storagePath || upload_id;
+    const pathValidation = validateAndResolveShowcaseMediaPath({
+      storagePath: providedPath,
+      bucket: bucket || bucket_name,
+      organizationId: event.organization_id,
+      showcaseId: showcase.id,
+      mediaType: media_type as 'IMAGE' | 'VIDEO',
+      clientMediaUrl: media_url,
+      clientThumbnailUrl: thumbnail_url,
+    });
 
-    if (!file_name || typeof file_name !== 'string') {
-      res.status(422).json({ error: 'file_name is required' });
+    if (!pathValidation.valid) {
+      res.status(pathValidation.statusCode || 422).json({
+        error: pathValidation.error,
+        code: pathValidation.code,
+      });
       return;
     }
 
@@ -3665,11 +3807,12 @@ app.post('/api/events/:eventId/showcase/media', showcaseRateLimiter, authenticat
       showcase_id: showcase.id,
       organization_id: event.organization_id,
       media_type,
-      media_url,
-      thumbnail_url: thumbnail_url || null,
-      file_name: file_name.trim(),
+      media_url: pathValidation.authoritativeMediaUrl,
+      storage_path: pathValidation.authoritativeStoragePath,
+      thumbnail_url: pathValidation.sanitizedThumbnailUrl,
+      file_name: (file_name && typeof file_name === 'string' ? file_name.trim() : pathValidation.fileName),
       file_size: Number(file_size) || 0,
-      mime_type: (mime_type || '').toLowerCase(),
+      mime_type: (mime_type || (media_type === 'VIDEO' ? 'video/mp4' : 'image/png')).toLowerCase(),
       sort_order: sort_order !== undefined ? Number(sort_order) : undefined,
     });
 
@@ -3695,9 +3838,9 @@ app.patch('/api/events/:eventId/showcase/media/reorder', showcaseRateLimiter, au
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot reorder showcase media' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can reorder showcase media' });
       return;
     }
 
@@ -3736,9 +3879,9 @@ app.delete('/api/events/:eventId/showcase/media/:mediaId', showcaseRateLimiter, 
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'game.items.edit');
-    if (!isMember || role === 'viewer') {
-      res.status(403).json({ error: 'Permission denied: Viewers cannot delete showcase media' });
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied: Only owners and admins can delete showcase media' });
       return;
     }
 
@@ -3758,6 +3901,17 @@ app.delete('/api/events/:eventId/showcase/media/:mediaId', showcaseRateLimiter, 
     if (media.showcase_id !== showcase.id || media.organization_id !== event.organization_id) {
       res.status(403).json({ error: 'Media does not belong to this event showcase' });
       return;
+    }
+
+    // Clean up file in Supabase storage if storage_path is recorded
+    if (media.storage_path) {
+      try {
+        const { getSupabaseServerClient } = await import('./server/supabase.js');
+        const supabase = getSupabaseServerClient();
+        await supabase.storage.from(SHOWCASE_BUCKET).remove([media.storage_path]);
+      } catch (sErr: any) {
+        console.warn('Notice: Could not delete storage file:', sErr.message);
+      }
     }
 
     await deleteShowcaseMedia(mediaId, showcase.id, event.organization_id);
@@ -4239,7 +4393,11 @@ app.get('/api/platform/pricing', async (_req, res) => {
     res.json(settings);
   } catch (err: any) {
     console.error('Get platform pricing error:', err);
-    res.status(500).json({ error: err.message });
+    const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
+    res.status(status).json({
+      error: 'Pricing service temporarily unavailable',
+      message: err?.message || 'Pricing service temporarily unavailable',
+    });
   }
 });
 
@@ -4253,7 +4411,11 @@ const handleGetAdminPricingSettings = async (_req: AuthenticatedRequest, res: an
     res.json({ success: true, settings });
   } catch (err: any) {
     console.error('Admin get pricing settings error:', err);
-    res.status(500).json({ error: err.message });
+    const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
+    res.status(status).json({
+      error: 'Pricing service temporarily unavailable',
+      message: err?.message || 'Pricing service temporarily unavailable',
+    });
   }
 };
 
@@ -4494,9 +4656,16 @@ app.get('/api/organizations/:orgId/wallet', authenticateJWT, async (req: Authent
     }
 
     const wallet = await getWalletBalance(orgId);
+    let standardEventPrice: number | undefined;
+    try {
+      const settings = await getPlatformPricingSettings();
+      standardEventPrice = settings.default_price;
+    } catch {
+      // ignore
+    }
     res.json({
       wallet,
-      standard_event_price: STANDARD_EVENT_PRICE,
+      standard_event_price: standardEventPrice,
     });
   } catch (err: any) {
     console.error('Get wallet error:', err);
@@ -5445,7 +5614,21 @@ app.post('/api/organizations/:orgId/wallet/calculate-event-payment', walletRateL
     }
 
     const { event_price, payment_mode, topup_credit_requested } = req.body;
-    const price = event_price ? Number(event_price) : STANDARD_EVENT_PRICE;
+    let price = event_price !== undefined && event_price !== null ? Number(event_price) : undefined;
+    if (!price || isNaN(price) || price <= 0) {
+      try {
+        const settings = await getPlatformPricingSettings();
+        price = settings.default_price;
+      } catch (err: any) {
+        console.error('Failed to resolve authoritative price for calculate-event-payment:', err);
+        const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
+        res.status(status).json({
+          error: 'Pricing service temporarily unavailable',
+          message: err?.message || 'Pricing service temporarily unavailable',
+        });
+        return;
+      }
+    }
     const mode = (payment_mode || 'FULL_PAID') as any;
 
     const calculation = await calculateEventPayment(
