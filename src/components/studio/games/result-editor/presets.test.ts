@@ -9,10 +9,11 @@ import { ResultCardElement, ResultGroupElement, ResultScreenElement } from '../.
 export function runPresetsTestSuite() {
   console.log('[TEST] Running Built-in Result Screen Layout Presets Test Suite...');
 
-  // 1. Verify 6 standard presets exist
-  assert.strictEqual(RESULT_SCREEN_PRESETS.length, 6, 'Should have exactly 6 presets');
+  // 1. Verify 7 standard presets exist
+  assert.strictEqual(RESULT_SCREEN_PRESETS.length, 7, 'Should have exactly 7 presets');
   const expectedPresetIds = [
     'classic-center',
+    'leaderboard-showcase',
     'two-cards',
     'score-focus',
     'stats-dashboard',

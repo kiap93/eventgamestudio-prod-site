@@ -56,6 +56,45 @@ export const GamesPage: React.FC = () => {
   const [demoRestartKey, setDemoRestartKey] = useState<number>(0);
   const [isDemoFullscreen, setIsDemoFullscreen] = useState<boolean>(false);
 
+  // Synchronize fullscreen state with browser events
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsDemoFullscreen(
+        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
+      );
+    };
+
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
+
+  const handleToggleDemoFullscreen = () => {
+    const isCurrentlyFs =
+      !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
+    if (!isCurrentlyFs && !isDemoFullscreen) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else if ((document.documentElement as any).webkitRequestFullscreen) {
+        (document.documentElement as any).webkitRequestFullscreen();
+      }
+      setIsDemoFullscreen(true);
+    } else {
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        }
+      }
+      setIsDemoFullscreen(false);
+    }
+  };
+
   // Fetch games list
   const loadGames = useCallback(async () => {
     setIsLoadingGames(true);
@@ -200,8 +239,8 @@ export const GamesPage: React.FC = () => {
           <div
             className={`bg-slate-900 border border-slate-800 flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${
               isDemoFullscreen
-                ? 'w-full h-full rounded-none border-none'
-                : 'w-full max-w-4xl h-[88vh] rounded-3xl'
+                ? 'w-full h-full rounded-none border-none max-w-none max-h-none'
+                : 'w-full max-w-5xl xl:max-w-6xl h-[88vh] max-h-[840px] rounded-3xl'
             }`}
           >
             <div className="bg-slate-950 border-b border-slate-800 px-4 py-3 flex items-center justify-between shrink-0">
@@ -233,7 +272,7 @@ export const GamesPage: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => setIsDemoFullscreen((f) => !f)}
+                  onClick={handleToggleDemoFullscreen}
                   className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors cursor-pointer"
                   title={isDemoFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
                 >
@@ -260,6 +299,8 @@ export const GamesPage: React.FC = () => {
                 gameType={demoPlayingGame.game_type || 'catch-brand'}
                 organizationSlug={currentOrganization?.slug || 'preview'}
                 isStudioPreview={true}
+                isFullscreen={isDemoFullscreen}
+                onToggleFullscreen={handleToggleDemoFullscreen}
               />
             </div>
           </div>

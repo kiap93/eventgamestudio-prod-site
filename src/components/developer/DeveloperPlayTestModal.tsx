@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GameTheme } from '../../themes/types';
 import { GameShell } from '../shell/GameShell';
-import { X, Play, RotateCcw, Volume2, VolumeX, Sparkles, Monitor, Smartphone } from 'lucide-react';
+import { X, Play, RotateCcw, Sparkles, Monitor, Smartphone, Maximize2, Minimize2 } from 'lucide-react';
 
 interface DeveloperPlayTestModalProps {
   theme: GameTheme;
@@ -16,14 +16,61 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
 }) => {
   const [key, setKey] = useState<number>(Date.now());
   const [deviceFrame, setDeviceFrame] = useState<'desktop' | 'mobile'>('desktop');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(
+        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
+      );
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    const isCurrentlyFs =
+      !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
+    if (!isCurrentlyFs && !isFullscreen) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else if ((document.documentElement as any).webkitRequestFullscreen) {
+        (document.documentElement as any).webkitRequestFullscreen();
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        }
+      }
+      setIsFullscreen(false);
+    }
+  };
 
   const handleRestart = () => {
     setKey(Date.now());
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="relative flex flex-col w-full max-w-5xl h-[92vh] max-h-[900px] bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 ${
+        isFullscreen ? 'p-0' : 'p-4'
+      }`}
+    >
+      <div
+        className={`relative flex flex-col bg-slate-900 border border-slate-700/80 shadow-2xl overflow-hidden ${
+          isFullscreen
+            ? 'w-full h-full max-w-none max-h-none rounded-none border-none'
+            : 'w-full max-w-5xl xl:max-w-6xl h-[92vh] max-h-[900px] rounded-2xl'
+        }`}
+      >
         {/* Top Header Bar */}
         <div className="flex items-center justify-between px-6 py-4 bg-slate-800/90 border-b border-slate-700">
           <div className="flex items-center space-x-3">
@@ -45,7 +92,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
           <div className="hidden sm:flex items-center bg-slate-950/60 p-1 rounded-lg border border-slate-700">
             <button
               onClick={() => setDeviceFrame('desktop')}
-              className={`flex items-center space-x-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+              className={`flex items-center space-x-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                 deviceFrame === 'desktop'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
@@ -56,7 +103,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
             </button>
             <button
               onClick={() => setDeviceFrame('mobile')}
-              className={`flex items-center space-x-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+              className={`flex items-center space-x-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                 deviceFrame === 'mobile'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
@@ -71,7 +118,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
           <div className="flex items-center space-x-2">
             <button
               onClick={handleRestart}
-              className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-200 bg-slate-700/60 hover:bg-slate-700 border border-slate-600 rounded-lg transition-colors"
+              className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-200 bg-slate-700/60 hover:bg-slate-700 border border-slate-600 rounded-lg transition-colors cursor-pointer"
               title="Restart Game"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -79,8 +126,16 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
             </button>
 
             <button
+              onClick={handleToggleFullscreen}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+
+            <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors ml-2"
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors ml-2 cursor-pointer"
               title="Close Test Runner"
             >
               <X className="w-5 h-5" />
@@ -89,7 +144,7 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
         </div>
 
         {/* Game Canvas Container */}
-        <div className="flex-1 relative flex items-center justify-center bg-slate-950 overflow-hidden p-2 sm:p-4">
+        <div className="flex-1 relative flex items-center justify-center bg-slate-950 overflow-hidden p-0">
           <div
             className={`transition-all duration-300 h-full w-full flex items-center justify-center ${
               deviceFrame === 'mobile'
@@ -102,6 +157,8 @@ export const DeveloperPlayTestModal: React.FC<DeveloperPlayTestModalProps> = ({
                 key={key}
                 customTheme={theme}
                 showCabinetFooter={false}
+                isFullscreen={isFullscreen}
+                onToggleFullscreen={handleToggleFullscreen}
               />
             </div>
           </div>

@@ -32,7 +32,7 @@ body,
   background-color: #07130b !important;
 }
 
-/* ================= FULLSCREEN GAME CONTAINER & 16:9 PROPORTIONAL STAGE ================= */
+/* ================= FULLSCREEN GAME CONTAINER & RESPONSIVE PROPORTIONAL STAGE ================= */
 .game-viewport {
   position: relative;
   width: 100%;
@@ -60,6 +60,12 @@ body,
   margin: auto;
 }
 
+.game-stage[class*="aspect-[9/16]"],
+.game-stage.is-portrait,
+:is([style*="--is-portrait: 1"], [data-orientation="portrait"]) .game-stage {
+  aspect-ratio: 9 / 16 !important;
+}
+
 /* Standalone / immersive fullscreen modifier */
 .game-fullscreen-immersive {
   position: relative;
@@ -78,7 +84,7 @@ body,
   justify-content: center;
 }
 
-/* Game canvas filling 100% of 16:9 stage without distortion or offset */
+/* Game canvas filling 100% of stage without distortion or offset */
 .game-stage canvas {
   width: 100% !important;
   height: 100% !important;
@@ -102,18 +108,24 @@ body,
   margin: auto;
 }
 
-/* ================= RESPONSIVE 16:9 GAME UI LAYER ================= */
+.game-cabinet[class*="aspect-[9/16]"],
+.game-cabinet.is-portrait,
+:is([style*="--is-portrait: 1"], [data-orientation="portrait"]) .game-cabinet {
+  aspect-ratio: 9 / 16 !important;
+}
+
+/* ================= RESPONSIVE GAME UI LAYER ================= */
 
 .game-ui-layer {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 1024px;
-  height: 576px;
-  min-width: 1024px;
-  min-height: 576px;
-  max-width: 1024px;
-  max-height: 576px;
+  width: var(--game-design-width, 1024px);
+  height: var(--game-design-height, 576px);
+  min-width: var(--game-design-width, 1024px);
+  min-height: var(--game-design-height, 576px);
+  max-width: var(--game-design-width, 1024px);
+  max-height: var(--game-design-height, 576px);
   transform: translate(-50%, -50%) scale(var(--game-ui-scale, 1));
   transform-origin: center center;
   pointer-events: none;

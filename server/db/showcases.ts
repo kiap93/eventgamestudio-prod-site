@@ -715,6 +715,7 @@ export async function evaluateShowcaseRewardEligibility(
     .eq('organization_id', showcase.organization_id)
     .maybeSingle();
 
+  // 1. First event / organization eligibility check
   if (orgWallet?.showcase_credit_granted || (orgWallet?.showcase_credit && orgWallet.showcase_credit > 0)) {
     return await updateShowcase(
       eventId,
@@ -727,19 +728,69 @@ export async function evaluateShowcaseRewardEligibility(
     );
   }
 
-  // Check event payment status
+  // Check if any other showcase in this organization was already rewarded
+  const { data: otherRewarded } = await supabase
+    .from('event_showcases')
+    .select('id')
+    .eq('organization_id', showcase.organization_id)
+    .neq('id', showcase.id)
+    .or('reward_review_status.eq.REWARDED,reward_status.eq.REWARDED')
+    .limit(1);
+
+  if (otherRewarded && otherRewarded.length > 0) {
+    return await updateShowcase(
+      eventId,
+      {
+        reward_review_status: 'NOT_ELIGIBLE',
+        reward_status: 'NOT_ELIGIBLE',
+      },
+      env,
+      true
+    );
+  }
+
+  // 2. Event payment and started/concluded check
   const { data: eventData } = await supabase
     .from('events')
-    .select('payment_status, status')
+    .select('payment_status, status, start_date, end_date')
     .eq('id', eventId)
     .maybeSingle();
 
   const isPaid = eventData?.payment_status === 'PAID';
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isStartedOrConcluded =
+    eventData?.status === 'LIVE' ||
+    eventData?.status === 'COMPLETED' ||
+    (Boolean(eventData?.start_date) && todayStr >= (eventData?.start_date || ''));
+
+  // 3. Media requirements: >= 3 images OR >= 1 video
   const mediaList = await getShowcaseMedia(showcase.id, showcase.organization_id, env);
-  const mediaCount = mediaList ? mediaList.length : 0;
+  const imageCount = (mediaList || []).filter(
+    (m) => m.media_type === 'IMAGE' || (!m.media_type && !m.mime_type?.startsWith('video/'))
+  ).length;
+  const videoCount = (mediaList || []).filter(
+    (m) => m.media_type === 'VIDEO' || m.mime_type?.startsWith('video/')
+  ).length;
+  const hasRequiredMedia = imageCount >= 3 || videoCount >= 1;
+
+  // 4. Content requirements: title and trimmed description >= 50 characters
   const hasTitle = !!showcase.title && showcase.title.trim().length > 0;
-  const hasDesc = !!showcase.description && showcase.description.trim().length > 0;
-  const isEligible = isPaid && mediaCount >= 3 && hasTitle && hasDesc && showcase.status === 'PUBLISHED';
+  const trimmedDesc = (showcase.description || '').trim();
+  const hasValidDescription = trimmedDesc.length >= 50;
+
+  // 5. Showcase status: PUBLISHED, not BLOCKED, not DELETED
+  const isPublishedAndActive =
+    (showcase.status === 'PUBLISHED' || showcase.publication_status === 'PUBLISHED') &&
+    showcase.status !== 'BLOCKED' &&
+    !showcase.deleted_at;
+
+  const isEligible =
+    isPaid &&
+    isStartedOrConcluded &&
+    hasRequiredMedia &&
+    hasTitle &&
+    hasValidDescription &&
+    isPublishedAndActive;
 
   if (isEligible) {
     return await updateShowcase(
@@ -752,6 +803,19 @@ export async function evaluateShowcaseRewardEligibility(
       env,
       true
     );
+  } else {
+    // If it was awaiting approval but no longer meets criteria, set to NOT_ELIGIBLE
+    if (showcase.reward_review_status === 'AWAITING_APPROVAL') {
+      return await updateShowcase(
+        eventId,
+        {
+          reward_review_status: 'NOT_ELIGIBLE',
+          reward_status: 'NOT_ELIGIBLE',
+        },
+        env,
+        true
+      );
+    }
   }
 
   return showcase;
@@ -830,6 +894,16 @@ export async function approveShowcaseReward(
       reward: null,
       alreadyRewarded: true,
     };
+  }
+
+  // Strictly verify that the showcase meets all RM300 first-event criteria before crediting wallet
+  const evaluated = await evaluateShowcaseRewardEligibility(showcase.event_id, env);
+  if (evaluated.reward_review_status === 'NOT_ELIGIBLE') {
+    const err = new Error(
+      'Showcase does not meet the RM300 first-event reward criteria (event must be paid and started/concluded, media must have at least 3 photos or 1 video, description must be at least 50 characters, showcase must be published, and this must be the organization\'s first eligible event).'
+    );
+    (err as any).code = 'SHOWCASE_NOT_ELIGIBLE';
+    throw err;
   }
 
   const now = new Date().toISOString();
