@@ -3610,5 +3610,32 @@
       "is_official": true
     },
     "created_at": "2026-09-07T02:52:06.750Z"
+  },
+  {
+    "id": "06ecf18d-367c-463e-8aca-db94dac10994",
+    "event_id": "cb0cc6fa-be2c-4d0d-8d2d-4284218842bb",
+    "player_name": "LegitPlayerNoGameType",
+    "score": 1234,
+    "session_id": "session_legit_1",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "moves": 14,
+      "duration": 22,
+      "matchedPairs": 8,
+      "totalPairs": 8,
+      "sessionId": "session_legit_1",
+      "session_id": "session_legit_1",
+      "gameType": "memory-match",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "isVictory": true,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T04:21:52.302Z"
   }
 ]

@@ -202,6 +202,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     generateCardPositions(totalCards, boardConfig, cardConfig)
   );
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
+  const [firstFlippedCardId, setFirstFlippedCardId] = useState<string | null>(null);
+  const firstFlippedCardIdRef = useRef<string | null>(null);
   const [isLocked, setIsLocked] = useState<boolean>(false);
 
   // Score & Metrics
@@ -365,6 +367,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     setCards(newDeck);
     setRandomPositions(generateCardPositions(newDeck.length, boardConfig, cardConfig));
     setFlippedIndices([]);
+    setFirstFlippedCardId(null);
+    firstFlippedCardIdRef.current = null;
     setIsLocked(false);
     setScore(0);
     setMoves(0);
@@ -465,6 +469,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       sessionIdRef.current = newSession;
       setIsLocked(false);
       setFlippedIndices([]);
+      setFirstFlippedCardId(null);
+      firstFlippedCardIdRef.current = null;
       setCards((prev) =>
         prev.map((c) => (c.isMatched ? c : { ...c, isFlipped: false, isShaking: false }))
       );
@@ -492,6 +498,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     // 3. Reset gameplay state, metrics, and score tracking
     setIsLocked(false);
     setFlippedIndices([]);
+    setFirstFlippedCardId(null);
+    firstFlippedCardIdRef.current = null;
     setScore(0);
     setMoves(0);
     setMatchedPairsCount(0);
@@ -881,6 +889,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
           secondCardId,
         });
 
+        console.log('[MemoryMatch] FIRST FLIP', {
+          firstCardId,
+        });
         console.log('[AutoDemo] FIRST FLIP', {
           actionToken,
           firstCardId,
@@ -914,6 +925,12 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             return;
           }
 
+          console.log('[MemoryMatch] SECOND FLIP', {
+            firstCardId,
+            secondCardId,
+            firstIsFlipped: true,
+            secondIsFlipped: true,
+          });
           console.log('[AutoDemo] SECOND FLIP', {
             actionToken,
             secondCardId,
@@ -973,6 +990,11 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               return;
             }
 
+            console.log('[MemoryMatch] PAIR RESOLUTION', {
+              type: type === 'CORRECT' ? 'MATCH' : 'MISMATCH',
+              firstCardId,
+              secondCardId,
+            });
             console.log('[AutoDemo] RESOLVE', {
               actionToken,
               type,
@@ -1072,105 +1094,161 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     setManagedAutoDemoTimeout,
   ]);
 
-  // Card Flip Click Handler
-  const handleCardClick = (index: number) => {
+  // Card Flip Click Handler (authoritative interactive gameplay)
+  const handleCardClick = (cardId: string) => {
     if (gameState !== 'PLAYING' || isLocked) return;
     if (isStudioPreview && autoDemo) return;
 
-    const clickedCard = cards[index];
+    const clickedCard = cardsRef.current.find((c) => c.id === cardId);
     if (!clickedCard || clickedCard.isFlipped || clickedCard.isMatched) return;
 
-    // Flip the clicked card
-    memorySounds.playCardFlip();
-    const updatedCards = [...cards];
-    updatedCards[index] = { ...clickedCard, isFlipped: true };
-    setCards(updatedCards);
+    const currentSession = sessionIdRef.current;
+    const firstCardId = firstFlippedCardIdRef.current;
 
-    const newFlipped = [...flippedIndices, index];
-    setFlippedIndices(newFlipped);
+    if (!firstCardId) {
+      // ============================================
+      // PHASE 1: FLIP FIRST CARD
+      // ============================================
+      firstFlippedCardIdRef.current = cardId;
+      setFirstFlippedCardId(cardId);
 
-    // If this is the 1st card flipped, wait for the second card
-    if (newFlipped.length === 1) {
+      memorySounds.playCardFlip();
+      setCards((prev) =>
+        prev.map((c) =>
+          c.id === cardId
+            ? { ...c, isFlipped: true, isShaking: false }
+            : c
+        )
+      );
+
+      console.log('[MemoryMatch] FIRST FLIP', { firstCardId: cardId });
       return;
     }
 
-    // If 2 cards are flipped, evaluate the match
-    if (newFlipped.length === 2) {
-      setIsLocked(true);
-      const [firstIdx, secondIdx] = newFlipped;
-      const firstCard = updatedCards[firstIdx];
-      const secondCard = updatedCards[secondIdx];
+    // Guard against clicking the exact same card twice
+    if (firstCardId === cardId) return;
 
-      const newMoves = moves + 1;
-      setMoves(newMoves);
+    // ============================================
+    // PHASE 2: FLIP SECOND CARD
+    // ============================================
+    const secondCardId = cardId;
+    setIsLocked(true); // Lock board immediately so player cannot click a 3rd card during evaluation
+    firstFlippedCardIdRef.current = null;
+    setFirstFlippedCardId(null);
 
-      const currentSession = sessionIdRef.current;
+    memorySounds.playCardFlip();
+    setCards((prev) =>
+      prev.map((c) =>
+        c.id === secondCardId
+          ? { ...c, isFlipped: true, isShaking: false }
+          : c
+      )
+    );
 
-      // Check for match
-      if (firstCard.pairId === secondCard.pairId) {
+    // Count move
+    const newMoves = moves + 1;
+    setMoves(newMoves);
+    movesRef.current = newMoves;
+
+    // Authoritative second-card flipped diagnostic log
+    console.log('[MemoryMatch] SECOND FLIP', {
+      firstCardId,
+      secondCardId,
+      firstIsFlipped: true,
+      secondIsFlipped: true,
+    });
+
+    // ============================================
+    // PHASE 3: BOTH CARDS REMAIN FACE-UP BEFORE RESOLUTION
+    // ============================================
+    // Allow the 350ms 3D flip animation to finish completely plus display time
+    const displayDelay = Math.max(750, mismatchDelayRef.current || 850);
+
+    const resolveTimeout = setTimeout(() => {
+      activeTimeoutsRef.current.delete(resolveTimeout);
+      if (sessionIdRef.current !== currentSession) return;
+
+      const currentDeck = cardsRef.current;
+      const cardA = currentDeck.find((c) => c.id === firstCardId);
+      const cardB = currentDeck.find((c) => c.id === secondCardId);
+
+      if (!cardA || !cardB || cardA.isMatched || cardB.isMatched) {
+        setIsLocked(false);
+        return;
+      }
+
+      const isMatch = cardA.pairId === cardB.pairId;
+
+      console.log('[MemoryMatch] PAIR RESOLUTION', {
+        type: isMatch ? 'MATCH' : 'MISMATCH',
+        firstCardId,
+        secondCardId,
+      });
+
+      if (isMatch) {
         // MATCH SUCCESS!
         const newStreak = comboStreak + 1;
         setComboStreak(newStreak);
+        comboStreakRef.current = newStreak;
         setMaxComboStreak((prev) => Math.max(prev, newStreak));
 
-        const streakBonus = (newStreak - 1) * comboPoints;
-        const addedPoints = matchPoints + streakBonus;
-        setScore((prev) => prev + addedPoints);
+        const streakBonus = (newStreak - 1) * comboPointsRef.current;
+        const totalPoints = matchPointsRef.current + streakBonus;
+        setScore((prev) => prev + totalPoints);
 
         memorySounds.playMatchSuccess(newStreak);
 
-        const matchTimeout = setTimeout(() => {
-          activeTimeoutsRef.current.delete(matchTimeout);
-          if (sessionIdRef.current !== currentSession) return;
+        // Mark both cards matched (both keep isFlipped: true and isMatched: true)
+        setCards((prev) =>
+          prev.map((c) =>
+            c.id === firstCardId || c.id === secondCardId
+              ? { ...c, isFlipped: true, isMatched: true, isShaking: false }
+              : c
+          )
+        );
 
-          setCards((prevDeck) => {
-            const nextDeck = [...prevDeck];
-            if (nextDeck[firstIdx]) nextDeck[firstIdx] = { ...nextDeck[firstIdx], isMatched: true };
-            if (nextDeck[secondIdx]) nextDeck[secondIdx] = { ...nextDeck[secondIdx], isMatched: true };
-            return nextDeck;
-          });
+        const newMatchedCount = matchedPairsCount + 1;
+        setMatchedPairsCount(newMatchedCount);
+        matchedPairsCountRef.current = newMatchedCount;
+        setIsLocked(false);
 
-          const newMatchedCount = matchedPairsCount + 1;
-          setMatchedPairsCount(newMatchedCount);
-          setFlippedIndices([]);
-          setIsLocked(false);
-
-          // If all pairs matched -> VICTORY!
-          if (newMatchedCount >= totalPairs) {
-            handleGameOver(true);
-          }
-        }, 350);
-        activeTimeoutsRef.current.add(matchTimeout);
+        // If all pairs matched -> VICTORY!
+        if (newMatchedCount >= totalPairs) {
+          handleGameOver(true);
+        }
       } else {
-        // MATCH FAILED!
+        // MATCH FAILED (MISMATCH)!
         setComboStreak(0);
+        comboStreakRef.current = 0;
         memorySounds.playMismatch();
 
-        // Shake both cards
-        setCards((prevDeck) => {
-          const nextDeck = [...prevDeck];
-          if (nextDeck[firstIdx]) nextDeck[firstIdx] = { ...nextDeck[firstIdx], isShaking: true };
-          if (nextDeck[secondIdx]) nextDeck[secondIdx] = { ...nextDeck[secondIdx], isShaking: true };
-          return nextDeck;
-        });
+        // Shake both cards while keeping them visibly face-up!
+        setCards((prev) =>
+          prev.map((c) =>
+            c.id === firstCardId || c.id === secondCardId
+              ? { ...c, isFlipped: true, isShaking: true }
+              : c
+          )
+        );
 
-        // Flip both back after mismatch delay
-        const mismatchTimeout = setTimeout(() => {
-          activeTimeoutsRef.current.delete(mismatchTimeout);
+        // Wait for wobble animation (400ms) before flipping back face-down
+        const unflipTimeout = setTimeout(() => {
+          activeTimeoutsRef.current.delete(unflipTimeout);
           if (sessionIdRef.current !== currentSession) return;
 
-          setCards((prevDeck) => {
-            const nextDeck = [...prevDeck];
-            if (nextDeck[firstIdx]) nextDeck[firstIdx] = { ...nextDeck[firstIdx], isFlipped: false, isShaking: false };
-            if (nextDeck[secondIdx]) nextDeck[secondIdx] = { ...nextDeck[secondIdx], isFlipped: false, isShaking: false };
-            return nextDeck;
-          });
-          setFlippedIndices([]);
+          setCards((prev) =>
+            prev.map((c) =>
+              c.id === firstCardId || c.id === secondCardId
+                ? { ...c, isFlipped: false, isShaking: false }
+                : c
+            )
+          );
           setIsLocked(false);
-        }, mismatchDelay);
-        activeTimeoutsRef.current.add(mismatchTimeout);
+        }, 450);
+        activeTimeoutsRef.current.add(unflipTimeout);
       }
-    }
+    }, displayDelay);
+    activeTimeoutsRef.current.add(resolveTimeout);
   };
 
   const handleSubmitScore = async (playerNameInput?: string | React.FormEvent) => {
@@ -1476,7 +1554,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                       onSelectElementKey?.('memoryCardBoard');
                       return;
                     }
-                    handleCardClick(index);
+                    handleCardClick(card.id);
                   }}
                   className="relative cursor-pointer perspective-1000 select-none group transition-transform"
                   style={{
@@ -1490,7 +1568,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                   {/* Shake Wrapper: Isolates wobble animation from card rotation */}
                   <div
                     className={`w-full h-full ${card.isShaking ? 'animate-wobble' : ''}`}
-                    style={{ transformStyle: 'preserve-3d' }}
+                    style={{ transformStyle: 'preserve-3d', WebkitTransformStyle: 'preserve-3d' }}
                   >
                     {/* Card 3D Inner Wrapper */}
                     <div
@@ -1499,18 +1577,22 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                       }`}
                       style={{
                         transformStyle: 'preserve-3d',
+                        WebkitTransformStyle: 'preserve-3d',
                         transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
                         borderRadius: `${cardBorderRadius}px`,
                       }}
                     >
                     {/* BACK FACE (Default Face-Down State) */}
                     <div
-                      className="absolute inset-0 w-full h-full border p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
+                      className="absolute inset-0 w-full h-full border p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner select-none"
                       style={{
                         backfaceVisibility: 'hidden',
+                        WebkitBackfaceVisibility: 'hidden',
                         backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
                         borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
                         borderRadius: `${cardBorderRadius}px`,
+                        pointerEvents: isFaceUp ? 'none' : 'auto',
+                        zIndex: isFaceUp ? 1 : 2,
                       }}
                     >
                       {cardBackUrl ? (
@@ -1535,13 +1617,14 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
                     {/* FRONT FACE (Flipped Face-Up / Matched State) */}
                     <div
-                      className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1.5 transition-all ${
+                      className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1.5 transition-all select-none ${
                         card.isMatched
                           ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
                           : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
                       }`}
                       style={{
                         backfaceVisibility: 'hidden',
+                        WebkitBackfaceVisibility: 'hidden',
                         transform: 'rotateY(180deg)',
                         borderRadius: `${cardBorderRadius}px`,
                         backgroundColor: card.isMatched
@@ -1550,6 +1633,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                         borderColor: card.isMatched
                           ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
                           : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
+                        pointerEvents: isFaceUp ? 'auto' : 'none',
+                        zIndex: isFaceUp ? 2 : 1,
                       }}
                     >
                       {/* Top Right Matched Checkmark Badge */}
@@ -1651,7 +1736,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                       onSelectElementKey?.('memoryCardBoard');
                       return;
                     }
-                    handleCardClick(index);
+                    handleCardClick(card.id);
                   }}
                   style={{
                     position: 'absolute',
@@ -1668,27 +1753,31 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                   {/* Shake Wrapper: Isolates wobble animation from card rotation and positioning */}
                   <div
                     className={`w-full h-full ${card.isShaking ? 'animate-wobble' : ''}`}
-                    style={{ transformStyle: 'preserve-3d' }}
+                    style={{ transformStyle: 'preserve-3d', WebkitTransformStyle: 'preserve-3d' }}
                   >
                     {/* Card 3D Inner Wrapper */}
                     <div
-                      className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md hover:shadow-xl hover:scale-105 ${
-                        isFaceUp ? 'rotate-y-180' : ''
+                      className={`relative w-full h-full transition-transform duration-350 ease-out shadow-md ${
+                        isFaceUp ? 'rotate-y-180' : 'hover:scale-[1.02] active:scale-[0.98]'
                       }`}
                       style={{
                         transformStyle: 'preserve-3d',
+                        WebkitTransformStyle: 'preserve-3d',
                         transform: isFaceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
                         borderRadius: `${cardBorderRadius}px`,
                       }}
                     >
                     {/* BACK FACE (Default Face-Down State) */}
                     <div
-                      className="absolute inset-0 w-full h-full border p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner"
+                      className="absolute inset-0 w-full h-full border p-2 flex flex-col items-center justify-center overflow-hidden transition-all shadow-inner select-none"
                       style={{
                         backfaceVisibility: 'hidden',
+                        WebkitBackfaceVisibility: 'hidden',
                         backgroundColor: activeTheme?.visuals_config?.cardBadBg || '#0f172a',
                         borderColor: activeTheme?.visuals_config?.cardBadBorder || '#334155',
                         borderRadius: `${cardBorderRadius}px`,
+                        pointerEvents: isFaceUp ? 'none' : 'auto',
+                        zIndex: isFaceUp ? 1 : 2,
                       }}
                     >
                       {cardBackUrl ? (
@@ -1713,13 +1802,14 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
                     {/* FRONT FACE (Flipped Face-Up / Matched State) */}
                     <div
-                      className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1.5 transition-all ${
+                      className={`absolute inset-0 w-full h-full border flex flex-col items-center justify-between p-1.5 transition-all select-none ${
                         card.isMatched
                           ? 'shadow-[0_0_15px_rgba(16,185,129,0.35)]'
                           : 'shadow-[0_0_12px_rgba(245,158,11,0.25)]'
                       }`}
                       style={{
                         backfaceVisibility: 'hidden',
+                        WebkitBackfaceVisibility: 'hidden',
                         transform: 'rotateY(180deg)',
                         borderRadius: `${cardBorderRadius}px`,
                         backgroundColor: card.isMatched
@@ -1728,6 +1818,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                         borderColor: card.isMatched
                           ? activeTheme?.visuals_config?.cardGoodBorder || '#10b981'
                           : activeTheme?.visuals_config?.cardBadBorder || card.borderColor || '#f59e0b',
+                        pointerEvents: isFaceUp ? 'auto' : 'none',
+                        zIndex: isFaceUp ? 2 : 1,
                       }}
                     >
                       {/* Top Right Matched Checkmark Badge */}
