@@ -278,11 +278,15 @@ export function canAccessLiveEvent(
  * Checks whether an event's Preview URL is currently accessible.
  *
  * Canonical Rule:
- * Before the Live URL window starts (current_date < event_start_date - 1 calendar day):
- *   Preview URL = available (for both paid and unpaid events)
+ * Preview / Test is an authenticated capability for organization members, theme designers,
+ * and developers to test game mechanics, inspect themes, and playtest without submitting to
+ * official live high scores.
  *
- * Once the Live URL window starts or after event ends:
- *   Preview URL = unavailable
+ * Rules:
+ * - Available for events that are: Scheduled, Pending Payment, Live, and Concluded.
+ * - Does NOT depend on the event being currently LIVE.
+ * - Does NOT depend on payment status (unpaid/pending payment events can be previewed/tested).
+ * - NOT available for explicitly cancelled events.
  */
 export function canAccessPreviewEvent(
   event: {
@@ -306,18 +310,12 @@ export function canAccessPreviewEvent(
     return false;
   }
 
-  const { startDate, liveOpenDate } = getNormalizedEventDates(event);
-  if (!startDate || !liveOpenDate) return false;
-
-  const curDate = getNormalizedCurrentDate(currentDate);
-
-  // Preview URL is ONLY available BEFORE the Live URL window starts
-  return curDate < liveOpenDate;
+  return true;
 }
 
 /**
  * Checks whether the Preview Header toolbar should be visible.
- * Rule: Visible when Preview URL is available (before live window starts).
+ * Rule: Visible when Preview URL is available (non-cancelled event in authenticated preview).
  */
 export function shouldShowPreviewHeader(
   event: any,
@@ -1250,17 +1248,19 @@ export async function getEventByPublicToken(
 export async function resolveEventGameType(
   event: any,
   env?: Record<string, any>
-): Promise<'memory-match' | 'catch-brand' | string> {
+): Promise<'memory-match' | 'catch-brand' | 'reaction-tap' | string> {
   if (!event) return 'catch-brand';
 
   // 1. Direct game object on event
   if (event.game) {
     if (event.game.game_type) {
       const gt = String(event.game.game_type).toLowerCase().trim();
+      if (gt === 'reaction-tap' || gt === 'reaction-time') return 'reaction-tap';
       if (gt === 'memory-match' || gt === 'catch-brand') return gt;
     }
     if (event.game.slug) {
       const slug = String(event.game.slug).toLowerCase().trim();
+      if (slug === 'reaction-tap' || slug === 'reaction-time') return 'reaction-tap';
       if (slug === 'memory-match') return 'memory-match';
       if (slug === 'catch-brand') return 'catch-brand';
     }
@@ -1269,6 +1269,7 @@ export async function resolveEventGameType(
   // 2. Direct event.game_id
   if (event.game_id) {
     const gid = String(event.game_id).toLowerCase().trim();
+    if (gid === 'reaction-tap' || gid === 'reaction-time') return 'reaction-tap';
     if (gid === 'memory-match') return 'memory-match';
     if (gid === 'catch-brand') return 'catch-brand';
 
@@ -1276,6 +1277,7 @@ export async function resolveEventGameType(
       const gameRecord = await getGameById(event.game_id, env);
       if (gameRecord) {
         const gt = (gameRecord.game_type || gameRecord.slug || '').toLowerCase().trim();
+        if (gt === 'reaction-tap' || gt === 'reaction-time') return 'reaction-tap';
         if (gt === 'memory-match') return 'memory-match';
         if (gt === 'catch-brand') return 'catch-brand';
       }
@@ -1289,26 +1291,31 @@ export async function resolveEventGameType(
   if (theme) {
     if (theme.game_type) {
       const tgt = String(theme.game_type).toLowerCase().trim();
+      if (tgt === 'reaction-tap' || tgt === 'reaction-time') return 'reaction-tap';
       if (tgt === 'memory-match') return 'memory-match';
       if (tgt === 'catch-brand') return 'catch-brand';
     }
     if (theme.game_slug) {
       const tgs = String(theme.game_slug).toLowerCase().trim();
+      if (tgs === 'reaction-tap' || tgs === 'reaction-time') return 'reaction-tap';
       if (tgs === 'memory-match') return 'memory-match';
       if (tgs === 'catch-brand') return 'catch-brand';
     }
     if (theme.base_theme_id) {
       const bti = String(theme.base_theme_id).toLowerCase().trim();
+      if (bti === 'reaction-tap' || bti === 'reaction-time') return 'reaction-tap';
       if (bti === 'memory-match' || bti === 'memory-carnival') return 'memory-match';
       if (bti === 'catch-brand' || bti === 'carnival') return 'catch-brand';
     }
     if (theme.id) {
       const tid = String(theme.id).toLowerCase().trim();
+      if (tid === 'reaction-tap' || tid === 'reaction-time') return 'reaction-tap';
       if (tid === 'memory-match' || tid === 'memory-carnival') return 'memory-match';
       if (tid === 'catch-brand' || tid === 'carnival') return 'catch-brand';
     }
     if (theme.slug) {
       const tslug = String(theme.slug).toLowerCase().trim();
+      if (tslug.includes('reaction') || tslug.includes('reflex')) return 'reaction-tap';
       if (tslug === 'memory-match' || tslug === 'memory-carnival' || tslug.includes('memory')) return 'memory-match';
     }
     if (theme.game_id) {
@@ -1316,6 +1323,7 @@ export async function resolveEventGameType(
         const themeGame = await getGameById(theme.game_id, env);
         if (themeGame) {
           const tgt = (themeGame.game_type || themeGame.slug || '').toLowerCase().trim();
+          if (tgt === 'reaction-tap' || tgt === 'reaction-time') return 'reaction-tap';
           if (tgt === 'memory-match') return 'memory-match';
           if (tgt === 'catch-brand') return 'catch-brand';
         }
@@ -1328,6 +1336,9 @@ export async function resolveEventGameType(
   // 4. String checks on event.game_theme_id
   if (event.game_theme_id) {
     const gtid = String(event.game_theme_id).toLowerCase().trim();
+    if (gtid === 'reaction-tap' || gtid === 'reaction-time' || gtid.includes('reaction')) {
+      return 'reaction-tap';
+    }
     if (gtid === 'memory-match' || gtid === 'memory-carnival' || gtid.includes('memory')) {
       return 'memory-match';
     }
@@ -1335,6 +1346,9 @@ export async function resolveEventGameType(
 
   // 5. Fallback check on event name or slug
   const eventName = (event.name || event.slug || '').toLowerCase();
+  if (eventName.includes('reaction') || eventName.includes('reflex')) {
+    return 'reaction-tap';
+  }
   if (eventName.includes('memory-match') || eventName.includes('memory match') || eventName.includes('brand memory match')) {
     return 'memory-match';
   }

@@ -14,6 +14,7 @@ export const memoryMatchTheme: GameTheme = {
   status: 'active',
   is_default: true,
   is_system: true,
+  is_system_theme: true,
   ownership_type: 'system',
 
   branding: {

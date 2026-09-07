@@ -2,6 +2,8 @@ import { GameDefinition, CatchBrandConfig } from './types';
 import { CatchBrandGame } from './catch-brand/CatchBrandGame';
 import { MemoryMatchGame } from './memory-match/MemoryMatchGame';
 import { MemoryMatchConfig } from './memory-match/types';
+import { ReactionGame } from './reaction-time/ReactionGame';
+import { DEFAULT_REACTION_CONFIG, ReactionGameConfig } from './reaction-time/types';
 
 export const DEFAULT_GAME_TYPE = 'catch-brand';
 
@@ -32,24 +34,35 @@ export const GAME_REGISTRY: Record<string, GameDefinition<any>> = {
   },
   'reaction-tap': {
     id: 'reaction-tap',
-    name: 'Speed Reflex Tap',
-    shortName: 'Reflex',
-    description: 'Test your reflexes! Tap flashing brand symbols in rapid succession before time runs out.',
+    name: 'Formula Reaction Lights',
+    shortName: 'Reaction',
+    description: 'Measure reaction speed in an F1-style starting light sequence. When the lights go out, react as fast as you can!',
     iconName: 'Zap',
     category: 'reaction',
     minPlayers: 1,
     maxPlayers: 1,
     defaultDurationSeconds: 15,
-    supportedInputTypes: ['touch', 'mouse'],
-    defaultConfig: {
-      gameDurationSeconds: 15,
-      soundVolume: 0.8,
-      soundEnabled: true,
-      bgmEnabled: true,
-    },
-    component: CatchBrandGame, // Fallback until implemented
-    isAvailable: false,
-    comingSoon: true,
+    supportedInputTypes: ['keyboard', 'touch', 'mouse'],
+    defaultConfig: DEFAULT_REACTION_CONFIG as ReactionGameConfig,
+    component: ReactionGame,
+    isAvailable: true,
+    comingSoon: false,
+  },
+  'reaction-time': {
+    id: 'reaction-time',
+    name: 'Formula Reaction Lights',
+    shortName: 'Reaction',
+    description: 'Measure reaction speed in an F1-style starting light sequence. When the lights go out, react as fast as you can!',
+    iconName: 'Zap',
+    category: 'reaction',
+    minPlayers: 1,
+    maxPlayers: 1,
+    defaultDurationSeconds: 15,
+    supportedInputTypes: ['keyboard', 'touch', 'mouse'],
+    defaultConfig: DEFAULT_REACTION_CONFIG as ReactionGameConfig,
+    component: ReactionGame,
+    isAvailable: true,
+    comingSoon: false,
   },
   'memory-match': {
     id: 'memory-match',
@@ -111,6 +124,9 @@ export function getGameDefinition(gameType?: string | null): GameDefinition {
   const normalized = gameType.trim().toLowerCase().replace(/_/g, '-');
   if (GAME_REGISTRY[normalized]) {
     return GAME_REGISTRY[normalized];
+  }
+  if (normalized.includes('reaction') || normalized.includes('reflex')) {
+    return GAME_REGISTRY['reaction-tap'];
   }
   if (normalized.includes('memory')) {
     return GAME_REGISTRY['memory-match'];

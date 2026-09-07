@@ -24,6 +24,65 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
   const [sessionKey, setSessionKey] = useState<number>(Date.now());
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // 1 & 2. Retrieve and trace raw candidate themes BEFORE transformation
+  const rawCandidateThemes = Object.values(THEME_REGISTRY);
+
+  // 8. Add final defensive deduplication by theme.id
+  const uniqueThemes = Array.from(
+    new Map(rawCandidateThemes.map((theme) => [theme.id, theme])).values()
+  );
+
+  // 9 & 10. Filter ONLY system themes (is_system_theme = true).
+  // Custom, client, and test themes (such as tt, test, or org-specific themes) must never appear in Landing Demo.
+  const systemDemoThemes = uniqueThemes.filter((theme) => {
+    const isSystemTheme = Boolean(
+      theme.is_system_theme === true ||
+      theme.is_system === true ||
+      theme.ownership_type === 'system' ||
+      (!theme.organization_id && (
+        theme.id === 'carnival' ||
+        theme.id === 'christmas' ||
+        theme.id === 'chinese-new-year' ||
+        theme.id === 'halloween' ||
+        theme.id === 'mango' ||
+        theme.id === 'memory-match' ||
+        theme.id === 'memory-carnival'
+      ))
+    );
+
+    // Custom/client/test themes with organization_id must never appear in Landing Demo
+    if (theme.organization_id) return false;
+    if (!isSystemTheme) return false;
+
+    // Strict game-theme association: keep themes matching the demo game
+    const isMemoryMatchGame = gameTitle?.toLowerCase().includes('memory');
+    if (isMemoryMatchGame) {
+      return theme.game_type === 'memory-match' || theme.game_slug === 'memory-match' || theme.id === 'memory-match';
+    } else {
+      return !theme.game_type || theme.game_type === 'catch-brand' || theme.game_slug === 'catch-brand' || theme.id !== 'memory-match';
+    }
+  });
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' && isOpen) {
+      console.log(
+        '[LandingDemo] Raw candidate themes before transformation:',
+        rawCandidateThemes.map((t) => ({
+          id: t.id,
+          name: t.name,
+          slug: t.slug,
+          is_system: t.is_system,
+          is_system_theme: t.is_system_theme,
+          organization_id: t.organization_id,
+        }))
+      );
+      console.log(
+        '[LandingDemo] System demo themes after deduplication & is_system_theme filtering:',
+        systemDemoThemes.map((t) => ({ id: t.id, name: t.name, slug: t.slug }))
+      );
+    }
+  }, [isOpen, rawCandidateThemes.length, systemDemoThemes.length]);
+
   useEffect(() => {
     const handleFsChange = () => {
       setIsFullscreen(
@@ -62,7 +121,11 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentTheme: GameTheme = THEME_REGISTRY[selectedThemeId] || THEME_REGISTRY['carnival'];
+  const currentTheme: GameTheme =
+    systemDemoThemes.find((t) => t.id === selectedThemeId) ||
+    THEME_REGISTRY[selectedThemeId] ||
+    systemDemoThemes[0] ||
+    THEME_REGISTRY['carnival'];
 
   const handleRestart = () => {
     setSessionKey(Date.now());
@@ -114,7 +177,7 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
             <span className="text-[10px] font-semibold text-slate-500 uppercase px-2 flex items-center gap-1">
               <Palette className="w-3 h-3 text-amber-400" /> Theme:
             </span>
-            {Object.values(THEME_REGISTRY).map((th) => (
+            {systemDemoThemes.map((th) => (
               <button
                 key={th.id}
                 onClick={() => {

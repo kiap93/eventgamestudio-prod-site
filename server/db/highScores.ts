@@ -951,7 +951,12 @@ async function executeSubmitEventScore(
             if (!currentList.some((s) => s.id === canonicalRecord.id)) {
               currentList.push(canonicalRecord);
               currentList.sort((a, b) => {
-                if (b.score !== a.score) return b.score - a.score;
+                const isReaction = a.metadata?.gameType === 'reaction-tap' || b.metadata?.gameType === 'reaction-tap';
+                if (isReaction) {
+                  if (a.score !== b.score) return a.score - b.score;
+                } else {
+                  if (b.score !== a.score) return b.score - a.score;
+                }
                 return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
               });
               localHighScoresCache.set(resolvedEventId, currentList);
@@ -1089,6 +1094,16 @@ async function executeSubmitEventScore(
     metadata.scoringVersion = metadata.scoringVersion || CATCH_BRAND_SCORING_VERSION;
     metadata.authoritativeMaxScore = cbConfig.maxPossibleScore;
     metadata.authoritativeDuration = cbConfig.gameDurationSeconds;
+  } else if (eventGameType === 'reaction-tap' || eventGameType === 'reaction-time') {
+    // Authoritative Reaction Game score handling (Average Reaction Time in ms)
+    if (scoreNum < 50 || scoreNum > 10000) {
+      const err: any = new Error('Reaction score is outside plausible human reaction bounds (50ms - 10000ms)');
+      err.status = 422;
+      err.code = 'INVALID_REACTION_SCORE';
+      throw err;
+    }
+    metadata.gameType = 'reaction-tap';
+    metadata.averageReactionTimeMs = scoreNum;
   }
 
   // Validate score: must be a non-negative integer
@@ -1343,7 +1358,12 @@ async function executeSubmitEventScore(
     }
 
     allEventScores.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
+      const isReaction = a.metadata?.gameType === 'reaction-tap' || b.metadata?.gameType === 'reaction-tap';
+      if (isReaction) {
+        if (a.score !== b.score) return a.score - b.score;
+      } else {
+        if (b.score !== a.score) return b.score - a.score;
+      }
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
     localHighScoresCache.set(resolvedEventId, allEventScores);
@@ -1583,7 +1603,12 @@ function getLocalEventHighScores(
       });
 
   const sorted = [...filtered].sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
+    const isReaction = a.metadata?.gameType === 'reaction-tap' || b.metadata?.gameType === 'reaction-tap';
+    if (isReaction) {
+      if (a.score !== b.score) return a.score - b.score;
+    } else {
+      if (b.score !== a.score) return b.score - a.score;
+    }
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
 

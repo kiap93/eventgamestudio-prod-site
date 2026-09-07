@@ -64,6 +64,7 @@ import {
   getEventByPublicToken,
   canAccessLiveEvent,
   canAccessPreviewEvent,
+  isEventExplicitlyCancelled,
   getNormalizedEventDates,
   createEvent,
   createEventWithAtomicPayment,
@@ -2603,7 +2604,7 @@ app.get('/api/events/:eventId/preview', authenticateJWT, async (req: Authenticat
       return;
     }
 
-    if (event.event_status === 'CANCELLED' || event.status === 'cancelled' || event.cancel_reason) {
+    if (isEventExplicitlyCancelled(event)) {
       res.status(403).json({
         error: 'This event has been cancelled.',
         code: 'EVENT_CANCELLED',
@@ -2613,25 +2614,13 @@ app.get('/api/events/:eventId/preview', authenticateJWT, async (req: Authenticat
       return;
     }
 
-    // Check preview accessibility window (Before event_start_date - 1 calendar day)
+    // Check preview accessibility (Available for Scheduled, Pending Payment, Live, and Concluded events)
     const isPreviewAllowed = canAccessPreviewEvent(event);
     if (!isPreviewAllowed) {
-      const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
-      const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
-      const isLiveAllowed = canAccessLiveEvent(event);
-
       res.status(403).json({
-        error: 'Event preview is only available before the Live event window starts. The Live window is now active.',
-        code: 'PREVIEW_WINDOW_ENDED',
+        error: 'Event preview is not available.',
+        code: 'PREVIEW_UNAVAILABLE',
         is_preview_available: false,
-        live_window_started: true,
-        is_paid: isPaid,
-        can_access_live: isLiveAllowed,
-        start_date: startDate,
-        end_date: endDate,
-        live_open_date: liveOpenDate,
-        public_token: event.public_token,
-        event,
       });
       return;
     }

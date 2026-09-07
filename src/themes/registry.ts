@@ -6,6 +6,7 @@ import { cnyTheme } from './cny';
 import { halloweenTheme } from './halloween';
 import { mangoTheme } from './mango';
 import { memoryMatchTheme } from './memory-match';
+import { reactionTheme } from './reaction-time';
 
 /**
  * Default active theme ID.
@@ -20,6 +21,8 @@ export const THEME_REGISTRY: Record<string, GameTheme> = {
   mango: mangoTheme,
   'memory-carnival': memoryMatchTheme,
   'memory-match': memoryMatchTheme,
+  'reaction-tap': reactionTheme,
+  'reaction-time': reactionTheme,
   // Alias durian to carnival for seamless backwards-compatibility
   durian: carnivalTheme,
 };
@@ -37,6 +40,19 @@ export function resolveThemeBaseId(raw: any): string {
   const gameSlug = (raw.game_slug || (raw.games?.slug) || '').toLowerCase();
   const gameType = (raw.game_type || raw.game_id || '').toLowerCase();
 
+  if (
+    id === 'reaction-tap' ||
+    id === 'reaction-time' ||
+    slug.includes('reaction') ||
+    name.includes('reaction') ||
+    name.includes('reflex') ||
+    gameSlug === 'reaction-tap' ||
+    gameSlug === 'reaction-time' ||
+    gameType === 'reaction-tap' ||
+    gameType === 'reaction-time'
+  ) {
+    return 'reaction-tap';
+  }
   if (
     id === 'memory-carnival' ||
     id === 'memory-match' ||
@@ -368,54 +384,105 @@ export function normalizeGameTheme(raw: any): GameTheme {
 
   const catcherEffectiveImg = basket_config?.imageUrl || (isMemory ? '' : resolveThemeDefaultBasketImage({ base_theme_id }));
 
-  return {
-    id,
-    organization_id: raw.organization_id,
-    game_id: raw.game_id || raw.games?.id || (resolvedGameType === 'memory-match' ? 'memory-match' : null),
-    game_name: raw.game_name || raw.games?.name || (resolvedGameType === 'memory-match' ? 'Brand Memory Match' : 'Catch the Brand'),
-    game_slug: raw.game_slug || raw.games?.slug || resolvedGameType,
-    game_type: resolvedGameType,
-    is_system: Boolean(raw.is_system),
-    ownership_type: raw.ownership_type || (raw.is_system ? 'system' : 'organization'),
-    name,
-    slug,
-    base_theme_id,
-    description,
-    status,
-    is_default: Boolean(raw.is_default),
-    branding,
-    background_url,
-    basket_config,
-    items_config,
-    physics_config,
-    visuals_config,
-    sounds_config,
-    layout: normalizeGameLayout(raw.layout ?? raw.layout_config ?? basePreset.layout),
-    game_config,
+    const isSystemTheme = Boolean(
+      raw.is_system ||
+      raw.is_system_theme ||
+      raw.ownership_type === 'system' ||
+      (!raw.organization_id && (
+        id === 'carnival' ||
+        id === 'christmas' ||
+        id === 'chinese-new-year' ||
+        id === 'halloween' ||
+        id === 'mango' ||
+        id === 'memory-match' ||
+        id === 'memory-carnival'
+      ))
+    );
 
-    // Backward-compat props resolved with theme defaults
-    gameTitle: branding.gameTitle,
-    subtitle: branding.subtitle,
-    background: background_url,
-    catcher: catcherEffectiveImg || undefined,
-    catcherName: basket_config?.name || undefined,
-    fallingObject: goodEffectiveImg,
-    fallingObjectName: firstGood?.name || 'Good Item',
-    badFallingObject: badEffectiveImg,
-    badFallingObjectName: firstBad?.name || 'Hazard Item',
-    bonusFallingObject: bonusEffectiveImg,
-    bonusFallingObjectName: firstBonus?.name || 'Bonus Item',
-    logo: branding.logoUrl || undefined,
-    clientLogo: branding.clientLogoUrl || undefined,
-    colors: visuals_config,
-    sounds: sounds_config,
-    particles: {
-      good: visuals_config.particleGood,
-      bad: visuals_config.particleBad,
-      bonus: visuals_config.particleBonus,
-    },
-  };
-}
+    return {
+      id,
+      organization_id: raw.organization_id,
+      game_id: raw.game_id || raw.games?.id || (resolvedGameType === 'memory-match' ? 'memory-match' : null),
+      game_name: raw.game_name || raw.games?.name || (resolvedGameType === 'memory-match' ? 'Brand Memory Match' : 'Catch the Brand'),
+      game_slug: raw.game_slug || raw.games?.slug || resolvedGameType,
+      game_type: resolvedGameType,
+      is_system: isSystemTheme,
+      is_system_theme: isSystemTheme,
+      ownership_type: raw.ownership_type || (isSystemTheme ? 'system' : 'organization'),
+      name,
+      slug,
+      base_theme_id,
+      description,
+      status,
+      is_default: Boolean(raw.is_default),
+      branding,
+      background_url,
+      basket_config,
+      items_config,
+      physics_config,
+      visuals_config,
+      sounds_config,
+      layout: normalizeGameLayout(raw.layout ?? raw.layout_config ?? basePreset.layout),
+      game_config,
+
+      // Backward-compat props resolved with theme defaults
+      gameTitle: branding.gameTitle,
+      subtitle: branding.subtitle,
+      background: background_url,
+      catcher: catcherEffectiveImg || undefined,
+      catcherName: basket_config?.name || undefined,
+      fallingObject: goodEffectiveImg,
+      fallingObjectName: firstGood?.name || 'Good Item',
+      badFallingObject: badEffectiveImg,
+      badFallingObjectName: firstBad?.name || 'Hazard Item',
+      bonusFallingObject: bonusEffectiveImg,
+      bonusFallingObjectName: firstBonus?.name || 'Bonus Item',
+      logo: branding.logoUrl || undefined,
+      clientLogo: branding.clientLogoUrl || undefined,
+      colors: visuals_config,
+      sounds: sounds_config,
+      particles: {
+        good: visuals_config.particleGood,
+        bad: visuals_config.particleBad,
+        bonus: visuals_config.particleBonus,
+      },
+    };
+  }
+
+  /**
+   * Returns all unique themes registered in the registry, defensively deduplicated by theme.id
+   */
+  export function getAllUniqueThemes(): GameTheme[] {
+    return Array.from(
+      new Map(Object.values(THEME_REGISTRY).map((theme) => [theme.id, theme])).values()
+    );
+  }
+
+  /**
+   * Returns only system themes, defensively deduplicated by theme.id
+   */
+  export function getSystemThemes(gameSlugOrId?: string): GameTheme[] {
+    const uniqueThemes = getAllUniqueThemes();
+    return uniqueThemes.filter((theme) => {
+      const isSys = Boolean(
+        theme.is_system_theme ||
+        theme.is_system ||
+        theme.ownership_type === 'system' ||
+        !theme.organization_id
+      );
+      if (!isSys) return false;
+      if (gameSlugOrId) {
+        const target = gameSlugOrId.toLowerCase();
+        if (target === 'memory-match') {
+          return theme.game_slug === 'memory-match' || theme.game_type === 'memory-match' || theme.id === 'memory-match';
+        }
+        if (target === 'catch-brand' || target === 'catch') {
+          return !theme.game_type || theme.game_type === 'catch-brand' || theme.game_slug === 'catch-brand' || theme.id !== 'memory-match';
+        }
+      }
+      return true;
+    });
+  }
 
 /**
  * Registers multiple themes into the registry (e.g. fetched from Supabase)

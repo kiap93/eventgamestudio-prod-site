@@ -8,6 +8,9 @@ export const mangoTheme: GameTheme = {
   slug: 'mango-harvest',
   description: 'Tropical orchard arcade theme catching ripe golden mangoes and avoiding sour green ones.',
   status: 'active',
+  is_system: true,
+  is_system_theme: true,
+  ownership_type: 'system',
 
   branding: {
     gameTitle: 'MANGO ORCHARD HARVEST',

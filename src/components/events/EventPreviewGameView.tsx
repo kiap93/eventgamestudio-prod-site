@@ -7,6 +7,7 @@ import { apiFetch } from '../../lib/api';
 import {
   canAccessPreviewEvent,
   canAccessLiveEvent,
+  isEventExplicitlyCancelled,
   shouldShowPreviewHeader,
   getEventAvailabilityState,
   formatDateOnly,
@@ -172,7 +173,12 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        if (errData.code === 'PREVIEW_WINDOW_ENDED' || errData.code === 'EVENT_EXPIRED') {
+        if (
+          errData.code === 'EVENT_CANCELLED' ||
+          errData.code === 'PREVIEW_UNAVAILABLE' ||
+          errData.code === 'PREVIEW_WINDOW_ENDED' ||
+          errData.code === 'EVENT_EXPIRED'
+        ) {
           setErrorCode(errData.code);
           setErrorPayload(errData);
           if (errData.event) {
@@ -289,7 +295,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
     );
   }
 
-  // Check Preview Availability State (Date-Only Rule)
+  // Check Preview Availability State
   const targetEvent = eventData || errorPayload?.event;
   const isPreviewAllowed = targetEvent ? canAccessPreviewEvent(targetEvent) : false;
   const isLiveAllowed = targetEvent ? canAccessLiveEvent(targetEvent) : false;
@@ -297,76 +303,65 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
   const isPaid = (targetEvent?.payment_status || '').toUpperCase() === 'PAID';
   const publicToken = targetEvent?.public_token || errorPayload?.public_token;
 
-  // Handle Preview Window Ended / Concluded State
-  if (errorCode === 'PREVIEW_WINDOW_ENDED' || errorCode === 'EVENT_EXPIRED' || (targetEvent && !isPreviewAllowed)) {
-    const { startDate, endDate, liveOpenDate } = targetEvent ? getNormalizedEventDates(targetEvent) : { startDate: '', endDate: '', liveOpenDate: '' };
-    const isExpired = availability?.isAfterLiveWindow || errorCode === 'EVENT_EXPIRED';
-
+  // Handle Event Cancelled State
+  const isCancelled = errorCode === 'EVENT_CANCELLED' || (targetEvent ? isEventExplicitlyCancelled(targetEvent) : false);
+  if (isCancelled) {
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
-        <div className="max-w-lg w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl">
-          <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
-            {isExpired ? <Calendar className="w-8 h-8 text-slate-400" /> : <Play className="w-8 h-8 text-emerald-400" />}
+        <div className="max-w-md w-full bg-slate-900 border border-red-500/30 rounded-3xl p-8 text-center space-y-6 shadow-2xl">
+          <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto text-red-400">
+            <AlertCircle className="w-8 h-8 text-red-400" />
           </div>
 
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-300">
-              <span>{isExpired ? 'Event Concluded' : 'Live Window Active'}</span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/30 text-xs font-semibold text-red-300">
+              <span>Event Cancelled</span>
             </div>
             <h1 className="text-2xl font-bold text-slate-100">
-              {isExpired ? 'Event Has Ended' : 'Preview Window Ended'}
+              Event Has Been Cancelled
             </h1>
             <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
-              {isExpired
-                ? `This event concluded on ${formatDateOnly(endDate)}. The test preview and live deployment are no longer accessible.`
-                : `Preview mode is only available before the Live event window starts. The Live window is active from ${formatDateOnly(liveOpenDate)} to ${formatDateOnly(endDate)}.`}
+              This event was cancelled and is no longer accessible for test play preview.
             </p>
           </div>
 
-          {/* Action CTAs */}
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <div className="pt-2 flex items-center justify-center">
             <button
               onClick={() => navigateTo('/events')}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back to Events</span>
             </button>
-
-            {!isExpired && isPaid && publicToken && (
-              <button
-                onClick={() => window.open(`/play/${publicToken}`, '_blank')}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Open Live Game</span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-75" />
-              </button>
-            )}
-
-            {!isExpired && !isPaid && targetEvent && (
-              <button
-                onClick={() => setShowPaymentModal(true)}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
-              >
-                <CreditCard className="w-3.5 h-3.5" />
-                <span>Pay & Activate Live Game</span>
-              </button>
-            )}
           </div>
+        </div>
+      </div>
+    );
+  }
 
-          {/* Payment Modal */}
-          {showPaymentModal && targetEvent && (
-            <EventPaymentModal
-              isOpen={showPaymentModal}
-              onClose={() => setShowPaymentModal(false)}
-              event={targetEvent}
-              onPaymentSuccess={(updated) => {
-                setShowPaymentModal(false);
-                fetchEvent();
-              }}
-            />
-          )}
+  // Handle Preview Unavailable State
+  if (errorCode === 'PREVIEW_UNAVAILABLE' || (targetEvent && !isPreviewAllowed)) {
+    return (
+      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
+          <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-bold text-slate-100">Preview Unavailable</h1>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              The requested event preview is not available.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => navigateTo('/events')}
+              className="inline-flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Events</span>
+            </button>
+          </div>
         </div>
       </div>
     );

@@ -2525,5 +2525,50 @@
     "logo_url": null,
     "created_at": "2026-09-07T05:30:48.210Z",
     "updated_at": "2026-09-07T05:30:48.210Z"
+  },
+  {
+    "id": "03cbce25-869f-4d34-9c41-2d796729afb7",
+    "name": "Secure Events Org",
+    "slug": "secure-events-org-e02617",
+    "owner_id": "0765fda2-4e56-454f-b04a-49a5285b4389",
+    "logo_url": null,
+    "created_at": "2026-09-07T07:02:08.777Z",
+    "updated_at": "2026-09-07T07:02:08.777Z"
+  },
+  {
+    "id": "9518baaf-7171-4e6d-adac-1b2a2bde6aa7",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-a9d2f2",
+    "owner_id": "0b460ab7-f05a-4906-9f57-21e2a7e3b15d",
+    "logo_url": null,
+    "created_at": "2026-09-07T07:02:08.913Z",
+    "updated_at": "2026-09-07T07:02:08.913Z"
+  },
+  {
+    "id": "ab57afc2-9113-4928-a1db-70de6f02af3f",
+    "name": "Test Org Lifecycle",
+    "slug": "test-org-lifecycle-71e71e",
+    "owner_id": "9a0f2156-95e4-4fae-801c-63fff382134b",
+    "logo_url": null,
+    "created_at": "2026-09-07T07:02:21.997Z",
+    "updated_at": "2026-09-07T07:02:21.997Z"
+  },
+  {
+    "id": "842a39a5-18b2-47f3-a9d4-49d81f8cfe3a",
+    "name": "Poor Org",
+    "slug": "poor-org-ef00a8",
+    "owner_id": "9a0f2156-95e4-4fae-801c-63fff382134b",
+    "logo_url": null,
+    "created_at": "2026-09-07T07:02:22.320Z",
+    "updated_at": "2026-09-07T07:02:22.320Z"
+  },
+  {
+    "id": "81410f38-3749-47ea-81ff-d1fe6b1c57b4",
+    "name": "MM Test Org 1788766073418",
+    "slug": "mm-test-org-1788766073418-d30ef3",
+    "owner_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "logo_url": null,
+    "created_at": "2026-09-07T07:27:53.419Z",
+    "updated_at": "2026-09-07T07:27:53.419Z"
   }
 ]

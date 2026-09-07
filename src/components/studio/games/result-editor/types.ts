@@ -12,6 +12,11 @@ import {
   ResultAccuracyElement,
   ResultButtonElement,
   ResultLeaderboardElement,
+  ResultAverageReactionElement,
+  ResultBestReactionElement,
+  ResultWorstReactionElement,
+  ResultRoundResultsElement,
+  ResultRatingElement,
   ResultScreenElementType,
   MemoryMatchResultScreenConfig,
 } from '../../../../games/memory-match/types';
@@ -337,6 +342,134 @@ export const createDefaultElement = (
         zIndex: 1,
         children: [],
       } as ResultGroupElement;
+
+    case 'average-reaction':
+      return {
+        id,
+        type: 'average-reaction',
+        x: 200,
+        y: 250,
+        width: 600,
+        height: 110,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: 2,
+        label: 'AVERAGE REACTION',
+        style: {
+          labelColor: '#94a3b8',
+          valueColor: '#38bdf8',
+          backgroundColor: 'rgba(2, 6, 23, 0.85)',
+          borderColor: '#334155',
+          borderRadius: 18,
+          fontSize: 42,
+          textAlign: 'center',
+          layout: 'vertical',
+        },
+      } as ResultAverageReactionElement;
+
+    case 'best-reaction':
+      return {
+        id,
+        type: 'best-reaction',
+        x: 200,
+        y: 380,
+        width: 290,
+        height: 85,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: 2,
+        label: 'BEST REACTION',
+        style: {
+          labelColor: '#94a3b8',
+          valueColor: '#34d399',
+          backgroundColor: 'rgba(2, 6, 23, 0.85)',
+          borderColor: '#334155',
+          borderRadius: 16,
+          fontSize: 24,
+          textAlign: 'center',
+          layout: 'vertical',
+        },
+      } as ResultBestReactionElement;
+
+    case 'worst-reaction':
+      return {
+        id,
+        type: 'worst-reaction',
+        x: 510,
+        y: 380,
+        width: 290,
+        height: 85,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: 2,
+        label: 'WORST REACTION',
+        style: {
+          labelColor: '#94a3b8',
+          valueColor: '#f87171',
+          backgroundColor: 'rgba(2, 6, 23, 0.85)',
+          borderColor: '#334155',
+          borderRadius: 16,
+          fontSize: 24,
+          textAlign: 'center',
+          layout: 'vertical',
+        },
+      } as ResultWorstReactionElement;
+
+    case 'round-results':
+      return {
+        id,
+        type: 'round-results',
+        x: 200,
+        y: 480,
+        width: 600,
+        height: 90,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: 2,
+        label: 'ROUND RESULTS',
+        style: {
+          labelColor: '#94a3b8',
+          valueColor: '#ffffff',
+          backgroundColor: 'rgba(2, 6, 23, 0.85)',
+          borderColor: '#334155',
+          borderRadius: 16,
+          fontSize: 18,
+          textAlign: 'center',
+        },
+      } as ResultRoundResultsElement;
+
+    case 'rating':
+      return {
+        id,
+        type: 'rating',
+        x: 350,
+        y: 190,
+        width: 300,
+        height: 60,
+        rotation: 0,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: 2,
+        label: 'RATING',
+        style: {
+          labelColor: '#94a3b8',
+          valueColor: '#fbbf24',
+          backgroundColor: 'rgba(2, 6, 23, 0.85)',
+          borderColor: '#334155',
+          borderRadius: 16,
+          fontSize: 26,
+          textAlign: 'center',
+        },
+      } as ResultRatingElement;
 
     default:
       return {

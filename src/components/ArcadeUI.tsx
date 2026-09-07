@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { GameState, GameStats, GameSettings, EventLeaderboardEntry } from '../types';
 import { GAME_DURATION_SECONDS } from '../game/config';
-import { GameTheme, THEME_REGISTRY, getActiveTheme } from '../themes';
+import { GameTheme, THEME_REGISTRY, getActiveTheme, getAllUniqueThemes } from '../themes';
 import { normalizeGameLayout, GameLayoutConfig } from '../themes/layout';
 import { useResponsiveLayout, getEffectiveGameLayout } from '../themes/responsive';
 import { apiFetch } from '../lib/api';
@@ -1109,7 +1109,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                   </div>
 
                   <div className="flex gap-3 overflow-x-auto pb-2 mt-2 [scrollbar-width:thin] [scrollbar-color:rgba(100,116,139,0.5)_transparent] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full">
-                    {Object.values(THEME_REGISTRY).map((t) => {
+                    {getAllUniqueThemes().map((t) => {
                       const isSelected = t.id === activeTheme.id;
                       return (
                         <button

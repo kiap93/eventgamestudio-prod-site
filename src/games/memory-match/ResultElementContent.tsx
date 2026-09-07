@@ -12,6 +12,11 @@ import {
   ResultAccuracyElement,
   ResultButtonElement,
   ResultLeaderboardElement,
+  ResultAverageReactionElement,
+  ResultBestReactionElement,
+  ResultWorstReactionElement,
+  ResultRoundResultsElement,
+  ResultRatingElement,
 } from './types';
 import {
   Award,
@@ -78,6 +83,54 @@ export const SIMULATED_LEADERBOARD_ENTRIES: EventLeaderboardEntry[] = [
     rank: 5,
     created_at: new Date().toISOString(),
     metadata: { moves: 22, duration: 40, accuracyPercent: 70 },
+  },
+];
+
+export const SIMULATED_REACTION_LEADERBOARD_ENTRIES: EventLeaderboardEntry[] = [
+  {
+    id: 'sim_r1',
+    event_id: 'sim',
+    player_name: 'Max V.',
+    score: 182,
+    rank: 1,
+    created_at: new Date().toISOString(),
+    metadata: { reactionTimeMs: 182, gameType: 'reaction-time' },
+  },
+  {
+    id: 'sim_r2',
+    event_id: 'sim',
+    player_name: 'Lewis H.',
+    score: 194,
+    rank: 2,
+    created_at: new Date().toISOString(),
+    metadata: { reactionTimeMs: 194, gameType: 'reaction-time' },
+  },
+  {
+    id: 'sim_r3',
+    event_id: 'sim',
+    player_name: 'Lando N.',
+    score: 201,
+    rank: 3,
+    created_at: new Date().toISOString(),
+    metadata: { reactionTimeMs: 201, gameType: 'reaction-time' },
+  },
+  {
+    id: 'sim_r4',
+    event_id: 'sim',
+    player_name: 'Charles L.',
+    score: 215,
+    rank: 4,
+    created_at: new Date().toISOString(),
+    metadata: { reactionTimeMs: 215, gameType: 'reaction-time' },
+  },
+  {
+    id: 'sim_r5',
+    event_id: 'sim',
+    player_name: 'Oscar P.',
+    score: 228,
+    rank: 5,
+    created_at: new Date().toISOString(),
+    metadata: { reactionTimeMs: 228, gameType: 'reaction-time' },
   },
 ];
 
@@ -207,9 +260,18 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
     (scoreSubmitted ? currentPlayerName : undefined) || (localSubmitted ? localName : currentPlayerName);
 
   // Base entries
+  const isReactionGame =
+    stats?.gameType === 'reaction-time' ||
+    stats?.gameType === 'reaction-tap' ||
+    stats?.averageReactionTimeMs !== undefined;
+
+  const simPreset = isReactionGame
+    ? SIMULATED_REACTION_LEADERBOARD_ENTRIES
+    : SIMULATED_LEADERBOARD_ENTRIES;
+
   const baseEntries: EventLeaderboardEntry[] =
     isSimulation || isEditor
-      ? (leaderboardData && leaderboardData.length > 0 ? leaderboardData : SIMULATED_LEADERBOARD_ENTRIES)
+      ? (leaderboardData && leaderboardData.length > 0 ? leaderboardData : simPreset)
       : (leaderboardData || []);
 
   let entries = [...baseEntries];
@@ -218,7 +280,7 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
       (e) => e.player_name.trim().toLowerCase() === localName.trim().toLowerCase()
     );
     if (!alreadyInList) {
-      const simScore = stats?.score ?? 1000;
+      const simScore = stats?.score ?? (isReactionGame ? 219 : 1000);
       const newSimEntry: EventLeaderboardEntry = {
         id: 'sim_curr_' + Date.now(),
         event_id: 'sim',
@@ -230,10 +292,16 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
           moves: stats?.moves ?? 16,
           duration: stats?.timeElapsedSeconds ?? 28,
           accuracyPercent: stats?.accuracyPercent ?? 88,
+          reactionTimeMs: stats?.averageReactionTimeMs ?? 219,
+          gameType: isReactionGame ? 'reaction-time' : undefined,
         },
       };
       entries.push(newSimEntry);
-      entries.sort((a, b) => b.score - a.score);
+      if (isReactionGame) {
+        entries.sort((a, b) => a.score - b.score);
+      } else {
+        entries.sort((a, b) => b.score - a.score);
+      }
       entries = entries.map((item, idx) => ({ ...item, rank: idx + 1 }));
     }
   }
@@ -300,8 +368,10 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
       setTimeout(() => {
         setLocalSubmitting(false);
         setLocalSubmitted(true);
-        const simScore = stats?.score ?? 1000;
-        const betterCount = SIMULATED_LEADERBOARD_ENTRIES.filter((s) => s.score > simScore).length;
+        const simScore = stats?.score ?? (isReactionGame ? 219 : 1000);
+        const betterCount = isReactionGame
+          ? simPreset.filter((s) => s.score < simScore).length
+          : simPreset.filter((s) => s.score > simScore).length;
         setLocalRank(betterCount + 1);
       }, 350);
     }
@@ -466,7 +536,9 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
                         color: style.scoreColor || '#fbbf24',
                       }}
                     >
-                      {Number(entry.score || 0).toLocaleString()}
+                      {isReactionGame || entry.metadata?.gameType === 'reaction-time' || entry.metadata?.reactionTimeMs !== undefined
+                        ? `${entry.score} ms`
+                        : Number(entry.score || 0).toLocaleString()}
                     </span>
                   )}
                 </div>
@@ -780,13 +852,21 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
     case 'moves':
     case 'pairs':
     case 'time':
-    case 'accuracy': {
+    case 'accuracy':
+    case 'average-reaction':
+    case 'best-reaction':
+    case 'worst-reaction':
+    case 'rating': {
       const statEl = el as
         | ResultScoreElement
         | ResultMovesElement
         | ResultPairsElement
         | ResultTimeElement
-        | ResultAccuracyElement;
+        | ResultAccuracyElement
+        | ResultAverageReactionElement
+        | ResultBestReactionElement
+        | ResultWorstReactionElement
+        | ResultRatingElement;
       const style = statEl.style;
 
       // Extract default labels & values
@@ -794,10 +874,21 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
       let defaultValueColor = '#fbbf24';
       let valueDisplay = '0';
 
+      const isReaction =
+        stats?.gameType === 'reaction-time' ||
+        stats?.gameType === 'reaction-tap' ||
+        stats?.averageReactionTimeMs !== undefined;
+
       if (el.type === 'score') {
         defaultLabel = 'SCORE';
         defaultValueColor = '#fbbf24';
-        valueDisplay = stats?.score !== undefined ? stats.score.toLocaleString() : '1,250';
+        if (isReaction && stats?.score !== undefined) {
+          valueDisplay = `${stats.score} ms`;
+        } else if (isReaction) {
+          valueDisplay = '219 ms';
+        } else {
+          valueDisplay = stats?.score !== undefined ? stats.score.toLocaleString() : '1,250';
+        }
       } else if (el.type === 'moves') {
         defaultLabel = 'MOVES';
         defaultValueColor = '#67e8f9';
@@ -823,6 +914,31 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
           stats?.accuracyPercent !== undefined
             ? `${stats.accuracyPercent}%`
             : '88%';
+      } else if (el.type === 'average-reaction') {
+        defaultLabel = 'AVERAGE REACTION';
+        defaultValueColor = '#38bdf8';
+        valueDisplay =
+          stats?.averageReactionTimeMs !== undefined
+            ? `${stats.averageReactionTimeMs} ms`
+            : '219 ms';
+      } else if (el.type === 'best-reaction') {
+        defaultLabel = 'BEST REACTION';
+        defaultValueColor = '#34d399';
+        valueDisplay =
+          stats?.bestReactionTimeMs !== undefined
+            ? `${stats.bestReactionTimeMs} ms`
+            : '195 ms';
+      } else if (el.type === 'worst-reaction') {
+        defaultLabel = 'WORST REACTION';
+        defaultValueColor = '#f87171';
+        valueDisplay =
+          stats?.worstReactionTimeMs !== undefined
+            ? `${stats.worstReactionTimeMs} ms`
+            : '247 ms';
+      } else if (el.type === 'rating') {
+        defaultLabel = 'RATING';
+        defaultValueColor = '#fbbf24';
+        valueDisplay = stats?.rating || 'SUPERHUMAN';
       }
 
       const labelText = statEl.label || defaultLabel;
@@ -964,6 +1080,69 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
           >
             {valueDisplay}
           </span>
+        </div>
+      );
+    }
+
+    case 'round-results': {
+      const roundEl = el as ResultRoundResultsElement;
+      const style = roundEl.style;
+      const labelText = roundEl.label || 'ROUND RESULTS';
+      const rounds = stats?.rounds || [
+        { round: 1, reactionTimeMs: 218 },
+        { round: 2, reactionTimeMs: 231 },
+        { round: 3, reactionTimeMs: 195 },
+        { round: 4, reactionTimeMs: 247 },
+        { round: 5, reactionTimeMs: 204 },
+      ];
+
+      return (
+        <div
+          className="w-full h-full flex flex-col justify-center items-center select-none overflow-hidden px-2 py-1 shadow-inner pointer-events-none"
+          style={{
+            backgroundColor: style?.backgroundColor || 'rgba(2, 6, 23, 0.85)',
+            border:
+              typeof style?.borderWidth === 'number' && style.borderWidth > 0
+                ? `${(style.borderWidth / parentWidth) * 100}cqi solid ${style.borderColor || '#334155'}`
+                : '1px solid #334155',
+            borderRadius:
+              typeof style?.borderRadius === 'number'
+                ? `${(style.borderRadius / parentWidth) * 100}cqi`
+                : '16px',
+          }}
+        >
+          {style?.showLabel !== false && (
+            <div
+              className="font-bold uppercase tracking-wider mb-1"
+              style={{
+                fontSize: 'clamp(9px, 1.2cqi, 16px)',
+                color: style?.labelColor || '#94a3b8',
+              }}
+            >
+              {labelText}
+            </div>
+          )}
+          <div className="flex items-center justify-center gap-1.5 flex-wrap w-full">
+            {rounds.map((r) => {
+              const isFalseStart = r.falseStart;
+              return (
+                <div
+                  key={r.round}
+                  className={`px-2 py-0.5 rounded-lg font-mono text-center shrink-0 border ${
+                    isFalseStart
+                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                      : 'bg-slate-900/90 text-slate-200 border-slate-700/80'
+                  }`}
+                  style={{ fontSize: 'clamp(9px, 1.3cqi, 18px)' }}
+                >
+                  <span className="text-[10px] text-slate-400 mr-1 font-sans">R{r.round}:</span>
+                  <span className="font-black text-amber-400">
+                    {isFalseStart ? 'JUMP' : `${r.reactionTimeMs}ms`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       );
     }

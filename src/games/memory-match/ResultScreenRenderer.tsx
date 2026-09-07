@@ -5,20 +5,29 @@ import {
   ResultGroupElement,
   MemoryMatchResultScreenConfig,
   generateDefaultResultScreenElements,
+  generateDefaultReactionResultScreenElements,
 } from './types';
 import { resolveScreenBackground } from '../../themes/screenBackground';
-import { GameTheme } from '../../themes/types';
+import { GameTheme, getThemeGameType } from '../../themes/types';
 import { ResultElementContent } from './ResultElementContent';
 import { EventLeaderboardEntry } from '../../types';
 
 export interface ResultScreenStats {
   score: number;
-  moves: number;
-  matchedPairsCount: number;
-  totalPairs: number;
-  accuracyPercent: number;
+  moves?: number;
+  matchedPairsCount?: number;
+  totalPairs?: number;
+  accuracyPercent?: number;
   timeElapsedSeconds?: number;
   isVictory?: boolean;
+  averageReactionTimeMs?: number;
+  bestReactionTimeMs?: number;
+  worstReactionTimeMs?: number;
+  falseStartsCount?: number;
+  roundsCount?: number;
+  rounds?: Array<{ round: number; reactionTimeMs: number; falseStart?: boolean }>;
+  rating?: string;
+  gameType?: string;
 }
 
 export interface ResultScreenRendererProps {
@@ -68,9 +77,16 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
   const canvasWidth = resultConfig?.canvas?.width || 1000;
   const canvasHeight = resultConfig?.canvas?.height || 1000;
 
+  const isReactionGame =
+    stats.gameType === 'reaction-time' ||
+    stats.gameType === 'reaction-tap' ||
+    (theme && getThemeGameType(theme) === 'reaction-time');
+
   const elements: ResultScreenElement[] =
     Array.isArray(resultConfig?.elements) && resultConfig.elements.length > 0
       ? resultConfig.elements
+      : isReactionGame
+      ? generateDefaultReactionResultScreenElements()
       : generateDefaultResultScreenElements(resultConfig || undefined);
 
   // Recursive element renderer

@@ -8,6 +8,9 @@ export const carnivalTheme: GameTheme = {
   slug: 'carnival',
   description: 'Grand festive celebration theme: Catch golden carnival tickets and cosmic stars while dodging cursed hazard masks.',
   status: 'active',
+  is_system: true,
+  is_system_theme: true,
+  ownership_type: 'system',
 
   branding: {
     gameTitle: 'CARNIVAL FIESTA',

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { GameTheme, ThemeDifficultyStage, isMemoryMatchTheme } from '../../themes';
+import { GameTheme, ThemeDifficultyStage, isMemoryMatchTheme, isReactionTheme } from '../../themes';
 import { MemoryMatchGameplayCustomizer } from './games/MemoryMatchCustomizer';
+import { ReactionGameGameplayCustomizer } from './games/ReactionGameCustomizer';
 import {
   Zap,
   Clock,
@@ -20,6 +21,11 @@ interface GameplayTabProps {
 }
 
 export const GameplayTab: React.FC<GameplayTabProps> = ({ theme, onChange }) => {
+  const isReaction = isReactionTheme(theme);
+  if (isReaction) {
+    return <ReactionGameGameplayCustomizer theme={theme} onChange={onChange} />;
+  }
+
   const isMemoryMatch = isMemoryMatchTheme(theme);
 
   if (isMemoryMatch) {

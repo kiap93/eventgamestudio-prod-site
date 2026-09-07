@@ -302,7 +302,7 @@ export const EventCard: React.FC<EventCardProps> = ({
             </button>
           ) : null}
 
-          {/* Action 2: Test Preview CTA (Only available before Live window starts) */}
+          {/* Action 2: Test Preview CTA (Available for non-cancelled events) */}
           {availability.previewUrlAvailable && (
             <button
               onClick={openPreviewGame}

@@ -106,7 +106,12 @@ export type ResultScreenElementType =
   | 'accuracy'
   | 'button'
   | 'leaderboard'
-  | 'group';
+  | 'group'
+  | 'average-reaction'
+  | 'best-reaction'
+  | 'worst-reaction'
+  | 'round-results'
+  | 'rating';
 
 export interface ResultScreenBaseElement {
   id: string;
@@ -245,6 +250,43 @@ export interface ResultAccuracyElement extends ResultScreenBaseElement {
   style?: ResultStatStyle;
 }
 
+export interface ResultAverageReactionElement extends ResultScreenBaseElement {
+  type: 'average-reaction';
+  label?: string;
+  style?: ResultStatStyle;
+}
+
+export interface ResultBestReactionElement extends ResultScreenBaseElement {
+  type: 'best-reaction';
+  label?: string;
+  style?: ResultStatStyle;
+}
+
+export interface ResultWorstReactionElement extends ResultScreenBaseElement {
+  type: 'worst-reaction';
+  label?: string;
+  style?: ResultStatStyle;
+}
+
+export interface ResultRoundResultsElement extends ResultScreenBaseElement {
+  type: 'round-results';
+  label?: string;
+  style?: ResultStatStyle & {
+    chipBackgroundColor?: string;
+    chipTextColor?: string;
+    chipBorderColor?: string;
+    chipBorderRadius?: number;
+  };
+}
+
+export interface ResultRatingElement extends ResultScreenBaseElement {
+  type: 'rating';
+  label?: string;
+  style?: ResultStatStyle & {
+    badgeColor?: string;
+  };
+}
+
 export interface ResultButtonStyle {
   backgroundColor?: string;
   textColor?: string;
@@ -357,7 +399,12 @@ export type ResultScreenElement =
   | ResultAccuracyElement
   | ResultButtonElement
   | ResultLeaderboardElement
-  | ResultGroupElement;
+  | ResultGroupElement
+  | ResultAverageReactionElement
+  | ResultBestReactionElement
+  | ResultWorstReactionElement
+  | ResultRoundResultsElement
+  | ResultRatingElement;
 
 export interface ResultScreenCanvasConfig {
   width: number; // default: 1000
@@ -593,6 +640,205 @@ export function generateDefaultResultScreenElements(
       y: cardY,
       width: 700,
       height: cardHeight,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 1,
+      style: {
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        borderWidth: 1,
+        borderColor: '#334155',
+        borderRadius: 28,
+        shadow: true,
+      },
+      children: cardChildren,
+    },
+  ];
+}
+
+/**
+ * Generates default Result Screen elements tailored for Reaction Game.
+ * Layout:
+ * - GREAT! (Title)
+ * - 219 ms AVERAGE REACTION
+ * - BEST 195 ms, WORST 247 ms
+ * - ROUND RESULTS 218 231 195 247 204
+ * - LEADERBOARD
+ * - [ PLAY AGAIN ]
+ */
+export function generateDefaultReactionResultScreenElements(): ResultScreenElement[] {
+  const cardChildren: ResultScreenElement[] = [
+    // 1. Result Title
+    {
+      id: 'title-reaction',
+      type: 'text',
+      x: 40,
+      y: 30,
+      width: 640,
+      height: 48,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      text: 'GREAT REFLEXES!',
+      style: {
+        fontSize: 34,
+        fontWeight: '900',
+        color: '#ffffff',
+        textAlign: 'center',
+        letterSpacing: 1,
+      },
+    },
+    // 2. Average Reaction Big Metric
+    {
+      id: 'stat-average-reaction',
+      type: 'average-reaction',
+      x: 40,
+      y: 88,
+      width: 640,
+      height: 108,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'AVERAGE REACTION',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#38bdf8',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 18,
+        fontSize: 40,
+        textAlign: 'center',
+      },
+    },
+    // 3. Best Reaction
+    {
+      id: 'stat-best-reaction',
+      type: 'best-reaction',
+      x: 40,
+      y: 208,
+      width: 310,
+      height: 80,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'BEST REACTION',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#34d399',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        fontSize: 24,
+        textAlign: 'center',
+      },
+    },
+    // 4. Worst Reaction
+    {
+      id: 'stat-worst-reaction',
+      type: 'worst-reaction',
+      x: 370,
+      y: 208,
+      width: 310,
+      height: 80,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'WORST REACTION',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#f87171',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        fontSize: 24,
+        textAlign: 'center',
+      },
+    },
+    // 5. Round Results Chips
+    {
+      id: 'stat-round-results',
+      type: 'round-results',
+      x: 40,
+      y: 300,
+      width: 640,
+      height: 90,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'ROUND RESULTS',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#ffffff',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        fontSize: 18,
+        textAlign: 'center',
+      },
+    },
+    // 6. Leaderboard Component
+    {
+      id: 'leaderboard-reaction',
+      type: 'leaderboard',
+      x: 40,
+      y: 402,
+      width: 640,
+      height: 250,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      headerText: 'TOP REACTION TIMES',
+      style: {
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        showHeader: true,
+        headerText: 'TOP REACTION TIMES',
+        fontSize: 14,
+        textColor: '#e2e8f0',
+        rankColor: '#fbbf24',
+        scoreColor: '#38bdf8',
+      },
+    },
+    // 7. Play Again Action Button
+    {
+      id: 'btn-play-again',
+      type: 'button',
+      x: 110,
+      y: 672,
+      width: 500,
+      height: 60,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      text: 'PLAY AGAIN',
+      action: 'playAgain',
+      style: {
+        backgroundColor: '#ef4444',
+        textColor: '#ffffff',
+        fontSize: 18,
+        fontWeight: '900',
+        borderRadius: 18,
+        shadow: true,
+      },
+    },
+  ];
+
+  return [
+    {
+      id: 'card-result-main',
+      type: 'card',
+      x: 140,
+      y: 110,
+      width: 720,
+      height: 760,
       rotation: 0,
       visible: true,
       opacity: 1,

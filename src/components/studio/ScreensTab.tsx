@@ -1,6 +1,7 @@
 import React from 'react';
-import { GameTheme, isMemoryMatchTheme } from '../../themes';
+import { GameTheme, isMemoryMatchTheme, isReactionTheme } from '../../themes';
 import { MemoryMatchScreensCustomizer } from './games/MemoryMatchCustomizer';
+import { ReactionScreensCustomizer } from './games/ReactionGameCustomizer';
 import { Tv, Sparkles } from 'lucide-react';
 
 interface ScreensTabProps {
@@ -16,6 +17,17 @@ export const ScreensTab: React.FC<ScreensTabProps> = ({
   onUploadAsset,
   uploadingAsset,
 }) => {
+  if (isReactionTheme(theme)) {
+    return (
+      <ReactionScreensCustomizer
+        theme={theme}
+        onChange={onChange}
+        onUploadAsset={onUploadAsset}
+        uploadingAsset={uploadingAsset}
+      />
+    );
+  }
+
   const isMemoryMatch = isMemoryMatchTheme(theme);
 
   if (isMemoryMatch) {

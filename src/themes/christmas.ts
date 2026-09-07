@@ -8,6 +8,9 @@ export const christmasTheme: GameTheme = {
   slug: 'christmas-rush',
   description: 'Holiday festive arcade theme catching Christmas presents and avoiding lumps of coal.',
   status: 'active',
+  is_system: true,
+  is_system_theme: true,
+  ownership_type: 'system',
 
   branding: {
     gameTitle: 'CHRISTMAS GIFT RUSH',

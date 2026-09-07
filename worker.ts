@@ -37,6 +37,7 @@ import {
   getEventByPublicToken,
   canAccessLiveEvent,
   canAccessPreviewEvent,
+  isEventExplicitlyCancelled,
   getNormalizedEventDates,
   createEvent,
   createEventWithAtomicPayment,
@@ -2224,7 +2225,7 @@ export default {
           return errorResponse('Forbidden: Access denied to this event preview', 403, cors);
         }
 
-        if (event.event_status === 'CANCELLED' || event.status === 'cancelled' || event.cancel_reason) {
+        if (isEventExplicitlyCancelled(event)) {
           return jsonResponse({
             error: 'This event has been cancelled.',
             code: 'EVENT_CANCELLED',
@@ -2238,25 +2239,13 @@ export default {
           });
         }
 
-        // Check preview accessibility window (Before event_start_date - 1 calendar day)
+        // Check preview accessibility (Available for Scheduled, Pending Payment, Live, and Concluded events)
         const isPreviewAllowed = canAccessPreviewEvent(event);
         if (!isPreviewAllowed) {
-          const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
-          const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
-          const isLiveAllowed = canAccessLiveEvent(event);
-
           return jsonResponse({
-            error: 'Event preview is only available before the Live event window starts. The Live window is now active.',
-            code: 'PREVIEW_WINDOW_ENDED',
+            error: 'Event preview is not available.',
+            code: 'PREVIEW_UNAVAILABLE',
             is_preview_available: false,
-            live_window_started: true,
-            is_paid: isPaid,
-            can_access_live: isLiveAllowed,
-            start_date: startDate,
-            end_date: endDate,
-            live_open_date: liveOpenDate,
-            public_token: event.public_token,
-            event,
           }, 403, {
             ...cors,
             'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',

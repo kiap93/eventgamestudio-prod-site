@@ -8,5 +8,6 @@ export * from './cny';
 export * from './halloween';
 export * from './mango';
 export * from './memory-match';
+export * from './reaction-time';
 export * from './screenBackground';
 export * from './itemSizing';

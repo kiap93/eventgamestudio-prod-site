@@ -214,6 +214,7 @@ export interface GameTheme {
   status: 'active' | 'archived' | 'draft';
   is_default?: boolean;
   is_system?: boolean;
+  is_system_theme?: boolean;
   ownership_type?: 'system' | 'organization';
 
   // Configuration groups
@@ -263,6 +264,16 @@ export function getThemeGameType(theme?: Partial<GameTheme> | null, fallbackGame
   if (theme.game_type) return theme.game_type;
   if (theme.game_slug) return theme.game_slug;
   if (
+    theme.base_theme_id === 'reaction-time' ||
+    theme.base_theme_id === 'reaction-tap' ||
+    theme.id === 'reaction-time' ||
+    theme.id === 'reaction-tap' ||
+    theme.slug?.includes('reaction') ||
+    (theme.name && theme.name.toLowerCase().includes('reaction'))
+  ) {
+    return 'reaction-tap';
+  }
+  if (
     theme.base_theme_id === 'memory-carnival' ||
     theme.base_theme_id === 'memory-match' ||
     theme.id === 'memory-carnival' ||
@@ -273,6 +284,14 @@ export function getThemeGameType(theme?: Partial<GameTheme> | null, fallbackGame
     return 'memory-match';
   }
   return fallbackGameType || 'catch-brand';
+}
+
+/**
+ * Checks if a theme belongs to Reaction Game.
+ */
+export function isReactionTheme(theme?: Partial<GameTheme> | null, fallbackGameType?: string): boolean {
+  const gt = getThemeGameType(theme, fallbackGameType);
+  return gt === 'reaction-tap' || gt === 'reaction-time';
 }
 
 /**

@@ -328,11 +328,15 @@ export function canAccessLiveEvent(
  * Checks whether an event's Preview URL is currently accessible.
  *
  * Canonical Rule:
- * Before the Live URL window starts (current_date < event_start_date - 1 calendar day):
- *   Preview URL = available (for both paid and unpaid events)
+ * Preview / Test is an authenticated capability for organization members, theme designers,
+ * and developers to test game mechanics, inspect themes, and playtest without submitting to
+ * official live high scores.
  *
- * Once the Live URL window starts or after event ends:
- *   Preview URL = unavailable
+ * Rules:
+ * - Available for events that are: Scheduled, Pending Payment, Live, and Concluded.
+ * - Does NOT depend on the event being currently LIVE.
+ * - Does NOT depend on payment status (unpaid/pending payment events can be previewed/tested).
+ * - NOT available for explicitly cancelled events.
  */
 export function canAccessPreviewEvent(
   event: {
@@ -356,18 +360,12 @@ export function canAccessPreviewEvent(
     return false;
   }
 
-  const { startDate, liveOpenDate } = getNormalizedEventDates(event);
-  if (!startDate || !liveOpenDate) return false;
-
-  const curDate = getNormalizedCurrentDate(currentDate);
-
-  // Preview URL is ONLY available BEFORE the Live URL window starts
-  return curDate < liveOpenDate;
+  return true;
 }
 
 /**
  * Checks whether the Preview Header toolbar should be visible.
- * Rule: Visible when Preview URL is available (before live window starts).
+ * Rule: Visible when Preview URL is available (non-cancelled event in authenticated preview).
  */
 export function shouldShowPreviewHeader(
   event: any,
@@ -431,7 +429,7 @@ export function getEventAvailabilityState(
   );
   const isAfterLiveWindow = Boolean(endDate && curDate > endDate);
 
-  const previewUrlAvailable = !isCancelled && isBeforeLiveWindow;
+  const previewUrlAvailable = !isCancelled;
   const previewHeaderVisible = previewUrlAvailable;
   const liveUrlAvailable = !isCancelled && isPaid && isInsideLiveWindow;
 
