@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import {
   ResultScreenElement,
   ResultCardElement,
@@ -20,6 +20,7 @@ import { FONT_FAMILY_PRESETS } from '../../../../games/memory-match/ResultElemen
 import { GameTheme } from '../../../../themes/types';
 import { getElementIcon } from './LayerTreePanel';
 import { getAvailableContainers } from './types';
+import { getResultElementsGroupedByCategory } from './resultElementRegistry';
 import {
   Sliders,
   SlidersHorizontal,
@@ -93,6 +94,7 @@ interface PropertyInspectorPanelProps {
   isSelectionLocked?: boolean;
   onUploadAsset?: (file: File, type: string) => Promise<string>;
   onUpdateConfig: (updates: Partial<MemoryMatchResultScreenConfig>) => void;
+  gameType?: string;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }
@@ -106,6 +108,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   commonParent,
   resultConfig,
   theme,
+  gameType,
   onSelectId,
   onSelectIds,
   onUpdateElementById,
@@ -129,6 +132,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   isCollapsed = false,
   onToggleCollapse,
 }) => {
+  const groupedElements = useMemo(() => getResultElementsGroupedByCategory(gameType), [gameType]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploadingAsset, setIsUploadingAsset] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<{
@@ -1233,18 +1237,18 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               );
             })()}
 
-            {/* C. STATISTIC ELEMENTS (Score, Moves, Pairs, Time, Accuracy) */}
+            {/* C. STATISTIC ELEMENTS (Score, Moves, Pairs, Time, Accuracy, Reaction Metrics, Rating, Rounds) */}
             {(selectedElement.type === 'score' ||
               selectedElement.type === 'moves' ||
               selectedElement.type === 'pairs' ||
               selectedElement.type === 'time' ||
-              selectedElement.type === 'accuracy') && (() => {
-              const statEl = selectedElement as
-                | ResultScoreElement
-                | ResultMovesElement
-                | ResultPairsElement
-                | ResultTimeElement
-                | ResultAccuracyElement;
+              selectedElement.type === 'accuracy' ||
+              selectedElement.type === 'average-reaction' ||
+              selectedElement.type === 'best-reaction' ||
+              selectedElement.type === 'worst-reaction' ||
+              selectedElement.type === 'rating' ||
+              selectedElement.type === 'round-results') && (() => {
+              const statEl = selectedElement as any;
               const style = statEl.style || {};
               return (
                 <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-2.5">
@@ -1999,61 +2003,34 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               </div>
 
               {/* LIVE GAME STATS */}
-              <div className="space-y-1 pt-1.5 border-t border-slate-800/80">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Live Game Stats
-                </span>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => onAddNewRootElement('score')}
-                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
-                  >
-                    {getElementIcon('score')}
-                    <span className="truncate">Final Score</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onAddNewRootElement('moves')}
-                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
-                  >
-                    {getElementIcon('moves')}
-                    <span className="truncate">Total Moves</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onAddNewRootElement('pairs')}
-                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
-                  >
-                    {getElementIcon('pairs')}
-                    <span className="truncate">Matched Pairs</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onAddNewRootElement('time')}
-                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
-                  >
-                    {getElementIcon('time')}
-                    <span className="truncate">Time Elapsed</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onAddNewRootElement('accuracy')}
-                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
-                  >
-                    {getElementIcon('accuracy')}
-                    <span className="truncate">Accuracy</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onAddNewRootElement('leaderboard')}
-                    className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors"
-                  >
-                    {getElementIcon('leaderboard')}
-                    <span className="truncate">Leaderboard</span>
-                  </button>
+              {groupedElements.stat.length > 0 && (
+                <div className="space-y-1 pt-1.5 border-t border-slate-800/80">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Live Game Stats
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {groupedElements.stat.map((item) => (
+                      <button
+                        key={item.type}
+                        type="button"
+                        onClick={() => onAddNewRootElement(item.type)}
+                        className="p-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 rounded-xl flex items-center justify-between text-left text-xs font-semibold text-slate-200 transition-colors"
+                        title={item.description}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          {getElementIcon(item.type)}
+                          <span className="truncate">{item.label}</span>
+                        </div>
+                        {item.badge && (
+                          <span className="text-[8px] font-mono px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold shrink-0 ml-1">
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* INTERACTIVE CONTROLS */}
               <div className="space-y-1 pt-1.5 border-t border-slate-800/80">

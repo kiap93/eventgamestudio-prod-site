@@ -19,6 +19,7 @@ import {
   getNormalizedEventDates,
   getNormalizedCurrentDate,
   isEventBeforeStartDate,
+  isEventExplicitlyCancelled,
   localEventsCache,
   resolveEventGameType,
   resolveAuthoritativeMemoryMatchConfig,
@@ -786,7 +787,7 @@ async function executeSubmitEventScore(
   const payStatus = (event.payment_status || '').toUpperCase();
   const cancelReason = event.cancel_reason || null;
 
-  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
+  if (isEventExplicitlyCancelled(event)) {
     const err: any = new Error('Cannot submit scores to a cancelled event');
     err.status = 400;
     err.code = 'EVENT_CANCELLED';
@@ -1176,11 +1177,14 @@ async function executeSubmitEventScore(
     });
   }
 
-  const currentHighest = currentEventScores.length > 0
-    ? Math.max(...currentEventScores.map((s) => s.score))
-    : 0;
+  const isReactionGame = eventGameType === 'reaction-tap';
+  const currentBest = currentEventScores.length > 0
+    ? (isReactionGame
+        ? Math.min(...currentEventScores.map((s) => s.score))
+        : Math.max(...currentEventScores.map((s) => s.score)))
+    : null;
 
-  const isNewHighScore = scoreNum > currentHighest;
+  const isNewHighScore = currentBest === null || (isReactionGame ? scoreNum < currentBest : scoreNum > currentBest);
 
   let finalRecord: EventHighScoreRecord = newRecord;
   let isDuplicateFromDb = false;
@@ -1304,8 +1308,13 @@ async function executeSubmitEventScore(
       let higherScoresQuery = supabase
         .from('event_high_scores')
         .select('*', { count: 'exact', head: true })
-        .eq('event_id', resolvedEventId)
-        .gt('score', finalRecord.score);
+        .eq('event_id', resolvedEventId);
+
+      if (isReactionGame) {
+        higherScoresQuery = higherScoresQuery.lt('score', finalRecord.score);
+      } else {
+        higherScoresQuery = higherScoresQuery.gt('score', finalRecord.score);
+      }
 
       if (scoreEnvironment === 'live') {
         higherScoresQuery = higherScoresQuery
@@ -1493,8 +1502,11 @@ export async function getEventHighScores(
         .neq('metadata->>score_mode', 'TEST');
     }
 
+    const eventGameType = event ? await resolveEventGameType(event, env) : 'catch-brand';
+    const isReactionGame = eventGameType === 'reaction-tap';
+
     const { data, error, count } = await query
-      .order('score', { ascending: false })
+      .order('score', { ascending: isReactionGame })
       .order('created_at', { ascending: true })
       .range(offset, offset + limit - 1);
 

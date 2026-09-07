@@ -3664,5 +3664,659 @@
       "is_official": true
     },
     "created_at": "2026-09-07T05:04:55.314Z"
+  },
+  {
+    "id": "77ada6f0-f253-4ce3-a8b7-d87ec749eeac",
+    "event_id": "27802a7c-8c12-4329-a89d-ad737ee6b3e9",
+    "player_name": "Public Player 1",
+    "score": 750,
+    "session_id": "pub-session-player-1",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "sessionId": "pub-session-player-1",
+      "session_id": "pub-session-player-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:01:11.182Z"
+  },
+  {
+    "id": "6dd451ee-9f3d-4436-ab70-740b06ac55fb",
+    "event_id": "27802a7c-8c12-4329-a89d-ad737ee6b3e9",
+    "player_name": "Organizer Test",
+    "score": 500,
+    "session_id": "org-test-session-1",
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isEventTest": true,
+      "is_test": true,
+      "score_environment": "test",
+      "sessionId": "org-test-session-1",
+      "session_id": "org-test-session-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "TEST",
+      "is_official": false
+    },
+    "created_at": "2026-09-07T09:01:11.171Z"
+  },
+  {
+    "id": "de33017e-f406-4eee-9d84-65da37f0f038",
+    "event_id": "fc950891-24e1-4192-8e4c-5ecbbb80a27b",
+    "player_name": "Public Player 1",
+    "score": 750,
+    "session_id": "pub-session-player-1",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "sessionId": "pub-session-player-1",
+      "session_id": "pub-session-player-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:10:05.247Z"
+  },
+  {
+    "id": "d2517838-3140-4f29-af79-a1709ee45929",
+    "event_id": "fc950891-24e1-4192-8e4c-5ecbbb80a27b",
+    "player_name": "Organizer Test",
+    "score": 500,
+    "session_id": "org-test-session-1",
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isEventTest": true,
+      "is_test": true,
+      "score_environment": "test",
+      "sessionId": "org-test-session-1",
+      "session_id": "org-test-session-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "TEST",
+      "is_official": false
+    },
+    "created_at": "2026-09-07T09:10:05.242Z"
+  },
+  {
+    "id": "3ff0fd0f-4089-446f-a5f6-9bf89e12150c",
+    "event_id": "5d1a0b53-a125-4d42-81de-d7c9288640c9",
+    "player_name": "Public Player 1",
+    "score": 750,
+    "session_id": "pub-session-player-1",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "sessionId": "pub-session-player-1",
+      "session_id": "pub-session-player-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:10:35.435Z"
+  },
+  {
+    "id": "a83541d7-9a15-4c97-a452-5685be28cf85",
+    "event_id": "5d1a0b53-a125-4d42-81de-d7c9288640c9",
+    "player_name": "Organizer Test",
+    "score": 500,
+    "session_id": "org-test-session-1",
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isEventTest": true,
+      "is_test": true,
+      "score_environment": "test",
+      "sessionId": "org-test-session-1",
+      "session_id": "org-test-session-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "TEST",
+      "is_official": false
+    },
+    "created_at": "2026-09-07T09:10:35.429Z"
+  },
+  {
+    "id": "7333a6fc-95d6-414d-82c1-fb94a5db88b4",
+    "event_id": "74e2fbc8-d7c5-4ead-8b1d-1b37718fc4a4",
+    "player_name": "Max Verstappen",
+    "score": 185,
+    "session_id": "session_16350a3124ee4869a2ccd9dfb046b092",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 185,
+      "bestReactionTimeMs": 172,
+      "worstReactionTimeMs": 198,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 180,
+          "falseStart": false,
+          "timestamp": 1788772373852
+        },
+        {
+          "round": 2,
+          "reactionTimeMs": 172,
+          "falseStart": false,
+          "timestamp": 1788772373852
+        },
+        {
+          "round": 3,
+          "reactionTimeMs": 190,
+          "falseStart": false,
+          "timestamp": 1788772373852
+        },
+        {
+          "round": 4,
+          "reactionTimeMs": 185,
+          "falseStart": false,
+          "timestamp": 1788772373852
+        },
+        {
+          "round": 5,
+          "reactionTimeMs": 198,
+          "falseStart": false,
+          "timestamp": 1788772373852
+        }
+      ],
+      "rating": "SUPERHUMAN",
+      "sessionId": "session_16350a3124ee4869a2ccd9dfb046b092",
+      "session_id": "session_16350a3124ee4869a2ccd9dfb046b092",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:12:53.853Z"
+  },
+  {
+    "id": "f31a59f0-ff8e-4db4-9fc3-922f5b7a2069",
+    "event_id": "74e2fbc8-d7c5-4ead-8b1d-1b37718fc4a4",
+    "player_name": "Lewis Hamilton",
+    "score": 220,
+    "session_id": "session_9594e60c304346488a27048c7c94cec1",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 220,
+      "bestReactionTimeMs": 195,
+      "worstReactionTimeMs": 245,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 210,
+          "falseStart": false,
+          "timestamp": 1788772365830
+        },
+        {
+          "round": 2,
+          "reactionTimeMs": 195,
+          "falseStart": false,
+          "timestamp": 1788772367830
+        },
+        {
+          "round": 3,
+          "reactionTimeMs": 230,
+          "falseStart": false,
+          "timestamp": 1788772369830
+        },
+        {
+          "round": 4,
+          "reactionTimeMs": 220,
+          "falseStart": false,
+          "timestamp": 1788772371830
+        },
+        {
+          "round": 5,
+          "reactionTimeMs": 245,
+          "falseStart": false,
+          "timestamp": 1788772373830
+        }
+      ],
+      "rating": "PRO RACER",
+      "sessionId": "session_9594e60c304346488a27048c7c94cec1",
+      "session_id": "session_9594e60c304346488a27048c7c94cec1",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:12:53.850Z"
+  },
+  {
+    "id": "28c32f05-dbc8-4434-b99a-c8ff9327c09a",
+    "event_id": "74e2fbc8-d7c5-4ead-8b1d-1b37718fc4a4",
+    "player_name": "Rookie Racer",
+    "score": 310,
+    "session_id": "session_b8d7305e7b7949289523017f454b851a",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 310,
+      "bestReactionTimeMs": 290,
+      "worstReactionTimeMs": 340,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 310,
+          "falseStart": false,
+          "timestamp": 1788772373854
+        }
+      ],
+      "rating": "GREAT REFLEXES",
+      "sessionId": "session_b8d7305e7b7949289523017f454b851a",
+      "session_id": "session_b8d7305e7b7949289523017f454b851a",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:12:53.855Z"
+  },
+  {
+    "id": "89850c9c-53b6-45fb-a1f2-e43e3fef084b",
+    "event_id": "3fcefe00-d956-42f8-94e5-bce796d30091",
+    "player_name": "Max Verstappen",
+    "score": 185,
+    "session_id": "session_69d540ae16d745d8a2d3e060698076a6",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 185,
+      "bestReactionTimeMs": 172,
+      "worstReactionTimeMs": 198,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 180,
+          "falseStart": false,
+          "timestamp": 1788772410622
+        },
+        {
+          "round": 2,
+          "reactionTimeMs": 172,
+          "falseStart": false,
+          "timestamp": 1788772410622
+        },
+        {
+          "round": 3,
+          "reactionTimeMs": 190,
+          "falseStart": false,
+          "timestamp": 1788772410622
+        },
+        {
+          "round": 4,
+          "reactionTimeMs": 185,
+          "falseStart": false,
+          "timestamp": 1788772410622
+        },
+        {
+          "round": 5,
+          "reactionTimeMs": 198,
+          "falseStart": false,
+          "timestamp": 1788772410622
+        }
+      ],
+      "rating": "SUPERHUMAN",
+      "sessionId": "session_69d540ae16d745d8a2d3e060698076a6",
+      "session_id": "session_69d540ae16d745d8a2d3e060698076a6",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:13:30.624Z"
+  },
+  {
+    "id": "e9577e7c-2da9-415d-8ab9-ec9deba99214",
+    "event_id": "3fcefe00-d956-42f8-94e5-bce796d30091",
+    "player_name": "Public Racer",
+    "score": 205,
+    "session_id": "rt_sess_1788772410631",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 205,
+      "bestReactionTimeMs": 195,
+      "worstReactionTimeMs": 215,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 205,
+          "falseStart": false,
+          "timestamp": 1788772410631
+        }
+      ],
+      "rating": "PRO RACER",
+      "sessionId": "rt_sess_1788772410631",
+      "session_id": "rt_sess_1788772410631",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:13:30.710Z"
+  },
+  {
+    "id": "7c3ae676-65a1-4248-ad3d-8b78c9a6d46a",
+    "event_id": "3fcefe00-d956-42f8-94e5-bce796d30091",
+    "player_name": "Lewis Hamilton",
+    "score": 220,
+    "session_id": "session_f4dfa0f68857434984ac070d09c4bfeb",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 220,
+      "bestReactionTimeMs": 195,
+      "worstReactionTimeMs": 245,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 210,
+          "falseStart": false,
+          "timestamp": 1788772402601
+        },
+        {
+          "round": 2,
+          "reactionTimeMs": 195,
+          "falseStart": false,
+          "timestamp": 1788772404601
+        },
+        {
+          "round": 3,
+          "reactionTimeMs": 230,
+          "falseStart": false,
+          "timestamp": 1788772406601
+        },
+        {
+          "round": 4,
+          "reactionTimeMs": 220,
+          "falseStart": false,
+          "timestamp": 1788772408601
+        },
+        {
+          "round": 5,
+          "reactionTimeMs": 245,
+          "falseStart": false,
+          "timestamp": 1788772410601
+        }
+      ],
+      "rating": "PRO RACER",
+      "sessionId": "session_f4dfa0f68857434984ac070d09c4bfeb",
+      "session_id": "session_f4dfa0f68857434984ac070d09c4bfeb",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:13:30.621Z"
+  },
+  {
+    "id": "73afeefb-18d9-48e7-8779-4e0ac3445f7a",
+    "event_id": "3fcefe00-d956-42f8-94e5-bce796d30091",
+    "player_name": "Rookie Racer",
+    "score": 310,
+    "session_id": "session_d8e7c9ffd89f4fd49a1a5589f181df58",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 310,
+      "bestReactionTimeMs": 290,
+      "worstReactionTimeMs": 340,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 310,
+          "falseStart": false,
+          "timestamp": 1788772410625
+        }
+      ],
+      "rating": "GREAT REFLEXES",
+      "sessionId": "session_d8e7c9ffd89f4fd49a1a5589f181df58",
+      "session_id": "session_d8e7c9ffd89f4fd49a1a5589f181df58",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:13:30.626Z"
+  },
+  {
+    "id": "26e058a9-4b7f-4449-af8a-626b4295b268",
+    "event_id": "5a73de7e-e0d1-4b96-be99-39e5ac1a95c0",
+    "player_name": "Max Verstappen",
+    "score": 185,
+    "session_id": "session_6a49719df2704b0eae0be90167689321",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 185,
+      "bestReactionTimeMs": 172,
+      "worstReactionTimeMs": 198,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 180,
+          "falseStart": false,
+          "timestamp": 1788772780147
+        },
+        {
+          "round": 2,
+          "reactionTimeMs": 172,
+          "falseStart": false,
+          "timestamp": 1788772780147
+        },
+        {
+          "round": 3,
+          "reactionTimeMs": 190,
+          "falseStart": false,
+          "timestamp": 1788772780147
+        },
+        {
+          "round": 4,
+          "reactionTimeMs": 185,
+          "falseStart": false,
+          "timestamp": 1788772780147
+        },
+        {
+          "round": 5,
+          "reactionTimeMs": 198,
+          "falseStart": false,
+          "timestamp": 1788772780147
+        }
+      ],
+      "rating": "SUPERHUMAN",
+      "sessionId": "session_6a49719df2704b0eae0be90167689321",
+      "session_id": "session_6a49719df2704b0eae0be90167689321",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:19:40.148Z"
+  },
+  {
+    "id": "b17daa4d-6a7f-4539-865d-c6681a7a00d8",
+    "event_id": "5a73de7e-e0d1-4b96-be99-39e5ac1a95c0",
+    "player_name": "Public Racer",
+    "score": 205,
+    "session_id": "rt_sess_1788772780155",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 205,
+      "bestReactionTimeMs": 195,
+      "worstReactionTimeMs": 215,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 205,
+          "falseStart": false,
+          "timestamp": 1788772780155
+        }
+      ],
+      "rating": "PRO RACER",
+      "sessionId": "rt_sess_1788772780155",
+      "session_id": "rt_sess_1788772780155",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:19:40.235Z"
+  },
+  {
+    "id": "61b7247a-427a-4757-9e92-8d9666767c49",
+    "event_id": "5a73de7e-e0d1-4b96-be99-39e5ac1a95c0",
+    "player_name": "Lewis Hamilton",
+    "score": 220,
+    "session_id": "session_b9ebbf07ffae41e7acc3053e3eb6c0b0",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 220,
+      "bestReactionTimeMs": 195,
+      "worstReactionTimeMs": 245,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 210,
+          "falseStart": false,
+          "timestamp": 1788772772128
+        },
+        {
+          "round": 2,
+          "reactionTimeMs": 195,
+          "falseStart": false,
+          "timestamp": 1788772774128
+        },
+        {
+          "round": 3,
+          "reactionTimeMs": 230,
+          "falseStart": false,
+          "timestamp": 1788772776128
+        },
+        {
+          "round": 4,
+          "reactionTimeMs": 220,
+          "falseStart": false,
+          "timestamp": 1788772778128
+        },
+        {
+          "round": 5,
+          "reactionTimeMs": 245,
+          "falseStart": false,
+          "timestamp": 1788772780128
+        }
+      ],
+      "rating": "PRO RACER",
+      "sessionId": "session_b9ebbf07ffae41e7acc3053e3eb6c0b0",
+      "session_id": "session_b9ebbf07ffae41e7acc3053e3eb6c0b0",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:19:40.146Z"
+  },
+  {
+    "id": "a4aa8920-dfb2-481c-811e-5f2ec087383d",
+    "event_id": "5a73de7e-e0d1-4b96-be99-39e5ac1a95c0",
+    "player_name": "Rookie Racer",
+    "score": 310,
+    "session_id": "session_0dfe728c4b8341548589101a3ba69860",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 310,
+      "bestReactionTimeMs": 290,
+      "worstReactionTimeMs": 340,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 310,
+          "falseStart": false,
+          "timestamp": 1788772780149
+        }
+      ],
+      "rating": "GREAT REFLEXES",
+      "sessionId": "session_0dfe728c4b8341548589101a3ba69860",
+      "session_id": "session_0dfe728c4b8341548589101a3ba69860",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T09:19:40.150Z"
   }
 ]

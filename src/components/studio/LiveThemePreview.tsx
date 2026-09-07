@@ -3,6 +3,7 @@ import {
   GameTheme,
   ThemeDropItem,
   isMemoryMatchTheme,
+  isReactionTheme,
   getThemeGameType,
   getMemoryMatchConfig,
   getDropItemDisplaySize,
@@ -10,6 +11,7 @@ import {
 } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
 import { MemoryMatchGame } from '../../games/memory-match/MemoryMatchGame';
+import { ReactionGame } from '../../games/reaction-time/ReactionGame';
 import {
   GameLayoutConfig,
   LayoutElementKey,
@@ -184,6 +186,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   };
 
   const isMemoryMatch = isMemoryMatchTheme(theme);
+  const isReaction = isReactionTheme(theme);
   const memoryConfig = useMemo(() => getMemoryMatchConfig(theme), [theme]);
   const resolvedPreviewDuration = isMemoryMatch
     ? (memoryConfig.gameplay.gameDurationSeconds ?? 45)
@@ -307,7 +310,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
   // Main 60 FPS Canvas Simulation Loop (Catch The Brand)
   useEffect(() => {
-    if (isMemoryMatch) return;
+    if (isMemoryMatch || isReaction) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -646,11 +649,11 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [isPlaying, isInteractive, isMuted, isMemoryMatch, theme, getOrLoadImage]);
+  }, [isPlaying, isInteractive, isMuted, isMemoryMatch, isReaction, theme, getOrLoadImage]);
 
   // Interactive mouse / touch move on canvas (Catch The Brand)
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isInteractive || isMemoryMatch) return;
+    if (!isInteractive || isMemoryMatch || isReaction) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -939,7 +942,20 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               : 'aspect-[16/9] w-full'
         } rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none flex items-center justify-center transition-all`}
       >
-        {isMemoryMatch ? (
+        {isReaction ? (
+          /* REACTION GAME LIVE SIMULATION */
+          <ReactionGame
+            key={`sim-rx-${theme.id}-${restartKey}`}
+            className="w-full h-full"
+            activeTheme={theme}
+            config={theme.game_config}
+            isMuted={isMuted}
+            isFullscreen={isFullscreen}
+            isEventPreview={true}
+            onToggleMute={() => setIsMuted(!isMuted)}
+            onToggleFullscreen={handleToggleFullscreen}
+          />
+        ) : isMemoryMatch ? (
           /* MEMORY MATCH LIVE GAME SIMULATION - TRUE PROPORTIONAL SCALING */
           <MemoryMatchGame
             key={`sim-mm-${theme.id}-${restartKey}`}
@@ -975,7 +991,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         )}
 
         {/* SHARED WYSIWYG GAME HUD OVERLAY FOR CATCH BRAND */}
-        {!isMemoryMatch && (
+        {!isMemoryMatch && !isReaction && (
           <GameLayoutHudOverlay
             layout={layout}
             theme={theme}
@@ -992,7 +1008,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           />
         )}
 
-        {isInteractive && !isMemoryMatch && (
+        {isInteractive && !isMemoryMatch && !isReaction && (
           <div className="absolute bottom-2 inset-x-0 mx-auto w-fit bg-amber-500/90 text-slate-950 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-lg pointer-events-none animate-bounce z-30">
             Move mouse / finger horizontally across canvas to catch items!
           </div>
@@ -1020,12 +1036,25 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           <div className="flex items-center justify-between text-[11px] text-slate-400">
             <span className="font-semibold flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-amber-400" />{' '}
-              {isMemoryMatch ? 'Memory Match Card Pairs' : 'Instant Item Drop Tester'}
+              {isReaction ? 'Reaction Challenge Controls' : isMemoryMatch ? 'Memory Match Card Pairs' : 'Instant Item Drop Tester'}
             </span>
-            <span>{isMemoryMatch ? `${memoryConfig.pairs?.length || 8} configured pairs` : 'Click to spawn item'}</span>
+            <span>
+              {isReaction
+                ? 'Interactive F1 Start Gantry'
+                : isMemoryMatch
+                ? `${memoryConfig.pairs?.length || 8} configured pairs`
+                : 'Click to spawn item'}
+            </span>
           </div>
 
-          {isMemoryMatch ? (
+          {isReaction ? (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <div className="px-3 py-1.5 rounded-xl text-xs font-mono bg-slate-950/80 border border-slate-800 text-slate-300 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Click, tap, or press SPACE on canvas to react as soon as lights go out!</span>
+              </div>
+            </div>
+          ) : isMemoryMatch ? (
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
             {(memoryConfig.pairs || []).map((pair, idx) => (
               <div

@@ -6,6 +6,8 @@ import { EventPaymentModal } from './EventPaymentModal';
 import { apiFetch } from '../../lib/api';
 import {
   canAccessLiveEvent,
+  canAccessClientLiveGame,
+  getClientLiveGameAccessDetails,
   getEventAvailabilityState,
   getNormalizedEventDates,
   formatDateOnly,
@@ -311,11 +313,16 @@ export const PublicEventGameView: React.FC = () => {
   }
 
   const activeEvent = eventData || errorDetails?.event;
+  const liveAccess = activeEvent ? getClientLiveGameAccessDetails(activeEvent) : null;
   const availability = activeEvent ? getEventAvailabilityState(activeEvent) : null;
   const dates = activeEvent ? getNormalizedEventDates(activeEvent) : null;
 
-  // 1. Cancelled State
-  if (errorDetails?.is_cancelled || isEventExplicitlyCancelled(activeEvent)) {
+  // 1. Cancelled State: ONLY when explicitly cancelled by user or admin
+  const isCancelled =
+    errorDetails?.code === 'EVENT_CANCELLED' ||
+    (liveAccess ? liveAccess.code === 'EVENT_CANCELLED' : isEventExplicitlyCancelled(activeEvent));
+
+  if (isCancelled) {
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
@@ -335,8 +342,11 @@ export const PublicEventGameView: React.FC = () => {
 
   // 2. Unpaid / Payment Pending State
   const isPendingPayment =
-    errorDetails?.is_pending_payment ||
-    (activeEvent && (activeEvent.payment_status || '').toUpperCase() !== 'PAID');
+    !isCancelled &&
+    (errorDetails?.code === 'PAYMENT_REQUIRED' ||
+      errorDetails?.is_pending_payment ||
+      (liveAccess && liveAccess.code === 'PAYMENT_REQUIRED') ||
+      (activeEvent && (activeEvent.payment_status || '').toUpperCase() !== 'PAID'));
 
   if (isPendingPayment) {
     return (
@@ -421,8 +431,12 @@ export const PublicEventGameView: React.FC = () => {
 
   // 3. Before Live Window (Scheduled) State
   const isBeforeOpeningDate =
-    errorDetails?.is_scheduled ||
-    (availability && availability.isBeforeLiveWindow);
+    !isCancelled &&
+    !isPendingPayment &&
+    (errorDetails?.code === 'EVENT_NOT_OPEN' ||
+      errorDetails?.is_scheduled ||
+      (liveAccess && liveAccess.code === 'EVENT_NOT_OPEN') ||
+      (availability && availability.isBeforeLiveWindow));
 
   if (isBeforeOpeningDate) {
     const liveOpenDate = errorDetails?.live_open_date || dates?.liveOpenDate || '';
@@ -477,10 +491,13 @@ export const PublicEventGameView: React.FC = () => {
 
   // 4. Concluded / Expired State
   const isExpired =
-    errorDetails?.is_expired ||
-    (availability && availability.isAfterLiveWindow) ||
-    activeEvent?.status === 'expired' ||
-    activeEvent?.event_status === 'EXPIRED';
+    !isCancelled &&
+    (errorDetails?.code === 'EVENT_EXPIRED' ||
+      errorDetails?.is_expired ||
+      (liveAccess && liveAccess.code === 'EVENT_EXPIRED') ||
+      (availability && availability.isAfterLiveWindow) ||
+      activeEvent?.status === 'expired' ||
+      activeEvent?.event_status === 'EXPIRED');
 
   if (isExpired) {
     const endDate = errorDetails?.end_date || dates?.endDate || '';

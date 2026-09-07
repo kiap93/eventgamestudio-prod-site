@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { GameTheme, getThemeGameType, isMemoryMatchTheme } from '../../themes';
+import { GameTheme, getThemeGameType, isMemoryMatchTheme, isReactionTheme } from '../../themes';
 import { LiveThemePreview } from './LiveThemePreview';
 import { VisualsTab } from './VisualsTab';
 import { ItemsTab } from './ItemsTab';
@@ -517,7 +517,13 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>{isMemoryMatchTheme(draftTheme) ? '2. Card Pairs' : '2. Items'}</span>
+              <span>
+                {isReactionTheme(draftTheme)
+                  ? '2. Gantry & Lights'
+                  : isMemoryMatchTheme(draftTheme)
+                  ? '2. Card Pairs'
+                  : '2. Items'}
+              </span>
             </button>
 
             <button

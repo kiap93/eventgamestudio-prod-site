@@ -222,11 +222,24 @@ export function getNormalizedEventDates(event: {
 /**
  * Checks whether an event is explicitly cancelled by user or administrator action.
  *
- * CRITICAL RULE:
- * - Automated payment timeouts or payment status transitions MUST NEVER automatically cancel an event.
- * - An event is ONLY cancelled if explicitly marked with an active cancellation reason (e.g. USER_CANCELLED or ADMIN_CANCELLED)
- *   or if an unpaid draft/event was explicitly deleted/cancelled by an admin/user.
- * - If an event is PAID, it can never be treated as cancelled by a payment timeout.
+ * AUTHORITATIVE BUSINESS RULE:
+ * Payment status and event status are separate.
+ * Payment statuses: PENDING, PAID, EXPIRED, REFUNDED.
+ *
+ * Event status must NOT automatically become CANCELLED because:
+ * - payment is unpaid
+ * - payment becomes EXPIRED
+ * - event end date has passed
+ * - Live Game access is closed
+ *
+ * CANCELLED must only represent an actual cancelled event.
+ *
+ * Therefore:
+ * - An event is ONLY explicitly cancelled if it has an explicit cancellation reason
+ *   (e.g., USER_CANCELLED or ADMIN_CANCELLED, or explicit non-timeout reason).
+ * - Automated payment timeouts (PAYMENT_TIMEOUT) are NEVER cancellations.
+ * - Payment being unpaid or expired is NEVER a cancellation.
+ * - End date passing is NEVER a cancellation.
  */
 export function isEventExplicitlyCancelled(
   event: {
@@ -240,9 +253,6 @@ export function isEventExplicitlyCancelled(
   if (!event) return false;
 
   const cancelReason = event.cancel_reason || null;
-  const rawStatus = (event.status || '').toLowerCase();
-  const eventStatus = (event.event_status || '').toUpperCase();
-  const payStatus = (event.payment_status || '').toUpperCase();
 
   // Automated payment timeouts are NEVER treated as explicit cancellations
   if (cancelReason === 'PAYMENT_TIMEOUT') {
@@ -255,21 +265,154 @@ export function isEventExplicitlyCancelled(
   }
 
   // Any custom explicit cancellation reason (other than PAYMENT_TIMEOUT)
-  if (cancelReason) {
+  if (cancelReason && cancelReason !== 'PAYMENT_TIMEOUT') {
     return true;
   }
 
-  // If the event is PAID, it can NEVER be cancelled without an explicit cancellation reason
-  if (payStatus === 'PAID') {
-    return false;
-  }
-
-  // For unpaid events: only cancelled if explicitly marked cancelled and not a payment timeout
-  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED') {
-    return true;
-  }
-
+  // Under the Authoritative Business Rule, CANCELLED must ONLY represent an actual cancelled event.
+  // Unpaid events, expired events, or legacy status === 'cancelled' without an explicit cancellation reason
+  // must NOT automatically be treated as CANCELLED.
   return false;
+}
+
+export type ClientLiveGameBlockReason =
+  | 'PAYMENT_REQUIRED'
+  | 'EVENT_NOT_OPEN'
+  | 'EVENT_EXPIRED'
+  | 'EVENT_CANCELLED';
+
+export interface ClientLiveGameAccessResult {
+  canAccess: boolean;
+  code?: ClientLiveGameBlockReason;
+  reason?: string;
+  error?: string;
+  is_pending_payment?: boolean;
+  is_scheduled?: boolean;
+  is_expired?: boolean;
+  is_cancelled?: boolean;
+  start_date?: string;
+  end_date?: string;
+  live_open_date?: string;
+}
+
+/**
+ * Centralized helper: canAccessClientLiveGame(event, currentDate)
+ *
+ * Client/Public Live Game requires:
+ * 1. payment_status === 'PAID'
+ * 2. currentDate >= event_start_date - 1 day
+ * 3. currentDate <= event_end_date
+ * 4. event is not cancelled
+ *
+ * If canAccessClientLiveGame is false, determines exact reason:
+ * - PAYMENT_REQUIRED (payment_status !== 'PAID')
+ * - EVENT_NOT_OPEN (currentDate < start_date - 1 day)
+ * - EVENT_EXPIRED / EVENT_ENDED (currentDate > end_date)
+ * - EVENT_CANCELLED (explicit cancellation only)
+ *
+ * Examples (Event: 2-Sep to 3-Sep):
+ * 1-Sep + unpaid -> Live Game BLOCKED (PAYMENT_REQUIRED)
+ * 1-Sep + paid   -> Live Game AVAILABLE
+ * 2-Sep + unpaid -> Live Game BLOCKED (PAYMENT_REQUIRED)
+ * 2-Sep + paid   -> Live Game AVAILABLE
+ * 3-Sep + unpaid -> Live Game BLOCKED (PAYMENT_REQUIRED)
+ * 3-Sep + paid   -> Live Game AVAILABLE
+ * After 3-Sep    -> Live Game CLOSED regardless of payment (EVENT_EXPIRED)
+ */
+export function canAccessClientLiveGame(
+  event: any,
+  currentDate?: string | Date
+): boolean {
+  return getClientLiveGameAccessDetails(event, currentDate).canAccess;
+}
+
+export function getClientLiveGameAccessDetails(
+  event: any,
+  currentDate?: string | Date
+): ClientLiveGameAccessResult {
+  if (!event) {
+    return {
+      canAccess: false,
+      code: 'EVENT_EXPIRED',
+      reason: 'Event not found or link has expired.',
+      error: 'Event not found or link has expired.',
+      is_expired: true,
+    };
+  }
+
+  // 1. Explicit cancellation check (only genuine user/admin cancellations)
+  if (isEventExplicitlyCancelled(event)) {
+    return {
+      canAccess: false,
+      code: 'EVENT_CANCELLED',
+      reason: 'This event has been cancelled by the organizer.',
+      error: 'This event has been cancelled by the organizer.',
+      is_cancelled: true,
+    };
+  }
+
+  const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
+  const curDate = getNormalizedCurrentDate(currentDate);
+
+  // 2. Date window check: Event has ended (concluded)
+  // Authoritative Rule: "After 3-Sep: => Live Game CLOSED regardless of payment."
+  if (endDate && curDate > endDate) {
+    return {
+      canAccess: false,
+      code: 'EVENT_EXPIRED',
+      reason: `This event concluded on ${formatDateOnly(endDate)}.`,
+      error: `This event concluded on ${formatDateOnly(endDate)}.`,
+      is_expired: true,
+      start_date: startDate,
+      end_date: endDate,
+      live_open_date: liveOpenDate,
+    };
+  }
+
+  // 3. Payment status check (checked independently)
+  // Unpaid events during setup or live window are blocked awaiting payment, NOT cancelled
+  const payStatus = (event.payment_status || '').toUpperCase();
+  const isPaid = payStatus === 'PAID';
+  const rawStatus = (event.status || '').toLowerCase();
+
+  if (!isPaid || rawStatus === 'pending_payment') {
+    return {
+      canAccess: false,
+      code: 'PAYMENT_REQUIRED',
+      reason: 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
+      error: 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
+      is_pending_payment: true,
+      start_date: startDate,
+      end_date: endDate,
+      live_open_date: liveOpenDate,
+    };
+  }
+
+  // 4. Date window check: Before setup day (currentDate < start_date - 1 day)
+  if (liveOpenDate && curDate < liveOpenDate) {
+    return {
+      canAccess: false,
+      code: 'EVENT_NOT_OPEN',
+      reason: `This event is scheduled to open on ${formatDateOnly(liveOpenDate)}. Live URL will become active on ${formatDateOnly(liveOpenDate)}.`,
+      error: `This event is scheduled to open on ${formatDateOnly(liveOpenDate)}. Live URL will become active on ${formatDateOnly(liveOpenDate)}.`,
+      is_scheduled: true,
+      start_date: startDate,
+      end_date: endDate,
+      live_open_date: liveOpenDate,
+    };
+  }
+
+  // 5. All conditions met:
+  // payment_status === 'PAID'
+  // AND currentDate >= event_start_date - 1 day
+  // AND currentDate <= event_end_date
+  // AND event is not cancelled
+  return {
+    canAccess: true,
+    start_date: startDate,
+    end_date: endDate,
+    live_open_date: liveOpenDate,
+  };
 }
 
 /**
@@ -302,26 +445,7 @@ export function canAccessLiveEvent(
   } | null | undefined,
   currentDate?: string | Date
 ): boolean {
-  if (!event) return false;
-
-  // 1. Explicitly cancelled events are never accessible
-  if (isEventExplicitlyCancelled(event)) {
-    return false;
-  }
-
-  // 2. Payment MUST be fully PAID for public gameplay
-  const payStatus = (event.payment_status || '').toUpperCase();
-  if (payStatus !== 'PAID') {
-    return false;
-  }
-
-  const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
-  if (!startDate || !endDate || !liveOpenDate) return false;
-
-  const curDate = getNormalizedCurrentDate(currentDate);
-
-  // 3. Current calendar date >= liveOpenDate (start_date - 1 day) AND current_date <= end_date (inclusive)
-  return curDate >= liveOpenDate && curDate <= endDate;
+  return canAccessClientLiveGame(event, currentDate);
 }
 
 /**

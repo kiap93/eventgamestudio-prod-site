@@ -3,6 +3,7 @@ import {
   GameTheme,
   ThemeDropItem,
   isMemoryMatchTheme,
+  isReactionTheme,
   getDropItemDisplaySize,
   DEFAULT_MAX_DROP_ITEM_SIZE,
 } from '../../themes';
@@ -254,6 +255,22 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
   uploadingAsset,
 }) => {
   const isMemoryMatch = isMemoryMatchTheme(theme);
+
+  if (isReactionTheme(theme)) {
+    return (
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-xl">
+        <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+          <Sparkles className="w-6 h-6" />
+        </div>
+        <div className="max-w-md mx-auto space-y-1.5">
+          <h3 className="text-base font-bold text-slate-100">Reaction Gantry Sequence</h3>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            The Reaction Game uses high-precision F1-style starting gantry lights and reflex timing rather than collectible items or card pairs. Configure light sequences, bulb designs, delay windows, and penalty rules in the <span className="text-amber-400 font-semibold">Gameplay</span> and <span className="text-amber-400 font-semibold">Screens</span> tabs.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (isMemoryMatch) {
     return (

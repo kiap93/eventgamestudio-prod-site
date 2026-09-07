@@ -1,5 +1,9 @@
 import { BaseGameConfig } from '../types';
-import { MemoryMatchScreensConfig } from '../memory-match/types';
+import { ResultScreenConfig, generateDefaultReactionResultScreenElements } from '../shared/resultScreenTypes';
+
+export interface ReactionScreensConfig {
+  result?: ResultScreenConfig;
+}
 
 export type ReactionLightShape = 'circle' | 'rounded' | 'pill';
 export type FalseStartRule = 'retry' | 'penalty_1000ms' | 'disqualify';
@@ -38,7 +42,7 @@ export interface ReactionGameConfig extends BaseGameConfig {
   readyInstructions: string; // default "When all red lights extinguish, react as fast as possible!"
   goText: string; // default "GO!"
   falseStartText: string; // default "JUMP START!"
-  screens?: MemoryMatchScreensConfig;
+  screens?: ReactionScreensConfig;
 }
 
 export const DEFAULT_REACTION_CONFIG: ReactionGameConfig = {
@@ -60,6 +64,16 @@ export const DEFAULT_REACTION_CONFIG: ReactionGameConfig = {
   soundVolume: 0.8,
   soundEnabled: true,
   bgmEnabled: false,
+  screens: {
+    result: {
+      backgroundType: 'theme',
+      backgroundColor: '#070b14',
+      backgroundImageUrl: null,
+      backgroundOverlayOpacity: 0.3,
+      canvas: { width: 1000, height: 1000 },
+      elements: generateDefaultReactionResultScreenElements(),
+    },
+  },
 };
 
 export interface ReactionRatingTier {

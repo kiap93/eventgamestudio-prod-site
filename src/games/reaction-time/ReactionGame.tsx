@@ -24,9 +24,9 @@ import {
   getReactionRating,
 } from './types';
 import { reactionSounds } from './reactionSounds';
-import { ResultScreenRenderer } from '../memory-match/ResultScreenRenderer';
+import { ResultScreenRenderer } from '../shared/ResultScreenRenderer';
 import { EventLeaderboardEntry } from '../../types';
-import { resolveScreenBackground } from '../../themes/screenBackground';
+import { apiFetch } from '../../lib/api';
 
 export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
   activeTheme,
@@ -98,10 +98,35 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
   roundResultsRef.current = roundResults;
 
   const goTimestampRef = useRef<number>(0);
+  const lastTriggerTimeRef = useRef<number>(0);
   const sequenceTimersRef = useRef<NodeJS.Timeout[]>([]);
   const randomDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const roundAdvanceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Fetch leaderboard data
+  const fetchLeaderboard = useCallback(async () => {
+    if (!eventId && !publicToken) return;
+    setLoadingLeaderboard(true);
+    try {
+      const url = publicToken
+        ? `/api/public/events/${publicToken}/high-scores?limit=50`
+        : `/api/events/${eventId}/admin/high-scores?limit=50`;
+      const res = await apiFetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setLeaderboardScores(data.scores || []);
+      }
+    } catch (err) {
+      console.warn('Failed to load leaderboard scores:', err);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  }, [eventId, publicToken]);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [fetchLeaderboard]);
 
   // Clear all pending timeouts
   const clearAllTimers = useCallback(() => {
@@ -252,89 +277,106 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
   );
 
   // Handle player reaction action (tap, click, Space bar)
-  const handleUserTrigger = useCallback(() => {
-    const currentState = gameStateRef.current;
+  const handleUserTrigger = useCallback(
+    (event?: React.SyntheticEvent | KeyboardEvent | TouchEvent | MouseEvent) => {
+      const currentState = gameStateRef.current;
+      if (currentState === 'FINAL_RESULT') return;
 
-    // 1. If currently in IDLE or READY: start game
-    if (currentState === 'IDLE' || currentState === 'READY') {
-      startNewGame();
-      return;
-    }
+      const nowPerf = performance.now();
+      if (nowPerf - lastTriggerTimeRef.current < 60) {
+        return; // Deduplicate pointer / touch / click synthetic echoes
+      }
+      lastTriggerTimeRef.current = nowPerf;
 
-    // 2. If clicked during LIGHT_SEQUENCE or RANDOM_WAIT -> FALSE START!
-    if (currentState === 'LIGHT_SEQUENCE' || currentState === 'RANDOM_WAIT') {
-      clearAllTimers();
-      reactionSounds.playFalseStart();
-      setGameState('FALSE_START');
-      setFalseStartMessage(reactionConfig.falseStartText || 'JUMP START!');
+      // 1. If currently in IDLE or READY: start game
+      if (currentState === 'IDLE' || currentState === 'READY') {
+        startNewGame();
+        return;
+      }
 
-      const falseStartResult: ReactionRoundResult = {
-        round: currentRoundRef.current,
-        reactionTimeMs: reactionConfig.falseStartRule === 'penalty_1000ms' ? 1000 : 0,
-        falseStart: true,
-        timestamp: Date.now(),
-      };
+      // 2. If clicked during LIGHT_SEQUENCE or RANDOM_WAIT -> FALSE START!
+      if (currentState === 'LIGHT_SEQUENCE' || currentState === 'RANDOM_WAIT') {
+        clearAllTimers();
+        reactionSounds.playFalseStart();
+        setGameState('FALSE_START');
+        setFalseStartMessage(reactionConfig.falseStartText || 'JUMP START!');
 
-      if (reactionConfig.falseStartRule === 'retry') {
-        // Retry current round after brief notice
-        roundAdvanceTimerRef.current = setTimeout(() => {
-          startRoundSequence();
-        }, 1500);
-      } else {
-        // Record penalty or advance
-        const updated = [...roundResultsRef.current, falseStartResult];
+        const falseStartResult: ReactionRoundResult = {
+          round: currentRoundRef.current,
+          reactionTimeMs: reactionConfig.falseStartRule === 'penalty_1000ms' ? 1000 : 0,
+          falseStart: true,
+          timestamp: Date.now(),
+        };
+
+        if (reactionConfig.falseStartRule === 'retry') {
+          // Retry current round after brief notice
+          roundAdvanceTimerRef.current = setTimeout(() => {
+            startRoundSequence();
+          }, 1500);
+        } else {
+          // Record penalty or advance
+          const updated = [...roundResultsRef.current, falseStartResult];
+          setRoundResults(updated);
+          advanceAfterRound(updated);
+        }
+        return;
+      }
+
+      // 3. If in GO state -> VALID REACTION!
+      if (currentState === 'GO') {
+        const now = performance.now();
+        const triggerTime =
+          event &&
+          typeof (event as any).timeStamp === 'number' &&
+          (event as any).timeStamp > goTimestampRef.current &&
+          (event as any).timeStamp - goTimestampRef.current < 30000
+            ? (event as any).timeStamp
+            : now;
+        const reactionMs = Math.max(1, Math.round(triggerTime - goTimestampRef.current));
+
+        reactionSounds.playRoundSuccess();
+        setLastReactionTime(reactionMs);
+        setGameState('ROUND_RESULT');
+
+        const newRoundResult: ReactionRoundResult = {
+          round: currentRoundRef.current,
+          reactionTimeMs: reactionMs,
+          falseStart: false,
+          timestamp: Date.now(),
+        };
+
+        const updated = [...roundResultsRef.current, newRoundResult];
         setRoundResults(updated);
         advanceAfterRound(updated);
+        return;
       }
-      return;
-    }
 
-    // 3. If in GO state -> VALID REACTION!
-    if (currentState === 'GO') {
-      const now = performance.now();
-      const reactionMs = Math.max(1, Math.round(now - goTimestampRef.current));
-
-      reactionSounds.playRoundSuccess();
-      setLastReactionTime(reactionMs);
-      setGameState('ROUND_RESULT');
-
-      const newRoundResult: ReactionRoundResult = {
-        round: currentRoundRef.current,
-        reactionTimeMs: reactionMs,
-        falseStart: false,
-        timestamp: Date.now(),
-      };
-
-      const updated = [...roundResultsRef.current, newRoundResult];
-      setRoundResults(updated);
-      advanceAfterRound(updated);
-      return;
-    }
-
-    // 4. If in ROUND_RESULT and user taps to skip delay: advance immediately
-    if (currentState === 'ROUND_RESULT') {
-      if (roundAdvanceTimerRef.current) {
-        clearTimeout(roundAdvanceTimerRef.current);
-        roundAdvanceTimerRef.current = null;
+      // 4. If in ROUND_RESULT and user taps to skip delay: advance immediately
+      if (currentState === 'ROUND_RESULT') {
+        if (roundAdvanceTimerRef.current) {
+          clearTimeout(roundAdvanceTimerRef.current);
+          roundAdvanceTimerRef.current = null;
+        }
+        if (currentRoundRef.current >= reactionConfig.roundsCount) {
+          setGameState('FINAL_RESULT');
+          reactionSounds.playCelebration();
+        } else {
+          setCurrentRound((prev) => prev + 1);
+          startRoundSequence();
+        }
+        return;
       }
-      if (currentRoundRef.current >= reactionConfig.roundsCount) {
-        setGameState('FINAL_RESULT');
-        reactionSounds.playCelebration();
-      } else {
-        setCurrentRound((prev) => prev + 1);
-        startRoundSequence();
-      }
-      return;
-    }
-  }, [
-    startNewGame,
-    clearAllTimers,
-    reactionConfig.falseStartText,
-    reactionConfig.falseStartRule,
-    reactionConfig.roundsCount,
-    startRoundSequence,
-    advanceAfterRound,
-  ]);
+    },
+    [
+      startNewGame,
+      clearAllTimers,
+      reactionConfig.falseStartText,
+      reactionConfig.falseStartRule,
+      reactionConfig.roundsCount,
+      startRoundSequence,
+      advanceAfterRound,
+    ]
+  );
 
   // Keyboard controls (Space bar or Enter key)
   useEffect(() => {
@@ -369,7 +411,6 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
     } catch {}
     setIsSubmittingScore(true);
 
-    const validRounds = roundResults.filter((r) => !r.falseStart);
     const scoreVal = stats.averageMs > 0 ? stats.averageMs : 250;
 
     const metadataPayload = {
@@ -385,8 +426,11 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
     };
 
     try {
-      if (eventId && eventId !== 'undefined' && eventId !== 'null') {
-        const res = await fetch(`/api/events/${eventId}/scores`, {
+      if (publicToken || (eventId && eventId !== 'undefined' && eventId !== 'null')) {
+        const url = publicToken
+          ? `/api/public/events/${publicToken}/high-scores`
+          : `/api/events/${eventId}/admin/high-scores`;
+        const res = await apiFetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -398,9 +442,10 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
           }),
         });
         const data = await res.json();
-        if (data.success) {
+        if (res.ok && data.success) {
           setScoreSubmitted(true);
           setSubmittedRank(data.rank || 1);
+          await fetchLeaderboard();
           return { success: true, rank: data.rank };
         }
       }
@@ -408,7 +453,7 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
       // Local fallback simulation
       const localEntry: EventLeaderboardEntry = {
         id: 'local_' + Date.now(),
-        event_id: 'local',
+        event_id: eventId || 'local',
         player_name: trimmedName,
         score: scoreVal,
         metadata: metadataPayload,
@@ -418,7 +463,10 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
 
       setScoreSubmitted(true);
       setSubmittedRank(1);
-      setLeaderboardScores((prev) => [localEntry, ...prev]);
+      setLeaderboardScores((prev) => {
+        const next = [...prev, localEntry];
+        return next.sort((a, b) => a.score - b.score);
+      });
       return { success: true, rank: 1 };
     } catch (err: any) {
       console.error('Score submission error:', err);
@@ -429,12 +477,19 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
   };
 
   // Background visual style
-  const bgStyle = useMemo(() => {
-    return resolveScreenBackground(
-      activeTheme?.background_url,
-      activeTheme?.screens?.gameplay?.background,
-      '#070b14'
-    );
+  const bgStyle = useMemo<React.CSSProperties>(() => {
+    const bgUrl = activeTheme?.background_url || activeTheme?.background;
+    if (bgUrl) {
+      return {
+        backgroundImage: `url("${bgUrl}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundColor: '#070b14',
+      };
+    }
+    return {
+      backgroundColor: '#070b14',
+    };
   }, [activeTheme]);
 
   // Light shapes and colors
@@ -697,37 +752,44 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
 
       {/* Final Victory / Leaderboard Completion Screen */}
       {gameState === 'FINAL_RESULT' && (
-        <ResultScreenRenderer
-          resultConfig={reactionConfig.screens?.result}
-          stats={{
-            score: stats.averageMs,
-            averageReactionTimeMs: stats.averageMs,
-            bestReactionTimeMs: stats.bestMs,
-            worstReactionTimeMs: stats.worstMs,
-            rating: stats.rating.tier,
-            rounds: roundResults,
-            timeElapsedSeconds: Math.round(reactionConfig.roundsCount * 3),
-            isVictory: true,
-            gameType: 'reaction-time',
-          }}
-          theme={activeTheme}
-          leaderboardData={leaderboardScores}
-          loadingLeaderboard={loadingLeaderboard}
-          currentPlayerName={playerName}
-          isEventPreview={isEventPreview}
-          isEventTest={isEventTest}
-          scoreSubmitted={scoreSubmitted}
-          submittedRank={submittedRank}
-          isSubmittingScore={isSubmittingScore}
-          onSubmitScore={handleSubmitScore}
-          onAction={(action) => {
-            if (action === 'playAgain') {
-              startNewGame();
-            } else if (action === 'exit') {
-              setGameState('IDLE');
-            }
-          }}
-        />
+        <div
+          className="absolute inset-0 z-50 pointer-events-auto cursor-default"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+        >
+          <ResultScreenRenderer
+            resultConfig={reactionConfig.screens?.result}
+            stats={{
+              score: stats.averageMs,
+              averageReactionTimeMs: stats.averageMs,
+              bestReactionTimeMs: stats.bestMs,
+              worstReactionTimeMs: stats.worstMs,
+              rating: stats.rating.tier,
+              rounds: roundResults,
+              timeElapsedSeconds: Math.round(reactionConfig.roundsCount * 3),
+              isVictory: true,
+              gameType: 'reaction-time',
+            }}
+            theme={activeTheme}
+            leaderboardData={leaderboardScores}
+            loadingLeaderboard={loadingLeaderboard}
+            currentPlayerName={playerName}
+            isEventPreview={isEventPreview}
+            isEventTest={isEventTest}
+            scoreSubmitted={scoreSubmitted}
+            submittedRank={submittedRank}
+            isSubmittingScore={isSubmittingScore}
+            onSubmitScore={handleSubmitScore}
+            onAction={(action) => {
+              if (action === 'playAgain') {
+                startNewGame();
+              } else if (action === 'exit') {
+                setGameState('IDLE');
+              }
+            }}
+          />
+        </div>
       )}
     </div>
   );

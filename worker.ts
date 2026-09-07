@@ -37,6 +37,8 @@ import {
   getEventByPublicToken,
   canAccessLiveEvent,
   canAccessPreviewEvent,
+  canAccessClientLiveGame,
+  getClientLiveGameAccessDetails,
   isEventExplicitlyCancelled,
   getNormalizedEventDates,
   createEvent,
@@ -2814,66 +2816,29 @@ export default {
           return errorResponse('Event not found or invalid URL', 404, cors);
         }
 
-        if (rawEvent.event_status === 'CANCELLED' || rawEvent.status === 'cancelled' || rawEvent.cancel_reason) {
-          return jsonResponse({
-            error: 'This event has been cancelled.',
-            code: 'EVENT_CANCELLED',
-            is_cancelled: true,
-            cancel_reason: rawEvent.cancel_reason,
-          }, 403, {
-            ...cors,
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-          });
-        }
-
+        const accessDetails = getClientLiveGameAccessDetails(rawEvent);
         const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(rawEvent);
-        const isPaid = (rawEvent.payment_status || '').toUpperCase() === 'PAID';
 
-        // 1. Payment status check (checked independently)
-        if (!isPaid || rawEvent.status === 'pending_payment') {
-          return jsonResponse({
-            error: 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
-            code: 'PAYMENT_REQUIRED',
-            is_pending_payment: true,
-            event_status: rawEvent.event_status,
-            payment_status: rawEvent.payment_status,
-            event_id: rawEvent.id,
-            event_name: rawEvent.name,
-            organization_id: rawEvent.organization_id,
-            event_price: rawEvent.event_price,
-            event_currency: rawEvent.event_currency,
-            start_date: startDate,
-            end_date: endDate,
-            live_open_date: liveOpenDate,
-            event: rawEvent,
-          }, 403, {
-            ...cors,
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-          });
-        }
-
-        // 2. Date window check
-        const isLiveAllowed = canAccessLiveEvent(rawEvent);
-        if (!isLiveAllowed) {
-          const curDate = new Date();
-          const formatter = new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Asia/Singapore',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-          });
-          const todayStr = formatter.format(curDate);
-
-          if (todayStr < liveOpenDate) {
+        if (!accessDetails.canAccess) {
+          if (accessDetails.code === 'EVENT_CANCELLED') {
             return jsonResponse({
-              error: `This event is scheduled to open on ${liveOpenDate}. Live URL will become active on ${liveOpenDate}.`,
-              code: 'EVENT_NOT_OPEN',
-              is_scheduled: true,
-              live_open_date: liveOpenDate,
+              error: accessDetails.error || 'This event has been cancelled.',
+              code: 'EVENT_CANCELLED',
+              is_cancelled: true,
+              cancel_reason: rawEvent.cancel_reason,
+            }, 403, {
+              ...cors,
+              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+            });
+          }
+
+          if (accessDetails.code === 'EVENT_EXPIRED') {
+            return jsonResponse({
+              error: accessDetails.error || `This event concluded on ${endDate}.`,
+              code: 'EVENT_EXPIRED',
+              is_expired: true,
               start_date: startDate,
               end_date: endDate,
               event_id: rawEvent.id,
@@ -2887,11 +2852,36 @@ export default {
             });
           }
 
-          if (todayStr > endDate) {
+          if (accessDetails.code === 'PAYMENT_REQUIRED') {
             return jsonResponse({
-              error: `This event concluded on ${endDate}.`,
-              code: 'EVENT_EXPIRED',
-              is_expired: true,
+              error: accessDetails.error || 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
+              code: 'PAYMENT_REQUIRED',
+              is_pending_payment: true,
+              event_status: rawEvent.event_status,
+              payment_status: rawEvent.payment_status,
+              event_id: rawEvent.id,
+              event_name: rawEvent.name,
+              organization_id: rawEvent.organization_id,
+              event_price: rawEvent.event_price,
+              event_currency: rawEvent.event_currency,
+              start_date: startDate,
+              end_date: endDate,
+              live_open_date: liveOpenDate,
+              event: rawEvent,
+            }, 403, {
+              ...cors,
+              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+            });
+          }
+
+          if (accessDetails.code === 'EVENT_NOT_OPEN') {
+            return jsonResponse({
+              error: accessDetails.error || `This event is scheduled to open on ${liveOpenDate}. Live URL will become active on ${liveOpenDate}.`,
+              code: 'EVENT_NOT_OPEN',
+              is_scheduled: true,
+              live_open_date: liveOpenDate,
               start_date: startDate,
               end_date: endDate,
               event_id: rawEvent.id,
