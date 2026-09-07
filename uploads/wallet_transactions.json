@@ -34167,5 +34167,118 @@
     },
     "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
     "created_at": "2026-09-07T02:52:19.845Z"
+  },
+  {
+    "id": "548f9cee-121f-4dd3-8f3d-28a571108b1e",
+    "organization_id": "72a2f443-763c-4d2d-8a1e-7a1ec2af6dc2",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_72a2f443-763c-4d2d-8a1e-7a1ec2af6dc2",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "MM Test Org 1788752564928",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-09-07T03:42:44.937Z"
+  },
+  {
+    "id": "txn_topup_87398efe-9ee8-4579-9d04-8f5b591840bc",
+    "organization_id": "6a972f24-51fe-4969-b67d-79537b30d9f9",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 6000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_order_87398efe-9ee8-4579-9d04-8f5b591840bc",
+    "description": "Top-up Order 87398EFE",
+    "metadata": {
+      "topup_order_id": "87398efe-9ee8-4579-9d04-8f5b591840bc",
+      "payment_reference": "PAY_GW_93AD57A4",
+      "payment_method": "card",
+      "reason": "Verified payment.succeeded webhook",
+      "webhook_event_id": "evt_d507a75f-bcc0-48e1-ae71-e3d8427a9561",
+      "webhook_type": "payment.succeeded",
+      "provider": "payment_provider",
+      "processed_at": "2026-09-07T03:42:45.261Z"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-09-07T03:42:45.261Z"
+  },
+  {
+    "id": "txn_topup_87398efe-9ee8-4579-9d04-8f5b591840bc_promo",
+    "organization_id": "6a972f24-51fe-4969-b67d-79537b30d9f9",
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_order_87398efe-9ee8-4579-9d04-8f5b591840bc_promo",
+    "description": "Promotional 5% Top-up Credit on RM6000.00 deposit",
+    "metadata": {
+      "parent_topup_id": "txn_topup_87398efe-9ee8-4579-9d04-8f5b591840bc",
+      "topup_order_id": "87398efe-9ee8-4579-9d04-8f5b591840bc",
+      "qualifying_amount": 6000,
+      "reward_rate": "5%",
+      "webhook_event_id": "evt_d507a75f-bcc0-48e1-ae71-e3d8427a9561",
+      "webhook_type": "payment.succeeded",
+      "provider": "payment_provider",
+      "processed_at": "2026-09-07T03:42:45.261Z"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-09-07T03:42:45.261Z"
+  },
+  {
+    "id": "txn_topup_09154a7c-7e06-40dc-9e36-163cc841d73c",
+    "organization_id": "741c1aa0-f479-415e-b6b0-4c3c0af8d2fe",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 8000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_order_09154a7c-7e06-40dc-9e36-163cc841d73c",
+    "description": "Top-up Order 09154A7C",
+    "metadata": {
+      "topup_order_id": "09154a7c-7e06-40dc-9e36-163cc841d73c",
+      "payment_reference": "BANK_TXN_MAYBANK_888999",
+      "payment_method": "bank_transfer",
+      "reason": "Manual Admin Reconciliation: Verified Maybank business account deposit slip receipt #MB888999",
+      "reconciliation": true,
+      "reconciled_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+      "reconciliation_reason": "Verified Maybank business account deposit slip receipt #MB888999"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-09-07T03:42:45.427Z"
+  },
+  {
+    "id": "txn_topup_09154a7c-7e06-40dc-9e36-163cc841d73c_promo",
+    "organization_id": "741c1aa0-f479-415e-b6b0-4c3c0af8d2fe",
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 400,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "topup_order_09154a7c-7e06-40dc-9e36-163cc841d73c_promo",
+    "description": "Promotional 5% Top-up Credit on RM8000.00 deposit",
+    "metadata": {
+      "parent_topup_id": "txn_topup_09154a7c-7e06-40dc-9e36-163cc841d73c",
+      "topup_order_id": "09154a7c-7e06-40dc-9e36-163cc841d73c",
+      "qualifying_amount": 8000,
+      "reward_rate": "5%",
+      "reconciliation": true,
+      "reconciled_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+      "reconciliation_reason": "Verified Maybank business account deposit slip receipt #MB888999"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-09-07T03:42:45.427Z"
   }
 ]

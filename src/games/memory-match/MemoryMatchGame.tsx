@@ -78,14 +78,24 @@ const renderCardIcon = (iconName?: string, className: string = 'w-8 h-8') => {
   }
 };
 
+// Explicit Auto Demo state machine phases
+export type AutoDemoPhase =
+  | 'idle'
+  | 'flip-first'
+  | 'wait-first'
+  | 'flip-second'
+  | 'show-pair'
+  | 'resolve-match'
+  | 'resolve-mismatch'
+  | 'pause-after-resolution'
+  | 'complete';
+
 // Auto Demo timing and behavior constants (ms)
-const AUTO_DEMO_FIRST_FLIP_DELAY = 500;
-const AUTO_DEMO_SECOND_FLIP_DELAY = 650;
-const AUTO_DEMO_MISMATCH_PAUSE = 850;
-const AUTO_DEMO_AFTER_MISMATCH_DELAY = 400;
-const AUTO_DEMO_AFTER_MATCH_DELAY = 500;
-const AUTO_DEMO_MATCH_DELAY = 350;
-const AUTO_DEMO_CYCLE_RESTART_DELAY = 1200;
+const AUTO_DEMO_FIRST_CARD_DELAY = 600; // time before flipping second card
+const AUTO_DEMO_SECOND_CARD_VISIBLE = 800; // duration BOTH cards remain visibly face-up before resolution
+const AUTO_DEMO_AFTER_RESOLUTION = 400; // pause after resolving (flipped back or matched) before next action
+const AUTO_DEMO_INITIAL_ACTION_DELAY = 400; // brief pause before first action starts after countdown
+const AUTO_DEMO_CYCLE_RESTART_DELAY = 1200; // pause when cycle completes before starting new deck
 const AUTO_DEMO_WRONG_MATCH_CHANCE = 0.30;
 
 export interface MemoryMatchGameProps extends GameComponentProps<MemoryMatchConfig> {
@@ -289,6 +299,15 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const comboStreakRef = useRef(comboStreak);
   comboStreakRef.current = comboStreak;
 
+  const mismatchDelayRef = useRef(mismatchDelay);
+  mismatchDelayRef.current = mismatchDelay;
+
+  const matchPointsRef = useRef(matchPoints);
+  matchPointsRef.current = matchPoints;
+
+  const comboPointsRef = useRef(comboPoints);
+  comboPointsRef.current = comboPoints;
+
   // Sync sound settings
   useEffect(() => {
     memorySounds.setMuted(isMuted || settings?.soundEnabled === false);
@@ -383,6 +402,11 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     setCountdown(3);
     updateGameState('COUNTDOWN');
   }, [cleanupGameplay, clearAutoDemoTimers, initBoard, updateGameState]);
+
+  const startCountdownRef = useRef(startCountdown);
+  useEffect(() => {
+    startCountdownRef.current = startCountdown;
+  }, [startCountdown]);
 
   const isFirstMountRef = useRef(true);
 
@@ -796,7 +820,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         setManagedAutoDemoTimeout(() => {
           if (!isStudioPreview || !autoDemo) return;
           if (sessionIdRef.current !== activeSession) return;
-          startCountdown();
+          startCountdownRef.current();
         }, AUTO_DEMO_CYCLE_RESTART_DELAY);
         return;
       }
@@ -804,174 +828,175 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       const action = actionList[actionIdx];
       const { firstIdx, secondIdx, type } = action;
 
-      // Safety check: ensure both card slots exist
+      // Safety check: ensure both card slots exist and are not already matched
       const deckNow = cardsRef.current;
-      if (!deckNow[firstIdx] || !deckNow[secondIdx]) {
+      const firstCard = deckNow[firstIdx];
+      const secondCard = deckNow[secondIdx];
+      if (!firstCard || !secondCard || firstCard.isMatched || secondCard.isMatched) {
         executeAction(actionIdx + 1);
         return;
       }
 
-      // ============================================
-      // WRONG MATCH ACTION EXECUTION
-      // ============================================
-      if (type === 'WRONG') {
-        if (deckNow[firstIdx].isMatched || deckNow[secondIdx].isMatched) {
+      // Initial pause before first action starts
+      const initialDelay = actionIdx === 0 ? AUTO_DEMO_INITIAL_ACTION_DELAY : 0;
+
+      setManagedAutoDemoTimeout(() => {
+        if (!isStudioPreview || !autoDemo) return;
+        if (sessionIdRef.current !== activeSession) return;
+
+        const currentDeck = cardsRef.current;
+        const currentFirst = currentDeck[firstIdx];
+        const currentSecond = currentDeck[secondIdx];
+        if (!currentFirst || !currentSecond || currentFirst.isMatched || currentSecond.isMatched) {
           executeAction(actionIdx + 1);
           return;
         }
 
-        // Step 1: Flip first card
+        // ============================================
+        // PHASE 1: FLIP FIRST CARD
+        // ============================================
+        console.log('[AutoDemo]', 'flip first', currentFirst.id);
+        memorySounds.playCardFlip();
+        setCards((prev) =>
+          prev.map((c) =>
+            c.id === currentFirst.id
+              ? { ...c, isFlipped: true, isShaking: false }
+              : c
+          )
+        );
+        setFlippedIndices([firstIdx]);
+
+        // STOP. Do not immediately select or flip the second card.
+        // Wait AUTO_DEMO_FIRST_CARD_DELAY (600ms) for browser to paint first card face.
+
+        // ============================================
+        // PHASE 2: FLIP SECOND CARD
+        // ============================================
         setManagedAutoDemoTimeout(() => {
           if (!isStudioPreview || !autoDemo) return;
           if (sessionIdRef.current !== activeSession) return;
 
-          memorySounds.playCardFlip();
-          setCards((prev) => {
-            const next = [...prev];
-            if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: true, isShaking: false };
-            return next;
-          });
-          setFlippedIndices([firstIdx]);
+          const deckAfterFirst = cardsRef.current;
+          const freshSecond = deckAfterFirst[secondIdx];
+          const freshFirst = deckAfterFirst[firstIdx];
+          if (!freshSecond || !freshFirst || freshSecond.isMatched || freshFirst.isMatched) {
+            executeAction(actionIdx + 1);
+            return;
+          }
 
-          // Step 2: Flip second WRONG card
+          console.log('[AutoDemo]', 'flip second', freshSecond.id);
+          memorySounds.playCardFlip();
+
+          // Flip card B and STOP. Do NOT chain match/mismatch resolution in this callback!
+          setCards((prev) =>
+            prev.map((c) =>
+              c.id === freshSecond.id
+                ? { ...c, isFlipped: true, isShaking: false }
+                : c
+            )
+          );
+          setFlippedIndices([firstIdx, secondIdx]);
+
+          // Count move
+          const currentMoves = movesRef.current + 1;
+          setMoves(currentMoves);
+          movesRef.current = currentMoves;
+
+          console.log('[AutoDemo]', 'showing pair', {
+            first: freshFirst.id,
+            second: freshSecond.id,
+          });
+
+          // STOP. Schedule another timeout so BOTH cards remain visibly face-up.
+          // Wait AUTO_DEMO_SECOND_CARD_VISIBLE (800ms).
+
+          // ============================================
+          // PHASE 3: EVALUATE & RESOLVE MATCH / MISMATCH
+          // ============================================
           setManagedAutoDemoTimeout(() => {
             if (!isStudioPreview || !autoDemo) return;
             if (sessionIdRef.current !== activeSession) return;
 
-            memorySounds.playCardFlip();
-            setCards((prev) => {
-              const next = [...prev];
-              if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: true, isShaking: false };
-              return next;
-            });
-            setFlippedIndices([firstIdx, secondIdx]);
-
-            // Count move
-            const currentMoves = movesRef.current + 1;
-            setMoves(currentMoves);
-            movesRef.current = currentMoves;
-
-            // Reset combo streak on wrong match
-            setComboStreak(0);
-            comboStreakRef.current = 0;
-
-            // Play mismatch sound and shake both cards
-            memorySounds.playMismatch();
-            setCards((prev) => {
-              const next = [...prev];
-              if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isShaking: true };
-              if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isShaking: true };
-              return next;
+            console.log('[AutoDemo]', 'resolve', {
+              matched: type === 'CORRECT',
             });
 
-            // Step 3: Both cards remain visible for mismatchDelay, then flip back
-            const pauseDelay = mismatchDelay || AUTO_DEMO_MISMATCH_PAUSE;
-            setManagedAutoDemoTimeout(() => {
-              if (!isStudioPreview || !autoDemo) return;
-              if (sessionIdRef.current !== activeSession) return;
-
-              setCards((prev) => {
-                const next = [...prev];
-                if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: false, isShaking: false };
-                if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: false, isShaking: false };
-                return next;
-              });
-              setFlippedIndices([]);
-
-              // Step 4: Short pause after flip-back before proceeding to next action
-              setManagedAutoDemoTimeout(() => {
-                if (!isStudioPreview || !autoDemo) return;
-                if (sessionIdRef.current !== activeSession) return;
-
-                executeAction(actionIdx + 1);
-              }, AUTO_DEMO_AFTER_MISMATCH_DELAY);
-            }, pauseDelay);
-          }, AUTO_DEMO_SECOND_FLIP_DELAY);
-        }, AUTO_DEMO_FIRST_FLIP_DELAY);
-        return;
-      }
-
-      // ============================================
-      // CORRECT MATCH ACTION EXECUTION
-      // ============================================
-      if (type === 'CORRECT') {
-        if (deckNow[firstIdx].isMatched || deckNow[secondIdx].isMatched) {
-          executeAction(actionIdx + 1);
-          return;
-        }
-
-        // Step 1: Flip first card
-        setManagedAutoDemoTimeout(() => {
-          if (!isStudioPreview || !autoDemo) return;
-          if (sessionIdRef.current !== activeSession) return;
-
-          memorySounds.playCardFlip();
-          setCards((prev) => {
-            const next = [...prev];
-            if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: true, isShaking: false };
-            return next;
-          });
-          setFlippedIndices([firstIdx]);
-
-          // Step 2: Flip matching second card
-          setManagedAutoDemoTimeout(() => {
-            if (!isStudioPreview || !autoDemo) return;
-            if (sessionIdRef.current !== activeSession) return;
-
-            memorySounds.playCardFlip();
-            setCards((prev) => {
-              const next = [...prev];
-              if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: true, isShaking: false };
-              return next;
-            });
-            setFlippedIndices([firstIdx, secondIdx]);
-
-            // Count move
-            const currentMoves = movesRef.current + 1;
-            setMoves(currentMoves);
-            movesRef.current = currentMoves;
-
-            // Step 3: Mark pair as matched
-            setManagedAutoDemoTimeout(() => {
-              if (!isStudioPreview || !autoDemo) return;
-              if (sessionIdRef.current !== activeSession) return;
-
+            if (type === 'CORRECT') {
               // Combo and score logic
               const currentStreak = comboStreakRef.current + 1;
               setComboStreak(currentStreak);
               comboStreakRef.current = currentStreak;
               setMaxComboStreak((prev) => Math.max(prev, currentStreak));
 
-              const streakBonus = (currentStreak - 1) * comboPoints;
-              const addedPoints = matchPoints + streakBonus;
+              const streakBonus = (currentStreak - 1) * comboPointsRef.current;
+              const addedPoints = matchPointsRef.current + streakBonus;
               setScore((prev) => prev + addedPoints);
 
               memorySounds.playMatchSuccess(currentStreak);
 
-              setCards((prev) => {
-                const next = [...prev];
-                if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: false, isMatched: true, isShaking: false };
-                if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: false, isMatched: true, isShaking: false };
-                return next;
-              });
+              // Mark both cards matched (both keep isFlipped: true and isMatched: true)
+              setCards((prev) =>
+                prev.map((c) =>
+                  c.id === freshFirst.id || c.id === freshSecond.id
+                    ? { ...c, isFlipped: true, isMatched: true, isShaking: false }
+                    : c
+                )
+              );
 
               const newMatched = matchedPairsCountRef.current + 1;
               setMatchedPairsCount(newMatched);
               matchedPairsCountRef.current = newMatched;
               setFlippedIndices([]);
 
-              // Step 4: Advance to next action
+              // Pause after match resolution before advancing
+              setManagedAutoDemoTimeout(() => {
+                if (!isStudioPreview || !autoDemo) return;
+                if (sessionIdRef.current !== activeSession) return;
+                executeAction(actionIdx + 1);
+              }, AUTO_DEMO_AFTER_RESOLUTION);
+            } else {
+              // WRONG match
+              // Reset combo streak
+              setComboStreak(0);
+              comboStreakRef.current = 0;
+
+              // Play mismatch sound and set shaking, BOTH cards remain isFlipped: true!
+              memorySounds.playMismatch();
+              setCards((prev) =>
+                prev.map((c) =>
+                  c.id === freshFirst.id || c.id === freshSecond.id
+                    ? { ...c, isFlipped: true, isShaking: true }
+                    : c
+                )
+              );
+
+              // Wait mismatchDelayMs while both remain visible and shaking
+              const pauseDelay = mismatchDelayRef.current || 850;
               setManagedAutoDemoTimeout(() => {
                 if (!isStudioPreview || !autoDemo) return;
                 if (sessionIdRef.current !== activeSession) return;
 
-                executeAction(actionIdx + 1);
-              }, AUTO_DEMO_AFTER_MATCH_DELAY);
-            }, AUTO_DEMO_MATCH_DELAY);
-          }, AUTO_DEMO_SECOND_FLIP_DELAY);
-        }, AUTO_DEMO_FIRST_FLIP_DELAY);
-        return;
-      }
+                // Flip both back face-down
+                setCards((prev) =>
+                  prev.map((c) =>
+                    c.id === freshFirst.id || c.id === freshSecond.id
+                      ? { ...c, isFlipped: false, isShaking: false }
+                      : c
+                  )
+                );
+                setFlippedIndices([]);
+
+                // Pause after flip-back before advancing to next action
+                setManagedAutoDemoTimeout(() => {
+                  if (!isStudioPreview || !autoDemo) return;
+                  if (sessionIdRef.current !== activeSession) return;
+                  executeAction(actionIdx + 1);
+                }, AUTO_DEMO_AFTER_RESOLUTION);
+              }, pauseDelay);
+            }
+          }, AUTO_DEMO_SECOND_CARD_VISIBLE);
+        }, AUTO_DEMO_FIRST_CARD_DELAY);
+      }, initialDelay);
     };
 
     executeAction(0);
@@ -983,12 +1008,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     isStudioPreview,
     autoDemo,
     gameState,
-    comboPoints,
-    matchPoints,
-    mismatchDelay,
     clearAutoDemoTimers,
     setManagedAutoDemoTimeout,
-    startCountdown,
   ]);
 
   // Card Flip Click Handler

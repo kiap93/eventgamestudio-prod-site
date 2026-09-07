@@ -17082,5 +17082,47 @@
     "showcase_credit_granted": false,
     "created_at": "2026-09-07T02:52:19.865Z",
     "updated_at": "2026-09-07T02:52:19.865Z"
+  },
+  {
+    "id": "499add73-995b-4eb2-a2fc-4f6b62b2f195",
+    "organization_id": "72a2f443-763c-4d2d-8a1e-7a1ec2af6dc2",
+    "paid_balance": 0,
+    "welcome_credit": 800,
+    "showcase_credit": 0,
+    "topup_credit": 0,
+    "outstanding_balance": 0,
+    "currency": "MYR",
+    "welcome_credit_granted": true,
+    "showcase_credit_granted": false,
+    "created_at": "2026-09-07T03:42:44.962Z",
+    "updated_at": "2026-09-07T03:42:44.962Z"
+  },
+  {
+    "id": "7243e635-d34b-4fb0-97ac-4b81cf4fc2ea",
+    "organization_id": "6a972f24-51fe-4969-b67d-79537b30d9f9",
+    "paid_balance": 6000,
+    "welcome_credit": 0,
+    "showcase_credit": 0,
+    "topup_credit": 300,
+    "outstanding_balance": 0,
+    "currency": "MYR",
+    "welcome_credit_granted": false,
+    "showcase_credit_granted": false,
+    "created_at": "2026-09-07T03:42:45.126Z",
+    "updated_at": "2026-09-07T03:42:45.367Z"
+  },
+  {
+    "id": "61b4abdf-eb41-47bb-8039-492387c8d3bb",
+    "organization_id": "741c1aa0-f479-415e-b6b0-4c3c0af8d2fe",
+    "paid_balance": 8000,
+    "welcome_credit": 0,
+    "showcase_credit": 0,
+    "topup_credit": 400,
+    "outstanding_balance": 0,
+    "currency": "MYR",
+    "welcome_credit_granted": false,
+    "showcase_credit_granted": false,
+    "created_at": "2026-09-07T03:42:45.427Z",
+    "updated_at": "2026-09-07T03:42:45.504Z"
   }
 ]
