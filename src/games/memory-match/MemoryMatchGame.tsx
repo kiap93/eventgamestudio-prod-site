@@ -45,6 +45,7 @@ import { useResponsiveLayout, getEffectiveGameLayout } from '../../themes/respon
 import { GameLayoutHudOverlay } from '../../components/studio/GameLayoutHudOverlay';
 import { apiFetch } from '../../lib/api';
 import { ResultScreenRenderer } from './ResultScreenRenderer';
+import { StartScreenRenderer } from '../shared/StartScreenRenderer';
 
 import {
   calculateMemoryMatchScore,
@@ -2013,94 +2014,23 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         {/* ======================================================================= */}
         {/* 5. START MATCH SCREEN MODAL                                             */}
         {/* ======================================================================= */}
-        {gameState === 'START' && (() => {
-          const startConfig = memoryConfig.screens?.start;
-          const bg = resolveScreenBackground(startConfig, activeTheme);
-          const showIcon = startConfig?.showIcon !== false;
-
-          const startPills = [
-            startConfig?.showGridInfo !== false && {
-              id: 'grid',
-              label: 'Grid',
-              value: `${totalCards} Cards`,
-              colorClass: 'text-amber-400',
-            },
-            startConfig?.showPairsInfo !== false && {
-              id: 'pairs',
-              label: 'Pairs',
-              value: `${totalPairs} Pairs`,
-              colorClass: 'text-emerald-400',
-            },
-            startConfig?.showTimerInfo !== false && {
-              id: 'timer',
-              label: 'Timer',
-              value: `${gameDuration}s`,
-              colorClass: 'text-cyan-400',
-            },
-          ].filter(Boolean) as Array<{
-            id: string;
-            label: string;
-            value: string;
-            colorClass: string;
-          }>;
-
-          return (
-            <div
-              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-6 z-30 animate-in fade-in duration-200"
-              style={bg.containerStyle}
-            >
-              {/* Dark Overlay Layer */}
-              <div
-                className="absolute inset-0 w-full h-full pointer-events-none"
-                style={bg.overlayStyle}
-              />
-
-              <div className="relative z-10 max-w-sm w-full bg-slate-900/95 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl backdrop-blur-md">
-                {showIcon && (
-                  <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mx-auto text-amber-400">
-                    <Grid3X3 className="w-7 h-7" />
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <h2 className="text-2xl font-black text-white uppercase tracking-wide">
-                    {gameTitle}
-                  </h2>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Flip cards, find all {totalPairs} matching pairs, and score max bonus points before time expires!
-                  </p>
-                </div>
-
-                {/* Rules Summary Pills with dynamic reflow */}
-                {startPills.length > 0 && (
-                  <div
-                    className="grid gap-2 py-2 text-[11px] font-mono"
-                    style={{
-                      gridTemplateColumns: `repeat(${startPills.length}, minmax(0, 1fr))`,
-                    }}
-                  >
-                    {startPills.map((pill) => (
-                      <div
-                        key={pill.id}
-                        className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300 text-center"
-                      >
-                        <span className="block text-[10px] text-slate-500 uppercase">{pill.label}</span>
-                        <span className={`font-bold ${pill.colorClass}`}>{pill.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <button
-                  onClick={startCountdown}
-                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>Start Match</span>
-                </button>
-              </div>
-            </div>
-          );
-        })()}
+        {gameState === 'START' && (
+          <div className="absolute inset-0 w-full h-full z-30 overflow-hidden">
+            <StartScreenRenderer
+              startConfig={memoryConfig.screens?.start}
+              theme={activeTheme}
+              gameType="memory-match"
+              onStartGame={startCountdown}
+              onOpenLeaderboard={() => {
+                if (showLeaderboard) {
+                  fetchLeaderboard();
+                  setActiveEndTab('leaderboard');
+                }
+              }}
+              onOpenRules={() => {}}
+            />
+          </div>
+        )}
 
         {/* ======================================================================= */}
         {/* 6. COUNTDOWN OVERLAY                                                    */}

@@ -78,9 +78,11 @@ export interface MemoryMatchUiConfig {
 }
 
 export * from "../shared/resultScreenTypes";
+export * from "../shared/startScreenTypes";
 import { ScreenBackgroundType } from "../shared/resultScreenTypes";
+import { StartScreenConfig } from "../shared/startScreenTypes";
 
-export interface MemoryMatchStartScreenConfig {
+export interface MemoryMatchStartScreenConfig extends StartScreenConfig {
   backgroundType: ScreenBackgroundType;
   backgroundColor: string; // default '#0f172a'
   backgroundImageUrl?: string | null;

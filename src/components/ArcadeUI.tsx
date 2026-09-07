@@ -33,6 +33,7 @@ import { GameTheme, THEME_REGISTRY, getActiveTheme, getAllUniqueThemes } from '.
 import { normalizeGameLayout, GameLayoutConfig } from '../themes/layout';
 import { useResponsiveLayout, getEffectiveGameLayout } from '../themes/responsive';
 import { apiFetch } from '../lib/api';
+import { StartScreenRenderer } from '../games/shared/StartScreenRenderer';
 
 interface ArcadeUIProps {
   gameState: GameState;
@@ -566,101 +567,114 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
 
         {/* ================= START SCREEN OVERLAY (MAIN MENU DIALOG) ================= */}
         {gameState === 'START' && (
-          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs pointer-events-auto flex flex-col items-center justify-center p-2 sm:p-4 text-center z-40 overflow-hidden">
-            <div className="start-dialog-container bg-slate-900 border-2 border-amber-500/80 rounded-2xl p-4 sm:p-6 shadow-2xl relative overflow-hidden my-auto">
-              <div className="non-essential-deco absolute -top-12 -left-12 w-32 h-32 bg-emerald-500/20 rounded-full blur-2xl pointer-events-none" />
-              <div className="non-essential-deco absolute -bottom-12 -right-12 w-32 h-32 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
+          (activeTheme.screens?.start?.elements && activeTheme.screens.start.elements.length > 0) ? (
+            <div className="absolute inset-0 w-full h-full z-40 overflow-hidden pointer-events-auto">
+              <StartScreenRenderer
+                startConfig={activeTheme.screens.start}
+                theme={activeTheme}
+                gameType="catch-brand"
+                onStartGame={onStartGame}
+                onOpenLeaderboard={() => setShowLeaderboardModal(true)}
+                onOpenRules={() => setShowGuideModal(true)}
+              />
+            </div>
+          ) : (
+            <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs pointer-events-auto flex flex-col items-center justify-center p-2 sm:p-4 text-center z-40 overflow-hidden">
+              <div className="start-dialog-container bg-slate-900 border-2 border-amber-500/80 rounded-2xl p-4 sm:p-6 shadow-2xl relative overflow-hidden my-auto">
+                <div className="non-essential-deco absolute -top-12 -left-12 w-32 h-32 bg-emerald-500/20 rounded-full blur-2xl pointer-events-none" />
+                <div className="non-essential-deco absolute -bottom-12 -right-12 w-32 h-32 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
 
-              <div className="start-dialog-grid">
-                {/* TOP AREA: Title & Description */}
-                <div className="area-top flex flex-col items-center">
-                  <div className="non-essential-deco inline-flex items-center gap-1.5 bg-emerald-950 border border-emerald-500/50 text-emerald-400 text-[11px] sm:text-xs px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full font-bold mb-2 sm:mb-3 uppercase tracking-wider">
-                    <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> RETRO ARCADE ENGINE
+                <div className="start-dialog-grid">
+                  {/* TOP AREA: Title & Description */}
+                  <div className="area-top flex flex-col items-center">
+                    <div className="non-essential-deco inline-flex items-center gap-1.5 bg-emerald-950 border border-emerald-500/50 text-emerald-400 text-[11px] sm:text-xs px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full font-bold mb-2 sm:mb-3 uppercase tracking-wider">
+                      <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> RETRO ARCADE ENGINE
+                    </div>
+
+                    {/* Client Logo if present */}
+                    {(activeTheme.clientLogo || activeTheme.logo) && (
+                      <img
+                        src={activeTheme.clientLogo || activeTheme.logo}
+                        alt="Logo"
+                        className="max-h-12 mb-2 object-contain"
+                      />
+                    )}
+
+                    <h1 className="start-dialog-title font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-emerald-400 to-amber-200 tracking-wider mb-1.5 sm:mb-2 drop-shadow-md">
+                      {gameTitle}
+                    </h1>
+                    <p className="start-dialog-desc text-slate-300 text-xs sm:text-sm mb-2 sm:mb-4 leading-relaxed">
+                      {gameSubtitle}
+                    </p>
                   </div>
 
-                  {/* Client Logo if present */}
-                  {(activeTheme.clientLogo || activeTheme.logo) && (
-                    <img
-                      src={activeTheme.clientLogo || activeTheme.logo}
-                      alt="Logo"
-                      className="max-h-12 mb-2 object-contain"
-                    />
-                  )}
-
-                  <h1 className="start-dialog-title font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-emerald-400 to-amber-200 tracking-wider mb-1.5 sm:mb-2 drop-shadow-md">
-                    {gameTitle}
-                  </h1>
-                  <p className="start-dialog-desc text-slate-300 text-xs sm:text-sm mb-2 sm:mb-4 leading-relaxed">
-                    {gameSubtitle}
-                  </p>
-                </div>
-
-                {/* RULES AREA: Good & Bad Item Cards */}
-                <div className="area-rules start-dialog-rules grid grid-cols-2 gap-2 sm:gap-3 my-2 sm:my-3">
-                  <div className="start-dialog-rule-card bg-emerald-950/60 border border-emerald-500/40 rounded-xl p-2.5 sm:p-3 flex flex-col items-center justify-center">
-                    <div className="start-dialog-rule-icon w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-emerald-800/60 border border-emerald-400 flex items-center justify-center p-1 sm:p-1.5 mb-1 overflow-hidden shrink-0">
-                      <img src={goodItemImg} alt={fallingItemName} className="w-full h-full object-contain drop-shadow" />
+                  {/* RULES AREA: Good & Bad Item Cards */}
+                  <div className="area-rules start-dialog-rules grid grid-cols-2 gap-2 sm:gap-3 my-2 sm:my-3">
+                    <div className="start-dialog-rule-card bg-emerald-950/60 border border-emerald-500/40 rounded-xl p-2.5 sm:p-3 flex flex-col items-center justify-center">
+                      <div className="start-dialog-rule-icon w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-emerald-800/60 border border-emerald-400 flex items-center justify-center p-1 sm:p-1.5 mb-1 overflow-hidden shrink-0">
+                        <img src={goodItemImg} alt={fallingItemName} className="w-full h-full object-contain drop-shadow" />
+                      </div>
+                      <div className="flex flex-col items-center text-center">
+                        <span className="text-emerald-300 font-bold text-xs sm:text-sm whitespace-nowrap">{fallingItemName}</span>
+                        <span className="text-emerald-400 font-extrabold text-xs sm:text-base whitespace-nowrap">+10 POINTS</span>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-center text-center">
-                      <span className="text-emerald-300 font-bold text-xs sm:text-sm whitespace-nowrap">{fallingItemName}</span>
-                      <span className="text-emerald-400 font-extrabold text-xs sm:text-base whitespace-nowrap">+10 POINTS</span>
+
+                    <div className="start-dialog-rule-card bg-rose-950/60 border border-rose-500/40 rounded-xl p-2.5 sm:p-3 flex flex-col items-center justify-center">
+                      <div className="start-dialog-rule-icon w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-rose-800/60 border border-rose-400 flex items-center justify-center p-1 sm:p-1.5 mb-1 overflow-hidden shrink-0">
+                        <img src={badItemImg} alt={badFallingItemName} className="w-full h-full object-contain drop-shadow" />
+                      </div>
+                      <div className="flex flex-col items-center text-center">
+                        <span className="text-rose-300 font-bold text-xs sm:text-sm whitespace-nowrap">{badFallingItemName}</span>
+                        <span className="text-rose-400 font-extrabold text-xs sm:text-base whitespace-nowrap">-10 POINTS</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="start-dialog-rule-card bg-rose-950/60 border border-rose-500/40 rounded-xl p-2.5 sm:p-3 flex flex-col items-center justify-center">
-                    <div className="start-dialog-rule-icon w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-rose-800/60 border border-rose-400 flex items-center justify-center p-1 sm:p-1.5 mb-1 overflow-hidden shrink-0">
-                      <img src={badItemImg} alt={badFallingItemName} className="w-full h-full object-contain drop-shadow" />
-                    </div>
-                    <div className="flex flex-col items-center text-center">
-                      <span className="text-rose-300 font-bold text-xs sm:text-sm whitespace-nowrap">{badFallingItemName}</span>
-                      <span className="text-rose-400 font-extrabold text-xs sm:text-base whitespace-nowrap">-10 POINTS</span>
-                    </div>
+                  {/* START AREA */}
+                  <div className="area-start w-full">
+                    <button
+                      onClick={onStartGame}
+                      className="start-btn w-full py-3 sm:py-3.5 px-5 sm:px-6 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-lg sm:text-xl rounded-xl border-2 border-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-slate-950" /> START GAME
+                    </button>
                   </div>
-                </div>
 
-                {/* START AREA */}
-                <div className="area-start w-full">
-                  <button
-                    onClick={onStartGame}
-                    className="start-btn w-full py-3 sm:py-3.5 px-5 sm:px-6 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-lg sm:text-xl rounded-xl border-2 border-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-slate-950" /> START GAME
-                  </button>
-                </div>
+                  {/* FOOTER AREA */}
+                  <div className="area-footer start-dialog-footer w-full flex items-center justify-between pt-2 sm:pt-3 border-t border-slate-800 text-slate-400 text-[11px] sm:text-xs gap-2">
+                    <span className="flex items-center gap-1 shrink-0">
+                      <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-slate-200 text-[10px]">← →</kbd> /
+                      <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-slate-200 text-[10px]">A D</kbd>
+                    </span>
 
-                {/* FOOTER AREA */}
-                <div className="area-footer start-dialog-footer w-full flex items-center justify-between pt-2 sm:pt-3 border-t border-slate-800 text-slate-400 text-[11px] sm:text-xs gap-2">
-                  <span className="flex items-center gap-1 shrink-0">
-                    <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-slate-200 text-[10px]">← →</kbd> /
-                    <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-slate-200 text-[10px]">A D</kbd>
-                  </span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setShowLeaderboardModal(true)}
+                        className="text-amber-400 hover:underline flex items-center gap-1 font-bold"
+                      >
+                        <Trophy className="w-3.5 h-3.5" /> High Scores
+                      </button>
 
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setShowLeaderboardModal(true)}
-                      className="text-amber-400 hover:underline flex items-center gap-1 font-bold"
-                    >
-                      <Trophy className="w-3.5 h-3.5" /> High Scores
-                    </button>
+                      <button
+                        onClick={() => setShowSettingsModal(true)}
+                        className="text-amber-400 hover:underline flex items-center gap-1 font-bold"
+                      >
+                        <Settings className="w-3.5 h-3.5" /> Settings
+                      </button>
 
-                    <button
-                      onClick={() => setShowSettingsModal(true)}
-                      className="text-amber-400 hover:underline flex items-center gap-1 font-bold"
-                    >
-                      <Settings className="w-3.5 h-3.5" /> Settings
-                    </button>
-
-                    <button
-                      onClick={() => setShowGuideModal(true)}
-                      className="text-amber-400 hover:underline flex items-center gap-1 font-bold"
-                    >
-                      <HelpCircle className="w-3.5 h-3.5" /> Guide
-                    </button>
+                      <button
+                        onClick={() => setShowGuideModal(true)}
+                        className="text-amber-400 hover:underline flex items-center gap-1 font-bold"
+                      >
+                        <HelpCircle className="w-3.5 h-3.5" /> Guide
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          )
         )}
 
         {/* ================= COUNTDOWN OVERLAY ================= */}

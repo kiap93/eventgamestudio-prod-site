@@ -1,0 +1,36 @@
+import React from 'react';
+import { StartScreenConfig } from '../../../../games/shared/startScreenTypes';
+import { GameTheme } from '../../../../themes/types';
+import { StartScreenVisualEditor } from '../StartScreenVisualEditor';
+
+export interface StartScreenVisualEditorModalProps {
+  startConfig: StartScreenConfig;
+  theme: Partial<GameTheme>;
+  gameType?: string;
+  onChange: (updatedConfig: Partial<StartScreenConfig>) => void;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const StartScreenVisualEditorModal: React.FC<StartScreenVisualEditorModalProps> = ({
+  startConfig,
+  theme,
+  gameType = 'memory-match',
+  onChange,
+  isOpen,
+  onClose,
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <StartScreenVisualEditor
+      startConfig={startConfig}
+      theme={theme}
+      gameType={gameType}
+      onChange={onChange}
+      isOpen={isOpen}
+      onClose={onClose}
+      isModal={true}
+    />
+  );
+};

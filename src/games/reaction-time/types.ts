@@ -1,7 +1,9 @@
 import { BaseGameConfig } from '../types';
 import { ResultScreenConfig, generateDefaultReactionResultScreenElements } from '../shared/resultScreenTypes';
+import { StartScreenConfig } from '../shared/startScreenTypes';
 
 export interface ReactionScreensConfig {
+  start?: StartScreenConfig;
   result?: ResultScreenConfig;
 }
 

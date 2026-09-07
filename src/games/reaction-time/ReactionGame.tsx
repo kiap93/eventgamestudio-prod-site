@@ -25,6 +25,7 @@ import {
 } from './types';
 import { reactionSounds } from './reactionSounds';
 import { ResultScreenRenderer } from '../shared/ResultScreenRenderer';
+import { StartScreenRenderer } from '../shared/StartScreenRenderer';
 import { EventLeaderboardEntry } from '../../types';
 import { apiFetch } from '../../lib/api';
 
@@ -749,6 +750,25 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
       <div className="w-full px-4 pb-4 flex items-center justify-center text-slate-500 text-xs font-mono z-10">
         <span>Click, tap, or press [SPACE] to react</span>
       </div>
+
+      {/* Start Screen Overlay */}
+      {gameState === 'IDLE' && reactionConfig.screens?.start?.elements && reactionConfig.screens.start.elements.length > 0 && (
+        <div
+          className="absolute inset-0 z-40 pointer-events-auto cursor-default"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+        >
+          <StartScreenRenderer
+            startConfig={reactionConfig.screens?.start}
+            theme={activeTheme}
+            gameType="reaction-tap"
+            onStartGame={startNewGame}
+            onOpenLeaderboard={() => {}}
+            onOpenRules={() => {}}
+          />
+        </div>
+      )}
 
       {/* Final Victory / Leaderboard Completion Screen */}
       {gameState === 'FINAL_RESULT' && (

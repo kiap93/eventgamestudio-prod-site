@@ -231,6 +231,11 @@ export interface GameTheme {
   sounds_config: ThemeSoundsConfig;
   layout?: GameLayoutConfig;
   game_config?: Record<string, any>;
+  screens?: {
+    start?: any;
+    result?: any;
+    [key: string]: any;
+  };
 
   // Convenience / Backward-compatibility properties
   gameTitle?: string;

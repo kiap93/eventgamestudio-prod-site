@@ -9,6 +9,7 @@ import {
 } from '../../../games/reaction-time/types';
 import { reactionSounds } from '../../../games/reaction-time/reactionSounds';
 import { ResultScreenVisualEditor } from './ResultScreenVisualEditor';
+import { StartScreenVisualEditor } from './StartScreenVisualEditor';
 import {
   Zap,
   Clock,
@@ -20,6 +21,8 @@ import {
   RotateCcw,
   Palette,
   CheckCircle2,
+  Trophy,
+  Tv,
 } from 'lucide-react';
 
 interface ReactionGameCustomizerProps {
@@ -317,13 +320,43 @@ export const ReactionScreensCustomizer: React.FC<{
   onUploadAsset?: (file: File, fieldKey: string) => Promise<string>;
   uploadingAsset?: string | null;
 }> = ({ theme, onChange, onUploadAsset }) => {
+  const [activeScreenTab, setActiveScreenTab] = useState<'start' | 'result'>('start');
+
   const reactionConfig: ReactionGameConfig = {
     ...DEFAULT_REACTION_CONFIG,
     ...((theme.game_config as ReactionGameConfig) || {}),
   };
+
+  const startConfig = reactionConfig.screens?.start || (theme.screens as any)?.start || {
+    background: { type: 'solid', color: '#070b14' },
+    elements: [],
+  };
+
   const resultConfig = reactionConfig.screens?.result || theme.screens?.result || {
     background: { type: 'solid', color: '#070b14' },
     elements: [],
+  };
+
+  const handleUpdateStartConfig = (updated: any) => {
+    const nextStart = {
+      ...startConfig,
+      ...updated,
+    };
+    const nextReactionConfig = {
+      ...reactionConfig,
+      screens: {
+        ...(reactionConfig.screens || {}),
+        start: nextStart,
+      },
+    };
+    onChange({
+      ...theme,
+      game_config: nextReactionConfig as any,
+      screens: {
+        ...(theme.screens || {}),
+        start: nextStart as any,
+      },
+    });
   };
 
   const handleUpdateResultConfig = (updated: any) => {
@@ -350,13 +383,53 @@ export const ReactionScreensCustomizer: React.FC<{
 
   return (
     <div className="space-y-6">
-      <ResultScreenVisualEditor
-        resultConfig={resultConfig as any}
-        theme={theme}
-        gameType="reaction-tap"
-        onChange={handleUpdateResultConfig}
-        onUploadAsset={onUploadAsset}
-      />
+      {/* Tab Switcher */}
+      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveScreenTab('start')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeScreenTab === 'start'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <Tv className="w-4 h-4" />
+            <span>Start Screen</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveScreenTab('result')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeScreenTab === 'result'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <Trophy className="w-4 h-4" />
+            <span>Result Screen</span>
+          </button>
+        </div>
+      </div>
+
+      {activeScreenTab === 'start' ? (
+        <StartScreenVisualEditor
+          startConfig={startConfig as any}
+          theme={theme}
+          gameType="reaction-tap"
+          onChange={handleUpdateStartConfig}
+          onUploadAsset={onUploadAsset}
+        />
+      ) : (
+        <ResultScreenVisualEditor
+          resultConfig={resultConfig as any}
+          theme={theme}
+          gameType="reaction-tap"
+          onChange={handleUpdateResultConfig}
+          onUploadAsset={onUploadAsset}
+        />
+      )}
     </div>
   );
 };
