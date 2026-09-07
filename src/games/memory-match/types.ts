@@ -666,7 +666,7 @@ export function generateDefaultResultScreenElements(
  * - LEADERBOARD
  * - [ PLAY AGAIN ]
  */
-export function generateDefaultReactionResultScreenElements(): ResultScreenElement[] {
+export function generateDefaultReactionResultScreenElements(_legacy?: Partial<MemoryMatchResultScreenConfig>): ResultScreenElement[] {
   const cardChildren: ResultScreenElement[] = [
     // 1. Result Title
     {

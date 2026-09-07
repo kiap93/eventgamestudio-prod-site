@@ -301,6 +301,14 @@ export function isMemoryMatchTheme(theme?: Partial<GameTheme> | null, fallbackGa
   return getThemeGameType(theme, fallbackGameType) === 'memory-match';
 }
 
+/**
+ * Checks if a theme belongs to a game with a catcher/basket (e.g. Catch The Brand).
+ */
+export function isCatcherGameTheme(theme?: Partial<GameTheme> | null, fallbackGameType?: string): boolean {
+  const gt = getThemeGameType(theme, fallbackGameType);
+  return gt === 'catch-brand' || gt === 'catch-the-brand';
+}
+
 export const DEFAULT_CARD_CONFIG: MemoryMatchCardConfig = {
   width: 120,
   height: 120,

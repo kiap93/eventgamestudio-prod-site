@@ -58,6 +58,7 @@ export const GameShell: React.FC<GameShellProps> = ({
     if (effectiveThemeProp) return effectiveThemeProp;
     if (contextActiveTheme) return contextActiveTheme;
     if (resolvedGameType === 'memory-match') return getThemeById('memory-match');
+    if (resolvedGameType === 'reaction-tap' || resolvedGameType === 'reaction-time') return getThemeById('reaction-time');
     return initActiveTheme();
   });
 
@@ -77,6 +78,8 @@ export const GameShell: React.FC<GameShellProps> = ({
       setActiveThemeState(contextActiveTheme);
     } else if (resolvedGameType === 'memory-match') {
       setActiveThemeState(getThemeById('memory-match'));
+    } else if (resolvedGameType === 'reaction-tap' || resolvedGameType === 'reaction-time') {
+      setActiveThemeState(getThemeById('reaction-time'));
     }
   }, [effectiveThemeProp, contextActiveTheme, resolvedGameType]);
 

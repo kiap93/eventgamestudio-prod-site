@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   GameTheme,
   isMemoryMatchTheme,
+  isCatcherGameTheme,
   getMemoryMatchConfig,
   CARD_FRONT_BG_PRESETS,
   CARD_GOOD_BG_PRESETS,
@@ -61,6 +62,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
   const catcherReplaceFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const isMemoryMatch = isMemoryMatchTheme(theme);
+  const isCatcherGame = isCatcherGameTheme(theme);
 
   const currentBgUrl = theme.background_url || theme.background || '';
   const currentCardBackUrl = theme.visuals_config?.cardBackUrl || theme.basket_config?.imageUrl || theme.basket || '';
@@ -429,7 +431,7 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
       </div>
 
       {/* 2. CATCHER OR MEMORY MATCH CARD BACK */}
-      {isMemoryMatch ? (
+      {isMemoryMatch && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1093,7 +1095,9 @@ export const VisualsTab: React.FC<VisualsTabProps> = ({
             </div>
           </div>
         </div>
-      ) : (
+      )}
+
+      {isCatcherGame && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-5 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

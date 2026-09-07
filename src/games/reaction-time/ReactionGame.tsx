@@ -26,7 +26,6 @@ import {
 import { reactionSounds } from './reactionSounds';
 import { ResultScreenRenderer } from '../memory-match/ResultScreenRenderer';
 import { EventLeaderboardEntry } from '../../types';
-import { resolveScreenBackground } from '../../themes/screenBackground';
 
 export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
   activeTheme,
@@ -429,12 +428,19 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
   };
 
   // Background visual style
-  const bgStyle = useMemo(() => {
-    return resolveScreenBackground(
-      activeTheme?.background_url,
-      activeTheme?.screens?.gameplay?.background,
-      '#070b14'
-    );
+  const bgStyle = useMemo<React.CSSProperties>(() => {
+    const bgUrl = activeTheme?.background_url || activeTheme?.background;
+    if (bgUrl) {
+      return {
+        backgroundImage: `url("${bgUrl}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundColor: '#070b14',
+      };
+    }
+    return {
+      backgroundColor: '#070b14',
+    };
   }, [activeTheme]);
 
   // Light shapes and colors

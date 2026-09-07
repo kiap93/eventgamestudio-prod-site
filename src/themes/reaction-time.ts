@@ -1,5 +1,6 @@
 import { GameTheme } from './types';
 import { DEFAULT_REACTION_CONFIG } from '../games/reaction-time/types';
+import { DEFAULT_GAME_LAYOUT } from './layout';
 
 export const reactionTheme: GameTheme = {
   id: 'reaction-tap',
@@ -30,18 +31,36 @@ export const reactionTheme: GameTheme = {
 
   items_config: [],
 
-  gameplay: {
+  physics_config: {
     gameDurationSeconds: 45,
-    speedMultiplier: 1.0,
-    itemScale: 1.0,
+    baseFallSpeed: 500,
+    fallSpeedMultiplier: 1.0,
+    spawnIntervalMin: 500,
+    spawnIntervalMax: 1000,
+    difficultyStages: [],
   },
 
-  screens: {
-    gameplay: {
-      background: {
-        type: 'solid',
-        color: '#070b14',
-      },
-    },
+  visuals_config: {
+    primaryColor: '#ef4444',
+    secondaryColor: '#10b981',
+    accentColor: '#38bdf8',
+    textColor: '#ffffff',
+    bgGradientFrom: '#070b14',
+    bgGradientVia: '#0b1329',
+    bgGradientTo: '#020617',
   },
+
+  sounds_config: {
+    catchGoodUrl: null,
+    catchBadUrl: null,
+    catchBonusUrl: null,
+    gameStartUrl: null,
+    gameOverUrl: null,
+    bgmUrl: null,
+    soundVolume: 0.8,
+    soundEnabled: true,
+    bgmEnabled: false,
+  },
+
+  layout: DEFAULT_GAME_LAYOUT,
 };

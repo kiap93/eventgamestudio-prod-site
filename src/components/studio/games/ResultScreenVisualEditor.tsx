@@ -10,6 +10,11 @@ import {
   ResultPairsElement,
   ResultTimeElement,
   ResultAccuracyElement,
+  ResultAverageReactionElement,
+  ResultBestReactionElement,
+  ResultWorstReactionElement,
+  ResultRoundResultsElement,
+  ResultRatingElement,
   ResultButtonElement,
   ResultLeaderboardElement,
   ResultLeaderboardStyle,
@@ -22,7 +27,7 @@ import {
   ResultElementContent,
   FONT_FAMILY_PRESETS,
 } from '../../../games/memory-match/ResultElementContent';
-import { GameTheme, getThemeGameType } from '../../../themes/types';
+import { GameTheme, getThemeGameType, isReactionTheme } from '../../../themes/types';
 import { resolveScreenBackground } from '../../../themes/screenBackground';
 import {
   Layers,
@@ -101,6 +106,7 @@ import {
 export interface ResultScreenVisualEditorProps {
   resultConfig: MemoryMatchResultScreenConfig;
   theme: Partial<GameTheme>;
+  gameType?: string;
   onChange: (updatedConfig: Partial<MemoryMatchResultScreenConfig>) => void;
   onUploadAsset?: (file: File, type: string) => Promise<string>;
   onFullscreenChange?: (isFullscreen: boolean) => void;
@@ -109,6 +115,7 @@ export interface ResultScreenVisualEditorProps {
 export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> = ({
   resultConfig,
   theme,
+  gameType,
   onChange,
   onUploadAsset,
   onFullscreenChange,
@@ -182,13 +189,14 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
   } | null>(null);
 
   // Elements array guarantee
-  const isReactionGame = theme ? getThemeGameType(theme) === 'reaction-time' : false;
+  const isReactionGame = isReactionTheme(theme, gameType);
+  const resolvedGameType = gameType || (isReactionGame ? 'reaction-tap' : getThemeGameType(theme));
 
   const elements: ResultScreenElement[] =
     Array.isArray(resultConfig.elements) && resultConfig.elements.length > 0
       ? resultConfig.elements
       : isReactionGame
-      ? generateDefaultReactionResultScreenElements(resultConfig)
+      ? generateDefaultReactionResultScreenElements()
       : generateDefaultResultScreenElements(resultConfig);
 
   const elementsRef = useRef<ResultScreenElement[]>(elements);
@@ -6687,6 +6695,7 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
           onClose={() => setIsModalOpen(false)}
           resultConfig={resultConfig}
           theme={theme}
+          gameType={resolvedGameType}
           onChange={onChange}
           onUploadAsset={onUploadAsset}
           historyController={history}

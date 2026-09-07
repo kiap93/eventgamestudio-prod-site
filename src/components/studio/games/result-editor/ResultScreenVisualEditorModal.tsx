@@ -40,6 +40,7 @@ import { Layers, Sliders, Layout } from 'lucide-react';
 export interface ResultScreenVisualEditorModalProps {
   resultConfig: MemoryMatchResultScreenConfig;
   theme: Partial<GameTheme>;
+  gameType?: string;
   onChange: (updatedConfig: Partial<MemoryMatchResultScreenConfig>) => void;
   onUploadAsset?: (file: File, type: string) => Promise<string>;
   isOpen: boolean;
@@ -50,6 +51,7 @@ export interface ResultScreenVisualEditorModalProps {
 export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorModalProps> = ({
   resultConfig,
   theme,
+  gameType,
   onChange,
   onUploadAsset,
   isOpen,
@@ -989,6 +991,7 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
     <div className="fixed inset-0 z-[100] bg-slate-950/98 text-slate-100 flex flex-col select-none overflow-hidden animate-in fade-in duration-200">
       {/* Top Navigation Bar */}
       <EditorTopBar
+        gameType={gameType}
         selectedIds={selectedIds}
         totalElementsCount={elements.length}
         onAddNewRootElement={handleAddNewRootElement}
@@ -1024,6 +1027,7 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
           <LayerTreePanel
             elements={elements}
             selectedIds={selectedIds}
+            gameType={gameType}
             onSelectElement={handleSelectElement}
             onToggleVisibility={handleToggleVisibility}
             onToggleLock={handleToggleLock}
@@ -1080,6 +1084,7 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
             commonParent={commonParent}
             resultConfig={resultConfig}
             theme={theme}
+            gameType={gameType}
             onSelectId={(id) => setSelectedIds(id ? [id] : [])}
             onSelectIds={setSelectedIds}
             onUpdateElementById={updateElementById}

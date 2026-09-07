@@ -353,6 +353,7 @@ export const ReactionScreensCustomizer: React.FC<{
       <ResultScreenVisualEditor
         resultConfig={resultConfig as any}
         theme={theme}
+        gameType="reaction-tap"
         onChange={handleUpdateResultConfig}
         onUploadAsset={onUploadAsset}
       />

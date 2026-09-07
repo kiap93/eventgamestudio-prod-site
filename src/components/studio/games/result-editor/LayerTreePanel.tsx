@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ResultScreenElement,
   ResultCardElement,
@@ -8,6 +8,10 @@ import {
   ResultLeaderboardElement,
   ResultScreenElementType,
 } from '../../../../games/memory-match/types';
+import {
+  getResultElementsGroupedByCategory,
+  getDefaultElementLabel,
+} from './resultElementRegistry';
 import {
   Layers,
   Square,
@@ -45,6 +49,7 @@ import {
 interface LayerTreePanelProps {
   elements: ResultScreenElement[];
   selectedIds: string[];
+  gameType?: string;
   onSelectElement: (id: string, e?: React.MouseEvent) => void;
   onToggleVisibility: (id: string, e: React.MouseEvent) => void;
   onToggleLock: (id: string, e: React.MouseEvent) => void;
@@ -82,6 +87,16 @@ export const getElementIcon = (type: ResultScreenElementType) => {
       return <Clock className="w-3.5 h-3.5 text-sky-400" />;
     case 'accuracy':
       return <Zap className="w-3.5 h-3.5 text-purple-400" />;
+    case 'average-reaction':
+      return <Zap className="w-3.5 h-3.5 text-sky-400" />;
+    case 'best-reaction':
+      return <Award className="w-3.5 h-3.5 text-emerald-400" />;
+    case 'worst-reaction':
+      return <Clock className="w-3.5 h-3.5 text-rose-400" />;
+    case 'round-results':
+      return <Sparkles className="w-3.5 h-3.5 text-indigo-400" />;
+    case 'rating':
+      return <Award className="w-3.5 h-3.5 text-amber-400" />;
     case 'button':
       return <MousePointerClick className="w-3.5 h-3.5 text-amber-400" />;
     case 'leaderboard':
@@ -96,6 +111,7 @@ export const getElementIcon = (type: ResultScreenElementType) => {
 export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
   elements,
   selectedIds,
+  gameType,
   onSelectElement,
   onToggleVisibility,
   onToggleLock,
@@ -118,6 +134,8 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeChildMenuId, setActiveChildMenuId] = useState<string | null>(null);
   const [rootAddMenuOpen, setRootAddMenuOpen] = useState(false);
+
+  const groupedElements = useMemo(() => getResultElementsGroupedByCategory(gameType), [gameType]);
 
   // Count all elements in tree
   const countElements = (items: ResultScreenElement[]): number => {
@@ -218,7 +236,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                 ? `Btn: ${(el as ResultButtonElement).text || 'Action'}`
                 : el.type === 'leaderboard'
                 ? (el as ResultLeaderboardElement).headerText || 'Leaderboard'
-                : `${el.type.charAt(0).toUpperCase() + el.type.slice(1)}`}
+                : getDefaultElementLabel(el.type, gameType)}
             </span>
 
             {/* Container Count Badge */}
@@ -369,78 +387,81 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                       </div>
 
                       {/* Visual Elements */}
-                      <div className="space-y-0.5">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
-                          Visual Elements
-                        </span>
-                        {(
-                          [
-                            { type: 'text', label: 'Text Block' },
-                            { type: 'image', label: 'Image / Icon' },
-                          ] as const
-                        ).map((item) => (
-                          <button
-                            key={item.type}
-                            type="button"
-                            onClick={() => {
-                              onAddChildElement(el.id, item.type);
-                              setActiveChildMenuId(null);
-                            }}
-                            className="w-full text-left px-2 py-1 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
-                          >
-                            {getElementIcon(item.type)}
-                            <span>{item.label}</span>
-                          </button>
-                        ))}
-                      </div>
+                      {groupedElements.visual.length > 0 && (
+                        <div className="space-y-0.5">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
+                            Visual Elements
+                          </span>
+                          {groupedElements.visual.map((item) => (
+                            <button
+                              key={item.type}
+                              type="button"
+                              onClick={() => {
+                                onAddChildElement(el.id, item.type);
+                                setActiveChildMenuId(null);
+                              }}
+                              className="w-full text-left px-2 py-1 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
+                            >
+                              {getElementIcon(item.type)}
+                              <span>{item.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Live Game Stats */}
-                      <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
-                          Live Game Stats
-                        </span>
-                        {(
-                          [
-                            { type: 'score', label: 'Final Score' },
-                            { type: 'moves', label: 'Total Moves' },
-                            { type: 'pairs', label: 'Matched Pairs' },
-                            { type: 'time', label: 'Time Elapsed' },
-                            { type: 'accuracy', label: 'Accuracy' },
-                            { type: 'leaderboard', label: 'Leaderboard' },
-                          ] as const
-                        ).map((item) => (
-                          <button
-                            key={item.type}
-                            type="button"
-                            onClick={() => {
-                              onAddChildElement(el.id, item.type);
-                              setActiveChildMenuId(null);
-                            }}
-                            className="w-full text-left px-2 py-1 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
-                          >
-                            {getElementIcon(item.type)}
-                            <span>{item.label}</span>
-                          </button>
-                        ))}
-                      </div>
+                      {groupedElements.stat.length > 0 && (
+                        <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
+                            Live Game Stats
+                          </span>
+                          {groupedElements.stat.map((item) => (
+                            <button
+                              key={item.type}
+                              type="button"
+                              onClick={() => {
+                                onAddChildElement(el.id, item.type);
+                                setActiveChildMenuId(null);
+                              }}
+                              className="w-full text-left px-2 py-1 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center justify-between transition-colors"
+                              title={item.description}
+                            >
+                              <div className="flex items-center gap-2">
+                                {getElementIcon(item.type)}
+                                <span>{item.label}</span>
+                              </div>
+                              {item.badge && (
+                                <span className="text-[8px] font-mono px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">
+                                  {item.badge}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Interactive Controls */}
-                      <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
-                          Interactive Controls
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onAddChildElement(el.id, 'button');
-                            setActiveChildMenuId(null);
-                          }}
-                          className="w-full text-left px-2 py-1 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
-                        >
-                          {getElementIcon('button')}
-                          <span>Button</span>
-                        </button>
-                      </div>
+                      {groupedElements.control.length > 0 && (
+                        <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
+                            Interactive Controls
+                          </span>
+                          {groupedElements.control.map((item) => (
+                            <button
+                              key={item.type}
+                              type="button"
+                              onClick={() => {
+                                onAddChildElement(el.id, item.type);
+                                setActiveChildMenuId(null);
+                              }}
+                              className="w-full text-left px-2 py-1 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
+                            >
+                              {getElementIcon(item.type)}
+                              <span>{item.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Containers */}
                       <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
@@ -588,12 +609,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
                       Containers
                     </span>
-                    {(
-                      [
-                        { type: 'card', label: 'Card Container' },
-                        { type: 'group', label: 'Group Wrapper' },
-                      ] as const
-                    ).map((item) => (
+                    {groupedElements.container.map((item) => (
                       <button
                         key={item.type}
                         type="button"
@@ -610,78 +626,81 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
                   </div>
 
                   {/* Visual Elements */}
-                  <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
-                      Visual Elements
-                    </span>
-                    {(
-                      [
-                        { type: 'text', label: 'Text Block' },
-                        { type: 'image', label: 'Image / Icon' },
-                      ] as const
-                    ).map((item) => (
-                      <button
-                        key={item.type}
-                        type="button"
-                        onClick={() => {
-                          onAddNewRootElement(item.type);
-                          setRootAddMenuOpen(false);
-                        }}
-                        className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
-                      >
-                        {getElementIcon(item.type)}
-                        <span>{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                  {groupedElements.visual.length > 0 && (
+                    <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
+                        Visual Elements
+                      </span>
+                      {groupedElements.visual.map((item) => (
+                        <button
+                          key={item.type}
+                          type="button"
+                          onClick={() => {
+                            onAddNewRootElement(item.type);
+                            setRootAddMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
+                        >
+                          {getElementIcon(item.type)}
+                          <span>{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Live Game Stats */}
-                  <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
-                      Live Game Stats
-                    </span>
-                    {(
-                      [
-                        { type: 'score', label: 'Final Score' },
-                        { type: 'moves', label: 'Total Moves' },
-                        { type: 'pairs', label: 'Matched Pairs' },
-                        { type: 'time', label: 'Time Elapsed' },
-                        { type: 'accuracy', label: 'Accuracy' },
-                        { type: 'leaderboard', label: 'Leaderboard' },
-                      ] as const
-                    ).map((item) => (
-                      <button
-                        key={item.type}
-                        type="button"
-                        onClick={() => {
-                          onAddNewRootElement(item.type);
-                          setRootAddMenuOpen(false);
-                        }}
-                        className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
-                      >
-                        {getElementIcon(item.type)}
-                        <span>{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                  {groupedElements.stat.length > 0 && (
+                    <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
+                        Live Game Stats
+                      </span>
+                      {groupedElements.stat.map((item) => (
+                        <button
+                          key={item.type}
+                          type="button"
+                          onClick={() => {
+                            onAddNewRootElement(item.type);
+                            setRootAddMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center justify-between transition-colors"
+                          title={item.description}
+                        >
+                          <div className="flex items-center gap-2">
+                            {getElementIcon(item.type)}
+                            <span>{item.label}</span>
+                          </div>
+                          {item.badge && (
+                            <span className="text-[8px] font-mono px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">
+                              {item.badge}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Interactive Controls */}
-                  <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
-                      Interactive Controls
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onAddNewRootElement('button');
-                        setRootAddMenuOpen(false);
-                      }}
-                      className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
-                    >
-                      {getElementIcon('button')}
-                      <span>Button</span>
-                    </button>
-                  </div>
+                  {groupedElements.control.length > 0 && (
+                    <div className="space-y-0.5 pt-1 border-t border-slate-800/80">
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider px-1.5">
+                        Interactive Controls
+                      </span>
+                      {groupedElements.control.map((item) => (
+                        <button
+                          key={item.type}
+                          type="button"
+                          onClick={() => {
+                            onAddNewRootElement(item.type);
+                            setRootAddMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 transition-colors"
+                        >
+                          {getElementIcon(item.type)}
+                          <span>{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             )}

@@ -3249,6 +3249,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
           <ResultScreenVisualEditor
             resultConfig={resultConfig}
             theme={theme}
+            gameType="memory-match"
             onChange={(updates) => handleUpdateResultScreen(updates)}
             onUploadAsset={onUploadAsset}
             onFullscreenChange={setIsResultEditorFullscreen}
