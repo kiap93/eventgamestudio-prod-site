@@ -181,9 +181,12 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   );
 
   const [countdown, setCountdown] = useState<number>(3);
-  const [cards, setCards] = useState<MemoryCard[]>(() => createShuffledDeck(activeTheme));
+  const [cards, setCards] = useState<MemoryCard[]>(() => {
+    const deck = createShuffledDeck(activeTheme);
+    return deck.slice(0, totalCards);
+  });
   const [randomPositions, setRandomPositions] = useState<CardPosition[]>(() =>
-    generateCardPositions(createShuffledDeck(activeTheme).length, boardConfig, cardConfig)
+    generateCardPositions(totalCards, boardConfig, cardConfig)
   );
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [isLocked, setIsLocked] = useState<boolean>(false);
@@ -329,7 +332,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   // Initialize fresh card deck on theme change or mount
   const initBoard = useCallback(() => {
     cleanupGameplay();
-    const newDeck = createShuffledDeck(activeTheme);
+    const newDeck = createShuffledDeck(activeTheme).slice(0, totalCards);
     setCards(newDeck);
     setRandomPositions(generateCardPositions(newDeck.length, boardConfig, cardConfig));
     setFlippedIndices([]);
@@ -349,7 +352,28 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     const newSession = `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     setSessionId(newSession);
     sessionIdRef.current = newSession;
-  }, [activeTheme, boardConfig, cardConfig, gameDuration, cleanupGameplay]);
+  }, [activeTheme, totalCards, boardConfig, cardConfig, gameDuration, cleanupGameplay]);
+
+  // Defensive check: layoutMode must never affect card count
+  useEffect(() => {
+    if (cards.length !== totalCards) {
+      console.warn('MemoryMatchGame card count mismatch', {
+        cards: cards.length,
+        expected: totalCards,
+        rows,
+        cols,
+        layoutMode: boardConfig.layoutMode,
+      });
+    }
+
+    if (boardConfig.layoutMode !== 'grid' && randomPositions.length !== cards.length) {
+      console.warn('Card count and position count mismatch', {
+        cards: cards.length,
+        positions: randomPositions.length,
+        layoutMode: boardConfig.layoutMode,
+      });
+    }
+  }, [cards.length, randomPositions.length, totalCards, rows, cols, boardConfig.layoutMode]);
 
   // Main countdown trigger (3.. 2.. 1.. GO!)
   const startCountdown = useCallback(() => {
@@ -449,7 +473,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     setCountdown(3);
 
     // 4. Reset cards to clean, fresh face-down state
-    const newDeck = createShuffledDeck(activeTheme);
+    const newDeck = createShuffledDeck(activeTheme).slice(0, totalCards);
     setCards(newDeck);
     setRandomPositions(generateCardPositions(newDeck.length, boardConfig, cardConfig));
 
@@ -459,6 +483,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   }, [
     cleanupGameplay,
     activeTheme,
+    totalCards,
     boardConfig,
     cardConfig,
     gameDuration,
@@ -637,7 +662,13 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       return;
     }
 
-    const currentDeck = cardsRef.current;
+    const currentDeck = cardsRef.current.slice(0, totalCards);
+    if (cardsRef.current.length !== totalCards) {
+      console.warn('Auto Demo detected deck length mismatch with totalCards', {
+        deckLength: cardsRef.current.length,
+        totalCards,
+      });
+    }
     const pairMap = new Map<string, number[]>();
     currentDeck.forEach((card, index) => {
       if (!card.isMatched) {
@@ -1351,7 +1382,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               </div>
             )}
 
-            {cards.map((card, index) => {
+            {cards.slice(0, totalCards).map((card, index) => {
               const isFaceUp = card.isFlipped || card.isMatched;
               const cardRotationAngle = card.rotation ?? 0;
 
@@ -1521,17 +1552,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               </div>
             )}
 
-            {cards.map((card, index) => {
-              const pos = randomPositions[index] || {
-                x: 50,
-                y: 50,
-                rotation: 0,
-                width: cardWidth,
-                height: cardHeight,
-                widthPercent: 18,
-                heightPercent: 24,
-                zIndex: index + 1,
-              };
+            {cards.slice(0, totalCards).map((card, index) => {
+              const pos = randomPositions[index];
+              if (!pos) return null;
               const isFaceUp = card.isFlipped || card.isMatched;
 
               return (

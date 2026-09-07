@@ -1,6 +1,7 @@
 import { normalizeBoardConfig, generateUpDownCardPositions, generateCardPositions } from '../../src/games/memory-match/memoryMatchBoardLayout';
 import { getMemoryMatchConfig } from '../../src/themes/types';
 import { normalizeGameTheme } from '../../src/themes/registry';
+import { createShuffledDeck } from '../../src/games/memory-match/cardDeck';
 
 function runTests() {
   console.log('--- TEST 1: normalizeBoardConfig preserves up-down and up-down-rotation ---');
@@ -147,7 +148,144 @@ function runTests() {
   }
   console.log('PASSED: Card size remains fixed while layout mode controls position only');
 
-  console.log('ALL MEMORY MATCH UP-DOWN TESTS PASSED!');
+  console.log('--- TEST 7: Verify all board presets across all 4 layout modes maintain exact card and position counts ---');
+  const presets = [
+    { rows: 2, cols: 4, expectedCards: 8, expectedPairs: 4 },
+    { rows: 3, cols: 4, expectedCards: 12, expectedPairs: 6 },
+    { rows: 4, cols: 4, expectedCards: 16, expectedPairs: 8 },
+    { rows: 2, cols: 8, expectedCards: 16, expectedPairs: 8 },
+  ];
+  const layoutModes = ['grid', 'random', 'up-down', 'up-down-rotation'] as const;
+
+  for (const preset of presets) {
+    for (const mode of layoutModes) {
+      const theme = normalizeGameTheme({
+        id: `preset-${preset.rows}x${preset.cols}-${mode}`,
+        name: `Preset ${preset.rows}x${preset.cols}`,
+        game_slug: 'memory-match',
+        game_config: {
+          board: {
+            rows: preset.rows,
+            cols: preset.cols,
+            layoutMode: mode,
+          },
+        },
+      });
+
+      const deck = createShuffledDeck(theme);
+      if (deck.length !== preset.expectedCards) {
+        throw new Error(`FAILED: Preset ${preset.rows}x${preset.cols} in ${mode} produced ${deck.length} cards, expected ${preset.expectedCards}`);
+      }
+
+      // Verify pair counts in deck
+      const pairCounts = new Map<string, number>();
+      for (const card of deck) {
+        pairCounts.set(card.pairId, (pairCounts.get(card.pairId) || 0) + 1);
+      }
+      if (pairCounts.size !== preset.expectedPairs) {
+        throw new Error(`FAILED: Preset ${preset.rows}x${preset.cols} in ${mode} has ${pairCounts.size} pairs, expected ${preset.expectedPairs}`);
+      }
+      for (const [pairId, count] of pairCounts.entries()) {
+        if (count !== 2) {
+          throw new Error(`FAILED: Pair ${pairId} has ${count} cards, expected exactly 2`);
+        }
+      }
+
+      // Verify positions match cards count
+      const positions = generateCardPositions(deck.length, {
+        rows: preset.rows,
+        cols: preset.cols,
+        layoutMode: mode,
+      });
+      if (positions.length !== deck.length) {
+        throw new Error(`FAILED: Preset ${preset.rows}x${preset.cols} in ${mode} generated ${positions.length} positions, expected ${deck.length}`);
+      }
+    }
+  }
+  console.log('PASSED: All standard presets (2x4, 3x4, 4x4, 2x8) maintain exact counts across all 4 layout modes');
+
+  console.log('--- TEST 8: Configured library with 16 pairs on 3x4 board strictly yields 12 cards (6 pairs) in all layout modes ---');
+  const library16Pairs = Array.from({ length: 16 }, (_, i) => ({
+    id: `custom_pair_${i + 1}`,
+    name: `Custom Pair ${i + 1}`,
+    imageUrl: `https://example.com/item_${i + 1}.png`,
+    points: 100,
+  }));
+
+  for (const mode of layoutModes) {
+    const themeWith16Pairs = normalizeGameTheme({
+      id: `theme-16-pairs-${mode}`,
+      name: '16 Pairs Theme',
+      game_slug: 'memory-match',
+      game_config: {
+        board: {
+          rows: 3,
+          cols: 4,
+          layoutMode: mode,
+        },
+        pairs: library16Pairs,
+      },
+    });
+
+    const deck12 = createShuffledDeck(themeWith16Pairs);
+    if (deck12.length !== 12) {
+      throw new Error(`FAILED: Theme with 16 configured pairs on 3x4 board produced ${deck12.length} cards in ${mode}, expected 12`);
+    }
+
+    const uniquePairIds = new Set(deck12.map((c) => c.pairId));
+    if (uniquePairIds.size !== 6) {
+      throw new Error(`FAILED: Expected exactly 6 unique pairs, got ${uniquePairIds.size}`);
+    }
+
+    // Must strictly be the first 6 active pairs (custom_pair_1 through custom_pair_6)
+    for (const card of deck12) {
+      const pairNum = parseInt(card.pairId.replace('custom_pair_', ''), 10);
+      if (pairNum > 6) {
+        throw new Error(`FAILED: Card from inactive pair ${card.pairId} leaked into 3x4 board deck`);
+      }
+    }
+
+    const positions12 = generateCardPositions(deck12.length, {
+      rows: 3,
+      cols: 4,
+      layoutMode: mode,
+    });
+    if (positions12.length !== 12) {
+      throw new Error(`FAILED: Expected 12 positions in mode ${mode}, got ${positions12.length}`);
+    }
+  }
+  console.log('PASSED: Theme library with extra pairs only activates first 6 pairs on 3x4 board across all layout modes');
+
+  console.log('--- TEST 9: Switching layoutMode keeps card count identical ---');
+  const baseTheme = normalizeGameTheme({
+    id: 'base-theme-layout-switching',
+    name: 'Layout Switch Theme',
+    game_slug: 'memory-match',
+    game_config: {
+      board: { rows: 3, cols: 4, layoutMode: 'grid' },
+    },
+  });
+
+  const gridDeck = createShuffledDeck(baseTheme);
+  const randomDeck = createShuffledDeck({
+    ...baseTheme,
+    game_config: { ...baseTheme.game_config, board: { rows: 3, cols: 4, layoutMode: 'random' } },
+  });
+  const upDownDeck = createShuffledDeck({
+    ...baseTheme,
+    game_config: { ...baseTheme.game_config, board: { rows: 3, cols: 4, layoutMode: 'up-down' } },
+  });
+  const upDownRotDeck = createShuffledDeck({
+    ...baseTheme,
+    game_config: { ...baseTheme.game_config, board: { rows: 3, cols: 4, layoutMode: 'up-down-rotation' } },
+  });
+
+  if (gridDeck.length !== 12 || randomDeck.length !== 12 || upDownDeck.length !== 12 || upDownRotDeck.length !== 12) {
+    throw new Error('FAILED: Card count varied across layout modes!');
+  }
+  console.log('PASSED: Switching layout mode keeps card count strictly invariant at 12 cards');
+
+  console.log('ALL MEMORY MATCH UP-DOWN & CARD-COUNT TESTS PASSED!');
 }
 
 runTests();

@@ -274,77 +274,54 @@ export function createShuffledDeck(theme?: GameTheme | null): MemoryCard[] {
   const memoryConfig = getMemoryMatchConfig(theme);
   const rows = Math.max(MIN_BOARD_ROWS, Math.min(MAX_BOARD_ROWS, memoryConfig.board?.rows ?? memoryConfig.grid?.rows ?? 4));
   const cols = Math.max(MIN_BOARD_COLS, Math.min(MAX_BOARD_COLS, memoryConfig.board?.cols ?? memoryConfig.grid?.cols ?? 4));
+
+  // Single authoritative card count calculation: strictly independent of layoutMode
   const totalCards = (rows * cols) % 2 === 0 ? rows * cols : rows * cols - 1;
   const requiredPairsCount = Math.max(1, Math.floor(totalCards / 2));
 
-  const prototypes: CardPrototype[] = [];
+  // Ensure minimum pairs in available library pool, then take strictly the active pairs for this board
+  const availablePairs = ensureRequiredPairs(memoryConfig.pairs, requiredPairsCount);
+  const activePairs = availablePairs.slice(0, requiredPairsCount);
 
-  if (memoryConfig.pairs && memoryConfig.pairs.length > 0) {
-    memoryConfig.pairs.forEach((pair, index) => {
-      if (prototypes.length < requiredPairsCount) {
-        const fallbackProto = DEFAULT_CARD_PROTOTYPES[index % DEFAULT_CARD_PROTOTYPES.length];
-        prototypes.push({
-          pairId: pair.id || `pair_${index + 1}`,
-          name: pair.name || fallbackProto.name,
-          imageUrl: pair.imageUrl || null,
-          iconName: pair.iconName || fallbackProto.iconName,
-          color: pair.color || fallbackProto.color,
-          bgColor: pair.bgColor || fallbackProto.bgColor,
-          borderColor: pair.borderColor || fallbackProto.borderColor,
-          points: pair.points ?? 100,
-        });
-      }
+  // Invariant check in development
+  if (activePairs.length !== requiredPairsCount) {
+    console.warn('Memory Match active pairs count mismatch', {
+      expected: requiredPairsCount,
+      actual: activePairs.length,
+      rows,
+      cols,
     });
   }
 
-  // Backfill with default prototypes to guarantee the exact required pair count
-  for (let i = 0; i < DEFAULT_CARD_PROTOTYPES.length; i++) {
-    if (prototypes.length >= requiredPairsCount) break;
-    const def = DEFAULT_CARD_PROTOTYPES[i];
-    if (!prototypes.some((p) => p.pairId === def.pairId || p.name.toLowerCase() === def.name.toLowerCase())) {
-      prototypes.push({ ...def });
-    }
-  }
-
-  // If still short of required pairs (e.g. for very large custom boards), generate dynamically
-  let genIndex = prototypes.length + 1;
-  while (prototypes.length < requiredPairsCount) {
-    const fallbackProto = DEFAULT_CARD_PROTOTYPES[genIndex % DEFAULT_CARD_PROTOTYPES.length];
-    prototypes.push({
-      pairId: `pair_gen_${genIndex}`,
-      name: `Card Pair ${genIndex}`,
-      imageUrl: null,
-      iconName: fallbackProto.iconName,
-      color: fallbackProto.color,
-      bgColor: fallbackProto.bgColor,
-      borderColor: fallbackProto.borderColor,
-      points: 100,
-    });
-    genIndex++;
-  }
-
-  // Take exactly requiredPairsCount prototypes
-  const activePrototypes = prototypes.slice(0, requiredPairsCount);
-
-  // Duplicate each prototype into 2 card instances (totalCards total)
+  // Duplicate each active pair into exactly 2 matching card instances
   const cards: MemoryCard[] = [];
   const cardConfig = memoryConfig.card || memoryConfig.board?.card;
   const rotationMode = cardConfig?.rotationMode || 'none';
   const fixedAngle = cardConfig?.rotation || 0;
   const randomAngleRange = cardConfig?.rotationRange ?? 8;
 
-  activePrototypes.forEach((proto, index) => {
+  activePairs.forEach((pair, index) => {
+    const fallbackProto = DEFAULT_CARD_PROTOTYPES[index % DEFAULT_CARD_PROTOTYPES.length];
+    const pairId = pair.id || `pair_${index + 1}`;
+    const name = pair.name || fallbackProto.name;
+    const imageUrl = pair.imageUrl || null;
+    const iconName = pair.iconName || fallbackProto.iconName;
+    const color = pair.color || fallbackProto.color;
+    const bgColor = pair.bgColor || fallbackProto.bgColor;
+    const borderColor = pair.borderColor || fallbackProto.borderColor;
+    const points = pair.points ?? 100;
+
     // Card A
     cards.push({
       id: `card_${index}_a`,
-      pairId: proto.pairId,
-      name: proto.name,
-      imageUrl: proto.imageUrl,
-      iconName: proto.iconName,
-      color: proto.color,
-      bgColor: proto.bgColor,
-      borderColor: proto.borderColor,
-      points: proto.points,
+      pairId,
+      name,
+      imageUrl,
+      iconName,
+      color,
+      bgColor,
+      borderColor,
+      points,
       isFlipped: false,
       isMatched: false,
       isShaking: false,
@@ -353,21 +330,32 @@ export function createShuffledDeck(theme?: GameTheme | null): MemoryCard[] {
     // Card B
     cards.push({
       id: `card_${index}_b`,
-      pairId: proto.pairId,
-      name: proto.name,
-      imageUrl: proto.imageUrl,
-      iconName: proto.iconName,
-      color: proto.color,
-      bgColor: proto.bgColor,
-      borderColor: proto.borderColor,
-      points: proto.points,
+      pairId,
+      name,
+      imageUrl,
+      iconName,
+      color,
+      bgColor,
+      borderColor,
+      points,
       isFlipped: false,
       isMatched: false,
       isShaking: false,
     });
   });
 
-  const shuffled = shuffleArray(cards);
+  // Shuffle and strictly enforce deck.length === totalCards
+  const shuffled = shuffleArray(cards).slice(0, totalCards);
+
+  if (shuffled.length !== totalCards) {
+    console.error('Memory Match deck count mismatch', {
+      expected: totalCards,
+      actual: shuffled.length,
+      rows,
+      cols,
+      layoutMode: memoryConfig.board?.layoutMode,
+    });
+  }
 
   // Assign deterministic, stable rotation angles per card
   return shuffled.map((card) => {

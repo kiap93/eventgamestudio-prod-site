@@ -969,34 +969,44 @@ export const MemoryMatchCardsCustomizer: React.FC<MemoryMatchCardsCustomizerProp
   return (
     <div className="space-y-6">
       {/* Header Info */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="p-2.5 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20">
             {layoutMode === 'random' ? (
-              <Shuffle className="w-4 h-4" />
+              <Shuffle className="w-5 h-5" />
             ) : layoutMode === 'up-down' ? (
-              <ArrowUpDown className="w-4 h-4" />
+              <ArrowUpDown className="w-5 h-5" />
             ) : layoutMode === 'up-down-rotation' ? (
-              <RotateCw className="w-4 h-4" />
+              <RotateCw className="w-5 h-5" />
             ) : (
-              <Grid3X3 className="w-4 h-4" />
+              <Grid3X3 className="w-5 h-5" />
             )}
           </span>
           <div>
-            <h3 className="text-sm font-bold text-slate-100">
-              {requiredPairsCount} Memory Card Pairs ({totalCards} Cards)
-            </h3>
-            <p className="text-xs text-slate-400">
-              Customize the front art, title, and symbol for the {rows} × {cols}{' '}
-              {layoutMode === 'random'
-                ? 'scattered'
-                : layoutMode === 'up-down'
-                ? 'up-down'
-                : layoutMode === 'up-down-rotation'
-                ? 'up-down with rotation'
-                : 'grid'}{' '}
-              board ({requiredPairsCount} active pairs)
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-100">
+                Active Game Board: {requiredPairsCount} Pairs ({totalCards} Cards)
+              </h3>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border text-emerald-400 bg-emerald-500/10 border-emerald-500/20">
+                {rows} × {cols}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Only the first <span className="text-emerald-400 font-semibold">{requiredPairsCount} active pairs</span> are played on this board.
+              {pairs.length > requiredPairsCount && (
+                <span className="text-slate-500 ml-1">
+                  ({pairs.length - requiredPairsCount} additional pairs stored in your theme library)
+                </span>
+              )}
             </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="text-right">
+            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 block">Card Library</span>
+            <span className="text-xs font-mono font-bold text-slate-300">
+              <span className="text-emerald-400">{requiredPairsCount}</span> / {pairs.length} pairs active
+            </span>
           </div>
         </div>
       </div>
@@ -1012,7 +1022,7 @@ export const MemoryMatchCardsCustomizer: React.FC<MemoryMatchCardsCustomizerProp
             <div
               key={pair.id || idx}
               className={`bg-slate-900 border ${
-                isActiveOnBoard ? 'border-slate-800 hover:border-slate-700/80' : 'border-slate-855 opacity-75'
+                isActiveOnBoard ? 'border-slate-800 hover:border-slate-700/80' : 'border-slate-850 opacity-75'
               } rounded-3xl p-4.5 space-y-3.5 shadow-lg transition-all`}
             >
               <div className="flex items-center justify-between">
@@ -1036,17 +1046,21 @@ export const MemoryMatchCardsCustomizer: React.FC<MemoryMatchCardsCustomizerProp
                   <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
                     isActiveOnBoard
                       ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                      : 'text-slate-400 bg-slate-800 border-slate-700'
+                      : 'text-slate-400 bg-slate-800/80 border-slate-700'
                   }`}>
+                    {isActiveOnBoard ? `ACTIVE (Pair ${idx + 1})` : 'INACTIVE / LIBRARY'}
+                  </span>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full border border-slate-800 text-slate-400 bg-slate-950">
                     +{pair.points || 100} pts
                   </span>
-                  {!isActiveOnBoard && (
-                    <span className="text-[9px] font-mono text-slate-500 px-1.5 py-0.5 bg-slate-950 rounded border border-slate-800" title="Preserved in theme configuration">
-                      Saved
-                    </span>
-                  )}
                 </div>
               </div>
+
+              {!isActiveOnBoard && (
+                <div className="text-[11px] text-slate-400 bg-slate-950/60 rounded-xl px-2.5 py-1.5 border border-slate-850">
+                  Not used on the current {rows} × {cols} board. Preserved in theme library.
+                </div>
+              )}
 
               {/* Card Artwork & Upload Button */}
               <div className="flex items-center gap-3.5 bg-slate-950/80 p-3 rounded-2xl border border-slate-850">

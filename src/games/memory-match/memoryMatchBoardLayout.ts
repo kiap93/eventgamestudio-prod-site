@@ -508,11 +508,22 @@ export function generateUpDownCardPositions(
     });
   }
 
-  return positions;
+  if (positions.length !== count) {
+    console.warn('generateUpDownCardPositions position count mismatch', {
+      expected: count,
+      actual: positions.length,
+      cardCount,
+      rows,
+      cols,
+    });
+  }
+
+  return positions.slice(0, count);
 }
 
 /**
  * Master dispatcher for generating card positions according to board layoutMode.
+ * Strictly guarantees positions.length === cardCount.
  */
 export function generateCardPositions(
   cardCount: number,
@@ -520,13 +531,27 @@ export function generateCardPositions(
   cardConfigInput?: Partial<MemoryMatchCardConfig> | null
 ): CardLayoutPosition[] {
   const normalized = normalizeBoardConfig(boardConfig);
+  let positions: CardLayoutPosition[];
   if (normalized.layoutMode === 'up-down') {
-    return generateUpDownCardPositions(cardCount, normalized, cardConfigInput, false);
+    positions = generateUpDownCardPositions(cardCount, normalized, cardConfigInput, false);
+  } else if (normalized.layoutMode === 'up-down-rotation') {
+    positions = generateUpDownCardPositions(cardCount, normalized, cardConfigInput, true);
+  } else {
+    positions = generateRandomCardPositions(cardCount, normalized, cardConfigInput);
   }
-  if (normalized.layoutMode === 'up-down-rotation') {
-    return generateUpDownCardPositions(cardCount, normalized, cardConfigInput, true);
+
+  if (positions.length !== cardCount) {
+    console.warn('generateCardPositions position count mismatch', {
+      expected: cardCount,
+      actual: positions.length,
+      layoutMode: normalized.layoutMode,
+    });
+    if (positions.length > cardCount) {
+      positions = positions.slice(0, cardCount);
+    }
   }
-  return generateRandomCardPositions(cardCount, normalized, cardConfigInput);
+
+  return positions;
 }
 
 
