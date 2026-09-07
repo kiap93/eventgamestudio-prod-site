@@ -304,8 +304,14 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   }, [resolvedPreviewDuration]);
 
   // Reset when theme duration changes
+  const prevThemeIdRef = useRef(theme.id);
+  const prevDurationRef = useRef(resolvedPreviewDuration);
   useEffect(() => {
-    handleResetSimulation();
+    if (prevThemeIdRef.current !== theme.id || prevDurationRef.current !== resolvedPreviewDuration) {
+      prevThemeIdRef.current = theme.id;
+      prevDurationRef.current = resolvedPreviewDuration;
+      handleResetSimulation();
+    }
   }, [theme.id, resolvedPreviewDuration, handleResetSimulation]);
 
   // Main 60 FPS Canvas Simulation Loop (Catch The Brand)

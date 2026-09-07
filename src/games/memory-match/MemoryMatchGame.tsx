@@ -357,35 +357,22 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const cardAspect = cardWidth / cardHeight;
   const gridContainerAspect = (cols * cardWidth) / (rows * cardHeight);
 
-  const boardLayoutKey = `${boardConfig.layoutMode}_${boardConfig.rows}_${boardConfig.cols}_${boardConfig.cardGap}_${cardWidth}_${cardHeight}_${cardBorderRadius}_${cardConfig?.rotationMode}_${cardConfig?.rotation}_${cardConfig?.rotationRange}`;
+  // Separate gameplay-reset key from visual hot-update key
+  // Gameplay-reset properties: rows, cols, card content (pairs, images, names, card back), game duration, themeId
   const cardConfigSignature = `${memoryConfig.cardBackUrl || ''}_${(memoryConfig.pairs || []).map((p) => `${p.id}:${p.imageUrl || ''}:${p.name || ''}`).join('|')}`;
+  const gameplayConfigKey = `${themeId}_${boardConfig.rows}_${boardConfig.cols}_${cardConfigSignature}_${gameDuration}`;
 
-  // Initialize fresh card deck on theme change or mount
+  // Visual hot-update properties: card width/height/gap/radius/rotation/layoutMode/random spacing
+  // Changing these MUST NOT recreate the deck or reset gameplay/countdown
+  const visualConfigKey = `${boardConfig.layoutMode}_${boardConfig.cardGap}_${cardWidth}_${cardHeight}_${cardBorderRadius}_${cardConfig?.rotationMode}_${cardConfig?.rotation}_${cardConfig?.rotationRange}_${boardConfig.randomLayout?.minSpacing}_${boardConfig.randomLayout?.rotationMin}_${boardConfig.randomLayout?.rotationMax}`;
+
+  // Initialize fresh card deck and board positions only (pure data initialization, no timer teardown)
   const initBoard = useCallback(() => {
-    cleanupGameplay();
     const newDeck = createShuffledDeck(activeTheme).slice(0, totalCards);
     setCards(newDeck);
     setRandomPositions(generateCardPositions(newDeck.length, boardConfig, cardConfig));
-    setFlippedIndices([]);
-    setFirstFlippedCardId(null);
-    firstFlippedCardIdRef.current = null;
-    setIsLocked(false);
-    setScore(0);
-    setMoves(0);
-    setMatchedPairsCount(0);
-    setComboStreak(0);
-    setMaxComboStreak(0);
-    setTimeRemaining(gameDuration);
-    timeRemainingRef.current = gameDuration;
-    movesRef.current = 0;
-    matchedPairsCountRef.current = 0;
-    setIsVictory(false);
-    setScoreSubmitted(false);
-    setSubmittedRank(null);
-    const newSession = `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    setSessionId(newSession);
-    sessionIdRef.current = newSession;
-  }, [activeTheme, totalCards, boardConfig, cardConfig, gameDuration, cleanupGameplay]);
+    return newDeck;
+  }, [activeTheme, totalCards, boardConfig, cardConfig]);
 
   // Defensive check: layoutMode must never affect card count
   useEffect(() => {
@@ -408,14 +395,43 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     }
   }, [cards.length, randomPositions.length, totalCards, rows, cols, boardConfig.layoutMode]);
 
-  // Main countdown trigger (3.. 2.. 1.. GO!)
-  const startCountdown = useCallback(() => {
+  // Start a fresh game session: reset gameplay, initialize board, and enter COUNTDOWN
+  const startNewGame = useCallback(() => {
+    console.debug('[MemoryMatch] GAME START');
+    console.debug('[MemoryMatch] GAME RESET');
     cleanupGameplay();
     clearAutoDemoTimers();
+
     initBoard();
+
+    setFlippedIndices([]);
+    setFirstFlippedCardId(null);
+    firstFlippedCardIdRef.current = null;
+    setIsLocked(false);
+    setScore(0);
+    setMoves(0);
+    setMatchedPairsCount(0);
+    setComboStreak(0);
+    setMaxComboStreak(0);
+    setTimeRemaining(gameDuration);
+    timeRemainingRef.current = gameDuration;
+    movesRef.current = 0;
+    matchedPairsCountRef.current = 0;
+    setIsVictory(false);
+    setScoreSubmitted(false);
+    setSubmittedRank(null);
+
+    const newSession = `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    setSessionId(newSession);
+    sessionIdRef.current = newSession;
+
+    console.debug('[MemoryMatch] COUNTDOWN START');
     setCountdown(3);
     updateGameState('COUNTDOWN');
-  }, [cleanupGameplay, clearAutoDemoTimers, initBoard, updateGameState]);
+  }, [cleanupGameplay, clearAutoDemoTimers, initBoard, gameDuration, updateGameState]);
+
+  // Alias startCountdown to startNewGame for buttons and callbacks
+  const startCountdown = startNewGame;
 
   const startCountdownRef = useRef(startCountdown);
   useEffect(() => {
@@ -424,22 +440,43 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
   const isFirstMountRef = useRef(true);
 
-  // Re-initialize board on mount or when theme/layout/card/duration configuration changes
+  // Gameplay configuration change effect (triggers game reset only when gameplay rules/deck change)
   useEffect(() => {
     if (isFirstMountRef.current) {
       isFirstMountRef.current = false;
       if (isStudioPreview && autoDemo) {
-        startCountdown();
+        startNewGame();
       }
       return;
     }
-    cleanupGameplay();
-    initBoard();
-    if (isStudioPreview && autoDemo) {
-      startCountdown();
+    console.debug('[MemoryMatch] GAMEPLAY CONFIG RESET', gameplayConfigKey);
+    startNewGame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameplayConfigKey]);
+
+  // Hot visual configuration update effect (card width/height/gap/radius/rotation/scattered positions)
+  // NEVER calls cleanupGameplay(), initBoard(), or startCountdown()
+  useEffect(() => {
+    if (isFirstMountRef.current) return;
+
+    console.debug('[MemoryMatch] HOT VISUAL UPDATE', {
+      width: cardWidth,
+      height: cardHeight,
+      borderRadius: cardBorderRadius,
+      rotation: cardConfig?.rotation,
+    });
+
+    if (cardsRef.current.length > 0) {
+      setRandomPositions(
+        generateCardPositions(
+          cardsRef.current.length,
+          boardConfig,
+          cardConfig
+        )
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [themeId, boardLayoutKey, cardConfigSignature, gameDuration]);
+  }, [visualConfigKey]);
 
   // Mode switch transition handling (Auto Demo <-> Testing / Interactive)
   const prevAutoDemoRef = useRef<boolean | undefined>(autoDemo);
@@ -455,9 +492,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
     // Changing: Testing (Interactive) -> Auto Demo
     if (prevAutoDemo === false && autoDemo === true) {
-      cleanupGameplay();
-      clearAutoDemoTimers();
-      startCountdown();
+      startNewGame();
       return;
     }
 
@@ -478,9 +513,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   }, [
     autoDemo,
     isStudioPreview,
-    cleanupGameplay,
+    startNewGame,
     clearAutoDemoTimers,
-    startCountdown,
   ]);
 
   // Centralized Stop Game function
@@ -1543,7 +1577,12 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
             {cards.slice(0, totalCards).map((card, index) => {
               const isFaceUp = card.isFlipped || card.isMatched;
-              const cardRotationAngle = card.rotation ?? 0;
+              const cardRotationAngle =
+                cardConfig?.rotationMode === 'fixed'
+                  ? (cardConfig.rotation ?? 0)
+                  : cardConfig?.rotationMode === 'none'
+                  ? 0
+                  : (card.rotation ?? 0);
 
               return (
                 <div
