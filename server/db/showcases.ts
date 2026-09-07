@@ -1,4 +1,4 @@
-import { getSupabaseServerClient, isLocalFallbackAllowed } from '../supabase.js';
+import { getSupabaseServerClient, isLocalFallbackAllowed, isSupabaseConfigured } from '../supabase.js';
 import {
   EventShowcaseRecord,
   ShowcaseStatus,
@@ -8,11 +8,17 @@ import {
   RewardReviewStatus,
   ShowcaseModerationLog,
 } from './types.js';
-import { grantShowcaseCredit } from './wallet.js';
+import { grantShowcaseCredit, withOrganizationLock } from './wallet.js';
 import { getShowcaseMedia } from './showcaseMedia.js';
+import { getNormalizedCurrentDate, getEventById } from './events.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+
+function isUUID(val: string | null | undefined): boolean {
+  if (!val || typeof val !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+}
 
 // Local storage fallback paths for environments where Supabase migration is not yet run
 const LOCAL_SHOWCASES_FILE = path.join(process.cwd(), 'uploads', 'showcases.json');
@@ -708,6 +714,34 @@ export async function evaluateShowcaseRewardEligibility(
 
   const supabase = getSupabaseServerClient(env);
 
+  // Check if a completed showcase credit transaction already exists specifically for THIS showcase
+  let thisShowcaseTxn: any = null;
+  if (isSupabaseConfigured(env)) {
+    const { data } = await supabase
+      .from('wallet_transactions')
+      .select('id')
+      .eq('organization_id', showcase.organization_id)
+      .eq('transaction_type', 'SHOWCASE_CREDIT')
+      .eq('status', 'COMPLETED')
+      .or(`reference_id.eq.showcase_${showcase.id},metadata->>showcase_id.eq.${showcase.id}`)
+      .maybeSingle();
+    thisShowcaseTxn = data;
+  }
+
+  if (thisShowcaseTxn || showcase.reward_transaction_id) {
+    // If the reward transaction was already granted for this showcase, reconcile to REWARDED instead of NOT_ELIGIBLE
+    return await updateShowcase(
+      eventId,
+      {
+        reward_review_status: 'REWARDED',
+        reward_status: 'REWARDED',
+        reward_transaction_id: thisShowcaseTxn?.id || showcase.reward_transaction_id,
+      },
+      env,
+      true
+    );
+  }
+
   // Check if organization already received showcase credit
   const { data: orgWallet } = await supabase
     .from('organization_wallets')
@@ -750,17 +784,15 @@ export async function evaluateShowcaseRewardEligibility(
   }
 
   // 2. Event payment and started/concluded check
-  const { data: eventData } = await supabase
-    .from('events')
-    .select('payment_status, status, start_date, end_date')
-    .eq('id', eventId)
-    .maybeSingle();
+  const eventData = await getEventById(eventId, env);
 
   const isPaid = eventData?.payment_status === 'PAID';
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getNormalizedCurrentDate();
   const isStartedOrConcluded =
-    eventData?.status === 'LIVE' ||
-    eventData?.status === 'COMPLETED' ||
+    eventData?.status === 'live' ||
+    eventData?.status === 'completed' ||
+    eventData?.event_status === 'LIVE' ||
+    eventData?.event_status === 'COMPLETED' ||
     (Boolean(eventData?.start_date) && todayStr >= (eventData?.start_date || ''));
 
   // 3. Media requirements: >= 3 images OR >= 1 video
@@ -869,7 +901,7 @@ export async function submitShowcaseForReview(
 }
 
 /**
- * Approve Showcase First-Event Reward and grant RM300 credit
+ * Approve Showcase First-Event Reward and grant RM300 credit atomically
  */
 export async function approveShowcaseReward(
   showcaseId: string,
@@ -880,6 +912,12 @@ export async function approveShowcaseReward(
   reward: any;
   alreadyRewarded: boolean;
 }> {
+  if (!showcaseId) {
+    const err = new Error('Showcase ID is required');
+    (err as any).code = 'VALIDATION_ERROR';
+    throw err;
+  }
+
   const showcase = await getShowcaseById(showcaseId, env);
   if (!showcase) {
     const err = new Error('Showcase not found');
@@ -896,61 +934,131 @@ export async function approveShowcaseReward(
     };
   }
 
-  // Strictly verify that the showcase meets all RM300 first-event criteria before crediting wallet
-  const evaluated = await evaluateShowcaseRewardEligibility(showcase.event_id, env);
-  if (evaluated.reward_review_status === 'NOT_ELIGIBLE') {
-    const err = new Error(
-      'Showcase does not meet the RM300 first-event reward criteria (event must be paid and started/concluded, media must have at least 3 photos or 1 video, description must be at least 50 characters, showcase must be published, and this must be the organization\'s first eligible event).'
-    );
-    (err as any).code = 'SHOWCASE_NOT_ELIGIBLE';
-    throw err;
-  }
+  // Execute under per-organization lock to prevent race conditions
+  return await withOrganizationLock(showcase.organization_id, async () => {
+    // 1. Preferred Production Path: Single Atomic PostgreSQL RPC
+    // Performs wallet row lock (FOR UPDATE), verifies first-reward invariant,
+    // verifies showcase is AWAITING_APPROVAL, re-verifies all eligibility rules,
+    // creates SHOWCASE_CREDIT transaction, updates organization_wallets and event_showcases
+    // inside a single transaction with automatic rollback on any failure.
+    if (isSupabaseConfigured(env)) {
+      const supabase = getSupabaseServerClient(env);
+      try {
+        const validReviewerUuid = isUUID(reviewerId) ? reviewerId : null;
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          'approve_first_event_showcase_reward_atomic',
+          {
+            p_showcase_id: showcaseId,
+            p_reviewer_id: validReviewerUuid,
+            p_reference_id: `showcase_${showcase.id}`,
+            p_metadata: {
+              showcase_id: showcase.id,
+              event_id: showcase.event_id,
+              reviewer_id: reviewerId,
+              client: 'EventGameStudio',
+            },
+          }
+        );
 
-  const now = new Date().toISOString();
+        if (!rpcError && rpcData && rpcData.success) {
+          const updatedShowcase = rpcData.showcase as EventShowcaseRecord;
+          if (isLocalFallbackAllowed(env)) {
+            localShowcasesCache.set(updatedShowcase.event_id, updatedShowcase);
+          }
+          return {
+            showcase: updatedShowcase,
+            reward: rpcData,
+            alreadyRewarded: Boolean(rpcData.already_rewarded),
+          };
+        }
 
-  // Trigger the idempotent RM300 showcase reward function
-  const rewardResult = await grantShowcaseCredit(
-    {
-      organizationId: showcase.organization_id,
-      eventId: showcase.event_id,
-      createdBy: reviewerId,
-      referenceId: `showcase_${showcase.id}`,
-      metadata: {
-        showcase_id: showcase.id,
-        event_id: showcase.event_id,
-        reviewed_by: reviewerId,
-        approved_at: now,
+        if (rpcError) {
+          const isMissingRpc =
+            rpcError.code === 'PGRST202' ||
+            rpcError.message?.includes('does not exist') ||
+            rpcError.message?.includes('function');
+
+          if (!isMissingRpc) {
+            console.error('Supabase approve_first_event_showcase_reward_atomic error:', rpcError);
+            const err = new Error(rpcError.message || 'Reward approval failed');
+            (err as any).code = rpcError.code || 'REWARD_APPROVAL_FAILED';
+            throw err;
+          }
+        }
+      } catch (err: any) {
+        if (err.code && err.code !== 'PGRST202' && !err.message?.includes('does not exist')) {
+          throw err;
+        }
+        // Fall back to atomic in-process execution below
+      }
+    }
+
+    // 2. Fallback Path: In-process execution under withOrganizationLock
+    const freshShowcase = (await getShowcaseById(showcaseId, env)) || showcase;
+    if (freshShowcase.reward_review_status === 'REWARDED' && freshShowcase.reward_status === 'REWARDED') {
+      return {
+        showcase: freshShowcase,
+        reward: null,
+        alreadyRewarded: true,
+      };
+    }
+
+    // Strictly verify that the showcase meets all RM300 first-event criteria before crediting wallet
+    const evaluated = await evaluateShowcaseRewardEligibility(freshShowcase.event_id, env);
+    if (evaluated.reward_review_status === 'NOT_ELIGIBLE') {
+      const err = new Error(
+        'Showcase does not meet the RM300 first-event reward criteria (event must be paid and started/concluded, media must have at least 3 photos or 1 video, description must be at least 50 characters, showcase must be published, and this must be the organization\'s first eligible event).'
+      );
+      (err as any).code = 'SHOWCASE_NOT_ELIGIBLE';
+      throw err;
+    }
+
+    const now = new Date().toISOString();
+
+    // Trigger the idempotent RM300 showcase reward function
+    const rewardResult = await grantShowcaseCredit(
+      {
+        organizationId: freshShowcase.organization_id,
+        eventId: freshShowcase.event_id,
+        createdBy: isUUID(reviewerId) ? reviewerId : undefined,
+        referenceId: `showcase_${freshShowcase.id}`,
+        metadata: {
+          showcase_id: freshShowcase.id,
+          event_id: freshShowcase.event_id,
+          reviewed_by: reviewerId,
+          approved_at: now,
+        },
       },
-    },
-    env
-  );
+      env
+    );
 
-  const updatedShowcase = await updateShowcase(
-    showcase.event_id,
-    {
-      reward_review_status: 'REWARDED',
-      reward_reviewed_by: reviewerId,
-      reward_reviewed_at: now,
-      reward_rejection_reason: null,
-      reward_transaction_id: rewardResult.transaction?.id || null,
-      reward_granted_at: showcase.reward_granted_at || now,
-      reward_status: 'REWARDED',
-      review_status: 'APPROVED',
-      reviewed_at: now,
-      reviewed_by: reviewerId,
-      rejection_reason: null,
-      publication_status: 'PUBLISHED',
-      status: showcase.status === 'BLOCKED' ? 'BLOCKED' : 'PUBLISHED',
-    },
-    env,
-    true
-  );
+    const updatedShowcase = await updateShowcase(
+      freshShowcase.event_id,
+      {
+        reward_review_status: 'REWARDED',
+        reward_reviewed_by: isUUID(reviewerId) ? reviewerId : null,
+        reward_reviewed_at: now,
+        reward_rejection_reason: null,
+        reward_transaction_id: rewardResult.transaction?.id || null,
+        reward_granted_at: freshShowcase.reward_granted_at || now,
+        reward_status: 'REWARDED',
+        review_status: 'APPROVED',
+        reviewed_at: now,
+        reviewed_by: isUUID(reviewerId) ? reviewerId : null,
+        rejection_reason: null,
+        publication_status: 'PUBLISHED',
+        status: freshShowcase.status === 'BLOCKED' ? 'BLOCKED' : 'PUBLISHED',
+      },
+      env,
+      true
+    );
 
-  return {
-    showcase: updatedShowcase,
-    reward: rewardResult,
-    alreadyRewarded: rewardResult.alreadyGranted,
-  };
+    return {
+      showcase: updatedShowcase,
+      reward: rewardResult,
+      alreadyRewarded: rewardResult.alreadyGranted,
+    };
+  });
 }
 
 // Alias for backward compatibility

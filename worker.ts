@@ -5869,16 +5869,21 @@ export default {
       }
 
       // POST /api/organizations/:orgId/wallet/grant-showcase
+      // DEVELOPER ADMIN ONLY: Organizers cannot directly claim showcase credit.
+      // Normal showcase rewards must follow: Showcase -> Eligibility Engine -> AWAITING_APPROVAL -> Developer Admin Approval -> RM300 Wallet Credit.
       const orgShowcaseMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/wallet\/grant-showcase$/);
       if (orgShowcaseMatch && method === 'POST') {
         const orgId = orgShowcaseMatch[1];
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const { isMember, role } = await verifyOrgMembershipAndPermission(auth.user.id, orgId, undefined, env);
         const isDev = isUserDeveloperAdmin(auth.user, env);
-        if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
-          return errorResponse('Forbidden: Only organization owners and admins can claim showcase credit', 403, cors);
+        if (!isDev) {
+          return errorResponse(
+            'Forbidden: Developer Admin access required. Organizers cannot directly claim showcase credits. Rewards must be earned via eligible showcase submission and developer admin review approval.',
+            403,
+            cors
+          );
         }
 
         const body = (await request.json().catch(() => ({}))) as any;

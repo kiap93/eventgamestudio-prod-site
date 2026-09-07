@@ -77,7 +77,7 @@ BEGIN
       v_role := auth.role();
     EXCEPTION WHEN OTHERS THEN
       v_role := NULL;
-    END IF;
+    END;
   END IF;
 
   BEGIN
@@ -91,7 +91,7 @@ BEGIN
       v_uid := auth.uid()::text;
     EXCEPTION WHEN OTHERS THEN
       v_uid := NULL;
-    END IF;
+    END;
   END IF;
 
   -- Block any mutation attempt originating from client roles (authenticated or anon)

@@ -14,6 +14,7 @@
 
 import crypto from 'node:crypto';
 import { getSupabaseServerClient } from '../supabase.js';
+import { getNormalizedCurrentDate, localEventsCache } from './events.js';
 import {
   createShowcase,
   updateShowcase,
@@ -61,23 +62,50 @@ async function ensureTestEvent(eventId: string, orgId: string) {
     const { data: themes } = await supabase.from('game_themes').select('id').limit(1);
     const themeId = themes?.[0]?.id || '1a480be3-5313-49ba-a9c2-f5b2293576cf';
     const now = new Date().toISOString();
+    const curDate = getNormalizedCurrentDate();
     const token = crypto.randomBytes(4).toString('hex').toUpperCase();
-    await supabase.from('events').upsert({
+
+    // Cache the complete modern record
+    localEventsCache.set(eventId, {
       id: eventId,
       organization_id: orgId,
+      game_id: null,
       game_theme_id: themeId,
       name: `Test Event ${eventId.slice(0, 8)}`,
-      event_date: now.split('T')[0],
+      event_date: curDate,
+      start_date: curDate,
+      end_date: curDate,
       starts_at: now,
       expires_at: new Date(Date.now() + 86400000).toISOString(),
-      status: 'scheduled',
+      status: 'LIVE' as any,
+      event_status: 'LIVE' as any,
+      payment_status: 'PAID' as any,
       public_token: token,
       created_by: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
       created_at: now,
       updated_at: now,
     });
-  } catch {
-    // Ignore in local mode
+
+    // Try upserting to remote database with fallback if columns do not exist
+    const { error } = await supabase.from('events').upsert({
+      id: eventId,
+      organization_id: orgId,
+      game_theme_id: themeId,
+      name: `Test Event ${eventId.slice(0, 8)}`,
+      event_date: curDate,
+      starts_at: now,
+      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      status: 'active',
+      public_token: token,
+      created_by: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
+      created_at: now,
+      updated_at: now,
+    });
+    if (error) {
+      console.warn('Notice inserting test event into Supabase:', error.message);
+    }
+  } catch (err) {
+    console.error('ensureTestEvent exception:', err);
   }
 }
 
@@ -148,13 +176,33 @@ async function runTests() {
     mime_type: 'image/jpeg',
     sort_order: 0,
   });
+  await createShowcaseMedia({
+    showcase_id: showcase1.id,
+    organization_id: org1Id,
+    media_type: 'IMAGE',
+    media_url: 'https://example.com/booth2.jpg',
+    file_name: 'booth2.jpg',
+    file_size: 102400,
+    mime_type: 'image/jpeg',
+    sort_order: 1,
+  });
+  await createShowcaseMedia({
+    showcase_id: showcase1.id,
+    organization_id: org1Id,
+    media_type: 'IMAGE',
+    media_url: 'https://example.com/booth3.jpg',
+    file_name: 'booth3.jpg',
+    file_size: 102400,
+    mime_type: 'image/jpeg',
+    sort_order: 2,
+  });
 
   const walletAfterMedia = await getWalletBalance(org1Id);
   assertEqual(walletAfterMedia.showcase_credit, 0.00, 'Media upload does NOT grant RM300');
 
   // 4. Updating Showcase content does NOT grant reward
   await updateShowcase(event1Id, {
-    description: 'Updated description for summer festival activation',
+    description: 'Updated comprehensive description for summer festival activation with interactive game booths and live leaderboards.',
   });
   const walletAfterUpdate = await getWalletBalance(org1Id);
   assertEqual(walletAfterUpdate.showcase_credit, 0.00, 'Updating showcase details does NOT grant RM300');
@@ -173,7 +221,8 @@ async function runTests() {
   // ----------------------------------------------------
   console.log('\n--- Test Group 2: Submit & Approve First Time -> +RM300 ---');
 
-  // Submit showcase for review
+  // Submit showcase for review (must be published to meet eligibility criteria)
+  await publishShowcase(event1Id);
   const submittedShowcase = await submitShowcaseForReview(event1Id);
   assertEqual(submittedShowcase.review_status, 'SUBMITTED', 'Showcase status is now SUBMITTED');
   assertTrue(!!submittedShowcase.submitted_at, 'submitted_at is set');
@@ -252,7 +301,7 @@ async function runTests() {
     event_id: event2Id,
     organization_id: org1Id,
     title: 'Winter Gala 2026 Showcase',
-    description: 'Second event showcase for Acme',
+    description: 'Second event showcase for Acme brand activation with full interactive photo wall and game arcade leaderboards.',
     client_name: 'Acme Beverages',
   });
 
@@ -266,7 +315,28 @@ async function runTests() {
     mime_type: 'image/jpeg',
     sort_order: 0,
   });
+  await createShowcaseMedia({
+    showcase_id: showcase2.id,
+    organization_id: org1Id,
+    media_type: 'IMAGE',
+    media_url: 'https://example.com/gala2.jpg',
+    file_name: 'gala2.jpg',
+    file_size: 204800,
+    mime_type: 'image/jpeg',
+    sort_order: 1,
+  });
+  await createShowcaseMedia({
+    showcase_id: showcase2.id,
+    organization_id: org1Id,
+    media_type: 'IMAGE',
+    media_url: 'https://example.com/gala3.jpg',
+    file_name: 'gala3.jpg',
+    file_size: 204800,
+    mime_type: 'image/jpeg',
+    sort_order: 2,
+  });
 
+  await publishShowcase(event2Id);
   await submitShowcaseForReview(event2Id);
 
   // Admin approves second showcase
@@ -297,6 +367,7 @@ async function runTests() {
     event_id: event3Id,
     organization_id: org2Id,
     title: 'Org 2 Launch Showcase',
+    description: 'Beta Corp interactive product launch game arcade event showcase with live attendee leaderboards and real-time custom themes.',
     client_name: 'Beta Corp',
   });
 
@@ -310,7 +381,28 @@ async function runTests() {
     mime_type: 'image/jpeg',
     sort_order: 0,
   });
+  await createShowcaseMedia({
+    showcase_id: org2Showcase.id,
+    organization_id: org2Id,
+    media_type: 'IMAGE',
+    media_url: 'https://example.com/beta2.jpg',
+    file_name: 'beta2.jpg',
+    file_size: 150000,
+    mime_type: 'image/jpeg',
+    sort_order: 1,
+  });
+  await createShowcaseMedia({
+    showcase_id: org2Showcase.id,
+    organization_id: org2Id,
+    media_type: 'IMAGE',
+    media_url: 'https://example.com/beta3.jpg',
+    file_name: 'beta3.jpg',
+    file_size: 150000,
+    mime_type: 'image/jpeg',
+    sort_order: 2,
+  });
 
+  await publishShowcase(event3Id);
   await submitShowcaseForReview(event3Id);
 
   const org2Approval = await approveShowcaseReview(org2Showcase.id, adminUserId);

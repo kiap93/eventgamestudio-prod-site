@@ -78,9 +78,17 @@ const renderCardIcon = (iconName?: string, className: string = 'w-8 h-8') => {
   }
 };
 
+// Auto Demo timing constants (ms)
+const AUTO_DEMO_FIRST_FLIP_DELAY = 600;
+const AUTO_DEMO_PAIR_REVEAL_DELAY = 850;
+const AUTO_DEMO_MATCH_DELAY = 350;
+const AUTO_DEMO_NEXT_PAIR_DELAY = 400;
+const AUTO_DEMO_CYCLE_RESTART_DELAY = 1200;
+
 export interface MemoryMatchGameProps extends GameComponentProps<MemoryMatchConfig> {
   className?: string;
   isStudioPreview?: boolean;
+  autoDemo?: boolean;
   initialGameState?: GameState;
   autoStart?: boolean;
   editableLayout?: boolean;
@@ -110,6 +118,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   onToggleFullscreen,
   onToggleMute,
   isStudioPreview = false,
+  autoDemo = false,
   initialGameState,
   autoStart,
   editableLayout = false,
@@ -202,12 +211,32 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const activeTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
+  const autoDemoTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
   const hasEventContext = Boolean(publicToken || (eventId && eventId !== 'undefined' && eventId !== 'null'));
 
   const clearCardTimeouts = useCallback(() => {
     activeTimeoutsRef.current.forEach((t) => clearTimeout(t));
     activeTimeoutsRef.current.clear();
   }, []);
+
+  const clearAutoDemoTimers = useCallback(() => {
+    autoDemoTimeoutsRef.current.forEach((t) => clearTimeout(t));
+    autoDemoTimeoutsRef.current.clear();
+  }, []);
+
+  const setManagedAutoDemoTimeout = useCallback(
+    (callback: () => void, delayMs: number) => {
+      const currentSession = sessionIdRef.current;
+      const timeoutId = setTimeout(() => {
+        autoDemoTimeoutsRef.current.delete(timeoutId);
+        if (sessionIdRef.current !== currentSession) return;
+        callback();
+      }, delayMs);
+      autoDemoTimeoutsRef.current.add(timeoutId);
+      return timeoutId;
+    },
+    []
+  );
 
   // Centralized gameplay timer, countdown, and animation cleanup
   const cleanupGameplay = useCallback(() => {
@@ -220,14 +249,16 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       countdownTimerRef.current = null;
     }
     clearCardTimeouts();
-  }, [clearCardTimeouts]);
+    clearAutoDemoTimers();
+  }, [clearCardTimeouts, clearAutoDemoTimers]);
 
   // Cleanup all pending timers and timeouts on component unmount
   useEffect(() => {
     return () => {
       cleanupGameplay();
+      clearAutoDemoTimers();
     };
-  }, [cleanupGameplay]);
+  }, [cleanupGameplay, clearAutoDemoTimers]);
 
   // Stable callback and state refs to prevent premature timer teardowns
   const onGameStateChangeRef = useRef(onGameStateChange);
@@ -246,6 +277,10 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   movesRef.current = moves;
   const matchedPairsCountRef = useRef(matchedPairsCount);
   matchedPairsCountRef.current = matchedPairsCount;
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
+  const comboStreakRef = useRef(comboStreak);
+  comboStreakRef.current = comboStreak;
 
   // Sync sound settings
   useEffect(() => {
@@ -312,20 +347,70 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     sessionIdRef.current = newSession;
   }, [activeTheme, boardConfig, cardConfig, gameDuration, cleanupGameplay]);
 
-  // Only re-initialize board on mount or when theme/layout/card/duration configuration changes
-  useEffect(() => {
-    cleanupGameplay();
-    initBoard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [themeId, boardLayoutKey, cardConfigSignature, gameDuration]);
-
   // Main countdown trigger (3.. 2.. 1.. GO!)
   const startCountdown = useCallback(() => {
     cleanupGameplay();
+    clearAutoDemoTimers();
     initBoard();
     setCountdown(3);
     updateGameState('COUNTDOWN');
-  }, [cleanupGameplay, initBoard, updateGameState]);
+  }, [cleanupGameplay, clearAutoDemoTimers, initBoard, updateGameState]);
+
+  const isFirstMountRef = useRef(true);
+
+  // Re-initialize board on mount or when theme/layout/card/duration configuration changes
+  useEffect(() => {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      if (isStudioPreview && autoDemo) {
+        startCountdown();
+      }
+      return;
+    }
+    cleanupGameplay();
+    initBoard();
+    if (isStudioPreview && autoDemo) {
+      startCountdown();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeId, boardLayoutKey, cardConfigSignature, gameDuration]);
+
+  // Mode switch transition handling (Auto Demo <-> Testing / Interactive)
+  const prevAutoDemoRef = useRef<boolean | undefined>(autoDemo);
+  useEffect(() => {
+    if (!isStudioPreview) return;
+
+    const prevAutoDemo = prevAutoDemoRef.current;
+    prevAutoDemoRef.current = autoDemo;
+
+    if (prevAutoDemo === undefined) {
+      return; // Handled on first mount
+    }
+
+    // Changing: Testing (Interactive) -> Auto Demo
+    if (prevAutoDemo === false && autoDemo === true) {
+      cleanupGameplay();
+      clearAutoDemoTimers();
+      startCountdown();
+      return;
+    }
+
+    // Changing: Auto Demo -> Testing (Interactive)
+    if (prevAutoDemo === true && autoDemo === false) {
+      clearAutoDemoTimers();
+      setIsLocked(false);
+      setFlippedIndices([]);
+      setCards((prev) =>
+        prev.map((c) => (c.isMatched ? c : { ...c, isFlipped: false, isShaking: false }))
+      );
+    }
+  }, [
+    autoDemo,
+    isStudioPreview,
+    cleanupGameplay,
+    clearAutoDemoTimers,
+    startCountdown,
+  ]);
 
   // Centralized Stop Game function
   const stopGame = useCallback(() => {
@@ -447,6 +532,14 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   // Handle Game Over / Victory
   const handleGameOver = useCallback(
     (won: boolean) => {
+      // If running Studio Auto Demo, never enter the real game over / submission screen
+      if (isStudioPreview && autoDemo) {
+        cleanupGameplay();
+        clearAutoDemoTimers();
+        startCountdown();
+        return;
+      }
+
       cleanupGameplay();
       setIsVictory(won);
       setGameState('GAME_OVER');
@@ -473,7 +566,17 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         fetchLeaderboard();
       }
     },
-    [gameDuration, totalPairs, fetchLeaderboard, showLeaderboard, cleanupGameplay]
+    [
+      isStudioPreview,
+      autoDemo,
+      cleanupGameplay,
+      clearAutoDemoTimers,
+      startCountdown,
+      gameDuration,
+      totalPairs,
+      fetchLeaderboard,
+      showLeaderboard,
+    ]
   );
 
   const handleGameOverRef = useRef(handleGameOver);
@@ -515,9 +618,154 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     };
   }, [gameState]);
 
+  // Studio-only Auto Demo sequence controller
+  useEffect(() => {
+    if (!isStudioPreview || !autoDemo) {
+      clearAutoDemoTimers();
+      return;
+    }
+
+    if (gameState !== 'PLAYING') {
+      clearAutoDemoTimers();
+      return;
+    }
+
+    const currentDeck = cardsRef.current;
+    const pairMap = new Map<string, number[]>();
+    currentDeck.forEach((card, index) => {
+      if (!card.isMatched) {
+        const list = pairMap.get(card.pairId) || [];
+        list.push(index);
+        pairMap.set(card.pairId, list);
+      }
+    });
+
+    const pairList: [number, number][] = [];
+    pairMap.forEach((indices) => {
+      if (indices.length >= 2) {
+        pairList.push([indices[0], indices[1]]);
+      }
+    });
+
+    if (pairList.length === 0) return;
+
+    // Shuffle pair presentation order so the demonstration is dynamic
+    for (let i = pairList.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pairList[i], pairList[j]] = [pairList[j], pairList[i]];
+    }
+
+    // Randomize first vs second card flip order within each pair
+    for (let i = 0; i < pairList.length; i++) {
+      if (Math.random() > 0.5) {
+        pairList[i] = [pairList[i][1], pairList[i][0]];
+      }
+    }
+
+    const activeSession = sessionIdRef.current;
+
+    const executeDemoPair = (pairIdx: number) => {
+      if (!isStudioPreview || !autoDemo) return;
+      if (sessionIdRef.current !== activeSession) return;
+
+      if (pairIdx >= pairList.length) {
+        // All pairs demonstrated in this cycle -> short pause, then loop with fresh deck
+        setManagedAutoDemoTimeout(() => {
+          if (!isStudioPreview || !autoDemo) return;
+          if (sessionIdRef.current !== activeSession) return;
+          startCountdown();
+        }, AUTO_DEMO_CYCLE_RESTART_DELAY);
+        return;
+      }
+
+      const [firstIdx, secondIdx] = pairList[pairIdx];
+
+      // Step 1: Flip first card
+      setManagedAutoDemoTimeout(() => {
+        if (!isStudioPreview || !autoDemo) return;
+        if (sessionIdRef.current !== activeSession) return;
+
+        memorySounds.playCardFlip();
+        setCards((prev) => {
+          const next = [...prev];
+          if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: true };
+          return next;
+        });
+        setFlippedIndices([firstIdx]);
+
+        // Step 2: Flip matching second card
+        setManagedAutoDemoTimeout(() => {
+          if (!isStudioPreview || !autoDemo) return;
+          if (sessionIdRef.current !== activeSession) return;
+
+          memorySounds.playCardFlip();
+          setCards((prev) => {
+            const next = [...prev];
+            if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: true };
+            return next;
+          });
+          setFlippedIndices([firstIdx, secondIdx]);
+          const currentMoves = movesRef.current + 1;
+          setMoves(currentMoves);
+          movesRef.current = currentMoves;
+
+          // Step 3: Mark pair as matched
+          setManagedAutoDemoTimeout(() => {
+            if (!isStudioPreview || !autoDemo) return;
+            if (sessionIdRef.current !== activeSession) return;
+
+            const currentStreak = comboStreakRef.current + 1;
+            setComboStreak(currentStreak);
+            comboStreakRef.current = currentStreak;
+            setMaxComboStreak((prev) => Math.max(prev, currentStreak));
+
+            const streakBonus = (currentStreak - 1) * comboPoints;
+            const addedPoints = matchPoints + streakBonus;
+            setScore((prev) => prev + addedPoints);
+
+            memorySounds.playMatchSuccess(currentStreak);
+
+            setCards((prev) => {
+              const next = [...prev];
+              if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: false, isMatched: true };
+              if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: false, isMatched: true };
+              return next;
+            });
+
+            const newMatched = matchedPairsCountRef.current + 1;
+            setMatchedPairsCount(newMatched);
+            matchedPairsCountRef.current = newMatched;
+            setFlippedIndices([]);
+
+            // Step 4: Advance to next pair
+            setManagedAutoDemoTimeout(() => {
+              executeDemoPair(pairIdx + 1);
+            }, AUTO_DEMO_NEXT_PAIR_DELAY);
+          }, AUTO_DEMO_MATCH_DELAY);
+        }, AUTO_DEMO_PAIR_REVEAL_DELAY);
+      }, AUTO_DEMO_FIRST_FLIP_DELAY);
+    };
+
+    executeDemoPair(0);
+
+    return () => {
+      clearAutoDemoTimers();
+    };
+  }, [
+    isStudioPreview,
+    autoDemo,
+    gameState,
+    comboPoints,
+    matchPoints,
+    clearAutoDemoTimers,
+    setManagedAutoDemoTimeout,
+    startCountdown,
+  ]);
+
   // Card Flip Click Handler
   const handleCardClick = (index: number) => {
     if (gameState !== 'PLAYING' || isLocked) return;
+    if (isStudioPreview && autoDemo) return;
 
     const clickedCard = cards[index];
     if (!clickedCard || clickedCard.isFlipped || clickedCard.isMatched) return;
@@ -618,6 +866,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const handleSubmitScore = async (playerNameInput?: string | React.FormEvent) => {
     if (playerNameInput && typeof playerNameInput === 'object' && 'preventDefault' in playerNameInput) {
       playerNameInput.preventDefault();
+    }
+    if (isStudioPreview && autoDemo) {
+      return { success: false, error: 'Auto demo scores cannot be submitted.' };
     }
     if (isEventPreview && !isEventTest) {
       return { success: false, error: 'Preview test scores are not submitted to the leaderboard.' };

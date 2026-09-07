@@ -775,6 +775,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             isMuted={isMuted}
             isFullscreen={false}
             isStudioPreview={true}
+            autoDemo={!isInteractive}
             editableLayout={editableLayout}
             selectedElementKey={selectedElementKey}
             onSelectElementKey={onSelectElementKey}

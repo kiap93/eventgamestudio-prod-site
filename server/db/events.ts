@@ -1014,7 +1014,7 @@ export async function getEventById(
           localEventsCache.set(raw.id, eventRecord);
         }
       } else {
-        eventRecord = null;
+        eventRecord = isLocalFallbackAllowed(env) ? (localEventsCache.get(eventId) || null) : null;
       }
     }
   }

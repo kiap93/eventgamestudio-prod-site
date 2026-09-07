@@ -37195,5 +37195,65 @@
       "payment_method": "card"
     },
     "timestamp": "2026-09-06T06:37:53.092Z"
+  },
+  {
+    "id": "0db969c5-5008-4820-b283-2ab65f50fe9e",
+    "organization_id": "6629352a-35e4-459f-b224-996ff1d9f35e",
+    "event_type": "TOP_UP_CREATED",
+    "order_id": "b1dcc367-df72-48b4-9745-b942999d0e0b",
+    "payment_reference": null,
+    "amount": 600,
+    "currency": "MYR",
+    "actor_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "metadata": {
+      "expected_credit_amount": 0,
+      "bonus_percentage": 0,
+      "total_wallet_value": 600
+    },
+    "timestamp": "2026-09-07T01:26:23.124Z"
+  },
+  {
+    "id": "f2c50f21-c489-46cd-b0a9-1db0c6da677d",
+    "organization_id": "6629352a-35e4-459f-b224-996ff1d9f35e",
+    "event_type": "PAYMENT_COMPLETED",
+    "order_id": "b1dcc367-df72-48b4-9745-b942999d0e0b",
+    "payment_reference": "test_ref_shortfall_paid",
+    "amount": 600,
+    "currency": "MYR",
+    "actor_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "metadata": {
+      "payment_method": "card"
+    },
+    "timestamp": "2026-09-07T01:26:23.180Z"
+  },
+  {
+    "id": "7f8b9de5-e046-41b7-aee8-5b4c9bffa53d",
+    "organization_id": "372b6cea-23ca-427c-9af5-5724547807bc",
+    "event_type": "TOP_UP_CREATED",
+    "order_id": "08fcbfe9-7513-4c09-b669-b07ea485b535",
+    "payment_reference": null,
+    "amount": 600,
+    "currency": "MYR",
+    "actor_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "metadata": {
+      "expected_credit_amount": 0,
+      "bonus_percentage": 0,
+      "total_wallet_value": 600
+    },
+    "timestamp": "2026-09-07T01:31:51.378Z"
+  },
+  {
+    "id": "6c51bbfb-575d-4ac1-9260-8cca3fc415be",
+    "organization_id": "372b6cea-23ca-427c-9af5-5724547807bc",
+    "event_type": "PAYMENT_COMPLETED",
+    "order_id": "08fcbfe9-7513-4c09-b669-b07ea485b535",
+    "payment_reference": "test_ref_shortfall_paid",
+    "amount": 600,
+    "currency": "MYR",
+    "actor_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "metadata": {
+      "payment_method": "card"
+    },
+    "timestamp": "2026-09-07T01:31:51.432Z"
   }
 ]

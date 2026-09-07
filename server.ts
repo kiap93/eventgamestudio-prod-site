@@ -5628,9 +5628,12 @@ app.post('/api/organizations/:orgId/wallet/consume-welcome', walletRateLimiter, 
 
 /**
  * POST /api/organizations/:orgId/wallet/grant-showcase
- * Grant one-time Showcase Credit (RM300.00)
+ * DEVELOPER ADMIN ONLY: Grant one-time Showcase Credit (RM300.00).
+ * Organizers CANNOT directly claim showcase credit.
+ * Normal showcase rewards must follow the strict workflow:
+ * Showcase -> Eligibility Engine -> AWAITING_APPROVAL -> Developer Admin Approval -> RM300 Wallet Credit.
  */
-app.post('/api/organizations/:orgId/wallet/grant-showcase', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post('/api/organizations/:orgId/wallet/grant-showcase', walletRateLimiter, authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { orgId } = req.params;
     if (!isUUID(orgId)) {
@@ -5638,10 +5641,11 @@ app.post('/api/organizations/:orgId/wallet/grant-showcase', walletRateLimiter, a
       return;
     }
 
-    const { isMember, role } = await verifyOrgMembershipAndPermission(req.user!.id, orgId);
-    const isDev = isUserDeveloperAdmin(req.user);
-    if ((!isMember || (role !== 'owner' && role !== 'admin')) && !isDev) {
-      res.status(403).json({ error: 'Only organization owners and admins can claim showcase credit' });
+    // Strictly enforce Developer Admin access - organizers cannot claim directly
+    if (!isUserDeveloperAdmin(req.user)) {
+      res.status(403).json({
+        error: 'Forbidden: Developer Admin access required. Organizers cannot directly claim showcase credits. Rewards must be earned via eligible showcase submission and developer admin review approval.',
+      });
       return;
     }
 

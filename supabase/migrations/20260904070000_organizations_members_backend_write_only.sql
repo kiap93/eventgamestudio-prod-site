@@ -173,7 +173,7 @@ BEGIN
       v_role := auth.role();
     EXCEPTION WHEN OTHERS THEN
       v_role := NULL;
-    END IF;
+    END;
   END IF;
 
   BEGIN

@@ -73,6 +73,15 @@ export async function getShowcaseMedia(
       return localList.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
     }
 
+    if ((!data || data.length === 0) && isLocalFallbackAllowed(env)) {
+      const localList = readLocalMedia().filter(
+        (m) => m.showcase_id === showcaseId && (!orgId || m.organization_id === orgId)
+      );
+      if (localList.length > 0) {
+        return localList.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      }
+    }
+
     return (data || []) as EventShowcaseMediaRecord[];
   } catch (err: any) {
     if (!isLocalFallbackAllowed(env)) {

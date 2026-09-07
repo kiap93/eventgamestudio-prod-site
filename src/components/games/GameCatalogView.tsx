@@ -102,7 +102,7 @@ export const GameCatalogView: React.FC<GameCatalogViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans animate-in fade-in duration-200">
       {/* Top Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-xl">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-amber-500/10 to-transparent pointer-events-none" />

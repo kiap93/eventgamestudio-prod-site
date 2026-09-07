@@ -82,7 +82,7 @@ CREATE POLICY "Owners, admins, designers can update event showcases"
   ON public.event_showcases FOR UPDATE
   USING (
     (
-      public.has_org_permission(organization_id, 'event.edit')
+      public.get_org_role(organization_id) IN ('owner', 'admin', 'designer')
       AND status != 'BLOCKED'
       AND status != 'DELETED'
       AND deleted_at IS NULL
@@ -91,7 +91,7 @@ CREATE POLICY "Owners, admins, designers can update event showcases"
   )
   WITH CHECK (
     (
-      public.has_org_permission(organization_id, 'event.edit')
+      public.get_org_role(organization_id) IN ('owner', 'admin', 'designer')
       AND status IN ('DRAFT', 'PUBLISHED', 'UNPUBLISHED')
       AND deleted_at IS NULL
     )
