@@ -21,7 +21,13 @@ export interface ResolvedScreenBackground {
  * Guarantees consistent background resolution across live game, simulation preview, and studio customizers.
  */
 export function resolveScreenBackground(
-  screenConfig: MemoryMatchStartScreenConfig | MemoryMatchResultScreenConfig | undefined,
+  screenConfig: MemoryMatchStartScreenConfig | MemoryMatchResultScreenConfig | {
+    backgroundType?: ScreenBackgroundType;
+    backgroundColor?: string;
+    backgroundImageUrl?: string | null;
+    backgroundOverlayOpacity?: number;
+    [key: string]: any;
+  } | undefined,
   activeTheme?: Partial<GameTheme> | null
 ): ResolvedScreenBackground {
   const backgroundType: ScreenBackgroundType =

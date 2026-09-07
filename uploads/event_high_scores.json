@@ -4318,5 +4318,54 @@
       "is_official": true
     },
     "created_at": "2026-09-07T09:19:40.150Z"
+  },
+  {
+    "id": "8c034da7-8998-4671-99ad-620b0d6ec9be",
+    "event_id": "7f9943bc-1e8f-4aea-b325-b3c2644f14a8",
+    "player_name": "Public Player 1",
+    "score": 750,
+    "session_id": "pub-session-player-1",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "sessionId": "pub-session-player-1",
+      "session_id": "pub-session-player-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-07T10:00:20.260Z"
+  },
+  {
+    "id": "c4678788-be74-4e9f-bbf7-858b6ae33c15",
+    "event_id": "7f9943bc-1e8f-4aea-b325-b3c2644f14a8",
+    "player_name": "Organizer Test",
+    "score": 500,
+    "session_id": "org-test-session-1",
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isEventTest": true,
+      "is_test": true,
+      "score_environment": "test",
+      "sessionId": "org-test-session-1",
+      "session_id": "org-test-session-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "TEST",
+      "is_official": false
+    },
+    "created_at": "2026-09-07T10:00:20.254Z"
   }
 ]

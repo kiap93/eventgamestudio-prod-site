@@ -484,6 +484,14 @@ export function canAccessPreviewEvent(
     return false;
   }
 
+  const { endDate } = getNormalizedEventDates(event);
+  const curDate = getNormalizedCurrentDate(currentDate);
+
+  // Authoritative Rule: After event_end_date (3-Sep), Preview / Test is CLOSED
+  if (endDate && curDate > endDate) {
+    return false;
+  }
+
   return true;
 }
 
@@ -553,7 +561,7 @@ export function getEventAvailabilityState(
   );
   const isAfterLiveWindow = Boolean(endDate && curDate > endDate);
 
-  const previewUrlAvailable = !isCancelled;
+  const previewUrlAvailable = canAccessPreviewEvent(event, currentDate);
   const previewHeaderVisible = previewUrlAvailable;
   const liveUrlAvailable = !isCancelled && isPaid && isInsideLiveWindow;
 

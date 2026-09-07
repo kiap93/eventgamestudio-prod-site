@@ -2269,7 +2269,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
       ...updates,
     };
     nextResult.background = {
-      type: nextResult.backgroundType,
+      type: nextResult.backgroundType || 'theme',
       imageUrl: nextResult.backgroundImageUrl ?? null,
       color: nextResult.backgroundColor,
       overlayOpacity: nextResult.backgroundOverlayOpacity ?? 0.3,

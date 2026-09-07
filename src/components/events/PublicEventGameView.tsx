@@ -340,9 +340,44 @@ export const PublicEventGameView: React.FC = () => {
     );
   }
 
-  // 2. Unpaid / Payment Pending State
+  // 2. Concluded / Expired State (Evaluated before Payment Pending per Authoritative Business Rules)
+  // Authoritative Rule: "After 3-Sep (Event has ended) -> Live Game CLOSED, Public /play URL shows Event Concluded screen, NOT Cancelled and NOT Payment Pending"
+  const isExpired =
+    !isCancelled &&
+    (errorDetails?.code === 'EVENT_EXPIRED' ||
+      errorDetails?.is_expired ||
+      (liveAccess && liveAccess.code === 'EVENT_EXPIRED') ||
+      (availability && availability.isAfterLiveWindow) ||
+      activeEvent?.status === 'expired' ||
+      activeEvent?.event_status === 'EXPIRED');
+
+  if (isExpired) {
+    const endDate = errorDetails?.end_date || dates?.endDate || '';
+
+    return (
+      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
+          <div className="w-16 h-16 bg-slate-800 border border-slate-700 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
+            <Calendar className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-bold text-slate-100">{activeEvent?.name || 'Event Game'}</h1>
+            <p className="text-xs text-slate-400">
+              This event concluded on {formatDateOnly(endDate)}.
+            </p>
+          </div>
+          <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-2xl text-xs text-slate-400">
+            Thank you for participating! Stay tuned for future events.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Unpaid / Payment Pending State (Only for non-expired, non-cancelled events)
   const isPendingPayment =
     !isCancelled &&
+    !isExpired &&
     (errorDetails?.code === 'PAYMENT_REQUIRED' ||
       errorDetails?.is_pending_payment ||
       (liveAccess && liveAccess.code === 'PAYMENT_REQUIRED') ||
@@ -483,39 +518,6 @@ export const PublicEventGameView: React.FC = () => {
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Check If Open</span>
             </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 4. Concluded / Expired State
-  const isExpired =
-    !isCancelled &&
-    (errorDetails?.code === 'EVENT_EXPIRED' ||
-      errorDetails?.is_expired ||
-      (liveAccess && liveAccess.code === 'EVENT_EXPIRED') ||
-      (availability && availability.isAfterLiveWindow) ||
-      activeEvent?.status === 'expired' ||
-      activeEvent?.event_status === 'EXPIRED');
-
-  if (isExpired) {
-    const endDate = errorDetails?.end_date || dates?.endDate || '';
-
-    return (
-      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">
-          <div className="w-16 h-16 bg-slate-800 border border-slate-700 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
-            <Calendar className="w-8 h-8" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-xl font-bold text-slate-100">{activeEvent?.name || 'Event Game'}</h1>
-            <p className="text-xs text-slate-400">
-              This event concluded on {formatDateOnly(endDate)}.
-            </p>
-          </div>
-          <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-2xl text-xs text-slate-400">
-            Thank you for participating! Stay tuned for future events.
           </div>
         </div>
       </div>

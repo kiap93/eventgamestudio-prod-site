@@ -203,7 +203,7 @@ async function runTests() {
   const date31Aug = new Date('2026-08-31T20:00:00.000Z');
   assert.strictEqual(isSetupDayStarted(testEventSep2, date31Aug), false, 'Setup day not started on 31 Aug');
 
-  // Create an unpaid event scheduled for 2 Sep
+  // Create an unpaid event scheduled for 2 Sep (created before Setup Day on 31 Aug)
   const sepEvent = await createEvent({
     organization_id: orgId,
     game_theme_id: themeId,
@@ -211,6 +211,7 @@ async function runTests() {
     event_date: '2026-09-02',
     starts_at: '2026-09-02T10:00:00.000Z',
     expires_at: '2026-09-03T23:59:59.000Z',
+    currentDate: date31Aug,
   }, env);
 
   const cancelCheckBeforeSetup = canCancelEvent(sepEvent, date31Aug);
@@ -288,6 +289,7 @@ async function runTests() {
     event_date: '2026-09-02',
     starts_at: '2026-09-02T10:00:00.000Z',
     expires_at: '2026-09-03T23:59:59.000Z',
+    currentDate: date31Aug,
   }, env);
 
   // Run maintenance on 1 Sep

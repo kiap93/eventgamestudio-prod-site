@@ -136,6 +136,47 @@ export function getNormalizedCurrentDate(currentDate?: string | Date | null): st
 }
 
 /**
+ * Formats a date value into human-readable format like "07 Sep 2026" or "07 September 2026".
+ */
+export function formatDateOnly(
+  dateVal: string | Date | null | undefined,
+  options?: { fullMonth?: boolean }
+): string {
+  if (!dateVal) return '';
+  const match = typeof dateVal === 'string'
+    ? dateVal.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    : null;
+  let year = '';
+  let month = '';
+  let day = '';
+  if (match) {
+    year = match[1];
+    month = match[2];
+    day = match[3];
+  } else {
+    const dt = dateVal instanceof Date ? dateVal : new Date(dateVal);
+    if (isNaN(dt.getTime())) return '';
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    year = dt.getUTCFullYear().toString();
+    month = pad(dt.getUTCMonth() + 1);
+    day = pad(dt.getUTCDate());
+  }
+  const monthNames = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  const fullMonthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const mIndex = parseInt(month, 10) - 1;
+  const monthStr = options?.fullMonth
+    ? fullMonthNames[mIndex] || month
+    : monthNames[mIndex] || month;
+  return `${day} ${monthStr} ${year}`;
+}
+
+/**
  * Checks whether an event is strictly before its configured start date (Asia/Singapore calendar date).
  * In this pre-event window (including Setup Day), the event is in TEST mode and TEST scores can be manually cleared.
  */
@@ -418,6 +459,14 @@ export function canAccessPreviewEvent(
     return false;
   }
 
+  const { endDate } = getNormalizedEventDates(event);
+  const curDate = getNormalizedCurrentDate(currentDate);
+
+  // Authoritative Rule: After event_end_date (3-Sep), Preview / Test is CLOSED
+  if (endDate && curDate > endDate) {
+    return false;
+  }
+
   return true;
 }
 
@@ -576,15 +625,21 @@ export async function getPendingEventsCountByOrgId(
  * 4. End Date must be on or after Start Date (startDate <= endDate).
  * 5. One-day events (startDate === endDate) are valid.
  */
-export function normalizeEventDateBoundaries(params: {
-  start_date?: string | null;
-  end_date?: string | null;
-  startDate?: string | null;
-  endDate?: string | null;
-  event_date?: string | null;
-  starts_at?: string | null;
-  expires_at?: string | null;
-}): {
+export function normalizeEventDateBoundaries(
+  params: {
+    start_date?: string | null;
+    end_date?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    event_date?: string | null;
+    starts_at?: string | null;
+    expires_at?: string | null;
+  },
+  options?: {
+    forCreation?: boolean;
+    currentDate?: string | Date | null;
+  }
+): {
   startDate: string;
   endDate: string;
   event_date: string;
@@ -644,10 +699,23 @@ export function normalizeEventDateBoundaries(params: {
   }
 
   if (endDate < startDate) {
-    const err: any = new Error('End Date must be on or after Start Date');
+    const err: any = new Error('End date cannot be earlier than start date.');
     err.status = 422;
     err.code = 'INVALID_DATE_RANGE';
     throw err;
+  }
+
+  // Authoritative Business Rule: When creating an event:
+  // IF event_end_date < current calendar date: BLOCK EVENT CREATION
+  // Error: "This event date has already passed. Please select a current or future event date."
+  if (options?.forCreation) {
+    const curDate = getNormalizedCurrentDate(options.currentDate);
+    if (endDate < curDate) {
+      const err: any = new Error('This event date has already passed. Please select a current or future event date.');
+      err.status = 422;
+      err.code = 'EVENT_DATE_PASSED';
+      throw err;
+    }
   }
 
   // Setup Day begins at 00:00:00 UTC on the calendar day immediately preceding the Start Date
@@ -1751,6 +1819,7 @@ export async function createEvent(
     custom_price_override?: boolean;
     created_by?: string | null;
     skipPendingLimitCheck?: boolean;
+    currentDate?: string | Date | null;
   },
   env?: Record<string, any>
 ): Promise<EventRecord> {
@@ -1828,13 +1897,16 @@ export async function createEvent(
   }
 
   // 3. Normalize calendar date boundaries (Start Date to End Date)
-  const norm = normalizeEventDateBoundaries({
-    start_date: params.start_date || params.startDate,
-    end_date: params.end_date || params.endDate,
-    event_date: params.event_date,
-    starts_at: params.starts_at,
-    expires_at: params.expires_at,
-  });
+  const norm = normalizeEventDateBoundaries(
+    {
+      start_date: params.start_date || params.startDate,
+      end_date: params.end_date || params.endDate,
+      event_date: params.event_date,
+      starts_at: params.starts_at,
+      expires_at: params.expires_at,
+    },
+    { forCreation: true, currentDate: params.currentDate }
+  );
 
   // 4. Enforce maximum 2 PENDING_PAYMENT events limit per organization
   const effectivePaymentStatus = ((params.payment_status as string) || 'UNPAID').toUpperCase();
@@ -2119,9 +2191,20 @@ export async function createEventWithAtomicPayment(
       throw err;
     }
 
-    // 3. Validate time boundaries
-    const startsAtTime = new Date(starts_at).getTime();
-    const expiresAtTime = new Date(expires_at).getTime();
+    // 3. Validate calendar date boundaries
+    const norm = normalizeEventDateBoundaries(
+      {
+        start_date: params.start_date || params.startDate,
+        end_date: params.end_date || params.endDate,
+        event_date: params.event_date,
+        starts_at: params.starts_at,
+        expires_at: params.expires_at,
+      },
+      { forCreation: true }
+    );
+
+    const startsAtTime = new Date(norm.starts_at).getTime();
+    const expiresAtTime = new Date(norm.expires_at).getTime();
 
     if (isNaN(startsAtTime) || isNaN(expiresAtTime)) {
       throw new Error('Invalid start or expiry date/time');
@@ -2401,9 +2484,7 @@ export async function cancelEvent(
 
   const determinedReason: EventCancelReason =
     options?.cancelReason ||
-    (options?.reason?.includes('TIMEOUT')
-      ? 'PAYMENT_TIMEOUT'
-      : options?.cancelledBy === 'admin'
+    (options?.cancelledBy === 'admin'
       ? 'ADMIN_CANCELLED'
       : 'USER_CANCELLED');
 

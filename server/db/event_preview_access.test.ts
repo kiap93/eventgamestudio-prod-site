@@ -48,7 +48,7 @@ assert.strictEqual(clientCanAccessPreview(liveEvent), true, 'Client: Live event 
 assert.strictEqual(getEventAvailabilityState(liveEvent).previewUrlAvailable, true, 'Client: previewUrlAvailable should be true for live');
 console.log('✓ PASS: Live event allows preview');
 
-// 4. Concluded event (after event window)
+// 4. Concluded event (after event window, end date in past) -> Preview is CLOSED per authoritative rules
 const concludedEvent = {
   id: 'ev-concluded',
   event_status: 'COMPLETED',
@@ -57,10 +57,10 @@ const concludedEvent = {
   start_date: '2026-08-01',
   end_date: '2026-08-02',
 };
-assert.strictEqual(serverCanAccessPreview(concludedEvent), true, 'Server: Concluded event should allow preview');
-assert.strictEqual(clientCanAccessPreview(concludedEvent), true, 'Client: Concluded event should allow preview');
-assert.strictEqual(getEventAvailabilityState(concludedEvent).previewUrlAvailable, true, 'Client: previewUrlAvailable should be true for concluded');
-console.log('✓ PASS: Concluded event allows preview');
+assert.strictEqual(serverCanAccessPreview(concludedEvent), false, 'Server: Concluded event after end date should NOT allow preview');
+assert.strictEqual(clientCanAccessPreview(concludedEvent), false, 'Client: Concluded event after end date should NOT allow preview');
+assert.strictEqual(getEventAvailabilityState(concludedEvent).previewUrlAvailable, false, 'Client: previewUrlAvailable should be false for concluded');
+console.log('✓ PASS: Concluded event after end date denies preview (CLOSED)');
 
 // 5. Cancelled event (explicitly cancelled)
 const cancelledEvent = {

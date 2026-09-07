@@ -78,7 +78,7 @@ export interface MemoryMatchUiConfig {
 }
 
 export * from "../shared/resultScreenTypes";
-import { ScreenBackgroundType, MemoryMatchResultScreenConfig } from "../shared/resultScreenTypes";
+import { ScreenBackgroundType } from "../shared/resultScreenTypes";
 
 export interface MemoryMatchStartScreenConfig {
   backgroundType: ScreenBackgroundType;
@@ -421,8 +421,8 @@ export interface ResultScreenBackgroundConfig {
 
 export interface MemoryMatchResultScreenConfig {
   // Legacy / Direct Background Properties
-  backgroundType: ScreenBackgroundType;
-  backgroundColor: string; // default '#0f172a'
+  backgroundType?: ScreenBackgroundType;
+  backgroundColor?: string; // default '#0f172a'
   backgroundImageUrl?: string | null;
   backgroundOverlayOpacity?: number; // 0 to 1, default 0.3
 
