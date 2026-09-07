@@ -1309,15 +1309,12 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               left: `${boardX}%`,
               top: `${boardY}%`,
               transform: 'translate(-50%, -50%)',
-              width: `${Math.min(isPortrait ? 520 : 760, Math.round((isPortrait ? 650 : 410) * gridContainerAspect))}px`,
-              height: `${Math.min(isPortrait ? 650 : 410, Math.round((isPortrait ? 520 : 760) / gridContainerAspect))}px`,
-              maxWidth: '100%',
-              maxHeight: '100%',
               display: 'grid',
-              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-              aspectRatio: `${gridContainerAspect}`,
+              gridTemplateColumns: `repeat(${cols}, ${cardWidth}px)`,
+              gridTemplateRows: `repeat(${rows}, ${cardHeight}px)`,
               gap: `${boardConfig.cardGap ?? 10}px`,
+              justifyContent: 'center',
+              alignContent: 'center',
               zIndex: editableLayout && selectedElementKey === 'memoryCardBoard' ? 45 : 10,
               touchAction: editableLayout ? 'none' : 'auto',
             }}
@@ -1369,10 +1366,13 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                     }
                     handleCardClick(index);
                   }}
-                  className={`relative w-full h-full cursor-pointer perspective-1000 select-none group transition-transform ${
+                  className={`relative cursor-pointer perspective-1000 select-none group transition-transform ${
                     card.isShaking ? 'animate-wobble' : ''
                   }`}
                   style={{
+                    width: `${cardWidth}px`,
+                    height: `${cardHeight}px`,
+                    flex: 'none',
                     perspective: '1000px',
                     transform: `rotate(${cardRotationAngle}deg)`,
                   }}
@@ -1481,8 +1481,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               left: `${boardX}%`,
               top: `${boardY}%`,
               transform: 'translate(-50%, -50%)',
-              width: `${isPortrait ? 520 : 540}px`,
-              height: `${isPortrait ? 620 : 410}px`,
+              width: `${Math.max(isPortrait ? 520 : 540, cols * cardWidth + (cols - 1) * (boardConfig.cardGap ?? 10))}px`,
+              height: `${Math.max(isPortrait ? 620 : 410, rows * cardHeight + (rows - 1) * (boardConfig.cardGap ?? 10) + Math.round(cardHeight * 0.25))}px`,
               maxWidth: '100%',
               maxHeight: '100%',
               zIndex: editableLayout && selectedElementKey === 'memoryCardBoard' ? 45 : 10,
@@ -1500,7 +1500,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                 onElementPointerDown('memoryCardBoard', false, e);
               }
             }}
-            className={`relative overflow-hidden pointer-events-auto select-none ${
+            className={`relative pointer-events-auto select-none ${
               editableLayout
                 ? `cursor-move ${
                     selectedElementKey === 'memoryCardBoard'
@@ -1526,6 +1526,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                 x: 50,
                 y: 50,
                 rotation: 0,
+                width: cardWidth,
+                height: cardHeight,
                 widthPercent: 18,
                 heightPercent: 24,
                 zIndex: index + 1,
@@ -1547,8 +1549,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
                     position: 'absolute',
                     left: `${pos.x}%`,
                     top: `${pos.y}%`,
-                    width: `${pos.widthPercent}%`,
-                    height: `${pos.heightPercent}%`,
+                    width: `${cardWidth}px`,
+                    height: `${cardHeight}px`,
+                    flex: 'none',
                     transform: `translate(-50%, -50%) rotate(${pos.rotation}deg)`,
                     zIndex: isFaceUp ? 60 : pos.zIndex,
                   }}

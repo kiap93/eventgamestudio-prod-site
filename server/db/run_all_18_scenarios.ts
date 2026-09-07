@@ -17,7 +17,7 @@ let allPassed = true;
 for (const suite of testSuites) {
   console.log(`\n▶️ Executing: ${suite.name}`);
   try {
-    const output = execSync(`npx tsx ${suite.file}`, {
+    const output = execSync(`bun ${suite.file}`, {
       stdio: 'pipe',
       encoding: 'utf-8',
     });

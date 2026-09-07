@@ -22,9 +22,11 @@ export {
 };
 
 export interface CardLayoutPosition {
-  x: number; // Center X percentage (0 - 100%)
-  y: number; // Center Y percentage (0 - 100%)
+  x: number; // Center X percentage (0 - 100%) or coordinate
+  y: number; // Center Y percentage (0 - 100%) or coordinate
   rotation: number; // Rotation in degrees
+  width: number; // Authoritative card width in px
+  height: number; // Authoritative card height in px
   widthPercent: number; // Responsive width %
   heightPercent: number; // Responsive height %
   zIndex: number;
@@ -256,16 +258,13 @@ export function generateRandomCardPositions(
   const colsApprox = Math.ceil(Math.sqrt(count * 1.15));
   const rowsApprox = Math.ceil(count / colsApprox);
 
-  // Compute proportional percentage dimensions based on card.width and card.height
-  const baseDim = Math.max(card.width, card.height);
-  const widthFactor = card.width / baseDim;
-  const heightFactor = card.height / baseDim;
+  // Authoritative card dimensions directly from card config (independent from layout mode)
+  const configuredCardWidth = card.width;
+  const configuredCardHeight = card.height;
 
-  const basePercentX = Math.min(23, Math.max(10, Math.floor(76 / colsApprox)));
-  const basePercentY = Math.min(28, Math.max(12, Math.floor(80 / rowsApprox)));
-
-  const cardWidthPercent = Math.min(26, Math.max(9, Math.round(basePercentX * widthFactor * 10) / 10));
-  const cardHeightPercent = Math.min(32, Math.max(10, Math.round(basePercentY * heightFactor * 10) / 10));
+  // Normalized logical percentage dimensions on 1000x1000 canvas
+  const cardWidthPercent = Math.min(26, Math.max(6, Math.round((configuredCardWidth / 1000) * 100 * 10) / 10));
+  const cardHeightPercent = Math.min(30, Math.max(6, Math.round((configuredCardHeight / 1000) * 100 * 10) / 10));
 
   // Bounding margins to keep cards strictly inside container
   const halfW = cardWidthPercent / 2;
@@ -328,6 +327,8 @@ export function generateRandomCardPositions(
           x: Math.round(candidateX * 10) / 10,
           y: Math.round(candidateY * 10) / 10,
           rotation: Math.round(candidateRot * 10) / 10,
+          width: configuredCardWidth,
+          height: configuredCardHeight,
           widthPercent: cardWidthPercent,
           heightPercent: cardHeightPercent,
           zIndex: i + 1,
@@ -363,6 +364,8 @@ export function generateRandomCardPositions(
         x: Math.min(maxX, Math.max(minX, Math.round((baseX + jitterX) * 10) / 10)),
         y: Math.min(maxY, Math.max(minY, Math.round((baseY + jitterY) * 10) / 10)),
         rotation: Math.round(rot * 10) / 10,
+        width: configuredCardWidth,
+        height: configuredCardHeight,
         widthPercent: cardWidthPercent,
         heightPercent: cardHeightPercent,
         zIndex: i + 1,
@@ -374,9 +377,38 @@ export function generateRandomCardPositions(
 }
 
 /**
+ * Calculates a single card position in the Up-Down staggered grid layout.
+ * Returns normalized percentage coordinates (0 - 100%).
+ * The layout algorithm owns X and Y positioning only.
+ * Card dimensions (width, height) are owned strictly by the card configuration.
+ */
+export function calculateUpDownPosition(
+  colIdx: number,
+  rowIdx: number,
+  cols: number,
+  rows: number,
+  bounds: { minX: number; maxX: number; usableMinY: number; usableMaxY: number; offsetY: number }
+): { x: number; y: number } {
+  const colX = cols === 1 ? 50 : bounds.minX + (colIdx / (cols - 1)) * (bounds.maxX - bounds.minX);
+  const baseY = rows === 1 ? 50 : bounds.usableMinY + (rowIdx / (rows - 1)) * (bounds.usableMaxY - bounds.usableMinY);
+
+  // Alternate: even columns higher (Up), odd columns lower (Down)
+  const isUp = colIdx % 2 === 0;
+  const cardY = isUp ? baseY - bounds.offsetY : baseY + bounds.offsetY;
+
+  return {
+    x: Math.min(bounds.maxX, Math.max(bounds.minX, Math.round(colX * 10) / 10)),
+    y: Math.round(cardY * 10) / 10,
+  };
+}
+
+/**
  * Generates fixed Up-Down alternating staggered card positions.
  * Cards alternate between higher and lower vertical positions across columns
  * to create a clear up-down visual rhythm while preventing overlaps and respecting bounds.
+ *
+ * Card dimensions (width, height) remain authoritative from card configuration
+ * and are completely independent from the layout algorithm.
  *
  * If withRandomRotation is true (Up-Down + Random Rotation), applies the existing
  * random rotation behavior from Memory Match.
@@ -395,13 +427,13 @@ export function generateUpDownCardPositions(
   const cols = Math.max(MIN_BOARD_COLS, Math.min(MAX_BOARD_COLS, normalized.cols));
   const rows = Math.max(MIN_BOARD_ROWS, Math.min(MAX_BOARD_ROWS, normalized.rows));
 
-  // Compute proportional percentage dimensions based on card.width and card.height
-  const baseDim = Math.max(card.width, card.height);
-  const widthFactor = card.width / baseDim;
-  const heightFactor = card.height / baseDim;
+  // Authoritative card dimensions directly from card config (independent from layout mode)
+  const configuredCardWidth = card.width;
+  const configuredCardHeight = card.height;
 
-  const cardWidthPercent = Math.min(26, Math.max(9, Math.round((74 / cols) * widthFactor * 10) / 10));
-  const cardHeightPercent = Math.min(30, Math.max(10, Math.round((78 / rows) * heightFactor * 10) / 10));
+  // Normalized logical percentage dimensions on 1000x1000 canvas
+  const cardWidthPercent = Math.min(26, Math.max(6, Math.round((configuredCardWidth / 1000) * 100 * 10) / 10));
+  const cardHeightPercent = Math.min(30, Math.max(6, Math.round((configuredCardHeight / 1000) * 100 * 10) / 10));
 
   const halfW = cardWidthPercent / 2;
   const halfH = cardHeightPercent / 2;
@@ -411,7 +443,7 @@ export function generateUpDownCardPositions(
   const minY = halfH + marginPercent;
   const maxY = 100 - halfH - marginPercent;
 
-  const totalHeightSpan = maxY - minY;
+  const totalHeightSpan = Math.max(10, maxY - minY);
   let offsetY = Math.min(cardHeightPercent * 0.28, (totalHeightSpan / Math.max(1, rows - 1)) * 0.22);
   offsetY = Math.max(2.5, Math.round(offsetY * 10) / 10);
 
@@ -448,12 +480,13 @@ export function generateUpDownCardPositions(
     const colIdx = i % cols;
     const rowIdx = Math.floor(i / cols) % rows;
 
-    const colX = cols === 1 ? 50 : minX + (colIdx / (cols - 1)) * (maxX - minX);
-    const baseY = rows === 1 ? 50 : usableMinY + (rowIdx / (rows - 1)) * (usableMaxY - usableMinY);
-
-    // Alternate: even columns higher (Up), odd columns lower (Down)
-    const isUp = colIdx % 2 === 0;
-    const cardY = isUp ? baseY - offsetY : baseY + offsetY;
+    const { x, y } = calculateUpDownPosition(colIdx, rowIdx, cols, rows, {
+      minX,
+      maxX,
+      usableMinY,
+      usableMaxY,
+      offsetY,
+    });
 
     let rotation = 0;
     if (withRandomRotation) {
@@ -464,9 +497,11 @@ export function generateUpDownCardPositions(
     }
 
     positions.push({
-      x: Math.min(maxX, Math.max(minX, Math.round(colX * 10) / 10)),
-      y: Math.min(maxY, Math.max(minY, Math.round(cardY * 10) / 10)),
+      x,
+      y: Math.min(maxY, Math.max(minY, y)),
       rotation: Math.round(rotation * 10) / 10,
+      width: configuredCardWidth,
+      height: configuredCardHeight,
       widthPercent: cardWidthPercent,
       heightPercent: cardHeightPercent,
       zIndex: i + 1,

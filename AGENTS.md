@@ -12,6 +12,7 @@ Event Game Studio combines a React (Vite + Tailwind CSS + Lucide Icons) single-p
 - **Node.js / Express server** (`server.ts`, `server/`) for Cloud Run / local execution.
 - **Cloudflare Worker** (`worker.ts`) for edge deployment.
 - **Database & Storage layer** (`server/db/`, Supabase / PostgreSQL) supporting multi-tenant isolation, ACID wallet transactions, event lifecycle management, and storage buckets.
+- **Package Manager & Lockfile**: The project exclusively uses Bun (`bun@1.4.0`) as its sole package manager. The root `bun.lock` is authoritative and must be preserved across all edits and syncs. Never create or commit competing lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, or `bun.lockb`).
 
 Core platform entities (**Organizations**, **Users/Members**, **Events**, **Games**, **Themes**, **Payments**, **Wallets**, and **Showcases**) must remain strictly isolated with clear domain boundaries.
 
@@ -167,10 +168,11 @@ Every sensitive backend endpoint must follow the 5-step lifecycle:
 ## 14. Validation & Quality Checklist
 
 Before completing any task, run the full validation suite:
-1. **Lint / TypeScript check**: `npm run lint` or `npx tsc --noEmit` must pass with zero errors.
-2. **Applet Compilation**: `npm run build` must compile cleanly without missing modules or type mismatches.
+1. **Lint / TypeScript check**: `bun run lint` or `bunx tsc --noEmit` must pass with zero errors.
+2. **Applet Compilation**: `bun run build` must compile cleanly without missing modules or type mismatches.
 3. **Regression Prevention**: Verify both `server.ts` (Express) and `worker.ts` (Cloudflare) if shared backend logic was updated.
-4. **No Premature Success Claims**: Never declare completion until all validation tools succeed.
+4. **Package Manager & Lockfile**: Exclusively use Bun (`bun@1.4.0`) with `bun.lock`. Never run `npm install` or generate `package-lock.json`.
+5. **No Premature Success Claims**: Never declare completion until all validation tools succeed.
 
 ---
 

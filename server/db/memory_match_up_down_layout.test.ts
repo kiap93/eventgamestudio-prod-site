@@ -114,6 +114,39 @@ function runTests() {
 
   console.log('PASSED: generateCardPositions with up-down-rotation applies random rotation within range');
 
+  console.log('--- TEST 5: Card dimensions are authoritative and independent from layout mode ---');
+  const customCard = { width: 80, height: 120, borderRadius: 12, rotation: 0, rotationMode: 'none' as const };
+  const modes = ['grid', 'random', 'up-down', 'up-down-rotation'] as const;
+
+  for (const mode of modes) {
+    const cardPositions = generateCardPositions(
+      16,
+      { rows: 4, cols: 4, layoutMode: mode, card: customCard },
+      customCard
+    );
+
+    for (let i = 0; i < cardPositions.length; i++) {
+      const pos = cardPositions[i];
+      if (pos.width !== 80) {
+        throw new Error(`FAILED: Mode ${mode} altered card width to ${pos.width}, expected 80`);
+      }
+      if (pos.height !== 120) {
+        throw new Error(`FAILED: Mode ${mode} altered card height to ${pos.height}, expected 120`);
+      }
+    }
+  }
+  console.log('PASSED: All layouts preserve authoritative 80x120 card dimensions without modification');
+
+  console.log('--- TEST 6: Changing layoutMode changes X/Y position only, not card dimensions ---');
+  const upDownResult = generateCardPositions(8, { rows: 2, cols: 4, layoutMode: 'up-down', card: customCard }, customCard);
+  const randomResult = generateCardPositions(8, { rows: 2, cols: 4, layoutMode: 'random', card: customCard }, customCard);
+
+  // Width and height must be identical across modes
+  if (upDownResult[0].width !== randomResult[0].width || upDownResult[0].height !== randomResult[0].height) {
+    throw new Error('FAILED: Card dimensions differ between up-down and random layout modes');
+  }
+  console.log('PASSED: Card size remains fixed while layout mode controls position only');
+
   console.log('ALL MEMORY MATCH UP-DOWN TESTS PASSED!');
 }
 
