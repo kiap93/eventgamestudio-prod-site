@@ -59,22 +59,53 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const liveGameContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Fullscreen change listener
+  // Fullscreen change listener & resize dispatcher
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(
-        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
-      );
+      const isCurrentlyFs =
+        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
+      setIsFullscreen(isCurrentlyFs);
+      // Dispatch resize event so games/canvases smoothly adapt layout
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 50);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        handleCloseFullscreen();
+      }
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [isFullscreen]);
+
+  const handleCloseFullscreen = async () => {
+    try {
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        }
+      }
+    } catch {
+      // Ignored
+    } finally {
+      setIsFullscreen(false);
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 50);
+    }
+  };
 
   const handleToggleFullscreen = () => {
     const isCurrentlyFs =
@@ -87,14 +118,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
       }
       setIsFullscreen(true);
     } else {
-      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        } else if ((document as any).webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
-        }
-      }
-      setIsFullscreen(false);
+      handleCloseFullscreen();
     }
   };
 
@@ -291,6 +315,21 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             onToggleFullscreen={handleToggleFullscreen}
           />
         </div>
+
+        {isFullscreen && (
+          <button
+            type="button"
+            onClick={handleCloseFullscreen}
+            className="fixed top-4 right-4 z-[100000] flex items-center gap-2 px-4 py-2 bg-slate-900/90 hover:bg-slate-800 active:scale-95 text-slate-200 hover:text-white border border-slate-700/80 rounded-xl text-xs font-bold transition-all shadow-2xl backdrop-blur-md cursor-pointer"
+            title="Exit Fullscreen Mode (Esc)"
+          >
+            <Minimize2 className="w-4 h-4 text-amber-400" />
+            <span>Close Fullscreen</span>
+            <span className="text-[10px] text-slate-400 font-mono ml-1 px-1.5 py-0.5 bg-slate-950 rounded border border-slate-800">
+              ESC
+            </span>
+          </button>
+        )}
       </div>
     );
   }

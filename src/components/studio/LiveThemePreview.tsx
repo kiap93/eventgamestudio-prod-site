@@ -32,6 +32,8 @@ import {
   Star,
   Smartphone,
   Monitor,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 
 interface LiveThemePreviewProps {
@@ -101,6 +103,85 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [previewOrientation, setPreviewOrientation] = useState<'landscape' | 'portrait'>('landscape');
   const [restartKey, setRestartKey] = useState<number>(0);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Fullscreen synchronization with browser Fullscreen API
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isFs =
+        !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
+      setIsFullscreen(isFs);
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        const isFs =
+          !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
+        if (isFs || isFullscreen) {
+          handleCloseFullscreen();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullscreen]);
+
+  const handleCloseFullscreen = async () => {
+    try {
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.warn('Exit fullscreen failed:', err);
+    } finally {
+      setIsFullscreen(false);
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    }
+  };
+
+  const handleToggleFullscreen = async () => {
+    const isCurrentlyFs =
+      !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
+
+    if (!isCurrentlyFs && !isFullscreen) {
+      const elem = containerRef.current || document.documentElement;
+      try {
+        if (elem.requestFullscreen) {
+          await elem.requestFullscreen();
+        } else if ((elem as any).webkitRequestFullscreen) {
+          await (elem as any).webkitRequestFullscreen();
+        } else if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (err) {
+        console.warn('Request fullscreen failed:', err);
+      } finally {
+        setIsFullscreen(true);
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event('resize'));
+        });
+      }
+    } else {
+      await handleCloseFullscreen();
+    }
+  };
 
   const isMemoryMatch = isMemoryMatchTheme(theme);
   const memoryConfig = useMemo(() => getMemoryMatchConfig(theme), [theme]);
@@ -672,82 +753,175 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col gap-3 relative overflow-hidden ${className}`}
+      className={
+        isFullscreen
+          ? 'fixed inset-0 z-[99999] w-screen h-screen bg-[#07130b] overflow-hidden p-2 sm:p-4 flex flex-col justify-between'
+          : `bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col gap-3 relative overflow-hidden ${className}`
+      }
     >
       {/* Header bar */}
-      <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          <h2 className="text-xs font-black tracking-wider uppercase text-slate-200 flex items-center gap-1.5">
-            <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
-            {editableLayout ? 'Interactive Layout Simulation' : 'Live Game Simulation'}
-          </h2>
-        </div>
+      {isFullscreen ? (
+        <div className="w-full max-w-7xl mx-auto flex items-center justify-between gap-3 py-2 px-4 bg-slate-900/90 border border-slate-800/80 rounded-2xl shadow-xl backdrop-blur-md shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="text-xs sm:text-sm font-black text-slate-100 tracking-tight truncate">
+              {theme.name || 'Theme'} • Live Simulation
+            </span>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-md hidden sm:inline-block">
+              Fullscreen
+            </span>
+          </div>
 
-        <div className="flex items-center gap-1.5">
-          {onPlayLiveGame && (
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
-              onClick={onPlayLiveGame}
-              className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md ring-1 ring-emerald-400 active:scale-95"
-              title="Switch to full-page live playable game mode"
+              type="button"
+              onClick={() => setIsInteractive(!isInteractive)}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
+                isInteractive
+                  ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+              title="Toggle between Interactive Player Control and Auto-Attract Simulation"
+            >
+              <Gamepad2 className="w-3.5 h-3.5" />
+              <span>{isInteractive ? 'Testing (Interactive)' : 'Auto Demo'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPreviewOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+              title={`Switch preview to ${previewOrientation === 'landscape' ? 'Mobile Portrait (9:16)' : 'Landscape (16:9)'}`}
+            >
+              {previewOrientation === 'landscape' ? (
+                <>
+                  <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">Portrait</span>
+                </>
+              ) : (
+                <>
+                  <Monitor className="w-3.5 h-3.5 text-sky-400" />
+                  <span className="hidden sm:inline">Landscape</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsMuted(!isMuted)}
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors"
+              title={isMuted ? 'Unmute preview sounds' : 'Mute preview sounds'}
+            >
+              {isMuted ? (
+                <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleResetSimulation}
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors"
+              title="Restart simulation"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCloseFullscreen}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+              title="Close Fullscreen (Esc)"
+            >
+              <Minimize2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Close</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <h2 className="text-xs font-black tracking-wider uppercase text-slate-200 flex items-center gap-1.5">
+              <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
+              {editableLayout ? 'Interactive Layout Simulation' : 'Live Game Simulation'}
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {onPlayLiveGame && (
+              <button
+                onClick={onPlayLiveGame}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md ring-1 ring-emerald-400 active:scale-95"
+                title="Switch to full-page live playable game mode"
+              >
+                <Gamepad2 className="w-3 h-3" />
+                <span>Play Live Game</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setIsInteractive(!isInteractive)}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
+                isInteractive
+                  ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+              title="Toggle between Interactive Player Control and Auto-Attract Simulation"
             >
               <Gamepad2 className="w-3 h-3" />
-              <span>Play Live Game</span>
+              <span>{isInteractive ? 'Testing (Interactive)' : 'Auto Demo'}</span>
             </button>
-          )}
 
-          <button
-            onClick={() => setIsInteractive(!isInteractive)}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
-              isInteractive
-                ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-            title="Toggle between Interactive Player Control and Auto-Attract Simulation"
-          >
-            <Gamepad2 className="w-3 h-3" />
-            <span>{isInteractive ? 'Testing (Interactive)' : 'Auto Demo'}</span>
-          </button>
+            <button
+              onClick={() => setPreviewOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))}
+              className="px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+              title={`Switch preview to ${previewOrientation === 'landscape' ? 'Mobile Portrait (9:16)' : 'Landscape (16:9)'}`}
+            >
+              {previewOrientation === 'landscape' ? (
+                <>
+                  <Smartphone className="w-3 h-3 text-amber-400" />
+                  <span>Portrait</span>
+                </>
+              ) : (
+                <>
+                  <Monitor className="w-3 h-3 text-sky-400" />
+                  <span>Landscape</span>
+                </>
+              )}
+            </button>
 
-          <button
-            onClick={() => setPreviewOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))}
-            className="px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
-            title={`Switch preview to ${previewOrientation === 'landscape' ? 'Mobile Portrait (9:16)' : 'Landscape (16:9)'}`}
-          >
-            {previewOrientation === 'landscape' ? (
-              <>
-                <Smartphone className="w-3 h-3 text-amber-400" />
-                <span>Portrait</span>
-              </>
-            ) : (
-              <>
-                <Monitor className="w-3 h-3 text-sky-400" />
-                <span>Landscape</span>
-              </>
-            )}
-          </button>
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
+              title={isMuted ? 'Unmute preview sounds' : 'Mute preview sounds'}
+            >
+              {isMuted ? (
+                <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+              )}
+            </button>
 
-          <button
-            onClick={() => setIsMuted(!isMuted)}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-            title={isMuted ? 'Unmute preview sounds' : 'Mute preview sounds'}
-          >
-            {isMuted ? (
-              <VolumeX className="w-3.5 h-3.5 text-slate-500" />
-            ) : (
-              <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-            )}
-          </button>
+            <button
+              onClick={handleResetSimulation}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
+              title="Restart simulation"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
 
-          <button
-            onClick={handleResetSimulation}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-            title="Restart simulation"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
+            <button
+              onClick={handleToggleFullscreen}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors"
+              title="Fullscreen"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Viewport with Scaled Layout Overlays */}
       <div
@@ -756,9 +930,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         onPointerUp={handleContainerPointerUp}
         onPointerCancel={handleContainerPointerUp}
         className={`relative ${
-          previewOrientation === 'portrait'
-            ? 'aspect-[9/16] max-h-[580px] w-auto mx-auto'
-            : 'aspect-[16/9] w-full'
+          isFullscreen
+            ? previewOrientation === 'portrait'
+              ? 'aspect-[9/16] max-h-[82vh] w-auto mx-auto my-auto flex-1'
+              : 'aspect-[16/9] max-w-7xl max-h-[82vh] w-full mx-auto my-auto flex-1'
+            : previewOrientation === 'portrait'
+              ? 'aspect-[9/16] max-h-[580px] w-auto mx-auto'
+              : 'aspect-[16/9] w-full'
         } rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none flex items-center justify-center transition-all`}
       >
         {isMemoryMatch ? (
@@ -773,7 +951,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               mismatchDelayMs: memoryConfig.gameplay?.mismatchDelayMs ?? 850,
             }}
             isMuted={isMuted}
-            isFullscreen={false}
+            isFullscreen={isFullscreen}
             isStudioPreview={true}
             autoDemo={!isInteractive}
             editableLayout={editableLayout}
@@ -781,6 +959,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             onSelectElementKey={onSelectElementKey}
             onElementPointerDown={handleElementPointerDown}
             onToggleMute={() => setIsMuted(!isMuted)}
+            onToggleFullscreen={handleToggleFullscreen}
           />
         ) : (
           /* CATCH BRAND FALLING CANVAS SIMULATION */
@@ -820,17 +999,33 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         )}
       </div>
 
-      {/* Quick Drop Item / Card Pair Tester Palette */}
-      <div className="space-y-1.5 pt-1">
-        <div className="flex items-center justify-between text-[11px] text-slate-400">
-          <span className="font-semibold flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-amber-400" />{' '}
-            {isMemoryMatch ? 'Memory Match Card Pairs' : 'Instant Item Drop Tester'}
-          </span>
-          <span>{isMemoryMatch ? `${memoryConfig.pairs?.length || 8} configured pairs` : 'Click to spawn item'}</span>
+      {/* When in Fullscreen: render the dedicated centered [ CLOSE / EXIT FULLSCREEN ] button matching the user's diagram */}
+      {isFullscreen ? (
+        <div className="shrink-0 flex items-center justify-center pt-2 pb-1">
+          <button
+            type="button"
+            onClick={handleCloseFullscreen}
+            className="flex items-center gap-2 px-6 py-2.5 bg-slate-900/95 hover:bg-slate-800 active:scale-95 text-slate-200 hover:text-white border border-slate-700/80 rounded-xl text-xs font-bold transition-all shadow-2xl backdrop-blur-md cursor-pointer"
+            title="Exit Fullscreen Mode (Esc)"
+          >
+            <Minimize2 className="w-4 h-4 text-amber-400" />
+            <span>Close / Exit Fullscreen</span>
+            <span className="text-[10px] text-slate-400 font-mono ml-1 px-1.5 py-0.5 bg-slate-950 rounded border border-slate-800">
+              ESC
+            </span>
+          </button>
         </div>
+      ) : (
+        <div className="space-y-1.5 pt-1">
+          <div className="flex items-center justify-between text-[11px] text-slate-400">
+            <span className="font-semibold flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-amber-400" />{' '}
+              {isMemoryMatch ? 'Memory Match Card Pairs' : 'Instant Item Drop Tester'}
+            </span>
+            <span>{isMemoryMatch ? `${memoryConfig.pairs?.length || 8} configured pairs` : 'Click to spawn item'}</span>
+          </div>
 
-        {isMemoryMatch ? (
+          {isMemoryMatch ? (
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
             {(memoryConfig.pairs || []).map((pair, idx) => (
               <div
@@ -884,6 +1079,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

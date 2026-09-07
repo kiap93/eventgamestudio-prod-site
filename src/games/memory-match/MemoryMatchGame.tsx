@@ -78,12 +78,15 @@ const renderCardIcon = (iconName?: string, className: string = 'w-8 h-8') => {
   }
 };
 
-// Auto Demo timing constants (ms)
-const AUTO_DEMO_FIRST_FLIP_DELAY = 600;
-const AUTO_DEMO_PAIR_REVEAL_DELAY = 850;
+// Auto Demo timing and behavior constants (ms)
+const AUTO_DEMO_FIRST_FLIP_DELAY = 500;
+const AUTO_DEMO_SECOND_FLIP_DELAY = 650;
+const AUTO_DEMO_MISMATCH_PAUSE = 850;
+const AUTO_DEMO_AFTER_MISMATCH_DELAY = 400;
+const AUTO_DEMO_AFTER_MATCH_DELAY = 500;
 const AUTO_DEMO_MATCH_DELAY = 350;
-const AUTO_DEMO_NEXT_PAIR_DELAY = 400;
 const AUTO_DEMO_CYCLE_RESTART_DELAY = 1200;
+const AUTO_DEMO_WRONG_MATCH_CHANCE = 0.30;
 
 export interface MemoryMatchGameProps extends GameComponentProps<MemoryMatchConfig> {
   className?: string;
@@ -212,6 +215,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const activeTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
   const autoDemoTimeoutsRef = useRef<Set<NodeJS.Timeout>>(new Set());
+  const autoDemoCycleRef = useRef<number>(0);
   const hasEventContext = Boolean(publicToken || (eventId && eventId !== 'undefined' && eventId !== 'null'));
 
   const clearCardTimeouts = useCallback(() => {
@@ -398,6 +402,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     // Changing: Auto Demo -> Testing (Interactive)
     if (prevAutoDemo === true && autoDemo === false) {
       clearAutoDemoTimers();
+      const newSession = `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      setSessionId(newSession);
+      sessionIdRef.current = newSession;
       setIsLocked(false);
       setFlippedIndices([]);
       setCards((prev) =>
@@ -640,35 +647,120 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       }
     });
 
-    const pairList: [number, number][] = [];
-    pairMap.forEach((indices) => {
+    interface AvailablePair {
+      pairId: string;
+      indices: [number, number];
+    }
+
+    const availablePairs: AvailablePair[] = [];
+    pairMap.forEach((indices, pairId) => {
       if (indices.length >= 2) {
-        pairList.push([indices[0], indices[1]]);
+        availablePairs.push({
+          pairId,
+          indices: [indices[0], indices[1]],
+        });
       }
     });
 
-    if (pairList.length === 0) return;
+    if (availablePairs.length === 0) return;
 
-    // Shuffle pair presentation order so the demonstration is dynamic
-    for (let i = pairList.length - 1; i > 0; i--) {
+    // Shuffle pair presentation order so each demonstration cycle is varied
+    for (let i = availablePairs.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [pairList[i], pairList[j]] = [pairList[j], pairList[i]];
+      [availablePairs[i], availablePairs[j]] = [availablePairs[j], availablePairs[i]];
     }
 
     // Randomize first vs second card flip order within each pair
-    for (let i = 0; i < pairList.length; i++) {
+    for (let i = 0; i < availablePairs.length; i++) {
       if (Math.random() > 0.5) {
-        pairList[i] = [pairList[i][1], pairList[i][0]];
+        availablePairs[i].indices = [availablePairs[i].indices[1], availablePairs[i].indices[0]];
       }
+    }
+
+    interface DemoAction {
+      type: 'WRONG' | 'CORRECT';
+      firstIdx: number;
+      secondIdx: number;
+      pairId?: string;
+    }
+
+    const actionList: DemoAction[] = [];
+    const remainingPairs = [...availablePairs];
+    const recentWrongPairs = new Set<string>();
+
+    const cycleNumber = autoDemoCycleRef.current;
+    autoDemoCycleRef.current += 1;
+    const patternModulo = cycleNumber % 3;
+    let lastWasWrong = false;
+
+    for (let i = 0; i < availablePairs.length; i++) {
+      const targetPair = availablePairs[i];
+
+      // Decide whether to insert a realistic WRONG attempt before solving targetPair
+      // Conditions:
+      // 1. Must have at least 2 distinct unmatched pairs remaining (guarantees firstCard.pairId !== secondCard.pairId)
+      // 2. Never allow two consecutive wrong matches
+      // 3. Keep wrong matches to ~30% of attempts with natural progression
+      let shouldDoWrong = false;
+      if (remainingPairs.length >= 2 && !lastWasWrong) {
+        if (patternModulo === 0) {
+          shouldDoWrong = (i === 0 || i === 3 || i === 5 || Math.random() < AUTO_DEMO_WRONG_MATCH_CHANCE);
+        } else if (patternModulo === 1) {
+          shouldDoWrong = (i === 1 || i === 4 || i === 6 || Math.random() < AUTO_DEMO_WRONG_MATCH_CHANCE);
+        } else {
+          shouldDoWrong = (i === 0 || i === 2 || i === 4 || Math.random() < AUTO_DEMO_WRONG_MATCH_CHANCE);
+        }
+      }
+
+      if (shouldDoWrong && remainingPairs.length >= 2) {
+        // Choose two distinct pairs: pairB (targetPair about to be solved) and pairA (another remaining pair)
+        const pairB = targetPair;
+        const candidates = remainingPairs.filter((p) => p.pairId !== pairB.pairId);
+        if (candidates.length > 0) {
+          const preferred = candidates.filter((p) => !recentWrongPairs.has(p.pairId));
+          const pairA = preferred.length > 0
+            ? preferred[Math.floor(Math.random() * preferred.length)]
+            : candidates[Math.floor(Math.random() * candidates.length)];
+
+          // Guarantee firstCard.pairId !== secondCard.pairId
+          const cardAIdx = pairA.indices[Math.random() > 0.5 ? 1 : 0];
+          const cardBIdx = pairB.indices[Math.random() > 0.5 ? 1 : 0];
+
+          actionList.push({
+            type: 'WRONG',
+            firstIdx: cardAIdx,
+            secondIdx: cardBIdx,
+          });
+
+          recentWrongPairs.add(pairA.pairId);
+          recentWrongPairs.add(pairB.pairId);
+          lastWasWrong = true;
+        }
+      }
+
+      // Add the legitimate matching pair action
+      actionList.push({
+        type: 'CORRECT',
+        firstIdx: targetPair.indices[0],
+        secondIdx: targetPair.indices[1],
+        pairId: targetPair.pairId,
+      });
+
+      // Remove targetPair from remainingPairs so subsequent steps never pick already-matched cards
+      const remIdx = remainingPairs.findIndex((p) => p.pairId === targetPair.pairId);
+      if (remIdx !== -1) {
+        remainingPairs.splice(remIdx, 1);
+      }
+      lastWasWrong = false;
     }
 
     const activeSession = sessionIdRef.current;
 
-    const executeDemoPair = (pairIdx: number) => {
+    const executeAction = (actionIdx: number) => {
       if (!isStudioPreview || !autoDemo) return;
       if (sessionIdRef.current !== activeSession) return;
 
-      if (pairIdx >= pairList.length) {
+      if (actionIdx >= actionList.length) {
         // All pairs demonstrated in this cycle -> short pause, then loop with fresh deck
         setManagedAutoDemoTimeout(() => {
           if (!isStudioPreview || !autoDemo) return;
@@ -678,22 +770,26 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         return;
       }
 
-      const [firstIdx, secondIdx] = pairList[pairIdx];
+      const action = actionList[actionIdx];
+      const { firstIdx, secondIdx, type } = action;
 
-      // Step 1: Flip first card
-      setManagedAutoDemoTimeout(() => {
-        if (!isStudioPreview || !autoDemo) return;
-        if (sessionIdRef.current !== activeSession) return;
+      // Safety check: ensure both card slots exist
+      const deckNow = cardsRef.current;
+      if (!deckNow[firstIdx] || !deckNow[secondIdx]) {
+        executeAction(actionIdx + 1);
+        return;
+      }
 
-        memorySounds.playCardFlip();
-        setCards((prev) => {
-          const next = [...prev];
-          if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: true };
-          return next;
-        });
-        setFlippedIndices([firstIdx]);
+      // ============================================
+      // WRONG MATCH ACTION EXECUTION
+      // ============================================
+      if (type === 'WRONG') {
+        if (deckNow[firstIdx].isMatched || deckNow[secondIdx].isMatched) {
+          executeAction(actionIdx + 1);
+          return;
+        }
 
-        // Step 2: Flip matching second card
+        // Step 1: Flip first card
         setManagedAutoDemoTimeout(() => {
           if (!isStudioPreview || !autoDemo) return;
           if (sessionIdRef.current !== activeSession) return;
@@ -701,52 +797,153 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
           memorySounds.playCardFlip();
           setCards((prev) => {
             const next = [...prev];
-            if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: true };
+            if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: true, isShaking: false };
             return next;
           });
-          setFlippedIndices([firstIdx, secondIdx]);
-          const currentMoves = movesRef.current + 1;
-          setMoves(currentMoves);
-          movesRef.current = currentMoves;
+          setFlippedIndices([firstIdx]);
 
-          // Step 3: Mark pair as matched
+          // Step 2: Flip second WRONG card
           setManagedAutoDemoTimeout(() => {
             if (!isStudioPreview || !autoDemo) return;
             if (sessionIdRef.current !== activeSession) return;
 
-            const currentStreak = comboStreakRef.current + 1;
-            setComboStreak(currentStreak);
-            comboStreakRef.current = currentStreak;
-            setMaxComboStreak((prev) => Math.max(prev, currentStreak));
-
-            const streakBonus = (currentStreak - 1) * comboPoints;
-            const addedPoints = matchPoints + streakBonus;
-            setScore((prev) => prev + addedPoints);
-
-            memorySounds.playMatchSuccess(currentStreak);
-
+            memorySounds.playCardFlip();
             setCards((prev) => {
               const next = [...prev];
-              if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: false, isMatched: true };
-              if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: false, isMatched: true };
+              if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: true, isShaking: false };
+              return next;
+            });
+            setFlippedIndices([firstIdx, secondIdx]);
+
+            // Count move
+            const currentMoves = movesRef.current + 1;
+            setMoves(currentMoves);
+            movesRef.current = currentMoves;
+
+            // Reset combo streak on wrong match
+            setComboStreak(0);
+            comboStreakRef.current = 0;
+
+            // Play mismatch sound and shake both cards
+            memorySounds.playMismatch();
+            setCards((prev) => {
+              const next = [...prev];
+              if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isShaking: true };
+              if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isShaking: true };
               return next;
             });
 
-            const newMatched = matchedPairsCountRef.current + 1;
-            setMatchedPairsCount(newMatched);
-            matchedPairsCountRef.current = newMatched;
-            setFlippedIndices([]);
-
-            // Step 4: Advance to next pair
+            // Step 3: Both cards remain visible for mismatchDelay, then flip back
+            const pauseDelay = mismatchDelay || AUTO_DEMO_MISMATCH_PAUSE;
             setManagedAutoDemoTimeout(() => {
-              executeDemoPair(pairIdx + 1);
-            }, AUTO_DEMO_NEXT_PAIR_DELAY);
-          }, AUTO_DEMO_MATCH_DELAY);
-        }, AUTO_DEMO_PAIR_REVEAL_DELAY);
-      }, AUTO_DEMO_FIRST_FLIP_DELAY);
+              if (!isStudioPreview || !autoDemo) return;
+              if (sessionIdRef.current !== activeSession) return;
+
+              setCards((prev) => {
+                const next = [...prev];
+                if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: false, isShaking: false };
+                if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: false, isShaking: false };
+                return next;
+              });
+              setFlippedIndices([]);
+
+              // Step 4: Short pause after flip-back before proceeding to next action
+              setManagedAutoDemoTimeout(() => {
+                if (!isStudioPreview || !autoDemo) return;
+                if (sessionIdRef.current !== activeSession) return;
+
+                executeAction(actionIdx + 1);
+              }, AUTO_DEMO_AFTER_MISMATCH_DELAY);
+            }, pauseDelay);
+          }, AUTO_DEMO_SECOND_FLIP_DELAY);
+        }, AUTO_DEMO_FIRST_FLIP_DELAY);
+        return;
+      }
+
+      // ============================================
+      // CORRECT MATCH ACTION EXECUTION
+      // ============================================
+      if (type === 'CORRECT') {
+        if (deckNow[firstIdx].isMatched || deckNow[secondIdx].isMatched) {
+          executeAction(actionIdx + 1);
+          return;
+        }
+
+        // Step 1: Flip first card
+        setManagedAutoDemoTimeout(() => {
+          if (!isStudioPreview || !autoDemo) return;
+          if (sessionIdRef.current !== activeSession) return;
+
+          memorySounds.playCardFlip();
+          setCards((prev) => {
+            const next = [...prev];
+            if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: true, isShaking: false };
+            return next;
+          });
+          setFlippedIndices([firstIdx]);
+
+          // Step 2: Flip matching second card
+          setManagedAutoDemoTimeout(() => {
+            if (!isStudioPreview || !autoDemo) return;
+            if (sessionIdRef.current !== activeSession) return;
+
+            memorySounds.playCardFlip();
+            setCards((prev) => {
+              const next = [...prev];
+              if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: true, isShaking: false };
+              return next;
+            });
+            setFlippedIndices([firstIdx, secondIdx]);
+
+            // Count move
+            const currentMoves = movesRef.current + 1;
+            setMoves(currentMoves);
+            movesRef.current = currentMoves;
+
+            // Step 3: Mark pair as matched
+            setManagedAutoDemoTimeout(() => {
+              if (!isStudioPreview || !autoDemo) return;
+              if (sessionIdRef.current !== activeSession) return;
+
+              // Combo and score logic
+              const currentStreak = comboStreakRef.current + 1;
+              setComboStreak(currentStreak);
+              comboStreakRef.current = currentStreak;
+              setMaxComboStreak((prev) => Math.max(prev, currentStreak));
+
+              const streakBonus = (currentStreak - 1) * comboPoints;
+              const addedPoints = matchPoints + streakBonus;
+              setScore((prev) => prev + addedPoints);
+
+              memorySounds.playMatchSuccess(currentStreak);
+
+              setCards((prev) => {
+                const next = [...prev];
+                if (next[firstIdx]) next[firstIdx] = { ...next[firstIdx], isFlipped: false, isMatched: true, isShaking: false };
+                if (next[secondIdx]) next[secondIdx] = { ...next[secondIdx], isFlipped: false, isMatched: true, isShaking: false };
+                return next;
+              });
+
+              const newMatched = matchedPairsCountRef.current + 1;
+              setMatchedPairsCount(newMatched);
+              matchedPairsCountRef.current = newMatched;
+              setFlippedIndices([]);
+
+              // Step 4: Advance to next action
+              setManagedAutoDemoTimeout(() => {
+                if (!isStudioPreview || !autoDemo) return;
+                if (sessionIdRef.current !== activeSession) return;
+
+                executeAction(actionIdx + 1);
+              }, AUTO_DEMO_AFTER_MATCH_DELAY);
+            }, AUTO_DEMO_MATCH_DELAY);
+          }, AUTO_DEMO_SECOND_FLIP_DELAY);
+        }, AUTO_DEMO_FIRST_FLIP_DELAY);
+        return;
+      }
     };
 
-    executeDemoPair(0);
+    executeAction(0);
 
     return () => {
       clearAutoDemoTimers();
@@ -757,6 +954,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     gameState,
     comboPoints,
     matchPoints,
+    mismatchDelay,
     clearAutoDemoTimers,
     setManagedAutoDemoTimeout,
     startCountdown,
