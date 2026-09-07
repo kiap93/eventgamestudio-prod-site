@@ -22,6 +22,7 @@ import {
   getEventAvailabilityState,
   canAccessLiveEvent,
   canAccessPreviewEvent,
+  isEventExplicitlyCancelled,
 } from '../../lib/dateUtils';
 import { EventLeaderboardModal } from './EventLeaderboardModal';
 import { EventPaymentModal } from './EventPaymentModal';
@@ -57,7 +58,7 @@ export const EventCard: React.FC<EventCardProps> = ({
   const availability = getEventAvailabilityState(event);
   const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
   const isPendingPayment = !isPaid;
-  const isCancelled = event.event_status === 'CANCELLED' || event.status === 'cancelled' || !!event.cancel_reason;
+  const isCancelled = isEventExplicitlyCancelled(event);
 
   const copyLink = async (e: React.MouseEvent) => {
     e.stopPropagation();

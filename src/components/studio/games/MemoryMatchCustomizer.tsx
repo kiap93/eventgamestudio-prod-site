@@ -1474,7 +1474,7 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-300">
-                Grid Card Gap (4 – 32 px)
+                Grid Card Gap (0 – 60 px)
               </span>
               <span className="text-emerald-400 font-bold font-mono text-sm">
                 {currentCardGap} px
@@ -1482,8 +1482,8 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
             </div>
             <input
               type="range"
-              min="4"
-              max="32"
+              min="0"
+              max="60"
               step="2"
               value={currentCardGap}
               onChange={(e) => handleUpdateBoard({ cardGap: parseInt(e.target.value) || 12 })}
@@ -1755,42 +1755,92 @@ export const MemoryMatchGameLayoutCustomizer: React.FC<MemoryMatchGameLayoutCust
           </div>
         </div>
 
-        {/* Card Border Radius Control */}
-        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-300">
-              Corner Border Radius (0 – 36 px)
-            </span>
-            <span className="text-indigo-400 font-bold font-mono text-sm">
-              {cardBorderRadius} px
-            </span>
+        {/* Card Gap and Border Radius Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Card Gap */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <Grid3X3 className="w-3.5 h-3.5 text-indigo-400" />
+                Card Gap (0 – 60 px)
+              </span>
+              <span className="text-indigo-400 font-bold font-mono text-sm">
+                {currentCardGap} px
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={currentCardGap <= 0}
+                onClick={() => handleUpdateBoard({ cardGap: Math.max(0, currentCardGap - 2) })}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <input
+                type="range"
+                min="0"
+                max="60"
+                step="2"
+                value={currentCardGap}
+                onChange={(e) => handleUpdateBoard({ cardGap: parseInt(e.target.value) || 0 })}
+                className="flex-1 accent-indigo-500 cursor-pointer"
+              />
+              <button
+                type="button"
+                disabled={currentCardGap >= 60}
+                onClick={() => handleUpdateBoard({ cardGap: Math.min(60, currentCardGap + 2) })}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500">
+              Spacing between cards (does not scale or alter card size)
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              disabled={cardBorderRadius <= 0}
-              onClick={() => handleUpdateCardConfig({ borderRadius: Math.max(0, cardBorderRadius - 2) })}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
-            >
-              <Minus className="w-4 h-4" />
-            </button>
-            <input
-              type="range"
-              min="0"
-              max="36"
-              step="2"
-              value={cardBorderRadius}
-              onChange={(e) => handleUpdateCardConfig({ borderRadius: parseInt(e.target.value) || 0 })}
-              className="flex-1 accent-indigo-500 cursor-pointer"
-            />
-            <button
-              type="button"
-              disabled={cardBorderRadius >= 36}
-              onClick={() => handleUpdateCardConfig({ borderRadius: Math.min(36, cardBorderRadius + 2) })}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+
+          {/* Card Border Radius Control */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <Square className="w-3.5 h-3.5 text-indigo-400" />
+                Corner Border Radius (0 – 36 px)
+              </span>
+              <span className="text-indigo-400 font-bold font-mono text-sm">
+                {cardBorderRadius} px
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={cardBorderRadius <= 0}
+                onClick={() => handleUpdateCardConfig({ borderRadius: Math.max(0, cardBorderRadius - 2) })}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <input
+                type="range"
+                min="0"
+                max="36"
+                step="2"
+                value={cardBorderRadius}
+                onChange={(e) => handleUpdateCardConfig({ borderRadius: parseInt(e.target.value) || 0 })}
+                className="flex-1 accent-indigo-500 cursor-pointer"
+              />
+              <button
+                type="button"
+                disabled={cardBorderRadius >= 36}
+                onClick={() => handleUpdateCardConfig({ borderRadius: Math.min(36, cardBorderRadius + 2) })}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500">
+              Roundness of card edges and corners
+            </p>
           </div>
         </div>
 

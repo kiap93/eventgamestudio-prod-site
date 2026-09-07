@@ -133,7 +133,7 @@ export function normalizeBoardConfig(
     rawMode === 'random' || rawMode === 'up-down' || rawMode === 'up-down-rotation'
       ? rawMode
       : 'grid';
-  const cardGap = typeof rawBoard?.cardGap === 'number' ? Math.max(4, Math.min(32, rawBoard.cardGap)) : 12;
+  const cardGap = typeof rawBoard?.cardGap === 'number' ? Math.max(0, Math.min(80, rawBoard.cardGap)) : 12;
 
   const rawRandom = rawBoard?.randomLayout;
   const minSpacing =
@@ -275,8 +275,9 @@ export function generateRandomCardPositions(
   const minY = halfH + marginPercent;
   const maxY = 100 - halfH - marginPercent;
 
-  // Min center-to-center distance required between cards
-  const spacingPercent = (minSpacing / 500) * 100;
+  // Min center-to-center distance required between cards (uses Card Gap as spacing clearance)
+  const effectiveCardGap = typeof normalized.cardGap === 'number' ? normalized.cardGap : (minSpacing ?? 12);
+  const spacingPercent = (effectiveCardGap / 500) * 100;
   const minDistanceX = cardWidthPercent * 0.72 + spacingPercent;
   const minDistanceY = cardHeightPercent * 0.72 + spacingPercent;
 
@@ -430,14 +431,22 @@ export function generateUpDownCardPositions(
   // Authoritative card dimensions directly from card config (independent from layout mode)
   const configuredCardWidth = card.width;
   const configuredCardHeight = card.height;
+  const cardGap = typeof normalized.cardGap === 'number' ? normalized.cardGap : 12;
 
-  // Normalized logical percentage dimensions on 1000x1000 canvas
-  const cardWidthPercent = Math.min(26, Math.max(6, Math.round((configuredCardWidth / 1000) * 100 * 10) / 10));
-  const cardHeightPercent = Math.min(30, Math.max(6, Math.round((configuredCardHeight / 1000) * 100 * 10) / 10));
+  // Unscaled pixel bounding box matching exact card spacing:
+  // horizontal distance between adjacent card centers = configuredCardWidth + cardGap
+  // vertical distance between adjacent row baselines = configuredCardHeight + cardGap
+  const boardWidthPx = Math.max(1, cols * configuredCardWidth + Math.max(0, cols - 1) * cardGap);
+  const offsetYPx = Math.max(12, Math.round(configuredCardHeight * 0.15));
+  const boardHeightPx = Math.max(1, rows * configuredCardHeight + Math.max(0, rows - 1) * cardGap + offsetYPx * 2);
+
+  // Normalized logical percentage dimensions
+  const cardWidthPercent = Math.min(40, Math.max(6, Math.round((configuredCardWidth / boardWidthPx) * 100 * 10) / 10));
+  const cardHeightPercent = Math.min(40, Math.max(6, Math.round((configuredCardHeight / boardHeightPx) * 100 * 10) / 10));
 
   const halfW = cardWidthPercent / 2;
   const halfH = cardHeightPercent / 2;
-  const marginPercent = 3.5;
+  const marginPercent = 1.0;
   const minX = halfW + marginPercent;
   const maxX = 100 - halfW - marginPercent;
   const minY = halfH + marginPercent;

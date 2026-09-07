@@ -402,7 +402,7 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
       rawMode === 'random' || rawMode === 'up-down' || rawMode === 'up-down-rotation'
         ? rawMode
         : 'grid';
-    const cardGap = typeof rawBoard?.cardGap === 'number' ? Math.max(4, Math.min(32, rawBoard.cardGap)) : 12;
+    const cardGap = typeof rawBoard?.cardGap === 'number' ? Math.max(0, Math.min(80, rawBoard.cardGap)) : 12;
 
     const rawRandom = rawBoard?.randomLayout;
     const minSpacing = typeof rawRandom?.minSpacing === 'number' ? Math.max(0, Math.min(40, rawRandom.minSpacing)) : 12;

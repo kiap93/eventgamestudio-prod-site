@@ -169,6 +169,72 @@ export function isEventBeforeStartDate(
  *   AND current_date <= event_end_date
  *   AND event is not cancelled
  */
+/**
+ * Checks whether an event is explicitly cancelled by user or administrator action.
+ *
+ * CRITICAL RULE:
+ * - Automated payment timeouts or payment status transitions MUST NEVER automatically cancel an event.
+ * - An event is ONLY cancelled if explicitly marked with an active cancellation reason (e.g. USER_CANCELLED or ADMIN_CANCELLED)
+ *   or if an unpaid draft/event was explicitly deleted/cancelled by an admin/user.
+ * - If an event is PAID, it can never be treated as cancelled by a payment timeout.
+ */
+export function isEventExplicitlyCancelled(
+  event: {
+    status?: string | null;
+    event_status?: string | null;
+    cancel_reason?: string | null;
+    payment_status?: string | null;
+    [key: string]: any;
+  } | null | undefined
+): boolean {
+  if (!event) return false;
+
+  const cancelReason = event.cancel_reason || null;
+  const rawStatus = (event.status || '').toLowerCase();
+  const eventStatus = (event.event_status || '').toUpperCase();
+  const payStatus = (event.payment_status || '').toUpperCase();
+
+  // Automated payment timeouts are NEVER treated as explicit cancellations
+  if (cancelReason === 'PAYMENT_TIMEOUT') {
+    return false;
+  }
+
+  // Explicit user or admin cancellation reasons
+  if (cancelReason === 'USER_CANCELLED' || cancelReason === 'ADMIN_CANCELLED') {
+    return true;
+  }
+
+  // Any custom explicit cancellation reason (other than PAYMENT_TIMEOUT)
+  if (cancelReason) {
+    return true;
+  }
+
+  // If the event is PAID, it can NEVER be cancelled without an explicit cancellation reason
+  if (payStatus === 'PAID') {
+    return false;
+  }
+
+  // For unpaid events: only cancelled if explicitly marked cancelled and not a payment timeout
+  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Checks whether an event's Live URL is currently accessible.
+ *
+ * Canonical Rule:
+ * LIVE URL AVAILABLE =
+ *   payment_status === "PAID"
+ *   AND current_date >= event_start_date - 1 calendar day (liveOpenDate, Setup Day)
+ *   AND current_date <= event_end_date (inclusive calendar day)
+ *   AND event is not explicitly cancelled
+ *
+ * Events are DATE-ONLY, not datetime-based.
+ * On event date (e.g. 07 Sep 2026 -> 07 Sep 2026), it is LIVE for the entire calendar day.
+ */
 export function canAccessLiveEvent(
   event: {
     status?: EventStatus | string | null;
@@ -188,38 +254,14 @@ export function canAccessLiveEvent(
 ): boolean {
   if (!event) return false;
 
-  const rawStatus = (event.status || '').toLowerCase();
-  const eventStatus = (event.event_status || '').toUpperCase();
+  // 1. Explicitly cancelled events are never accessible
+  if (isEventExplicitlyCancelled(event)) {
+    return false;
+  }
+
+  // 2. Payment MUST be fully PAID for public gameplay
   const payStatus = (event.payment_status || '').toUpperCase();
-  const cancelReason = event.cancel_reason || null;
-
-  // 1. Cancelled events are never accessible
-  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
-    return false;
-  }
-
-  // 2. Payment MUST be fully PAID
   if (payStatus !== 'PAID') {
-    return false;
-  }
-
-  const nowDt = currentDate ? (currentDate instanceof Date ? currentDate : new Date(currentDate)) : new Date();
-  const nowTime = nowDt.getTime();
-
-  // 3. Expired timestamp check: if expires_at has passed, event is not playable
-  const expiresTime = event.expires_at ? new Date(event.expires_at).getTime() : NaN;
-  if (!isNaN(expiresTime) && nowTime >= expiresTime) {
-    return false;
-  }
-
-  // 4. Stored expired/completed status check
-  if (rawStatus === 'expired' || rawStatus === 'completed' || eventStatus === 'COMPLETED') {
-    return false;
-  }
-
-  // 5. Future start timestamp check: if starts_at is in the future, event is not yet playable
-  const startsTime = event.starts_at ? new Date(event.starts_at).getTime() : NaN;
-  if (!isNaN(startsTime) && nowTime < startsTime) {
     return false;
   }
 
@@ -228,7 +270,7 @@ export function canAccessLiveEvent(
 
   const curDate = getNormalizedCurrentDate(currentDate);
 
-  // 6. Current calendar date >= liveOpenDate (start_date - 1 day) AND current_date <= end_date
+  // 3. Current calendar date >= liveOpenDate (start_date - 1 day) AND current_date <= end_date (inclusive)
   return curDate >= liveOpenDate && curDate <= endDate;
 }
 
@@ -260,11 +302,7 @@ export function canAccessPreviewEvent(
 ): boolean {
   if (!event) return false;
 
-  const rawStatus = (event.status || '').toLowerCase();
-  const eventStatus = (event.event_status || '').toUpperCase();
-  const cancelReason = event.cancel_reason || null;
-
-  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
+  if (isEventExplicitlyCancelled(event)) {
     return false;
   }
 
@@ -290,6 +328,15 @@ export function shouldShowPreviewHeader(
 
 /**
  * Calculates current dynamic event status for standard lifecycle management.
+ * Date-only evaluation:
+ * - Explicit cancellation -> 'cancelled'
+ * - Current date > end_date -> 'expired'
+ * - Current date < start_date:
+ *     paid -> 'scheduled'
+ *     unpaid -> 'pending_payment'
+ * - On event date range (start_date <= current_date <= end_date):
+ *     paid -> 'live'
+ *     unpaid -> 'pending_payment'
  */
 export function calculateEventStatus(
   event: {
@@ -305,45 +352,24 @@ export function calculateEventStatus(
   },
   now?: Date | string
 ): EventStatus {
-  const rawStatus = (event.status || '').toLowerCase();
-  const eventStatus = (event.event_status || '').toUpperCase();
-  const cancelReason = event.cancel_reason || null;
-
-  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
+  if (isEventExplicitlyCancelled(event)) {
     return 'cancelled';
   }
 
-  const nowDt = now ? (now instanceof Date ? now : new Date(now)) : new Date();
-  const nowTime = nowDt.getTime();
-  const expiresTime = event.expires_at ? new Date(event.expires_at).getTime() : NaN;
-  const isExpiredByTimestamp = !isNaN(expiresTime) && nowTime >= expiresTime;
-
-  const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
+  const { startDate, endDate } = getNormalizedEventDates(event);
   const curDate = getNormalizedCurrentDate(now);
-  const isExpiredByDate = Boolean(endDate && curDate > endDate);
+  const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 
-  if (isExpiredByTimestamp || isExpiredByDate || rawStatus === 'expired' || rawStatus === 'completed' || eventStatus === 'COMPLETED') {
+  if (endDate && curDate > endDate) {
     return 'expired';
   }
 
-  const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
-
-  if (!isPaid) {
-    if (rawStatus === 'draft' || eventStatus === 'DRAFT') {
-      return 'draft';
-    }
-    return 'pending_payment';
+  if (startDate && curDate < startDate) {
+    return isPaid ? 'scheduled' : 'pending_payment';
   }
 
-  const startsTime = event.starts_at ? new Date(event.starts_at).getTime() : NaN;
-  const isBeforeStartsTime = !isNaN(startsTime) && nowTime < startsTime;
-  const isBeforeLiveOpenDate = Boolean(liveOpenDate && curDate < liveOpenDate);
-
-  if (isBeforeStartsTime || isBeforeLiveOpenDate || rawStatus === 'scheduled' || eventStatus === 'SCHEDULED') {
-    return 'scheduled';
-  }
-
-  return 'live';
+  // On event date range
+  return isPaid ? 'live' : 'pending_payment';
 }
 
 /**
@@ -369,11 +395,15 @@ export function isEventPlayable(
 
 /**
  * Derives the canonical uppercase event_status lifecycle enum:
- * 1. CANCELLED -> 'CANCELLED'
- * 2. unpaid / pending payment -> 'DRAFT' | 'PENDING_PAYMENT' | 'CANCELLED' (if expired)
- * 3. paid + expired (timestamp or date) -> 'COMPLETED'
- * 4. paid + before start -> 'SCHEDULED'
- * 5. paid + live -> 'LIVE'
+ *
+ * EXPECTED LIFECYCLE RULES:
+ * 1. Only explicit cancellation: CANCELLED
+ * 2. After event date has ended: COMPLETED (Concluded)
+ * 3. Before event date: SCHEDULED
+ * 4. On event date: LIVE
+ *
+ * Events are DATE-ONLY, not datetime-based.
+ * Payment status does NOT automatically set event status to CANCELLED.
  */
 export function deriveEventLifecycleStatus(
   event: {
@@ -389,53 +419,24 @@ export function deriveEventLifecycleStatus(
   },
   now?: Date | string
 ): EventLifecycleStatus {
-  const rawStatus = (event.status || '').toLowerCase();
-  const eventStatus = (event.event_status || '').toUpperCase();
-  const payStatus = (event.payment_status || '').toUpperCase();
-  const cancelReason = event.cancel_reason || null;
-
-  // 1. CANCELLED -> 'CANCELLED'
-  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED' || cancelReason) {
+  if (isEventExplicitlyCancelled(event)) {
     return 'CANCELLED';
   }
 
-  const nowDt = now ? (now instanceof Date ? now : new Date(now)) : new Date();
-  const nowTime = nowDt.getTime();
-  const expiresTime = event.expires_at ? new Date(event.expires_at).getTime() : NaN;
-  const isExpiredByTimestamp = !isNaN(expiresTime) && nowTime >= expiresTime;
-
-  const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
+  const { startDate, endDate } = getNormalizedEventDates(event);
   const curDate = getNormalizedCurrentDate(now);
-  const isExpiredByDate = Boolean(endDate && curDate > endDate);
-  const isPaid = payStatus === 'PAID';
 
-  // 2. unpaid / pending payment
-  if (!isPaid) {
-    if (isExpiredByDate || isExpiredByTimestamp) {
-      return 'CANCELLED';
-    }
-    if (eventStatus === 'DRAFT' || rawStatus === 'draft') {
-      return 'DRAFT';
-    }
-    return 'PENDING_PAYMENT';
-  }
-
-  // 3. Paid events:
-  // Paid + expired (stored LIVE status CANNOT override expired timestamp)
-  if (isExpiredByTimestamp || isExpiredByDate || eventStatus === 'COMPLETED' || rawStatus === 'expired' || rawStatus === 'completed') {
+  // After event date has ended -> COMPLETED (Concluded)
+  if (endDate && curDate > endDate) {
     return 'COMPLETED';
   }
 
-  // Paid + before start timestamp or before liveOpenDate (start_date - 1 day) -> SCHEDULED
-  const startsTime = event.starts_at ? new Date(event.starts_at).getTime() : NaN;
-  const isBeforeStartsTime = !isNaN(startsTime) && nowTime < startsTime;
-  const isBeforeLiveOpenDate = Boolean(liveOpenDate && curDate < liveOpenDate);
-
-  if (isBeforeStartsTime || isBeforeLiveOpenDate || rawStatus === 'scheduled' || eventStatus === 'SCHEDULED') {
+  // Before event date -> SCHEDULED
+  if (startDate && curDate < startDate) {
     return 'SCHEDULED';
   }
 
-  // Paid + within active window -> LIVE
+  // On event date -> LIVE
   return 'LIVE';
 }
 
@@ -2453,15 +2454,17 @@ export async function runEventLifecycleMaintenance(
       }
     }
 
-    // 1. Unpaid events
+    // 1. Unpaid events:
     if (payStatus !== 'PAID') {
-      // 1a. If event start time has arrived/passed without payment -> Auto-cancel with PAYMENT_TIMEOUT
-      if (nowTime >= startsAtTime) {
-        cancelledEvents.push(ev.id);
+      const { endDate } = getNormalizedEventDates(ev);
+      const isAfterEndDate = Boolean(endDate && curDate > endDate);
+
+      // If the event date has completely finished -> Mark COMPLETED (Concluded), never auto-cancelled
+      if (isAfterEndDate && evStatus !== 'COMPLETED' && rawStatus !== 'expired') {
+        completedEvents.push(ev.id);
         const payload = {
-          event_status: 'CANCELLED' as EventLifecycleStatus,
-          status: 'cancelled' as EventStatus,
-          cancel_reason: 'PAYMENT_TIMEOUT' as EventCancelReason,
+          event_status: 'COMPLETED' as EventLifecycleStatus,
+          status: 'expired' as EventStatus,
           updated_at: nowIso,
         };
         await supabase.from('events').update(payload).eq('id', ev.id);
@@ -2470,8 +2473,8 @@ export async function runEventLifecycleMaintenance(
           localEventsCache.set(ev.id, { ...cached, ...payload });
         }
       }
-      // 1b. If Setup Day has started (now >= setup_starts_at) -> Attempt automated atomic payment deduction
-      else if (nowTime >= setupStartTime.getTime()) {
+      // If Setup Day has started and event hasn't ended -> Attempt automated atomic payment deduction
+      else if (!isAfterEndDate && nowTime >= setupStartTime.getTime()) {
         try {
           const paymentResult = await processEventPayment(
             {
@@ -2487,10 +2490,11 @@ export async function runEventLifecycleMaintenance(
 
           if (paymentResult && paymentResult.success) {
             paidEvents.push(ev.id);
+            const isLiveWindow = hasReachedStartDate;
             const updatePayload = {
               payment_status: 'PAID' as PaymentLifecycleStatus,
               event_status: 'LIVE' as EventLifecycleStatus,
-              status: (nowTime >= startsAtTime ? 'live' : 'scheduled') as EventStatus,
+              status: (isLiveWindow ? 'live' : 'scheduled') as EventStatus,
               paid_amount: paymentResult.paymentCalculation.paidAmount,
               discount_amount: paymentResult.paymentCalculation.totalDiscount,
               payment_mode: (ev.payment_mode || 'FULL_PAID') as PaymentMode,
@@ -2510,19 +2514,41 @@ export async function runEventLifecycleMaintenance(
       continue;
     }
 
-    // 2. Paid events whose expiry time has passed -> Mark COMPLETED
+    // 2. Paid events:
     if (payStatus === 'PAID') {
-      if (nowTime >= expiresAtTime && evStatus !== 'COMPLETED' && rawStatus !== 'expired') {
-        completedEvents.push(ev.id);
-        const payload = {
-          event_status: 'COMPLETED' as EventLifecycleStatus,
-          status: 'expired' as EventStatus,
-          updated_at: nowIso,
-        };
-        await supabase.from('events').update(payload).eq('id', ev.id);
-        const cached = localEventsCache.get(ev.id);
-        if (cached) {
-          localEventsCache.set(ev.id, { ...cached, ...payload });
+      const { endDate, startDate } = getNormalizedEventDates(ev);
+      const isAfterEndDate = Boolean(endDate && curDate > endDate);
+      const isLiveNow = Boolean(startDate && endDate && curDate >= startDate && curDate <= endDate);
+
+      // Event date has completely passed -> Mark COMPLETED (Concluded)
+      if (isAfterEndDate) {
+        if (evStatus !== 'COMPLETED' && rawStatus !== 'expired') {
+          completedEvents.push(ev.id);
+          const payload = {
+            event_status: 'COMPLETED' as EventLifecycleStatus,
+            status: 'expired' as EventStatus,
+            updated_at: nowIso,
+          };
+          await supabase.from('events').update(payload).eq('id', ev.id);
+          const cached = localEventsCache.get(ev.id);
+          if (cached) {
+            localEventsCache.set(ev.id, { ...cached, ...payload });
+          }
+        }
+      }
+      // On event date -> LIVE
+      else if (isLiveNow) {
+        if (evStatus !== 'LIVE' || rawStatus !== 'live') {
+          const livePayload = {
+            event_status: 'LIVE' as EventLifecycleStatus,
+            status: 'live' as EventStatus,
+            updated_at: nowIso,
+          };
+          await supabase.from('events').update(livePayload).eq('id', ev.id);
+          const cached = localEventsCache.get(ev.id);
+          if (cached) {
+            localEventsCache.set(ev.id, { ...cached, ...livePayload });
+          }
         }
       }
     }

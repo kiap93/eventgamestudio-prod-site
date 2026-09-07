@@ -10,6 +10,7 @@ import {
   getNormalizedEventDates,
   formatDateOnly,
   getSingaporeCalendarDate,
+  isEventExplicitlyCancelled,
 } from '../../lib/dateUtils';
 import {
   Calendar,
@@ -314,7 +315,7 @@ export const PublicEventGameView: React.FC = () => {
   const dates = activeEvent ? getNormalizedEventDates(activeEvent) : null;
 
   // 1. Cancelled State
-  if (errorDetails?.is_cancelled || activeEvent?.event_status === 'CANCELLED' || activeEvent?.status === 'cancelled') {
+  if (errorDetails?.is_cancelled || isEventExplicitlyCancelled(activeEvent)) {
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-5 shadow-2xl">

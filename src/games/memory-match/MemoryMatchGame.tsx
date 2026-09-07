@@ -1502,7 +1502,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               display: 'grid',
               gridTemplateColumns: `repeat(${cols}, ${cardWidth}px)`,
               gridTemplateRows: `repeat(${rows}, ${cardHeight}px)`,
-              gap: `${boardConfig.cardGap ?? 10}px`,
+              gap: `${boardConfig.cardGap ?? 12}px`,
               justifyContent: 'center',
               alignContent: 'center',
               zIndex: editableLayout && selectedElementKey === 'memoryCardBoard' ? 45 : 10,
@@ -1682,8 +1682,16 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               left: `${boardX}%`,
               top: `${boardY}%`,
               transform: 'translate(-50%, -50%)',
-              width: `${Math.max(isPortrait ? 520 : 540, cols * cardWidth + (cols - 1) * (boardConfig.cardGap ?? 10))}px`,
-              height: `${Math.max(isPortrait ? 620 : 410, rows * cardHeight + (rows - 1) * (boardConfig.cardGap ?? 10) + Math.round(cardHeight * 0.25))}px`,
+              width: `${
+                boardConfig.layoutMode === 'up-down' || boardConfig.layoutMode === 'up-down-rotation'
+                  ? cols * cardWidth + Math.max(0, cols - 1) * (boardConfig.cardGap ?? 12)
+                  : Math.max(isPortrait ? 520 : 540, cols * cardWidth + Math.max(0, cols - 1) * (boardConfig.cardGap ?? 12))
+              }px`,
+              height: `${
+                boardConfig.layoutMode === 'up-down' || boardConfig.layoutMode === 'up-down-rotation'
+                  ? rows * cardHeight + Math.max(0, rows - 1) * (boardConfig.cardGap ?? 12) + Math.max(12, Math.round(cardHeight * 0.15)) * 2
+                  : Math.max(isPortrait ? 620 : 410, rows * cardHeight + Math.max(0, rows - 1) * (boardConfig.cardGap ?? 12) + Math.round(cardHeight * 0.25))
+              }px`,
               maxWidth: '100%',
               maxHeight: '100%',
               zIndex: editableLayout && selectedElementKey === 'memoryCardBoard' ? 45 : 10,

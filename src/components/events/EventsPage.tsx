@@ -6,6 +6,7 @@ import { CreateEventDialog } from './CreateEventDialog';
 import { EditEventDialog } from './EditEventDialog';
 import { CancelEventModal } from './CancelEventModal';
 import { EventCalendarView } from './EventCalendarView';
+import { isEventExplicitlyCancelled } from '../../lib/dateUtils';
 import {
   Plus,
   Calendar as CalendarIcon,
@@ -116,23 +117,23 @@ export const EventsPage: React.FC = () => {
       ev.game_theme?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ev.public_token?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const effectiveStatus = ev.calculated_status || ev.status;
-    const isPending =
-      effectiveStatus === 'pending_payment' ||
-      ev.payment_status === 'PENDING_PAYMENT' ||
-      (ev.payment_status && ev.payment_status !== 'PAID');
+    const isCancelled = isEventExplicitlyCancelled(ev);
+    const effectiveStatus = isCancelled ? 'cancelled' : (ev.calculated_status || ev.status);
+    const isPaid = (ev.payment_status || '').toUpperCase() === 'PAID';
+    const isPending = !isCancelled && !isPaid;
 
     if (statusFilter === 'all') return matchesSearch;
+    if (statusFilter === 'cancelled') return matchesSearch && isCancelled;
     if (statusFilter === 'pending_payment') return matchesSearch && isPending;
-    return matchesSearch && !isPending && effectiveStatus === statusFilter;
+    return matchesSearch && !isCancelled && effectiveStatus === statusFilter;
   });
 
   // Metrics
   const totalCount = events.length;
-  const liveCount = events.filter((e) => (e.calculated_status || e.status) === 'live' && e.payment_status !== 'PENDING_PAYMENT').length;
-  const scheduledCount = events.filter((e) => (e.calculated_status || e.status) === 'scheduled' && e.payment_status !== 'PENDING_PAYMENT').length;
-  const pendingCount = events.filter((e) => (e.calculated_status || e.status) === 'pending_payment' || e.payment_status === 'PENDING_PAYMENT').length;
-  const expiredCount = events.filter((e) => (e.calculated_status || e.status) === 'expired').length;
+  const liveCount = events.filter((e) => !isEventExplicitlyCancelled(e) && (e.calculated_status || e.status) === 'live' && (e.payment_status || '').toUpperCase() === 'PAID').length;
+  const scheduledCount = events.filter((e) => !isEventExplicitlyCancelled(e) && (e.calculated_status || e.status) === 'scheduled' && (e.payment_status || '').toUpperCase() === 'PAID').length;
+  const pendingCount = events.filter((e) => !isEventExplicitlyCancelled(e) && (e.payment_status || '').toUpperCase() !== 'PAID').length;
+  const expiredCount = events.filter((e) => !isEventExplicitlyCancelled(e) && ((e.calculated_status || e.status) === 'expired' || (e.calculated_status || e.status) === 'completed')).length;
 
   const isViewer = currentOrganization?.role === 'viewer';
 
