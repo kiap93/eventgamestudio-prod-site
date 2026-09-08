@@ -33,6 +33,7 @@ import { PresetLibraryModal } from './start-editor/PresetLibraryModal';
 import { SaveTemplateModal } from './start-editor/SaveTemplateModal';
 import { useStartScreenHistory, filterValidStartSelectedIds } from './start-editor/history';
 import { generateDefaultStartScreenElements } from '../../../games/shared/startScreenTypes';
+import { normalizeStartScreenConfigForStage } from '../../../games/shared/startScreenResolver';
 
 export interface StartScreenVisualEditorProps {
   startConfig: StartScreenConfig;
@@ -57,13 +58,28 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   onToggleFullscreen,
   onUploadAsset,
 }) => {
+  // Effective config with automatic game-stage canvas matching
+  const effectiveConfig = useMemo(() => {
+    let cfg = { ...startConfig };
+    if (!cfg.canvas) {
+      cfg.canvas = {
+        width: gameType === 'catch-brand' ? 1024 : 1000,
+        height: gameType === 'catch-brand' ? 576 : 1000,
+      };
+    }
+    if (gameType === 'catch-brand' && cfg.canvas.width === 1000 && cfg.canvas.height === 1000) {
+      cfg = normalizeStartScreenConfigForStage(cfg, 1024, 576);
+    }
+    return cfg;
+  }, [startConfig, gameType]);
+
   // Elements initialization with fallback
   const initialElements = useMemo(() => {
-    if (startConfig.elements && startConfig.elements.length > 0) {
-      return startConfig.elements;
+    if (effectiveConfig.elements && effectiveConfig.elements.length > 0) {
+      return effectiveConfig.elements;
     }
-    return generateDefaultStartScreenElements(startConfig, theme, gameType);
-  }, [startConfig, theme, gameType]);
+    return generateDefaultStartScreenElements(gameType, theme, undefined, effectiveConfig);
+  }, [effectiveConfig, theme, gameType]);
 
   // History management
   const {
@@ -89,11 +105,11 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   const syncToParent = useCallback(
     (newElements: StartScreenElement[]) => {
       onChange({
-        ...startConfig,
+        ...effectiveConfig,
         elements: newElements,
       });
     },
-    [onChange, startConfig]
+    [onChange, effectiveConfig]
   );
 
   // Update elements and save to history
@@ -458,10 +474,10 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
           onToggleCollapse={() => setIsLayerTreeCollapsed((c) => !c)}
         />
 
-        {/* Center: Canvas Workspace (1000x1000 responsive) */}
+        {/* Center: Canvas Workspace */}
         <div className="flex-1 h-full relative overflow-hidden bg-slate-950">
           <CanvasWorkspace
-            startConfig={startConfig}
+            startConfig={effectiveConfig}
             theme={theme}
             gameType={gameType}
             elements={currentElements}
@@ -485,7 +501,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
           selectedElement={selectedElement}
           selectedIds={selectedIds}
           elements={currentElements}
-          startConfig={startConfig}
+          startConfig={effectiveConfig}
           theme={theme}
           gameType={gameType}
           onUpdateElement={(updater) => {
@@ -494,7 +510,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
             }
           }}
           onUpdateConfig={(updater) => {
-            onChange(updater(startConfig));
+            onChange(updater(effectiveConfig));
           }}
           onDuplicateSelected={handleDuplicateSelected}
           onDeleteSelected={handleDeleteSelected}

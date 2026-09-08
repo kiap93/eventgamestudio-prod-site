@@ -120,9 +120,9 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   // Background resolution
   const bg = resolveScreenBackground(startConfig, theme);
 
-  // Canvas bounds (1000x1000 logical)
-  const CANVAS_WIDTH = 1000;
-  const CANVAS_HEIGHT = 1000;
+  // Canvas bounds matching startConfig.canvas (1024x576 for 16:9, 576x1024 for 9:16)
+  const CANVAS_WIDTH = startConfig?.canvas?.width || 1024;
+  const CANVAS_HEIGHT = startConfig?.canvas?.height || 576;
 
   // Auto-fit zoom on mount or resize
   const autoFitZoom = useCallback(() => {

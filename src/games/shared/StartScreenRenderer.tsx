@@ -7,7 +7,7 @@ import {
 import { resolveScreenBackground } from '../../themes/screenBackground';
 import { GameTheme, getThemeGameType } from '../../themes/types';
 import { StartElementContent } from './StartElementContent';
-import { getStartScreenConfig } from './startScreenResolver';
+import { getStartScreenConfig, normalizeStartScreenConfigForStage } from './startScreenResolver';
 import { StartScreenErrorBoundary } from './StartScreenErrorBoundary';
 
 export interface StartScreenRendererProps {
@@ -39,15 +39,17 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
   isSimulation = false,
   suppressBackground = false,
 }) => {
+  const targetGameType = gameType || (theme ? getThemeGameType(theme) : 'catch-brand');
+
   // Authoritative config resolution
   const resolvedConfig = getStartScreenConfig(
     theme,
-    gameType || (theme ? getThemeGameType(theme) : 'catch-brand'),
+    targetGameType,
     gameMeta
   );
 
   // Merge any caller-provided startConfig if present
-  const finalConfig: StartScreenConfig = {
+  let mergedConfig: StartScreenConfig = {
     ...resolvedConfig,
     ...(startConfig || {}),
     canvas: startConfig?.canvas || resolvedConfig.canvas,
@@ -57,15 +59,25 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
       : resolvedConfig.elements,
   };
 
+  // If configuration still has legacy square canvas and game is catch-brand, normalize to 1024 x 576
+  if (
+    targetGameType === 'catch-brand' &&
+    mergedConfig.canvas?.width === 1000 &&
+    mergedConfig.canvas?.height === 1000
+  ) {
+    mergedConfig = normalizeStartScreenConfigForStage(mergedConfig, 1024, 576);
+  }
+
+  const finalConfig = mergedConfig;
   const bg = resolveScreenBackground(finalConfig as any, theme);
   const canvasWidth =
     Number.isFinite(finalConfig?.canvas?.width) && (finalConfig?.canvas?.width ?? 0) > 0
-      ? (finalConfig?.canvas?.width ?? 1000)
-      : 1000;
+      ? (finalConfig?.canvas?.width ?? 1024)
+      : 1024;
   const canvasHeight =
     Number.isFinite(finalConfig?.canvas?.height) && (finalConfig?.canvas?.height ?? 0) > 0
-      ? (finalConfig?.canvas?.height ?? 1000)
-      : 1000;
+      ? (finalConfig?.canvas?.height ?? 576)
+      : 576;
 
   const elements: StartScreenElement[] = Array.isArray(finalConfig.elements)
     ? finalConfig.elements
@@ -139,14 +151,13 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
         <div className="absolute inset-0 pointer-events-none" style={bg.overlayStyle} />
       )}
 
-      {/* 1000 x 1000 Logical Canvas scaled responsively to fit container without 0x0 collapse */}
+      {/* Game Stage Logical Canvas matching stage aspect ratio (16:9 Landscape or 9:16 Portrait) */}
       <div
-        className="relative w-full h-full max-w-full max-h-full aspect-square flex items-center justify-center"
+        className="relative w-full h-full max-w-full max-h-full flex items-center justify-center overflow-hidden"
         style={{
-          containerType: 'inline-size',
-          maxWidth: 'min(100vw, 100vh)',
-          maxHeight: 'min(100vw, 100vh)',
-          aspectRatio: '1 / 1',
+          aspectRatio: `${canvasWidth} / ${canvasHeight}`,
+          maxWidth: '100%',
+          maxHeight: '100%',
         }}
       >
         {elements.map((el) => renderElement(el, canvasWidth, canvasHeight, true))}

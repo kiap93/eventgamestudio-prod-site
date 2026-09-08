@@ -86,6 +86,33 @@ export function calculateResponsiveUiScale(
 }
 
 /**
+ * Returns the authoritative runtime design dimensions and aspect ratio for the game stage.
+ * - Landscape: 1024 x 576 (16:9)
+ * - Portrait: 576 x 1024 (9:16)
+ */
+export function getGameStageDimensions(isPortrait: boolean): {
+  width: number;
+  height: number;
+  aspectRatio: number;
+  aspectRatioStr: string;
+} {
+  if (isPortrait) {
+    return {
+      width: PORTRAIT_DESIGN_WIDTH,
+      height: PORTRAIT_DESIGN_HEIGHT,
+      aspectRatio: PORTRAIT_DESIGN_WIDTH / PORTRAIT_DESIGN_HEIGHT, // 9 / 16 (0.5625)
+      aspectRatioStr: '9 / 16',
+    };
+  }
+  return {
+    width: LANDSCAPE_DESIGN_WIDTH,
+    height: LANDSCAPE_DESIGN_HEIGHT,
+    aspectRatio: LANDSCAPE_DESIGN_WIDTH / LANDSCAPE_DESIGN_HEIGHT, // 16 / 9 (1.7777777778)
+    aspectRatioStr: '16 / 9',
+  };
+}
+
+/**
  * Measures mobile device safe-area insets using CSS environment variables.
  */
 export function getSafeAreaInsets(): SafeAreaInsets {

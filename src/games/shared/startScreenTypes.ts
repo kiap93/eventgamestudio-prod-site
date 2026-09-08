@@ -9,10 +9,22 @@ import { GameTheme } from '../../themes/types';
 
 export type { ScreenBackgroundType };
 
-export const DEFAULT_START_CANVAS_CONFIG = {
+export const LANDSCAPE_START_CANVAS = {
+  width: 1024,
+  height: 576,
+};
+
+export const PORTRAIT_START_CANVAS = {
+  width: 576,
+  height: 1024,
+};
+
+export const SQUARE_START_CANVAS = {
   width: 1000,
   height: 1000,
 };
+
+export const DEFAULT_START_CANVAS_CONFIG = LANDSCAPE_START_CANVAS;
 
 export type StartScreenElementType =
   | 'card'
@@ -328,8 +340,8 @@ export interface StartScreenConfig {
 
 /**
  * Generate default Start Screen elements for Catch The Brand.
- * Root canvas: 1000 x 1000.
- * Central card: x=140, y=180, width=720, height=640.
+ * Root canvas: 1024 x 576 (16:9).
+ * Central card: x=132, y=53, width=760, height=470 (~74% width, ~82% height).
  * Children coordinates are relative to the central card.
  */
 export function generateDefaultCatchBrandStartScreenElements(
@@ -341,50 +353,50 @@ export function generateDefaultCatchBrandStartScreenElements(
   const logo = gameMeta?.logoUrl || theme?.clientLogo || theme?.logo || null;
 
   const cardChildren: StartScreenElement[] = [
-    // Engine Eyebrow
-    {
-      id: 'eyebrow-text',
-      type: 'text',
-      x: 60,
-      y: 35,
-      width: 600,
-      height: 30,
-      text: 'RETRO ARCADE ENGINE',
-      style: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#34d399',
-        textAlign: 'center',
-        letterSpacing: 2,
-        textTransform: 'uppercase',
-      },
-    },
-    // Optional logo or header image
+    // Header section: Logo or Eyebrow
     ...(logo
       ? ([
           {
             id: 'client-logo',
             type: 'image',
-            x: 235,
-            y: 70,
-            width: 250,
-            height: 60,
+            x: 280,
+            y: 14,
+            width: 200,
+            height: 38,
             imageUrl: logo,
             objectFit: 'contain',
           },
         ] as StartScreenElement[])
-      : []),
+      : ([
+          {
+            id: 'eyebrow-text',
+            type: 'text',
+            x: 60,
+            y: 16,
+            width: 640,
+            height: 20,
+            text: 'RETRO ARCADE ENGINE',
+            style: {
+              fontSize: 12,
+              fontWeight: 'bold',
+              color: '#34d399',
+              textAlign: 'center',
+              letterSpacing: 2,
+              textTransform: 'uppercase',
+            },
+          },
+        ] as StartScreenElement[])),
     // Title
     {
       id: 'game-title',
       type: 'text',
-      x: 40,
-      y: logo ? 135 : 75,
-      width: 640,
-      height: 60,
+      x: 20,
+      y: logo ? 56 : 40,
+      width: 720,
+      height: logo ? 40 : 48,
       text: title,
       style: {
-        fontSize: 38,
+        fontSize: logo ? 30 : 34,
         fontWeight: 900,
         color: '#fef08a',
         textAlign: 'center',
@@ -396,13 +408,13 @@ export function generateDefaultCatchBrandStartScreenElements(
     {
       id: 'game-subtitle',
       type: 'text',
-      x: 50,
-      y: logo ? 198 : 140,
-      width: 620,
-      height: 40,
+      x: 30,
+      y: logo ? 100 : 94,
+      width: 700,
+      height: 24,
       text: subtitle,
       style: {
-        fontSize: 16,
+        fontSize: 13,
         fontWeight: 500,
         color: '#cbd5e1',
         textAlign: 'center',
@@ -415,9 +427,9 @@ export function generateDefaultCatchBrandStartScreenElements(
       type: 'rules',
       ruleType: 'catch-brand',
       x: 40,
-      y: logo ? 245 : 195,
-      width: 640,
-      height: 180,
+      y: logo ? 130 : 126,
+      width: 680,
+      height: 155,
       goodItemTitle: gameMeta?.fallingItemName || 'Target Item',
       goodItemSubtitle: '+10 POINTS',
       goodItemImg: gameMeta?.goodItemImg || gameMeta?.fallingItemImg || null,
@@ -425,23 +437,23 @@ export function generateDefaultCatchBrandStartScreenElements(
       badItemSubtitle: '-10 POINTS',
       badItemImg: gameMeta?.badItemImg || gameMeta?.badFallingItemImg || null,
     },
-    // Start Game Button
+    // Start Game Button (Emerald Gradient)
     {
       id: 'start-button',
       type: 'button',
       action: 'start',
-      x: 60,
-      y: logo ? 440 : 395,
-      width: 600,
-      height: 70,
+      x: 90,
+      y: logo ? 298 : 294,
+      width: 580,
+      height: 58,
       text: 'START GAME',
       icon: 'Play',
       style: {
         backgroundColor: '#10b981',
         textColor: '#022c22',
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: 900,
-        borderRadius: 20,
+        borderRadius: 18,
         shadow: true,
         gradient: true,
         gradientFrom: '#10b981',
@@ -453,19 +465,19 @@ export function generateDefaultCatchBrandStartScreenElements(
       id: 'keyboard-hints',
       type: 'keyboard-hints',
       x: 40,
-      y: logo ? 530 : 485,
-      width: 250,
-      height: 40,
+      y: 374,
+      width: 200,
+      height: 36,
       keys: ['← →', 'A D'],
     },
     {
       id: 'leaderboard-btn',
       type: 'button',
       action: 'leaderboard',
-      x: 350,
-      y: logo ? 530 : 485,
+      x: 380,
+      y: 374,
       width: 150,
-      height: 40,
+      height: 36,
       text: 'Leaderboard',
       icon: 'Trophy',
       style: {
@@ -479,10 +491,10 @@ export function generateDefaultCatchBrandStartScreenElements(
       id: 'guide-btn',
       type: 'button',
       action: 'guide',
-      x: 520,
-      y: logo ? 530 : 485,
+      x: 550,
+      y: 374,
       width: 140,
-      height: 40,
+      height: 36,
       text: 'Guide',
       icon: 'HelpCircle',
       style: {
@@ -498,16 +510,17 @@ export function generateDefaultCatchBrandStartScreenElements(
     {
       id: 'main-start-card',
       type: 'card',
-      x: 140,
-      y: 180,
-      width: 720,
-      height: logo ? 600 : 550,
+      x: 132,
+      y: 53,
+      width: 760,
+      height: 470,
       style: {
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        backgroundColor: 'rgba(15, 23, 42, 0.85)',
         borderWidth: 2,
         borderColor: '#f59e0b',
-        borderRadius: 28,
+        borderRadius: 24,
         shadow: true,
+        backdropBlur: true,
       },
       children: cardChildren,
     },

@@ -111,26 +111,58 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
       const borderRadius = style.borderRadius ?? 24;
       const borderWidth = style.borderWidth ?? 1;
       const borderColor = style.borderColor ?? '#334155';
-      const backgroundColor = style.backgroundColor ?? 'rgba(15, 23, 42, 0.95)';
+      const backgroundColor = style.backgroundColor ?? 'rgba(15, 23, 42, 0.85)';
+
+      // Resolve theme background fallback for rich card appearance
+      const themeBgUrl =
+        (theme as any)?.background_url ||
+        (theme as any)?.backgroundUrl ||
+        (theme as any)?.theme_assets?.background ||
+        (theme as any)?.background ||
+        null;
+      const cardBgImage =
+        style.backgroundImageUrl !== undefined
+          ? style.backgroundImageUrl
+          : themeBgUrl;
 
       return (
         <div
           className="relative w-full h-full overflow-hidden"
           style={{
-            backgroundColor,
-            borderRadius: `${(borderRadius / 1000) * parentWidth}px`,
+            borderRadius: `calc(${borderRadius}px * var(--game-ui-scale, 1))`,
             borderWidth: `${borderWidth}px`,
             borderColor,
             boxShadow: style.shadow ? '0 25px 50px -12px rgba(0, 0, 0, 0.7)' : undefined,
-            backgroundImage: style.backgroundImageUrl ? `url("${style.backgroundImageUrl}")` : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
           }}
         >
-          {Array.isArray(cardEl.children) &&
-            cardEl.children.map((child) =>
-              renderChild ? renderChild(child, cardEl.width, cardEl.height) : null
-            )}
+          {/* Theme / Custom Background Layer */}
+          {cardBgImage && (
+            <div
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              style={{
+                backgroundImage: `url("${cardBgImage}")`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              }}
+            />
+          )}
+          {/* Dark Overlay Layer */}
+          <div
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            style={{
+              backgroundColor,
+              backdropFilter: style.backdropBlur ? 'blur(8px)' : undefined,
+              WebkitBackdropFilter: style.backdropBlur ? 'blur(8px)' : undefined,
+            }}
+          />
+          {/* Child Elements Layer */}
+          <div className="relative z-10 w-full h-full">
+            {Array.isArray(cardEl.children) &&
+              cardEl.children.map((child) =>
+                renderChild ? renderChild(child, cardEl.width, cardEl.height) : null
+              )}
+          </div>
         </div>
       );
     }
@@ -162,9 +194,9 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
         displayedText = displayedText.replace(/{gameSubtitle}/g, gameMeta.gameSubtitle);
       }
 
-      // Proportional font sizing based on logical parent dimensions
+      // Proportional font sizing based on logical parent dimensions & game UI scale
       const baseFontSize = s.fontSize ?? 16;
-      const calculatedFontSize = `${(baseFontSize / 1000) * parentHeight * 1.5}px`;
+      const calculatedFontSize = `calc(${baseFontSize}px * var(--game-ui-scale, 1))`;
 
       return (
         <div
@@ -257,7 +289,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
       const baseBg = isStartAction ? (s.backgroundColor || '#10b981') : (s.backgroundColor || 'transparent');
       const textColor = s.textColor || (isStartAction ? '#020617' : '#f59e0b');
       const baseFontSize = s.fontSize ?? (isStartAction ? 22 : 14);
-      const calculatedFontSize = `${(baseFontSize / 1000) * parentHeight * 1.5}px`;
+      const calculatedFontSize = `calc(${baseFontSize}px * var(--game-ui-scale, 1))`;
 
       let iconNode: React.ReactNode = null;
       if (btnEl.icon === 'Play' || (!btnEl.icon && isStartAction)) {
@@ -343,14 +375,20 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
           }}
         >
           <span
-            className="text-[10px] sm:text-xs font-bold uppercase tracking-wider block"
-            style={{ color: s.labelColor || '#64748b' }}
+            className="font-bold uppercase tracking-wider block"
+            style={{
+              color: s.labelColor || '#64748b',
+              fontSize: 'calc(11px * var(--game-ui-scale, 1))',
+            }}
           >
             {resolvedLabel}
           </span>
           <span
-            className="text-xs sm:text-sm font-black font-mono block truncate"
-            style={{ color: s.valueColor || '#f59e0b' }}
+            className="font-black font-mono block truncate"
+            style={{
+              color: s.valueColor || '#f59e0b',
+              fontSize: 'calc(14px * var(--game-ui-scale, 1))',
+            }}
           >
             {resolvedValue}
           </span>
