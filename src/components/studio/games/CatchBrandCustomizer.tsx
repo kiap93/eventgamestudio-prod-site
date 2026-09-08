@@ -1,7 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { GameTheme, ThemeDropItem, ThemeDifficultyStage } from '../../../themes/types';
-import { ResultScreenVisualEditor } from './ResultScreenVisualEditor';
-import { StartScreenVisualEditor } from './StartScreenVisualEditor';
 import {
   Layers,
   Sparkles,
@@ -23,8 +21,6 @@ import {
   Activity,
   Plus,
   Copy,
-  Trophy,
-  Tv,
 } from 'lucide-react';
 
 export const PRESET_CATCHERS = [
@@ -700,106 +696,3 @@ export const CatchBrandGameplayCustomizer: React.FC<CatchBrandGameplayCustomizer
     </div>
   );
 };
-
-/* ==========================================================================
- * CATCH THE BRAND - SCREENS CUSTOMIZER (START & RESULT VISUAL EDITORS)
- * ========================================================================== */
-export const CatchBrandScreensCustomizer: React.FC<{
-  theme: GameTheme;
-  onChange: (updated: GameTheme) => void;
-  onUploadAsset?: (file: File, fieldKey: string) => Promise<string>;
-  uploadingAsset?: string | null;
-}> = ({ theme, onChange, onUploadAsset }) => {
-  const [activeScreenTab, setActiveScreenTab] = useState<'start' | 'result'>('start');
-
-  const startConfig = theme.screens?.start || (theme.game_config as any)?.screens?.start || {
-    background: { type: 'solid', color: '#070b14' },
-    elements: [],
-  };
-
-  const resultConfig = theme.screens?.result || (theme.game_config as any)?.screens?.result || {
-    background: { type: 'solid', color: '#070b14' },
-    elements: [],
-  };
-
-  const handleUpdateStartConfig = (updated: any) => {
-    const nextStart = {
-      ...startConfig,
-      ...updated,
-    };
-    onChange({
-      ...theme,
-      screens: {
-        ...(theme.screens || {}),
-        start: nextStart as any,
-      },
-    });
-  };
-
-  const handleUpdateResultConfig = (updated: any) => {
-    const nextResult = {
-      ...resultConfig,
-      ...updated,
-    };
-    onChange({
-      ...theme,
-      screens: {
-        ...(theme.screens || {}),
-        result: nextResult as any,
-      },
-    });
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Tab Switcher */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveScreenTab('start')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeScreenTab === 'start'
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-          >
-            <Tv className="w-4 h-4" />
-            <span>Start Screen</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveScreenTab('result')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeScreenTab === 'result'
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-          >
-            <Trophy className="w-4 h-4" />
-            <span>Result Screen</span>
-          </button>
-        </div>
-      </div>
-
-      {activeScreenTab === 'start' ? (
-        <StartScreenVisualEditor
-          startConfig={startConfig as any}
-          theme={theme}
-          gameType="catch-brand"
-          onChange={handleUpdateStartConfig}
-          onUploadAsset={onUploadAsset}
-        />
-      ) : (
-        <ResultScreenVisualEditor
-          resultConfig={resultConfig as any}
-          theme={theme}
-          gameType="catch-brand"
-          onChange={handleUpdateResultConfig}
-          onUploadAsset={onUploadAsset}
-        />
-      )}
-    </div>
-  );
-};
-

@@ -33,6 +33,8 @@ import type {
 import {
   generateDefaultResultScreenElements,
   DEFAULT_RESULT_CANVAS_CONFIG,
+  generateDefaultStartScreenElements,
+  DEFAULT_START_CANVAS_CONFIG,
   MIN_BOARD_ROWS,
   MAX_BOARD_ROWS,
   MIN_BOARD_COLS,
@@ -231,11 +233,6 @@ export interface GameTheme {
   sounds_config: ThemeSoundsConfig;
   layout?: GameLayoutConfig;
   game_config?: Record<string, any>;
-  screens?: {
-    start?: any;
-    result?: any;
-    [key: string]: any;
-  };
 
   // Convenience / Backward-compatibility properties
   gameTitle?: string;
@@ -333,6 +330,15 @@ export const DEFAULT_START_SCREEN_CONFIG: MemoryMatchStartScreenConfig = {
   showGridInfo: true,
   showPairsInfo: true,
   showTimerInfo: true,
+
+  canvas: DEFAULT_START_CANVAS_CONFIG,
+  background: {
+    type: 'theme',
+    imageUrl: null,
+    color: '#0f172a',
+    overlayOpacity: 0.3,
+  },
+  elements: [],
 };
 
 export const DEFAULT_RESULT_SCREEN_CONFIG: MemoryMatchResultScreenConfig = {
@@ -484,18 +490,36 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
       start: {
         backgroundType: rawStart?.backgroundType === 'color' || rawStart?.backgroundType === 'image' || rawStart?.backgroundType === 'theme'
           ? rawStart.backgroundType
-          : 'theme',
+          : (rawStart?.background?.type || 'theme'),
         backgroundColor: (rawStart?.backgroundColor && typeof rawStart.backgroundColor === 'string')
           ? rawStart.backgroundColor
-          : '#0f172a',
-        backgroundImageUrl: rawStart?.backgroundImageUrl ?? null,
+          : (rawStart?.background?.color || '#0f172a'),
+        backgroundImageUrl: rawStart?.backgroundImageUrl ?? rawStart?.background?.imageUrl ?? null,
         backgroundOverlayOpacity: typeof rawStart?.backgroundOverlayOpacity === 'number'
           ? Math.max(0, Math.min(1, rawStart.backgroundOverlayOpacity))
+          : typeof rawStart?.background?.overlayOpacity === 'number'
+          ? Math.max(0, Math.min(1, rawStart.background.overlayOpacity))
           : 0.3,
         showIcon: rawStart?.showIcon !== false,
         showGridInfo: rawStart?.showGridInfo !== false,
         showPairsInfo: rawStart?.showPairsInfo !== false,
         showTimerInfo: rawStart?.showTimerInfo !== false,
+        canvas: rawStart?.canvas?.width && rawStart?.canvas?.height
+          ? { width: rawStart.canvas.width, height: rawStart.canvas.height }
+          : DEFAULT_START_CANVAS_CONFIG,
+        background: {
+          type: rawStart?.background?.type || (rawStart?.backgroundType === 'color' || rawStart?.backgroundType === 'image' || rawStart?.backgroundType === 'theme' ? rawStart.backgroundType : 'theme'),
+          imageUrl: rawStart?.background?.imageUrl ?? rawStart?.backgroundImageUrl ?? null,
+          color: rawStart?.background?.color ?? rawStart?.backgroundColor ?? '#0f172a',
+          overlayOpacity: typeof rawStart?.background?.overlayOpacity === 'number'
+            ? Math.max(0, Math.min(1, rawStart.background.overlayOpacity))
+            : typeof rawStart?.backgroundOverlayOpacity === 'number'
+            ? Math.max(0, Math.min(1, rawStart.backgroundOverlayOpacity))
+            : 0.3,
+        },
+        elements: Array.isArray(rawStart?.elements) && rawStart.elements.length > 0
+          ? rawStart.elements
+          : generateDefaultStartScreenElements('memory-match', theme, undefined, rawStart),
       },
       result: {
         backgroundType: rawResult?.backgroundType === 'color' || rawResult?.backgroundType === 'image' || rawResult?.backgroundType === 'theme'

@@ -80,9 +80,13 @@ export interface MemoryMatchUiConfig {
 export * from "../shared/resultScreenTypes";
 export * from "../shared/startScreenTypes";
 import { ScreenBackgroundType } from "../shared/resultScreenTypes";
-import { StartScreenConfig } from "../shared/startScreenTypes";
+import {
+  StartScreenCanvasConfig,
+  StartScreenBackgroundConfig,
+  StartScreenElement,
+} from "../shared/startScreenTypes";
 
-export interface MemoryMatchStartScreenConfig extends StartScreenConfig {
+export interface MemoryMatchStartScreenConfig {
   backgroundType: ScreenBackgroundType;
   backgroundColor: string; // default '#0f172a'
   backgroundImageUrl?: string | null;
@@ -92,6 +96,10 @@ export interface MemoryMatchStartScreenConfig extends StartScreenConfig {
   showGridInfo: boolean;
   showPairsInfo: boolean;
   showTimerInfo: boolean;
+
+  canvas?: StartScreenCanvasConfig;
+  background?: StartScreenBackgroundConfig;
+  elements?: StartScreenElement[];
 }
 
 /* ==========================================================================

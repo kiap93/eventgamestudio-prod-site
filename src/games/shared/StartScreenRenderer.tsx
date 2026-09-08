@@ -1,123 +1,95 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import {
   StartScreenConfig,
   StartScreenElement,
-  StartScreenCardElement,
-  StartScreenGroupElement,
-  DEFAULT_START_CANVAS_CONFIG,
-  generateDefaultStartScreenElements,
+  StartScreenGameMeta,
 } from './startScreenTypes';
-import { StartElementContent, StartElementGameMeta } from './StartElementContent';
 import { resolveScreenBackground } from '../../themes/screenBackground';
-import { GameTheme } from '../../themes/types';
-import { EventLeaderboardEntry } from '../../types';
+import { GameTheme, getThemeGameType } from '../../themes/types';
+import { StartElementContent } from './StartElementContent';
+import { getStartScreenConfig } from './startScreenResolver';
+import { StartScreenErrorBoundary } from './StartScreenErrorBoundary';
 
 export interface StartScreenRendererProps {
-  startConfig?: Partial<StartScreenConfig>;
-  theme?: Partial<GameTheme>;
-  gameMeta?: StartElementGameMeta;
+  startConfig?: StartScreenConfig | null;
+  theme?: Partial<GameTheme> | null;
   gameType?: string;
-  onStartGame?: () => void;
-  onAction?: (action: string) => void;
+  gameMeta?: StartScreenGameMeta;
+  onStartGame: () => void;
   onShowLeaderboard?: () => void;
   onShowGuide?: () => void;
-  leaderboardScores?: EventLeaderboardEntry[];
+  onOpenSettings?: () => void;
   className?: string;
   isSimulation?: boolean;
   isEventPreview?: boolean;
   isEventTest?: boolean;
 }
 
-export const StartScreenRenderer: React.FC<StartScreenRendererProps> = ({
+const StartScreenContent: React.FC<StartScreenRendererProps> = ({
   startConfig,
-  theme = {},
+  theme,
+  gameType,
   gameMeta,
-  gameType = 'memory-match',
   onStartGame,
-  onAction,
   onShowLeaderboard,
   onShowGuide,
-  leaderboardScores,
+  onOpenSettings,
   className = '',
   isSimulation = false,
-  isEventPreview = false,
-  isEventTest = false,
 }) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState<number>(1);
-
-  // Logical canvas dimensions
-  const canvasWidth = startConfig?.canvas?.width || DEFAULT_START_CANVAS_CONFIG.width;
-  const canvasHeight = startConfig?.canvas?.height || DEFAULT_START_CANVAS_CONFIG.height;
-
-  // Background resolution
-  const bg = resolveScreenBackground(startConfig, theme);
-
-  // Derive elements with automatic fallback for existing / unconfigured themes
-  const elements: StartScreenElement[] =
-    startConfig?.elements && startConfig.elements.length > 0
-      ? startConfig.elements
-      : generateDefaultStartScreenElements(startConfig, theme, gameType);
-
-  // Responsive scale tracking (1000x1000 canvas to container size)
-  const updateScale = useCallback(() => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-
-    // Use containment scale
-    const scaleX = rect.width / canvasWidth;
-    const scaleY = rect.height / canvasHeight;
-    const nextScale = Math.min(scaleX, scaleY);
-    setScale(nextScale > 0 ? nextScale : 1);
-  }, [canvasWidth, canvasHeight]);
-
-  useEffect(() => {
-    updateScale();
-    if (!containerRef.current) return;
-
-    const ro = new ResizeObserver(() => {
-      updateScale();
-    });
-    ro.observe(containerRef.current);
-
-    window.addEventListener('resize', updateScale);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', updateScale);
-    };
-  }, [updateScale]);
-
-  // Handle actions dispatched by buttons
-  const handleAction = useCallback(
-    (action: string) => {
-      if (action === 'startGame') {
-        if (onStartGame) onStartGame();
-      } else if (action === 'viewLeaderboard') {
-        if (onShowLeaderboard) onShowLeaderboard();
-        else if (onAction) onAction(action);
-      } else if (action === 'howToPlay') {
-        if (onShowGuide) onShowGuide();
-        else if (onAction) onAction(action);
-      } else if (onAction) {
-        onAction(action);
-      }
-    },
-    [onStartGame, onShowLeaderboard, onShowGuide, onAction]
+  // Authoritative config resolution
+  const resolvedConfig = getStartScreenConfig(
+    theme,
+    gameType || (theme ? getThemeGameType(theme) : 'catch-brand'),
+    gameMeta
   );
 
-  // Recursive element renderer
+  // Merge any caller-provided startConfig if present
+  const finalConfig: StartScreenConfig = {
+    ...resolvedConfig,
+    ...(startConfig || {}),
+    canvas: startConfig?.canvas || resolvedConfig.canvas,
+    background: startConfig?.background || resolvedConfig.background,
+    elements: (startConfig?.elements && startConfig.elements.length > 0)
+      ? startConfig.elements
+      : resolvedConfig.elements,
+  };
+
+  const bg = resolveScreenBackground(finalConfig as any, theme);
+  const canvasWidth =
+    Number.isFinite(finalConfig?.canvas?.width) && (finalConfig?.canvas?.width ?? 0) > 0
+      ? (finalConfig?.canvas?.width ?? 1000)
+      : 1000;
+  const canvasHeight =
+    Number.isFinite(finalConfig?.canvas?.height) && (finalConfig?.canvas?.height ?? 0) > 0
+      ? (finalConfig?.canvas?.height ?? 1000)
+      : 1000;
+
+  const elements: StartScreenElement[] = Array.isArray(finalConfig.elements)
+    ? finalConfig.elements
+    : [];
+
+  // Recursive element renderer respecting ROOT vs CARD/GROUP coordinates
   const renderElement = (
     el: StartScreenElement,
-    parentWidth: number,
-    parentHeight: number
+    parentW: number,
+    parentH: number,
+    isRoot: boolean = false
   ): React.ReactNode => {
-    if (el.visible === false) return null;
+    if (!el || el.visible === false) return null;
 
-    const leftPercent = `${(el.x / parentWidth) * 100}%`;
-    const topPercent = `${(el.y / parentHeight) * 100}%`;
-    const widthPercent = `${(el.width / parentWidth) * 100}%`;
-    const heightPercent = `${(el.height / parentHeight) * 100}%`;
+    const safeParentW = Number.isFinite(parentW) && parentW > 0 ? parentW : 1000;
+    const safeParentH = Number.isFinite(parentH) && parentH > 0 ? parentH : 1000;
+
+    const x = Number.isFinite(el.x) ? el.x : 0;
+    const y = Number.isFinite(el.y) ? el.y : 0;
+    const w = Number.isFinite(el.width) && el.width > 0 ? el.width : 100;
+    const h = Number.isFinite(el.height) && el.height > 0 ? el.height : 40;
+
+    const leftPercent = `${(x / safeParentW) * 100}%`;
+    const topPercent = `${(y / safeParentH) * 100}%`;
+    const widthPercent = `${(w / safeParentW) * 100}%`;
+    const heightPercent = `${(h / safeParentH) * 100}%`;
 
     const commonStyle: React.CSSProperties = {
       position: 'absolute',
@@ -125,26 +97,28 @@ export const StartScreenRenderer: React.FC<StartScreenRendererProps> = ({
       top: topPercent,
       width: widthPercent,
       height: heightPercent,
-      opacity: el.opacity ?? 1,
-      zIndex: el.zIndex ?? 1,
+      opacity: Number.isFinite(el.opacity) ? el.opacity : 1,
+      zIndex: Number.isFinite(el.zIndex) ? el.zIndex : 1,
       transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
       boxSizing: 'border-box',
     };
 
     return (
-      <div key={el.id} id={`start-el-${el.id}`} style={commonStyle}>
+      <div key={el.id} id={el.id} style={commonStyle}>
         <StartElementContent
           element={el}
-          parentWidth={parentWidth}
-          parentHeight={parentHeight}
-          theme={theme}
+          parentWidth={safeParentW}
+          parentHeight={safeParentH}
           gameMeta={gameMeta}
-          gameType={gameType}
+          theme={theme}
+          onStartGame={onStartGame}
+          onShowLeaderboard={onShowLeaderboard}
+          onShowGuide={onShowGuide}
+          onOpenSettings={onOpenSettings}
+          renderChild={(child, childParentW, childParentH) =>
+            renderElement(child, childParentW, childParentH, false)
+          }
           isSimulation={isSimulation}
-          isEditor={false}
-          onAction={handleAction}
-          leaderboardScores={leaderboardScores}
-          renderChild={(child, pW, pH) => renderElement(child, pW, pH)}
         />
       </div>
     );
@@ -152,28 +126,41 @@ export const StartScreenRenderer: React.FC<StartScreenRendererProps> = ({
 
   return (
     <div
-      ref={containerRef}
-      className={`relative w-full h-full overflow-hidden flex items-center justify-center select-none ${className}`}
-      style={bg.containerStyle}
+      className={`absolute inset-0 w-full h-full flex items-center justify-center overflow-hidden select-none z-40 ${className}`}
+      style={{
+        ...bg.containerStyle,
+        zIndex: 40,
+      }}
     >
-      {/* Background Overlay Layer */}
-      <div
-        className="absolute inset-0 w-full h-full pointer-events-none"
-        style={bg.overlayStyle}
-      />
+      {/* Background Overlay */}
+      <div className="absolute inset-0 pointer-events-none" style={bg.overlayStyle} />
 
-      {/* Logical Canvas (1000x1000 scaled to container) */}
+      {/* 1000 x 1000 Logical Canvas scaled responsively to fit container without 0x0 collapse */}
       <div
+        className="relative w-full h-full max-w-full max-h-full aspect-square flex items-center justify-center"
         style={{
-          width: `${canvasWidth}px`,
-          height: `${canvasHeight}px`,
-          transform: `scale(${scale})`,
-          transformOrigin: 'center center',
+          containerType: 'inline-size',
+          maxWidth: 'min(100vw, 100vh)',
+          maxHeight: 'min(100vw, 100vh)',
+          aspectRatio: '1 / 1',
         }}
-        className="relative shrink-0 pointer-events-auto"
       >
-        {elements.map((el) => renderElement(el, canvasWidth, canvasHeight))}
+        {elements.map((el) => renderElement(el, canvasWidth, canvasHeight, true))}
       </div>
     </div>
+  );
+};
+
+export const StartScreenRenderer: React.FC<StartScreenRendererProps> = (props) => {
+  return (
+    <StartScreenErrorBoundary
+      gameTitle={props.gameMeta?.gameTitle || props.theme?.name}
+      gameSubtitle={props.gameMeta?.gameSubtitle}
+      onStartGame={props.onStartGame}
+      onShowLeaderboard={props.onShowLeaderboard}
+      onShowGuide={props.onShowGuide}
+    >
+      <StartScreenContent {...props} />
+    </StartScreenErrorBoundary>
   );
 };

@@ -45,7 +45,7 @@ import { useResponsiveLayout, getEffectiveGameLayout } from '../../themes/respon
 import { GameLayoutHudOverlay } from '../../components/studio/GameLayoutHudOverlay';
 import { apiFetch } from '../../lib/api';
 import { ResultScreenRenderer } from './ResultScreenRenderer';
-import { StartScreenRenderer } from '../shared/StartScreenRenderer';
+import { StartScreenRenderer } from './StartScreenRenderer';
 
 import {
   calculateMemoryMatchScore,
@@ -229,6 +229,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const [leaderboardScores, setLeaderboardScores] = useState<EventLeaderboardEntry[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [activeEndTab, setActiveEndTab] = useState<'summary' | 'leaderboard'>('summary');
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -2015,19 +2016,24 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         {/* 5. START MATCH SCREEN MODAL                                             */}
         {/* ======================================================================= */}
         {gameState === 'START' && (
-          <div className="absolute inset-0 w-full h-full z-30 overflow-hidden">
+          <div className="absolute inset-0 pointer-events-auto z-30 overflow-hidden">
             <StartScreenRenderer
               startConfig={memoryConfig.screens?.start}
               theme={activeTheme}
               gameType="memory-match"
-              onStartGame={startCountdown}
-              onOpenLeaderboard={() => {
-                if (showLeaderboard) {
-                  fetchLeaderboard();
-                  setActiveEndTab('leaderboard');
-                }
+              gameMeta={{
+                rows,
+                cols,
+                totalCards,
+                totalPairs,
+                duration: gameDuration,
+                gameTitle,
+                logoUrl: activeTheme?.branding?.clientLogoUrl || activeTheme?.clientLogo || activeTheme?.logo || null,
               }}
-              onOpenRules={() => {}}
+              onStartGame={startCountdown}
+              onShowLeaderboard={() => setShowLeaderboardModal(true)}
+              isEventPreview={isEventPreview}
+              isEventTest={isEventTest}
             />
           </div>
         )}
@@ -2121,6 +2127,63 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               }
             }}
           />
+        )}
+
+        {/* ======================================================================= */}
+        {/* 9. LEADERBOARD MODAL                                                    */}
+        {/* ======================================================================= */}
+        {showLeaderboardModal && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 text-slate-100 flex flex-col max-h-[85vh] shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-amber-400" />
+                  <h3 className="font-bold text-base">High Scores</h3>
+                </div>
+                <button
+                  onClick={() => setShowLeaderboardModal(false)}
+                  className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+                >
+                  <Square className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto py-3 space-y-1.5 min-h-[160px]">
+                {loadingLeaderboard ? (
+                  <div className="py-8 text-slate-400 text-xs flex flex-col items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                    <span>Loading Leaderboard...</span>
+                  </div>
+                ) : leaderboardScores.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400 text-xs">
+                    <Trophy className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
+                    <p className="font-bold text-slate-300">No Scores Yet!</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Be the first to submit a high score!</p>
+                  </div>
+                ) : (
+                  leaderboardScores.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs font-mono"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 text-slate-400 font-bold text-center">#{entry.rank}</span>
+                        <span className="font-bold text-slate-200 truncate max-w-[150px]">{entry.player_name}</span>
+                      </div>
+                      <span className="font-bold text-amber-400">{entry.score} pts</span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="pt-3 border-t border-slate-800 flex justify-end">
+                <button
+                  onClick={() => setShowLeaderboardModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold font-mono transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

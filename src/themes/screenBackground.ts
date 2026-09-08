@@ -26,24 +26,36 @@ export function resolveScreenBackground(
     backgroundColor?: string;
     backgroundImageUrl?: string | null;
     backgroundOverlayOpacity?: number;
+    background?: {
+      type?: ScreenBackgroundType;
+      color?: string;
+      imageUrl?: string | null;
+      overlayOpacity?: number;
+    };
     [key: string]: any;
   } | undefined,
   activeTheme?: Partial<GameTheme> | null
 ): ResolvedScreenBackground {
+  const bgObj = screenConfig?.background;
+
   const backgroundType: ScreenBackgroundType =
-    screenConfig?.backgroundType === 'color' ||
+    bgObj?.type ||
+    (screenConfig?.backgroundType === 'color' ||
     screenConfig?.backgroundType === 'image' ||
     screenConfig?.backgroundType === 'theme'
       ? screenConfig.backgroundType
-      : 'theme';
+      : 'theme');
 
   const backgroundColor =
-    screenConfig?.backgroundColor && typeof screenConfig.backgroundColor === 'string'
+    bgObj?.color ||
+    (screenConfig?.backgroundColor && typeof screenConfig.backgroundColor === 'string'
       ? screenConfig.backgroundColor
-      : '#0f172a';
+      : '#0f172a');
 
   const backgroundOverlayOpacity =
-    typeof screenConfig?.backgroundOverlayOpacity === 'number'
+    typeof bgObj?.overlayOpacity === 'number'
+      ? Math.max(0, Math.min(1, bgObj.overlayOpacity))
+      : typeof screenConfig?.backgroundOverlayOpacity === 'number'
       ? Math.max(0, Math.min(1, screenConfig.backgroundOverlayOpacity))
       : 0.3;
 
@@ -51,9 +63,10 @@ export function resolveScreenBackground(
   let resolvedCssBgImage: string | undefined = undefined;
 
   if (backgroundType === 'image') {
-    if (screenConfig?.backgroundImageUrl) {
-      backgroundImageUrl = screenConfig.backgroundImageUrl;
-      resolvedCssBgImage = `url("${screenConfig.backgroundImageUrl}")`;
+    const customImg = bgObj?.imageUrl ?? screenConfig?.backgroundImageUrl;
+    if (customImg) {
+      backgroundImageUrl = customImg;
+      resolvedCssBgImage = `url("${customImg}")`;
     }
   } else if (backgroundType === 'theme') {
     const themeBg = activeTheme?.background_url || activeTheme?.background;

@@ -1,655 +1,445 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StartScreenElement,
-  StartScreenCardElement,
-  StartScreenGroupElement,
-  StartScreenTextElement,
-  StartScreenTitleElement,
-  StartScreenDescriptionElement,
-  StartScreenImageElement,
-  StartScreenButtonElement,
-  StartScreenBadgeElement,
-  StartScreenRulesElement,
-  StartScreenIconElement,
-  StartScreenLeaderboardElement,
+  StartCardElement,
+  StartTextElement,
+  StartImageElement,
+  StartButtonElement,
+  StartBadgeElement,
+  StartRulesElement,
+  StartIconElement,
+  StartKeyboardHintsElement,
+  StartGroupElement,
+  StartScreenGameMeta,
 } from './startScreenTypes';
 import {
   Play,
   Trophy,
   HelpCircle,
   Settings,
-  Sparkles,
-  Zap,
   Grid3X3,
+  Zap,
+  Sparkles,
   Clock,
   Layers,
-  Award,
-  ChevronRight,
-  ShieldAlert,
-  Flame,
-  CheckCircle,
+  Gamepad2,
+  Image as ImageIcon,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 import { GameTheme } from '../../themes/types';
-import { EventLeaderboardEntry } from '../../types';
-
-export interface StartElementGameMeta {
-  rows?: number;
-  cols?: number;
-  totalCards?: number;
-  totalPairs?: number;
-  duration?: number;
-  roundsCount?: number;
-  lightCount?: number;
-  goodItemName?: string;
-  goodItemImg?: string;
-  badItemName?: string;
-  badItemImg?: string;
-  fallingItemName?: string;
-  badFallingItemName?: string;
-}
 
 export interface StartElementContentProps {
   element: StartScreenElement;
   parentWidth: number;
   parentHeight: number;
-  theme?: Partial<GameTheme>;
-  gameMeta?: StartElementGameMeta;
-  gameType?: string;
-  isSimulation?: boolean;
-  isEditor?: boolean;
-  onAction?: (action: string) => void;
-  leaderboardScores?: EventLeaderboardEntry[];
+  gameMeta?: StartScreenGameMeta;
+  theme?: Partial<GameTheme> | null;
+  onStartGame: () => void;
+  onShowLeaderboard?: () => void;
+  onShowGuide?: () => void;
+  onOpenSettings?: () => void;
   renderChild?: (child: StartScreenElement, parentWidth: number, parentHeight: number) => React.ReactNode;
+  isSimulation?: boolean;
 }
+
+/**
+ * Safe Image Component with fallback placeholder to prevent broken images from crashing the screen.
+ */
+export const SafeImage: React.FC<{
+  src: string | null | undefined;
+  alt?: string;
+  className?: string;
+  style?: React.CSSProperties;
+  objectFit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down';
+}> = ({ src, alt = '', className = '', style = {}, objectFit = 'contain' }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div
+        className={`w-full h-full flex items-center justify-center bg-slate-800/60 border border-slate-700/50 rounded-xl text-slate-400 p-2 ${className}`}
+        style={style}
+      >
+        <ImageIcon className="w-6 h-6 opacity-40 shrink-0" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={`w-full h-full ${className}`}
+      style={{
+        objectFit,
+        ...style,
+      }}
+      onError={() => setHasError(true)}
+      loading="lazy"
+    />
+  );
+};
 
 export const StartElementContent: React.FC<StartElementContentProps> = ({
   element,
   parentWidth,
   parentHeight,
-  theme,
   gameMeta,
-  gameType = 'memory-match',
-  isSimulation = false,
-  isEditor = false,
-  onAction,
-  leaderboardScores,
+  theme,
+  onStartGame,
+  onShowLeaderboard,
+  onShowGuide,
+  onOpenSettings,
   renderChild,
+  isSimulation = false,
 }) => {
-  // 1. CARD CONTAINER
-  if (element.type === 'card') {
-    const cardEl = element as StartScreenCardElement;
-    const style = cardEl.style || {};
-
-    const cardStyles: React.CSSProperties = {
-      width: '100%',
-      height: '100%',
-      backgroundColor: style.backgroundColor || 'rgba(15, 23, 42, 0.95)',
-      backgroundImage: style.backgroundImageUrl ? `url(${style.backgroundImageUrl})` : undefined,
-      backgroundSize: style.backgroundSize || 'cover',
-      backgroundPosition: style.backgroundPosition || 'center',
-      backgroundRepeat: style.backgroundRepeat || 'no-repeat',
-      borderWidth: style.borderWidth !== undefined ? `${style.borderWidth}px` : '1px',
-      borderStyle: 'solid',
-      borderColor: style.borderColor || '#334155',
-      borderRadius: style.borderRadius !== undefined ? `${style.borderRadius}px` : '24px',
-      boxShadow: style.shadow
-        ? '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px rgba(245, 158, 11, 0.1)'
-        : undefined,
-      backdropFilter: style.backdropBlur !== false ? 'blur(12px)' : undefined,
-      boxSizing: 'border-box',
-      position: 'relative',
-      overflow: 'hidden',
-    };
-
-    return (
-      <div style={cardStyles} className="w-full h-full">
-        {cardEl.children &&
-          cardEl.children.map((child) =>
-            renderChild ? renderChild(child, cardEl.width, cardEl.height) : null
-          )}
-      </div>
-    );
+  if (!element || typeof element !== 'object') {
+    return null;
   }
 
-  // 2. GROUP CONTAINER
-  if (element.type === 'group') {
-    const groupEl = element as StartScreenGroupElement;
-    return (
-      <div className="w-full h-full relative">
-        {groupEl.children &&
-          groupEl.children.map((child) =>
-            renderChild ? renderChild(child, groupEl.width, groupEl.height) : null
-          )}
-      </div>
-    );
-  }
+  // Gracefully handle unknown elements without crashing
+  const elType = element.type;
 
-  // 3. IMAGE ELEMENT
-  if (element.type === 'image') {
-    const imgEl = element as StartScreenImageElement;
-    const style = imgEl.style || {};
-    const imgUrl = imgEl.imageUrl || theme?.clientLogo || theme?.logo;
+  switch (elType) {
+    case 'card': {
+      const cardEl = element as StartCardElement;
+      const style = cardEl.style || {};
+      const borderRadius = style.borderRadius ?? 24;
+      const borderWidth = style.borderWidth ?? 1;
+      const borderColor = style.borderColor ?? '#334155';
+      const backgroundColor = style.backgroundColor ?? 'rgba(15, 23, 42, 0.95)';
 
-    if (!imgUrl) {
       return (
         <div
-          className="w-full h-full flex flex-col items-center justify-center bg-slate-900/60 border border-dashed border-slate-700 rounded-xl p-2 text-center"
+          className="relative w-full h-full overflow-hidden"
           style={{
-            borderRadius: style.borderRadius !== undefined ? `${style.borderRadius}px` : '12px',
+            backgroundColor,
+            borderRadius: `${(borderRadius / 1000) * parentWidth}px`,
+            borderWidth: `${borderWidth}px`,
+            borderColor,
+            boxShadow: style.shadow ? '0 25px 50px -12px rgba(0, 0, 0, 0.7)' : undefined,
+            backgroundImage: style.backgroundImageUrl ? `url("${style.backgroundImageUrl}")` : undefined,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
           }}
         >
-          <Sparkles className="w-6 h-6 text-slate-500 mb-1" />
-          <span className="text-[11px] text-slate-400 font-medium">Image Placeholder</span>
+          {Array.isArray(cardEl.children) &&
+            cardEl.children.map((child) =>
+              renderChild ? renderChild(child, cardEl.width, cardEl.height) : null
+            )}
         </div>
       );
     }
 
-    return (
-      <img
-        src={imgUrl}
-        alt="Visual element"
-        className="w-full h-full select-none pointer-events-none"
-        style={{
-          objectFit: imgEl.objectFit || style.objectFit || 'contain',
-          objectPosition: imgEl.objectPosition || style.objectPosition || 'center',
-          borderRadius: style.borderRadius !== undefined ? `${style.borderRadius}px` : undefined,
-          borderWidth: style.borderWidth !== undefined ? `${style.borderWidth}px` : undefined,
-          borderStyle: style.borderWidth ? 'solid' : undefined,
-          borderColor: style.borderColor,
-          boxShadow: style.shadow ? '0 10px 25px -5px rgba(0, 0, 0, 0.4)' : undefined,
-          opacity: style.opacity ?? 1,
-        }}
-      />
-    );
-  }
-
-  // 4. TEXT ELEMENT
-  if (element.type === 'text') {
-    const textEl = element as StartScreenTextElement;
-    const style = textEl.style || {};
-
-    return (
-      <div
-        className="w-full h-full flex items-center select-none"
-        style={{
-          justifyContent:
-            style.textAlign === 'center'
-              ? 'center'
-              : style.textAlign === 'right'
-              ? 'flex-end'
-              : 'flex-start',
-        }}
-      >
-        <p
-          style={{
-            fontFamily: style.fontFamily || 'inherit',
-            fontSize: style.fontSize ? `${style.fontSize}px` : '14px',
-            fontWeight: style.fontWeight || 500,
-            fontStyle: style.fontStyle || 'normal',
-            color: style.color || '#cbd5e1',
-            textAlign: style.textAlign || 'center',
-            lineHeight: style.lineHeight || 1.4,
-            letterSpacing: style.letterSpacing ? `${style.letterSpacing}px` : undefined,
-            textTransform: style.textTransform || 'none',
-            textDecoration: style.textDecoration || 'none',
-            textShadow: style.textShadow,
-            opacity: style.opacity ?? 1,
-            margin: 0,
-          }}
-        >
-          {textEl.text}
-        </p>
-      </div>
-    );
-  }
-
-  // 5. TITLE ELEMENT
-  if (element.type === 'title') {
-    const titleEl = element as StartScreenTitleElement;
-    const style = titleEl.style || {};
-    const titleText = titleEl.text || theme?.name || 'Memory Match';
-
-    return (
-      <div
-        className="w-full h-full flex items-center select-none"
-        style={{
-          justifyContent:
-            style.textAlign === 'left'
-              ? 'flex-start'
-              : style.textAlign === 'right'
-              ? 'flex-end'
-              : 'center',
-        }}
-      >
-        <h1
-          style={{
-            fontFamily: style.fontFamily || 'inherit',
-            fontSize: style.fontSize ? `${style.fontSize}px` : '36px',
-            fontWeight: style.fontWeight || '900',
-            fontStyle: style.fontStyle || 'normal',
-            color: style.color || '#ffffff',
-            textAlign: style.textAlign || 'center',
-            letterSpacing: style.letterSpacing ? `${style.letterSpacing}px` : '1.5px',
-            textTransform: style.textTransform || 'uppercase',
-            textShadow: style.textShadow || '0 4px 16px rgba(0,0,0,0.6)',
-            lineHeight: 1.15,
-            margin: 0,
-          }}
-        >
-          {titleText}
-        </h1>
-      </div>
-    );
-  }
-
-  // 6. DESCRIPTION ELEMENT
-  if (element.type === 'description') {
-    const descEl = element as StartScreenDescriptionElement;
-    const style = descEl.style || {};
-    const descText =
-      descEl.text ||
-      theme?.description ||
-      (gameType === 'reaction-tap'
-        ? 'When the lights go out, tap as fast as you can!'
-        : gameType === 'catch-brand'
-        ? 'Catch positive brand items and avoid hazards!'
-        : 'Flip cards, match identical pairs, and beat the clock!');
-
-    return (
-      <div
-        className="w-full h-full flex items-center select-none"
-        style={{
-          justifyContent:
-            style.textAlign === 'left'
-              ? 'flex-start'
-              : style.textAlign === 'right'
-              ? 'flex-end'
-              : 'center',
-        }}
-      >
-        <p
-          style={{
-            fontFamily: style.fontFamily || 'inherit',
-            fontSize: style.fontSize ? `${style.fontSize}px` : '15px',
-            fontWeight: style.fontWeight || 500,
-            color: style.color || '#cbd5e1',
-            textAlign: style.textAlign || 'center',
-            lineHeight: 1.5,
-            letterSpacing: style.letterSpacing ? `${style.letterSpacing}px` : undefined,
-            margin: 0,
-          }}
-        >
-          {descText}
-        </p>
-      </div>
-    );
-  }
-
-  // 7. BADGE ELEMENT
-  if (element.type === 'badge') {
-    const badgeEl = element as StartScreenBadgeElement;
-    const style = badgeEl.style || {};
-
-    let resolvedLabel = badgeEl.label;
-    let resolvedValue = badgeEl.value;
-    let IconComponent: React.ElementType = Sparkles;
-
-    switch (badgeEl.metric) {
-      case 'grid':
-        IconComponent = Grid3X3;
-        resolvedLabel = resolvedLabel || 'GRID';
-        resolvedValue =
-          resolvedValue ||
-          (gameMeta?.rows && gameMeta?.cols
-            ? `${gameMeta.rows}×${gameMeta.cols} (${gameMeta.totalCards || gameMeta.rows * gameMeta.cols} Cards)`
-            : '4×4 Cards');
-        break;
-      case 'pairs':
-        IconComponent = Layers;
-        resolvedLabel = resolvedLabel || 'PAIRS';
-        resolvedValue =
-          resolvedValue ||
-          (gameMeta?.totalPairs ? `${gameMeta.totalPairs} Pairs` : '8 Pairs');
-        break;
-      case 'timer':
-        IconComponent = Clock;
-        resolvedLabel = resolvedLabel || 'TIMER';
-        resolvedValue =
-          resolvedValue ||
-          (gameMeta?.duration ? `${gameMeta.duration}s` : '45s');
-        break;
-      case 'rounds':
-        IconComponent = Zap;
-        resolvedLabel = resolvedLabel || 'ROUNDS';
-        resolvedValue =
-          resolvedValue ||
-          (gameMeta?.roundsCount ? `${gameMeta.roundsCount} Rounds` : '5 Rounds');
-        break;
-      case 'lights':
-        IconComponent = Sparkles;
-        resolvedLabel = resolvedLabel || 'LIGHTS';
-        resolvedValue =
-          resolvedValue ||
-          (gameMeta?.lightCount ? `${gameMeta.lightCount} Lights` : '5 Lights');
-        break;
-      case 'target-item':
-        IconComponent = CheckCircle;
-        resolvedLabel = resolvedLabel || 'TARGET';
-        resolvedValue = resolvedValue || (gameMeta?.fallingItemName || '+10 PTS');
-        break;
-      case 'hazard-item':
-        IconComponent = ShieldAlert;
-        resolvedLabel = resolvedLabel || 'HAZARD';
-        resolvedValue = resolvedValue || (gameMeta?.badFallingItemName || '-10 PTS');
-        break;
-      default:
-        IconComponent = Sparkles;
-        resolvedLabel = resolvedLabel || 'INFO';
-        resolvedValue = resolvedValue || badgeEl.customText || 'Ready';
-        break;
+    case 'group': {
+      const groupEl = element as StartGroupElement;
+      return (
+        <div className="relative w-full h-full">
+          {Array.isArray(groupEl.children) &&
+            groupEl.children.map((child) =>
+              renderChild ? renderChild(child, groupEl.width, groupEl.height) : null
+            )}
+        </div>
+      );
     }
 
-    const isHorizontal = style.layout === 'horizontal';
+    case 'text': {
+      const textEl = element as StartTextElement;
+      const s = textEl.style || {};
 
-    return (
-      <div
-        className="w-full h-full flex items-center justify-center p-2 box-border select-none"
-        style={{
-          backgroundColor: style.backgroundColor || 'rgba(2, 6, 23, 0.85)',
-          borderWidth: style.borderWidth !== undefined ? `${style.borderWidth}px` : '1px',
-          borderStyle: 'solid',
-          borderColor: style.borderColor || '#334155',
-          borderRadius: style.borderRadius !== undefined ? `${style.borderRadius}px` : '16px',
-        }}
-      >
+      // Dynamic text template resolution
+      let displayedText = textEl.text || '';
+      if (displayedText.includes('{gameTitle}') && gameMeta?.gameTitle) {
+        displayedText = displayedText.replace(/{gameTitle}/g, gameMeta.gameTitle);
+      }
+      if (displayedText.includes('{gameSubtitle}') && gameMeta?.gameSubtitle) {
+        displayedText = displayedText.replace(/{gameSubtitle}/g, gameMeta.gameSubtitle);
+      }
+
+      // Proportional font sizing based on logical parent dimensions
+      const baseFontSize = s.fontSize ?? 16;
+      const calculatedFontSize = `${(baseFontSize / 1000) * parentHeight * 1.5}px`;
+
+      return (
         <div
-          className={`flex items-center ${
-            isHorizontal ? 'flex-row gap-2' : 'flex-col gap-1 text-center'
-          }`}
+          className="w-full h-full flex items-center select-none"
+          style={{
+            justifyContent:
+              s.textAlign === 'center'
+                ? 'center'
+                : s.textAlign === 'right'
+                ? 'flex-end'
+                : 'flex-start',
+            fontFamily: s.fontFamily || 'inherit',
+            fontSize: calculatedFontSize,
+            fontWeight: s.fontWeight || 500,
+            fontStyle: s.fontStyle || 'normal',
+            color: s.color || '#ffffff',
+            letterSpacing: s.letterSpacing ? `${s.letterSpacing}px` : undefined,
+            lineHeight: s.lineHeight || 1.3,
+            textTransform: s.textTransform || 'none',
+            textShadow: s.textShadow || undefined,
+            textAlign: s.textAlign || 'center',
+            wordBreak: 'break-word',
+          }}
         >
-          {style.showLabel !== false && resolvedLabel && (
-            <span
-              style={{
-                fontSize: style.fontSize ? `${Math.max(9, style.fontSize - 6)}px` : '11px',
-                fontWeight: 700,
-                color: style.labelColor || '#94a3b8',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-              }}
-            >
-              {resolvedLabel}
-            </span>
-          )}
+          {displayedText}
+        </div>
+      );
+    }
+
+    case 'image': {
+      const imgEl = element as StartImageElement;
+      const s = imgEl.style || {};
+
+      // Resolve dynamic bindings like {logo}
+      let resolvedUrl = imgEl.imageUrl;
+      if (!resolvedUrl || resolvedUrl === '{logo}') {
+        resolvedUrl = gameMeta?.logoUrl || theme?.clientLogo || theme?.logo || null;
+      }
+
+      return (
+        <div
+          className="w-full h-full overflow-hidden flex items-center justify-center select-none"
+          style={{
+            borderRadius: s.borderRadius ? `${(s.borderRadius / 1000) * parentWidth}px` : undefined,
+            borderWidth: s.borderWidth ? `${s.borderWidth}px` : undefined,
+            borderColor: s.borderColor,
+          }}
+        >
+          <SafeImage
+            src={resolvedUrl}
+            alt={imgEl.alt || 'Start Screen Artwork'}
+            objectFit={imgEl.objectFit || s.objectFit || 'contain'}
+          />
+        </div>
+      );
+    }
+
+    case 'button': {
+      const btnEl = element as StartButtonElement;
+      const s = btnEl.style || {};
+      const action = btnEl.action || 'start';
+
+      const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isSimulation) return;
+
+        if (action === 'start') {
+          onStartGame();
+        } else if (action === 'leaderboard' && onShowLeaderboard) {
+          onShowLeaderboard();
+        } else if (action === 'guide' && onShowGuide) {
+          onShowGuide();
+        } else if (action === 'settings' && onOpenSettings) {
+          onOpenSettings();
+        } else {
+          // Default start
+          onStartGame();
+        }
+      };
+
+      const isStartAction = action === 'start';
+      const baseBg = isStartAction ? (s.backgroundColor || '#10b981') : (s.backgroundColor || 'transparent');
+      const textColor = s.textColor || (isStartAction ? '#020617' : '#f59e0b');
+      const baseFontSize = s.fontSize ?? (isStartAction ? 22 : 14);
+      const calculatedFontSize = `${(baseFontSize / 1000) * parentHeight * 1.5}px`;
+
+      let iconNode: React.ReactNode = null;
+      if (btnEl.icon === 'Play' || (!btnEl.icon && isStartAction)) {
+        iconNode = <Play className="w-[1em] h-[1em] fill-current" />;
+      } else if (btnEl.icon === 'Trophy') {
+        iconNode = <Trophy className="w-[1em] h-[1em]" />;
+      } else if (btnEl.icon === 'HelpCircle') {
+        iconNode = <HelpCircle className="w-[1em] h-[1em]" />;
+      } else if (btnEl.icon === 'Settings') {
+        iconNode = <Settings className="w-[1em] h-[1em]" />;
+      }
+
+      return (
+        <button
+          type="button"
+          onClick={handleClick}
+          className={`w-full h-full flex items-center justify-center gap-2 font-bold cursor-pointer transition-all ${
+            isStartAction
+              ? 'shadow-lg hover:scale-102 active:scale-98'
+              : 'hover:opacity-80'
+          }`}
+          style={{
+            backgroundColor: s.gradient
+              ? undefined
+              : baseBg,
+            backgroundImage: s.gradient
+              ? `linear-gradient(to right, ${s.gradientFrom || '#10b981'}, ${s.gradientTo || '#0d9488'})`
+              : undefined,
+            color: textColor,
+            fontSize: calculatedFontSize,
+            fontWeight: s.fontWeight || (isStartAction ? 900 : 700),
+            borderRadius: s.borderRadius ? `${(s.borderRadius / 1000) * parentWidth}px` : '16px',
+            borderWidth: s.borderWidth ? `${s.borderWidth}px` : undefined,
+            borderColor: s.borderColor,
+            boxShadow: s.shadow ? '0 10px 25px -5px rgba(0, 0, 0, 0.4)' : undefined,
+          }}
+        >
+          {iconNode}
+          <span>{btnEl.text}</span>
+        </button>
+      );
+    }
+
+    case 'badge': {
+      const badgeEl = element as StartBadgeElement;
+      const s = badgeEl.style || {};
+
+      // Dynamic Metric Binding (Grid, Pairs, Timer, Rounds, Lights)
+      let resolvedValue = badgeEl.value || '';
+      let resolvedLabel = badgeEl.label || '';
+
+      if (badgeEl.metric === 'grid') {
+        resolvedLabel = badgeEl.label || 'GRID';
+        const totalCards = gameMeta?.totalCards ?? ((gameMeta?.rows || 4) * (gameMeta?.cols || 4));
+        resolvedValue = `${totalCards} Cards`;
+      } else if (badgeEl.metric === 'pairs') {
+        resolvedLabel = badgeEl.label || 'PAIRS';
+        const totalCards = gameMeta?.totalCards ?? 16;
+        const totalPairs = gameMeta?.totalPairs ?? Math.floor(totalCards / 2);
+        resolvedValue = `${totalPairs} Pairs`;
+      } else if (badgeEl.metric === 'timer' || badgeEl.metric === 'duration') {
+        resolvedLabel = badgeEl.label || 'TIMER';
+        const duration = gameMeta?.duration ?? 45;
+        resolvedValue = `${duration}s`;
+      } else if (badgeEl.metric === 'rounds') {
+        resolvedLabel = badgeEl.label || 'ROUNDS';
+        const rounds = gameMeta?.roundsCount ?? 5;
+        resolvedValue = `${rounds} Rounds`;
+      } else if (badgeEl.metric === 'lights') {
+        resolvedLabel = badgeEl.label || 'GANTRY';
+        const lights = gameMeta?.lightCount ?? 5;
+        resolvedValue = `${lights} Lights`;
+      }
+
+      return (
+        <div
+          className="w-full h-full flex flex-col items-center justify-center p-2 rounded-2xl select-none"
+          style={{
+            backgroundColor: s.backgroundColor || 'rgba(2, 6, 23, 0.8)',
+            borderColor: s.borderColor || '#1e293b',
+            borderWidth: `${s.borderWidth ?? 1}px`,
+            borderRadius: s.borderRadius ? `${(s.borderRadius / 1000) * parentWidth}px` : '16px',
+          }}
+        >
           <span
-            style={{
-              fontSize: style.fontSize ? `${style.fontSize}px` : '16px',
-              fontWeight: 800,
-              color: style.valueColor || '#fbbf24',
-              letterSpacing: '0.02em',
-            }}
+            className="text-[10px] sm:text-xs font-bold uppercase tracking-wider block"
+            style={{ color: s.labelColor || '#64748b' }}
+          >
+            {resolvedLabel}
+          </span>
+          <span
+            className="text-xs sm:text-sm font-black font-mono block truncate"
+            style={{ color: s.valueColor || '#f59e0b' }}
           >
             {resolvedValue}
           </span>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  // 8. BUTTON ELEMENT
-  if (element.type === 'button') {
-    const btnEl = element as StartScreenButtonElement;
-    const style = btnEl.style || {};
+    case 'rules': {
+      const rulesEl = element as StartRulesElement;
 
-    let IconComp: React.ElementType | null = Play;
-    if (btnEl.iconName === 'trophy') IconComp = Trophy;
-    else if (btnEl.iconName === 'help') IconComp = HelpCircle;
-    else if (btnEl.iconName === 'settings') IconComp = Settings;
-    else if (btnEl.iconName === 'none') IconComp = null;
+      if (rulesEl.ruleType === 'catch-brand' || (!rulesEl.ruleType && (gameMeta?.goodItemImg || gameMeta?.fallingItemImg))) {
+        const goodImg = gameMeta?.goodItemImg || gameMeta?.fallingItemImg || rulesEl.goodItemImg;
+        const badImg = gameMeta?.badItemImg || gameMeta?.badFallingItemImg || rulesEl.badItemImg;
+        const goodTitle = gameMeta?.fallingItemName || rulesEl.goodItemTitle || 'Target Item';
+        const badTitle = gameMeta?.badFallingItemName || rulesEl.badItemTitle || 'Hazard Item';
 
-    const isPulse = style.pulse && !isEditor;
+        return (
+          <div className="w-full h-full grid grid-cols-2 gap-3 select-none">
+            {/* Good Item Card */}
+            <div className="bg-emerald-950/60 border border-emerald-500/40 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center">
+              <div className="w-12 h-12 rounded-full bg-emerald-900/60 border border-emerald-400/60 flex items-center justify-center p-1.5 mb-1.5 overflow-hidden shrink-0">
+                <SafeImage src={goodImg} alt={goodTitle} objectFit="contain" />
+              </div>
+              <span className="text-emerald-300 font-bold text-xs truncate max-w-full">
+                {goodTitle}
+              </span>
+              <span className="text-emerald-400 font-black text-sm tracking-wide">
+                {rulesEl.goodItemSubtitle || '+10 POINTS'}
+              </span>
+            </div>
 
-    const handleClick = (e: React.MouseEvent) => {
-      if (isEditor) return;
-      e.stopPropagation();
-      if (onAction) {
-        onAction(btnEl.action);
+            {/* Bad Item Card */}
+            <div className="bg-rose-950/60 border border-rose-500/40 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center">
+              <div className="w-12 h-12 rounded-full bg-rose-900/60 border border-rose-400/60 flex items-center justify-center p-1.5 mb-1.5 overflow-hidden shrink-0">
+                <SafeImage src={badImg} alt={badTitle} objectFit="contain" />
+              </div>
+              <span className="text-rose-300 font-bold text-xs truncate max-w-full">
+                {badTitle}
+              </span>
+              <span className="text-rose-400 font-black text-sm tracking-wide">
+                {rulesEl.badItemSubtitle || '-10 POINTS'}
+              </span>
+            </div>
+          </div>
+        );
       }
-    };
 
-    return (
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={isEditor}
-        className={`w-full h-full flex items-center justify-center gap-2 select-none font-black transition-all ${
-          isEditor ? 'cursor-move' : 'cursor-pointer hover:brightness-110 active:scale-95 shadow-xl'
-        } ${isPulse ? 'animate-pulse' : ''}`}
-        style={{
-          backgroundColor: style.backgroundColor || '#f59e0b',
-          color: style.textColor || '#020617',
-          fontSize: style.fontSize ? `${style.fontSize}px` : '20px',
-          fontWeight: style.fontWeight || '900',
-          fontFamily: style.fontFamily || 'inherit',
-          borderRadius: style.borderRadius !== undefined ? `${style.borderRadius}px` : '18px',
-          borderWidth: style.borderWidth !== undefined ? `${style.borderWidth}px` : '0px',
-          borderStyle: style.borderWidth ? 'solid' : undefined,
-          borderColor: style.borderColor,
-          letterSpacing: style.letterSpacing ? `${style.letterSpacing}px` : '1px',
-          textTransform: style.textTransform || 'uppercase',
-          boxShadow: style.shadow
-            ? '0 12px 25px -4px rgba(245, 158, 11, 0.4), 0 4px 10px -2px rgba(0, 0, 0, 0.3)'
-            : undefined,
-        }}
-      >
-        {IconComp && (
-          <IconComp
-            className="shrink-0 fill-current"
-            style={{
-              width: style.fontSize ? `${Math.max(14, style.fontSize * 0.9)}px` : '18px',
-              height: style.fontSize ? `${Math.max(14, style.fontSize * 0.9)}px` : '18px',
-            }}
-          />
-        )}
-        <span>{btnEl.text}</span>
-      </button>
-    );
-  }
-
-  // 9. RULES ELEMENT
-  if (element.type === 'rules') {
-    const rulesEl = element as StartScreenRulesElement;
-    const style = rulesEl.style || {};
-
-    if (rulesEl.gameType === 'catch-brand' || gameType === 'catch-brand') {
-      const goodName = gameMeta?.fallingItemName || 'Brand Target';
-      const badName = gameMeta?.badFallingItemName || 'Hazard';
-      const goodImg = gameMeta?.goodItemImg || theme?.basket;
-      const badImg = gameMeta?.badItemImg;
-
+      // Generic rules display
       return (
-        <div
-          className="w-full h-full grid grid-cols-2 gap-3 p-3 select-none"
-          style={{
-            backgroundColor: style.backgroundColor || 'rgba(2, 6, 23, 0.8)',
-            borderWidth: style.borderWidth !== undefined ? `${style.borderWidth}px` : '1px',
-            borderStyle: 'solid',
-            borderColor: style.borderColor || '#334155',
-            borderRadius: style.borderRadius !== undefined ? `${style.borderRadius}px` : '18px',
-          }}
-        >
-          {/* Good Item Card */}
-          <div className="bg-emerald-950/60 border border-emerald-500/40 rounded-xl p-2 flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-emerald-900/80 border border-emerald-400 flex items-center justify-center p-1 shrink-0 overflow-hidden">
-              {goodImg ? (
-                <img src={goodImg} alt={goodName} className="w-full h-full object-contain" />
-              ) : (
-                <Sparkles className="w-5 h-5 text-emerald-300" />
-              )}
-            </div>
-            <div className="min-w-0">
-              <span className="text-emerald-300 font-bold text-xs truncate block">{goodName}</span>
-              <span className="text-emerald-400 font-black text-sm block">+10 PTS</span>
-            </div>
-          </div>
-
-          {/* Bad Item Card */}
-          <div className="bg-rose-950/60 border border-rose-500/40 rounded-xl p-2 flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-rose-900/80 border border-rose-400 flex items-center justify-center p-1 shrink-0 overflow-hidden">
-              {badImg ? (
-                <img src={badImg} alt={badName} className="w-full h-full object-contain" />
-              ) : (
-                <ShieldAlert className="w-5 h-5 text-rose-300" />
-              )}
-            </div>
-            <div className="min-w-0">
-              <span className="text-rose-300 font-bold text-xs truncate block">{badName}</span>
-              <span className="text-rose-400 font-black text-sm block">-10 PTS</span>
-            </div>
-          </div>
+        <div className="w-full h-full flex items-center justify-center p-3 bg-slate-900/80 border border-slate-800 rounded-2xl text-center text-slate-300 text-xs">
+          <span>{rulesEl.goodItemTitle || 'Follow instructions to play and win!'}</span>
         </div>
       );
     }
 
-    // Default Rules Text Card
-    return (
-      <div
-        className="w-full h-full flex flex-col items-center justify-center p-3 select-none text-center"
-        style={{
-          backgroundColor: style.backgroundColor || 'rgba(2, 6, 23, 0.8)',
-          borderWidth: style.borderWidth !== undefined ? `${style.borderWidth}px` : '1px',
-          borderStyle: 'solid',
-          borderColor: style.borderColor || '#334155',
-          borderRadius: style.borderRadius !== undefined ? `${style.borderRadius}px` : '18px',
-        }}
-      >
-        <span className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-1">
-          {rulesEl.title || 'HOW TO PLAY'}
-        </span>
-        <p className="text-xs text-slate-300 leading-relaxed max-w-md">
-          {rulesEl.description ||
-            (gameType === 'reaction-tap'
-              ? 'Wait for red lights to sequence and go out. Tap instantly to record fastest reaction!'
-              : 'Flip matching cards to clear the board before the countdown expires!')}
-        </p>
-      </div>
-    );
-  }
+    case 'icon': {
+      const iconEl = element as StartIconElement;
+      let IconComponent = Grid3X3;
+      if (iconEl.iconName === 'Zap') IconComponent = Zap;
+      else if (iconEl.iconName === 'Gamepad2') IconComponent = Gamepad2;
+      else if (iconEl.iconName === 'Sparkles') IconComponent = Sparkles;
+      else if (iconEl.iconName === 'Clock') IconComponent = Clock;
+      else if (iconEl.iconName === 'Layers') IconComponent = Layers;
 
-  // 10. ICON ELEMENT
-  if (element.type === 'icon') {
-    const iconEl = element as StartScreenIconElement;
-    const style = iconEl.style || {};
+      return (
+        <div
+          className="w-full h-full rounded-2xl flex items-center justify-center select-none"
+          style={{
+            backgroundColor: iconEl.backgroundColor || 'rgba(245, 158, 11, 0.15)',
+            borderColor: iconEl.borderColor || 'rgba(245, 158, 11, 0.4)',
+            borderWidth: '1px',
+            color: iconEl.iconColor || '#f59e0b',
+          }}
+        >
+          <IconComponent className="w-1/2 h-1/2" />
+        </div>
+      );
+    }
 
-    let IconC = Grid3X3;
-    if (iconEl.iconName === 'Zap') IconC = Zap;
-    else if (iconEl.iconName === 'Sparkles') IconC = Sparkles;
-    else if (iconEl.iconName === 'Trophy') IconC = Trophy;
-    else if (iconEl.iconName === 'Award') IconC = Award;
+    case 'keyboard-hints': {
+      const kbEl = element as StartKeyboardHintsElement;
+      const keys = kbEl.keys || ['← →', 'A D'];
 
-    return (
-      <div
-        className="w-full h-full flex items-center justify-center select-none"
-        style={{
-          backgroundColor: style.backgroundColor || 'rgba(245, 158, 11, 0.15)',
-          borderWidth: style.borderWidth !== undefined ? `${style.borderWidth}px` : '2px',
-          borderStyle: 'solid',
-          borderColor: style.borderColor || 'rgba(245, 158, 11, 0.4)',
-          borderRadius: style.borderRadius !== undefined ? `${style.borderRadius}px` : '24px',
-          boxShadow: style.shadow
-            ? '0 10px 20px -3px rgba(245, 158, 11, 0.3)'
-            : undefined,
-        }}
-      >
-        {iconEl.imageUrl ? (
-          <img
-            src={iconEl.imageUrl}
-            alt="Emblem"
-            className="w-3/4 h-3/4 object-contain"
-          />
-        ) : (
-          <IconC
-            className="w-3/5 h-3/5"
-            style={{ color: style.iconColor || '#fbbf24' }}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // 11. LEADERBOARD PREVIEW ELEMENT
-  if (element.type === 'leaderboard') {
-    const lbEl = element as StartScreenLeaderboardElement;
-    const style = lbEl.style || {};
-    const maxRows = lbEl.maxRows || 3;
-
-    const scores =
-      leaderboardScores && leaderboardScores.length > 0
-        ? leaderboardScores.slice(0, maxRows)
-        : [
-            { id: '1', rank: 1, player_name: 'Alex R.', score: 1250 },
-            { id: '2', rank: 2, player_name: 'Jordan K.', score: 1100 },
-            { id: '3', rank: 3, player_name: 'Taylor M.', score: 950 },
-          ].slice(0, maxRows);
-
-    return (
-      <div
-        className="w-full h-full flex flex-col p-3 box-border select-none overflow-hidden"
-        style={{
-          backgroundColor: style.backgroundColor || 'rgba(2, 6, 23, 0.85)',
-          borderWidth: style.borderWidth !== undefined ? `${style.borderWidth}px` : '1px',
-          borderStyle: 'solid',
-          borderColor: style.borderColor || '#334155',
-          borderRadius: style.borderRadius !== undefined ? `${style.borderRadius}px` : '18px',
-        }}
-      >
-        {style.showHeader !== false && (
-          <div className="flex items-center justify-between pb-2 mb-1 border-b border-slate-800">
-            <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Trophy className="w-3.5 h-3.5" />
-              <span>{lbEl.headerText || 'TOP PLAYERS'}</span>
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">HIGH SCORES</span>
-          </div>
-        )}
-
-        <div className="flex-1 space-y-1 overflow-hidden">
-          {scores.map((s, idx) => (
-            <div
-              key={s.id || idx}
-              className="flex items-center justify-between px-2 py-1 rounded-lg bg-slate-900/60 text-xs font-mono"
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className="font-black w-4 text-center"
-                  style={{
-                    color:
-                      idx === 0
-                        ? '#fbbf24'
-                        : idx === 1
-                        ? '#cbd5e1'
-                        : idx === 2
-                        ? '#d97706'
-                        : style.rankColor || '#94a3b8',
-                  }}
-                >
-                  {s.rank || idx + 1}
-                </span>
-                <span className="text-slate-200 truncate max-w-[120px]">
-                  {s.player_name || 'Player'}
-                </span>
-              </div>
-              <span
-                className="font-bold"
-                style={{ color: style.scoreColor || '#38bdf8' }}
-              >
-                {s.score}
-              </span>
-            </div>
+      return (
+        <div className="w-full h-full flex items-center gap-2 text-slate-400 text-xs select-none">
+          {keys.map((k, i) => (
+            <React.Fragment key={i}>
+              <kbd className="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 font-mono text-[11px]">
+                {k}
+              </kbd>
+              {i < keys.length - 1 && <span>/</span>}
+            </React.Fragment>
           ))}
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  return null;
+    default: {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[StartElementContent] Unknown Start Screen element type: "${(element as any)?.type}"`);
+      }
+      return null;
+    }
+  }
 };
