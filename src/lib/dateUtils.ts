@@ -354,14 +354,21 @@ export function getClientLiveGameAccessDetails(
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
   const curDate = getNormalizedCurrentDate(currentDate);
 
-  // 2. Date window check: Event has ended (concluded)
-  // Authoritative Rule: "After 3-Sep: => Live Game CLOSED regardless of payment."
+  // 2. Date window check: Event has ended
+  // Authoritative Rule: "After event end date => Live Game CLOSED regardless of payment."
+  const payStatus = (event.payment_status || '').toUpperCase();
+  const isPaid = payStatus === 'PAID';
+
   if (endDate && curDate > endDate) {
     return {
       canAccess: false,
-      code: 'EVENT_EXPIRED',
-      reason: `This event concluded on ${formatDateOnly(endDate)}.`,
-      error: `This event concluded on ${formatDateOnly(endDate)}.`,
+      code: isPaid ? 'EVENT_COMPLETED' : 'EVENT_EXPIRED',
+      reason: isPaid
+        ? `This event completed on ${formatDateOnly(endDate)}.`
+        : `This event expired on ${formatDateOnly(endDate)}.`,
+      error: isPaid
+        ? `This event completed on ${formatDateOnly(endDate)}.`
+        : `This event expired on ${formatDateOnly(endDate)}.`,
       is_expired: true,
       start_date: startDate,
       end_date: endDate,
@@ -371,8 +378,6 @@ export function getClientLiveGameAccessDetails(
 
   // 3. Payment status check (checked independently)
   // Unpaid events during setup or live window are blocked awaiting payment, NOT cancelled
-  const payStatus = (event.payment_status || '').toUpperCase();
-  const isPaid = payStatus === 'PAID';
   const rawStatus = (event.status || '').toLowerCase();
 
   if (!isPaid || rawStatus === 'pending_payment') {
@@ -572,8 +577,13 @@ export function getEventAvailabilityState(
     statusLabel = 'Cancelled';
     statusExplanation = 'This event deployment has been cancelled.';
   } else if (isAfterLiveWindow) {
-    statusLabel = 'Concluded';
-    statusExplanation = `This event concluded on ${formatDateOnly(endDate)}.`;
+    if (isPaid) {
+      statusLabel = 'Completed';
+      statusExplanation = `This event completed on ${formatDateOnly(endDate)}.`;
+    } else {
+      statusLabel = 'Expired';
+      statusExplanation = `This event expired on ${formatDateOnly(endDate)} without payment.`;
+    }
   } else if (isInsideLiveWindow) {
     if (isPaid) {
       statusLabel = 'Live Now';
@@ -616,7 +626,9 @@ export function getEventAvailabilityState(
  * Calculates current dynamic event status for standard lifecycle management.
  * Date-only evaluation:
  * - Explicit cancellation -> 'cancelled'
- * - Current date > end_date -> 'expired'
+ * - Current date > end_date:
+ *     paid -> 'completed'
+ *     unpaid -> 'expired'
  * - Current date < start_date:
  *     paid -> 'scheduled'
  *     unpaid -> 'pending_payment'
@@ -637,7 +649,7 @@ export function calculateEventStatus(
     [key: string]: any;
   },
   now?: Date | string
-): string {
+): 'cancelled' | 'completed' | 'expired' | 'scheduled' | 'live' | 'pending_payment' | 'draft' {
   if (isEventExplicitlyCancelled(event)) {
     return 'cancelled';
   }
@@ -646,16 +658,28 @@ export function calculateEventStatus(
   const curDate = getNormalizedCurrentDate(now);
   const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 
+  // 1. After event end date:
+  // Paid => 'completed', Unpaid => 'expired'
   if (endDate && curDate > endDate) {
-    return 'expired';
+    return isPaid ? 'completed' : 'expired';
   }
 
+  // 2. Before event start date:
   if (startDate && curDate < startDate) {
     return isPaid ? 'scheduled' : 'pending_payment';
   }
 
-  // On event date range
-  return isPaid ? 'live' : 'pending_payment';
+  // 3. On event date range (startDate <= curDate <= endDate):
+  if (isPaid) {
+    return 'live';
+  }
+
+  const rawStatus = (event.status || '').toLowerCase();
+  if (rawStatus === 'draft') {
+    return 'draft';
+  }
+
+  return 'pending_payment';
 }
 
 /**
@@ -663,9 +687,15 @@ export function calculateEventStatus(
  *
  * EXPECTED LIFECYCLE RULES:
  * 1. Only explicit cancellation: CANCELLED
- * 2. After event date has ended: COMPLETED (Concluded)
- * 3. Before event date: SCHEDULED
- * 4. On event date: LIVE
+ * 2. After event date has ended:
+ *      PAID   => COMPLETED
+ *      UNPAID => EXPIRED
+ * 3. Before event date:
+ *      PAID   => SCHEDULED
+ *      UNPAID => PENDING_PAYMENT (or DRAFT if draft)
+ * 4. On event date:
+ *      PAID   => LIVE
+ *      UNPAID => PENDING_PAYMENT
  *
  * Events are DATE-ONLY, not datetime-based.
  * Payment status does NOT automatically set event status to CANCELLED.
@@ -683,26 +713,37 @@ export function deriveEventLifecycleStatus(
     [key: string]: any;
   },
   now?: Date | string
-): 'DRAFT' | 'PAYMENT_PENDING' | 'PENDING_PAYMENT' | 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' {
+): 'DRAFT' | 'PAYMENT_PENDING' | 'PENDING_PAYMENT' | 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' {
   if (isEventExplicitlyCancelled(event)) {
     return 'CANCELLED';
   }
 
   const { startDate, endDate } = getNormalizedEventDates(event);
   const curDate = getNormalizedCurrentDate(now);
+  const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 
-  // After event date has ended -> COMPLETED (Concluded)
+  // 1. After event date has ended:
+  // PAID => COMPLETED, UNPAID => EXPIRED
   if (endDate && curDate > endDate) {
-    return 'COMPLETED';
+    return isPaid ? 'COMPLETED' : 'EXPIRED';
   }
 
-  // Before event date -> SCHEDULED
+  // 2. Before event date:
   if (startDate && curDate < startDate) {
-    return 'SCHEDULED';
+    return isPaid ? 'SCHEDULED' : 'PENDING_PAYMENT';
   }
 
-  // On event date -> LIVE
-  return 'LIVE';
+  // 3. On event date:
+  if (isPaid) {
+    return 'LIVE';
+  }
+
+  const rawStatus = (event.status || '').toLowerCase();
+  if (rawStatus === 'draft') {
+    return 'DRAFT';
+  }
+
+  return 'PENDING_PAYMENT';
 }
 
 /**

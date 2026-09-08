@@ -6,7 +6,7 @@ import { CreateEventDialog } from './CreateEventDialog';
 import { EditEventDialog } from './EditEventDialog';
 import { CancelEventModal } from './CancelEventModal';
 import { EventCalendarView } from './EventCalendarView';
-import { isEventExplicitlyCancelled } from '../../lib/dateUtils';
+import { isEventExplicitlyCancelled, calculateEventStatus } from '../../lib/dateUtils';
 import {
   Plus,
   Calendar as CalendarIcon,
@@ -30,7 +30,7 @@ export const EventsPage: React.FC = () => {
   // Filter & Search
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<
-    'all' | 'live' | 'scheduled' | 'pending_payment' | 'expired' | 'cancelled' | 'draft'
+    'all' | 'live' | 'scheduled' | 'pending_payment' | 'completed' | 'expired' | 'cancelled' | 'draft'
   >('all');
 
   // View Mode: 'list' | 'calendar'
@@ -117,23 +117,19 @@ export const EventsPage: React.FC = () => {
       ev.game_theme?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ev.public_token?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const isCancelled = isEventExplicitlyCancelled(ev);
-    const effectiveStatus = isCancelled ? 'cancelled' : (ev.calculated_status || ev.status);
-    const isPaid = (ev.payment_status || '').toUpperCase() === 'PAID';
-    const isPending = !isCancelled && !isPaid;
+    const effectiveStatus = calculateEventStatus(ev);
 
     if (statusFilter === 'all') return matchesSearch;
-    if (statusFilter === 'cancelled') return matchesSearch && isCancelled;
-    if (statusFilter === 'pending_payment') return matchesSearch && isPending;
-    return matchesSearch && !isCancelled && effectiveStatus === statusFilter;
+    return matchesSearch && effectiveStatus === statusFilter;
   });
 
   // Metrics
   const totalCount = events.length;
-  const liveCount = events.filter((e) => !isEventExplicitlyCancelled(e) && (e.calculated_status || e.status) === 'live' && (e.payment_status || '').toUpperCase() === 'PAID').length;
-  const scheduledCount = events.filter((e) => !isEventExplicitlyCancelled(e) && (e.calculated_status || e.status) === 'scheduled' && (e.payment_status || '').toUpperCase() === 'PAID').length;
-  const pendingCount = events.filter((e) => !isEventExplicitlyCancelled(e) && (e.payment_status || '').toUpperCase() !== 'PAID').length;
-  const expiredCount = events.filter((e) => !isEventExplicitlyCancelled(e) && ((e.calculated_status || e.status) === 'expired' || (e.calculated_status || e.status) === 'completed')).length;
+  const liveCount = events.filter((e) => calculateEventStatus(e) === 'live').length;
+  const scheduledCount = events.filter((e) => calculateEventStatus(e) === 'scheduled').length;
+  const pendingCount = events.filter((e) => calculateEventStatus(e) === 'pending_payment').length;
+  const completedCount = events.filter((e) => calculateEventStatus(e) === 'completed').length;
+  const expiredCount = events.filter((e) => calculateEventStatus(e) === 'expired').length;
 
   const isViewer = currentOrganization?.role === 'viewer';
 
@@ -197,9 +193,9 @@ export const EventsPage: React.FC = () => {
       </div>
 
       {/* Metrics Summary Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Live Deployments</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Live</span>
           <div className="text-2xl font-black text-emerald-400">{liveCount}</div>
         </div>
 
@@ -214,7 +210,12 @@ export const EventsPage: React.FC = () => {
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Concluded / Expired</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Completed</span>
+          <div className="text-2xl font-black text-emerald-300">{completedCount}</div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm col-span-2 sm:col-span-1">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Expired</span>
           <div className="text-2xl font-black text-slate-400">{expiredCount}</div>
         </div>
       </div>
@@ -255,6 +256,7 @@ export const EventsPage: React.FC = () => {
                   { key: 'live', label: 'Live' },
                   { key: 'scheduled', label: 'Scheduled' },
                   { key: 'pending_payment', label: 'Pending Payment' },
+                  { key: 'completed', label: 'Completed' },
                   { key: 'expired', label: 'Expired' },
                   { key: 'cancelled', label: 'Cancelled' },
                 ] as const

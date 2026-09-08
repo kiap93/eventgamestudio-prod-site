@@ -329,15 +329,23 @@ export function getClientLiveGameAccessDetails(
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
   const curDate = getNormalizedCurrentDate(currentDate);
 
-  // 2. Date window check: Event has ended (concluded)
-  // Authoritative Rule: "After 3-Sep: => Live Game CLOSED regardless of payment."
+  // 2. Date window check: Event has ended
+  // Authoritative Rule: "After event end date => Live Game CLOSED regardless of payment."
+  const payStatus = (event.payment_status || '').toUpperCase();
+  const isPaid = payStatus === 'PAID';
+
   if (endDate && curDate > endDate) {
     return {
       canAccess: false,
-      code: 'EVENT_EXPIRED',
-      reason: `This event concluded on ${formatDateOnly(endDate)}.`,
-      error: `This event concluded on ${formatDateOnly(endDate)}.`,
+      code: isPaid ? 'EVENT_COMPLETED' : 'EVENT_EXPIRED',
+      reason: isPaid
+        ? `This event completed on ${formatDateOnly(endDate)}.`
+        : `This event expired on ${formatDateOnly(endDate)}.`,
+      error: isPaid
+        ? `This event completed on ${formatDateOnly(endDate)}.`
+        : `This event expired on ${formatDateOnly(endDate)}.`,
       is_expired: true,
+      is_completed: isPaid,
       start_date: startDate,
       end_date: endDate,
       live_open_date: liveOpenDate,
@@ -515,16 +523,28 @@ export function calculateEventStatus(
   const curDate = getNormalizedCurrentDate(now);
   const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 
+  // 1. After event end date:
+  // Paid => 'completed', Unpaid => 'expired'
   if (endDate && curDate > endDate) {
-    return 'expired';
+    return isPaid ? 'completed' : 'expired';
   }
 
+  // 2. Before event start date:
   if (startDate && curDate < startDate) {
     return isPaid ? 'scheduled' : 'pending_payment';
   }
 
-  // On event date range
-  return isPaid ? 'live' : 'pending_payment';
+  // 3. On event date range:
+  if (isPaid) {
+    return 'live';
+  }
+
+  const rawStatus = (event.status || '').toLowerCase();
+  if (rawStatus === 'draft') {
+    return 'draft';
+  }
+
+  return 'pending_payment';
 }
 
 /**
@@ -553,9 +573,15 @@ export function isEventPlayable(
  *
  * EXPECTED LIFECYCLE RULES:
  * 1. Only explicit cancellation: CANCELLED
- * 2. After event date has ended: COMPLETED (Concluded)
- * 3. Before event date: SCHEDULED
- * 4. On event date: LIVE
+ * 2. After event date has ended:
+ *      PAID   => COMPLETED
+ *      UNPAID => EXPIRED
+ * 3. Before event date:
+ *      PAID   => SCHEDULED
+ *      UNPAID => PENDING_PAYMENT (or DRAFT if draft)
+ * 4. On event date:
+ *      PAID   => LIVE
+ *      UNPAID => PENDING_PAYMENT
  *
  * Events are DATE-ONLY, not datetime-based.
  * Payment status does NOT automatically set event status to CANCELLED.
@@ -580,19 +606,30 @@ export function deriveEventLifecycleStatus(
 
   const { startDate, endDate } = getNormalizedEventDates(event);
   const curDate = getNormalizedCurrentDate(now);
+  const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 
-  // After event date has ended -> COMPLETED (Concluded)
+  // 1. After event date has ended:
+  // PAID => COMPLETED, UNPAID => EXPIRED
   if (endDate && curDate > endDate) {
-    return 'COMPLETED';
+    return isPaid ? 'COMPLETED' : 'EXPIRED';
   }
 
-  // Before event date -> SCHEDULED
+  // 2. Before event date:
   if (startDate && curDate < startDate) {
-    return 'SCHEDULED';
+    return isPaid ? 'SCHEDULED' : 'PENDING_PAYMENT';
   }
 
-  // On event date -> LIVE
-  return 'LIVE';
+  // 3. On event date:
+  if (isPaid) {
+    return 'LIVE';
+  }
+
+  const rawStatus = (event.status || '').toLowerCase();
+  if (rawStatus === 'draft') {
+    return 'DRAFT';
+  }
+
+  return 'PENDING_PAYMENT';
 }
 
 /**
@@ -2664,11 +2701,11 @@ export async function runEventLifecycleMaintenance(
       const { endDate } = getNormalizedEventDates(ev);
       const isAfterEndDate = Boolean(endDate && curDate > endDate);
 
-      // If the event date has completely finished -> Mark COMPLETED (Concluded), never auto-cancelled
-      if (isAfterEndDate && evStatus !== 'COMPLETED' && rawStatus !== 'expired') {
+      // If the event date has completely finished without payment -> Mark EXPIRED
+      if (isAfterEndDate && (evStatus !== 'EXPIRED' || rawStatus !== 'expired')) {
         completedEvents.push(ev.id);
         const payload = {
-          event_status: 'COMPLETED' as EventLifecycleStatus,
+          event_status: 'EXPIRED' as EventLifecycleStatus,
           status: 'expired' as EventStatus,
           updated_at: nowIso,
         };
@@ -2725,13 +2762,13 @@ export async function runEventLifecycleMaintenance(
       const isAfterEndDate = Boolean(endDate && curDate > endDate);
       const isLiveNow = Boolean(startDate && endDate && curDate >= startDate && curDate <= endDate);
 
-      // Event date has completely passed -> Mark COMPLETED (Concluded)
+      // Event date has completely passed -> Mark COMPLETED
       if (isAfterEndDate) {
-        if (evStatus !== 'COMPLETED' && rawStatus !== 'expired') {
+        if (evStatus !== 'COMPLETED' || rawStatus !== 'completed') {
           completedEvents.push(ev.id);
           const payload = {
             event_status: 'COMPLETED' as EventLifecycleStatus,
-            status: 'expired' as EventStatus,
+            status: 'completed' as EventStatus,
             updated_at: nowIso,
           };
           await supabase.from('events').update(payload).eq('id', ev.id);

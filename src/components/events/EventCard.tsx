@@ -14,6 +14,7 @@ import {
   Trophy,
   AlertCircle,
   Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
@@ -23,6 +24,7 @@ import {
   canAccessLiveEvent,
   canAccessPreviewEvent,
   isEventExplicitlyCancelled,
+  calculateEventStatus,
 } from '../../lib/dateUtils';
 import { EventLeaderboardModal } from './EventLeaderboardModal';
 import { EventPaymentModal } from './EventPaymentModal';
@@ -57,8 +59,9 @@ export const EventCard: React.FC<EventCardProps> = ({
 
   const availability = getEventAvailabilityState(event);
   const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
-  const isPendingPayment = !isPaid;
   const isCancelled = isEventExplicitlyCancelled(event);
+  const effectiveStatus = calculateEventStatus(event);
+  const isPendingPayment = effectiveStatus === 'pending_payment';
 
   const copyLink = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -82,47 +85,51 @@ export const EventCard: React.FC<EventCardProps> = ({
   };
 
   const getStatusBadge = () => {
-    if (isCancelled) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 border border-red-500/30 text-red-400">
-          <Ban className="w-3 h-3" />
-          Cancelled
-        </span>
-      );
+    switch (effectiveStatus) {
+      case 'cancelled':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 border border-red-500/30 text-red-400">
+            <Ban className="w-3 h-3" />
+            Cancelled
+          </span>
+        );
+      case 'completed':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+            Completed
+          </span>
+        );
+      case 'expired':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 border border-slate-700 text-slate-400">
+            <Clock className="w-3 h-3 text-slate-500" />
+            Expired
+          </span>
+        );
+      case 'pending_payment':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400">
+            <AlertCircle className="w-3 h-3" />
+            Pending Payment
+          </span>
+        );
+      case 'live':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+            Live Now
+          </span>
+        );
+      case 'scheduled':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 border border-blue-500/30 text-blue-400">
+            <Calendar className="w-3 h-3" />
+            Scheduled
+          </span>
+        );
     }
-
-    if (availability.isAfterLiveWindow) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 border border-slate-700 text-slate-400">
-          Concluded
-        </span>
-      );
-    }
-
-    if (isPendingPayment) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400">
-          <AlertCircle className="w-3 h-3" />
-          Pending Payment
-        </span>
-      );
-    }
-
-    if (availability.isInsideLiveWindow) {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-          Live Now
-        </span>
-      );
-    }
-
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 border border-blue-500/30 text-blue-400">
-        <Calendar className="w-3 h-3" />
-        Scheduled
-      </span>
-    );
   };
 
   const gameName = event.game?.name || 'Catch The Brand';
@@ -236,15 +243,19 @@ export const EventCard: React.FC<EventCardProps> = ({
       <div className="flex items-center justify-between gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs">
         <div className="flex items-center gap-1.5 min-w-0 truncate font-mono text-[11px] text-slate-400">
           <span className="truncate">/play/{event.public_token}</span>
-          {isCancelled ? (
+          {effectiveStatus === 'cancelled' ? (
             <span className="text-[10px] text-red-400 font-sans font-medium shrink-0">
               (Cancelled)
             </span>
-          ) : availability.isAfterLiveWindow ? (
-            <span className="text-[10px] text-slate-500 font-sans font-medium shrink-0">
-              (Concluded)
+          ) : effectiveStatus === 'completed' ? (
+            <span className="text-[10px] text-emerald-400 font-sans font-medium shrink-0">
+              (Completed)
             </span>
-          ) : isPendingPayment ? (
+          ) : effectiveStatus === 'expired' ? (
+            <span className="text-[10px] text-slate-500 font-sans font-medium shrink-0">
+              (Expired)
+            </span>
+          ) : effectiveStatus === 'pending_payment' ? (
             <span className="text-[10px] text-amber-500/80 font-sans font-medium shrink-0">
               (Active after payment)
             </span>
@@ -281,7 +292,7 @@ export const EventCard: React.FC<EventCardProps> = ({
       <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           {/* Action 1: Pay CTA or Play Live CTA */}
-          {isPendingPayment && !isCancelled && !availability.isAfterLiveWindow ? (
+          {effectiveStatus === 'pending_payment' ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();

@@ -15,7 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { formatEventDateRange, formatDateOnly } from '../../lib/dateUtils';
+import { formatEventDateRange, formatDateOnly, calculateEventStatus } from '../../lib/dateUtils';
 
 export type CalendarViewType = 'month' | 'week' | 'day';
 
@@ -148,7 +148,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
 
       // Status filter
       if (selectedStatus !== 'all') {
-        const effectiveStatus = ev.calculated_status || ev.status;
+        const effectiveStatus = calculateEventStatus(ev);
         if (effectiveStatus !== selectedStatus) return false;
       }
 
@@ -304,10 +304,24 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
             Scheduled
           </span>
         );
+      case 'completed':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+            <CheckCircle2 className="w-2.5 h-2.5" />
+            Completed
+          </span>
+        );
       case 'expired':
         return (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700">
             Expired
+          </span>
+        );
+      case 'pending_payment':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/40">
+            <AlertCircle className="w-2.5 h-2.5" />
+            Pending
           </span>
         );
       case 'cancelled':
@@ -333,8 +347,12 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
         return 'border-emerald-500/40 bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-200';
       case 'scheduled':
         return 'border-blue-500/40 bg-blue-950/40 hover:bg-blue-900/50 text-blue-200';
+      case 'completed':
+        return 'border-emerald-500/30 bg-emerald-950/30 hover:bg-emerald-900/40 text-emerald-200';
       case 'expired':
         return 'border-slate-800 bg-slate-900/60 hover:bg-slate-800/80 text-slate-400';
+      case 'pending_payment':
+        return 'border-amber-500/40 bg-amber-950/30 hover:bg-amber-900/40 text-amber-200';
       case 'cancelled':
         return 'border-red-500/40 bg-red-950/40 hover:bg-red-900/50 text-red-300';
       case 'draft':
@@ -468,6 +486,8 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
               <option value="all">All Status</option>
               <option value="live">Live Now</option>
               <option value="scheduled">Scheduled</option>
+              <option value="pending_payment">Pending Payment</option>
+              <option value="completed">Completed</option>
               <option value="expired">Expired</option>
               <option value="draft">Draft</option>
               <option value="cancelled">Cancelled</option>
@@ -621,7 +641,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                       {/* Day Events Stack */}
                       <div className="flex-1 space-y-1.5 overflow-hidden">
                         {dayEvents.slice(0, 3).map((ev) => {
-                          const effectiveStatus = ev.calculated_status || ev.status;
+                          const effectiveStatus = calculateEventStatus(ev);
                           const isMultiDay =
                             !isSameDay(new Date(ev.starts_at), new Date(ev.expires_at));
                           const isStartDay = isSameDay(date, new Date(ev.starts_at));
@@ -728,7 +748,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                         </div>
                       ) : (
                         dayEvents.map((ev) => {
-                          const effectiveStatus = ev.calculated_status || ev.status;
+                          const effectiveStatus = calculateEventStatus(ev);
                           return (
                             <div
                               key={ev.id}
@@ -831,7 +851,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
             return (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {dayEvents.map((ev) => {
-                  const effectiveStatus = ev.calculated_status || ev.status;
+                  const effectiveStatus = calculateEventStatus(ev);
                   const publicUrl = `${window.location.origin}/e/${ev.public_token}`;
 
                   return (
