@@ -299,7 +299,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
           : {}),
       }}
     >
-      {/* Full container backdrop */}
+      {/* Full container backdrop for letterbox margins */}
       <div
         className="game-ui-backdrop"
         style={{
@@ -313,17 +313,9 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
         }}
-      >
-        {customBgUrl && (
-          <img
-            src={customBgUrl}
-            alt=""
-            aria-hidden="true"
-          />
-        )}
-      </div>
+      />
 
-      {/* Proportionally Scaled Game Stage containing Canvas */}
+      {/* Proportionally Scaled Single Game Stage containing Canvas & UI Overlay */}
       <div
         className={`game-stage relative w-full h-full ${
           responsive.isPortrait
@@ -339,35 +331,35 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
           ref={containerRef}
           className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center pointer-events-auto"
         />
-      </div>
 
-      {/* Arcade UI Overlay spanning full game container */}
-      <ArcadeUI
-        gameState={gameState}
-        stats={stats}
-        countdownText={countdownText}
-        eventId={eventId}
-        publicToken={publicToken}
-        isEventPreview={isEventPreview}
-        isEventTest={isEventTest}
-        isMuted={isMuted}
-        onToggleMute={handleToggleMute}
-        cameraActive={cameraActive}
-        onToggleCamera={handleToggleCamera}
-        onStartGame={handleStartGame}
-        onPauseGame={handlePauseGame}
-        onResumeGame={handleResumeGame}
-        onRestartGame={handleRestartGame}
-        onStopGame={handleStopGame}
-        videoRef={videoRef}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={onToggleFullscreen}
-        settings={settings}
-        onUpdateSettings={handleUpdateSettings}
-        onResetSettings={handleResetSettings}
-        activeTheme={activeTheme}
-        onSelectTheme={handleSelectTheme}
-      />
+        {/* Arcade UI Overlay directly mounted inside game stage over canvas */}
+        <ArcadeUI
+          gameState={gameState}
+          stats={stats}
+          countdownText={countdownText}
+          eventId={eventId}
+          publicToken={publicToken}
+          isEventPreview={isEventPreview}
+          isEventTest={isEventTest}
+          isMuted={isMuted}
+          onToggleMute={handleToggleMute}
+          cameraActive={cameraActive}
+          onToggleCamera={handleToggleCamera}
+          onStartGame={handleStartGame}
+          onPauseGame={handlePauseGame}
+          onResumeGame={handleResumeGame}
+          onRestartGame={handleRestartGame}
+          onStopGame={handleStopGame}
+          videoRef={videoRef}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={onToggleFullscreen}
+          settings={settings}
+          onUpdateSettings={handleUpdateSettings}
+          onResetSettings={handleResetSettings}
+          activeTheme={activeTheme}
+          onSelectTheme={handleSelectTheme}
+        />
+      </div>
     </div>
   );
 };

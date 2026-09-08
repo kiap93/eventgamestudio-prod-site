@@ -125,6 +125,11 @@ body,
   overflow: hidden;
 }
 
+.game-container.absolute,
+.absolute.game-container {
+  position: absolute !important;
+}
+
 .game-ui-backdrop {
   position: absolute;
   inset: 0;

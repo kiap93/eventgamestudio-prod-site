@@ -391,41 +391,20 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   return (
     <div
       ref={containerRef}
-      className="game-container absolute inset-0 w-full h-full pointer-events-none select-none overflow-hidden font-mono z-30"
+      className="absolute inset-0 w-full h-full pointer-events-none select-none overflow-hidden font-mono z-30"
       style={{
         '--game-ui-scale': uiScale,
         '--game-design-width': `${designWidth}px`,
         '--game-design-height': `${designHeight}px`,
       } as React.CSSProperties}
     >
-      {/* Full container backdrop */}
-      <div
-        className="game-ui-backdrop"
-        style={{
-          backgroundColor: backdropBgColor,
-          backgroundImage: (!backdropImgUrl && activeTheme?.visuals_config?.bgGradientFrom)
-            ? `radial-gradient(circle at 50% 20%, ${activeTheme.visuals_config.bgGradientFrom} 0%, ${backdropBgColor} 100%)`
-            : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          display: gameState === 'START' ? 'block' : 'none',
-        }}
-      >
-        {backdropImgUrl && (
-          <img
-            src={backdropImgUrl}
-            alt=""
-            aria-hidden="true"
-          />
-        )}
-        {backdropOverlayOpacity > 0 && (
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{ backgroundColor: `rgba(0, 0, 0, ${backdropOverlayOpacity})` }}
-          />
-        )}
-      </div>
+      {/* Optional Start Screen subtle backdrop dimming over active game canvas */}
+      {gameState === 'START' && backdropOverlayOpacity > 0 && (
+        <div
+          className="absolute inset-0 pointer-events-none z-0"
+          style={{ backgroundColor: `rgba(0, 0, 0, ${backdropOverlayOpacity})` }}
+        />
+      )}
 
       {/* Scaled design canvas (1024x576 in landscape, 576x1024 in portrait) */}
       <div
