@@ -3,6 +3,8 @@ import {
   StartScreenElement,
   StartCardElement,
   StartTextElement,
+  StartTitleElement,
+  StartDescriptionElement,
   StartImageElement,
   StartButtonElement,
   StartBadgeElement,
@@ -10,6 +12,7 @@ import {
   StartIconElement,
   StartKeyboardHintsElement,
   StartGroupElement,
+  StartLeaderboardElement,
   StartScreenGameMeta,
 } from './startScreenTypes';
 import {
@@ -144,8 +147,10 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
       );
     }
 
-    case 'text': {
-      const textEl = element as StartTextElement;
+    case 'text':
+    case 'title':
+    case 'description': {
+      const textEl = element as StartTextElement | StartTitleElement | StartDescriptionElement;
       const s = textEl.style || {};
 
       // Dynamic text template resolution
@@ -431,6 +436,37 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
               {i < keys.length - 1 && <span>/</span>}
             </React.Fragment>
           ))}
+        </div>
+      );
+    }
+
+    case 'leaderboard': {
+      const lbEl = element as StartLeaderboardElement;
+      const s = lbEl.style || {};
+      return (
+        <div
+          className="w-full h-full flex flex-col p-3 rounded-2xl select-none"
+          style={{
+            backgroundColor: s.backgroundColor || 'rgba(2, 6, 23, 0.85)',
+            borderColor: s.borderColor || '#334155',
+            borderWidth: `${s.borderWidth ?? 1}px`,
+            borderRadius: s.borderRadius ? `${(s.borderRadius / 1000) * parentWidth}px` : '18px',
+          }}
+        >
+          {lbEl.showHeader !== false && (
+            <div className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5">
+              <Trophy className="w-3.5 h-3.5" />
+              <span>{lbEl.headerText || 'TOP HIGH SCORES'}</span>
+            </div>
+          )}
+          <div className="space-y-1.5 flex-1 flex flex-col justify-center">
+            {['1. ACE - 2,450', '2. NEO - 1,980', '3. MAX - 1,620'].slice(0, lbEl.maxRows || 3).map((row, i) => (
+              <div key={i} className="flex justify-between text-xs font-mono text-slate-300 bg-slate-800/50 px-2 py-1 rounded">
+                <span>{row.split(' - ')[0]}</span>
+                <span className="text-amber-300 font-bold">{row.split(' - ')[1]}</span>
+              </div>
+            ))}
+          </div>
         </div>
       );
     }

@@ -66,9 +66,21 @@ const nowSep8 = new Date('2026-09-08T01:00:00.000Z');
 const statusOnSep8 = calculateEventStatus(sep7Event, nowSep8);
 const lifecycleOnSep8 = deriveEventLifecycleStatus(sep7Event, nowSep8);
 
-assert.strictEqual(statusOnSep8, 'expired', 'Status must be expired/concluded after event date');
-assert.strictEqual(lifecycleOnSep8, 'COMPLETED', 'Lifecycle must be COMPLETED after event date');
-console.log('✓ PASS: Event is CONCLUDED only after the event date has completely finished\n');
+assert.strictEqual(statusOnSep8, 'completed', 'Status must be completed after event date for paid event');
+assert.strictEqual(lifecycleOnSep8, 'COMPLETED', 'Lifecycle must be COMPLETED after event date for paid event');
+console.log('✓ PASS: Paid event is COMPLETED after the event date has completely finished\n');
+
+// 3b. Unpaid event after event date:
+const unpaidSep7Event = {
+  ...sep7Event,
+  payment_status: 'UNPAID',
+  paid_amount: 0,
+};
+const unpaidStatusOnSep8 = calculateEventStatus(unpaidSep7Event, nowSep8);
+const unpaidLifecycleOnSep8 = deriveEventLifecycleStatus(unpaidSep7Event, nowSep8);
+assert.strictEqual(unpaidStatusOnSep8, 'expired', 'Status must be expired after event date for unpaid event');
+assert.strictEqual(unpaidLifecycleOnSep8, 'EXPIRED', 'Lifecycle must be EXPIRED after event date for unpaid event');
+console.log('✓ PASS: Unpaid event is EXPIRED after the event date has completely finished\n');
 
 // 4. Even if legacy or erroneous cancel_reason: 'PAYMENT_TIMEOUT' is present on a PAID event, it MUST NOT be cancelled
 console.log('--- TEST 4: Erroneous PAYMENT_TIMEOUT on Paid Event ---');

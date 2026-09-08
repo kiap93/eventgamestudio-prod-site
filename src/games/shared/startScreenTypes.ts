@@ -17,13 +17,16 @@ export const DEFAULT_START_CANVAS_CONFIG = {
 export type StartScreenElementType =
   | 'card'
   | 'text'
+  | 'title'
+  | 'description'
   | 'image'
   | 'button'
   | 'badge'
   | 'rules'
   | 'icon'
   | 'keyboard-hints'
-  | 'group';
+  | 'group'
+  | 'leaderboard';
 
 export interface StartScreenBaseElement {
   id: string;
@@ -47,6 +50,7 @@ export interface StartCardStyle {
   borderRadius?: number;
   shadow?: boolean;
   opacity?: number;
+  backdropBlur?: boolean;
 }
 
 export interface StartCardElement extends StartScreenBaseElement {
@@ -71,6 +75,18 @@ export interface StartTextStyle {
 
 export interface StartTextElement extends StartScreenBaseElement {
   type: 'text';
+  text: string;
+  style?: StartTextStyle;
+}
+
+export interface StartTitleElement extends StartScreenBaseElement {
+  type: 'title';
+  text: string;
+  style?: StartTextStyle;
+}
+
+export interface StartDescriptionElement extends StartScreenBaseElement {
+  type: 'description';
   text: string;
   style?: StartTextStyle;
 }
@@ -104,13 +120,20 @@ export interface StartButtonStyle {
   gradient?: boolean;
   gradientFrom?: string;
   gradientTo?: string;
+  color?: string;
+  pulse?: boolean;
+  letterSpacing?: number;
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
 }
+
+export type StartButtonAction = 'start' | 'leaderboard' | 'guide' | 'settings' | string;
 
 export interface StartButtonElement extends StartScreenBaseElement {
   type: 'button';
-  action: 'start' | 'leaderboard' | 'guide' | 'settings' | string;
+  action: StartButtonAction;
   text: string;
   icon?: string;
+  iconName?: string;
   style?: StartButtonStyle;
 }
 
@@ -122,26 +145,45 @@ export interface StartBadgeStyle {
   labelColor?: string;
   valueColor?: string;
   fontSize?: number;
+  textAlign?: string;
+  layout?: 'vertical' | 'horizontal';
+  gap?: number;
 }
+
+export type StartBadgeMetric = 'grid' | 'pairs' | 'timer' | 'duration' | 'rounds' | 'lights' | string;
 
 export interface StartBadgeElement extends StartScreenBaseElement {
   type: 'badge';
-  metric?: 'grid' | 'pairs' | 'timer' | 'duration' | 'rounds' | 'lights' | string;
+  metric?: StartBadgeMetric;
   label?: string;
   value?: string;
   icon?: string;
   style?: StartBadgeStyle;
 }
 
+export interface StartRulesStyle {
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  textColor?: string;
+  fontSize?: number;
+  showIcons?: boolean;
+}
+
 export interface StartRulesElement extends StartScreenBaseElement {
   type: 'rules';
   ruleType?: 'catch-brand' | 'memory-match' | 'reaction-tap' | 'custom';
+  gameType?: string;
+  title?: string;
+  description?: string;
   goodItemTitle?: string;
   goodItemSubtitle?: string;
   goodItemImg?: string | null;
   badItemTitle?: string;
   badItemSubtitle?: string;
   badItemImg?: string | null;
+  style?: StartRulesStyle;
   items?: Array<{
     title: string;
     subtitle?: string;
@@ -151,6 +193,15 @@ export interface StartRulesElement extends StartScreenBaseElement {
   }>;
 }
 
+export interface StartIconStyle {
+  iconColor?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  shadow?: boolean;
+}
+
 export interface StartIconElement extends StartScreenBaseElement {
   type: 'icon';
   iconName: string;
@@ -158,6 +209,7 @@ export interface StartIconElement extends StartScreenBaseElement {
   backgroundColor?: string;
   borderColor?: string;
   borderRadius?: number;
+  style?: StartIconStyle;
 }
 
 export interface StartKeyboardHintsElement extends StartScreenBaseElement {
@@ -172,16 +224,53 @@ export interface StartGroupElement extends StartScreenBaseElement {
   children?: StartScreenElement[];
 }
 
+export interface StartLeaderboardStyle {
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  fontSize?: number;
+  textColor?: string;
+  rankColor?: string;
+  scoreColor?: string;
+  showHeader?: boolean;
+}
+
+export interface StartLeaderboardElement extends StartScreenBaseElement {
+  type: 'leaderboard';
+  maxRows?: number;
+  showHeader?: boolean;
+  headerText?: string;
+  style?: StartLeaderboardStyle;
+}
+
 export type StartScreenElement =
   | StartCardElement
   | StartTextElement
+  | StartTitleElement
+  | StartDescriptionElement
   | StartImageElement
   | StartButtonElement
   | StartBadgeElement
   | StartRulesElement
   | StartIconElement
   | StartKeyboardHintsElement
-  | StartGroupElement;
+  | StartGroupElement
+  | StartLeaderboardElement;
+
+// Exported alias types for convenience across editor modules
+export type StartScreenCardElement = StartCardElement;
+export type StartScreenGroupElement = StartGroupElement;
+export type StartScreenTextElement = StartTextElement;
+export type StartScreenTitleElement = StartTitleElement;
+export type StartScreenDescriptionElement = StartDescriptionElement;
+export type StartScreenImageElement = StartImageElement;
+export type StartScreenButtonElement = StartButtonElement;
+export type StartScreenBadgeElement = StartBadgeElement;
+export type StartScreenRulesElement = StartRulesElement;
+export type StartScreenIconElement = StartIconElement;
+export type StartScreenKeyboardHintsElement = StartKeyboardHintsElement;
+export type StartScreenLeaderboardElement = StartLeaderboardElement;
 
 export interface StartScreenBackgroundConfig {
   type: ScreenBackgroundType;
@@ -828,18 +917,34 @@ export function generateDefaultReactionStartScreenElements(
  * Universal default Start Screen element generator.
  */
 export function generateDefaultStartScreenElements(
-  gameType?: string,
+  gameTypeOrConfig?: string | Partial<StartScreenConfig>,
   theme?: Partial<GameTheme> | null,
-  gameMeta?: StartScreenGameMeta,
+  gameMetaOrGameType?: StartScreenGameMeta | string,
   legacyConfig?: any
 ): StartScreenElement[] {
+  let gameType = 'catch-brand';
+  let gameMeta: StartScreenGameMeta | undefined;
+  let config = legacyConfig;
+
+  if (typeof gameTypeOrConfig === 'string') {
+    gameType = gameTypeOrConfig;
+    if (typeof gameMetaOrGameType === 'object' && gameMetaOrGameType !== null) {
+      gameMeta = gameMetaOrGameType;
+    }
+  } else if (typeof gameMetaOrGameType === 'string') {
+    gameType = gameMetaOrGameType;
+    config = gameTypeOrConfig;
+  } else if (gameTypeOrConfig && typeof gameTypeOrConfig === 'object') {
+    config = gameTypeOrConfig;
+  }
+
   const normType = (gameType || '').trim().toLowerCase().replace(/_/g, '-');
 
   if (normType === 'reaction-tap' || normType === 'reaction-time') {
     return generateDefaultReactionStartScreenElements(theme, gameMeta);
   }
   if (normType === 'memory-match') {
-    return generateDefaultMemoryMatchStartScreenElements(theme, gameMeta, legacyConfig);
+    return generateDefaultMemoryMatchStartScreenElements(theme, gameMeta, config);
   }
   return generateDefaultCatchBrandStartScreenElements(theme, gameMeta);
 }

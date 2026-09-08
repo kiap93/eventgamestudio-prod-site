@@ -10,7 +10,7 @@ import {
 } from './types.js';
 import { grantShowcaseCredit, withOrganizationLock } from './wallet.js';
 import { getShowcaseMedia } from './showcaseMedia.js';
-import { getNormalizedCurrentDate, getEventById } from './events.js';
+import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase } from './events.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -259,6 +259,22 @@ export async function createShowcase(
   if (existing) {
     const err = new Error('An Event Showcase already exists for this event');
     (err as any).code = 'SHOWCASE_ALREADY_EXISTS';
+    throw err;
+  }
+
+  const event = await getEventById(params.event_id, env);
+  if (!event) {
+    const err = new Error('Event not found');
+    (err as any).code = 'EVENT_NOT_FOUND';
+    (err as any).status = 404;
+    throw err;
+  }
+
+  const eligibility = isEventEligibleForShowcase(event);
+  if (!eligibility.eligible) {
+    const err = new Error(eligibility.reason || 'Event is not eligible for showcase');
+    (err as any).code = eligibility.code || 'EVENT_NOT_COMPLETED';
+    (err as any).status = 422;
     throw err;
   }
 
@@ -1184,6 +1200,22 @@ export async function publishShowcase(
   if (!existing) {
     const err = new Error('Event Showcase not found');
     (err as any).code = 'SHOWCASE_NOT_FOUND';
+    throw err;
+  }
+
+  const event = await getEventById(eventId, env);
+  if (!event) {
+    const err = new Error('Event not found');
+    (err as any).code = 'EVENT_NOT_FOUND';
+    (err as any).status = 404;
+    throw err;
+  }
+
+  const eligibility = isEventEligibleForShowcase(event);
+  if (!eligibility.eligible) {
+    const err = new Error(eligibility.reason || 'Event is not eligible for showcase');
+    (err as any).code = eligibility.code || 'EVENT_NOT_COMPLETED';
+    (err as any).status = 422;
     throw err;
   }
 

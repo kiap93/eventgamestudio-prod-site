@@ -34,6 +34,8 @@ import { normalizeGameLayout, GameLayoutConfig } from '../themes/layout';
 import { useResponsiveLayout, getEffectiveGameLayout } from '../themes/responsive';
 import { apiFetch } from '../lib/api';
 import { StartScreenRenderer } from '../games/shared/StartScreenRenderer';
+import { resolveScreenBackground } from '../themes/screenBackground';
+import { getStartScreenConfig } from '../games/shared/startScreenResolver';
 import { GameControlBar } from './studio/GameControlBar';
 
 interface ArcadeUIProps {
@@ -347,13 +349,85 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     activeTheme?.branding?.logoUrl ||
     activeTheme?.logo;
 
+  // Resolve theme background and start screen background
+  const startBg = useMemo(() => {
+    const resolvedConfig = getStartScreenConfig(
+      activeTheme,
+      'catch-brand',
+      {
+        fallingItemName,
+        fallingItemImg: goodItemImg,
+        goodItemImg,
+        badFallingItemName,
+        badFallingItemImg: badItemImg,
+        badItemImg,
+        catcherImg,
+        gameTitle,
+        gameSubtitle,
+        logoUrl: clientLogoUrl,
+      }
+    );
+    return resolveScreenBackground(resolvedConfig as any, activeTheme);
+  }, [activeTheme, fallingItemName, goodItemImg, badFallingItemName, badItemImg, catcherImg, gameTitle, gameSubtitle, clientLogoUrl]);
+
+  const customBgUrl =
+    activeTheme?.background_url ||
+    activeTheme?.backgroundUrl ||
+    activeTheme?.theme_assets?.background ||
+    activeTheme?.background;
+
+  const backdropImgUrl = gameState === 'START' && startBg?.backgroundImageUrl
+    ? startBg.backgroundImageUrl
+    : customBgUrl;
+
+  const backdropBgColor = gameState === 'START' && startBg?.backgroundColor
+    ? startBg.backgroundColor
+    : activeTheme?.visuals_config?.bgGradientTo || '#07130b';
+
+  const backdropOverlayOpacity = gameState === 'START' && startBg?.hasImage
+    ? startBg.backgroundOverlayOpacity
+    : 0;
+
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 w-full h-full pointer-events-none select-none overflow-hidden font-mono z-30"
-      style={{ '--game-ui-scale': uiScale } as React.CSSProperties}
+      className="game-container absolute inset-0 w-full h-full pointer-events-none select-none overflow-hidden font-mono z-30"
+      style={{
+        '--game-ui-scale': uiScale,
+        '--game-design-width': `${designWidth}px`,
+        '--game-design-height': `${designHeight}px`,
+      } as React.CSSProperties}
     >
-      {/* LOGICAL RESPONSIVE UI LAYER (1024x576 in landscape, 576x1024 in portrait) */}
+      {/* Full container backdrop */}
+      <div
+        className="game-ui-backdrop"
+        style={{
+          backgroundColor: backdropBgColor,
+          backgroundImage: (!backdropImgUrl && activeTheme?.visuals_config?.bgGradientFrom)
+            ? `radial-gradient(circle at 50% 20%, ${activeTheme.visuals_config.bgGradientFrom} 0%, ${backdropBgColor} 100%)`
+            : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          display: gameState === 'START' ? 'block' : 'none',
+        }}
+      >
+        {backdropImgUrl && (
+          <img
+            src={backdropImgUrl}
+            alt=""
+            aria-hidden="true"
+          />
+        )}
+        {backdropOverlayOpacity > 0 && (
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ backgroundColor: `rgba(0, 0, 0, ${backdropOverlayOpacity})` }}
+          />
+        )}
+      </div>
+
+      {/* Scaled design canvas (1024x576 in landscape, 576x1024 in portrait) */}
       <div
         className="game-ui-layer pointer-events-none select-none overflow-hidden"
         style={{
@@ -368,6 +442,9 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
           maxHeight: `${designHeight}px`,
           transform: `translate(-50%, -50%) scale(${uiScale})`,
           transformOrigin: 'center center',
+          pointerEvents: 'none',
+          overflow: 'hidden',
+          zIndex: 1,
         }}
       >
         {/* Top Right Persistent Controls */}
@@ -557,6 +634,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
               onOpenSettings={() => setShowSettingsModal(true)}
               isEventPreview={isEventPreview}
               isEventTest={isEventTest}
+              suppressBackground={true}
             />
           </div>
         )}

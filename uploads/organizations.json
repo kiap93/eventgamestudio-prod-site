@@ -3002,5 +3002,149 @@
     "logo_url": null,
     "created_at": "2026-09-07T12:10:07.411Z",
     "updated_at": "2026-09-07T12:10:07.411Z"
+  },
+  {
+    "id": "6152b727-c4ba-4cc9-8694-9bbc933387ce",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-d1a613",
+    "owner_id": "b871f2f9-66c2-4bec-a89f-b83b4fe88b5b",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:05:53.891Z",
+    "updated_at": "2026-09-08T08:05:53.891Z"
+  },
+  {
+    "id": "ad2eaf3c-752e-45cc-9e9e-97c75502265e",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-3e93c7",
+    "owner_id": "2309bc7f-5116-41d9-85d5-fb4169f259ee",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:05:53.941Z",
+    "updated_at": "2026-09-08T08:05:53.941Z"
+  },
+  {
+    "id": "5df3d22f-ba30-4fb1-9752-d6f94df59d06",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-c7f802",
+    "owner_id": "ad0b0587-ce12-4d36-b3d8-9bfe0da689b0",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:05:53.986Z",
+    "updated_at": "2026-09-08T08:05:53.986Z"
+  },
+  {
+    "id": "f1ce8b5f-b894-406b-8e2d-db2d54443708",
+    "name": "Leaderboard Security Org",
+    "slug": "leaderboard-security-org-54b89c",
+    "owner_id": "290cae6b-9e08-43ed-aa8a-ad319065537a",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:05:54.182Z",
+    "updated_at": "2026-09-08T08:05:54.182Z"
+  },
+  {
+    "id": "5166e756-a979-4b91-98d1-9e7e4e9a067f",
+    "name": "Other Org",
+    "slug": "other-org-f3ccdc",
+    "owner_id": "29d11c4c-c6fa-4397-bc53-f3bfc99d65f3",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:05:54.228Z",
+    "updated_at": "2026-09-08T08:05:54.228Z"
+  },
+  {
+    "id": "912be610-27e9-4d04-b052-1fd69bdbad74",
+    "name": "Acme Events Corp",
+    "slug": "acme-events-corp-090eab",
+    "owner_id": "0e417c81-9974-4491-9a3c-1ad06b6461ca",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:05:54.262Z",
+    "updated_at": "2026-09-08T08:05:54.262Z"
+  },
+  {
+    "id": "7d40c5e9-80c3-48f0-9b0a-a2bd90b2f34d",
+    "name": "Secure Events Org",
+    "slug": "secure-events-org-c562ff",
+    "owner_id": "b5dd8053-9e40-4f57-b32a-ed2c7288495f",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:05:54.330Z",
+    "updated_at": "2026-09-08T08:05:54.330Z"
+  },
+  {
+    "id": "54930e06-6067-4eae-8188-a1e5efe01981",
+    "name": "Test Org Lifecycle",
+    "slug": "test-org-lifecycle-89d4d7",
+    "owner_id": "1df8dbf1-d546-48c1-8e90-fe4204728685",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:06:20.118Z",
+    "updated_at": "2026-09-08T08:06:20.118Z"
+  },
+  {
+    "id": "bed25602-a615-4666-9c30-654589af4d35",
+    "name": "Poor Org",
+    "slug": "poor-org-f095b2",
+    "owner_id": "1df8dbf1-d546-48c1-8e90-fe4204728685",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:06:20.556Z",
+    "updated_at": "2026-09-08T08:06:20.556Z"
+  },
+  {
+    "id": "5f139d9a-6b42-48b5-a1b6-4a9d9ec0529f",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-31b4b6",
+    "owner_id": "fde954d6-93a4-4b64-b315-f1e316f66bf0",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:21:05.519Z",
+    "updated_at": "2026-09-08T08:21:05.519Z"
+  },
+  {
+    "id": "f0df3c2f-8f01-4e50-bbe3-93e28a9ff8ae",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-1ada3a",
+    "owner_id": "d7f2532c-45bc-4308-9cff-88d5a2a2cdd1",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:21:05.562Z",
+    "updated_at": "2026-09-08T08:21:05.562Z"
+  },
+  {
+    "id": "585607e6-29e3-4b3b-8ac9-eea9944c4f38",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-03778c",
+    "owner_id": "ee019f2e-e671-497b-9508-2c6ffe2330b2",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:21:05.684Z",
+    "updated_at": "2026-09-08T08:21:05.684Z"
+  },
+  {
+    "id": "2b9df48a-7839-48fc-a8ee-a962eeab5525",
+    "name": "Leaderboard Security Org",
+    "slug": "leaderboard-security-org-8785a6",
+    "owner_id": "ae285520-0f73-42b1-929e-24104f15cc05",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:21:05.742Z",
+    "updated_at": "2026-09-08T08:21:05.742Z"
+  },
+  {
+    "id": "d1da580c-ff3a-461f-8b9a-f38db2092fc0",
+    "name": "Other Org",
+    "slug": "other-org-821aba",
+    "owner_id": "25a1f0ef-3e6e-4263-835f-837b1cb84a8d",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:21:05.768Z",
+    "updated_at": "2026-09-08T08:21:05.768Z"
+  },
+  {
+    "id": "d62146a6-9889-41ff-ac8f-50974a022a05",
+    "name": "Acme Events Corp",
+    "slug": "acme-events-corp-aebaff",
+    "owner_id": "bc8c56cb-1a51-4151-8e7b-d6105f39cc5f",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:21:05.801Z",
+    "updated_at": "2026-09-08T08:21:05.801Z"
+  },
+  {
+    "id": "a946d882-4506-46f1-b5a9-4999b5fe28c7",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-5f9396",
+    "owner_id": "08d52336-91c8-4f30-8cf9-90342ffd0585",
+    "logo_url": null,
+    "created_at": "2026-09-08T08:22:04.015Z",
+    "updated_at": "2026-09-08T08:22:04.015Z"
   }
 ]

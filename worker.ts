@@ -50,6 +50,7 @@ import {
   determineEventRefund,
   reactivateEvent,
   runEventLifecycleMaintenance,
+  isEventEligibleForShowcase,
   PaymentMode,
   ensureSystemCatalogGames,
   getAllPlatformGames,
@@ -3268,6 +3269,11 @@ export default {
           return errorResponse('Permission denied: Only owners and admins can create event showcases', 403, cors);
         }
 
+        const showcaseEligibility = isEventEligibleForShowcase(event);
+        if (!showcaseEligibility.eligible) {
+          return errorResponse(showcaseEligibility.reason, 422, cors);
+        }
+
         const existing = await getShowcaseByEventId(eventId, env);
         if (existing) {
           return jsonResponse({ error: 'An Event Showcase already exists for this event', showcase: existing }, 409, cors);
@@ -3320,6 +3326,11 @@ export default {
         const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
         if (!isMember || !hasPermission) {
           return errorResponse('Permission denied: Only owners and admins can edit event showcases', 403, cors);
+        }
+
+        const showcaseEligibility = isEventEligibleForShowcase(event);
+        if (!showcaseEligibility.eligible) {
+          return errorResponse(showcaseEligibility.reason, 422, cors);
         }
 
         const existing = await getShowcaseByEventId(eventId, env);
@@ -3391,6 +3402,11 @@ export default {
         const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
         if (!isMember || !hasPermission) {
           return errorResponse('Permission denied: Only owners and admins can publish event showcases', 403, cors);
+        }
+
+        const showcaseEligibility = isEventEligibleForShowcase(event);
+        if (!showcaseEligibility.eligible) {
+          return errorResponse(showcaseEligibility.reason, 422, cors);
         }
 
         const existing = await getShowcaseByEventId(eventId, env);
@@ -3527,6 +3543,11 @@ export default {
         const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
         if (!isMember || !hasPermission) {
           return errorResponse('Permission denied: Only owners and admins can upload showcase media', 403, cors);
+        }
+
+        const showcaseEligibility = isEventEligibleForShowcase(event);
+        if (!showcaseEligibility.eligible) {
+          return errorResponse(showcaseEligibility.reason, 422, cors);
         }
 
         const showcase = await getShowcaseByEventId(eventId, env);
@@ -3865,6 +3886,11 @@ export default {
           return errorResponse('Permission denied: Only owners and admins can add showcase media', 403, cors);
         }
 
+        const showcaseEligibility = isEventEligibleForShowcase(event);
+        if (!showcaseEligibility.eligible) {
+          return errorResponse(showcaseEligibility.reason, 422, cors);
+        }
+
         const showcase = await getShowcaseByEventId(eventId, env);
         if (!showcase) {
           return errorResponse('Showcase not found', 404, cors);
@@ -3951,6 +3977,11 @@ export default {
         const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.edit', env);
         if (!isMember || !hasPermission) {
           return errorResponse('Permission denied: Only owners and admins can reorder showcase media', 403, cors);
+        }
+
+        const showcaseEligibility = isEventEligibleForShowcase(event);
+        if (!showcaseEligibility.eligible) {
+          return errorResponse(showcaseEligibility.reason, 422, cors);
         }
 
         const showcase = await getShowcaseByEventId(eventId, env);

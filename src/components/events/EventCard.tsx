@@ -25,6 +25,7 @@ import {
   canAccessPreviewEvent,
   isEventExplicitlyCancelled,
   calculateEventStatus,
+  isEventEligibleForShowcase,
 } from '../../lib/dateUtils';
 import { EventLeaderboardModal } from './EventLeaderboardModal';
 import { EventPaymentModal } from './EventPaymentModal';
@@ -230,13 +231,40 @@ export const EventCard: React.FC<EventCardProps> = ({
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => navigateTo(`/events/${event.id}/showcase`)}
-          className="text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline transition-colors flex items-center gap-1 cursor-pointer"
-        >
-          <span>{showcaseStatus && showcaseStatus !== 'NOT_CREATED' ? 'Showcase →' : '+ Create Showcase'}</span>
-        </button>
+        {showcaseStatus && showcaseStatus !== 'NOT_CREATED' ? (
+          <button
+            type="button"
+            onClick={() => navigateTo(`/events/${event.id}/showcase`)}
+            className="text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline transition-colors flex items-center gap-1 cursor-pointer"
+          >
+            <span>Showcase →</span>
+          </button>
+        ) : isEventEligibleForShowcase(event).eligible ? (
+          <button
+            type="button"
+            onClick={() => navigateTo(`/events/${event.id}/showcase`)}
+            className="text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline transition-colors flex items-center gap-1 cursor-pointer"
+          >
+            <span>+ Create Showcase</span>
+          </button>
+        ) : (
+          <span
+            className="text-[11px] text-slate-500 italic"
+            title={
+              effectiveStatus === 'expired'
+                ? 'Showcases are not available for expired events'
+                : effectiveStatus === 'cancelled'
+                ? 'Showcases are not available for cancelled events'
+                : 'Available after event completion'
+            }
+          >
+            {effectiveStatus === 'expired'
+              ? 'Not available (expired)'
+              : effectiveStatus === 'cancelled'
+              ? 'Not available (cancelled)'
+              : 'Available after completion'}
+          </span>
+        )}
       </div>
 
       {/* Public URL Box */}

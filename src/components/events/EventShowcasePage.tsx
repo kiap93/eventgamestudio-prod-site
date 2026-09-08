@@ -30,7 +30,9 @@ import {
   Calendar,
   Gamepad2,
   ExternalLink,
+  Lock,
 } from 'lucide-react';
+import { isEventEligibleForShowcase } from '../../lib/dateUtils';
 
 interface EventShowcasePageProps {
   eventId: string;
@@ -156,6 +158,14 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
 
       let res;
       if (!showcase) {
+        if (eventData) {
+          const eligibility = isEventEligibleForShowcase(eventData);
+          if (!eligibility.eligible) {
+            setError(eligibility.reason || 'Showcase is only available for completed events.');
+            setSaving(false);
+            return;
+          }
+        }
         // Create as Draft
         res = await apiFetch(`/api/events/${eventId}/showcase`, {
           method: 'POST',
@@ -535,6 +545,31 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-16 text-center space-y-3">
         <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
         <p className="text-xs text-slate-400 font-medium">Loading Event Showcase...</p>
+      </div>
+    );
+  }
+
+  if (eventData && !showcase && !isEventEligibleForShowcase(eventData).eligible) {
+    const eligibility = isEventEligibleForShowcase(eventData);
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 space-y-6">
+        <button
+          onClick={() => navigateTo('/events')}
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Events
+        </button>
+        <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-8 text-center space-y-4">
+          <div className="w-14 h-14 bg-slate-800/80 border border-slate-700 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
+            <Lock className="w-7 h-7" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-bold text-slate-100">Showcase Not Available</h2>
+            <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
+              {eligibility.reason || 'Event Showcases can only be created once the event has concluded and is completed.'}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

@@ -77,6 +77,7 @@ import {
   determineEventRefund,
   reactivateEvent,
   runEventLifecycleMaintenance,
+  isEventEligibleForShowcase,
   getShowcaseByEventId,
   getShowcaseById,
   createShowcase,
@@ -3140,6 +3141,12 @@ app.post('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT, 
       return;
     }
 
+    const showcaseEligibility = isEventEligibleForShowcase(event);
+    if (!showcaseEligibility.eligible) {
+      res.status(422).json({ error: showcaseEligibility.reason, code: showcaseEligibility.code });
+      return;
+    }
+
     const existing = await getShowcaseByEventId(eventId);
     if (existing) {
       res.status(409).json({ error: 'An Event Showcase already exists for this event', showcase: existing });
@@ -3195,6 +3202,12 @@ app.patch('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT,
     const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
     if (!isMember || !hasPermission) {
       res.status(403).json({ error: 'Permission denied: Only owners and admins can edit event showcases' });
+      return;
+    }
+
+    const showcaseEligibility = isEventEligibleForShowcase(event);
+    if (!showcaseEligibility.eligible) {
+      res.status(422).json({ error: showcaseEligibility.reason, code: showcaseEligibility.code });
       return;
     }
 
@@ -3274,6 +3287,12 @@ app.post('/api/events/:eventId/showcase/publish', showcaseRateLimiter, authentic
     const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
     if (!isMember || !hasPermission) {
       res.status(403).json({ error: 'Permission denied: Only owners and admins can publish event showcases' });
+      return;
+    }
+
+    const showcaseEligibility = isEventEligibleForShowcase(event);
+    if (!showcaseEligibility.eligible) {
+      res.status(422).json({ error: showcaseEligibility.reason, code: showcaseEligibility.code });
       return;
     }
 
@@ -3431,6 +3450,12 @@ app.post('/api/events/:eventId/showcase/media/upload-url', uploadRateLimiter, au
     const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
     if (!isMember || !hasPermission) {
       res.status(403).json({ error: 'Permission denied: Only owners and admins can upload showcase media' });
+      return;
+    }
+
+    const showcaseEligibility = isEventEligibleForShowcase(event);
+    if (!showcaseEligibility.eligible) {
+      res.status(422).json({ error: showcaseEligibility.reason, code: showcaseEligibility.code });
       return;
     }
 
@@ -3642,6 +3667,12 @@ app.post(
         return;
       }
 
+      const showcaseEligibility = isEventEligibleForShowcase(event);
+      if (!showcaseEligibility.eligible) {
+        res.status(422).json({ error: showcaseEligibility.reason, code: showcaseEligibility.code });
+        return;
+      }
+
       // 3. Validate MIME Type, File Size, Magic Bytes, and Reject SVG
       const validation = validateUploadedFile(req.file.buffer, {
         originalName: queryFilename || req.file.originalname,
@@ -3761,6 +3792,12 @@ app.post('/api/events/:eventId/showcase/media', showcaseRateLimiter, authenticat
       return;
     }
 
+    const showcaseEligibility = isEventEligibleForShowcase(event);
+    if (!showcaseEligibility.eligible) {
+      res.status(422).json({ error: showcaseEligibility.reason, code: showcaseEligibility.code });
+      return;
+    }
+
     const showcase = await getShowcaseByEventId(eventId);
     if (!showcase) {
       res.status(404).json({ error: 'Showcase not found' });
@@ -3844,6 +3881,12 @@ app.patch('/api/events/:eventId/showcase/media/reorder', showcaseRateLimiter, au
     const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
     if (!isMember || !hasPermission) {
       res.status(403).json({ error: 'Permission denied: Only owners and admins can reorder showcase media' });
+      return;
+    }
+
+    const showcaseEligibility = isEventEligibleForShowcase(event);
+    if (!showcaseEligibility.eligible) {
+      res.status(422).json({ error: showcaseEligibility.reason, code: showcaseEligibility.code });
       return;
     }
 

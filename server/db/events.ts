@@ -254,6 +254,7 @@ export type ClientLiveGameBlockReason =
   | 'PAYMENT_REQUIRED'
   | 'EVENT_NOT_OPEN'
   | 'EVENT_EXPIRED'
+  | 'EVENT_COMPLETED'
   | 'EVENT_CANCELLED';
 
 export interface ClientLiveGameAccessResult {
@@ -264,6 +265,7 @@ export interface ClientLiveGameAccessResult {
   is_pending_payment?: boolean;
   is_scheduled?: boolean;
   is_expired?: boolean;
+  is_completed?: boolean;
   is_cancelled?: boolean;
   start_date?: string;
   end_date?: string;
@@ -354,8 +356,6 @@ export function getClientLiveGameAccessDetails(
 
   // 3. Payment status check (checked independently)
   // Unpaid events during setup or live window are blocked awaiting payment, NOT cancelled
-  const payStatus = (event.payment_status || '').toUpperCase();
-  const isPaid = payStatus === 'PAID';
   const rawStatus = (event.status || '').toLowerCase();
 
   if (!isPaid || rawStatus === 'pending_payment') {
@@ -631,6 +631,58 @@ export function deriveEventLifecycleStatus(
 
   return 'PENDING_PAYMENT';
 }
+
+/**
+ * Determines whether an event is eligible for Event Showcase creation, upload, editing, or publication.
+ * Authoritative Rule:
+ * ONLY COMPLETED events (PAID + after Event End Date) are eligible for Showcase.
+ *
+ * Events in ANY other state are NOT eligible:
+ * - EXPIRED (unpaid + after event date) -> NOT ELIGIBLE
+ * - PENDING_PAYMENT / UNPAID           -> NOT ELIGIBLE
+ * - SCHEDULED                          -> NOT ELIGIBLE
+ * - LIVE                               -> NOT ELIGIBLE
+ * - CANCELLED                          -> NOT ELIGIBLE
+ * - DRAFT                              -> NOT ELIGIBLE
+ */
+export function isEventEligibleForShowcase(
+  event: any,
+  now?: Date | string
+): { eligible: boolean; code?: string; reason?: string } {
+  if (!event) {
+    return { eligible: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found.' };
+  }
+
+  const effectiveStatus = calculateEventStatus(event, now);
+  const lifecycleStatus = deriveEventLifecycleStatus(event, now);
+
+  if (effectiveStatus === 'completed' || lifecycleStatus === 'COMPLETED') {
+    return { eligible: true };
+  }
+
+  if (effectiveStatus === 'expired' || lifecycleStatus === 'EXPIRED') {
+    return {
+      eligible: false,
+      code: 'EVENT_EXPIRED',
+      reason: 'Showcase is not available because this event expired without payment.',
+    };
+  }
+
+  if (effectiveStatus === 'cancelled' || lifecycleStatus === 'CANCELLED') {
+    return {
+      eligible: false,
+      code: 'EVENT_CANCELLED',
+      reason: 'Showcase is not available for cancelled events.',
+    };
+  }
+
+  return {
+    eligible: false,
+    code: 'EVENT_NOT_COMPLETED',
+    reason: 'Showcase is only available after the event has completed.',
+  };
+}
+
 
 /**
  * Counts currently pending-payment events for an organization.
@@ -2629,11 +2681,13 @@ export async function runEventLifecycleMaintenance(
   paymentFailedCount: number;
   cancelledCount: number;
   completedCount: number;
+  expiredCount: number;
   testScoresClearedCount: number;
   paidEvents: string[];
   paymentFailedEvents: string[];
   cancelledEvents: string[];
   completedEvents: string[];
+  expiredEvents: string[];
   testScoresClearedEvents: string[];
 }> {
   const supabase = getSupabaseServerClient(env);
@@ -2642,6 +2696,7 @@ export async function runEventLifecycleMaintenance(
   const paymentFailedEvents: string[] = [];
   const cancelledEvents: string[] = [];
   const completedEvents: string[] = [];
+  const expiredEvents: string[] = [];
   const testScoresClearedEvents: string[] = [];
 
   let allEvents: EventRecord[] = [];
@@ -2703,7 +2758,7 @@ export async function runEventLifecycleMaintenance(
 
       // If the event date has completely finished without payment -> Mark EXPIRED
       if (isAfterEndDate && (evStatus !== 'EXPIRED' || rawStatus !== 'expired')) {
-        completedEvents.push(ev.id);
+        expiredEvents.push(ev.id);
         const payload = {
           event_status: 'EXPIRED' as EventLifecycleStatus,
           status: 'expired' as EventStatus,
@@ -2801,11 +2856,13 @@ export async function runEventLifecycleMaintenance(
     paymentFailedCount: paymentFailedEvents.length,
     cancelledCount: cancelledEvents.length,
     completedCount: completedEvents.length,
+    expiredCount: expiredEvents.length,
     testScoresClearedCount: testScoresClearedEvents.length,
     paidEvents,
     paymentFailedEvents,
     cancelledEvents,
     completedEvents,
+    expiredEvents,
     testScoresClearedEvents,
   };
 }

@@ -8,8 +8,11 @@ import {
 } from './wallet.js';
 import {
   createShowcase,
+  publishShowcase,
   approveShowcaseReward,
 } from './showcases.js';
+import { createShowcaseMedia } from './showcaseMedia.js';
+import { localEventsCache } from './events.js';
 
 let passed = 0;
 let failed = 0;
@@ -100,19 +103,90 @@ export async function runShowcaseRewardConcurrencyTests() {
   const eventIdShowcase1 = crypto.randomUUID();
   const eventIdShowcase2 = crypto.randomUUID();
 
+  localEventsCache.set(eventIdShowcase1, {
+    id: eventIdShowcase1,
+    organization_id: orgId2,
+    game_id: null,
+    game_theme_id: '1a480be3-5313-49ba-a9c2-f5b2293576cf',
+    name: 'Concurrent Event 1',
+    event_date: '2026-09-01',
+    start_date: '2026-09-01',
+    end_date: '2026-09-02',
+    starts_at: '2026-09-01T00:00:00.000Z',
+    expires_at: '2026-09-02T23:59:59.000Z',
+    status: 'COMPLETED' as any,
+    event_status: 'COMPLETED' as any,
+    payment_status: 'PAID' as any,
+    public_token: 'TOK1',
+    created_by: adminA,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  localEventsCache.set(eventIdShowcase2, {
+    id: eventIdShowcase2,
+    organization_id: orgId2,
+    game_id: null,
+    game_theme_id: '1a480be3-5313-49ba-a9c2-f5b2293576cf',
+    name: 'Concurrent Event 2',
+    event_date: '2026-09-01',
+    start_date: '2026-09-01',
+    end_date: '2026-09-02',
+    starts_at: '2026-09-01T00:00:00.000Z',
+    expires_at: '2026-09-02T23:59:59.000Z',
+    status: 'COMPLETED' as any,
+    event_status: 'COMPLETED' as any,
+    payment_status: 'PAID' as any,
+    public_token: 'TOK2',
+    created_by: adminB,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
   const showcase1 = await createShowcase({
     event_id: eventIdShowcase1,
     organization_id: orgId2,
     title: 'Concurrent Showcase 1',
-    description: 'First event showcase',
+    description: 'This is a comprehensive and detailed event showcase description with more than fifty characters.',
   });
 
   const showcase2 = await createShowcase({
     event_id: eventIdShowcase2,
     organization_id: orgId2,
     title: 'Concurrent Showcase 2',
-    description: 'Second event showcase',
+    description: 'This is another comprehensive and detailed event showcase description with more than fifty characters.',
   });
+
+  // Add 3 media items to showcase 1
+  for (let i = 1; i <= 3; i++) {
+    await createShowcaseMedia({
+      showcase_id: showcase1.id,
+      organization_id: orgId2,
+      media_type: 'IMAGE',
+      media_url: `https://example.com/img1_${i}.jpg`,
+      file_name: `img1_${i}.jpg`,
+      file_size: 102400,
+      mime_type: 'image/jpeg',
+      sort_order: i,
+    });
+  }
+
+  // Add 3 media items to showcase 2
+  for (let i = 1; i <= 3; i++) {
+    await createShowcaseMedia({
+      showcase_id: showcase2.id,
+      organization_id: orgId2,
+      media_type: 'IMAGE',
+      media_url: `https://example.com/img2_${i}.jpg`,
+      file_name: `img2_${i}.jpg`,
+      file_size: 102400,
+      mime_type: 'image/jpeg',
+      sort_order: i,
+    });
+  }
+
+  await publishShowcase(eventIdShowcase1);
+  await publishShowcase(eventIdShowcase2);
 
   console.log('Triggering concurrent approveShowcaseReward on Showcase 1 and Showcase 2...');
   const [approval1, approval2] = await Promise.all([

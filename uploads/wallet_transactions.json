@@ -36769,5 +36769,483 @@
     },
     "created_by": "5247efbc-47ac-4389-81da-3d38f7b57442",
     "created_at": "2026-09-07T12:10:07.411Z"
+  },
+  {
+    "id": "183c32cc-c502-4382-a942-83a7f7a6059d",
+    "organization_id": "6152b727-c4ba-4cc9-8694-9bbc933387ce",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_6152b727-c4ba-4cc9-8694-9bbc933387ce",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Alpha Interactive Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "b871f2f9-66c2-4bec-a89f-b83b4fe88b5b",
+    "created_at": "2026-09-08T08:05:53.895Z"
+  },
+  {
+    "id": "09a6c23f-4c3e-4000-94bc-d4bb3bffc616",
+    "organization_id": "ad2eaf3c-752e-45cc-9e9e-97c75502265e",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_ad2eaf3c-752e-45cc-9e9e-97c75502265e",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Beta Foreign Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "2309bc7f-5116-41d9-85d5-fb4169f259ee",
+    "created_at": "2026-09-08T08:05:53.942Z"
+  },
+  {
+    "id": "d6adcf02-bee9-46f2-b64f-77688407f325",
+    "organization_id": "5df3d22f-ba30-4fb1-9752-d6f94df59d06",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_5df3d22f-ba30-4fb1-9752-d6f94df59d06",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Permissions Test Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "ad0b0587-ce12-4d36-b3d8-9bfe0da689b0",
+    "created_at": "2026-09-08T08:05:53.987Z"
+  },
+  {
+    "id": "2f66614a-41dd-40a6-acef-df84347ad342",
+    "organization_id": "f1ce8b5f-b894-406b-8e2d-db2d54443708",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_f1ce8b5f-b894-406b-8e2d-db2d54443708",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Leaderboard Security Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "290cae6b-9e08-43ed-aa8a-ad319065537a",
+    "created_at": "2026-09-08T08:05:54.182Z"
+  },
+  {
+    "id": "323548c4-1fb4-4a54-9d80-584a788e1ed1",
+    "organization_id": "5166e756-a979-4b91-98d1-9e7e4e9a067f",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_5166e756-a979-4b91-98d1-9e7e4e9a067f",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Other Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "29d11c4c-c6fa-4397-bc53-f3bfc99d65f3",
+    "created_at": "2026-09-08T08:05:54.228Z"
+  },
+  {
+    "id": "2875e300-a477-45b3-b1dd-55990bed4e77",
+    "organization_id": "912be610-27e9-4d04-b052-1fd69bdbad74",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_912be610-27e9-4d04-b052-1fd69bdbad74",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Acme Events Corp",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "0e417c81-9974-4491-9a3c-1ad06b6461ca",
+    "created_at": "2026-09-08T08:05:54.262Z"
+  },
+  {
+    "id": "5bf4e60b-ebbf-42c1-bd2e-54f3d39d5518",
+    "organization_id": "7d40c5e9-80c3-48f0-9b0a-a2bd90b2f34d",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_7d40c5e9-80c3-48f0-9b0a-a2bd90b2f34d",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Secure Events Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "b5dd8053-9e40-4f57-b32a-ed2c7288495f",
+    "created_at": "2026-09-08T08:05:54.331Z"
+  },
+  {
+    "id": "122d1c61-d669-4d69-8163-ff74ba986c17",
+    "organization_id": "54930e06-6067-4eae-8188-a1e5efe01981",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_54930e06-6067-4eae-8188-a1e5efe01981",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Test Org Lifecycle",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "1df8dbf1-d546-48c1-8e90-fe4204728685",
+    "created_at": "2026-09-08T08:06:20.120Z"
+  },
+  {
+    "id": "7d852101-5ef2-4b3c-bb88-cfff11d030ee",
+    "organization_id": "54930e06-6067-4eae-8188-a1e5efe01981",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 2200,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "test_topup_case4",
+    "description": "Wallet Top-up of RM2200.00",
+    "metadata": {
+      "topup_amount": 2200
+    },
+    "created_by": null,
+    "created_at": "2026-09-08T08:06:20.191Z"
+  },
+  {
+    "id": "ae82cc3b-567c-49c1-a34c-353476ffd8ec",
+    "organization_id": "54930e06-6067-4eae-8188-a1e5efe01981",
+    "event_id": "850eb93b-b48d-4293-8a11-a932b45c5cda",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -2200,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_850eb93b-b48d-4293-8a11-a932b45c5cda_paid",
+    "description": "Paid RM2200.00 from Paid Balance for Event #850eb93b",
+    "metadata": {
+      "event_id": "850eb93b-b48d-4293-8a11-a932b45c5cda",
+      "payment_mode": "FULL_PAID",
+      "paid_amount": 2200,
+      "credit_applied": 0,
+      "total_event_cost": 2200
+    },
+    "created_by": null,
+    "created_at": "2026-09-08T08:06:20.274Z"
+  },
+  {
+    "id": "05de8f67-d197-4e9a-81ab-b893691c889e",
+    "organization_id": "54930e06-6067-4eae-8188-a1e5efe01981",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 2200,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "test_topup_case8",
+    "description": "Wallet Top-up of RM2200.00",
+    "metadata": {
+      "topup_amount": 2200
+    },
+    "created_by": null,
+    "created_at": "2026-09-08T08:06:20.310Z"
+  },
+  {
+    "id": "f1a4cb57-9f98-4625-a103-aefae4f63f7e",
+    "organization_id": "54930e06-6067-4eae-8188-a1e5efe01981",
+    "event_id": "41e6ee4f-fe38-488c-8520-19de7b4f2e22",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -2200,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_41e6ee4f-fe38-488c-8520-19de7b4f2e22_paid",
+    "description": "Paid RM2200.00 from Paid Balance for Event #41e6ee4f",
+    "metadata": {
+      "event_id": "41e6ee4f-fe38-488c-8520-19de7b4f2e22",
+      "payment_mode": "FULL_PAID",
+      "paid_amount": 2200,
+      "credit_applied": 0,
+      "total_event_cost": 2200
+    },
+    "created_by": null,
+    "created_at": "2026-09-08T08:06:20.397Z"
+  },
+  {
+    "id": "bc5afdbf-0122-4cdb-ba23-cc4b40a69371",
+    "organization_id": "54930e06-6067-4eae-8188-a1e5efe01981",
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 1900,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "test_topup_sep_event",
+    "description": "Wallet Top-up of RM1900.00",
+    "metadata": {
+      "topup_amount": 1900
+    },
+    "created_by": null,
+    "created_at": "2026-09-08T08:06:20.425Z"
+  },
+  {
+    "id": "7b35a96e-b46f-488e-ae70-7da6030668b9",
+    "organization_id": "54930e06-6067-4eae-8188-a1e5efe01981",
+    "event_id": "834823ea-3d76-48bc-a4bc-a93d85439e27",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1900,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_834823ea-3d76-48bc-a4bc-a93d85439e27_paid",
+    "description": "Paid RM1900.00 from Paid Balance for \"September Carnival Event\"",
+    "metadata": {
+      "event_id": "834823ea-3d76-48bc-a4bc-a93d85439e27",
+      "payment_mode": "FULL_PAID",
+      "paid_amount": 1900,
+      "credit_applied": 0,
+      "total_event_cost": 1900
+    },
+    "created_by": null,
+    "created_at": "2026-09-08T08:06:20.509Z"
+  },
+  {
+    "id": "d7c8b861-5780-4fdb-9caa-fee13d58528c",
+    "organization_id": "bed25602-a615-4666-9c30-654589af4d35",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_bed25602-a615-4666-9c30-654589af4d35",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Poor Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "1df8dbf1-d546-48c1-8e90-fe4204728685",
+    "created_at": "2026-09-08T08:06:20.557Z"
+  },
+  {
+    "id": "42f24a9a-93c6-4acc-b891-5fb9aad544a5",
+    "organization_id": "5f139d9a-6b42-48b5-a1b6-4a9d9ec0529f",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_5f139d9a-6b42-48b5-a1b6-4a9d9ec0529f",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Alpha Interactive Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "fde954d6-93a4-4b64-b315-f1e316f66bf0",
+    "created_at": "2026-09-08T08:21:05.521Z"
+  },
+  {
+    "id": "e47595d5-348d-4b1d-91f2-40d2dce3ad0c",
+    "organization_id": "f0df3c2f-8f01-4e50-bbe3-93e28a9ff8ae",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_f0df3c2f-8f01-4e50-bbe3-93e28a9ff8ae",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Beta Foreign Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "d7f2532c-45bc-4308-9cff-88d5a2a2cdd1",
+    "created_at": "2026-09-08T08:21:05.563Z"
+  },
+  {
+    "id": "96819dcb-8f9e-4ee4-b21e-074f26ce8fe3",
+    "organization_id": "585607e6-29e3-4b3b-8ac9-eea9944c4f38",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_585607e6-29e3-4b3b-8ac9-eea9944c4f38",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Permissions Test Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "ee019f2e-e671-497b-9508-2c6ffe2330b2",
+    "created_at": "2026-09-08T08:21:05.684Z"
+  },
+  {
+    "id": "66eb3190-8031-42f4-aa87-6d67f48849b3",
+    "organization_id": "2b9df48a-7839-48fc-a8ee-a962eeab5525",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_2b9df48a-7839-48fc-a8ee-a962eeab5525",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Leaderboard Security Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "ae285520-0f73-42b1-929e-24104f15cc05",
+    "created_at": "2026-09-08T08:21:05.742Z"
+  },
+  {
+    "id": "971f9433-255c-484b-a0a0-93bb648d6d30",
+    "organization_id": "d1da580c-ff3a-461f-8b9a-f38db2092fc0",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_d1da580c-ff3a-461f-8b9a-f38db2092fc0",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Other Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "25a1f0ef-3e6e-4263-835f-837b1cb84a8d",
+    "created_at": "2026-09-08T08:21:05.769Z"
+  },
+  {
+    "id": "dc6e1851-f491-486f-afda-6dec2096e559",
+    "organization_id": "d62146a6-9889-41ff-ac8f-50974a022a05",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_d62146a6-9889-41ff-ac8f-50974a022a05",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Acme Events Corp",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "bc8c56cb-1a51-4151-8e7b-d6105f39cc5f",
+    "created_at": "2026-09-08T08:21:05.802Z"
+  },
+  {
+    "id": "56b2c31e-ce25-479d-aa60-52009fafd6dd",
+    "organization_id": "a946d882-4506-46f1-b5a9-4999b5fe28c7",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_a946d882-4506-46f1-b5a9-4999b5fe28c7",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Permissions Test Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "08d52336-91c8-4f30-8cf9-90342ffd0585",
+    "created_at": "2026-09-08T08:22:04.017Z"
+  },
+  {
+    "id": "b9f087fe-cd59-4d7e-9a25-dc629a3fceb3",
+    "organization_id": "1ef28a88-e8b4-4b78-a0ce-2eb8f3032a68",
+    "event_id": "da079107-5f33-4833-b7f2-a5f87e7dd528",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_f2748309-4966-44b4-a9cc-204d934703ba",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "admin": "Admin A",
+      "eventId": "da079107-5f33-4833-b7f2-a5f87e7dd528",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD",
+      "event_id": "da079107-5f33-4833-b7f2-a5f87e7dd528"
+    },
+    "created_by": "7cffbde4-13cc-43f8-869e-dc286d5abcdd",
+    "created_at": "2026-09-08T08:23:24.598Z"
+  },
+  {
+    "id": "ede5f29c-f2f1-486f-8996-4a2018265e1a",
+    "organization_id": "62fab4e1-28aa-4b43-8c07-e2dcd0cd93e3",
+    "event_id": "6869bc17-df0f-412f-8875-98a8428ed43f",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_7d8d682a-edce-4c9c-b154-37bbedc38019",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "admin": "Admin A",
+      "eventId": "6869bc17-df0f-412f-8875-98a8428ed43f",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD",
+      "event_id": "6869bc17-df0f-412f-8875-98a8428ed43f"
+    },
+    "created_by": "73e61a71-476f-482c-bf25-b4c2b7c39422",
+    "created_at": "2026-09-08T08:24:26.278Z"
+  },
+  {
+    "id": "bcd4c3dc-8898-432e-a92e-c9db4be1bc19",
+    "organization_id": "b05d2d43-206d-4534-91e0-dcb72bd63719",
+    "event_id": "13b5cfcc-49c2-4085-b713-3b8da54583bc",
+    "transaction_type": "SHOWCASE_CREDIT",
+    "balance_type": "SHOWCASE_CREDIT",
+    "amount": 300,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "showcase_a9749989-60d7-4372-b91a-3a09a014964f",
+    "description": "One-time Event Showcase completion reward credit of RM300.00",
+    "metadata": {
+      "admin": "Admin A",
+      "eventId": "13b5cfcc-49c2-4085-b713-3b8da54583bc",
+      "program": "EVENT_SHOWCASE_APPROVED_REWARD",
+      "event_id": "13b5cfcc-49c2-4085-b713-3b8da54583bc"
+    },
+    "created_by": "d2597143-fc99-4747-97dc-42bca67bedf3",
+    "created_at": "2026-09-08T08:25:50.529Z"
   }
 ]

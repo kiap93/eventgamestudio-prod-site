@@ -1484,7 +1484,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   return (
     <div
       ref={viewportRef}
-      className={`game-viewport relative w-full h-full min-w-0 min-h-0 overflow-hidden flex items-center justify-center select-none bg-[#07130b] ${className}`}
+      className={`game-container game-viewport relative w-full h-full min-w-0 min-h-0 overflow-hidden flex items-center justify-center select-none bg-[#07130b] ${className}`}
       style={{
         backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
         ...(customBgUrl
@@ -1496,10 +1496,35 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
           : {}),
       }}
     >
+      {/* Full container backdrop */}
+      <div
+        className="game-ui-backdrop"
+        style={{
+          backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
+          backgroundImage: customBgUrl
+            ? `url(${customBgUrl})`
+            : `radial-gradient(circle at 50% 20%, ${
+                activeTheme?.visuals_config?.bgGradientFrom || 'rgba(30, 16, 53, 0.6)'
+              } 0%, ${activeTheme?.visuals_config?.bgGradientTo || '#07130b'} 100%)`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        {customBgUrl && (
+          <img
+            src={customBgUrl}
+            alt=""
+            aria-hidden="true"
+          />
+        )}
+      </div>
+
       {/* ========================================================================= */}
       {/* CANONICAL GAME SCALE WRAPPER: EXACT 1024x576 OR 576x1024 COORDINATE SPACE */}
       {/* ========================================================================= */}
       <div
+        className="game-ui-layer relative overflow-hidden select-none"
         style={{
           position: 'absolute',
           top: '50%',
@@ -1512,17 +1537,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
           maxHeight: `${designHeight}px`,
           transform: `translate(-50%, -50%) scale(${uiScale})`,
           transformOrigin: 'center center',
-          backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
-          backgroundImage: customBgUrl
-            ? `url(${customBgUrl})`
-            : `radial-gradient(circle at 50% 20%, ${
-                activeTheme?.visuals_config?.bgGradientFrom || 'rgba(30, 16, 53, 0.6)'
-              } 0%, ${activeTheme?.visuals_config?.bgGradientTo || '#07130b'} 100%)`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center center',
-          backgroundRepeat: 'no-repeat',
         }}
-        className="relative overflow-hidden select-none"
       >
         {/* ========================================================================= */}
         {/* 1. MAIN CARD BOARD AREA (Grid vs Random / Scattered Layout)               */}
@@ -2034,6 +2049,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               onShowLeaderboard={() => setShowLeaderboardModal(true)}
               isEventPreview={isEventPreview}
               isEventTest={isEventTest}
+              suppressBackground={true}
             />
           </div>
         )}

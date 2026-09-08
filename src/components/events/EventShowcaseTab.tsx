@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../lib/api';
 import { EventShowcase, RewardReviewStatus, ShowcaseStatus } from '../../types/showcase';
+import { isEventEligibleForShowcase } from '../../lib/dateUtils';
 import { ShowcaseMediaManager } from './showcase/ShowcaseMediaManager';
 import {
   Sparkles,
@@ -103,6 +104,12 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
     e.preventDefault();
     if (!title.trim()) {
       setError('Showcase title is required');
+      return;
+    }
+
+    const eligibility = isEventEligibleForShowcase(event);
+    if (!eligibility.eligible) {
+      setError(eligibility.reason || 'Showcase is only available for completed events.');
       return;
     }
 
@@ -418,7 +425,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
               <span>Eligible for RM300 Showcase Reward!</span>
             </div>
             <p className="text-xs text-amber-200/80 leading-relaxed">
-              Your showcase has met all eligibility criteria (paid event, started/concluded, at least 3 photos or 1 video, at least 50 chars description) and is in queue for developer reward distribution.
+              Your showcase has met all eligibility criteria (paid event, completed, at least 3 photos or 1 video, at least 50 chars description) and is in queue for developer reward distribution.
             </p>
           </div>
         </div>
@@ -426,6 +433,20 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
 
       {/* If Showcase does not exist yet */}
       {!showcase ? (
+        !isEventEligibleForShowcase(event).eligible ? (
+          <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-8 text-center space-y-3">
+            <div className="w-12 h-12 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-center mx-auto text-slate-500">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-200">Showcase Not Available</h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                {isEventEligibleForShowcase(event).reason ||
+                  'Event Showcases can only be created for completed events (paid events whose scheduled end date has passed).'}
+              </p>
+            </div>
+          </div>
+        ) : (
         <div className="space-y-6">
           <div className="bg-slate-950/60 border border-slate-800 rounded-3xl p-6 text-center space-y-3">
             <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
@@ -532,6 +553,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
             </form>
           )}
         </div>
+        )
       ) : (
         /* Showcase Exists - Management & Edit Form */
         <div className="space-y-6">

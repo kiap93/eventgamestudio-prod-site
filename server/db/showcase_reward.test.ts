@@ -62,7 +62,8 @@ async function ensureTestEvent(eventId: string, orgId: string) {
     const { data: themes } = await supabase.from('game_themes').select('id').limit(1);
     const themeId = themes?.[0]?.id || '1a480be3-5313-49ba-a9c2-f5b2293576cf';
     const now = new Date().toISOString();
-    const curDate = getNormalizedCurrentDate();
+    const pastDate = '2026-09-01';
+    const pastEndDate = '2026-09-02';
     const token = crypto.randomBytes(4).toString('hex').toUpperCase();
 
     // Cache the complete modern record
@@ -72,13 +73,13 @@ async function ensureTestEvent(eventId: string, orgId: string) {
       game_id: null,
       game_theme_id: themeId,
       name: `Test Event ${eventId.slice(0, 8)}`,
-      event_date: curDate,
-      start_date: curDate,
-      end_date: curDate,
-      starts_at: now,
-      expires_at: new Date(Date.now() + 86400000).toISOString(),
-      status: 'LIVE' as any,
-      event_status: 'LIVE' as any,
+      event_date: pastDate,
+      start_date: pastDate,
+      end_date: pastEndDate,
+      starts_at: '2026-09-01T00:00:00.000Z',
+      expires_at: '2026-09-02T23:59:59.000Z',
+      status: 'COMPLETED' as any,
+      event_status: 'COMPLETED' as any,
       payment_status: 'PAID' as any,
       public_token: token,
       created_by: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
@@ -92,10 +93,10 @@ async function ensureTestEvent(eventId: string, orgId: string) {
       organization_id: orgId,
       game_theme_id: themeId,
       name: `Test Event ${eventId.slice(0, 8)}`,
-      event_date: curDate,
-      starts_at: now,
-      expires_at: new Date(Date.now() + 86400000).toISOString(),
-      status: 'active',
+      event_date: pastDate,
+      starts_at: '2026-09-01T00:00:00.000Z',
+      expires_at: '2026-09-02T23:59:59.000Z',
+      status: 'COMPLETED',
       public_token: token,
       created_by: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
       created_at: now,

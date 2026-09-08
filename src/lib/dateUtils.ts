@@ -279,6 +279,7 @@ export type ClientLiveGameBlockReason =
   | 'PAYMENT_REQUIRED'
   | 'EVENT_NOT_OPEN'
   | 'EVENT_EXPIRED'
+  | 'EVENT_COMPLETED'
   | 'EVENT_CANCELLED';
 
 export interface ClientLiveGameAccessResult {
@@ -289,6 +290,7 @@ export interface ClientLiveGameAccessResult {
   is_pending_payment?: boolean;
   is_scheduled?: boolean;
   is_expired?: boolean;
+  is_completed?: boolean;
   is_cancelled?: boolean;
   start_date?: string;
   end_date?: string;
@@ -849,3 +851,55 @@ export function isWithinImmersiveFullscreenWindow(
 
   return currentSingaporeDate >= oneDayBefore && currentSingaporeDate <= eventDateStr;
 }
+
+/**
+ * Determines whether an event is eligible for Event Showcase creation, upload, editing, or publication.
+ * Authoritative Rule:
+ * ONLY COMPLETED events (PAID + after Event End Date) are eligible for Showcase.
+ *
+ * Events in ANY other state are NOT eligible:
+ * - EXPIRED (unpaid + after event date) -> NOT ELIGIBLE
+ * - PENDING_PAYMENT / UNPAID           -> NOT ELIGIBLE
+ * - SCHEDULED                          -> NOT ELIGIBLE
+ * - LIVE                               -> NOT ELIGIBLE
+ * - CANCELLED                          -> NOT ELIGIBLE
+ * - DRAFT                              -> NOT ELIGIBLE
+ */
+export function isEventEligibleForShowcase(
+  event: any,
+  now?: Date | string
+): { eligible: boolean; code?: string; reason?: string } {
+  if (!event) {
+    return { eligible: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found.' };
+  }
+
+  const effectiveStatus = calculateEventStatus(event, now);
+  const lifecycleStatus = deriveEventLifecycleStatus(event, now);
+
+  if (effectiveStatus === 'completed' || lifecycleStatus === 'COMPLETED') {
+    return { eligible: true };
+  }
+
+  if (effectiveStatus === 'expired' || lifecycleStatus === 'EXPIRED') {
+    return {
+      eligible: false,
+      code: 'EVENT_EXPIRED',
+      reason: 'Showcase is not available because this event expired without payment.',
+    };
+  }
+
+  if (effectiveStatus === 'cancelled' || lifecycleStatus === 'CANCELLED') {
+    return {
+      eligible: false,
+      code: 'EVENT_CANCELLED',
+      reason: 'Showcase is not available for cancelled events.',
+    };
+  }
+
+  return {
+    eligible: false,
+    code: 'EVENT_NOT_COMPLETED',
+    reason: 'Showcase is only available after the event has completed.',
+  };
+}
+

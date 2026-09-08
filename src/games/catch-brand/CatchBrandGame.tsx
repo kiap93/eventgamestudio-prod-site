@@ -287,7 +287,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
   return (
     <div
       ref={viewportRef}
-      className="game-viewport relative w-full h-full flex items-center justify-center overflow-hidden bg-[#07130b]"
+      className="game-container game-viewport relative w-full h-full flex items-center justify-center overflow-hidden bg-[#07130b]"
       style={{
         backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
         ...(customBgUrl
@@ -299,13 +299,37 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
           : {}),
       }}
     >
-      {/* Proportionally Scaled Game Stage containing Canvas and UI overlay */}
+      {/* Full container backdrop */}
+      <div
+        className="game-ui-backdrop"
+        style={{
+          backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
+          backgroundImage: customBgUrl
+            ? `url(${customBgUrl})`
+            : activeTheme?.visuals_config?.bgGradientFrom
+            ? `radial-gradient(circle at 50% 20%, ${activeTheme.visuals_config.bgGradientFrom} 0%, ${activeTheme?.visuals_config?.bgGradientTo || '#07130b'} 100%)`
+            : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        {customBgUrl && (
+          <img
+            src={customBgUrl}
+            alt=""
+            aria-hidden="true"
+          />
+        )}
+      </div>
+
+      {/* Proportionally Scaled Game Stage containing Canvas */}
       <div
         className={`game-stage relative w-full h-full ${
           responsive.isPortrait
             ? 'aspect-[9/16] max-h-full w-auto'
             : 'aspect-[16/9] max-w-full max-h-full'
-        } flex items-center justify-center overflow-hidden`}
+        } flex items-center justify-center overflow-hidden pointer-events-auto`}
       >
         {/* Hidden Video for Gesture Tracking */}
         <video ref={videoRef} className="hidden" playsInline muted />
@@ -315,35 +339,35 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
           ref={containerRef}
           className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center pointer-events-auto"
         />
-
-        {/* Arcade UI Overlay */}
-        <ArcadeUI
-          gameState={gameState}
-          stats={stats}
-          countdownText={countdownText}
-          eventId={eventId}
-          publicToken={publicToken}
-          isEventPreview={isEventPreview}
-          isEventTest={isEventTest}
-          isMuted={isMuted}
-          onToggleMute={handleToggleMute}
-          cameraActive={cameraActive}
-          onToggleCamera={handleToggleCamera}
-          onStartGame={handleStartGame}
-          onPauseGame={handlePauseGame}
-          onResumeGame={handleResumeGame}
-          onRestartGame={handleRestartGame}
-          onStopGame={handleStopGame}
-          videoRef={videoRef}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={onToggleFullscreen}
-          settings={settings}
-          onUpdateSettings={handleUpdateSettings}
-          onResetSettings={handleResetSettings}
-          activeTheme={activeTheme}
-          onSelectTheme={handleSelectTheme}
-        />
       </div>
+
+      {/* Arcade UI Overlay spanning full game container */}
+      <ArcadeUI
+        gameState={gameState}
+        stats={stats}
+        countdownText={countdownText}
+        eventId={eventId}
+        publicToken={publicToken}
+        isEventPreview={isEventPreview}
+        isEventTest={isEventTest}
+        isMuted={isMuted}
+        onToggleMute={handleToggleMute}
+        cameraActive={cameraActive}
+        onToggleCamera={handleToggleCamera}
+        onStartGame={handleStartGame}
+        onPauseGame={handlePauseGame}
+        onResumeGame={handleResumeGame}
+        onRestartGame={handleRestartGame}
+        onStopGame={handleStopGame}
+        videoRef={videoRef}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={onToggleFullscreen}
+        settings={settings}
+        onUpdateSettings={handleUpdateSettings}
+        onResetSettings={handleResetSettings}
+        activeTheme={activeTheme}
+        onSelectTheme={handleSelectTheme}
+      />
     </div>
   );
 };

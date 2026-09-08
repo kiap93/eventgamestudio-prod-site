@@ -386,8 +386,21 @@ async function runTests() {
   console.log('  ✓ 3h. Owner successfully modifies event configuration (PUT /api/events/:id)');
 
   // Test 3i: Designer blocked from creating showcase (POST /api/events/:id/showcase)
+  const completedEvent = await createEvent({
+    organization_id: org.id,
+    game_id: 'catch-brand',
+    game_theme_id: theme.id,
+    name: 'Completed Gala',
+    start_date: '2026-09-01',
+    end_date: '2026-09-02',
+    event_price: 1900,
+    payment_status: 'PAID',
+    event_status: 'COMPLETED',
+    created_by: ownerUser.id,
+  }, workerEnv);
+
   const designerShowcaseRes = await worker.fetch(
-    new Request(`https://api.eventgamestudio.local/api/events/${event.id}/showcase`, {
+    new Request(`https://api.eventgamestudio.local/api/events/${completedEvent.id}/showcase`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -408,7 +421,7 @@ async function runTests() {
 
   // Test 3j: Owner can create event showcase (POST /api/events/:id/showcase)
   const ownerShowcaseRes = await worker.fetch(
-    new Request(`https://api.eventgamestudio.local/api/events/${event.id}/showcase`, {
+    new Request(`https://api.eventgamestudio.local/api/events/${completedEvent.id}/showcase`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

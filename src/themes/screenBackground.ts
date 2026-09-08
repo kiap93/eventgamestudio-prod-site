@@ -69,7 +69,11 @@ export function resolveScreenBackground(
       resolvedCssBgImage = `url("${customImg}")`;
     }
   } else if (backgroundType === 'theme') {
-    const themeBg = activeTheme?.background_url || activeTheme?.background;
+    const themeBg =
+      activeTheme?.background_url ||
+      (activeTheme as any)?.backgroundUrl ||
+      (activeTheme as any)?.theme_assets?.background ||
+      activeTheme?.background;
     if (themeBg) {
       backgroundImageUrl = themeBg;
       resolvedCssBgImage = `url("${themeBg}")`;

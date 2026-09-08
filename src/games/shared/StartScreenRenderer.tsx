@@ -23,6 +23,7 @@ export interface StartScreenRendererProps {
   isSimulation?: boolean;
   isEventPreview?: boolean;
   isEventTest?: boolean;
+  suppressBackground?: boolean;
 }
 
 const StartScreenContent: React.FC<StartScreenRendererProps> = ({
@@ -36,6 +37,7 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
   onOpenSettings,
   className = '',
   isSimulation = false,
+  suppressBackground = false,
 }) => {
   // Authoritative config resolution
   const resolvedConfig = getStartScreenConfig(
@@ -128,12 +130,14 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
     <div
       className={`absolute inset-0 w-full h-full flex items-center justify-center overflow-hidden select-none z-40 ${className}`}
       style={{
-        ...bg.containerStyle,
+        ...(!suppressBackground ? bg.containerStyle : {}),
         zIndex: 40,
       }}
     >
       {/* Background Overlay */}
-      <div className="absolute inset-0 pointer-events-none" style={bg.overlayStyle} />
+      {!suppressBackground && (
+        <div className="absolute inset-0 pointer-events-none" style={bg.overlayStyle} />
+      )}
 
       {/* 1000 x 1000 Logical Canvas scaled responsively to fit container without 0x0 collapse */}
       <div
