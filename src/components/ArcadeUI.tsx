@@ -31,7 +31,7 @@ import { GameState, GameStats, GameSettings, EventLeaderboardEntry } from '../ty
 import { GAME_DURATION_SECONDS } from '../game/config';
 import { GameTheme, THEME_REGISTRY, getActiveTheme, getAllUniqueThemes } from '../themes';
 import { normalizeGameLayout, GameLayoutConfig } from '../themes/layout';
-import { useResponsiveLayout, getEffectiveGameLayout } from '../themes/responsive';
+import { useResponsiveLayout, getEffectiveGameLayout, ResponsiveLayoutState } from '../themes/responsive';
 import { apiFetch } from '../lib/api';
 import { StartScreenRenderer } from '../games/shared/StartScreenRenderer';
 import { resolveScreenBackground } from '../themes/screenBackground';
@@ -63,6 +63,7 @@ interface ArcadeUIProps {
   onResetSettings: () => void;
   activeTheme: GameTheme;
   onSelectTheme: (themeId: string) => void;
+  responsive?: ResponsiveLayoutState;
 }
 
 export const ArcadeUI: React.FC<ArcadeUIProps> = ({
@@ -90,10 +91,12 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   onResetSettings,
   activeTheme,
   onSelectTheme,
+  responsive: responsiveProp,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const orientationPreference = activeTheme?.layout?.orientation || 'auto';
-  const responsive = useResponsiveLayout(containerRef, orientationPreference);
+  const internalResponsive = useResponsiveLayout(containerRef, orientationPreference);
+  const responsive = responsiveProp || internalResponsive;
   const { isPortrait, uiScale, designWidth, designHeight } = responsive;
 
   const [showGuideModal, setShowGuideModal] = useState(false);

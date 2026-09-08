@@ -33,6 +33,8 @@ export interface SafeAreaInsets {
 export interface ResponsiveLayoutState {
   width: number;
   height: number;
+  stageWidth: number;
+  stageHeight: number;
   aspectRatio: number;
   orientation: EffectiveOrientation;
   isPortrait: boolean;
@@ -83,6 +85,42 @@ export function calculateResponsiveUiScale(
   const scaleY = viewportHeight / designH;
   const scale = Math.min(scaleX, scaleY);
   return Math.max(0.1, Math.min(4.0, scale));
+}
+
+/**
+ * Calculates authoritative 16:9 (or 9:16 portrait) stage dimensions that fit inside available space.
+ */
+export function calculateResponsiveStageDimensions(
+  availableWidth: number,
+  availableHeight: number,
+  isPortrait: boolean
+): { stageWidth: number; stageHeight: number; uiScale: number } {
+  const designW = isPortrait ? PORTRAIT_DESIGN_WIDTH : LANDSCAPE_DESIGN_WIDTH;
+  const designH = isPortrait ? PORTRAIT_DESIGN_HEIGHT : LANDSCAPE_DESIGN_HEIGHT;
+  const targetRatio = designW / designH;
+
+  const safeW = availableWidth > 0 ? availableWidth : designW;
+  const safeH = availableHeight > 0 ? availableHeight : designH;
+  const availableRatio = safeW / safeH;
+
+  let stageWidth: number;
+  let stageHeight: number;
+
+  if (availableRatio > targetRatio) {
+    // Viewport is wider than target aspect ratio -> fit to height
+    stageHeight = Math.floor(safeH);
+    stageWidth = Math.floor(stageHeight * targetRatio);
+  } else {
+    // Viewport is taller than target aspect ratio -> fit to width
+    stageWidth = Math.floor(safeW);
+    stageHeight = Math.floor(stageWidth / targetRatio);
+  }
+
+  stageWidth = Math.max(1, stageWidth);
+  stageHeight = Math.max(1, stageHeight);
+  const uiScale = Math.min(stageWidth / designW, stageHeight / designH);
+
+  return { stageWidth, stageHeight, uiScale };
 }
 
 /**
@@ -336,13 +374,19 @@ export function useResponsiveLayout(
     const initialHeight = typeof window !== 'undefined' ? window.innerHeight : LANDSCAPE_DESIGN_HEIGHT;
     const orientation = getOrientation(initialWidth, initialHeight, orientationPreference);
     const isPortrait = orientation === 'portrait';
-    const uiScale = calculateResponsiveUiScale(initialWidth, initialHeight, isPortrait);
     const designWidth = isPortrait ? PORTRAIT_DESIGN_WIDTH : LANDSCAPE_DESIGN_WIDTH;
     const designHeight = isPortrait ? PORTRAIT_DESIGN_HEIGHT : LANDSCAPE_DESIGN_HEIGHT;
+    const { stageWidth, stageHeight, uiScale } = calculateResponsiveStageDimensions(
+      initialWidth,
+      initialHeight,
+      isPortrait
+    );
 
     return {
       width: initialWidth,
       height: initialHeight,
+      stageWidth,
+      stageHeight,
       aspectRatio: initialWidth / (initialHeight || 1),
       orientation,
       isPortrait,
@@ -389,12 +433,18 @@ export function useResponsiveLayout(
 
         const orientation = getOrientation(width, height, orientationPreference);
         const isPortrait = orientation === 'portrait';
-        const uiScale = calculateResponsiveUiScale(width, height, isPortrait);
         const designWidth = isPortrait ? PORTRAIT_DESIGN_WIDTH : LANDSCAPE_DESIGN_WIDTH;
         const designHeight = isPortrait ? PORTRAIT_DESIGN_HEIGHT : LANDSCAPE_DESIGN_HEIGHT;
+        const { stageWidth, stageHeight, uiScale } = calculateResponsiveStageDimensions(
+          width,
+          height,
+          isPortrait
+        );
         const safeArea = getSafeAreaInsets();
 
         // Inject CSS custom variables onto the container
+        currentEl.style.setProperty('--game-stage-width', `${stageWidth}px`);
+        currentEl.style.setProperty('--game-stage-height', `${stageHeight}px`);
         currentEl.style.setProperty('--game-ui-scale', String(uiScale));
         currentEl.style.setProperty('--game-design-width', `${designWidth}px`);
         currentEl.style.setProperty('--game-design-height', `${designHeight}px`);
@@ -408,6 +458,8 @@ export function useResponsiveLayout(
           if (
             Math.abs(prev.uiScale - uiScale) < 0.001 &&
             prev.isPortrait === isPortrait &&
+            Math.abs(prev.stageWidth - stageWidth) < 2 &&
+            Math.abs(prev.stageHeight - stageHeight) < 2 &&
             Math.abs(prev.width - width) < 2 &&
             Math.abs(prev.height - height) < 2
           ) {
@@ -417,6 +469,8 @@ export function useResponsiveLayout(
           return {
             width,
             height,
+            stageWidth,
+            stageHeight,
             aspectRatio: width / (height || 1),
             orientation,
             isPortrait,

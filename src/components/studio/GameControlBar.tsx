@@ -90,7 +90,9 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
   return (
     <div
       id={id}
-      className={`relative z-40 pointer-events-auto select-none flex items-center gap-1 sm:gap-1.5 bg-slate-950/85 backdrop-blur-sm p-1 sm:p-1.5 rounded-xl border border-slate-700/80 shadow-lg ${className}`}
+      className={`z-40 pointer-events-auto select-none inline-flex items-center w-fit gap-1 sm:gap-1.5 bg-slate-950/85 backdrop-blur-sm p-1 sm:p-1.5 rounded-xl border border-slate-700/80 shadow-lg ${
+        className.includes('absolute') || className.includes('fixed') ? '' : 'relative'
+      } ${className}`}
       role="toolbar"
       aria-label="Game Controls"
     >
