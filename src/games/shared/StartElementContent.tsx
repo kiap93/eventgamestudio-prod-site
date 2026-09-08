@@ -225,7 +225,15 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
     case 'button': {
       const btnEl = element as StartButtonElement;
       const s = btnEl.style || {};
-      const action = btnEl.action || 'start';
+      const rawAction = btnEl.action || 'start';
+      const action =
+        rawAction === 'startGame'
+          ? 'start'
+          : rawAction === 'viewLeaderboard'
+          ? 'leaderboard'
+          : rawAction === 'howToPlay'
+          ? 'guide'
+          : rawAction;
 
       const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();

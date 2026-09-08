@@ -17,6 +17,8 @@ import { GameTheme, getThemeGameType } from '../../themes/types';
 
 const VALID_ELEMENT_TYPES = new Set([
   'card',
+  'title',
+  'description',
   'text',
   'image',
   'button',
@@ -25,6 +27,7 @@ const VALID_ELEMENT_TYPES = new Set([
   'icon',
   'keyboard-hints',
   'group',
+  'leaderboard',
 ]);
 
 /**

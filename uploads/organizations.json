@@ -3146,5 +3146,50 @@
     "logo_url": null,
     "created_at": "2026-09-08T08:22:04.015Z",
     "updated_at": "2026-09-08T08:22:04.015Z"
+  },
+  {
+    "id": "cab2b8d3-e084-4265-a9d6-90f582f18d26",
+    "name": "Acme Super Events",
+    "slug": "acme-events-corp-6bedd5",
+    "owner_id": "2da09fa2-1f42-4d97-a6b9-d37c70646a26",
+    "logo_url": null,
+    "created_at": "2026-09-08T09:12:29.119Z",
+    "updated_at": "2026-09-08T09:12:29.345Z"
+  },
+  {
+    "id": "2026778f-b37f-4a79-98b1-2b321b51c3ca",
+    "name": "Secure Events Org",
+    "slug": "secure-events-org-d2759b",
+    "owner_id": "1a39c12c-ddfa-4a32-898d-84017df8cf91",
+    "logo_url": null,
+    "created_at": "2026-09-08T09:12:29.168Z",
+    "updated_at": "2026-09-08T09:12:29.168Z"
+  },
+  {
+    "id": "23f24f27-593a-49d7-8a22-9abaccef3a6e",
+    "name": "Leaderboard Security Org",
+    "slug": "leaderboard-security-org-9078c0",
+    "owner_id": "dfc0e99f-a52b-4341-927c-6d26b59c0afe",
+    "logo_url": null,
+    "created_at": "2026-09-08T09:12:29.354Z",
+    "updated_at": "2026-09-08T09:12:29.354Z"
+  },
+  {
+    "id": "5c32cd27-d93b-4023-8ec1-fe8046802be5",
+    "name": "Other Org",
+    "slug": "other-org-e153a0",
+    "owner_id": "fec64eb0-93b6-4409-98e1-00d8b7eabd18",
+    "logo_url": null,
+    "created_at": "2026-09-08T09:12:29.389Z",
+    "updated_at": "2026-09-08T09:12:29.389Z"
+  },
+  {
+    "id": "a658de2b-41c2-449f-bc24-eb01a8803e5d",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-0865be",
+    "owner_id": "00a59dec-adcd-45ab-8979-4af917e99ce7",
+    "logo_url": null,
+    "created_at": "2026-09-08T09:12:29.425Z",
+    "updated_at": "2026-09-08T09:12:29.425Z"
   }
 ]

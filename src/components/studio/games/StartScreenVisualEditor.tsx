@@ -43,6 +43,7 @@ export interface StartScreenVisualEditorProps {
   onClose?: () => void;
   isModal?: boolean;
   onToggleFullscreen?: () => void;
+  onUploadAsset?: (file: File, type: string) => Promise<string>;
 }
 
 export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = ({
@@ -54,6 +55,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   onClose,
   isModal = false,
   onToggleFullscreen,
+  onUploadAsset,
 }) => {
   // Elements initialization with fallback
   const initialElements = useMemo(() => {
@@ -503,6 +505,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
             if (selectedElement) handleToggleVisibility(selectedElement.id);
           }}
           onMoveToContainer={handleMoveToContainer}
+          onUploadAsset={onUploadAsset}
         />
       </div>
 

@@ -9,6 +9,10 @@ import {
 } from '../../../games/reaction-time/types';
 import { reactionSounds } from '../../../games/reaction-time/reactionSounds';
 import { ResultScreenVisualEditor } from './ResultScreenVisualEditor';
+import { StartScreenVisualEditorModal } from './start-editor/StartScreenVisualEditorModal';
+import { StartScreenRenderer } from '../../../games/shared/StartScreenRenderer';
+import { getStartScreenConfig } from '../../../games/shared/startScreenResolver';
+import { StartScreenConfig } from '../../../games/shared/startScreenTypes';
 import {
   Zap,
   Clock,
@@ -20,6 +24,8 @@ import {
   RotateCcw,
   Palette,
   CheckCircle2,
+  Maximize2,
+  ExternalLink,
 } from 'lucide-react';
 
 interface ReactionGameCustomizerProps {
@@ -317,13 +323,44 @@ export const ReactionScreensCustomizer: React.FC<{
   onUploadAsset?: (file: File, fieldKey: string) => Promise<string>;
   uploadingAsset?: string | null;
 }> = ({ theme, onChange, onUploadAsset }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
+  const [isStartEditorModalOpen, setIsStartEditorModalOpen] = useState(false);
+
   const reactionConfig: ReactionGameConfig = {
     ...DEFAULT_REACTION_CONFIG,
     ...((theme.game_config as ReactionGameConfig) || {}),
   };
+
+  const startConfig = getStartScreenConfig(theme, 'reaction-tap', {
+    roundsCount: reactionConfig.roundsCount || 5,
+    duration: 30,
+  });
+
   const resultConfig = reactionConfig.screens?.result || theme.screens?.result || {
     background: { type: 'solid', color: '#070b14' },
     elements: [],
+  };
+
+  const handleUpdateStartConfig = (updated: Partial<StartScreenConfig>) => {
+    const nextStart = {
+      ...startConfig,
+      ...updated,
+    };
+    const nextReactionConfig = {
+      ...reactionConfig,
+      screens: {
+        ...(reactionConfig.screens || {}),
+        start: nextStart,
+      },
+    };
+    onChange({
+      ...theme,
+      game_config: nextReactionConfig as any,
+      screens: {
+        ...(theme.screens || {}),
+        start: nextStart as any,
+      },
+    });
   };
 
   const handleUpdateResultConfig = (updated: any) => {
@@ -350,13 +387,96 @@ export const ReactionScreensCustomizer: React.FC<{
 
   return (
     <div className="space-y-6">
-      <ResultScreenVisualEditor
-        resultConfig={resultConfig as any}
-        theme={theme}
-        gameType="reaction-tap"
-        onChange={handleUpdateResultConfig}
-        onUploadAsset={onUploadAsset}
-      />
+      {/* Subtabs Header */}
+      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('start')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeSubTab === 'start'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 border border-slate-800'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Start Screen Canvas</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('result')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeSubTab === 'result'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 border border-slate-800'
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Result Screen Canvas</span>
+          </button>
+        </div>
+      </div>
+
+      {activeSubTab === 'start' ? (
+        <div className="space-y-6">
+          <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-6 relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-amber-400" />
+                  <span>Start Screen Visual Canvas Editor</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Design the landing screen layout, start button, badges, and background using the 1000×1000 logical editor.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsStartEditorModalOpen(true)}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Maximize2 className="w-4 h-4" />
+                <span>Open Start Screen Editor</span>
+              </button>
+            </div>
+
+            {/* Live Scaled Preview Frame */}
+            <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
+              <div className="w-full max-w-[420px] aspect-square rounded-xl overflow-hidden border border-slate-700/60 shadow-2xl relative">
+                <StartScreenRenderer
+                  config={startConfig}
+                  theme={theme}
+                  gameType="reaction-tap"
+                  gameMeta={{ roundsCount: reactionConfig.roundsCount || 5, duration: 30 }}
+                  onStartGame={() => {}}
+                  isSimulation={true}
+                />
+              </div>
+              <span className="text-[11px] text-slate-500 mt-2 font-mono">
+                Interactive Scaled Canvas Preview (1000 × 1000)
+              </span>
+            </div>
+          </div>
+
+          <StartScreenVisualEditorModal
+            isOpen={isStartEditorModalOpen}
+            onClose={() => setIsStartEditorModalOpen(false)}
+            startConfig={startConfig}
+            theme={theme}
+            gameType="reaction-tap"
+            onChange={handleUpdateStartConfig}
+            onUploadAsset={onUploadAsset as any}
+          />
+        </div>
+      ) : (
+        <ResultScreenVisualEditor
+          resultConfig={resultConfig as any}
+          theme={theme}
+          gameType="reaction-tap"
+          onChange={handleUpdateResultConfig}
+          onUploadAsset={onUploadAsset}
+        />
+      )}
     </div>
   );
 };

@@ -10,6 +10,7 @@ export interface StartScreenVisualEditorModalProps {
   onChange: (updatedConfig: Partial<StartScreenConfig>) => void;
   isOpen: boolean;
   onClose: () => void;
+  onUploadAsset?: (file: File, type: string) => Promise<string>;
 }
 
 export const StartScreenVisualEditorModal: React.FC<StartScreenVisualEditorModalProps> = ({
@@ -19,6 +20,7 @@ export const StartScreenVisualEditorModal: React.FC<StartScreenVisualEditorModal
   onChange,
   isOpen,
   onClose,
+  onUploadAsset,
 }) => {
   if (!isOpen) return null;
 
@@ -31,6 +33,7 @@ export const StartScreenVisualEditorModal: React.FC<StartScreenVisualEditorModal
       isOpen={isOpen}
       onClose={onClose}
       isModal={true}
+      onUploadAsset={onUploadAsset}
     />
   );
 };

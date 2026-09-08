@@ -60,6 +60,7 @@ interface PropertyInspectorPanelProps {
   onToggleLockSelected?: () => void;
   onToggleVisibilitySelected?: () => void;
   onMoveToContainer?: (elementId: string, targetContainerId: string | null) => void;
+  onUploadAsset?: (file: File, type: string) => Promise<string>;
 }
 
 export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
@@ -76,11 +77,80 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   onToggleLockSelected,
   onToggleVisibilitySelected,
   onMoveToContainer,
+  onUploadAsset,
 }) => {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadTarget, setUploadTarget] = useState<
+    | { type: 'screenBg' }
+    | { type: 'imageEl'; elementId: string }
+    | { type: 'cardBg'; elementId: string }
+    | null
+  >(null);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadTarget || !onUploadAsset) return;
+
+    try {
+      setIsUploading(true);
+      const url = await onUploadAsset(file, 'start-asset');
+      if (url) {
+        if (uploadTarget.type === 'screenBg') {
+          onUpdateConfig((prev) => ({
+            ...prev,
+            backgroundType: 'image',
+            backgroundImageUrl: url,
+            background: {
+              ...(prev.background || { type: 'image' }),
+              type: 'image',
+              imageUrl: url,
+            },
+          }));
+        } else if (uploadTarget.type === 'imageEl') {
+          onUpdateElement((prev) => ({
+            ...prev,
+            imageUrl: url,
+          }));
+        } else if (uploadTarget.type === 'cardBg') {
+          onUpdateElement((prev) => ({
+            ...prev,
+            style: {
+              ...(prev as StartScreenCardElement).style,
+              backgroundImageUrl: url,
+            },
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to upload start screen asset:', err);
+    } finally {
+      setIsUploading(false);
+      setUploadTarget(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const currentBgType = (() => {
+    const raw = startConfig.backgroundType || startConfig.background?.type || 'theme';
+    if (raw === 'solid' || raw === 'color') return 'color';
+    if (raw === 'image') return 'image';
+    return 'theme';
+  })();
+
   // If no element selected, render Canvas & Screen Settings
   if (!selectedElement || selectedIds.length === 0) {
     return (
       <div className="w-80 border-l border-slate-800 bg-slate-900/95 flex flex-col shrink-0 select-none z-20 overflow-y-auto">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
         <div className="h-12 px-4 border-b border-slate-800 flex items-center gap-2 shrink-0">
           <Palette className="w-4 h-4 text-amber-400" />
           <span className="font-bold text-xs text-slate-200">Start Screen Canvas</span>
@@ -93,7 +163,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               Screen Background
             </label>
             <div className="grid grid-cols-3 gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
-              {(['theme', 'solid', 'image'] as const).map((mode) => (
+              {(['theme', 'color', 'image'] as const).map((mode) => (
                 <button
                   key={mode}
                   onClick={() =>
@@ -107,7 +177,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                     }))
                   }
                   className={`py-1.5 rounded text-[11px] font-bold capitalize transition-colors ${
-                    (startConfig.backgroundType || startConfig.background?.type || 'theme') === mode
+                    currentBgType === mode
                       ? 'bg-amber-500 text-slate-950 shadow'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
@@ -118,9 +188,8 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </div>
           </div>
 
-          {/* Solid Color */}
-          {(startConfig.backgroundType === 'solid' ||
-            startConfig.background?.type === 'solid') && (
+          {/* Color Background */}
+          {currentBgType === 'color' && (
             <div>
               <label className="block text-[11px] text-slate-400 mb-1">Color</label>
               <div className="flex items-center gap-2">
@@ -132,7 +201,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                       ...prev,
                       backgroundColor: e.target.value,
                       background: {
-                        ...(prev.background || { type: 'solid' }),
+                        ...(prev.background || { type: 'color' }),
                         color: e.target.value,
                       },
                     }))
@@ -147,7 +216,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                       ...prev,
                       backgroundColor: e.target.value,
                       background: {
-                        ...(prev.background || { type: 'solid' }),
+                        ...(prev.background || { type: 'color' }),
                         color: e.target.value,
                       },
                     }))
@@ -158,11 +227,10 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </div>
           )}
 
-          {/* Custom Image URL */}
-          {(startConfig.backgroundType === 'image' ||
-            startConfig.background?.type === 'image') && (
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1">Image URL</label>
+          {/* Image Background */}
+          {currentBgType === 'image' && (
+            <div className="space-y-2">
+              <label className="block text-[11px] text-slate-400">Background Image</label>
               <input
                 type="text"
                 placeholder="https://... or /assets/..."
@@ -179,6 +247,20 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 }
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono placeholder-slate-600"
               />
+              {onUploadAsset && (
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={() => {
+                    setUploadTarget({ type: 'screenBg' });
+                    fileInputRef.current?.click();
+                  }}
+                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border border-slate-700 transition-colors"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{isUploading ? 'Uploading Image...' : 'Upload Background Image'}</span>
+                </button>
+              )}
             </div>
           )}
 
@@ -496,6 +578,38 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 font-mono"
               />
             </div>
+            <div>
+              <label className="text-[10px] text-slate-400 block mb-1">Card Background Image (Optional)</label>
+              <input
+                type="text"
+                placeholder="https://... or preset"
+                value={(el as StartScreenCardElement).style?.backgroundImageUrl || ''}
+                onChange={(e) =>
+                  onUpdateElement((prev) => ({
+                    ...prev,
+                    style: {
+                      ...(prev as StartScreenCardElement).style,
+                      backgroundImageUrl: e.target.value || undefined,
+                    },
+                  }))
+                }
+                className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 font-mono placeholder-slate-600 mb-1.5"
+              />
+              {onUploadAsset && (
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={() => {
+                    setUploadTarget({ type: 'cardBg', elementId: el.id });
+                    fileInputRef.current?.click();
+                  }}
+                  className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 rounded text-[11px] font-semibold flex items-center justify-center gap-1.5 border border-slate-700 transition-colors"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{isUploading ? 'Uploading...' : 'Upload Card Background'}</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -696,22 +810,39 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                     imageUrl: e.target.value || null,
                   }))
                 }
-                className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200 font-mono"
+                className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200 font-mono mb-1.5"
               />
+              <div className="flex flex-wrap gap-1.5">
+                {onUploadAsset && (
+                  <button
+                    type="button"
+                    disabled={isUploading}
+                    onClick={() => {
+                      setUploadTarget({ type: 'imageEl', elementId: el.id });
+                      fileInputRef.current?.click();
+                    }}
+                    className="flex-1 py-1 px-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 rounded text-[11px] font-semibold flex items-center justify-center gap-1 border border-slate-700 transition-colors"
+                  >
+                    <ImageIcon className="w-3 h-3 text-amber-400" />
+                    <span>{isUploading ? 'Uploading...' : 'Upload Image'}</span>
+                  </button>
+                )}
+                {theme?.clientLogo && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateElement((prev) => ({
+                        ...prev,
+                        imageUrl: theme.clientLogo,
+                      }))
+                    }
+                    className="py-1 px-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] border border-slate-700"
+                  >
+                    Use Client Logo
+                  </button>
+                )}
+              </div>
             </div>
-            {theme?.clientLogo && (
-              <button
-                onClick={() =>
-                  onUpdateElement((prev) => ({
-                    ...prev,
-                    imageUrl: theme.clientLogo,
-                  }))
-                }
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px]"
-              >
-                Use Client Logo from Theme
-              </button>
-            )}
             <div>
               <label className="text-[10px] text-slate-400 block mb-1">Object Fit</label>
               <select
@@ -852,7 +983,15 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             <div>
               <label className="text-[10px] text-slate-400 block mb-1">Action Trigger</label>
               <select
-                value={(el as StartScreenButtonElement).action}
+                value={
+                  (el as StartScreenButtonElement).action === 'start'
+                    ? 'startGame'
+                    : (el as StartScreenButtonElement).action === 'leaderboard'
+                    ? 'viewLeaderboard'
+                    : (el as StartScreenButtonElement).action === 'guide'
+                    ? 'howToPlay'
+                    : (el as StartScreenButtonElement).action || 'startGame'
+                }
                 onChange={(e) =>
                   onUpdateElement((prev) => ({
                     ...prev,
@@ -863,7 +1002,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               >
                 <option value="startGame">Start Game / Play</option>
                 <option value="viewLeaderboard">Open Leaderboard</option>
-                <option value="howToPlay">Open Rules Guide</option>
+                <option value="howToPlay">Open Rules / How to Play</option>
                 <option value="settings">Open Settings</option>
               </select>
             </div>
