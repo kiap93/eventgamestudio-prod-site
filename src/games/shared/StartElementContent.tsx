@@ -129,7 +129,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
         <div
           className="relative w-full h-full overflow-hidden"
           style={{
-            borderRadius: `calc(${borderRadius}px * var(--game-ui-scale, 1))`,
+            borderRadius: `${borderRadius}px`,
             borderWidth: `${borderWidth}px`,
             borderColor,
             boxShadow: style.shadow ? '0 25px 50px -12px rgba(0, 0, 0, 0.7)' : undefined,
@@ -196,7 +196,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
 
       // Proportional font sizing based on logical parent dimensions & game UI scale
       const baseFontSize = s.fontSize ?? 16;
-      const calculatedFontSize = `calc(${baseFontSize}px * var(--game-ui-scale, 1))`;
+      const calculatedFontSize = `${baseFontSize}px`;
 
       return (
         <div
@@ -289,7 +289,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
       const baseBg = isStartAction ? (s.backgroundColor || '#10b981') : (s.backgroundColor || 'transparent');
       const textColor = s.textColor || (isStartAction ? '#020617' : '#f59e0b');
       const baseFontSize = s.fontSize ?? (isStartAction ? 22 : 14);
-      const calculatedFontSize = `calc(${baseFontSize}px * var(--game-ui-scale, 1))`;
+      const calculatedFontSize = `${baseFontSize}px`;
 
       let iconNode: React.ReactNode = null;
       if (btnEl.icon === 'Play' || (!btnEl.icon && isStartAction)) {
@@ -378,7 +378,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
             className="font-bold uppercase tracking-wider block"
             style={{
               color: s.labelColor || '#64748b',
-              fontSize: 'calc(11px * var(--game-ui-scale, 1))',
+              fontSize: '11px',
             }}
           >
             {resolvedLabel}
@@ -387,7 +387,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
             className="font-black font-mono block truncate"
             style={{
               color: s.valueColor || '#f59e0b',
-              fontSize: 'calc(14px * var(--game-ui-scale, 1))',
+              fontSize: '14px',
             }}
           >
             {resolvedValue}

@@ -59,7 +59,12 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
     if (isMemoryMatchGame) {
       return theme.game_type === 'memory-match' || theme.game_slug === 'memory-match' || theme.id === 'memory-match';
     } else {
-      return !theme.game_type || theme.game_type === 'catch-brand' || theme.game_slug === 'catch-brand' || theme.id !== 'memory-match';
+      return (
+        (!theme.game_type || theme.game_type === 'catch-brand' || theme.game_slug === 'catch-brand') &&
+        theme.id !== 'memory-match' &&
+        theme.id !== 'reaction-tap' &&
+        theme.game_type !== 'reaction-time'
+      );
     }
   });
 

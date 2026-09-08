@@ -27,6 +27,7 @@ import {
 import { reactionSounds } from './reactionSounds';
 import { ResultScreenRenderer } from '../shared/ResultScreenRenderer';
 import { StartScreenRenderer } from '../shared/StartScreenRenderer';
+import { useResponsiveLayout } from '../../themes/responsive';
 import { EventLeaderboardEntry } from '../../types';
 import { apiFetch } from '../../lib/api';
 
@@ -106,6 +107,7 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
   const randomDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const roundAdvanceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const responsive = useResponsiveLayout(containerRef, 'auto');
 
   // Fetch leaderboard data
   const fetchLeaderboard = useCallback(async () => {
@@ -517,7 +519,10 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
       style={{
         ...bgStyle,
         touchAction: 'manipulation',
-      }}
+        '--game-ui-scale': responsive.uiScale,
+        '--game-design-width': `${responsive.designWidth}px`,
+        '--game-design-height': `${responsive.designHeight}px`,
+      } as React.CSSProperties}
     >
       {/* Dynamic Background Ambiance Glow */}
       <div
@@ -756,26 +761,43 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
       {/* Start Screen Overlay */}
       {gameState === 'IDLE' && (
         <div
-          className="absolute inset-0 z-40 pointer-events-auto cursor-default"
+          className="absolute inset-0 z-40 pointer-events-auto cursor-default overflow-hidden flex items-center justify-center"
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
         >
-          <StartScreenRenderer
-            startConfig={reactionConfig.screens?.start}
-            theme={activeTheme}
-            gameType="reaction-time"
-            gameMeta={{
-              duration: reactionConfig.roundsCount,
-              gameTitle: activeTheme?.branding?.title || activeTheme?.title || 'Reaction Tap',
-              gameSubtitle: activeTheme?.branding?.subtitle || activeTheme?.subtitle || 'Test your lightning reflexes with Formula 1 starting lights!',
-              logoUrl: activeTheme?.branding?.clientLogoUrl || activeTheme?.clientLogo || activeTheme?.logo || null,
+          <div
+            className="game-ui-layer relative overflow-hidden select-none"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: `${responsive.designWidth}px`,
+              height: `${responsive.designHeight}px`,
+              minWidth: `${responsive.designWidth}px`,
+              minHeight: `${responsive.designHeight}px`,
+              maxWidth: `${responsive.designWidth}px`,
+              maxHeight: `${responsive.designHeight}px`,
+              transform: `translate(-50%, -50%) scale(${responsive.uiScale})`,
+              transformOrigin: 'center center',
             }}
-            onStartGame={startRoundSequence}
-            onShowLeaderboard={() => setShowLeaderboardModal(true)}
-            isEventPreview={isEventPreview}
-            isEventTest={isEventTest}
-          />
+          >
+            <StartScreenRenderer
+              startConfig={reactionConfig.screens?.start}
+              theme={activeTheme}
+              gameType="reaction-time"
+              gameMeta={{
+                duration: reactionConfig.roundsCount,
+                gameTitle: activeTheme?.branding?.title || activeTheme?.title || 'Reaction Tap',
+                gameSubtitle: activeTheme?.branding?.subtitle || activeTheme?.subtitle || 'Test your lightning reflexes with Formula 1 starting lights!',
+                logoUrl: activeTheme?.branding?.clientLogoUrl || activeTheme?.clientLogo || activeTheme?.logo || null,
+              }}
+              onStartGame={startRoundSequence}
+              onShowLeaderboard={() => setShowLeaderboardModal(true)}
+              isEventPreview={isEventPreview}
+              isEventTest={isEventTest}
+            />
+          </div>
         </div>
       )}
 

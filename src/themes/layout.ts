@@ -39,9 +39,14 @@ export function useGameUiScale(containerRef: RefObject<HTMLElement | null>): num
       rafId = requestAnimationFrame(() => {
         const currentEl = containerRef.current;
         if (!currentEl) return;
-        const targetEl = (currentEl.parentElement as HTMLElement) || currentEl;
-        const width = targetEl.clientWidth || targetEl.getBoundingClientRect().width;
-        const height = targetEl.clientHeight || targetEl.getBoundingClientRect().height;
+        const currentRect = currentEl.getBoundingClientRect();
+        let width = currentEl.clientWidth || currentRect.width;
+        let height = currentEl.clientHeight || currentRect.height;
+        if (width <= 0 || height <= 0) {
+          const targetEl = (currentEl.parentElement as HTMLElement) || currentEl;
+          width = targetEl.clientWidth || targetEl.getBoundingClientRect().width;
+          height = targetEl.clientHeight || targetEl.getBoundingClientRect().height;
+        }
         if (width > 0 && height > 0) {
           const nextScale = calculateGameUiScale(width, height);
           setScale((prev) => (Math.abs(prev - nextScale) > 0.001 ? nextScale : prev));
@@ -131,38 +136,38 @@ export const DEFAULT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
   scoreHud: {
     visible: true,
     x: 4,
-    y: 15,
-    width: 18,
+    y: 18,
+    width: 20,
   },
   movesHud: {
     visible: true,
-    x: 24,
-    y: 15,
-    width: 18,
+    x: 4,
+    y: 34,
+    width: 20,
   },
   pairsHud: {
     visible: true,
-    x: 44,
-    y: 15,
-    width: 18,
+    x: 76,
+    y: 34,
+    width: 20,
   },
   timer: {
     visible: true,
-    x: 78,
-    y: 15,
-    width: 18,
+    x: 76,
+    y: 18,
+    width: 20,
   },
   gameTitle: {
     visible: true,
-    x: 36,
-    y: 4,
-    width: 28,
+    x: 34,
+    y: 3,
+    width: 32,
   },
   footerSponsor: {
     visible: true,
-    x: 32,
-    y: 92,
-    width: 36,
+    x: 30,
+    y: 93,
+    width: 40,
   },
   memoryCardBoard: {
     visible: true,
@@ -389,10 +394,22 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
 
   if (isMemory || raw.movesHud) {
     res.movesHud = normalizeElement('movesHud', DEFAULT_MEMORY_MATCH_LAYOUT.movesHud);
+    // Auto-heal legacy overlapping position if movesHud is in the center-top area
+    if (isMemory && res.movesHud && res.movesHud.x >= 20 && res.movesHud.x <= 60 && res.movesHud.y <= 30) {
+      res.movesHud.x = DEFAULT_MEMORY_MATCH_LAYOUT.movesHud!.x;
+      res.movesHud.y = DEFAULT_MEMORY_MATCH_LAYOUT.movesHud!.y;
+      res.movesHud.width = DEFAULT_MEMORY_MATCH_LAYOUT.movesHud!.width;
+    }
   }
 
   if (isMemory || raw.pairsHud) {
     res.pairsHud = normalizeElement('pairsHud', DEFAULT_MEMORY_MATCH_LAYOUT.pairsHud);
+    // Auto-heal legacy overlapping position if pairsHud is in the center-top area
+    if (isMemory && res.pairsHud && res.pairsHud.x >= 20 && res.pairsHud.x <= 60 && res.pairsHud.y <= 30) {
+      res.pairsHud.x = DEFAULT_MEMORY_MATCH_LAYOUT.pairsHud!.x;
+      res.pairsHud.y = DEFAULT_MEMORY_MATCH_LAYOUT.pairsHud!.y;
+      res.pairsHud.width = DEFAULT_MEMORY_MATCH_LAYOUT.pairsHud!.width;
+    }
   }
 
   if (isMemory || raw.memoryCardBoard) {

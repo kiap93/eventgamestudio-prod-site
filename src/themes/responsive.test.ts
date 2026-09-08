@@ -81,6 +81,24 @@ const effectiveCustom = getEffectiveGameLayout(customThemeLayout, true, 'memory-
 assert(effectiveCustom.scoreHud?.x === 25, 'custom scoreHud x is 25');
 assert(effectiveCustom.timer?.x === 75, 'custom timer x is 75');
 
+// Memory match non-overlapping layout tests
+console.log('\n[Memory Match Non-Overlapping Layout Tests]');
+assert(baseLayout.movesHud?.x === 4, 'Memory match landscape movesHud x is placed on left wing (4)');
+assert(baseLayout.movesHud?.y === 34, 'Memory match landscape movesHud y is placed below score (34)');
+assert(baseLayout.pairsHud?.x === 76, 'Memory match landscape pairsHud x is placed on right wing (76)');
+assert(baseLayout.pairsHud?.y === 34, 'Memory match landscape pairsHud y is placed below timer (34)');
+
+// Legacy theme healing tests
+const legacyOverlappingLayout = normalizeGameLayout(
+  {
+    movesHud: { visible: true, x: 24, y: 15, width: 18 },
+    pairsHud: { visible: true, x: 44, y: 15, width: 18 },
+  },
+  'memory-match'
+);
+assert(legacyOverlappingLayout.movesHud?.x === 4, 'Legacy center movesHud is auto-healed to left wing (4)');
+assert(legacyOverlappingLayout.pairsHud?.x === 76, 'Legacy center pairsHud is auto-healed to right wing (76)');
+
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 if (failed > 0) {
   process.exit(1);

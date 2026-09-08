@@ -367,10 +367,23 @@ export function useResponsiveLayout(
         if (!currentEl) return;
 
         // Prefer container element, fallback to parent or visual viewport
-        const targetEl = (currentEl.parentElement as HTMLElement) || currentEl;
-        const rect = targetEl.getBoundingClientRect();
-        const width = targetEl.clientWidth || rect.width || (window.visualViewport ? window.visualViewport.width : window.innerWidth);
-        const height = targetEl.clientHeight || rect.height || (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+        const currentRect = currentEl.getBoundingClientRect();
+        let width = currentEl.clientWidth || currentRect.width;
+        let height = currentEl.clientHeight || currentRect.height;
+
+        if (width <= 0 || height <= 0) {
+          const parentEl = currentEl.parentElement as HTMLElement | null;
+          if (parentEl) {
+            const parentRect = parentEl.getBoundingClientRect();
+            width = parentEl.clientWidth || parentRect.width;
+            height = parentEl.clientHeight || parentRect.height;
+          }
+        }
+
+        if (width <= 0 || height <= 0) {
+          width = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+          height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        }
 
         if (width <= 0 || height <= 0) return;
 

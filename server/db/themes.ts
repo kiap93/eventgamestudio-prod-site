@@ -445,11 +445,13 @@ export const DEFAULT_MEMORY_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
   },
   layout: {
     clientLogo: { visible: true, x: 4, y: 4, width: 14 },
-    scoreHud: { visible: true, x: 4, y: 15, width: 18 },
-    movesHud: { visible: true, x: 41, y: 15, width: 18 },
-    timer: { visible: true, x: 78, y: 15, width: 18 },
-    gameTitle: { visible: true, x: 36, y: 4, width: 28 },
-    footerSponsor: { visible: true, x: 32, y: 92, width: 36 },
+    scoreHud: { visible: true, x: 4, y: 18, width: 20 },
+    movesHud: { visible: true, x: 4, y: 34, width: 20 },
+    pairsHud: { visible: true, x: 76, y: 34, width: 20 },
+    timer: { visible: true, x: 76, y: 18, width: 20 },
+    gameTitle: { visible: true, x: 34, y: 3, width: 32 },
+    footerSponsor: { visible: true, x: 30, y: 93, width: 40 },
+    memoryCardBoard: { visible: true, x: 50, y: 50 },
   },
 };
 

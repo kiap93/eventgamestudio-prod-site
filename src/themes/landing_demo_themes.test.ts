@@ -90,7 +90,12 @@ const systemDemoThemes = uniqueThemes.filter((theme) => {
   if (theme.organization_id) return false;
   if (!isSystemTheme) return false;
   // Catch-brand demo filter
-  return !theme.game_type || theme.game_type === 'catch-brand' || theme.game_slug === 'catch-brand' || theme.id !== 'memory-match';
+  return (
+    (!theme.game_type || theme.game_type === 'catch-brand' || theme.game_slug === 'catch-brand') &&
+    theme.id !== 'memory-match' &&
+    theme.id !== 'reaction-tap' &&
+    theme.game_type !== 'reaction-time'
+  );
 });
 
 const themeNames = systemDemoThemes.map((t) => t.name.split(' ')[0]);
