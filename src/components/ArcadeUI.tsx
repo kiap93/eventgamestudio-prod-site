@@ -34,6 +34,7 @@ import { normalizeGameLayout, GameLayoutConfig } from '../themes/layout';
 import { useResponsiveLayout, getEffectiveGameLayout } from '../themes/responsive';
 import { apiFetch } from '../lib/api';
 import { StartScreenRenderer } from '../games/shared/StartScreenRenderer';
+import { GameControlBar } from './studio/GameControlBar';
 
 interface ArcadeUIProps {
   gameState: GameState;
@@ -400,57 +401,19 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
         {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
           <>
             {/* Top Right In-Game Controls Dock */}
-            <div className="absolute top-3 right-3 z-50 pointer-events-auto flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-sm p-1.5 rounded-xl border border-slate-700/80 shadow-lg">
-              <button
-                onClick={() => setShowSettingsModal(true)}
-                className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
-                title="Game Settings & Themes"
-              >
-                <Settings className="w-3.5 h-3.5" />
-              </button>
-
-              <button
-                onClick={onToggleMute}
-                className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
-                title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
-              >
-                {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
-              </button>
-
-              {gameState === 'PLAYING' ? (
-                <button
-                  onClick={onPauseGame}
-                  className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all"
-                  title="Pause Game"
-                >
-                  <Pause className="w-3.5 h-3.5" />
-                </button>
-              ) : (
-                <button
-                  onClick={onResumeGame}
-                  className="p-1.5 rounded-lg bg-[#c8e038] text-[#0c2012] border border-[#b2c833] font-bold transition-all"
-                  title="Resume Game"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-              <button
-                onClick={handleRequestStop}
-                className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-rose-500/80 text-rose-400 hover:bg-rose-950 transition-all flex items-center justify-center"
-                title="Stop Game / Return to Main Menu"
-              >
-                <Square className="w-3.5 h-3.5 fill-rose-400" />
-              </button>
-
-              <button
-                onClick={onToggleFullscreen}
-                className="p-1.5 rounded-lg bg-[#0c2012]/90 border border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] transition-all font-mono text-xs font-bold"
-                title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
-              >
-                ⛶
-              </button>
-            </div>
+            <GameControlBar
+              id="live-arcade-control-bar"
+              disabled={false}
+              isMuted={isMuted}
+              isPaused={gameState === 'PAUSED'}
+              isFullscreen={isFullscreen}
+              onSettingsClick={() => setShowSettingsModal(true)}
+              onToggleMute={onToggleMute}
+              onPauseResume={gameState === 'PLAYING' ? onPauseGame : onResumeGame}
+              onStop={handleRequestStop}
+              onToggleFullscreen={onToggleFullscreen}
+              className="absolute top-3 right-3 z-50"
+            />
 
             {/* 1. Client Logo Element */}
             {layout.clientLogo?.visible && clientLogoUrl && (

@@ -24,6 +24,7 @@ import {
   useGameUiScale,
 } from '../../themes/layout';
 import { GameLayoutHudOverlay } from './GameLayoutHudOverlay';
+import { GameControlBar } from './GameControlBar';
 import {
   Volume2,
   VolumeX,
@@ -1011,6 +1012,18 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             selectedElementKey={selectedElementKey}
             onSelectElementKey={onSelectElementKey}
             onElementPointerDown={handleElementPointerDown}
+          />
+        )}
+
+        {/* IN-GAME FLOATING CONTROL BAR FOR CATCH THE BRAND LIVE GAME SIMULATION */}
+        {!isMemoryMatch && !isReaction && (
+          <GameControlBar
+            id="simulation-catch-brand-control-bar"
+            disabled={true}
+            isMuted={isMuted}
+            isPaused={false}
+            isFullscreen={isFullscreen}
+            className="absolute top-2 right-2 sm:top-3 sm:right-3 z-40"
           />
         )}
 
