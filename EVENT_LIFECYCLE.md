@@ -40,11 +40,19 @@ The platform strictly separates **Event Lifecycle Status** from **Payment Lifecy
 
 Events are defined by inclusive calendar start and end dates (`start_date` and `end_date`, format: `YYYY-MM-DD`):
 
+### Authoritative Business Timezone Declaration
+> **Standard Business Timezone**: All events operate on **Asia/Singapore / Malaysia UTC+8** (`Asia/Singapore`) business timezone.
+>
+> Both backend lifecycle crons and client calendar checks evaluate date boundaries (including Setup Day at `00:00:00` and Event Conclusion at `23:59:59.999`) against UTC+8.
+>
+> **Future Multi-Timezone Architecture**:
+> When expanding to international agencies (e.g. Bangkok UTC+7, Tokyo UTC+9, London UTC+0), the event schema allows an optional `event_timezone` (or fallback to `organization_timezone`), transitioning the lifecycle from fixed Singapore time to `current date in event timezone`. In the absence of an explicit `event_timezone`, all systems strictly default to `Asia/Singapore` (UTC+8).
+
 ### Calendar Boundaries
-- **Start Date (`start_date`)**: The first day the game is officially open for attendees (e.g. `2026-09-02`).
-- **End Date (`end_date`)**: The last day the game is officially open for attendees (e.g. `2026-09-03`).
+- **Start Date (`start_date`)**: The first day the game is officially open for attendees (e.g. `2026-09-02` at `00:00:00` UTC+8).
+- **End Date (`end_date`)**: The last day the game is officially open for attendees (e.g. `2026-09-03` through `23:59:59` UTC+8).
 - **Setup Day (`live_open_date`)**: Exactly **1 calendar day prior** to `start_date` (e.g. `2026-09-01`).
-  - Calculation: `start_date - 1 day` at `00:00:00` local time.
+  - Calculation: `start_date - 1 day` at `00:00:00` in the event's business timezone (default: `Asia/Singapore` UTC+8).
   - Purpose: Allows event organizers and venue teams to test the live game on event devices before attendees arrive.
 
 ---

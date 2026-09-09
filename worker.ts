@@ -828,6 +828,7 @@ export default {
           return errorResponse('Organization not found', 404, cors);
         }
 
+        const memberships = await getUserOrganizations(user.id, env);
         const newToken = await signAppToken(user.id, organizationId, role, undefined, env);
         return jsonResponse(
           {
@@ -838,7 +839,9 @@ export default {
               slug: org.slug,
               role,
               logo_url: org.logo_url,
+              country_code: org.country_code || null,
             },
+            organizations: memberships,
           },
           200,
           cors
@@ -913,10 +916,12 @@ export default {
           return errorResponse('Organization name is required', 422, cors);
         }
 
-        if (country_code !== undefined && country_code !== null) {
-          if (typeof country_code !== 'string' || !isValidCountryCode(country_code)) {
-            return errorResponse('Invalid country code. Please select a valid country.', 422, cors);
-          }
+        if (!country_code || typeof country_code !== 'string' || !country_code.trim()) {
+          return errorResponse("Please select your organization's country.", 422, cors);
+        }
+
+        if (!isValidCountryCode(country_code)) {
+          return errorResponse('Invalid country code. Please select a valid country.', 422, cors);
         }
 
         const organization = await createOrganization(

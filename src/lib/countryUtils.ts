@@ -10,9 +10,29 @@
 export interface CountryItem {
   code: string; // ISO 3166-1 alpha-2 (e.g. 'SG')
   name: string;
+  flag: string;
   defaultTimezone: string;
-  currencyCode?: string;
+  currencyCode: string;
 }
+
+export type Country = CountryItem;
+
+/**
+ * Popular and regional country codes for quick selection.
+ * Every code here exists in the supported COUNTRIES array.
+ */
+export const POPULAR_COUNTRY_CODES: string[] = [
+  'SG',
+  'MY',
+  'TH',
+  'ID',
+  'PH',
+  'VN',
+  'JP',
+  'AU',
+  'US',
+  'GB',
+];
 
 /**
  * Standard list of supported countries for Event Game Studio.
@@ -20,38 +40,38 @@ export interface CountryItem {
  */
 export const COUNTRIES: CountryItem[] = [
   // Southeast Asia & Regional Hubs
-  { code: 'SG', name: 'Singapore', defaultTimezone: 'Asia/Singapore', currencyCode: 'SGD' },
-  { code: 'MY', name: 'Malaysia', defaultTimezone: 'Asia/Kuala_Lumpur', currencyCode: 'MYR' },
-  { code: 'TH', name: 'Thailand', defaultTimezone: 'Asia/Bangkok', currencyCode: 'THB' },
-  { code: 'ID', name: 'Indonesia', defaultTimezone: 'Asia/Jakarta', currencyCode: 'IDR' },
-  { code: 'PH', name: 'Philippines', defaultTimezone: 'Asia/Manila', currencyCode: 'PHP' },
-  { code: 'VN', name: 'Vietnam', defaultTimezone: 'Asia/Ho_Chi_Minh', currencyCode: 'VND' },
-  { code: 'JP', name: 'Japan', defaultTimezone: 'Asia/Tokyo', currencyCode: 'JPY' },
-  { code: 'KR', name: 'South Korea', defaultTimezone: 'Asia/Seoul', currencyCode: 'KRW' },
-  { code: 'TW', name: 'Taiwan', defaultTimezone: 'Asia/Taipei', currencyCode: 'TWD' },
-  { code: 'HK', name: 'Hong Kong', defaultTimezone: 'Asia/Hong_Kong', currencyCode: 'HKD' },
-  { code: 'AU', name: 'Australia', defaultTimezone: 'Australia/Sydney', currencyCode: 'AUD' },
-  { code: 'NZ', name: 'New Zealand', defaultTimezone: 'Pacific/Auckland', currencyCode: 'NZD' },
-  { code: 'IN', name: 'India', defaultTimezone: 'Asia/Kolkata', currencyCode: 'INR' },
+  { code: 'SG', name: 'Singapore', flag: '🇸🇬', defaultTimezone: 'Asia/Singapore', currencyCode: 'SGD' },
+  { code: 'MY', name: 'Malaysia', flag: '🇲🇾', defaultTimezone: 'Asia/Kuala_Lumpur', currencyCode: 'MYR' },
+  { code: 'TH', name: 'Thailand', flag: '🇹🇭', defaultTimezone: 'Asia/Bangkok', currencyCode: 'THB' },
+  { code: 'ID', name: 'Indonesia', flag: '🇮🇩', defaultTimezone: 'Asia/Jakarta', currencyCode: 'IDR' },
+  { code: 'PH', name: 'Philippines', flag: '🇵🇭', defaultTimezone: 'Asia/Manila', currencyCode: 'PHP' },
+  { code: 'VN', name: 'Vietnam', flag: '🇻🇳', defaultTimezone: 'Asia/Ho_Chi_Minh', currencyCode: 'VND' },
+  { code: 'JP', name: 'Japan', flag: '🇯🇵', defaultTimezone: 'Asia/Tokyo', currencyCode: 'JPY' },
+  { code: 'KR', name: 'South Korea', flag: '🇰🇷', defaultTimezone: 'Asia/Seoul', currencyCode: 'KRW' },
+  { code: 'TW', name: 'Taiwan', flag: '🇹🇼', defaultTimezone: 'Asia/Taipei', currencyCode: 'TWD' },
+  { code: 'HK', name: 'Hong Kong', flag: '🇭🇰', defaultTimezone: 'Asia/Hong_Kong', currencyCode: 'HKD' },
+  { code: 'AU', name: 'Australia', flag: '🇦🇺', defaultTimezone: 'Australia/Sydney', currencyCode: 'AUD' },
+  { code: 'NZ', name: 'New Zealand', flag: '🇳🇿', defaultTimezone: 'Pacific/Auckland', currencyCode: 'NZD' },
+  { code: 'IN', name: 'India', flag: '🇮🇳', defaultTimezone: 'Asia/Kolkata', currencyCode: 'INR' },
 
-  // North America & Europe
-  { code: 'US', name: 'United States', defaultTimezone: 'America/New_York', currencyCode: 'USD' },
-  { code: 'GB', name: 'United Kingdom', defaultTimezone: 'Europe/London', currencyCode: 'GBP' },
-  { code: 'CA', name: 'Canada', defaultTimezone: 'America/Toronto', currencyCode: 'CAD' },
-  { code: 'DE', name: 'Germany', defaultTimezone: 'Europe/Berlin', currencyCode: 'EUR' },
-  { code: 'FR', name: 'France', defaultTimezone: 'Europe/Paris', currencyCode: 'EUR' },
-  { code: 'NL', name: 'Netherlands', defaultTimezone: 'Europe/Amsterdam', currencyCode: 'EUR' },
-  { code: 'CH', name: 'Switzerland', defaultTimezone: 'Europe/Zurich', currencyCode: 'CHF' },
-  { code: 'AE', name: 'United Arab Emirates', defaultTimezone: 'Asia/Dubai', currencyCode: 'AED' },
-  { code: 'SA', name: 'Saudi Arabia', defaultTimezone: 'Asia/Riyadh', currencyCode: 'SAR' },
-  { code: 'BR', name: 'Brazil', defaultTimezone: 'America/Sao_Paulo', currencyCode: 'BRL' },
-  { code: 'MX', name: 'Mexico', defaultTimezone: 'America/Mexico_City', currencyCode: 'MXN' },
-  { code: 'ZA', name: 'South Africa', defaultTimezone: 'Africa/Johannesburg', currencyCode: 'ZAR' },
-  { code: 'ES', name: 'Spain', defaultTimezone: 'Europe/Madrid', currencyCode: 'EUR' },
-  { code: 'IT', name: 'Italy', defaultTimezone: 'Europe/Rome', currencyCode: 'EUR' },
-  { code: 'SE', name: 'Sweden', defaultTimezone: 'Europe/Stockholm', currencyCode: 'SEK' },
-  { code: 'NO', name: 'Norway', defaultTimezone: 'Europe/Oslo', currencyCode: 'NOK' },
-  { code: 'IE', name: 'Ireland', defaultTimezone: 'Europe/Dublin', currencyCode: 'EUR' },
+  // North America & Europe & International
+  { code: 'US', name: 'United States', flag: '🇺🇸', defaultTimezone: 'America/New_York', currencyCode: 'USD' },
+  { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', defaultTimezone: 'Europe/London', currencyCode: 'GBP' },
+  { code: 'CA', name: 'Canada', flag: '🇨🇦', defaultTimezone: 'America/Toronto', currencyCode: 'CAD' },
+  { code: 'DE', name: 'Germany', flag: '🇩🇪', defaultTimezone: 'Europe/Berlin', currencyCode: 'EUR' },
+  { code: 'FR', name: 'France', flag: '🇫🇷', defaultTimezone: 'Europe/Paris', currencyCode: 'EUR' },
+  { code: 'NL', name: 'Netherlands', flag: '🇳🇱', defaultTimezone: 'Europe/Amsterdam', currencyCode: 'EUR' },
+  { code: 'CH', name: 'Switzerland', flag: '🇨🇭', defaultTimezone: 'Europe/Zurich', currencyCode: 'CHF' },
+  { code: 'AE', name: 'United Arab Emirates', flag: '🇦🇪', defaultTimezone: 'Asia/Dubai', currencyCode: 'AED' },
+  { code: 'SA', name: 'Saudi Arabia', flag: '🇸🇦', defaultTimezone: 'Asia/Riyadh', currencyCode: 'SAR' },
+  { code: 'BR', name: 'Brazil', flag: '🇧🇷', defaultTimezone: 'America/Sao_Paulo', currencyCode: 'BRL' },
+  { code: 'MX', name: 'Mexico', flag: '🇲🇽', defaultTimezone: 'America/Mexico_City', currencyCode: 'MXN' },
+  { code: 'ZA', name: 'South Africa', flag: '🇿🇦', defaultTimezone: 'Africa/Johannesburg', currencyCode: 'ZAR' },
+  { code: 'ES', name: 'Spain', flag: '🇪🇸', defaultTimezone: 'Europe/Madrid', currencyCode: 'EUR' },
+  { code: 'IT', name: 'Italy', flag: '🇮🇹', defaultTimezone: 'Europe/Rome', currencyCode: 'EUR' },
+  { code: 'SE', name: 'Sweden', flag: '🇸🇪', defaultTimezone: 'Europe/Stockholm', currencyCode: 'SEK' },
+  { code: 'NO', name: 'Norway', flag: '🇳🇴', defaultTimezone: 'Europe/Oslo', currencyCode: 'NOK' },
+  { code: 'IE', name: 'Ireland', flag: '🇮🇪', defaultTimezone: 'Europe/Dublin', currencyCode: 'EUR' },
 ];
 
 const COUNTRY_LOOKUP = new Map<string, CountryItem>();

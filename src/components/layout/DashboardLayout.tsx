@@ -271,6 +271,11 @@ export const DashboardLayout: React.FC = () => {
                 <span className="max-w-[75px] xs:max-w-[95px] sm:max-w-[120px] lg:max-w-[150px] truncate">
                   {currentOrganization?.name || 'Select Workspace'}
                 </span>
+                {currentOrganization?.country_code && (
+                  <span className="text-xs shrink-0" title={getCountryByCode(currentOrganization.country_code)?.name}>
+                    {getCountryByCode(currentOrganization.country_code)?.flag}
+                  </span>
+                )}
                 {currentOrganization?.role && (
                   <span className="hidden md:inline uppercase text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                     {currentOrganization.role}
@@ -300,6 +305,11 @@ export const DashboardLayout: React.FC = () => {
                       >
                         <div className="flex items-center gap-2 truncate">
                           {org.id === currentOrganization?.id && <Check className="w-3 h-3 text-amber-400 shrink-0" />}
+                          {org.country_code && (
+                            <span className="text-xs shrink-0" title={getCountryByCode(org.country_code)?.name}>
+                              {getCountryByCode(org.country_code)?.flag}
+                            </span>
+                          )}
                           <span className="truncate">{org.name}</span>
                         </div>
                         <span className="uppercase text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono shrink-0">

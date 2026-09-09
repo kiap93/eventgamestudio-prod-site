@@ -373,6 +373,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('app_token', data.token);
       setToken(data.token);
       setCurrentOrganization(data.activeOrganization);
+      if (data.organizations) {
+        setOrganizations(data.organizations);
+      }
       await fetchActiveGame();
       await fetchThemes();
     } finally {

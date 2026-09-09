@@ -29,12 +29,15 @@ Core platform entities (**Organizations**, **Users/Members**, **Events**, **Game
 
 ## 3. Event Dates & Duration Calculations
 
+- **Business Timezone Standard**: All events explicitly use **Asia/Singapore / Malaysia UTC+8** business timezone (`Asia/Singapore`).
+  - Unless an explicit `event_timezone` is defined on the event record, all calendar boundaries, setup day dates, and automated lifecycle state transitions evaluate against `Asia/Singapore` (UTC+8).
 - **Inclusive Calendar-Day Logic**: Events are defined by calendar start and end dates (`start_date` and `end_date`).
   - Example: If `start_date = '2026-09-01'` and `end_date = '2026-09-02'`, the effective event window is:
-    `2026-09-01 00:00:00` through `2026-09-02 23:59:59` (Singapore / local timezone).
+    `2026-09-01 00:00:00` through `2026-09-02 23:59:59` (Asia/Singapore / Malaysia UTC+8).
   - Both the start date and end date are **inclusive**. A 1-day event has `start_date === end_date` (duration = 1 calendar day).
 - **Duration Formula**: Always use the canonical helper `calculateEventCalendarDays(startDate, endDate)` from `src/lib/dateUtils.ts` (client) or `server/db/platformSettings.ts` (server).
-- **Timezone Awareness**: Perform all calendar boundary checks consistently with end-of-day (`23:59:59.999`) inclusiveness.
+- **Timezone Awareness**: Perform all calendar boundary checks consistently with end-of-day (`23:59:59.999`) inclusiveness in UTC+8.
+- **Multi-Country & International Roadmap**: When expanding to international markets (e.g. Bangkok UTC+7, Tokyo UTC+9), events should support an optional `event_timezone` (or `organization_timezone`), while defaulting to `Asia/Singapore` (UTC+8).
 
 ---
 

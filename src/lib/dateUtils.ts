@@ -141,13 +141,21 @@ export function calculateSetupDayString(startDateStr: string): string {
 }
 
 /**
- * Returns the current date formatted as 'YYYY-MM-DD' in Asia/Singapore timezone (UTC+8).
- * Ensures exact Singapore calendar date without client browser timezone skew.
+ * Canonical platform business timezone declaration.
+ * All events currently operate on Asia/Singapore & Malaysia (UTC+8) business timezone.
  */
-export function getSingaporeCalendarDate(date: Date = new Date()): string {
+export const PLATFORM_BUSINESS_TIMEZONE = 'Asia/Singapore';
+export const PLATFORM_BUSINESS_TIMEZONE_LABEL = 'Asia/Singapore / Malaysia (UTC+8)';
+
+/**
+ * Returns the calendar date formatted as 'YYYY-MM-DD' in the specified timezone.
+ * Defaults to Asia/Singapore (UTC+8).
+ * Ensures exact calendar date calculation without client browser timezone skew.
+ */
+export function getCalendarDateInTimezone(date: Date = new Date(), timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
   try {
     const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Singapore',
+      timeZone: timeZone || PLATFORM_BUSINESS_TIMEZONE,
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -162,15 +170,24 @@ export function getSingaporeCalendarDate(date: Date = new Date()): string {
 }
 
 /**
- * Normalizes input date representation to YYYY-MM-DD string.
+ * Returns the current date formatted as 'YYYY-MM-DD' in Asia/Singapore timezone (UTC+8).
+ * Ensures exact Singapore calendar date without client browser timezone skew.
+ * Accepts optional timeZone parameter for future multi-timezone support.
  */
-export function getNormalizedCurrentDate(currentDate?: string | Date | null): string {
+export function getSingaporeCalendarDate(date: Date = new Date(), timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
+  return getCalendarDateInTimezone(date, timeZone);
+}
+
+/**
+ * Normalizes input date representation to YYYY-MM-DD string in the target timezone (defaults to Asia/Singapore UTC+8).
+ */
+export function getNormalizedCurrentDate(currentDate?: string | Date | null, timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
   if (typeof currentDate === 'string') {
     const match = currentDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (match) return `${match[1]}-${match[2]}-${match[3]}`;
   }
   const dt = currentDate instanceof Date ? currentDate : new Date();
-  return getSingaporeCalendarDate(dt);
+  return getCalendarDateInTimezone(dt, timeZone);
 }
 
 /**
@@ -354,7 +371,8 @@ export function getClientLiveGameAccessDetails(
   }
 
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
-  const curDate = getNormalizedCurrentDate(currentDate);
+  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const curDate = getNormalizedCurrentDate(currentDate, eventTimezone);
 
   // 2. Date window check: Event has ended
   // Authoritative Rule: "After event end date => Live Game CLOSED regardless of payment."
@@ -492,7 +510,8 @@ export function canAccessPreviewEvent(
   }
 
   const { endDate } = getNormalizedEventDates(event);
-  const curDate = getNormalizedCurrentDate(currentDate);
+  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const curDate = getNormalizedCurrentDate(currentDate, eventTimezone);
 
   // Authoritative Rule: After event_end_date (3-Sep), Preview / Test is CLOSED
   if (endDate && curDate > endDate) {
@@ -527,7 +546,8 @@ export function isEventBeforeStartDate(
   }
   const { startDate } = getNormalizedEventDates(event);
   if (!startDate) return false;
-  const curDate = getNormalizedCurrentDate(currentDate);
+  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const curDate = getNormalizedCurrentDate(currentDate, eventTimezone);
   return curDate < startDate;
 }
 
@@ -559,7 +579,8 @@ export function getEventAvailabilityState(
   const isPaid = payStatus === 'PAID';
 
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event || {});
-  const curDate = getNormalizedCurrentDate(currentDate);
+  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const curDate = getNormalizedCurrentDate(currentDate, eventTimezone);
 
   const isBeforeStartDate = Boolean(startDate && curDate < startDate);
   const isBeforeLiveWindow = Boolean(liveOpenDate && curDate < liveOpenDate);
@@ -657,7 +678,8 @@ export function calculateEventStatus(
   }
 
   const { startDate, endDate } = getNormalizedEventDates(event);
-  const curDate = getNormalizedCurrentDate(now);
+  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const curDate = getNormalizedCurrentDate(now, eventTimezone);
   const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 
   // 1. After event end date:
@@ -721,7 +743,8 @@ export function deriveEventLifecycleStatus(
   }
 
   const { startDate, endDate } = getNormalizedEventDates(event);
-  const curDate = getNormalizedCurrentDate(now);
+  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const curDate = getNormalizedCurrentDate(now, eventTimezone);
   const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 
   // 1. After event date has ended:

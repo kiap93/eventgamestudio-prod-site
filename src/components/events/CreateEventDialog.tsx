@@ -36,6 +36,7 @@ import {
   Layers,
   ShieldCheck,
   ChevronDown,
+  Globe,
 } from 'lucide-react';
 
 interface GameThemeOption {
@@ -782,6 +783,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                     Active for whole calendar day{startDate === endDate ? '' : 's'}: <span className="text-amber-300 font-bold">{formatEventDateRange(startDate, endDate)}</span>
                   </p>
                 )}
+
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-950/60 px-3 py-2 rounded-xl border border-slate-800/80">
+                  <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>All events use Asia/Singapore / Malaysia UTC+8 business timezone.</span>
+                </div>
               </div>
 
               {/* Informative Note */}

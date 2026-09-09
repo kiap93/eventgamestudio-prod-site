@@ -474,6 +474,7 @@ app.post('/api/auth/switch-org', authRateLimiter, authenticateJWT, async (req: A
       return;
     }
 
+    const memberships = await getUserOrganizations(user.id);
     const newToken = signAppToken(user.id, organizationId, role);
     res.json({
       token: newToken,
@@ -483,7 +484,9 @@ app.post('/api/auth/switch-org', authRateLimiter, authenticateJWT, async (req: A
         slug: org.slug,
         role,
         logo_url: org.logo_url,
+        country_code: org.country_code || null,
       },
+      organizations: memberships,
     });
   } catch (err: any) {
     console.error('Switch org error:', err);
@@ -579,11 +582,14 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
       return;
     }
 
-    if (country_code !== undefined && country_code !== null) {
-      if (typeof country_code !== 'string' || !isValidCountryCode(country_code)) {
-        res.status(422).json({ error: 'Invalid country code. Please select a valid country.' });
-        return;
-      }
+    if (!country_code || typeof country_code !== 'string' || !country_code.trim()) {
+      res.status(422).json({ error: "Please select your organization's country." });
+      return;
+    }
+
+    if (!isValidCountryCode(country_code)) {
+      res.status(422).json({ error: 'Invalid country code. Please select a valid country.' });
+      return;
     }
 
     // 1. Create Organization

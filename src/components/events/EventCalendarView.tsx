@@ -523,9 +523,14 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
             </button>
           </div>
 
-          <h2 className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">
-            {headerTitle}
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">
+              {headerTitle}
+            </h2>
+            <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-950 border border-slate-800 text-slate-400">
+              UTC+8 (SGT/MYT)
+            </span>
+          </div>
         </div>
 
         {/* View Switchers (Month / Week / Day) */}

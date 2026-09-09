@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   COUNTRIES,
+  CountryItem,
   Country,
   getCountryByCode,
   getDefaultTimezoneForCountry,
@@ -53,7 +54,7 @@ export const CountrySelect: React.FC<CountrySelectProps> = ({
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.code.toLowerCase().includes(q) ||
-        c.currency.toLowerCase().includes(q)
+        (c.currencyCode && c.currencyCode.toLowerCase().includes(q))
     );
   }, [searchQuery]);
 

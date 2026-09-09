@@ -506,7 +506,7 @@ export const PublicEventGameView: React.FC = () => {
               Event Dates: <span className="font-semibold text-slate-200">{formatDateOnly(startDate)}</span> to <span className="font-semibold text-slate-200">{formatDateOnly(dates?.endDate || '')}</span>
             </div>
             <p className="text-[11px] text-slate-500">
-              Live play will automatically activate on setup day ({formatDateOnly(liveOpenDate)}).
+              Live play will automatically activate on setup day ({formatDateOnly(liveOpenDate)}) at 00:00 UTC+8 (Asia/Singapore & Malaysia).
             </p>
           </div>
 
