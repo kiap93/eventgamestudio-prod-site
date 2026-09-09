@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { GameContainer } from '../GameContainer';
 import { EventPaymentModal } from './EventPaymentModal';
 import { apiFetch } from '../../lib/api';
+import { getGameTypeIcon } from '../../games';
 import {
   canAccessPreviewEvent,
   canAccessLiveEvent,
@@ -440,7 +441,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
             </button>
 
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-300 text-[11px] font-bold shrink-0">
-              <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
+              {getGameTypeIcon(eventData.game?.game_type || eventData.game?.slug || gameName, 'w-3.5 h-3.5 text-purple-400')}
               <span>TEST PLAY PREVIEW</span>
             </div>
 

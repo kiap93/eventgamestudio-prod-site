@@ -1191,19 +1191,53 @@ export async function getAllShowcasesForAdmin(
 
 /**
  * Publish an Event Showcase
+ * - If showcase already exists for this event: updates status to PUBLISHED and preserves existing data/updates.
+ * - If showcase does not exist yet: safely creates and publishes a showcase for this event,
+ *   ensuring uniqueness (no duplicate showcases).
+ * - Enforces event existence and showcase eligibility.
+ * - Adds server-side logging showing eventId received, event existence, showcase lookup result, showcase ID, and publish/update result.
  */
 export async function publishShowcase(
   eventId: string,
-  env?: Record<string, any>
+  updatesOrEnv?: {
+    title?: string | null;
+    description?: string | null;
+    client_name?: string | null;
+    client_logo_url?: string | null;
+    cover_image_url?: string | null;
+  } | Record<string, any>,
+  possibleEnv?: Record<string, any>
 ): Promise<EventShowcaseRecord> {
-  const existing = await getShowcaseByEventId(eventId, env);
-  if (!existing) {
-    const err = new Error('Event Showcase not found');
-    (err as any).code = 'SHOWCASE_NOT_FOUND';
-    throw err;
+  let updates: {
+    title?: string | null;
+    description?: string | null;
+    client_name?: string | null;
+    client_logo_url?: string | null;
+    cover_image_url?: string | null;
+  } | undefined = undefined;
+
+  let env: Record<string, any> | undefined = undefined;
+
+  if (updatesOrEnv) {
+    if (
+      'SUPABASE_URL' in updatesOrEnv ||
+      'VITE_SUPABASE_URL' in updatesOrEnv ||
+      'DATABASE_URL' in updatesOrEnv ||
+      'SUPABASE_SERVICE_ROLE_KEY' in updatesOrEnv
+    ) {
+      env = updatesOrEnv as Record<string, any>;
+    } else {
+      updates = updatesOrEnv as any;
+      env = possibleEnv;
+    }
+  } else {
+    env = possibleEnv;
   }
 
+  console.log(`[Showcase Publish] eventId received: ${eventId}`);
+
   const event = await getEventById(eventId, env);
+  console.log(`[Showcase Publish] event existence: ${!!event}${event ? ` (id=${event.id}, name="${event.name}")` : ''}`);
   if (!event) {
     const err = new Error('Event not found');
     (err as any).code = 'EVENT_NOT_FOUND';
@@ -1219,14 +1253,49 @@ export async function publishShowcase(
     throw err;
   }
 
-  return await updateShowcase(
-    eventId,
-    {
-      status: 'PUBLISHED',
-      publication_status: 'PUBLISHED',
-    },
-    env
-  );
+  const existing = await getShowcaseByEventId(eventId, env);
+  console.log(`[Showcase Publish] showcase lookup result: ${existing ? `Found existing showcase (id=${existing.id}, status=${existing.status})` : 'None found (will create and publish new showcase)'}`);
+
+  let result: EventShowcaseRecord;
+  if (existing) {
+    if (existing.status === 'BLOCKED') {
+      const err = new Error('Cannot publish a blocked showcase. Please contact support.');
+      (err as any).code = 'SHOWCASE_BLOCKED';
+      (err as any).status = 403;
+      throw err;
+    }
+
+    result = await updateShowcase(
+      eventId,
+      {
+        ...(updates || {}),
+        status: 'PUBLISHED',
+        publication_status: 'PUBLISHED',
+      },
+      env
+    );
+  } else {
+    // Safe creation during publish flow if no showcase exists yet
+    const titleToUse = updates?.title?.trim() || event.name?.trim() || 'Event Showcase';
+    result = await createShowcase(
+      {
+        event_id: event.id,
+        organization_id: event.organization_id,
+        title: titleToUse,
+        description: updates?.description !== undefined ? (updates.description ? updates.description.trim() : null) : null,
+        client_name: updates?.client_name !== undefined ? (updates.client_name ? updates.client_name.trim() : null) : null,
+        client_logo_url: updates?.client_logo_url !== undefined ? (updates.client_logo_url ? updates.client_logo_url.trim() : null) : null,
+        cover_image_url: updates?.cover_image_url !== undefined ? (updates.cover_image_url ? updates.cover_image_url.trim() : null) : null,
+        status: 'PUBLISHED',
+      },
+      env
+    );
+  }
+
+  console.log(`[Showcase Publish] showcase ID: ${result.id}`);
+  console.log(`[Showcase Publish] publish/update result: status=${result.status}, publication_status=${result.publication_status}, event_id=${result.event_id}`);
+
+  return result;
 }
 
 /**

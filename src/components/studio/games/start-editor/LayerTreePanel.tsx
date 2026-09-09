@@ -59,6 +59,8 @@ interface LayerTreePanelProps {
   onAddChildElement: (parentId: string, type: StartScreenElementType) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  canvasWidth?: number;
+  canvasHeight?: number;
 }
 
 export function getStartElementIcon(type: StartScreenElementType): React.ElementType {
@@ -103,6 +105,8 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
   onAddChildElement,
   isCollapsed = false,
   onToggleCollapse,
+  canvasWidth = 1024,
+  canvasHeight = 576,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedContainers, setCollapsedContainers] = useState<Record<string, boolean>>({});
@@ -365,7 +369,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
       {/* Footer info */}
       <div className="p-2 border-t border-slate-800 bg-slate-950/40 text-[10px] text-slate-500 flex items-center justify-between">
         <span>Click to select • Drag on canvas</span>
-        <span className="font-mono">1000×1000</span>
+        <span className="font-mono">{canvasWidth}×{canvasHeight}</span>
       </div>
     </div>
   );

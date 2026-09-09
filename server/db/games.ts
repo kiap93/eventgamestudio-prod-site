@@ -34,7 +34,7 @@ export const CATALOG_GAMES = [
     slug: 'catch-brand',
     game_type: 'catch-brand',
     description: 'Fast-paced arcade catcher! Catch good brand objects, dodge hazardous obstacles, and collect golden bonus items.',
-    icon_name: 'Gamepad2',
+    icon_name: 'ShoppingBasket',
   },
   {
     name: 'Brand Memory Match',
@@ -42,6 +42,13 @@ export const CATALOG_GAMES = [
     game_type: 'memory-match',
     description: 'Classic card flip and memory puzzle matching custom branded products and logos.',
     icon_name: 'Grid3X3',
+  },
+  {
+    name: 'Formula Reaction Lights',
+    slug: 'reaction-tap',
+    game_type: 'reaction-tap',
+    description: 'F1-style starting light sequence reflex test. Measure reaction times down to the millisecond when red lights extinguish.',
+    icon_name: 'Zap',
   },
 ];
 
@@ -734,7 +741,7 @@ export async function createPlatformGame(
     slug: cleanSlug,
     game_type: cleanGameType,
     description: params.description ? params.description.trim() : null,
-    icon_name: params.icon_name || 'Gamepad2',
+    icon_name: params.icon_name || (cleanGameType === 'reaction-tap' ? 'Zap' : cleanGameType === 'memory-match' ? 'Grid3X3' : cleanGameType === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'),
     status: params.status || 'active',
     background_url: params.background_url || '/assets/themes/carnival/background.png',
     basket_config: params.basket_config ?? DEFAULT_BASKET_CONFIG,

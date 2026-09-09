@@ -61,24 +61,37 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   // Effective config with automatic game-stage canvas matching
   const effectiveConfig = useMemo(() => {
     let cfg = { ...startConfig };
+    const orientation = theme?.orientation || 'landscape';
+    const stageW = orientation === 'portrait' ? 576 : 1024;
+    const stageH = orientation === 'portrait' ? 1024 : 576;
+
     if (!cfg.canvas) {
       cfg.canvas = {
-        width: gameType === 'catch-brand' ? 1024 : 1000,
-        height: gameType === 'catch-brand' ? 576 : 1000,
+        width: stageW,
+        height: stageH,
       };
     }
-    if (gameType === 'catch-brand' && cfg.canvas.width === 1000 && cfg.canvas.height === 1000) {
-      cfg = normalizeStartScreenConfigForStage(cfg, 1024, 576);
+    if (cfg.canvas.width === 1000 && cfg.canvas.height === 1000) {
+      cfg = normalizeStartScreenConfigForStage(cfg, stageW, stageH);
     }
     return cfg;
-  }, [startConfig, gameType]);
+  }, [startConfig, theme?.orientation]);
 
   // Elements initialization with fallback
   const initialElements = useMemo(() => {
     if (effectiveConfig.elements && effectiveConfig.elements.length > 0) {
       return effectiveConfig.elements;
     }
-    return generateDefaultStartScreenElements(gameType, theme, undefined, effectiveConfig);
+    const def = generateDefaultStartScreenElements(gameType, theme, undefined, effectiveConfig);
+    if (effectiveConfig.canvas?.width && effectiveConfig.canvas?.height) {
+      const normalized = normalizeStartScreenConfigForStage(
+        { canvas: { width: 1000, height: 1000 }, elements: def },
+        effectiveConfig.canvas.width,
+        effectiveConfig.canvas.height
+      );
+      return normalized.elements || def;
+    }
+    return def;
   }, [effectiveConfig, theme, gameType]);
 
   // History management
@@ -373,11 +386,20 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   // Reset to default layout
   const handleResetLayout = useCallback(() => {
     if (window.confirm('Reset Start Screen layout to default preset? Any unsaved changes will be lost.')) {
-      const defaults = generateDefaultStartScreenElements(startConfig, theme, gameType);
-      updateElementsWithHistory(defaults);
+      const defaults = generateDefaultStartScreenElements(gameType, theme, undefined, effectiveConfig);
+      if (effectiveConfig.canvas?.width && effectiveConfig.canvas?.height) {
+        const normalized = normalizeStartScreenConfigForStage(
+          { canvas: { width: 1000, height: 1000 }, elements: defaults },
+          effectiveConfig.canvas.width,
+          effectiveConfig.canvas.height
+        );
+        updateElementsWithHistory(normalized.elements || defaults);
+      } else {
+        updateElementsWithHistory(defaults);
+      }
       setSelectedIds([]);
     }
-  }, [startConfig, theme, gameType, updateElementsWithHistory]);
+  }, [effectiveConfig, theme, gameType, updateElementsWithHistory]);
 
   // Apply preset
   const handleApplyPreset = useCallback(
@@ -472,6 +494,8 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
           onAddChildElement={handleAddChildElement}
           isCollapsed={isLayerTreeCollapsed}
           onToggleCollapse={() => setIsLayerTreeCollapsed((c) => !c)}
+          canvasWidth={effectiveConfig.canvas?.width}
+          canvasHeight={effectiveConfig.canvas?.height}
         />
 
         {/* Center: Canvas Workspace */}

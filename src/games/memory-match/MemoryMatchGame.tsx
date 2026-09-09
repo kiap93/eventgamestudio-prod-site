@@ -2036,6 +2036,10 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               startConfig={memoryConfig.screens?.start}
               theme={activeTheme}
               gameType="memory-match"
+              targetDimensions={{
+                width: designWidth,
+                height: designHeight,
+              }}
               gameMeta={{
                 rows,
                 cols,

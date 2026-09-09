@@ -119,6 +119,8 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             const mData = await mediaRes.json();
             setMediaList(mData.media || []);
           }
+        } else {
+          setTitle(eData.event?.name || 'Event Showcase');
         }
       }
     } catch (err: any) {
@@ -138,10 +140,12 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
   // Handle Save (Draft or Update)
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!title.trim()) {
+    const effectiveTitle = (title.trim() || eventData?.name || 'Event Showcase').trim();
+    if (!effectiveTitle) {
       setError('Showcase title is required');
-      return;
+      return null;
     }
+    setTitle(effectiveTitle);
 
     try {
       setSaving(true);
@@ -149,7 +153,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
       setSuccessMsg(null);
 
       const payload = {
-        title: title.trim(),
+        title: effectiveTitle,
         description: description.trim() || null,
         client_name: clientName.trim() || null,
         client_logo_url: clientLogoUrl.trim() || null,
@@ -163,7 +167,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
           if (!eligibility.eligible) {
             setError(eligibility.reason || 'Showcase is only available for completed events.');
             setSaving(false);
-            return;
+            return null;
           }
         }
         // Create as Draft
@@ -191,9 +195,11 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
       setShowcase(resData.showcase);
       setSuccessMsg('Showcase saved successfully!');
       setTimeout(() => setSuccessMsg(null), 3500);
+      return resData.showcase;
     } catch (err: any) {
       console.error('Save showcase error:', err);
       setError(err.message || 'Failed to save showcase');
+      return null;
     } finally {
       setSaving(false);
     }
@@ -201,11 +207,6 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
 
   // Handle Publish / Unpublish
   const handlePublishToggle = async () => {
-    if (!showcase) {
-      // First save draft, then publish
-      await handleSave();
-    }
-
     try {
       setPublishing(true);
       setError(null);
@@ -215,7 +216,20 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
         ? `/api/events/${eventId}/showcase/unpublish`
         : `/api/events/${eventId}/showcase/publish`;
 
-      const res = await apiFetch(endpoint, { method: 'POST' });
+      const payload = {
+        title: (title.trim() || eventData?.name || 'Event Showcase').trim(),
+        description: description.trim() || null,
+        client_name: clientName.trim() || null,
+        client_logo_url: clientLogoUrl.trim() || null,
+        cover_image_url: coverImageUrl.trim() || null,
+      };
+
+      const res = await apiFetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || `Failed to ${isPublished ? 'unpublish' : 'publish'} showcase`);
@@ -223,6 +237,13 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
 
       const data = await res.json();
       setShowcase(data.showcase);
+      if (data.showcase) {
+        setTitle(data.showcase.title || '');
+        setDescription(data.showcase.description || '');
+        setClientName(data.showcase.client_name || '');
+        setClientLogoUrl(data.showcase.client_logo_url || '');
+        setCoverImageUrl(data.showcase.cover_image_url || '');
+      }
       setSuccessMsg(
         isPublished
           ? 'Showcase unpublished (saved as Unpublished).'

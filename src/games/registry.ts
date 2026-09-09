@@ -13,7 +13,7 @@ export const GAME_REGISTRY: Record<string, GameDefinition<any>> = {
     name: 'Catch the Brand',
     shortName: 'Catch',
     description: 'Fast-paced arcade catcher! Catch good brand objects, dodge hazardous obstacles, and collect golden bonus items.',
-    iconName: 'Gamepad2',
+    iconName: 'ShoppingBasket',
     category: 'action',
     minPlayers: 1,
     maxPlayers: 1,
@@ -128,8 +128,14 @@ export function getGameDefinition(gameType?: string | null): GameDefinition {
   if (normalized.includes('reaction') || normalized.includes('reflex')) {
     return GAME_REGISTRY['reaction-tap'];
   }
-  if (normalized.includes('memory')) {
+  if (normalized.includes('memory') || normalized.includes('match')) {
     return GAME_REGISTRY['memory-match'];
+  }
+  if (normalized.includes('catch') || normalized.includes('catcher') || normalized.includes('basket')) {
+    return GAME_REGISTRY['catch-brand'];
+  }
+  if (normalized.includes('quiz') || normalized.includes('trivia')) {
+    return GAME_REGISTRY['speed-quiz'];
   }
   return GAME_REGISTRY[DEFAULT_GAME_TYPE];
 }

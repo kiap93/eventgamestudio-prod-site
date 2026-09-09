@@ -2405,7 +2405,8 @@ export async function updateEvent(
     payment_status?: PaymentLifecycleStatus | 'PENDING_PAYMENT';
     cancel_reason?: EventCancelReason | null;
   },
-  env?: Record<string, any>
+  env?: Record<string, any>,
+  options?: { isSystemLifecycle?: boolean }
 ): Promise<EventRecord> {
   const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
@@ -2414,6 +2415,29 @@ export async function updateEvent(
   const existing = await getEventById(eventId, env);
   if (!existing) {
     throw new Error('Event not found');
+  }
+
+  // Security Rule: Paid event = admin/user cannot manually edit event setup.
+  // System automatic lifecycle transitions must continue to work.
+  const isPaid = (existing.payment_status || '').toUpperCase() === 'PAID';
+  const hasSetupFieldUpdate =
+    (updates.name !== undefined && updates.name.trim() !== existing.name) ||
+    (updates.game_theme_id !== undefined && updates.game_theme_id !== existing.game_theme_id) ||
+    (updates.start_date !== undefined && updates.start_date !== existing.start_date) ||
+    (updates.end_date !== undefined && updates.end_date !== existing.end_date) ||
+    (updates.startDate !== undefined && updates.startDate !== existing.start_date) ||
+    (updates.endDate !== undefined && updates.endDate !== existing.end_date) ||
+    (updates.event_date !== undefined && updates.event_date !== existing.event_date) ||
+    (updates.starts_at !== undefined && updates.starts_at !== existing.starts_at) ||
+    (updates.expires_at !== undefined && updates.expires_at !== existing.expires_at) ||
+    (updates.status !== undefined && updates.status !== existing.status) ||
+    (updates.event_status !== undefined && updates.event_status !== existing.event_status);
+
+  if (isPaid && hasSetupFieldUpdate && !options?.isSystemLifecycle) {
+    const err: any = new Error('Event setup cannot be modified after payment has been completed.');
+    err.status = 403;
+    err.code = 'EVENT_LOCKED_AFTER_PAYMENT';
+    throw err;
   }
 
   const payload: any = {
@@ -2587,7 +2611,7 @@ export async function cancelEvent(
     updatePayload.payment_status = 'REFUNDED';
   }
 
-  const updated = await updateEvent(eventId, updatePayload, env);
+  const updated = await updateEvent(eventId, updatePayload, env, { isSystemLifecycle: true });
 
   return {
     ...updated,

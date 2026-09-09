@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { PERMISSIONS, hasRolePermission, verifyOrgMembershipAndPermission, signAppToken } from './auth';
-import { createUser, createOrganization, addMember, createEvent, createTheme } from './db';
+import { createUser, createOrganization, addMember, createEvent, createTheme, localEventsCache } from './db';
 import worker from '../worker';
 
 console.log('======================================================');
@@ -391,13 +391,23 @@ async function runTests() {
     game_id: 'catch-brand',
     game_theme_id: theme.id,
     name: 'Completed Gala',
-    start_date: '2026-09-01',
-    end_date: '2026-09-02',
+    start_date: '2026-09-10',
+    end_date: '2026-09-12',
     event_price: 1900,
     payment_status: 'PAID',
     event_status: 'COMPLETED',
     created_by: ownerUser.id,
   }, workerEnv);
+
+  // Transition event to past dates in cache to simulate a genuinely completed event for showcase testing
+  localEventsCache.set(completedEvent.id, {
+    ...completedEvent,
+    start_date: '2026-09-01',
+    end_date: '2026-09-02',
+    event_date: '2026-09-01',
+    status: 'completed',
+    event_status: 'COMPLETED',
+  });
 
   const designerShowcaseRes = await worker.fetch(
     new Request(`https://api.eventgamestudio.local/api/events/${completedEvent.id}/showcase`, {

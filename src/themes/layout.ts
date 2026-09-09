@@ -394,22 +394,10 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
 
   if (isMemory || raw.movesHud) {
     res.movesHud = normalizeElement('movesHud', DEFAULT_MEMORY_MATCH_LAYOUT.movesHud);
-    // Auto-heal legacy overlapping position if movesHud is in the center-top area
-    if (isMemory && res.movesHud && res.movesHud.x >= 20 && res.movesHud.x <= 60 && res.movesHud.y <= 30) {
-      res.movesHud.x = DEFAULT_MEMORY_MATCH_LAYOUT.movesHud!.x;
-      res.movesHud.y = DEFAULT_MEMORY_MATCH_LAYOUT.movesHud!.y;
-      res.movesHud.width = DEFAULT_MEMORY_MATCH_LAYOUT.movesHud!.width;
-    }
   }
 
   if (isMemory || raw.pairsHud) {
     res.pairsHud = normalizeElement('pairsHud', DEFAULT_MEMORY_MATCH_LAYOUT.pairsHud);
-    // Auto-heal legacy overlapping position if pairsHud is in the center-top area
-    if (isMemory && res.pairsHud && res.pairsHud.x >= 20 && res.pairsHud.x <= 60 && res.pairsHud.y <= 30) {
-      res.pairsHud.x = DEFAULT_MEMORY_MATCH_LAYOUT.pairsHud!.x;
-      res.pairsHud.y = DEFAULT_MEMORY_MATCH_LAYOUT.pairsHud!.y;
-      res.pairsHud.width = DEFAULT_MEMORY_MATCH_LAYOUT.pairsHud!.width;
-    }
   }
 
   if (isMemory || raw.memoryCardBoard) {
@@ -506,3 +494,116 @@ export function getBoardQuickPositionCoords(anchor: QuickPositionAnchor): { x: n
       return { x: 50, y: 50 };
   }
 }
+
+// ============================================================================
+// SHARED DRAG & POSITIONING ENGINE
+// ============================================================================
+
+export interface DragPositionParams {
+  elementId: string;
+  pointerX: number;
+  pointerY: number;
+  previewRect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+  dragOffsetX: number; // in percentage (0-100)
+  dragOffsetY: number; // in percentage (0-100)
+  elementWidth: number; // in percentage (0-100)
+  elementHeight?: number; // in percentage (0-100)
+  isCenterAnchored?: boolean; // true for memoryCardBoard (center % translate(-50%, -50%))
+}
+
+export interface DraggedPositionResult {
+  x: number;
+  y: number;
+  rawX: number;
+  rawY: number;
+  clampedX: number;
+  clampedY: number;
+}
+
+/**
+ * Common positioning engine used by ALL Game UI Layout elements.
+ * Calculates percentage-based coordinates (0-100%) relative to the active preview canvas,
+ * preserves grab point drag offset to prevent jumping, and clamps dynamically within valid canvas boundaries.
+ */
+export function calculateDraggedPosition(params: DragPositionParams): DraggedPositionResult {
+  const {
+    elementId,
+    pointerX,
+    pointerY,
+    previewRect,
+    dragOffsetX,
+    dragOffsetY,
+    elementWidth,
+    elementHeight = 8,
+    isCenterAnchored = false,
+  } = params;
+
+  if (!previewRect || previewRect.width <= 0 || previewRect.height <= 0) {
+    return { x: 0, y: 0, rawX: 0, rawY: 0, clampedX: 0, clampedY: 0 };
+  }
+
+  // 1. Calculate pointer coordinates as percentages of the preview rectangle
+  const pointerPercentX = ((pointerX - previewRect.left) / previewRect.width) * 100;
+  const pointerPercentY = ((pointerY - previewRect.top) / previewRect.height) * 100;
+
+  // 2. Subtract the initial drag offset to preserve pointer grab point inside element
+  const rawX = pointerPercentX - dragOffsetX;
+  const rawY = pointerPercentY - dragOffsetY;
+
+  // 3. Determine valid boundaries according to element geometry
+  let minX = 0;
+  let maxX = Math.max(0, 100 - elementWidth);
+  let minY = 0;
+  let maxY = Math.max(0, 100 - elementHeight);
+
+  if (isCenterAnchored) {
+    // For center-anchored elements (e.g. memoryCardBoard):
+    // element position represents the center point (x%, y%)
+    const halfW = Math.max(2, elementWidth / 2);
+    const halfH = Math.max(2, elementHeight / 2);
+    minX = Math.min(halfW, 10);
+    maxX = Math.max(100 - halfW, 90);
+    minY = Math.min(halfH, 10);
+    maxY = Math.max(100 - halfH, 90);
+  }
+
+  // 4. Clamp coordinates strictly to valid bounds
+  const clampedX = Math.max(minX, Math.min(rawX, maxX));
+  const clampedY = Math.max(minY, Math.min(rawY, maxY));
+
+  // Round to 1 decimal place for clean percentage values
+  const finalX = Math.round(clampedX * 10) / 10;
+  const finalY = Math.round(clampedY * 10) / 10;
+
+  // 5. Debug log as mandated by Root Requirement 13
+  console.log('[LayoutDrag]', {
+    elementId,
+    'previewRect.left': previewRect.left,
+    'previewRect.top': previewRect.top,
+    'previewRect.width': previewRect.width,
+    'previewRect.height': previewRect.height,
+    pointerX,
+    pointerY,
+    rawX,
+    rawY,
+    elementWidth,
+    elementHeight,
+    clampedX,
+    clampedY,
+  });
+
+  return {
+    x: finalX,
+    y: finalY,
+    rawX,
+    rawY,
+    clampedX,
+    clampedY,
+  };
+}
+

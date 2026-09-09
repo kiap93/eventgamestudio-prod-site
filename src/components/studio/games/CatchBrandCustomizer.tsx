@@ -833,18 +833,19 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
 
             {/* Live Scaled Preview Frame */}
             <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
-              <div className="w-full max-w-[420px] aspect-square rounded-xl overflow-hidden border border-slate-700/60 shadow-2xl relative">
+              <div className="w-full max-w-[500px] aspect-[16/9] rounded-xl overflow-hidden border border-slate-700/60 shadow-2xl relative">
                 <StartScreenRenderer
                   config={startConfig}
                   theme={theme}
                   gameType="catch-brand"
+                  targetDimensions={{ width: 1024, height: 576 }}
                   gameMeta={{ duration: gameConfig.gameplay?.duration || 30 }}
                   onStartGame={() => {}}
                   isSimulation={true}
                 />
               </div>
               <span className="text-[11px] text-slate-500 mt-2 font-mono">
-                Interactive Scaled Canvas Preview (1000 × 1000)
+                Interactive Scaled Canvas Preview (1024 × 576)
               </span>
             </div>
           </div>

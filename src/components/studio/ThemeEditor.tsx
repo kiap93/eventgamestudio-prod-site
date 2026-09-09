@@ -10,7 +10,7 @@ import { BrandingTab } from './BrandingTab';
 import { LayoutTab } from './LayoutTab';
 import { ScreensTab } from './ScreensTab';
 import { GameShell } from '../shell/GameShell';
-import { LayoutElementKey, GameLayoutConfig } from '../../themes/layout';
+import { LayoutElementKey, GameLayoutConfig, getDefaultUILayout } from '../../themes/layout';
 import {
   ArrowLeft,
   Palette,
@@ -666,13 +666,19 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
             selectedElementKey={selectedLayoutElement}
             onSelectElementKey={setSelectedLayoutElement}
             onPlayLiveGame={() => setIsPlayingLiveGame(true)}
-            onUpdateLayout={(newLayout) => {
-              if (draftTheme) {
-                setDraftTheme({
-                  ...draftTheme,
-                  layout: newLayout,
-                });
-              }
+            onUpdateLayout={(newLayoutOrUpdater) => {
+              setDraftTheme((prev) => {
+                if (!prev) return prev;
+                const currentLayout = prev.layout || getDefaultUILayout(getThemeGameType(prev));
+                const nextLayout =
+                  typeof newLayoutOrUpdater === 'function'
+                    ? newLayoutOrUpdater(currentLayout)
+                    : newLayoutOrUpdater;
+                return {
+                  ...prev,
+                  layout: nextLayout,
+                };
+              });
             }}
           />
         </aside>

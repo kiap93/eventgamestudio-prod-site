@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GameTheme } from '../../themes';
+import { getThemeGameType } from '../../themes/types';
+import { getGameTypeIcon, formatGameTypeName } from '../../games';
 import {
   Palette,
   Edit3,
@@ -97,6 +99,11 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
   const itemsCount = theme.items_config ? theme.items_config.filter((i) => i.enabled).length : 0;
   const duration = theme.physics_config?.gameDurationSeconds || 20;
 
+  const themeGameType = getThemeGameType(theme);
+  const isCatcherTheme = themeGameType === 'catch-brand';
+  const isReactionTheme = themeGameType === 'reaction-tap';
+  const isMemoryTheme = themeGameType === 'memory-match';
+
   return (
     <div
       className={`relative bg-slate-900 border ${
@@ -154,6 +161,14 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
           )}
         </div>
 
+        {/* Game Engine Type Badge (Top-Right) */}
+        <div className="absolute top-3 right-3 z-10 pointer-events-none">
+          <span className="px-2.5 py-1 rounded-full bg-slate-950/90 text-slate-300 border border-slate-700/80 text-[10px] font-bold flex items-center gap-1 shadow-md backdrop-blur-md">
+            {getGameTypeIcon(themeGameType, 'w-3 h-3 text-amber-400')}
+            <span className="uppercase tracking-wider">{formatGameTypeName(themeGameType)}</span>
+          </span>
+        </div>
+
         {/* Quick Play Hover Overlay */}
         <div
           onClick={() => onPlay(theme)}
@@ -165,8 +180,8 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
           </div>
         </div>
 
-        {/* Quick Catcher Preview Overlay (Bottom-Right) */}
-        {theme.basket_config?.imageUrl && (
+        {/* Quick Catcher Preview Overlay (Bottom-Right) - STRICTLY for Catch The Brand ONLY */}
+        {theme.basket_config?.imageUrl && isCatcherTheme && (
           <div className="absolute bottom-2 right-2 z-20 bg-slate-950/80 border border-slate-800 p-1.5 rounded-xl backdrop-blur-md flex items-center gap-1.5 shadow-md pointer-events-none">
             <img
               src={theme.basket_config.imageUrl}
@@ -289,10 +304,22 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
 
           {/* Theme Meta Pills */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
-              <Sparkles className="w-3 h-3 text-amber-400" />
-              <span>{itemsCount} Collectibles</span>
-            </span>
+            {isReactionTheme ? (
+              <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
+                {getGameTypeIcon('reaction-tap', 'w-3 h-3 text-amber-400')}
+                <span>Formula Reflex</span>
+              </span>
+            ) : isMemoryTheme ? (
+              <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
+                {getGameTypeIcon('memory-match', 'w-3 h-3 text-indigo-400')}
+                <span>{theme.items_config?.length || 0} Card Pairs</span>
+              </span>
+            ) : (
+              <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>{itemsCount} Collectibles</span>
+              </span>
+            )}
 
             <span className="text-[11px] font-medium text-slate-400 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
               <Layers className="w-3 h-3 text-sky-400" />

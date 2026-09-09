@@ -88,6 +88,9 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   >(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
 
+  const canvasWidth = startConfig?.canvas?.width || 1024;
+  const canvasHeight = startConfig?.canvas?.height || 576;
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !uploadTarget || !onUploadAsset) return;
@@ -311,7 +314,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </span>
             <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between font-mono text-xs text-slate-400">
               <span>Logical Space:</span>
-              <span className="text-amber-400 font-bold">1000 × 1000 px</span>
+              <span className="text-amber-400 font-bold">{canvasWidth} × {canvasHeight} px</span>
             </div>
             <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
               Responsive canvas automatically scales seamlessly across all desktop, tablet, and mobile screens.
@@ -490,7 +493,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
               }}
               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200"
             >
-              <option value="root">Root Canvas (1000×1000)</option>
+              <option value="root">Root Canvas ({canvasWidth}×{canvasHeight})</option>
               {availableContainers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}

@@ -5,6 +5,7 @@ import { navigateTo } from '../../hooks/useRouteContext';
 import { CreateDefaultThemeModal } from './CreateDefaultThemeModal';
 import { CreateGameModal } from './CreateGameModal';
 import { DeveloperPlayTestModal } from './DeveloperPlayTestModal';
+import { getGameTypeIcon } from '../../games';
 import {
   Gamepad2,
   Sparkles,
@@ -133,6 +134,9 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
               <span className="text-emerald-400 font-mono">/{game.slug}</span>
             </div>
             <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                {getGameTypeIcon(game.game_type || game.icon_name || game.slug, 'w-6 h-6')}
+              </div>
               <h1 className="text-2xl font-black text-white">{game.name}</h1>
               <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
                 {game.game_type}
@@ -251,8 +255,8 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
                           </div>
                         )}
 
-                        {/* Basket Thumbnail Overlay */}
-                        {theme.basket_config?.image_url && (
+                        {/* Basket Thumbnail Overlay - STRICTLY catch-brand ONLY */}
+                        {(game.game_type === 'catch-brand' || game.slug === 'catch-brand') && theme.basket_config?.image_url && (
                           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-12 h-12 rounded-lg bg-black/40 backdrop-blur-sm border border-white/20 p-1 flex items-center justify-center shadow-lg">
                             <img
                               src={theme.basket_config.image_url}

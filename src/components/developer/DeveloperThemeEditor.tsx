@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GameTheme, normalizeGameTheme } from '../../themes';
+import { GameTheme, normalizeGameTheme, getThemeGameType } from '../../themes';
 import { LiveThemePreview } from '../studio/LiveThemePreview';
 import { VisualsTab } from '../studio/VisualsTab';
 import { ItemsTab } from '../studio/ItemsTab';
@@ -7,7 +7,7 @@ import { GameplayTab } from '../studio/GameplayTab';
 import { AudioTab } from '../studio/AudioTab';
 import { BrandingTab } from '../studio/BrandingTab';
 import { LayoutTab } from '../studio/LayoutTab';
-import { LayoutElementKey, GameLayoutConfig } from '../../themes/layout';
+import { LayoutElementKey, GameLayoutConfig, getDefaultUILayout } from '../../themes/layout';
 import { DeveloperPlayTestModal } from './DeveloperPlayTestModal';
 import { apiFetch } from '../../lib/api';
 import {
@@ -391,11 +391,12 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
             {activeTab === 'layout' && (
               <LayoutTab
                 theme={theme}
-                isViewer={false}
-                onLayoutChange={handleLayoutChange}
-                onUploadAsset={handleUploadAsset}
-                selectedElement={selectedLayoutElement}
-                onSelectElement={setSelectedLayoutElement}
+                onChange={(updatedTheme) => {
+                  setTheme(updatedTheme);
+                  setSavedSuccess(false);
+                }}
+                selectedElementKey={selectedLayoutElement}
+                onSelectElementKey={setSelectedLayoutElement}
               />
             )}
           </div>
@@ -418,7 +419,27 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
             </div>
 
             <div className="flex-1 w-full rounded-xl overflow-hidden border border-slate-800 bg-slate-950 relative flex items-center justify-center">
-              <LiveThemePreview theme={theme} />
+              <LiveThemePreview
+                theme={theme}
+                editableLayout={activeTab === 'layout'}
+                selectedElementKey={selectedLayoutElement}
+                onSelectElementKey={setSelectedLayoutElement}
+                onUpdateLayout={(newLayoutOrUpdater) => {
+                  setTheme((prev) => {
+                    if (!prev) return prev;
+                    const currentLayout = prev.layout || getDefaultUILayout(getThemeGameType(prev));
+                    const nextLayout =
+                      typeof newLayoutOrUpdater === 'function'
+                        ? newLayoutOrUpdater(currentLayout)
+                        : newLayoutOrUpdater;
+                    return {
+                      ...prev,
+                      layout: nextLayout,
+                    };
+                  });
+                  setSavedSuccess(false);
+                }}
+              />
             </div>
           </div>
         </div>

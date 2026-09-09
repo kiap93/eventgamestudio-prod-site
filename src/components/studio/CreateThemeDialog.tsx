@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GameTheme, carnivalTheme, memoryMatchTheme } from '../../themes';
+import { GameTheme, carnivalTheme, memoryMatchTheme, reactionTheme } from '../../themes';
 import { getDefaultUILayout } from '../../themes/layout';
 import { Sparkles, Copy, Plus, AlertCircle, Check, X, Layers } from 'lucide-react';
 
@@ -54,50 +54,70 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
         onCreated(newTheme.id);
       } else {
         // Start from scratch using clean baseline defaults
-        const isMemoryGame =
-          gameName?.toLowerCase().includes('memory') ||
-          gameId === 'memory-match' ||
-          gameId === 'c782cc78-d2f6-4e70-ac90-bbf9824c62f9' ||
+        const isReactionGame =
+          gameName?.toLowerCase().includes('reaction') ||
+          gameName?.toLowerCase().includes('formula') ||
+          gameId === 'reaction-tap' ||
+          gameId === 'reaction-time' ||
+          gameId === 'reaction-tap-f1-reflex' ||
           false;
-        const defaultBase = isMemoryGame ? memoryMatchTheme : carnivalTheme;
+        const isMemoryGame =
+          !isReactionGame && (
+            gameName?.toLowerCase().includes('memory') ||
+            gameId === 'memory-match' ||
+            gameId === 'c782cc78-d2f6-4e70-ac90-bbf9824c62f9' ||
+            false
+          );
+        const resolvedGameSlug = isReactionGame ? 'reaction-tap' : isMemoryGame ? 'memory-match' : 'catch-brand';
+        const defaultBase = isReactionGame ? reactionTheme : isMemoryGame ? memoryMatchTheme : carnivalTheme;
         const matchingExisting = existingThemes.find((t) =>
-          isMemoryGame
-            ? t.game_slug === 'memory-match' || (t as any).game_type === 'memory-match' || t.slug?.includes('memory')
-            : t.game_slug !== 'memory-match' && (t as any).game_type !== 'memory-match' && !t.slug?.includes('memory')
+          (t.game_slug === resolvedGameSlug || (t as any).game_type === resolvedGameSlug)
         );
         const base = matchingExisting || defaultBase;
         const cleanName = (themeName || 'New Theme').trim();
         const newTheme = await onCreate({
           game_id: gameId,
-          game_slug: isMemoryGame ? 'memory-match' : 'catch-brand',
-          game_type: isMemoryGame ? 'memory-match' : 'catch-brand',
+          game_slug: resolvedGameSlug,
+          game_type: resolvedGameSlug,
           name: cleanName,
           slug: cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          description: isMemoryGame
+          description: isReactionGame
+            ? `Custom Formula Reaction Lights theme: ${cleanName}`
+            : isMemoryGame
             ? `Custom Memory Match theme: ${cleanName}`
             : `Custom game theme: ${cleanName}`,
           branding: {
             gameTitle: themeName.trim().toUpperCase(),
-            subtitle: isMemoryGame
+            subtitle: isReactionGame
+              ? `React fast when lights go out in ${themeName.trim()}!`
+              : isMemoryGame
               ? `Flip and match pairs in ${themeName.trim()}!`
               : `Catch custom items in ${themeName.trim()}!`,
             logoUrl: null,
             clientLogoUrl: null,
           },
-          background_url: isMemoryGame ? null : (defaultBase.background_url || base.background_url),
-          basket_config: isMemoryGame
+          background_url: base.background_url || defaultBase.background_url || null,
+          basket_config: (isReactionGame || isMemoryGame)
             ? null
             : JSON.parse(JSON.stringify(base.basket_config || defaultBase.basket_config)),
-          items_config: isMemoryGame
+          items_config: isReactionGame
+            ? JSON.parse(JSON.stringify(reactionTheme.items_config || {}))
+            : isMemoryGame
             ? JSON.parse(JSON.stringify(memoryMatchTheme.items_config))
             : JSON.parse(JSON.stringify(base.items_config || defaultBase.items_config)),
-          physics_config: isMemoryGame
+          physics_config: isReactionGame
+            ? JSON.parse(JSON.stringify(reactionTheme.physics_config || {}))
+            : isMemoryGame
             ? JSON.parse(JSON.stringify(memoryMatchTheme.physics_config))
             : JSON.parse(JSON.stringify(base.physics_config || defaultBase.physics_config)),
-          visuals_config: isMemoryGame
+          visuals_config: isReactionGame
+            ? JSON.parse(JSON.stringify(reactionTheme.visuals_config || {}))
+            : isMemoryGame
             ? JSON.parse(JSON.stringify(memoryMatchTheme.visuals_config))
             : JSON.parse(JSON.stringify(base.visuals_config || defaultBase.visuals_config)),
-          sounds_config: isMemoryGame
+          sounds_config: isReactionGame
+            ? JSON.parse(JSON.stringify(reactionTheme.sounds_config || {}))
+            : isMemoryGame
             ? JSON.parse(JSON.stringify(memoryMatchTheme.sounds_config))
             : JSON.parse(JSON.stringify(base.sounds_config || defaultBase.sounds_config)),
           layout: getDefaultUILayout(),

@@ -276,9 +276,9 @@ export function getStartScreenConfig(
   const rawScreens = gc.screens || (theme as any)?.screens;
   const rawStart = rawScreens?.start;
 
-  // 1. Resolve canvas (default 1024 x 576 for catch-brand or target dimensions)
-  const defaultW = targetDimensions?.width || (resolvedGameType === 'catch-brand' ? 1024 : DEFAULT_START_CANVAS_CONFIG.width);
-  const defaultH = targetDimensions?.height || (resolvedGameType === 'catch-brand' ? 576 : DEFAULT_START_CANVAS_CONFIG.height);
+  // 1. Resolve canvas (default 1024 x 576 or target dimensions)
+  const defaultW = targetDimensions?.width || DEFAULT_START_CANVAS_CONFIG.width;
+  const defaultH = targetDimensions?.height || DEFAULT_START_CANVAS_CONFIG.height;
 
   const canvasWidth =
     Number.isFinite(rawStart?.canvas?.width) && Number(rawStart.canvas.width) > 0
@@ -337,6 +337,12 @@ export function getStartScreenConfig(
       gameMeta,
       rawStart
     );
+    // If elements were generated from 1000x1000 generators and raw canvas wasn't defined,
+    // ensure canvas indicates 1000x1000 source coordinates so step 5 normalizes them to target stage
+    if (resolvedGameType !== 'catch-brand' && (!rawStart?.canvas?.width || (rawStart.canvas.width === 1000 && rawStart.canvas.height === 1000))) {
+      canvas.width = 1000;
+      canvas.height = 1000;
+    }
   }
 
   const resolvedConfig: StartScreenConfig = {
@@ -356,10 +362,10 @@ export function getStartScreenConfig(
     elements,
   };
 
-  // 5. If target dimensions provided or Catch The Brand with legacy square canvas, normalize to target dimensions
+  // 5. If target dimensions provided or configuration has legacy 1000x1000 square canvas, normalize to target dimensions
   if (targetDimensions) {
     return normalizeStartScreenConfigForStage(resolvedConfig, targetDimensions.width, targetDimensions.height);
-  } else if (resolvedGameType === 'catch-brand' && canvas.width === 1000 && canvas.height === 1000) {
+  } else if (canvas.width === 1000 && canvas.height === 1000) {
     return normalizeStartScreenConfigForStage(resolvedConfig, 1024, 576);
   }
 

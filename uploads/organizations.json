@@ -3344,5 +3344,266 @@
     "logo_url": null,
     "created_at": "2026-09-08T12:03:25.678Z",
     "updated_at": "2026-09-08T12:03:25.678Z"
+  },
+  {
+    "id": "b25c13fc-56a8-4bed-b92b-264d78b54708",
+    "name": "Secure Events Org",
+    "slug": "secure-events-org-d1618e",
+    "owner_id": "0c751cfb-f348-4af1-872b-e9e026580e5f",
+    "logo_url": null,
+    "created_at": "2026-09-08T12:44:33.610Z",
+    "updated_at": "2026-09-08T12:44:33.610Z"
+  },
+  {
+    "id": "7d2195bf-3126-4ef0-9fe7-8ea62abefd5a",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-dd3006",
+    "owner_id": "eee630d7-9306-4fd8-83d5-eadf808e659c",
+    "logo_url": null,
+    "created_at": "2026-09-08T12:44:33.936Z",
+    "updated_at": "2026-09-08T12:44:33.936Z"
+  },
+  {
+    "id": "5ae4bc54-a5ce-4d9a-a270-3ce89940c420",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-a9a1fb",
+    "owner_id": "1efe29be-95f2-4014-af50-2ae38285d81f",
+    "logo_url": null,
+    "created_at": "2026-09-08T13:45:41.376Z",
+    "updated_at": "2026-09-08T13:45:41.376Z"
+  },
+  {
+    "id": "792d0006-5b21-45b4-a9a7-d7f1ebe3d4ff",
+    "name": "Secure Events Org",
+    "slug": "secure-events-org-f09899",
+    "owner_id": "c6dcff05-b777-4fb6-a117-d965a2a14002",
+    "logo_url": null,
+    "created_at": "2026-09-08T13:46:51.175Z",
+    "updated_at": "2026-09-08T13:46:51.175Z"
+  },
+  {
+    "id": "a8a89790-42fe-4acd-aa7b-af39be99f01e",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-5da19a",
+    "owner_id": "92e89924-9ee3-40cf-ab17-328d8d0177fd",
+    "logo_url": null,
+    "created_at": "2026-09-08T13:46:51.581Z",
+    "updated_at": "2026-09-08T13:46:51.581Z"
+  },
+  {
+    "id": "397c72a2-89fd-40a0-990f-80f354cd7109",
+    "name": "Lock Test Org",
+    "slug": "lock-test-org-b4cdf4",
+    "owner_id": "1fa6af5d-0573-4362-91bb-26b6ca57e80c",
+    "logo_url": null,
+    "created_at": "2026-09-08T13:51:19.941Z",
+    "updated_at": "2026-09-08T13:51:19.941Z"
+  },
+  {
+    "id": "736bbd28-2666-4d26-a814-5a4441bfe3e0",
+    "name": "Lock Test Org",
+    "slug": "lock-test-org-f85d07",
+    "owner_id": "45d38954-9083-4448-abb8-7c74bc62fb62",
+    "logo_url": null,
+    "created_at": "2026-09-08T13:51:42.720Z",
+    "updated_at": "2026-09-08T13:51:42.720Z"
+  },
+  {
+    "id": "fbb9830b-badb-4006-844e-2ed05a695e87",
+    "name": "Lock Test Org",
+    "slug": "lock-test-org-a995a4",
+    "owner_id": "980337a2-46fd-4fd8-a8d4-b2b43110c710",
+    "logo_url": null,
+    "created_at": "2026-09-08T13:52:17.082Z",
+    "updated_at": "2026-09-08T13:52:17.082Z"
+  },
+  {
+    "id": "f35b7514-118b-4ca1-81fb-b398821cc4bd",
+    "name": "Secure Events Org",
+    "slug": "secure-events-org-7befc2",
+    "owner_id": "8a479f2c-56ae-41e7-8dd0-295133e7e38f",
+    "logo_url": null,
+    "created_at": "2026-09-08T13:52:32.174Z",
+    "updated_at": "2026-09-08T13:52:32.174Z"
+  },
+  {
+    "id": "e9f74aa5-0ada-40e5-b827-e2b5dbbe2b24",
+    "name": "Lock Test Org",
+    "slug": "lock-test-org-0b3650",
+    "owner_id": "ac5d99be-2696-44ec-92e4-2b14c6298c0e",
+    "logo_url": null,
+    "created_at": "2026-09-08T13:54:31.932Z",
+    "updated_at": "2026-09-08T13:54:31.932Z"
+  },
+  {
+    "id": "ecbc1454-615c-4acb-a5ae-dee5b2ad7c69",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-baeb4b",
+    "owner_id": "d558e419-ea0d-429c-bb86-3d08e61eb0a0",
+    "logo_url": null,
+    "created_at": "2026-09-09T07:27:18.317Z",
+    "updated_at": "2026-09-09T07:27:18.317Z"
+  },
+  {
+    "id": "adb4cb0d-fa5f-4c4a-9598-1abab99c3ff6",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-d0cfa1",
+    "owner_id": "f32f6ac8-df32-4f68-846e-a27cfec2501c",
+    "logo_url": null,
+    "created_at": "2026-09-09T07:27:18.362Z",
+    "updated_at": "2026-09-09T07:27:18.362Z"
+  },
+  {
+    "id": "65c3c80f-29fe-4a18-9196-0442794af8e1",
+    "name": "Lock Test Org",
+    "slug": "lock-test-org-eea7df",
+    "owner_id": "e7dc3410-e1e2-4536-809c-0212780660aa",
+    "logo_url": null,
+    "created_at": "2026-09-09T07:27:18.482Z",
+    "updated_at": "2026-09-09T07:27:18.482Z"
+  },
+  {
+    "id": "8e20e57b-01ca-4e72-bcc2-32620d95b0c6",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-46332f",
+    "owner_id": "7322787d-392c-467a-b5a0-cb48f51a2550",
+    "logo_url": null,
+    "created_at": "2026-09-09T07:27:18.773Z",
+    "updated_at": "2026-09-09T07:27:18.773Z"
+  },
+  {
+    "id": "895f71d0-58b9-4ff2-b7ad-f68b58e19920",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-48f3b6",
+    "owner_id": "ce1dcd7e-6d75-4866-bd87-bbfa8dfe19f7",
+    "logo_url": null,
+    "created_at": "2026-09-09T07:27:48.753Z",
+    "updated_at": "2026-09-09T07:27:48.753Z"
+  },
+  {
+    "id": "6d2313f3-755e-4cf9-99e5-e15feb7800d6",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-176a63",
+    "owner_id": "9ca04212-5e5e-4210-a9bd-3ab29c0aab69",
+    "logo_url": null,
+    "created_at": "2026-09-09T07:43:43.077Z",
+    "updated_at": "2026-09-09T07:43:43.077Z"
+  },
+  {
+    "id": "3e8c323d-fec4-4c3b-abc2-336d76baaa9b",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-24b0e9",
+    "owner_id": "ba980317-06bb-46f4-bb4d-e611adad1ba5",
+    "logo_url": null,
+    "created_at": "2026-09-09T07:43:54.335Z",
+    "updated_at": "2026-09-09T07:43:54.335Z"
+  },
+  {
+    "id": "61b07d51-9fd6-4d94-84e0-c2f4e21396cc",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-686b1e",
+    "owner_id": "74c6ca00-babf-44bc-9214-d81d2cddb596",
+    "logo_url": null,
+    "created_at": "2026-09-09T07:44:16.178Z",
+    "updated_at": "2026-09-09T07:44:16.178Z"
+  },
+  {
+    "id": "92d0d539-98bb-484b-b357-79e21bbcf9da",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-6b9b56",
+    "owner_id": "3a221255-a746-4a46-8553-6f5e44816221",
+    "logo_url": null,
+    "created_at": "2026-09-09T07:45:41.548Z",
+    "updated_at": "2026-09-09T07:45:41.548Z"
+  },
+  {
+    "id": "a4f16852-55a8-41d0-9e6a-266587f35b81",
+    "name": "Lock Test Org",
+    "slug": "lock-test-org-4e363b",
+    "owner_id": "98238134-83c2-4c2a-82c0-44ee6ceb02ab",
+    "logo_url": null,
+    "created_at": "2026-09-09T08:10:08.518Z",
+    "updated_at": "2026-09-09T08:10:08.518Z"
+  },
+  {
+    "id": "582c8d95-5fad-4342-b513-ac0a33bc73fc",
+    "name": "Cron Org",
+    "slug": "cron-org-5c6939",
+    "owner_id": "7a1a2d42-db15-4c13-b28a-6e506228bc3a",
+    "logo_url": null,
+    "created_at": "2026-09-09T08:10:08.694Z",
+    "updated_at": "2026-09-09T08:10:08.694Z"
+  },
+  {
+    "id": "6874e607-ff90-427a-9fef-d233ab34b557",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-b71b42",
+    "owner_id": "e791abf3-db7d-4129-a856-5c1bbd3987a9",
+    "logo_url": null,
+    "created_at": "2026-09-09T08:10:08.741Z",
+    "updated_at": "2026-09-09T08:10:08.741Z"
+  },
+  {
+    "id": "c2dc2f46-8ad8-4351-a371-6de1c7765787",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-79250e",
+    "owner_id": "be9ddb2b-9aa0-4e35-8305-5aad19ece2ee",
+    "logo_url": null,
+    "created_at": "2026-09-09T08:10:08.768Z",
+    "updated_at": "2026-09-09T08:10:08.768Z"
+  },
+  {
+    "id": "a6106d08-fff3-4281-94c4-26d12c8ed851",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-f1ed54",
+    "owner_id": "aa04b031-be94-4144-b426-217149e61041",
+    "logo_url": null,
+    "created_at": "2026-09-09T08:10:08.787Z",
+    "updated_at": "2026-09-09T08:10:08.787Z"
+  },
+  {
+    "id": "ea1a3356-812e-41f7-8b15-cf8fd3b86534",
+    "name": "Leaderboard Security Org",
+    "slug": "leaderboard-security-org-8bc879",
+    "owner_id": "20462896-b17f-43b7-94d3-75cdee0cc15d",
+    "logo_url": null,
+    "created_at": "2026-09-09T08:10:08.842Z",
+    "updated_at": "2026-09-09T08:10:08.842Z"
+  },
+  {
+    "id": "eb963e10-3820-494e-8095-cbd91d3ffc38",
+    "name": "Other Org",
+    "slug": "other-org-04deed",
+    "owner_id": "67f1515c-8ff1-42bf-9ffe-2e648ac65c52",
+    "logo_url": null,
+    "created_at": "2026-09-09T08:10:08.871Z",
+    "updated_at": "2026-09-09T08:10:08.871Z"
+  },
+  {
+    "id": "ca2285fb-c3d8-405b-9b53-dcdda6304c59",
+    "name": "Secure Events Org",
+    "slug": "secure-events-org-b8573c",
+    "owner_id": "8052bdc8-4e68-4b4c-b8bc-a367c152bb93",
+    "logo_url": null,
+    "created_at": "2026-09-09T08:10:09.181Z",
+    "updated_at": "2026-09-09T08:10:09.181Z"
+  },
+  {
+    "id": "a1d21def-ebb1-4285-85c0-5ee9ed57d707",
+    "name": "Acme Events Corp",
+    "slug": "acme-events-corp-eb2ec8",
+    "owner_id": "243096c0-5c35-4d04-a4b1-3154cdd79b69",
+    "logo_url": null,
+    "created_at": "2026-09-09T08:10:09.217Z",
+    "updated_at": "2026-09-09T08:10:09.217Z"
+  },
+  {
+    "id": "942dd19c-3749-41c5-80c7-f08d14bde6d1",
+    "name": "Secure Events Org",
+    "slug": "secure-events-org-e56357",
+    "owner_id": "8e3fc6de-6053-431e-a5b2-b59dc30bf517",
+    "logo_url": null,
+    "created_at": "2026-09-09T08:10:30.722Z",
+    "updated_at": "2026-09-09T08:10:30.722Z"
   }
 ]

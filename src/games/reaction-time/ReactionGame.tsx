@@ -786,6 +786,10 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
               startConfig={reactionConfig.screens?.start}
               theme={activeTheme}
               gameType="reaction-time"
+              targetDimensions={{
+                width: responsive.designWidth,
+                height: responsive.designHeight,
+              }}
               gameMeta={{
                 duration: reactionConfig.roundsCount,
                 gameTitle: activeTheme?.branding?.title || activeTheme?.title || 'Reaction Tap',
@@ -796,6 +800,7 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
               onShowLeaderboard={() => setShowLeaderboardModal(true)}
               isEventPreview={isEventPreview}
               isEventTest={isEventTest}
+              suppressBackground={true}
             />
           </div>
         </div>

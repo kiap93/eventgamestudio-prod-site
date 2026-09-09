@@ -12,8 +12,13 @@ import { StartScreenErrorBoundary } from './StartScreenErrorBoundary';
 
 export interface StartScreenRendererProps {
   startConfig?: StartScreenConfig | null;
+  config?: StartScreenConfig | null;
   theme?: Partial<GameTheme> | null;
   gameType?: string;
+  targetDimensions?: {
+    width: number;
+    height: number;
+  };
   gameMeta?: StartScreenGameMeta;
   onStartGame: () => void;
   onShowLeaderboard?: () => void;
@@ -28,8 +33,10 @@ export interface StartScreenRendererProps {
 
 const StartScreenContent: React.FC<StartScreenRendererProps> = ({
   startConfig,
+  config,
   theme,
   gameType,
+  targetDimensions,
   gameMeta,
   onStartGame,
   onShowLeaderboard,
@@ -45,23 +52,30 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
   const resolvedConfig = getStartScreenConfig(
     theme,
     targetGameType,
-    gameMeta
+    gameMeta,
+    targetDimensions
   );
 
-  // Merge any caller-provided startConfig if present
+  // Merge any caller-provided startConfig (or legacy config prop) if present
+  const inputConfig = startConfig || config;
   let mergedConfig: StartScreenConfig = {
     ...resolvedConfig,
-    ...(startConfig || {}),
-    canvas: startConfig?.canvas || resolvedConfig.canvas,
-    background: startConfig?.background || resolvedConfig.background,
-    elements: (startConfig?.elements && startConfig.elements.length > 0)
-      ? startConfig.elements
+    ...(inputConfig || {}),
+    canvas: inputConfig?.canvas || resolvedConfig.canvas,
+    background: inputConfig?.background || resolvedConfig.background,
+    elements: (inputConfig?.elements && inputConfig.elements.length > 0)
+      ? inputConfig.elements
       : resolvedConfig.elements,
   };
 
-  // If configuration still has legacy square canvas and game is catch-brand, normalize to 1024 x 576
-  if (
-    targetGameType === 'catch-brand' &&
+  // If targetDimensions provided, or configuration has legacy square 1000x1000 canvas, normalize for all games
+  if (targetDimensions) {
+    mergedConfig = normalizeStartScreenConfigForStage(
+      mergedConfig,
+      targetDimensions.width,
+      targetDimensions.height
+    );
+  } else if (
     mergedConfig.canvas?.width === 1000 &&
     mergedConfig.canvas?.height === 1000
   ) {
@@ -151,15 +165,8 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
         <div className="absolute inset-0 pointer-events-none" style={bg.overlayStyle} />
       )}
 
-      {/* Game Stage Logical Canvas matching stage aspect ratio (16:9 Landscape or 9:16 Portrait) */}
-      <div
-        className="relative w-full h-full max-w-full max-h-full flex items-center justify-center overflow-hidden"
-        style={{
-          aspectRatio: `${canvasWidth} / ${canvasHeight}`,
-          maxWidth: '100%',
-          maxHeight: '100%',
-        }}
-      >
+      {/* Game Stage Logical Canvas - fills game-ui-layer without competing aspect ratio */}
+      <div className="relative w-full h-full overflow-hidden">
         {elements.map((el) => renderElement(el, canvasWidth, canvasHeight, true))}
       </div>
     </div>

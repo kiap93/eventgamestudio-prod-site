@@ -5,6 +5,7 @@ import { CreateThemeDialog } from '../studio/CreateThemeDialog';
 import { GameShell } from '../shell/GameShell';
 import { GameTheme } from '../../themes';
 import { GameRecord } from '../../types';
+import { getGameTypeIcon, formatGameTypeName } from '../../games';
 import {
   Gamepad2,
   ArrowLeft,
@@ -247,27 +248,6 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
     }
   };
 
-  const formatGameTypeName = (type?: string) => {
-    if (!type) return 'Arcade Game';
-    switch (type) {
-      case 'catch-brand':
-        return 'Catch The Brand';
-      case 'memory-match':
-        return 'Memory Match';
-      case 'spin-wheel':
-        return 'Lucky Wheel';
-      case 'trivia-quiz':
-        return 'Trivia Quiz';
-      case 'tap-reflex':
-        return 'Reflex Tap';
-      default:
-        return type
-          .split('-')
-          .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-          .join(' ');
-    }
-  };
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans animate-in fade-in duration-200">
       {/* Top Breadcrumb / Back Button */}
@@ -303,7 +283,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div className="flex items-start gap-4">
             <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400 shrink-0">
-              <Gamepad2 className="w-7 h-7" />
+              {getGameTypeIcon(game.game_type || game.icon_name || game.slug, 'w-7 h-7')}
             </div>
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
@@ -595,7 +575,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
               <GameShell
                 key={`${playingTheme.id}-${restartKey}`}
                 theme={playingTheme}
-                gameType={game.game_type || 'catch-brand'}
+                gameType={game.game_type || game.slug || (game.name?.toLowerCase().includes('reaction') ? 'reaction-tap' : game.name?.toLowerCase().includes('memory') ? 'memory-match' : 'catch-brand')}
                 organizationSlug={currentOrganization?.slug || 'preview'}
                 isStudioPreview={true}
                 isFullscreen={isFullscreen}
