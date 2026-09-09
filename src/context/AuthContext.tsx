@@ -16,6 +16,7 @@ export interface Organization {
   slug: string;
   role: 'owner' | 'admin' | 'designer' | 'viewer';
   logo_url: string | null;
+  country_code?: string | null;
 }
 
 export interface GameCustomization {
@@ -45,7 +46,8 @@ interface AuthContextType {
   login: (idToken: string) => Promise<void>;
   logout: () => void;
   switchOrganization: (orgId: string) => Promise<void>;
-  createOrganization: (name: string, logoUrl?: string) => Promise<string>;
+  createOrganization: (name: string, logoUrl?: string, countryCode?: string) => Promise<string>;
+  updateOrganizationCountry: (countryCode: string) => Promise<void>;
   refreshSession: () => Promise<void>;
   fetchActiveGame: () => Promise<void>;
   fetchThemes: (gameId?: string) => Promise<GameTheme[]>;
@@ -378,11 +380,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const createOrganization = async (name: string, logoUrl?: string): Promise<string> => {
+  const createOrganization = async (name: string, logoUrl?: string, countryCode?: string): Promise<string> => {
     const res = await authFetch('/api/organizations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, logo_url: logoUrl }),
+      body: JSON.stringify({ name, logo_url: logoUrl, country_code: countryCode }),
     });
 
     if (!res.ok) {
@@ -401,6 +403,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.dispatchEvent(new CustomEvent('wallet_updated'));
     }
     return data.organization.id;
+  };
+
+  const updateOrganizationCountry = async (countryCode: string): Promise<void> => {
+    if (!currentOrganization) throw new Error('No active organization');
+    const res = await authFetch(`/api/organizations/${currentOrganization.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ country_code: countryCode }),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to update organization country');
+    }
+
+    const data = await res.json();
+    const updated = {
+      ...currentOrganization,
+      country_code: data.organization.country_code || countryCode,
+    };
+    setCurrentOrganization(updated);
+    setOrganizations((prev) =>
+      prev.map((o) => (o.id === updated.id ? { ...o, country_code: updated.country_code } : o))
+    );
   };
 
   const updateGameCustomization = async (data: {
@@ -477,6 +503,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         switchOrganization,
         createOrganization,
+        updateOrganizationCountry,
         refreshSession,
         fetchActiveGame,
         fetchThemes,

@@ -465,6 +465,13 @@ export const ReactionScreensCustomizer: React.FC<{
             startConfig={startConfig}
             theme={theme}
             gameType="reaction-tap"
+            gameMeta={{
+              roundsCount: reactionConfig.roundsCount || 5,
+              lightCount: 5,
+              duration: 30,
+              gameTitle: theme.name || 'Reaction Time',
+              logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
+            }}
             onChange={handleUpdateStartConfig}
             onUploadAsset={onUploadAsset as any}
           />

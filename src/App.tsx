@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { useRouteContext, navigateTo } from './hooks/useRouteContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { CreateOrganizationPage } from './components/auth/CreateOrganizationPage';
+import { SetOrganizationCountryModal } from './components/auth/SetOrganizationCountryModal';
 import { AcceptInvitePage } from './components/auth/AcceptInvitePage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { PublicEventGameView } from './components/events/PublicEventGameView';
@@ -120,6 +121,12 @@ const AppContent: React.FC = () => {
   // 8. ONBOARDING / CREATE ORGANIZATION ROUTE
   if (!currentOrganization || routeContext.mode === 'create_org') {
     return <CreateOrganizationPage />;
+  }
+
+  // 8b. EXISTING ORGANIZATION MISSING COUNTRY CODE
+  // Prompt owner/admin to select organization country upon login/access
+  if (!currentOrganization.country_code) {
+    return <SetOrganizationCountryModal organization={currentOrganization} />;
   }
 
   // 9. PROTECTED STUDIO / DASHBOARD ROUTE (e.g. /events, /game-themes, /team, /wallet)

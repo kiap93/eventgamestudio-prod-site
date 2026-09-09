@@ -17,6 +17,7 @@ export interface OrganizationRecord {
   slug: string;
   owner_id: string;
   logo_url: string | null;
+  country_code: string | null;
   created_at: string;
   updated_at: string;
 }

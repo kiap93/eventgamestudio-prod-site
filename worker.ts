@@ -8,6 +8,7 @@ import {
   createOrganization,
   updateOrganization,
   getOrganizationById,
+  isValidCountryCode,
   getOrgMembers,
   getMember,
   getMemberById,
@@ -796,6 +797,7 @@ export default {
                   slug: activeMember.slug,
                   role: activeMember.role,
                   logo_url: activeMember.logo_url,
+                  country_code: activeMember.country_code || null,
                 }
               : null,
           },
@@ -905,10 +907,16 @@ export default {
 
         const user = auth.user!;
         const body = (await request.json().catch(() => ({}))) as any;
-        const { name, logo_url } = body;
+        const { name, logo_url, country_code } = body;
 
         if (!name || typeof name !== 'string' || !name.trim()) {
           return errorResponse('Organization name is required', 422, cors);
+        }
+
+        if (country_code !== undefined && country_code !== null) {
+          if (typeof country_code !== 'string' || !isValidCountryCode(country_code)) {
+            return errorResponse('Invalid country code. Please select a valid country.', 422, cors);
+          }
         }
 
         const organization = await createOrganization(
@@ -916,6 +924,7 @@ export default {
             name: name.trim(),
             owner_id: user.id,
             logo_url: logo_url || null,
+            country_code: country_code ? country_code.trim().toUpperCase() : null,
           },
           env
         );
@@ -940,9 +949,52 @@ export default {
               slug: organization.slug,
               role: 'owner',
               logo_url: organization.logo_url,
+              country_code: organization.country_code || null,
             },
             token,
             gameId: defaultGame.id,
+          },
+          200,
+          cors
+        );
+      }
+
+      const orgGetParams = parseRoute('/api/organizations/:organizationId', pathname);
+      if (orgGetParams && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { organizationId } = orgGetParams;
+
+        const { isMember, role: myRole } = await verifyOrgMembershipAndPermission(
+          user.id,
+          organizationId,
+          'organization.view',
+          env
+        );
+
+        if (!isMember) {
+          return errorResponse('Access denied: You are not a member of this organization', 403, cors);
+        }
+
+        const org = await getOrganizationById(organizationId, env);
+        if (!org) {
+          return errorResponse('Organization not found', 404, cors);
+        }
+
+        return jsonResponse(
+          {
+            organization: {
+              id: org.id,
+              name: org.name,
+              slug: org.slug,
+              role: myRole || 'viewer',
+              logo_url: org.logo_url,
+              country_code: org.country_code || null,
+              created_at: org.created_at,
+              updated_at: org.updated_at,
+            },
           },
           200,
           cors
@@ -981,7 +1033,7 @@ export default {
           return errorResponse('Direct mutation of organization slug is strictly prohibited', 403, cors);
         }
 
-        const updates: { name?: string; logo_url?: string | null } = {};
+        const updates: { name?: string; logo_url?: string | null; country_code?: string | null } = {};
         if (body.name !== undefined) {
           if (typeof body.name !== 'string' || !body.name.trim()) {
             return errorResponse('Organization name must be a non-empty string', 422, cors);
@@ -990,6 +1042,16 @@ export default {
         }
         if (body.logo_url !== undefined) {
           updates.logo_url = body.logo_url || null;
+        }
+        if (body.country_code !== undefined) {
+          if (body.country_code === null || body.country_code === '') {
+            updates.country_code = null;
+          } else {
+            if (typeof body.country_code !== 'string' || !isValidCountryCode(body.country_code)) {
+              return errorResponse('Invalid country code. Please select a valid country.', 422, cors);
+            }
+            updates.country_code = body.country_code.trim().toUpperCase();
+          }
         }
 
         const updated = await updateOrganization(organizationId, updates, env);

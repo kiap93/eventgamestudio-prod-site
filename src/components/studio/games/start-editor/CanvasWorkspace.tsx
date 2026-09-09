@@ -128,6 +128,28 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   // Background resolution
   const bg = resolveScreenBackground(startConfig, theme);
 
+  // Safe editor feedback state
+  const [previewFeedback, setPreviewFeedback] = useState<string | null>(null);
+  const feedbackTimeoutRef = useRef<NodeJS.Timeout | number | null>(null);
+
+  const handleSafeEditorAction = useCallback((actionName: string) => {
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current as any);
+    }
+    setPreviewFeedback(`Editor Preview: [${actionName}] simulated. Real game action is disabled while editing.`);
+    feedbackTimeoutRef.current = setTimeout(() => {
+      setPreviewFeedback(null);
+    }, 2800);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current as any);
+      }
+    };
+  }, []);
+
   // Canvas bounds matching startConfig.canvas (1024x576 for 16:9, 576x1024 for 9:16)
   const CANVAS_WIDTH = startConfig?.canvas?.width || 1024;
   const CANVAS_HEIGHT = startConfig?.canvas?.height || 576;
@@ -781,17 +803,17 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
           theme={theme}
           gameType={gameType}
           gameMeta={gameMeta}
-          isEditor={true}
+          isEditor={!isPreviewMode}
           isSimulation={true}
-          onStartGame={() => {}}
-          onShowLeaderboard={() => {}}
-          onShowGuide={() => {}}
-          onOpenSettings={() => {}}
+          onStartGame={() => handleSafeEditorAction('Start Game')}
+          onShowLeaderboard={() => handleSafeEditorAction('High Scores / Leaderboard')}
+          onShowGuide={() => handleSafeEditorAction('How to Play Guide')}
+          onOpenSettings={() => handleSafeEditorAction('Settings')}
           renderChild={(child, pW, pH) => renderElement(child, pW, pH, depth + 1)}
         />
 
         {/* Selection Outline & Handles */}
-        {isSelected && (
+        {!isPreviewMode && isSelected && (
           <div
             className={`absolute inset-0 pointer-events-none border-2 transition-colors ${
               el.locked
@@ -891,6 +913,14 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
               Exit Preview
             </button>
           )}
+        </div>
+      )}
+
+      {/* Floating Safe Action Toast */}
+      {previewFeedback && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-slate-900/95 backdrop-blur-md border border-amber-500/80 text-amber-300 font-bold text-xs rounded-full shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-150">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+          <span>{previewFeedback}</span>
         </div>
       )}
 

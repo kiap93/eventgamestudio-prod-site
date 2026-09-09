@@ -1,22 +1,31 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { CountrySelect } from '../common/CountrySelect';
 import { Building2, Sparkles, ArrowRight, Shield } from 'lucide-react';
 
 export const CreateOrganizationPage: React.FC = () => {
   const { createOrganization, logout, currentUser } = useAuth();
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [countryCode, setCountryCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setError('Please enter your organization name');
+      return;
+    }
+    if (!countryCode.trim()) {
+      setError('Please select your organization\'s country');
+      return;
+    }
 
     setLoading(true);
     setError(null);
     try {
-      await createOrganization(name.trim(), logoUrl.trim() || undefined);
+      await createOrganization(name.trim(), logoUrl.trim() || undefined, countryCode.trim());
     } catch (err: any) {
       setError(err.message || 'Failed to create organization');
     } finally {
@@ -67,6 +76,20 @@ export const CreateOrganizationPage: React.FC = () => {
           </div>
 
           <div>
+            <CountrySelect
+              id="create-org-country"
+              label="Business Country / Region"
+              required
+              value={countryCode}
+              onChange={(code) => {
+                setCountryCode(code);
+                if (error && code) setError(null);
+              }}
+              helperText="Determines your default timezone, regional currency, and tax profile."
+            />
+          </div>
+
+          <div>
             <label className="block text-xs font-medium text-slate-300 mb-1.5">
               Logo Image URL (Optional)
             </label>
@@ -91,8 +114,8 @@ export const CreateOrganizationPage: React.FC = () => {
 
           <button
             type="submit"
-            disabled={loading || !name.trim()}
-            className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg active:scale-[0.99] disabled:opacity-50"
+            disabled={loading || !name.trim() || !countryCode}
+            className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg active:scale-[0.99] disabled:opacity-50 cursor-pointer"
           >
             <span>{loading ? 'Creating...' : 'Create Workspace & Launch Studio'}</span>
             <ArrowRight className="w-4 h-4" />

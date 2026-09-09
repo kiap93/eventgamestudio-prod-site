@@ -16,6 +16,7 @@ import { getUserById } from './users.js';
 import { getOrgMembers, addMember, OrgMemberWithUserDetails } from './members.js';
 import { getEventsByOrgId } from './events.js';
 import crypto from 'node:crypto';
+export { isValidCountryCode, getCountryByCode, getDefaultTimezoneForCountry } from '../../src/lib/countryUtils.js';
 
 export interface UserOrganizationMembership {
   id: string; // organization id
@@ -23,6 +24,7 @@ export interface UserOrganizationMembership {
   slug: string;
   role: OrgRole;
   logo_url: string | null;
+  country_code: string | null;
   created_at: string;
 }
 
@@ -34,6 +36,7 @@ export interface DeveloperOrganizationListItem {
   owner_name: string;
   owner_email: string;
   logo_url: string | null;
+  country_code?: string | null;
   member_count: number;
   event_count: number;
   paid_balance: number;
@@ -164,7 +167,8 @@ export async function getUserOrganizations(userId: string, env?: Record<string, 
           id,
           name,
           slug,
-          logo_url
+          logo_url,
+          country_code
         )
       `)
       .eq('user_id', userId);
@@ -185,6 +189,7 @@ export async function getUserOrganizations(userId: string, env?: Record<string, 
           name: org ? org.name : 'Unknown Organization',
           slug: org ? org.slug : '',
           logo_url: org ? org.logo_url : null,
+          country_code: org ? (org.country_code ?? null) : null,
           created_at: item.created_at,
         };
       });
@@ -199,6 +204,7 @@ export async function getUserOrganizations(userId: string, env?: Record<string, 
     slug: o.slug,
     role: 'owner' as OrgRole,
     logo_url: o.logo_url,
+    country_code: o.country_code ?? null,
     created_at: o.created_at,
   }));
 }
@@ -209,6 +215,7 @@ export async function createOrganization(
     name: string;
     owner_id: string;
     logo_url?: string | null;
+    country_code?: string | null;
   },
   env?: Record<string, any>
 ): Promise<OrganizationRecord> {
@@ -225,12 +232,15 @@ export async function createOrganization(
     .join('');
   const slug = `${baseSlug || 'org'}-${randomSuffix}`;
 
+  const countryCode = params.country_code ? params.country_code.trim().toUpperCase() : null;
+
   const orgRecord: OrganizationRecord = {
     id,
     name: params.name.trim(),
     slug,
     owner_id: params.owner_id,
     logo_url: params.logo_url || null,
+    country_code: countryCode,
     created_at: now,
     updated_at: now,
   };
@@ -279,6 +289,7 @@ export async function createOrganization(
       slug,
       owner_id: params.owner_id,
       logo_url: params.logo_url || null,
+      country_code: countryCode,
       created_at: now,
       updated_at: now,
     })
@@ -331,16 +342,25 @@ export async function createOrganization(
 
 export async function updateOrganization(
   id: string,
-  updates: Partial<Pick<OrganizationRecord, 'name' | 'logo_url'>>,
+  updates: Partial<Pick<OrganizationRecord, 'name' | 'logo_url' | 'country_code'>>,
   env?: Record<string, any>
 ): Promise<OrganizationRecord> {
   const now = new Date().toISOString();
+  const sanitizedUpdates: Partial<Pick<OrganizationRecord, 'name' | 'logo_url' | 'country_code'>> = {
+    ...updates,
+  };
+  if (sanitizedUpdates.country_code !== undefined) {
+    sanitizedUpdates.country_code = sanitizedUpdates.country_code
+      ? sanitizedUpdates.country_code.trim().toUpperCase()
+      : null;
+  }
 
   if (!isSupabaseConfigured(env)) {
     const existing = localOrgsCache.get(id);
     if (existing) {
-      const updated = { ...existing, ...updates, updated_at: now };
+      const updated = { ...existing, ...sanitizedUpdates, updated_at: now };
       localOrgsCache.set(id, updated);
+      saveLocalOrgs();
       return updated;
     }
   }
@@ -349,7 +369,7 @@ export async function updateOrganization(
   const { data, error } = await supabase
     .from('organizations')
     .update({
-      ...updates,
+      ...sanitizedUpdates,
       updated_at: now,
     })
     .eq('id', id)
@@ -360,14 +380,18 @@ export async function updateOrganization(
     console.error('Error in updateOrganization:', error);
     const existing = localOrgsCache.get(id);
     if (existing) {
-      const updated = { ...existing, ...updates, updated_at: now };
+      const updated = { ...existing, ...sanitizedUpdates, updated_at: now };
       localOrgsCache.set(id, updated);
+      saveLocalOrgs();
       return updated;
     }
     throw new Error(`Failed to update organization: ${error.message}`);
   }
 
-  return data as OrganizationRecord;
+  const updatedOrg = data as OrganizationRecord;
+  localOrgsCache.set(updatedOrg.id, updatedOrg);
+  saveLocalOrgs();
+  return updatedOrg;
 }
 
 export async function deleteOrganization(id: string, env?: Record<string, any>): Promise<void> {
@@ -572,6 +596,7 @@ export async function getAllOrganizationsForDeveloper(
       owner_name: owner?.name || 'Unknown Owner',
       owner_email: owner?.email || '',
       logo_url: org.logo_url,
+      country_code: org.country_code ?? null,
       member_count: memberCount,
       event_count: eventCount,
       paid_balance: wallet.paid_balance,

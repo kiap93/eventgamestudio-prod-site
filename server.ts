@@ -13,6 +13,7 @@ import {
   createOrganization,
   updateOrganization,
   getOrganizationById,
+  isValidCountryCode,
   getOrgMembers,
   getActiveOrgInvitations,
   createInvitation,
@@ -437,6 +438,7 @@ app.get('/api/auth/me', authenticateJWT, async (req: AuthenticatedRequest, res) 
             slug: activeMember.slug,
             role: activeMember.role,
             logo_url: activeMember.logo_url,
+            country_code: activeMember.country_code || null,
           }
         : null,
     });
@@ -570,11 +572,18 @@ app.get('/api/organizations', authenticateJWT, async (req: AuthenticatedRequest,
 app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
-    const { name, logo_url } = req.body;
+    const { name, logo_url, country_code } = req.body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
       res.status(422).json({ error: 'Organization name is required' });
       return;
+    }
+
+    if (country_code !== undefined && country_code !== null) {
+      if (typeof country_code !== 'string' || !isValidCountryCode(country_code)) {
+        res.status(422).json({ error: 'Invalid country code. Please select a valid country.' });
+        return;
+      }
     }
 
     // 1. Create Organization
@@ -582,6 +591,7 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
       name: name.trim(),
       owner_id: user.id,
       logo_url: logo_url || null,
+      country_code: country_code ? country_code.trim().toUpperCase() : null,
     });
 
     // 2. Add owner membership
@@ -603,6 +613,7 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
         slug: organization.slug,
         role: 'owner',
         logo_url: organization.logo_url,
+        country_code: organization.country_code || null,
       },
       token,
       gameId: defaultGame.id,
@@ -614,8 +625,52 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
 });
 
 /**
+ * GET /api/organizations/:organizationId
+ * Retrieve organization metadata for members
+ */
+app.get('/api/organizations/:organizationId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { organizationId } = req.params;
+
+    const { isMember, role: myRole } = await verifyOrgMembershipAndPermission(
+      user.id,
+      organizationId,
+      'organization.view'
+    );
+
+    if (!isMember) {
+      res.status(403).json({ error: 'Access denied: You are not a member of this organization' });
+      return;
+    }
+
+    const org = await getOrganizationById(organizationId);
+    if (!org) {
+      res.status(404).json({ error: 'Organization not found' });
+      return;
+    }
+
+    res.json({
+      organization: {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        role: myRole || 'viewer',
+        logo_url: org.logo_url,
+        country_code: org.country_code || null,
+        created_at: org.created_at,
+        updated_at: org.updated_at,
+      },
+    });
+  } catch (err: any) {
+    console.error('Get organization error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * PATCH /api/organizations/:organizationId
- * Update organization metadata (name, logo_url)
+ * Update organization metadata (name, logo_url, country_code)
  */
 app.patch('/api/organizations/:organizationId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -649,7 +704,7 @@ app.patch('/api/organizations/:organizationId', authenticateJWT, async (req: Aut
       return;
     }
 
-    const updates: { name?: string; logo_url?: string | null } = {};
+    const updates: { name?: string; logo_url?: string | null; country_code?: string | null } = {};
     if (body.name !== undefined) {
       if (typeof body.name !== 'string' || !body.name.trim()) {
         res.status(422).json({ error: 'Organization name must be a non-empty string' });
@@ -659,6 +714,17 @@ app.patch('/api/organizations/:organizationId', authenticateJWT, async (req: Aut
     }
     if (body.logo_url !== undefined) {
       updates.logo_url = body.logo_url || null;
+    }
+    if (body.country_code !== undefined) {
+      if (body.country_code === null || body.country_code === '') {
+        updates.country_code = null;
+      } else {
+        if (typeof body.country_code !== 'string' || !isValidCountryCode(body.country_code)) {
+          res.status(422).json({ error: 'Invalid country code. Please select a valid country.' });
+          return;
+        }
+        updates.country_code = body.country_code.trim().toUpperCase();
+      }
     }
 
     const updated = await updateOrganization(organizationId, updates);

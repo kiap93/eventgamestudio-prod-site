@@ -33,12 +33,14 @@ CREATE TABLE IF NOT EXISTS public.organizations (
   slug TEXT UNIQUE NOT NULL,
   owner_id UUID NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
   logo_url TEXT,
+  country_code VARCHAR(2) CHECK (country_code IS NULL OR country_code ~ '^[A-Z]{2}$'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
 CREATE INDEX IF NOT EXISTS idx_organizations_slug ON public.organizations (slug);
 CREATE INDEX IF NOT EXISTS idx_organizations_owner_id ON public.organizations (owner_id);
+CREATE INDEX IF NOT EXISTS idx_organizations_country_code ON public.organizations (country_code);
 
 -- ------------------------------------------------------------------------------
 -- 3. ORGANIZATION MEMBERS TABLE

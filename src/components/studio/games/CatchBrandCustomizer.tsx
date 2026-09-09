@@ -856,6 +856,14 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
             startConfig={startConfig}
             theme={theme}
             gameType="catch-brand"
+            gameMeta={{
+              duration: gameConfig.gameplay?.duration || 30,
+              gameTitle: theme.name || 'Catch The Brand',
+              logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
+              catcherImg: (theme as any)?.catcher || (theme as any)?.basket || null,
+              goodItemImg: (theme as any)?.drop_items?.find((i: any) => i.type === 'normal' || i.type === 'good')?.url || null,
+              badItemImg: (theme as any)?.drop_items?.find((i: any) => i.type === 'hazard' || i.type === 'bad')?.url || null,
+            }}
             onChange={handleUpdateStartConfig}
             onUploadAsset={onUploadAsset as any}
           />

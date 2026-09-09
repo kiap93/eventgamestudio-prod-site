@@ -1,7 +1,26 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
-import { Users, Mail, UserPlus, Shield, Trash2, Copy, Check, Clock, ShieldCheck, RefreshCw, Send, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { CountrySelect } from '../common/CountrySelect';
+import { getCountryByCode, getDefaultTimezoneForCountry } from '../../lib/countryUtils';
+import {
+  Users,
+  Mail,
+  UserPlus,
+  Shield,
+  Trash2,
+  Copy,
+  Check,
+  Clock,
+  ShieldCheck,
+  RefreshCw,
+  Send,
+  AlertCircle,
+  CheckCircle2,
+  X,
+  Globe,
+  Edit2,
+} from 'lucide-react';
 
 interface Member {
   id: string;
@@ -24,7 +43,7 @@ interface Invitation {
 }
 
 export const TeamMembersPage: React.FC = () => {
-  const { currentOrganization, token } = useAuth();
+  const { currentOrganization, token, updateOrganizationCountry } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [userRole, setUserRole] = useState<string>('viewer');
@@ -36,6 +55,39 @@ export const TeamMembersPage: React.FC = () => {
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const [isEditingCountry, setIsEditingCountry] = useState(false);
+  const [selectedCountryCode, setSelectedCountryCode] = useState(currentOrganization?.country_code || '');
+  const [savingCountry, setSavingCountry] = useState(false);
+  const [countryError, setCountryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (currentOrganization?.country_code) {
+      setSelectedCountryCode(currentOrganization.country_code);
+    }
+  }, [currentOrganization?.country_code]);
+
+  const handleSaveCountry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCountryCode.trim()) {
+      setCountryError('Please select a country');
+      return;
+    }
+    setSavingCountry(true);
+    setCountryError(null);
+    try {
+      await updateOrganizationCountry(selectedCountryCode.trim());
+      setIsEditingCountry(false);
+      setMessage({
+        type: 'success',
+        text: 'Organization business country updated successfully!',
+      });
+    } catch (err: any) {
+      setCountryError(err.message || 'Failed to update country');
+    } finally {
+      setSavingCountry(false);
+    }
+  };
 
   const fetchMembers = useCallback(async () => {
     if (!currentOrganization || !token) return;
@@ -243,6 +295,128 @@ export const TeamMembersPage: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Organization Country & Business Profile Card */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400">
+              <Globe className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-100">Organization Business Profile</h2>
+              <p className="text-xs text-slate-400">
+                Primary business country, regional localization, and default timezone
+              </p>
+            </div>
+          </div>
+
+          {isOwnerOrAdmin && !isEditingCountry && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCountryCode(currentOrganization?.country_code || '');
+                setIsEditingCountry(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer self-start sm:self-auto"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              <span>Change Country</span>
+            </button>
+          )}
+        </div>
+
+        {isEditingCountry ? (
+          <form onSubmit={handleSaveCountry} className="space-y-4">
+            <CountrySelect
+              id="team-org-country"
+              label="Business Country / Region"
+              required
+              value={selectedCountryCode}
+              onChange={(code) => {
+                setSelectedCountryCode(code);
+                if (countryError && code) setCountryError(null);
+              }}
+              error={countryError}
+              helperText="Determines your organization's default timezone, regional currency, and tax profile."
+            />
+            <div className="flex items-center gap-2 justify-end pt-1">
+              <button
+                type="button"
+                disabled={savingCountry}
+                onClick={() => {
+                  setIsEditingCountry(false);
+                  setCountryError(null);
+                  setSelectedCountryCode(currentOrganization?.country_code || '');
+                }}
+                className="px-3.5 py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingCountry || !selectedCountryCode.trim()}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-all shadow-md disabled:opacity-50 cursor-pointer"
+              >
+                {savingCountry ? 'Saving...' : 'Save Country'}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Country / Region
+              </span>
+              <div className="flex items-center gap-2 pt-0.5">
+                {currentOrganization?.country_code ? (
+                  <>
+                    <span className="text-xl leading-none">
+                      {getCountryByCode(currentOrganization.country_code)?.flag || '🌐'}
+                    </span>
+                    <span className="text-sm font-semibold text-slate-200">
+                      {getCountryByCode(currentOrganization.country_code)?.name || currentOrganization.country_code}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      ({currentOrganization.country_code})
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-xs text-amber-400 italic">Not set</span>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Default Timezone
+              </span>
+              <div className="flex items-center gap-2 pt-0.5 text-xs text-slate-300 font-mono">
+                <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>
+                  {currentOrganization?.country_code
+                    ? getDefaultTimezoneForCountry(currentOrganization.country_code)
+                    : 'UTC'}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Role Permissions
+              </span>
+              <div className="flex items-center gap-2 pt-0.5 text-xs text-slate-300">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>
+                  {isOwnerOrAdmin
+                    ? 'Full access to update organization settings'
+                    : 'View only (Owners & Admins can edit)'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Invite Staff Card */}
       {isOwnerOrAdmin && (

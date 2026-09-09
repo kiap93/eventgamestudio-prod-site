@@ -530,28 +530,30 @@ export function getStartScreenConfig(
     height: canvasHeight,
   };
 
-  // 2. Resolve background
+  // 2. Resolve background with bidirectional priority
   const bgType =
-    rawStart?.background?.type ||
     (rawStart?.backgroundType === 'color' ||
-    rawStart?.backgroundType === 'image' ||
-    rawStart?.backgroundType === 'theme'
+      rawStart?.backgroundType === 'image' ||
+      rawStart?.backgroundType === 'theme')
       ? rawStart.backgroundType
-      : 'theme');
+      : (rawStart?.background?.type || 'theme');
 
   const bgColor =
-    rawStart?.background?.color ||
-    (typeof rawStart?.backgroundColor === 'string' ? rawStart.backgroundColor : '#0f172a');
+    (typeof rawStart?.backgroundColor === 'string' && rawStart.backgroundColor)
+      ? rawStart.backgroundColor
+      : (rawStart?.background?.color || '#0f172a');
 
   const bgImageUrl =
-    rawStart?.background?.imageUrl ?? rawStart?.backgroundImageUrl ?? null;
+    rawStart?.backgroundImageUrl !== undefined
+      ? rawStart.backgroundImageUrl
+      : (rawStart?.background?.imageUrl ?? null);
 
   const bgOverlayOpacity =
-    typeof rawStart?.background?.overlayOpacity === 'number'
-      ? Math.max(0, Math.min(1, rawStart.background.overlayOpacity))
-      : typeof rawStart?.backgroundOverlayOpacity === 'number'
+    typeof rawStart?.backgroundOverlayOpacity === 'number'
       ? Math.max(0, Math.min(1, rawStart.backgroundOverlayOpacity))
-      : 0.3;
+      : (typeof rawStart?.background?.overlayOpacity === 'number'
+          ? Math.max(0, Math.min(1, rawStart.background.overlayOpacity))
+          : 0.3);
 
   const background: StartScreenBackgroundConfig = {
     type: bgType,
@@ -607,4 +609,59 @@ export function getStartScreenConfig(
   }
 
   return resolvedConfig;
+}
+
+/**
+ * Authoritatively saves a StartScreenConfig into a theme object, updating both
+ * theme.game_config.screens.start and top-level theme.screens.start for complete backward compatibility.
+ */
+export function saveStartScreenConfig<T extends Partial<GameTheme>>(
+  theme: T,
+  startConfig: StartScreenConfig,
+  gameType?: string
+): T {
+  const existingGameConfig = (theme?.game_config || {}) as any;
+  const existingScreens = (existingGameConfig?.screens || {}) as any;
+
+  // Harmonize background object and legacy top-level properties
+  const synchronizedStartConfig: StartScreenConfig = {
+    ...startConfig,
+    background: {
+      type: startConfig.backgroundType || startConfig.background?.type || 'theme',
+      color: startConfig.backgroundColor || startConfig.background?.color || '#0f172a',
+      imageUrl:
+        startConfig.backgroundImageUrl !== undefined
+          ? startConfig.backgroundImageUrl
+          : (startConfig.background?.imageUrl ?? null),
+      overlayOpacity:
+        startConfig.backgroundOverlayOpacity !== undefined
+          ? startConfig.backgroundOverlayOpacity
+          : (startConfig.background?.overlayOpacity ?? 0.3),
+    },
+    backgroundType: startConfig.backgroundType || startConfig.background?.type || 'theme',
+    backgroundColor: startConfig.backgroundColor || startConfig.background?.color || '#0f172a',
+    backgroundImageUrl:
+      startConfig.backgroundImageUrl !== undefined
+        ? startConfig.backgroundImageUrl
+        : (startConfig.background?.imageUrl ?? null),
+    backgroundOverlayOpacity:
+      startConfig.backgroundOverlayOpacity !== undefined
+        ? startConfig.backgroundOverlayOpacity
+        : (startConfig.background?.overlayOpacity ?? 0.3),
+  };
+
+  return {
+    ...theme,
+    game_config: {
+      ...existingGameConfig,
+      screens: {
+        ...existingScreens,
+        start: synchronizedStartConfig,
+      },
+    },
+    screens: {
+      ...((theme as any)?.screens || {}),
+      start: synchronizedStartConfig as any,
+    },
+  };
 }

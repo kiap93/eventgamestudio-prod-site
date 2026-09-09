@@ -236,10 +236,16 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
       const imgEl = element as StartImageElement;
       const s = imgEl.style || {};
 
-      // Resolve dynamic bindings like {logo}
+      // Resolve dynamic bindings like {logo}, {catcher}, {good_item}, {bad_item}
       let resolvedUrl = imgEl.imageUrl;
       if (!resolvedUrl || resolvedUrl === '{logo}') {
-        resolvedUrl = gameMeta?.logoUrl || theme?.clientLogo || theme?.logo || null;
+        resolvedUrl = gameMeta?.logoUrl || theme?.branding?.clientLogoUrl || theme?.clientLogo || theme?.logo || null;
+      } else if (resolvedUrl === '{catcher}' || resolvedUrl === '{basket}') {
+        resolvedUrl = gameMeta?.catcherImg || (theme as any)?.catcher || (theme as any)?.basket || null;
+      } else if (resolvedUrl === '{good_item}' || resolvedUrl === '{reward}' || resolvedUrl === '{falling_item}') {
+        resolvedUrl = gameMeta?.goodItemImg || gameMeta?.fallingItemImg || (theme as any)?.drop_items?.find((i: any) => i.type === 'normal' || i.type === 'good')?.url || null;
+      } else if (resolvedUrl === '{bad_item}' || resolvedUrl === '{hazard}') {
+        resolvedUrl = gameMeta?.badItemImg || gameMeta?.badFallingItemImg || (theme as any)?.drop_items?.find((i: any) => i.type === 'hazard' || i.type === 'bad')?.url || null;
       }
 
       return (
@@ -275,19 +281,26 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
 
       const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (isSim) return;
+        if (isEditor) {
+          // While editing in canvas authoring mode, selection and drag take priority
+          return;
+        }
 
-        if (action === 'start') {
-          onStartGame?.();
-        } else if (action === 'leaderboard') {
-          onShowLeaderboard?.();
-        } else if (action === 'guide') {
-          onShowGuide?.();
-        } else if (action === 'settings') {
-          onOpenSettings?.();
-        } else {
-          // Default start
-          onStartGame?.();
+        try {
+          if (action === 'start') {
+            onStartGame?.();
+          } else if (action === 'leaderboard') {
+            onShowLeaderboard?.();
+          } else if (action === 'guide') {
+            onShowGuide?.();
+          } else if (action === 'settings') {
+            onOpenSettings?.();
+          } else {
+            // Default start
+            onStartGame?.();
+          }
+        } catch (err) {
+          console.warn('[StartElementContent] Button action callback failed safely:', err);
         }
       };
 
@@ -405,7 +418,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
     case 'rules': {
       const rulesEl = element as StartRulesElement;
 
-      if (rulesEl.ruleType === 'catch-brand' || (!rulesEl.ruleType && (gameMeta?.goodItemImg || gameMeta?.fallingItemImg))) {
+      if (rulesEl.ruleType === 'catch-brand' || (!rulesEl.ruleType && (gameMeta?.goodItemImg || gameMeta?.fallingItemImg || gameType === 'catch-brand'))) {
         const goodImg = gameMeta?.goodItemImg || gameMeta?.fallingItemImg || rulesEl.goodItemImg;
         const badImg = gameMeta?.badItemImg || gameMeta?.badFallingItemImg || rulesEl.badItemImg;
         const goodTitle = gameMeta?.fallingItemName || rulesEl.goodItemTitle || 'Target Item';
@@ -442,6 +455,52 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
         );
       }
 
+      if (rulesEl.ruleType === 'memory-match' || (!rulesEl.ruleType && gameType === 'memory-match')) {
+        return (
+          <div className="w-full h-full grid grid-cols-2 gap-3 select-none">
+            <div className="bg-amber-950/50 border border-amber-500/40 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center">
+              <div className="w-10 h-10 rounded-xl bg-amber-900/60 border border-amber-400/60 flex items-center justify-center p-1.5 mb-1.5 overflow-hidden shrink-0">
+                <Sparkles className="w-5 h-5 text-amber-300" />
+              </div>
+              <span className="text-amber-300 font-bold text-xs">Match Pairs</span>
+              <span className="text-amber-400/90 font-medium text-[11px]">+POINTS FOR MATCH</span>
+            </div>
+            <div className="bg-slate-900/70 border border-slate-700/50 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center">
+              <div className="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-600/60 flex items-center justify-center p-1.5 mb-1.5 overflow-hidden shrink-0">
+                <Clock className="w-5 h-5 text-slate-300" />
+              </div>
+              <span className="text-slate-300 font-bold text-xs">Beat Timer</span>
+              <span className="text-slate-400 font-medium text-[11px]">COMBO STREAK BONUS</span>
+            </div>
+          </div>
+        );
+      }
+
+      if (
+        rulesEl.ruleType === 'reaction-tap' ||
+        (rulesEl.ruleType as string) === 'reaction-time' ||
+        (!rulesEl.ruleType && (gameType === 'reaction-tap' || gameType === 'reaction-time'))
+      ) {
+        return (
+          <div className="w-full h-full grid grid-cols-2 gap-3 select-none">
+            <div className="bg-emerald-950/50 border border-emerald-500/40 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center">
+              <div className="w-10 h-10 rounded-xl bg-emerald-900/60 border border-emerald-400/60 flex items-center justify-center p-1.5 mb-1.5 overflow-hidden shrink-0">
+                <Zap className="w-5 h-5 text-emerald-300" />
+              </div>
+              <span className="text-emerald-300 font-bold text-xs">Tap On Green</span>
+              <span className="text-emerald-400/90 font-medium text-[11px]">FASTEST MILLISECONDS</span>
+            </div>
+            <div className="bg-rose-950/50 border border-rose-500/40 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center">
+              <div className="w-10 h-10 rounded-xl bg-rose-900/60 border border-rose-400/60 flex items-center justify-center p-1.5 mb-1.5 overflow-hidden shrink-0">
+                <AlertTriangle className="w-5 h-5 text-rose-300" />
+              </div>
+              <span className="text-rose-300 font-bold text-xs">Jump Start</span>
+              <span className="text-rose-400 font-medium text-[11px]">PENALTY FOR EARLY TAP</span>
+            </div>
+          </div>
+        );
+      }
+
       // Generic rules display
       return (
         <div className="w-full h-full flex items-center justify-center p-3 bg-slate-900/80 border border-slate-800 rounded-2xl text-center text-slate-300 text-xs">
@@ -458,6 +517,12 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
       else if (iconEl.iconName === 'Sparkles') IconComponent = Sparkles;
       else if (iconEl.iconName === 'Clock') IconComponent = Clock;
       else if (iconEl.iconName === 'Layers') IconComponent = Layers;
+      else if (iconEl.iconName === 'Trophy') IconComponent = Trophy;
+      else if (iconEl.iconName === 'Play') IconComponent = Play;
+      else if (iconEl.iconName === 'CheckCircle2') IconComponent = CheckCircle2;
+      else if (iconEl.iconName === 'AlertTriangle') IconComponent = AlertTriangle;
+      else if (iconEl.iconName === 'HelpCircle') IconComponent = HelpCircle;
+      else if (iconEl.iconName === 'Settings') IconComponent = Settings;
 
       return (
         <div
