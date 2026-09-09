@@ -4,14 +4,21 @@ import {
   StartScreenElement,
 } from '../../../../games/shared/startScreenTypes';
 import { getStartElementsGroupedByCategory } from './startElementRegistry';
+import { AlignmentType } from './alignmentOperations';
 import {
   Layout,
   Plus,
   RotateCcw,
   Check,
   X,
+  AlignLeft,
   AlignCenterHorizontal,
+  AlignRight,
+  AlignStartVertical,
   AlignCenterVertical,
+  AlignEndVertical,
+  AlignHorizontalDistributeCenter,
+  AlignVerticalDistributeCenter,
   ChevronsUp,
   ChevronsDown,
   ArrowUp,
@@ -29,13 +36,20 @@ import {
   BookmarkPlus,
   Undo2,
   Redo2,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 interface EditorTopBarProps {
   selectedIds: string[];
   totalElementsCount: number;
   gameType?: string;
+  canvasWidth?: number;
+  canvasHeight?: number;
+  isPreviewMode?: boolean;
+  onTogglePreview?: () => void;
   onAddNewRootElement: (type: StartScreenElementType) => void;
+  onAlignSelected?: (type: AlignmentType) => void;
   onCenterSelectedHorizontal: () => void;
   onCenterSelectedVertical: () => void;
   onMoveSelectedLayer: (direction: 'forward' | 'backward' | 'front' | 'back') => void;
@@ -63,7 +77,12 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
   selectedIds,
   totalElementsCount,
   gameType = 'memory-match',
+  canvasWidth = 1024,
+  canvasHeight = 576,
+  isPreviewMode = false,
+  onTogglePreview,
   onAddNewRootElement,
+  onAlignSelected,
   onCenterSelectedHorizontal,
   onCenterSelectedVertical,
   onMoveSelectedLayer,
@@ -91,6 +110,18 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
     () => getStartElementsGroupedByCategory(gameType),
     [gameType]
   );
+
+  const canDistribute = selectedIds.length >= 3;
+
+  const handleAlign = (type: AlignmentType) => {
+    if (onAlignSelected) {
+      onAlignSelected(type);
+    } else if (type === 'center-h') {
+      onCenterSelectedHorizontal();
+    } else if (type === 'center-v') {
+      onCenterSelectedVertical();
+    }
+  };
 
   return (
     <div className="h-14 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-4 flex items-center justify-between z-30 shrink-0 select-none">
@@ -269,20 +300,74 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
       <div className="flex items-center gap-1.5">
         {selectedIds.length > 0 ? (
           <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-lg border border-slate-800">
-            {/* Alignment Tools */}
+            {/* Alignment Tools Suite */}
             <button
-              onClick={onCenterSelectedHorizontal}
-              className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-              title="Center Horizontally"
+              onClick={() => handleAlign('left')}
+              className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
+              title="Align Left"
+            >
+              <AlignLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleAlign('center-h')}
+              className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
+              title="Align Center Horizontally"
             >
               <AlignCenterHorizontal className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={onCenterSelectedVertical}
-              className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white"
-              title="Center Vertically"
+              onClick={() => handleAlign('right')}
+              className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
+              title="Align Right"
+            >
+              <AlignRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleAlign('top')}
+              className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
+              title="Align Top"
+            >
+              <AlignStartVertical className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleAlign('center-v')}
+              className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
+              title="Align Center Vertically"
             >
               <AlignCenterVertical className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleAlign('bottom')}
+              className="p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 transition-colors"
+              title="Align Bottom"
+            >
+              <AlignEndVertical className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Distribute Tools */}
+            <button
+              onClick={() => handleAlign('distribute-h')}
+              disabled={!canDistribute}
+              className={`p-1.5 rounded transition-colors ${
+                canDistribute
+                  ? 'hover:bg-slate-800 text-slate-300 hover:text-amber-400'
+                  : 'text-slate-600 cursor-not-allowed opacity-40'
+              }`}
+              title={canDistribute ? 'Distribute Horizontally' : 'Distribute Horizontally (requires 3+ elements)'}
+            >
+              <AlignHorizontalDistributeCenter className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleAlign('distribute-v')}
+              disabled={!canDistribute}
+              className={`p-1.5 rounded transition-colors ${
+                canDistribute
+                  ? 'hover:bg-slate-800 text-slate-300 hover:text-amber-400'
+                  : 'text-slate-600 cursor-not-allowed opacity-40'
+              }`}
+              title={canDistribute ? 'Distribute Vertically' : 'Distribute Vertically (requires 3+ elements)'}
+            >
+              <AlignVerticalDistributeCenter className="w-3.5 h-3.5" />
             </button>
 
             <div className="w-px h-3.5 bg-slate-700 mx-0.5" />
@@ -379,8 +464,39 @@ export const EditorTopBar: React.FC<EditorTopBarProps> = ({
         )}
       </div>
 
-      {/* RIGHT SECTION: Presets, Save Template, Fullscreen & Done */}
+      {/* RIGHT SECTION: Stage Specs, Preview, Presets, Save Template, Fullscreen & Done */}
       <div className="flex items-center gap-2">
+        {/* Stage Specs Pill */}
+        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-slate-950/60 border border-slate-800 rounded-lg text-[11px] font-mono text-slate-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-amber-400 font-bold">{canvasWidth} × {canvasHeight}</span>
+        </div>
+
+        {/* Live Preview Mode Toggle */}
+        {onTogglePreview && (
+          <button
+            onClick={onTogglePreview}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              isPreviewMode
+                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-bold'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+            }`}
+            title={isPreviewMode ? 'Exit Preview Mode' : 'Preview Live Start Screen (P)'}
+          >
+            {isPreviewMode ? (
+              <>
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>Exit Preview</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-3.5 h-3.5 text-amber-400" />
+                <span>Preview</span>
+              </>
+            )}
+          </button>
+        )}
+
         {onOpenPresets && (
           <button
             onClick={onOpenPresets}

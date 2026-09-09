@@ -19,6 +19,7 @@ import {
 import { GameTheme } from '../../../../themes/types';
 import { getAvailableContainers } from './types';
 import { getStartElementIcon } from './LayerTreePanel';
+import { AlignmentType, alignElements } from './alignmentOperations';
 import {
   Sliders,
   Layers,
@@ -44,6 +45,14 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignCenterHorizontal,
+  AlignStartVertical,
+  AlignCenterVertical,
+  AlignEndVertical,
+  AlignHorizontalDistributeCenter,
+  AlignVerticalDistributeCenter,
+  FolderTree,
+  FolderMinus,
 } from 'lucide-react';
 
 interface PropertyInspectorPanelProps {
@@ -55,12 +64,15 @@ interface PropertyInspectorPanelProps {
   gameType?: string;
   onUpdateElement: (updater: (prev: StartScreenElement) => StartScreenElement) => void;
   onUpdateConfig: (updater: (prev: StartScreenConfig) => StartScreenConfig) => void;
+  onAlignSelected?: (type: AlignmentType) => void;
   onDuplicateSelected?: () => void;
   onDeleteSelected?: () => void;
   onToggleLockSelected?: () => void;
   onToggleVisibilitySelected?: () => void;
   onMoveToContainer?: (elementId: string, targetContainerId: string | null) => void;
   onUploadAsset?: (file: File, type: string) => Promise<string>;
+  canGroup?: boolean;
+  onGroupSelected?: () => void;
 }
 
 export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
@@ -72,12 +84,15 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   gameType = 'memory-match',
   onUpdateElement,
   onUpdateConfig,
+  onAlignSelected,
   onDuplicateSelected,
   onDeleteSelected,
   onToggleLockSelected,
   onToggleVisibilitySelected,
   onMoveToContainer,
   onUploadAsset,
+  canGroup,
+  onGroupSelected,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadTarget, setUploadTarget] = useState<
@@ -319,6 +334,234 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
               Responsive canvas automatically scales seamlessly across all desktop, tablet, and mobile screens.
             </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If multiple elements are selected, render Multi-Selection Inspector & Alignment Panel
+  if (selectedIds.length > 1) {
+    const selectedElements = selectedIds
+      .map((id) => {
+        const findRecursive = (list: StartScreenElement[]): StartScreenElement | null => {
+          for (const item of list) {
+            if (item.id === id) return item;
+            if (item.type === 'card' || item.type === 'group') {
+              const res = findRecursive((item as any).children || []);
+              if (res) return res;
+            }
+          }
+          return null;
+        };
+        return findRecursive(elements);
+      })
+      .filter((el): el is StartScreenElement => el !== null);
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const item of selectedElements) {
+      minX = Math.min(minX, item.x);
+      minY = Math.min(minY, item.y);
+      maxX = Math.max(maxX, item.x + item.width);
+      maxY = Math.max(maxY, item.y + item.height);
+    }
+    const boundWidth = maxX > minX ? maxX - minX : 0;
+    const boundHeight = maxY > minY ? maxY - minY : 0;
+    const canDistribute = selectedIds.length >= 3;
+
+    return (
+      <div className="w-80 border-l border-slate-800 bg-slate-900/95 flex flex-col shrink-0 select-none z-20 overflow-y-auto">
+        {/* Header */}
+        <div className="h-12 px-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-amber-400" />
+            <span className="font-bold text-xs text-slate-200 uppercase tracking-wide">
+              {selectedIds.length} Elements Selected
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            {onDuplicateSelected && (
+              <button
+                onClick={onDuplicateSelected}
+                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+                title="Duplicate All (Ctrl+D)"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {onDeleteSelected && (
+              <button
+                onClick={onDeleteSelected}
+                className="p-1 rounded hover:bg-rose-950 text-slate-400 hover:text-rose-400"
+                title="Delete All (Del)"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 space-y-5 text-xs text-slate-300">
+          {/* Alignment Suite */}
+          <div>
+            <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              Align & Distribute
+            </span>
+            <div className="grid grid-cols-4 gap-1 bg-slate-950 p-1.5 rounded-lg border border-slate-800">
+              <button
+                onClick={() => onAlignSelected && onAlignSelected('left')}
+                className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
+                title="Align Left"
+              >
+                <AlignLeft className="w-4 h-4" />
+                <span className="text-[9px]">Left</span>
+              </button>
+              <button
+                onClick={() => onAlignSelected && onAlignSelected('center-h')}
+                className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
+                title="Align Center Horizontally"
+              >
+                <AlignCenterHorizontal className="w-4 h-4" />
+                <span className="text-[9px]">Center H</span>
+              </button>
+              <button
+                onClick={() => onAlignSelected && onAlignSelected('right')}
+                className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
+                title="Align Right"
+              >
+                <AlignRight className="w-4 h-4" />
+                <span className="text-[9px]">Right</span>
+              </button>
+              <button
+                onClick={() => onAlignSelected && onAlignSelected('distribute-h')}
+                disabled={!canDistribute}
+                className={`p-2 rounded flex flex-col items-center gap-1 transition-colors ${
+                  canDistribute
+                    ? 'hover:bg-slate-800 text-slate-300 hover:text-amber-400'
+                    : 'text-slate-600 opacity-40 cursor-not-allowed'
+                }`}
+                title="Distribute Horizontally (requires 3+ elements)"
+              >
+                <AlignHorizontalDistributeCenter className="w-4 h-4" />
+                <span className="text-[9px]">Dist H</span>
+              </button>
+              <button
+                onClick={() => onAlignSelected && onAlignSelected('top')}
+                className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
+                title="Align Top"
+              >
+                <AlignStartVertical className="w-4 h-4" />
+                <span className="text-[9px]">Top</span>
+              </button>
+              <button
+                onClick={() => onAlignSelected && onAlignSelected('center-v')}
+                className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
+                title="Align Center Vertically"
+              >
+                <AlignCenterVertical className="w-4 h-4" />
+                <span className="text-[9px]">Center V</span>
+              </button>
+              <button
+                onClick={() => onAlignSelected && onAlignSelected('bottom')}
+                className="p-2 rounded hover:bg-slate-800 text-slate-300 hover:text-amber-400 flex flex-col items-center gap-1 transition-colors"
+                title="Align Bottom"
+              >
+                <AlignEndVertical className="w-4 h-4" />
+                <span className="text-[9px]">Bottom</span>
+              </button>
+              <button
+                onClick={() => onAlignSelected && onAlignSelected('distribute-v')}
+                disabled={!canDistribute}
+                className={`p-2 rounded flex flex-col items-center gap-1 transition-colors ${
+                  canDistribute
+                    ? 'hover:bg-slate-800 text-slate-300 hover:text-amber-400'
+                    : 'text-slate-600 opacity-40 cursor-not-allowed'
+                }`}
+                title="Distribute Vertically (requires 3+ elements)"
+              >
+                <AlignVerticalDistributeCenter className="w-4 h-4" />
+                <span className="text-[9px]">Dist V</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Combined Selection Bounding Box */}
+          <div>
+            <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              Combined Bounds
+            </span>
+            <div className="grid grid-cols-2 gap-2 bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Min X:</span>
+                <span className="text-amber-400">{Math.round(minX)}px</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Min Y:</span>
+                <span className="text-amber-400">{Math.round(minY)}px</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Width:</span>
+                <span className="text-amber-400">{Math.round(boundWidth)}px</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Height:</span>
+                <span className="text-amber-400">{Math.round(boundHeight)}px</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Multi-selection Grouping & Actions */}
+          <div className="space-y-2 border-t border-slate-800 pt-3">
+            <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              Group & Actions
+            </span>
+            {canGroup && onGroupSelected && (
+              <button
+                onClick={onGroupSelected}
+                className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border border-slate-700 transition-colors"
+              >
+                <FolderTree className="w-4 h-4 text-amber-400" />
+                <span>Group Selected Elements (Ctrl+G)</span>
+              </button>
+            )}
+            {onToggleLockSelected && (
+              <button
+                onClick={onToggleLockSelected}
+                className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border border-slate-700 transition-colors"
+              >
+                <Lock className="w-4 h-4 text-slate-400" />
+                <span>Lock / Unlock Selected</span>
+              </button>
+            )}
+          </div>
+
+          {/* Selected Elements List */}
+          <div className="border-t border-slate-800 pt-3">
+            <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              Selected Layers ({selectedElements.length})
+            </span>
+            <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+              {selectedElements.map((el) => {
+                const ItemIcon = getStartElementIcon(el.type);
+                return (
+                  <div
+                    key={el.id}
+                    className="flex items-center justify-between px-2.5 py-1.5 bg-slate-950/60 rounded-lg border border-slate-800/80 text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <ItemIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="font-semibold text-slate-300">{el.type}</span>
+                    </div>
+                    <span className="font-mono text-[10px] text-slate-500">
+                      ({Math.round(el.x)}, {Math.round(el.y)})
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

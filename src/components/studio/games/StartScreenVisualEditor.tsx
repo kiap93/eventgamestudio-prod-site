@@ -25,6 +25,7 @@ import {
   toggleElementLock,
   toggleElementVisibility,
 } from './start-editor/layerOperations';
+import { alignElements, ElementAlignment } from './start-editor/alignmentOperations';
 import { LayerTreePanel } from './start-editor/LayerTreePanel';
 import { CanvasWorkspace } from './start-editor/CanvasWorkspace';
 import { PropertyInspectorPanel } from './start-editor/PropertyInspectorPanel';
@@ -99,6 +100,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   // Selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isLayerTreeCollapsed, setIsLayerTreeCollapsed] = useState<boolean>(false);
+  const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
 
   // Modals state
   const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
@@ -356,6 +358,42 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
     }
   }, [selectedIds, currentElements, handleUpdateBatchElements]);
 
+  // Comprehensive Element Alignment (Left, Center, Right, Top, Middle, Bottom, Distribute)
+  const handleAlignSelected = useCallback(
+    (alignment: ElementAlignment) => {
+      if (selectedIds.length === 0) return;
+      const stageW = effectiveConfig.canvas?.width || 1024;
+      const stageH = effectiveConfig.canvas?.height || 576;
+      const nextElements = alignElements(currentElements, selectedIds, alignment, stageW, stageH);
+      updateElementsWithHistory(nextElements);
+    },
+    [selectedIds, effectiveConfig.canvas?.width, effectiveConfig.canvas?.height, currentElements, updateElementsWithHistory]
+  );
+
+  // Bulk Lock Toggle for selected elements
+  const handleBulkLockToggle = useCallback(() => {
+    if (selectedIds.length === 0) return;
+    const shouldLock = !isAllSelectedLocked;
+    const updateRecursive = (list: StartScreenElement[]): StartScreenElement[] => {
+      return list.map((item) => {
+        let updated = item;
+        if (selectedIds.includes(item.id)) {
+          updated = { ...item, locked: shouldLock };
+        }
+        if (updated.type === 'card' || updated.type === 'group') {
+          const container = updated as StartScreenCardElement | StartScreenGroupElement;
+          return {
+            ...updated,
+            children: updateRecursive(container.children || []),
+          };
+        }
+        return updated;
+      });
+    };
+    const nextElements = updateRecursive(currentElements);
+    updateElementsWithHistory(nextElements);
+  }, [selectedIds, isAllSelectedLocked, currentElements, updateElementsWithHistory]);
+
   // Grouping
   const canGroup = useMemo(
     () => canGroupElements(currentElements, selectedIds),
@@ -441,6 +479,11 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
         selectedIds={selectedIds}
         totalElementsCount={currentElements.length}
         gameType={gameType}
+        isPreviewMode={isPreviewMode}
+        onTogglePreviewMode={() => setIsPreviewMode((p) => !p)}
+        onAlignSelected={handleAlignSelected}
+        canvasWidth={effectiveConfig.canvas?.width || 1024}
+        canvasHeight={effectiveConfig.canvas?.height || 576}
         onAddNewRootElement={handleAddNewRootElement}
         onCenterSelectedHorizontal={handleCenterSelectedHorizontal}
         onCenterSelectedVertical={handleCenterSelectedVertical}
@@ -471,32 +514,34 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
 
       {/* Main Workspace Body */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Left: Layer Tree Panel */}
-        <LayerTreePanel
-          elements={currentElements}
-          selectedIds={selectedIds}
-          gameType={gameType}
-          onSelectElement={handleSelectElement}
-          onToggleVisibility={handleToggleVisibility}
-          onToggleLock={handleToggleLock}
-          onDeleteElement={(id) => {
-            const nextElements = deleteElements(currentElements, [id]);
-            updateElementsWithHistory(nextElements);
-            setSelectedIds((prev) => prev.filter((i) => i !== id));
-          }}
-          onDuplicateElement={(id) => {
-            const res = duplicateElement(currentElements, id);
-            updateElementsWithHistory(res.newElements);
-            if (res.duplicatedId) setSelectedIds([res.duplicatedId]);
-          }}
-          onMoveLayer={handleMoveLayer}
-          onMoveToContainer={handleMoveToContainer}
-          onAddChildElement={handleAddChildElement}
-          isCollapsed={isLayerTreeCollapsed}
-          onToggleCollapse={() => setIsLayerTreeCollapsed((c) => !c)}
-          canvasWidth={effectiveConfig.canvas?.width}
-          canvasHeight={effectiveConfig.canvas?.height}
-        />
+        {/* Left: Layer Tree Panel (hidden in full live preview mode) */}
+        {!isPreviewMode && (
+          <LayerTreePanel
+            elements={currentElements}
+            selectedIds={selectedIds}
+            gameType={gameType}
+            onSelectElement={handleSelectElement}
+            onToggleVisibility={handleToggleVisibility}
+            onToggleLock={handleToggleLock}
+            onDeleteElement={(id) => {
+              const nextElements = deleteElements(currentElements, [id]);
+              updateElementsWithHistory(nextElements);
+              setSelectedIds((prev) => prev.filter((i) => i !== id));
+            }}
+            onDuplicateElement={(id) => {
+              const res = duplicateElement(currentElements, id);
+              updateElementsWithHistory(res.newElements);
+              if (res.duplicatedId) setSelectedIds([res.duplicatedId]);
+            }}
+            onMoveLayer={handleMoveLayer}
+            onMoveToContainer={handleMoveToContainer}
+            onAddChildElement={handleAddChildElement}
+            isCollapsed={isLayerTreeCollapsed}
+            onToggleCollapse={() => setIsLayerTreeCollapsed((c) => !c)}
+            canvasWidth={effectiveConfig.canvas?.width}
+            canvasHeight={effectiveConfig.canvas?.height}
+          />
+        )}
 
         {/* Center: Canvas Workspace */}
         <div className="flex-1 h-full relative overflow-hidden bg-slate-950">
@@ -506,6 +551,8 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
             gameType={gameType}
             elements={currentElements}
             selectedIds={selectedIds}
+            isPreviewMode={isPreviewMode}
+            onExitPreview={() => setIsPreviewMode(false)}
             onSelectElement={handleSelectElement}
             onClearSelection={handleClearSelection}
             onUpdateElements={handleUpdateBatchElements}
@@ -520,33 +567,42 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
           />
         </div>
 
-        {/* Right: Property Inspector Panel */}
-        <PropertyInspectorPanel
-          selectedElement={selectedElement}
-          selectedIds={selectedIds}
-          elements={currentElements}
-          startConfig={effectiveConfig}
-          theme={theme}
-          gameType={gameType}
-          onUpdateElement={(updater) => {
-            if (selectedElement) {
-              handleUpdateSingleElement(selectedElement.id, updater);
-            }
-          }}
-          onUpdateConfig={(updater) => {
-            onChange(updater(effectiveConfig));
-          }}
-          onDuplicateSelected={handleDuplicateSelected}
-          onDeleteSelected={handleDeleteSelected}
-          onToggleLockSelected={() => {
-            if (selectedElement) handleToggleLock(selectedElement.id);
-          }}
-          onToggleVisibilitySelected={() => {
-            if (selectedElement) handleToggleVisibility(selectedElement.id);
-          }}
-          onMoveToContainer={handleMoveToContainer}
-          onUploadAsset={onUploadAsset}
-        />
+        {/* Right: Property Inspector Panel (hidden in full live preview mode) */}
+        {!isPreviewMode && (
+          <PropertyInspectorPanel
+            selectedElement={selectedElement}
+            selectedIds={selectedIds}
+            elements={currentElements}
+            startConfig={effectiveConfig}
+            theme={theme}
+            gameType={gameType}
+            canvasWidth={effectiveConfig.canvas?.width || 1024}
+            canvasHeight={effectiveConfig.canvas?.height || 576}
+            onAlignSelected={handleAlignSelected}
+            onGroupSelected={handleGroupSelected}
+            canGroup={canGroup}
+            onBulkLockToggle={handleBulkLockToggle}
+            isAllSelectedLocked={isAllSelectedLocked}
+            onUpdateElement={(updater) => {
+              if (selectedElement) {
+                handleUpdateSingleElement(selectedElement.id, updater);
+              }
+            }}
+            onUpdateConfig={(updater) => {
+              onChange(updater(effectiveConfig));
+            }}
+            onDuplicateSelected={handleDuplicateSelected}
+            onDeleteSelected={handleDeleteSelected}
+            onToggleLockSelected={() => {
+              if (selectedElement) handleToggleLock(selectedElement.id);
+            }}
+            onToggleVisibilitySelected={() => {
+              if (selectedElement) handleToggleVisibility(selectedElement.id);
+            }}
+            onMoveToContainer={handleMoveToContainer}
+            onUploadAsset={onUploadAsset}
+          />
+        )}
       </div>
 
       {/* Preset Library Modal */}

@@ -42,6 +42,7 @@ export class StartScreenHistoryManager {
   private present: StartScreenHistorySnapshot;
   private future: StartScreenHistorySnapshot[] = [];
   private maxHistory: number;
+  private gestureStartSnapshot: StartScreenHistorySnapshot | null = null;
 
   constructor(initialElements: StartScreenElement[], maxHistory = 40) {
     this.maxHistory = maxHistory;
@@ -89,6 +90,58 @@ export class StartScreenHistoryManager {
 
     this.future = [];
     return true;
+  }
+
+  beginGesture(elements: StartScreenElement[], selectedId: string | null = null, selectedIds: string[] = []): void {
+    const { validSelectedId, validSelectedIds } = filterValidSelectedIds(
+      selectedIds.length > 0 ? selectedIds : selectedId ? [selectedId] : [],
+      elements
+    );
+    this.gestureStartSnapshot = {
+      elements: deepCloneElements(elements),
+      selectedId: validSelectedId,
+      selectedIds: validSelectedIds,
+    };
+  }
+
+  updateLive(elements: StartScreenElement[]): void {
+    this.present.elements = deepCloneElements(elements);
+  }
+
+  commitGesture(elements: StartScreenElement[], selectedId: string | null = null, selectedIds: string[] = []): boolean {
+    if (!this.gestureStartSnapshot) {
+      return this.push(elements, selectedId, selectedIds);
+    }
+
+    const startSnapshot = this.gestureStartSnapshot;
+    this.gestureStartSnapshot = null;
+
+    if (areElementsEqual(startSnapshot.elements, elements)) {
+      return false;
+    }
+
+    this.past.push(startSnapshot);
+    if (this.past.length > this.maxHistory) {
+      this.past.shift();
+    }
+
+    const { validSelectedId, validSelectedIds } = filterValidSelectedIds(
+      selectedIds.length > 0 ? selectedIds : selectedId ? [selectedId] : [],
+      elements
+    );
+
+    this.present = {
+      elements: deepCloneElements(elements),
+      selectedId: validSelectedId,
+      selectedIds: validSelectedIds,
+    };
+
+    this.future = [];
+    return true;
+  }
+
+  cancelGesture(): void {
+    this.gestureStartSnapshot = null;
   }
 
   undo(): StartScreenHistorySnapshot | null {
@@ -149,6 +202,7 @@ export class StartScreenHistoryManager {
   reset(elements: StartScreenElement[]) {
     this.past = [];
     this.future = [];
+    this.gestureStartSnapshot = null;
     this.present = {
       elements: deepCloneElements(elements),
       selectedId: null,
@@ -162,6 +216,7 @@ export interface StartScreenHistoryController {
   canUndo: boolean;
   canRedo: boolean;
   pushSnapshot: (elements: StartScreenElement[], selectedId?: string | null, selectedIds?: string[]) => void;
+  updateLive: (elements: StartScreenElement[]) => void;
   undo: () => StartScreenHistorySnapshot | null;
   redo: () => StartScreenHistorySnapshot | null;
   beginGesture: (elements: StartScreenElement[], selectedId?: string | null, selectedIds?: string[]) => void;
@@ -179,7 +234,6 @@ export function useStartScreenHistory(
   const [canRedo, setCanRedo] = useState(false);
   const [currentElements, setCurrentElements] = useState<StartScreenElement[]>(initialElements);
   const isGestureActiveRef = useRef(false);
-  const gestureStartElementsRef = useRef<StartScreenElement[] | null>(null);
 
   const updateState = useCallback(() => {
     setCanUndo(managerRef.current.canUndo());
@@ -200,10 +254,21 @@ export function useStartScreenHistory(
     [updateState, onElementsChange]
   );
 
+  const updateLive = useCallback(
+    (elements: StartScreenElement[]) => {
+      managerRef.current.updateLive(elements);
+      setCurrentElements(elements);
+      if (onElementsChange) {
+        onElementsChange(elements);
+      }
+    },
+    [onElementsChange]
+  );
+
   const beginGesture = useCallback(
     (elements: StartScreenElement[], selectedId: string | null = null, selectedIds: string[] = []) => {
       isGestureActiveRef.current = true;
-      gestureStartElementsRef.current = deepCloneElements(elements);
+      managerRef.current.beginGesture(elements, selectedId, selectedIds);
     },
     []
   );
@@ -213,14 +278,15 @@ export function useStartScreenHistory(
       if (!isGestureActiveRef.current) return;
       isGestureActiveRef.current = false;
 
-      if (gestureStartElementsRef.current) {
-        if (!areElementsEqual(gestureStartElementsRef.current, elements)) {
-          pushSnapshot(elements, selectedId, selectedIds);
+      const changed = managerRef.current.commitGesture(elements, selectedId, selectedIds);
+      if (changed) {
+        updateState();
+        if (onElementsChange) {
+          onElementsChange(managerRef.current.getPresent().elements);
         }
       }
-      gestureStartElementsRef.current = null;
     },
-    [pushSnapshot]
+    [updateState, onElementsChange]
   );
 
   const undo = useCallback((): StartScreenHistorySnapshot | null => {
@@ -266,6 +332,7 @@ export function useStartScreenHistory(
     canUndo,
     canRedo,
     pushSnapshot,
+    updateLive,
     undo,
     redo,
     beginGesture,

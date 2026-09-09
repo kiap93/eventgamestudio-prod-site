@@ -45,6 +45,8 @@ interface CanvasWorkspaceProps {
   gameType?: string;
   elements: StartScreenElement[];
   selectedIds: string[];
+  isPreviewMode?: boolean;
+  onExitPreview?: () => void;
   onSelectElement: (id: string, e?: React.MouseEvent) => void;
   onClearSelection: () => void;
   onUpdateElements: (updates: Record<string, Partial<StartScreenElement>>) => void;
@@ -67,6 +69,8 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   gameType = 'memory-match',
   elements,
   selectedIds,
+  isPreviewMode = false,
+  onExitPreview,
   onSelectElement,
   onClearSelection,
   onUpdateElements,
@@ -86,6 +90,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   const [zoom, setZoom] = useState<number>(0.65);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState<boolean>(false);
+  const [isSpacePressed, setIsSpacePressed] = useState<boolean>(false);
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Grid, Snapping & Measurement toggles
@@ -164,14 +169,16 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
     }
   };
 
-  // Middle-mouse or Space key panning
+  // Middle-mouse, Alt key, or Space key panning
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    if (e.button === 1 || (e.button === 0 && (e.altKey || isSpacePressed))) {
       e.preventDefault();
       setIsPanning(true);
       panStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
       return;
     }
+
+    if (isPreviewMode) return;
 
     // Canvas marquee selection start
     if (e.target === canvasRef.current || e.target === containerRef.current) {
@@ -192,10 +199,26 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
     }
   };
 
-  // Keyboard Shortcuts (Arrow keys nudge, Delete, Undo/Redo, etc.)
+  // Keyboard Shortcuts (Arrow keys nudge, Delete, Undo/Redo, Space pan, etc.)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept if user is typing in an input/textarea/select
+      // Space key for panning canvas
+      if (e.code === 'Space' && !e.repeat) {
+        const activeEl = document.activeElement;
+        const isInput =
+          activeEl &&
+          (activeEl.tagName === 'INPUT' ||
+            activeEl.tagName === 'TEXTAREA' ||
+            activeEl.tagName === 'SELECT' ||
+            activeEl.getAttribute('contenteditable') === 'true');
+        if (!isInput) {
+          e.preventDefault();
+          setIsSpacePressed(true);
+          return;
+        }
+      }
+
+      // Don't intercept editing shortcuts if user is typing in an input/textarea/select
       const activeEl = document.activeElement;
       if (
         activeEl &&
@@ -289,8 +312,18 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, [
     selectedIds,
     elements,
@@ -312,6 +345,9 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
     parentHeight: number,
     e: React.MouseEvent
   ) => {
+    if (isPreviewMode) return;
+    if (isSpacePressed) return;
+
     if (el.locked) {
       e.stopPropagation();
       return;
@@ -693,8 +729,8 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   ): React.ReactNode => {
     if (el.visible === false) return null;
 
-    const isSelected = selectedIds.includes(el.id);
-    const isPrimarySelected = selectedIds[0] === el.id;
+    const isSelected = !isPreviewMode && selectedIds.includes(el.id);
+    const isPrimarySelected = !isPreviewMode && selectedIds[0] === el.id;
 
     const leftPercent = `${(el.x / parentWidth) * 100}%`;
     const topPercent = `${(el.y / parentHeight) * 100}%`;
@@ -710,7 +746,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
       opacity: el.opacity ?? 1,
       zIndex: el.zIndex ?? 1,
       transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
-      cursor: el.locked ? 'not-allowed' : 'move',
+      cursor: isPreviewMode ? 'default' : isSpacePressed ? (isPanning ? 'grabbing' : 'grab') : el.locked ? 'not-allowed' : 'move',
       boxSizing: 'border-box',
     };
 
@@ -805,7 +841,9 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      className="relative w-full h-full bg-slate-950 overflow-hidden select-none flex items-center justify-center cursor-default"
+      className={`relative w-full h-full bg-slate-950 overflow-hidden select-none flex items-center justify-center ${
+        isPanning ? 'cursor-grabbing' : isSpacePressed ? 'cursor-grab' : 'cursor-default'
+      }`}
     >
       {/* Background Dots Canvas Backdrop */}
       <div
@@ -817,6 +855,24 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
         }}
       />
 
+      {/* Floating Preview Mode Banner */}
+      {isPreviewMode && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-slate-900/90 backdrop-blur-md border border-amber-500/50 rounded-full px-4 py-1.5 flex items-center gap-3 shadow-2xl">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-xs font-semibold text-slate-200">
+            Preview Mode • Live Start Screen Experience
+          </span>
+          {onExitPreview && (
+            <button
+              onClick={onExitPreview}
+              className="ml-1 px-2.5 py-0.5 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-bold shadow transition-colors cursor-pointer"
+            >
+              Exit Preview
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Floating Viewport / Canvas Controls Toolbar */}
       <div className="absolute bottom-4 left-4 z-40 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-2xl text-slate-300">
         <button
@@ -826,9 +882,23 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
         >
           <ZoomOut className="w-4 h-4" />
         </button>
-        <span className="font-mono text-xs font-bold w-12 text-center text-amber-400">
-          {Math.round(zoom * 100)}%
-        </span>
+
+        {/* Zoom Dropdown Presets */}
+        <select
+          value={Math.round(zoom * 100)}
+          onChange={(e) => setZoom(Number(e.target.value) / 100)}
+          className="bg-slate-950 border border-slate-700 text-amber-400 text-xs font-mono font-bold rounded px-1.5 py-1 outline-none cursor-pointer"
+        >
+          <option value="25">25%</option>
+          <option value="50">50%</option>
+          <option value="65">65%</option>
+          <option value="75">75%</option>
+          <option value="100">100%</option>
+          <option value="125">125%</option>
+          <option value="150">150%</option>
+          <option value="200">200%</option>
+        </select>
+
         <button
           onClick={() => setZoom((z) => Math.min(2.5, Number((z + 0.1).toFixed(2))))}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white"
@@ -881,7 +951,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
         </button>
       </div>
 
-      {/* 1000x1000 Logical Canvas Container */}
+      {/* Logical Canvas Container */}
       <div
         ref={canvasRef}
         style={{
@@ -900,7 +970,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
         />
 
         {/* Grid Overlay */}
-        {showGrid && (
+        {!isPreviewMode && showGrid && (
           <div
             className="absolute inset-0 w-full h-full pointer-events-none opacity-20"
             style={{
@@ -914,39 +984,54 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
         {elements.map((el) => renderElement(el, CANVAS_WIDTH, CANVAS_HEIGHT, 0))}
 
         {/* Alignment Snapping Guides */}
-        {activeGuides.map((guide, idx) => (
-          <div
-            key={`guide-${idx}`}
-            className="absolute bg-amber-400 pointer-events-none z-50 shadow-[0_0_6px_rgba(245,158,11,0.8)]"
-            style={{
-              left: guide.orientation === 'vertical' ? `${guide.position}px` : 0,
-              top: guide.orientation === 'horizontal' ? `${guide.position}px` : 0,
-              width: guide.orientation === 'vertical' ? '1px' : '100%',
-              height: guide.orientation === 'horizontal' ? '1px' : '100%',
-            }}
-          />
-        ))}
+        {!isPreviewMode &&
+          activeGuides.map((guide, idx) => {
+            const isVert =
+              (guide as any).type === 'vertical' || (guide as any).orientation === 'vertical';
+            return (
+              <div
+                key={`guide-${idx}`}
+                className="absolute pointer-events-none z-50 transition-opacity duration-75"
+                style={{
+                  left: isVert ? `${guide.position}px` : `${guide.start ?? 0}px`,
+                  top: isVert ? `${guide.start ?? 0}px` : `${guide.position}px`,
+                  width: isVert ? '1.5px' : `${(guide.end ?? CANVAS_WIDTH) - (guide.start ?? 0)}px`,
+                  height: isVert ? `${(guide.end ?? CANVAS_HEIGHT) - (guide.start ?? 0)}px` : '1.5px',
+                  transform: isVert ? 'translateX(-50%)' : 'translateY(-50%)',
+                }}
+              >
+                <div className="w-full h-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.95)] opacity-95" />
+                {guide.label && (
+                  <div className="absolute top-1 left-1.5 -translate-y-1/2 bg-slate-950/95 border border-amber-400/80 text-amber-300 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap">
+                    {guide.label}
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
         {/* Spacing / Distance Measurements */}
-        {activeMeasurements.map((m, idx) => (
-          <div
-            key={`measurement-${idx}`}
-            className="absolute pointer-events-none z-50 flex items-center justify-center"
-            style={{
-              left: `${m.startX}px`,
-              top: `${m.startY}px`,
-              width: `${Math.abs(m.endX - m.startX)}px`,
-              height: `${Math.abs(m.endY - m.startY)}px`,
-            }}
-          >
-            <span className="bg-slate-900/90 text-amber-300 font-mono text-[10px] px-1 rounded border border-amber-500/40">
-              {m.distance}px
-            </span>
-          </div>
-        ))}
+        {!isPreviewMode &&
+          showMeasurements &&
+          activeMeasurements.map((m, idx) => (
+            <div
+              key={`measurement-${idx}`}
+              className="absolute pointer-events-none z-50 flex items-center justify-center"
+              style={{
+                left: `${m.startX}px`,
+                top: `${m.startY}px`,
+                width: `${Math.abs(m.endX - m.startX)}px`,
+                height: `${Math.abs(m.endY - m.startY)}px`,
+              }}
+            >
+              <span className="bg-slate-900/90 text-amber-300 font-mono text-[10px] px-1 rounded border border-amber-500/40">
+                {m.distance}px
+              </span>
+            </div>
+          ))}
 
         {/* Marquee Selection Box */}
-        {marqueeBox && (
+        {!isPreviewMode && marqueeBox && (
           <div
             className="absolute border border-amber-400 bg-amber-500/10 pointer-events-none z-50"
             style={{
