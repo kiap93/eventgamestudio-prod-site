@@ -15,6 +15,8 @@ export type AlignmentType =
   | 'distribute-h'
   | 'distribute-v';
 
+export type ElementAlignment = AlignmentType;
+
 /**
  * Calculates updated coordinates for selected elements according to the chosen alignment type.
  * Respects parent container dimensions (or canvas dimensions for root elements)

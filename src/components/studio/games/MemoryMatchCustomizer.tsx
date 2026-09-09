@@ -32,6 +32,10 @@ import {
 } from '../../../games/memory-match/types';
 import { ResultScreenRenderer } from '../../../games/memory-match/ResultScreenRenderer';
 import { ResultScreenVisualEditor } from './ResultScreenVisualEditor';
+import { StartScreenVisualEditorModal } from './start-editor/StartScreenVisualEditorModal';
+import { StartScreenRenderer } from '../../../games/shared/StartScreenRenderer';
+import { getStartScreenConfig } from '../../../games/shared/startScreenResolver';
+import { StartScreenConfig } from '../../../games/shared/startScreenTypes';
 import { ensureRequiredPairs, DEFAULT_CARD_PROTOTYPES } from '../../../games/memory-match/cardDeck';
 import {
   Grid3X3,
@@ -2225,6 +2229,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
   const [isResultEditorFullscreen, setIsResultEditorFullscreen] = useState(false);
+  const [isStartEditorModalOpen, setIsStartEditorModalOpen] = useState(false);
   const [startDragActive, setStartDragActive] = useState(false);
   const [resultDragActive, setResultDragActive] = useState(false);
   const [startUploadError, setStartUploadError] = useState<string | null>(null);
@@ -2235,8 +2240,6 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
 
   const memoryConfig = getMemoryMatchConfig(theme);
   const screens = memoryConfig.screens || DEFAULT_SCREENS_CONFIG;
-  const startConfig = screens.start || DEFAULT_START_SCREEN_CONFIG;
-  const resultConfig = screens.result || DEFAULT_RESULT_SCREEN_CONFIG;
 
   const rows = Math.max(MIN_BOARD_ROWS, Math.min(MAX_BOARD_ROWS, memoryConfig.board?.rows ?? memoryConfig.grid?.rows ?? 4));
   const cols = Math.max(MIN_BOARD_COLS, Math.min(MAX_BOARD_COLS, memoryConfig.board?.cols ?? memoryConfig.grid?.cols ?? 4));
@@ -2244,14 +2247,66 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
   const totalPairs = Math.floor(totalCards / 2);
   const duration = memoryConfig.gameplay?.gameDurationSeconds ?? 45;
 
-  const handleUpdateStartScreen = (updates: Partial<MemoryMatchStartScreenConfig>) => {
-    const nextStart: MemoryMatchStartScreenConfig = {
+  const startConfig = getStartScreenConfig(theme, 'memory-match', {
+    rows,
+    cols,
+    totalCards,
+    totalPairs,
+    duration,
+    gameTitle: theme.name || 'Memory Match',
+    logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
+  });
+  const resultConfig = screens.result || DEFAULT_RESULT_SCREEN_CONFIG;
+
+  const handleUpdateStartScreen = (updates: Partial<StartScreenConfig>) => {
+    // Synchronize background object
+    const nextBackground = {
+      type: updates.backgroundType || updates.background?.type || startConfig.background?.type || 'theme',
+      color: updates.backgroundColor || updates.background?.color || startConfig.background?.color || '#0f172a',
+      imageUrl: updates.backgroundImageUrl !== undefined ? updates.backgroundImageUrl : (updates.background?.imageUrl !== undefined ? updates.background.imageUrl : startConfig.background?.imageUrl),
+      overlayOpacity: updates.backgroundOverlayOpacity !== undefined ? updates.backgroundOverlayOpacity : (updates.background?.overlayOpacity !== undefined ? updates.background.overlayOpacity : 0.3),
+    };
+
+    let nextElements = updates.elements || startConfig.elements;
+    // Synchronize legacy toggle updates with element visibility in the element tree
+    if (
+      updates.showIcon !== undefined ||
+      updates.showGridInfo !== undefined ||
+      updates.showPairsInfo !== undefined ||
+      updates.showTimerInfo !== undefined
+    ) {
+      const syncVisibility = (els: any[]): any[] => {
+        return els.map((el) => {
+          let vis = el.visible;
+          if (el.id === 'top-icon' && updates.showIcon !== undefined) {
+            vis = updates.showIcon;
+          } else if (el.id === 'badge-grid' && updates.showGridInfo !== undefined) {
+            vis = updates.showGridInfo;
+          } else if (el.id === 'badge-pairs' && updates.showPairsInfo !== undefined) {
+            vis = updates.showPairsInfo;
+          } else if (el.id === 'badge-timer' && updates.showTimerInfo !== undefined) {
+            vis = updates.showTimerInfo;
+          }
+          const updatedChildren = Array.isArray(el.children) ? syncVisibility(el.children) : undefined;
+          return {
+            ...el,
+            visible: vis,
+            ...(updatedChildren ? { children: updatedChildren } : {}),
+          };
+        });
+      };
+      nextElements = syncVisibility(nextElements);
+    }
+
+    const nextStart: StartScreenConfig = {
       ...startConfig,
       ...updates,
+      background: nextBackground,
+      elements: nextElements,
     };
     const nextScreens: MemoryMatchScreensConfig = {
       ...screens,
-      start: nextStart,
+      start: nextStart as any,
     };
     const nextMemoryConfig: MemoryMatchGameConfig = {
       ...memoryConfig,
@@ -2260,6 +2315,10 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
     onChange({
       ...theme,
       game_config: nextMemoryConfig,
+      screens: {
+        ...(theme.screens || {}),
+        start: nextStart as any,
+      },
     });
   };
 
@@ -2781,69 +2840,64 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
             </div>
           </div>
 
-          {/* C. Live Miniature Start Screen Preview Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-3 shadow-lg">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <Play className="w-3.5 h-3.5 text-amber-400 fill-current" />
-                <span>Start Screen Live Simulation</span>
-              </h4>
-              <span className="text-[11px] text-slate-500 font-mono">16:9 Scale Preview</span>
+          {/* C. Visual Canvas Editor & Live Miniature Start Screen Preview */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-amber-400" />
+                  <span>Start Screen Visual Canvas Editor</span>
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Design layout, badges, buttons, and graphics using the 1000×1000 visual canvas editor.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsStartEditorModalOpen(true)}
+                className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
+              >
+                <Maximize2 className="w-4 h-4" />
+                <span>Open Start Screen Editor</span>
+              </button>
             </div>
 
-            <div
-              className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col items-center justify-center p-4 text-center select-none"
-              style={startBgStyles.containerStyle}
-            >
-              {/* Overlay */}
-              <div className="absolute inset-0" style={startBgStyles.overlayStyle} />
-
-              <div className="relative z-10 max-w-sm w-full space-y-3 px-3">
-                {/* Icon */}
-                {startConfig.showIcon !== false && (
-                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center mx-auto shadow-lg">
-                    <Grid3X3 className="w-5 h-5" />
-                  </div>
-                )}
-
-                <div className="space-y-0.5">
-                  <h3 className="text-base sm:text-lg font-black text-slate-100 tracking-tight">
-                    {theme.name || 'Memory Match'}
-                  </h3>
-                  <p className="text-[11px] text-slate-300 line-clamp-1">
-                    {theme.description || 'Flip cards, match identical pairs, and beat the clock!'}
-                  </p>
-                </div>
-
-                {/* Pills */}
-                <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
-                  {startConfig.showGridInfo !== false && (
-                    <span className="px-2.5 py-0.5 bg-slate-900/80 border border-slate-700/80 text-slate-200 text-[10px] font-bold rounded-full">
-                      {rows}×{cols} ({totalCards} Cards)
-                    </span>
-                  )}
-                  {startConfig.showPairsInfo !== false && (
-                    <span className="px-2.5 py-0.5 bg-slate-900/80 border border-slate-700/80 text-slate-200 text-[10px] font-bold rounded-full">
-                      {totalPairs} Pairs
-                    </span>
-                  )}
-                  {startConfig.showTimerInfo !== false && (
-                    <span className="px-2.5 py-0.5 bg-slate-900/80 border border-slate-700/80 text-amber-400 text-[10px] font-bold rounded-full">
-                      {duration}s
-                    </span>
-                  )}
-                </div>
-
-                {/* Start Button Simulation */}
-                <div className="pt-2">
-                  <div className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs shadow-lg">
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>START GAME</span>
-                  </div>
-                </div>
+            {/* Live Scaled Preview Frame using Authoritative StartScreenRenderer */}
+            <div className="flex flex-col items-center justify-center p-3 sm:p-4 bg-slate-950/70 rounded-2xl border border-slate-800/80">
+              <div className="w-full max-w-[540px] aspect-video rounded-xl overflow-hidden border border-slate-700/60 shadow-2xl relative">
+                <StartScreenRenderer
+                  config={startConfig}
+                  theme={theme}
+                  gameType="memory-match"
+                  targetDimensions={{ width: 1024, height: 576 }}
+                  gameMeta={{
+                    rows,
+                    cols,
+                    totalCards,
+                    totalPairs,
+                    duration,
+                    gameTitle: theme.name || 'Memory Match',
+                    logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
+                  }}
+                  onStartGame={() => {}}
+                  isSimulation={true}
+                />
               </div>
+              <span className="text-[11px] text-slate-500 mt-2 font-mono">
+                Interactive Scaled Canvas Preview (1024 × 576)
+              </span>
             </div>
           </div>
+
+          <StartScreenVisualEditorModal
+            isOpen={isStartEditorModalOpen}
+            onClose={() => setIsStartEditorModalOpen(false)}
+            startConfig={startConfig}
+            theme={theme}
+            gameType="memory-match"
+            onChange={handleUpdateStartScreen}
+            onUploadAsset={onUploadAsset as any}
+          />
         </div>
       )}
 

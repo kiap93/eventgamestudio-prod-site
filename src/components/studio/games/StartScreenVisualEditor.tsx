@@ -370,6 +370,15 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
     [selectedIds, effectiveConfig.canvas?.width, effectiveConfig.canvas?.height, currentElements, updateElementsWithHistory]
   );
 
+  // Check if all selected elements are locked
+  const isAllSelectedLocked = useMemo(() => {
+    if (selectedIds.length === 0) return false;
+    return selectedIds.every((id) => {
+      const info = findElementAndParent(id, currentElements);
+      return info?.element.locked;
+    });
+  }, [selectedIds, currentElements]);
+
   // Bulk Lock Toggle for selected elements
   const handleBulkLockToggle = useCallback(() => {
     if (selectedIds.length === 0) return;
@@ -447,15 +456,6 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
     },
     [updateElementsWithHistory]
   );
-
-  // Check if all selected elements are locked
-  const isAllSelectedLocked = useMemo(() => {
-    if (selectedIds.length === 0) return false;
-    return selectedIds.every((id) => {
-      const info = findElementAndParent(id, currentElements);
-      return info?.element.locked;
-    });
-  }, [selectedIds, currentElements]);
 
   // Move element to container
   const handleMoveToContainer = useCallback(
