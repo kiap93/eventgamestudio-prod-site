@@ -16,6 +16,7 @@ import {
   calculateEventCalendarDays,
 } from '../../lib/dateUtils';
 import { PaymentCheckoutModal } from '../wallet/PaymentCheckoutModal';
+import { getGameTypeIcon } from '../../games';
 import {
   X,
   Calendar,
@@ -608,7 +609,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                     {/* 1st Dropdown: Game Engine */}
                     <div className="space-y-1.5">
                       <label htmlFor="event-game-dropdown" className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
-                        <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
+                        {getGameTypeIcon(games.find((g) => g.id === selectedGameId)?.game_type || games.find((g) => g.id === selectedGameId)?.icon_name || games.find((g) => g.id === selectedGameId)?.slug, 'w-3.5 h-3.5 text-amber-400')}
                         <span>1. Select Game Engine</span>
                         <span className="text-amber-400">*</span>
                       </label>
@@ -632,7 +633,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                           )}
                         </select>
                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                          <Gamepad2 className="w-4 h-4 text-amber-400" />
+                          {getGameTypeIcon(games.find((g) => g.id === selectedGameId)?.game_type || games.find((g) => g.id === selectedGameId)?.icon_name || games.find((g) => g.id === selectedGameId)?.slug, 'w-4 h-4 text-amber-400')}
                         </div>
                         <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
                           <ChevronDown className="w-4 h-4" />
@@ -1020,8 +1021,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   <span className="text-[10px] font-mono text-slate-400">Token: {createdEvent?.public_token}</span>
                 </div>
                 <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                  <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{selectedTheme?.game_name || 'Catch the Brand'}</span>
+                  {getGameTypeIcon(games.find((g) => g.id === selectedGameId)?.game_type || games.find((g) => g.id === selectedGameId)?.icon_name || selectedTheme?.game_slug, 'w-3.5 h-3.5 text-amber-400')}
+                  <span>{games.find((g) => g.id === selectedGameId)?.name || selectedTheme?.game_name || 'Event Game'}</span>
                   <span>•</span>
                   <span>{selectedTheme?.name || 'Theme'}</span>
                 </div>

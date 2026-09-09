@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { PlatformGame, PlatformStats } from '../../types/developer';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { CreateGameModal } from './CreateGameModal';
+import { getGameTypeIcon } from '../../games';
 import {
   Gamepad2,
   Plus,
@@ -233,7 +234,7 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center space-x-3">
                       <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-600/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-inner">
-                        <Gamepad2 className="w-6 h-6" />
+                        {getGameTypeIcon(game.game_type || game.icon_name || game.slug, 'w-6 h-6')}
                       </div>
                       <div>
                         <h3 className="text-base font-bold text-white group-hover:text-emerald-400 transition-colors">

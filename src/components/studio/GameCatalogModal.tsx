@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAllGameDefinitions } from '../../games/registry';
+import { getGameTypeIcon } from '../../games';
 import { apiFetch } from '../../lib/api';
 import { Gamepad2, Zap, Grid3X3, HelpCircle, Users, Clock, CheckCircle2, Sparkles, X, RefreshCw } from 'lucide-react';
 
@@ -78,7 +79,7 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
           slug: pg.slug,
           gameType: pg.game_type,
           description: pg.description || matchingDef?.description || 'Custom interactive brand game.',
-          iconName: pg.icon_name || matchingDef?.iconName || 'Gamepad2',
+          iconName: pg.icon_name || matchingDef?.iconName || (pg.game_type === 'reaction-tap' ? 'Zap' : pg.game_type === 'memory-match' ? 'Grid3X3' : pg.game_type === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'),
           isAvailable: pg.status === 'active',
           themeCount: pg.theme_count ?? 0,
           minPlayers: matchingDef?.minPlayers || 1,
@@ -156,7 +157,7 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-amber-400">
-                        {getIcon(game.iconName)}
+                        {getGameTypeIcon(game.gameType || game.iconName || game.slug, 'w-5 h-5')}
                       </div>
                       {isCurrent ? (
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">

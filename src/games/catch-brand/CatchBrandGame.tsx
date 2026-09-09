@@ -113,7 +113,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
       height: GAME_HEIGHT,
       scale: {
         mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
+        autoCenter: Phaser.Scale.NO_CENTER,
       },
       physics: {
         default: 'arcade',
@@ -290,49 +290,50 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
       className="game-container game-viewport relative w-full h-full flex items-center justify-center overflow-hidden bg-[#07130b]"
       style={{
         backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
-        ...(customBgUrl
-          ? {
-              backgroundImage: `url(${customBgUrl})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center center',
-            }
-          : {}),
       }}
     >
-      {/* Full container backdrop for letterbox margins */}
-      <div
-        className="game-ui-backdrop"
-        style={{
-          backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
-          backgroundImage: customBgUrl
-            ? `url(${customBgUrl})`
-            : activeTheme?.visuals_config?.bgGradientFrom
-            ? `radial-gradient(circle at 50% 20%, ${activeTheme.visuals_config.bgGradientFrom} 0%, ${activeTheme?.visuals_config?.bgGradientTo || '#07130b'} 100%)`
-            : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-        }}
-      />
+      {/* Ambient letterbox backdrop behind GameStage - purely visual, non-competing */}
+      {customBgUrl && (
+        <div
+          className="game-ui-backdrop absolute inset-0 pointer-events-none overflow-hidden"
+          style={{
+            backgroundImage: `url(${customBgUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            filter: 'blur(24px) brightness(0.25)',
+            opacity: 0.45,
+            transform: 'scale(1.1)',
+          }}
+          aria-hidden="true"
+        />
+      )}
 
-      {/* Proportionally Scaled Single Game Stage containing Canvas & UI Overlay */}
+      {/* Authoritative Single Game Stage (16:9 Landscape / 9:16 Portrait) */}
       <div
-        className={`game-stage relative w-full h-full ${
-          responsive.isPortrait
-            ? 'aspect-[9/16] max-h-full w-auto'
-            : 'aspect-[16/9] max-w-full max-h-full'
-        } flex items-center justify-center overflow-hidden pointer-events-auto`}
+        id="catch-brand-game-stage"
+        className={`game-stage relative overflow-hidden pointer-events-auto shrink-0 ${
+          responsive.isPortrait ? 'is-portrait aspect-[9/16]' : 'aspect-[16/9]'
+        }`}
+        style={{
+          width: `${responsive.stageWidth}px`,
+          height: `${responsive.stageHeight}px`,
+          maxWidth: '100%',
+          maxHeight: '100%',
+          backgroundColor: activeTheme?.visuals_config?.bgGradientTo || '#07130b',
+        }}
       >
         {/* Hidden Video for Gesture Tracking */}
         <video ref={videoRef} className="hidden" playsInline muted />
 
-        {/* Phaser Canvas Container */}
+        {/* Phaser Canvas Container: Authoritative canvas layer matching GameStage bounds */}
         <div
           ref={containerRef}
-          className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center pointer-events-auto"
+          id="phaser-canvas-container"
+          className="absolute inset-0 w-full h-full overflow-hidden pointer-events-auto"
         />
 
-        {/* Arcade UI Overlay directly mounted inside game stage over canvas */}
+        {/* Arcade UI Overlay directly mounted inside game stage over canvas with unified scale */}
         <ArcadeUI
           gameState={gameState}
           stats={stats}
@@ -358,6 +359,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
           onResetSettings={handleResetSettings}
           activeTheme={activeTheme}
           onSelectTheme={handleSelectTheme}
+          responsive={responsive}
         />
       </div>
     </div>

@@ -2653,13 +2653,25 @@ export default {
           return errorResponse('Permission denied: Only owners and admins can edit event configuration', 403, cors);
         }
 
+        // Security Rule: Paid event = admin/user cannot manually edit event setup.
+        const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
+        if (isPaid) {
+          return jsonResponse(
+            {
+              error: 'Event setup cannot be modified after payment has been completed.',
+              code: 'EVENT_LOCKED_AFTER_PAYMENT',
+            },
+            403,
+            cors
+          );
+        }
+
         const body = (await request.json().catch(() => ({}))) as any;
 
         // Security check: Block attempts to mutate sensitive / lifecycle / payment columns via standard event edit
         const forbiddenFields = [
           'payment_status',
           'event_status',
-          'status',
           'paid_amount',
           'discount_amount',
           'event_price',
@@ -2681,6 +2693,14 @@ export default {
           }
         }
 
+        if (body.status !== undefined && body.status !== 'draft' && body.status !== 'scheduled') {
+          return errorResponse(
+            `Modifying protected field 'status' to '${body.status}' is strictly prohibited. Event payment, pricing, and lifecycle statuses can only be modified through authoritative payment and lifecycle workflows.`,
+            400,
+            cors
+          );
+        }
+
         const {
           name,
           game_theme_id,
@@ -2691,26 +2711,39 @@ export default {
           endDate,
           starts_at,
           expires_at,
+          status,
         } = body;
 
-        const updated = await updateEvent(
-          eventId,
-          {
-            name,
-            game_theme_id,
-            event_date,
-            start_date,
-            end_date,
-            startDate,
-            endDate,
-            starts_at,
-            expires_at,
-          },
-          env
-        );
+        try {
+          const updated = await updateEvent(
+            eventId,
+            {
+              name,
+              game_theme_id,
+              event_date,
+              start_date,
+              end_date,
+              startDate,
+              endDate,
+              starts_at,
+              expires_at,
+              status,
+            },
+            env
+          );
 
-        const enriched = await getEventById(updated.id, env);
-        return jsonResponse({ event: enriched }, 200, cors);
+          const enriched = await getEventById(updated.id, env);
+          return jsonResponse({ event: enriched }, 200, cors);
+        } catch (updateErr: any) {
+          return jsonResponse(
+            {
+              error: updateErr.message || 'Failed to update event',
+              code: updateErr.code || undefined,
+            },
+            updateErr.status || 400,
+            cors
+          );
+        }
       }
 
       const deleteEventParams = parseRoute('/api/events/:eventId', pathname);
@@ -3394,7 +3427,10 @@ export default {
         if (!auth.authenticated) return auth.errorResponse!;
 
         const { eventId } = publishShowcaseParams;
+        console.log(`[Worker Showcase Publish] eventId received: ${eventId}`);
+
         const event = await getEventById(eventId, env);
+        console.log(`[Worker Showcase Publish] event existence: ${!!event}${event ? ` (id=${event.id}, name="${event.name}")` : ''}`);
         if (!event) {
           return errorResponse('Event not found', 404, cors);
         }
@@ -3410,21 +3446,37 @@ export default {
         }
 
         const existing = await getShowcaseByEventId(eventId, env);
-        if (!existing) {
-          return errorResponse('Event Showcase not found', 404, cors);
-        }
+        console.log(`[Worker Showcase Publish] showcase lookup result: ${existing ? `Found existing showcase (id=${existing.id}, status=${existing.status})` : 'None found (will create and publish new showcase)'}`);
 
-        if (existing.status === 'BLOCKED') {
+        if (existing && existing.status === 'BLOCKED') {
           return errorResponse('Cannot publish a blocked showcase. Please contact support.', 403, cors);
         }
 
+        let updates: any = undefined;
         try {
-          const showcase = await publishShowcase(eventId, env);
+          const body = await request.json().catch(() => null);
+          if (body && typeof body === 'object') {
+            updates = {
+              title: typeof body.title === 'string' ? body.title : undefined,
+              description: typeof body.description === 'string' || body.description === null ? body.description : undefined,
+              client_name: typeof body.client_name === 'string' || body.client_name === null ? body.client_name : undefined,
+              client_logo_url: typeof body.client_logo_url === 'string' || body.client_logo_url === null ? body.client_logo_url : undefined,
+              cover_image_url: typeof body.cover_image_url === 'string' || body.cover_image_url === null ? body.cover_image_url : undefined,
+            };
+          }
+        } catch {
+          // ignore empty body
+        }
+
+        try {
+          const showcase = await publishShowcase(eventId, updates, env);
+          console.log(`[Worker Showcase Publish] showcase ID: ${showcase.id}`);
+          console.log(`[Worker Showcase Publish] publish/update result: status=${showcase.status}, publication_status=${showcase.publication_status}, event_id=${showcase.event_id}`);
           evaluateShowcaseRewardEligibility(eventId, env).catch((err) => console.warn('Reward evaluation notice on publish:', err));
           return jsonResponse({ showcase }, 200, cors);
         } catch (err: any) {
           console.error('Publish showcase error:', err);
-          return errorResponse(err.message || 'Failed to publish showcase', 500, cors);
+          return errorResponse(err.message || 'Failed to publish showcase', err.status || 500, cors);
         }
       }
 
@@ -6182,12 +6234,20 @@ export default {
 
   /**
    * Cloudflare Worker Scheduled Cron Trigger Handler
-   * Periodically runs event lifecycle maintenance (e.g. every minute)
+   * Periodically runs event lifecycle maintenance (configured via [triggers] crons in wrangler.toml)
    */
   async scheduled(_controller: any, env: Env, _ctx: any): Promise<void> {
     try {
       const result = await runEventLifecycleMaintenance(env);
-      console.log(`[Worker Cron Maintenance] Processed: ${result.cancelledCount} cancelled, ${result.completedCount} completed`);
+      console.log(
+        `[Worker Cron Maintenance] Processed: ` +
+        `${result.cancelledCount} cancelled, ` +
+        `${result.completedCount} completed, ` +
+        `${result.expiredCount} expired, ` +
+        `${result.paidCount} auto-paid, ` +
+        `${result.paymentFailedCount} payment failed, ` +
+        `${result.testScoresClearedCount} test scores cleared`
+      );
     } catch (err) {
       console.error('[Worker Cron Maintenance] Error running event lifecycle maintenance:', err);
     }

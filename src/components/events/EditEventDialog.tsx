@@ -6,6 +6,7 @@ import {
   formatEventDateRange,
   getTodayDateString,
 } from '../../lib/dateUtils';
+import { getGameTypeIcon } from '../../games';
 import {
   X,
   Calendar,
@@ -16,6 +17,7 @@ import {
   Link,
   Layers,
   ExternalLink,
+  Lock,
 } from 'lucide-react';
 
 interface GameThemeOption {
@@ -108,9 +110,16 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
 
   if (!isOpen || !event) return null;
 
+  const isPaid = (event?.payment_status || '').toUpperCase() === 'PAID';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (isPaid) {
+      setError('Event setup cannot be modified after payment has been completed.');
+      return;
+    }
 
     if (!name.trim()) {
       setError('Event name is required');
@@ -176,10 +185,19 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
         <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400">
-              <Calendar className="w-5 h-5" />
+              {isPaid ? <Lock className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-100">Edit Event Setup</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-100">
+                  {isPaid ? 'Event Setup' : 'Edit Event Setup'}
+                </h2>
+                {isPaid && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    <Lock className="w-2.5 h-2.5" /> Paid & Locked
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-400 font-mono">
                 Token: {event.public_token}
               </p>
@@ -195,6 +213,26 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1">
+          {/* Lock Banner for Paid Events */}
+          {isPaid && (
+            <div className="mb-5 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3">
+              <div className="p-2 bg-amber-500/20 text-amber-400 rounded-xl shrink-0 mt-0.5">
+                <Lock className="w-4 h-4" />
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs font-bold text-amber-300">
+                  🔒 Paid — Event Setup Locked
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  This event has been paid and activated. Event details (name, game theme, event dates, and status) are locked to protect event integrity.
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Automatic system lifecycle transitions (Live window activation, High score tracking, and Completion) continue to operate automatically.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Quick Showcase Page Link Banner */}
           <div className="mb-5 p-3.5 bg-slate-950/80 border border-amber-500/20 rounded-2xl flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
@@ -228,14 +266,20 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
             {/* Event Name */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-300">
-                Event Name <span className="text-amber-400">*</span>
+                Event Name {isPaid ? '' : <span className="text-amber-400">*</span>}
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={isPaid}
+                readOnly={isPaid}
                 required
-                className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder:text-slate-600 outline-none transition-all"
+                className={`w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none transition-all ${
+                  isPaid
+                    ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-slate-800 text-slate-400'
+                    : 'border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 placeholder:text-slate-600'
+                }`}
               />
             </div>
 
@@ -243,10 +287,10 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-300">
-                  Assigned Game Theme <span className="text-amber-400">*</span>
+                  Assigned Game Theme {isPaid ? '' : <span className="text-amber-400">*</span>}
                 </label>
                 <span className="text-[11px] text-slate-500">
-                  Switch live theme without breaking URL
+                  {isPaid ? 'Theme locked after payment' : 'Switch live theme without breaking URL'}
                 </span>
               </div>
 
@@ -266,7 +310,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                   ).map(([gameName, gameThemeList]) => (
                     <div key={gameName} className="space-y-1.5">
                       <div className="flex items-center gap-1.5 px-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                        <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
+                        {getGameTypeIcon(gameThemeList[0]?.game_slug || gameName, 'w-3.5 h-3.5 text-amber-400')}
                         <span>{gameName}</span>
                         <span className="text-slate-600">({gameThemeList.length})</span>
                       </div>
@@ -279,11 +323,16 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                             <button
                               key={theme.id}
                               type="button"
-                              onClick={() => setSelectedThemeId(theme.id)}
+                              disabled={isPaid}
+                              onClick={() => !isPaid && setSelectedThemeId(theme.id)}
                               className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
-                                isSelected
-                                  ? 'bg-amber-500/10 border-amber-500/50 ring-1 ring-amber-500/30'
-                                  : 'bg-slate-950 hover:bg-slate-800/60 border-slate-800 text-slate-300'
+                                isPaid
+                                  ? isSelected
+                                    ? 'bg-amber-500/10 border-amber-500/30 opacity-80 cursor-not-allowed text-slate-300'
+                                    : 'bg-slate-950/50 border-slate-800/60 opacity-40 cursor-not-allowed text-slate-500'
+                                  : isSelected
+                                    ? 'bg-amber-500/10 border-amber-500/50 ring-1 ring-amber-500/30'
+                                    : 'bg-slate-950 hover:bg-slate-800/60 border-slate-800 text-slate-300'
                               }`}
                             >
                               <div className="flex items-center gap-2.5">
@@ -328,7 +377,10 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                   <input
                     type="date"
                     value={startDate}
+                    disabled={isPaid}
+                    readOnly={isPaid}
                     onChange={(e) => {
+                      if (isPaid) return;
                       const newStart = e.target.value;
                       setStartDate(newStart);
                       if (endDate < newStart) {
@@ -336,7 +388,11 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                       }
                     }}
                     required
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all cursor-pointer"
+                    className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all ${
+                      isPaid
+                        ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-slate-800 text-slate-400'
+                        : 'border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 cursor-pointer'
+                    }`}
                   />
                 </div>
 
@@ -349,9 +405,15 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                     type="date"
                     min={startDate}
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    disabled={isPaid}
+                    readOnly={isPaid}
+                    onChange={(e) => !isPaid && setEndDate(e.target.value)}
                     required
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all cursor-pointer"
+                    className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2 text-xs text-slate-100 outline-none transition-all ${
+                      isPaid
+                        ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-slate-800 text-slate-400'
+                        : 'border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 cursor-pointer'
+                    }`}
                   />
                 </div>
               </div>
@@ -370,8 +432,13 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
               </label>
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none"
+                disabled={isPaid}
+                onChange={(e) => !isPaid && setStatus(e.target.value as any)}
+                className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2 text-xs text-slate-200 outline-none ${
+                  isPaid
+                    ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-slate-800 text-slate-400'
+                    : 'border-slate-800 focus:border-amber-500'
+                }`}
               >
                 <option value="scheduled">Scheduled / Auto-time window</option>
                 <option value="draft">Draft (Hidden)</option>
@@ -394,25 +461,37 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                 onClick={onClose}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
               >
-                Cancel
+                {isPaid ? 'Close' : 'Cancel'}
               </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold rounded-xl transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer"
-              >
-                {submitting ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Save Changes</span>
-                  </>
-                )}
-              </button>
+              {isPaid ? (
+                <button
+                  type="button"
+                  disabled={true}
+                  className="px-5 py-2 bg-slate-800/80 text-slate-500 border border-slate-700/50 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-not-allowed"
+                  title="Event setup is locked after payment"
+                >
+                  <Lock className="w-3.5 h-3.5 text-amber-400/60" />
+                  <span>Locked (Paid)</span>
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-bold rounded-xl transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {submitting ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Save Changes</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </form>
         </div>

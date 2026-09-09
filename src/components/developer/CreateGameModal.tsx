@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { PlatformGame } from '../../types/developer';
 import { GAME_REGISTRY } from '../../games/registry';
+import { getGameTypeIcon } from '../../games';
 import { X, Gamepad2, CheckCircle2, AlertCircle, Info, Lock } from 'lucide-react';
 
 interface CreateGameModalProps {
@@ -71,7 +72,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
       setName(def?.name || '');
       setSlug(firstAvailable);
       setDescription(def?.description || '');
-      setIconName(def?.iconName || 'Gamepad2');
+      setIconName(def?.iconName || (firstAvailable === 'reaction-tap' ? 'Zap' : firstAvailable === 'memory-match' ? 'Grid3X3' : firstAvailable === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'));
       setStatus('active');
     }
     setError(null);
@@ -85,7 +86,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
         setName(def.name);
         setSlug(selectedType);
         setDescription(def.description || '');
-        setIconName(def.iconName || 'Gamepad2');
+        setIconName(def.iconName || (selectedType === 'reaction-tap' ? 'Zap' : selectedType === 'memory-match' ? 'Grid3X3' : selectedType === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'));
       }
     }
   };
@@ -147,7 +148,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 bg-slate-800/80 border-b border-slate-700">
           <div className="flex items-center space-x-3">
             <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <Gamepad2 className="w-5 h-5" />
+              {getGameTypeIcon(gameType, 'w-5 h-5')}
             </div>
             <div>
               <h3 className="text-base font-bold text-white">

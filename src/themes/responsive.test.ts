@@ -7,7 +7,7 @@ import {
   PORTRAIT_DESIGN_WIDTH,
   PORTRAIT_DESIGN_HEIGHT,
 } from './responsive';
-import { normalizeGameLayout, GameLayoutConfig } from './layout';
+import { normalizeGameLayout, GameLayoutConfig, calculateDraggedPosition } from './layout';
 
 let passed = 0;
 let failed = 0;
@@ -88,16 +88,93 @@ assert(baseLayout.movesHud?.y === 34, 'Memory match landscape movesHud y is plac
 assert(baseLayout.pairsHud?.x === 76, 'Memory match landscape pairsHud x is placed on right wing (76)');
 assert(baseLayout.pairsHud?.y === 34, 'Memory match landscape pairsHud y is placed below timer (34)');
 
-// Legacy theme healing tests
-const legacyOverlappingLayout = normalizeGameLayout(
+// Custom HUD position preservation tests (verifying removal of arbitrary rejection / auto-heal)
+const customHudLayout = normalizeGameLayout(
   {
-    movesHud: { visible: true, x: 24, y: 15, width: 18 },
-    pairsHud: { visible: true, x: 44, y: 15, width: 18 },
+    movesHud: { visible: true, x: 25, y: 20, width: 18 },
+    pairsHud: { visible: true, x: 30, y: 20, width: 18 },
   },
   'memory-match'
 );
-assert(legacyOverlappingLayout.movesHud?.x === 4, 'Legacy center movesHud is auto-healed to left wing (4)');
-assert(legacyOverlappingLayout.pairsHud?.x === 76, 'Legacy center pairsHud is auto-healed to right wing (76)');
+assert(customHudLayout.movesHud?.x === 25, 'Moves HUD at X=25% is preserved (no snap-back)');
+assert(customHudLayout.movesHud?.y === 20, 'Moves HUD at Y=20% is preserved (no snap-back)');
+assert(customHudLayout.pairsHud?.x === 30, 'Pairs HUD at X=30% is preserved (no snap-back)');
+assert(customHudLayout.pairsHud?.y === 20, 'Pairs HUD at Y=20% is preserved (no snap-back)');
+
+// calculateDraggedPosition Unit Tests
+console.log('\n[Shared calculateDraggedPosition Drag Engine Tests]');
+const mockPreviewRect = { left: 100, top: 50, width: 800, height: 600 };
+
+// Test 1: Drag Moves HUD from X=4%, Y=34% to X=25%, Y=20% preserving drag offset
+// Pointer down at 10% X (180px), 37% Y (272px): dragOffsetX = 10 - 4 = 6%, dragOffsetY = 37 - 34 = 3%
+// Pointer moves to 31% X (348px), 23% Y (188px):
+const dragResult = calculateDraggedPosition({
+  elementId: 'movesHud',
+  pointerX: 100 + 0.31 * 800, // 348
+  pointerY: 50 + 0.23 * 600,  // 188
+  previewRect: mockPreviewRect,
+  dragOffsetX: 6,
+  dragOffsetY: 3,
+  elementWidth: 18,
+  elementHeight: 8,
+});
+assert(dragResult.x === 25, `Moves HUD dragged to X=25% (got ${dragResult.x})`);
+assert(dragResult.y === 20, `Moves HUD dragged to Y=20% (got ${dragResult.y})`);
+
+// Test 2: Clamp boundaries dynamically according to element dimensions (width 20, height 10)
+// Drag past right edge
+const clampedRight = calculateDraggedPosition({
+  elementId: 'scoreHud',
+  pointerX: 100 + 0.95 * 800,
+  pointerY: 50 + 0.50 * 600,
+  previewRect: mockPreviewRect,
+  dragOffsetX: 0,
+  dragOffsetY: 0,
+  elementWidth: 20,
+  elementHeight: 10,
+});
+assert(clampedRight.x === 80, `Right boundary clamped to 100 - width = 80% (got ${clampedRight.x})`);
+
+// Drag past left edge
+const clampedLeft = calculateDraggedPosition({
+  elementId: 'scoreHud',
+  pointerX: 100 - 50,
+  pointerY: 50 + 0.50 * 600,
+  previewRect: mockPreviewRect,
+  dragOffsetX: 0,
+  dragOffsetY: 0,
+  elementWidth: 20,
+  elementHeight: 10,
+});
+assert(clampedLeft.x === 0, `Left boundary clamped to 0% (got ${clampedLeft.x})`);
+
+// Drag past bottom edge
+const clampedBottom = calculateDraggedPosition({
+  elementId: 'timer',
+  pointerX: 100 + 0.50 * 800,
+  pointerY: 50 + 0.98 * 600,
+  previewRect: mockPreviewRect,
+  dragOffsetX: 0,
+  dragOffsetY: 0,
+  elementWidth: 15,
+  elementHeight: 8,
+});
+assert(clampedBottom.y === 92, `Bottom boundary clamped to 100 - height = 92% (got ${clampedBottom.y})`);
+
+// Test 3: Center-anchored element (memoryCardBoard)
+const boardDrag = calculateDraggedPosition({
+  elementId: 'memoryCardBoard',
+  pointerX: 100 + 0.55 * 800,
+  pointerY: 50 + 0.60 * 600,
+  previewRect: mockPreviewRect,
+  dragOffsetX: 5,
+  dragOffsetY: 10,
+  elementWidth: 50,
+  elementHeight: 40,
+  isCenterAnchored: true,
+});
+assert(boardDrag.x === 50, `Board center X maintained at 50% (got ${boardDrag.x})`);
+assert(boardDrag.y === 50, `Board center Y maintained at 50% (got ${boardDrag.y})`);
 
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 if (failed > 0) {

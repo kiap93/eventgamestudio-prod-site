@@ -6,3 +6,6 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 NODE_ENV = "production"
 SUPABASE_URL = "https://bnfjcgkbdluzlwadyycl.supabase.co"
+
+[triggers]
+crons = ["* * * * *"]

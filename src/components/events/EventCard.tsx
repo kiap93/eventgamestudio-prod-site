@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Clock,
   CheckCircle2,
+  Lock,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
@@ -372,9 +373,9 @@ export const EventCard: React.FC<EventCardProps> = ({
             <button
               onClick={() => onEdit(event)}
               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 rounded-lg text-xs transition-colors cursor-pointer"
-              title="Edit Event"
+              title={isPaid ? 'View Event Setup (Locked - Paid)' : 'Edit Event'}
             >
-              <Edit2 className="w-3.5 h-3.5" />
+              {isPaid ? <Lock className="w-3.5 h-3.5 text-amber-400/80" /> : <Edit2 className="w-3.5 h-3.5" />}
             </button>
 
             {!isCancelled && (

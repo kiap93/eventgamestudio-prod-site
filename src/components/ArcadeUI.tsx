@@ -394,7 +394,8 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 w-full h-full pointer-events-none select-none overflow-hidden font-mono z-30"
+      id="arcade-ui-overlay"
+      className="arcade-ui-container absolute inset-0 w-full h-full pointer-events-none select-none overflow-hidden font-mono z-30"
       style={{
         '--game-ui-scale': uiScale,
         '--game-design-width': `${designWidth}px`,

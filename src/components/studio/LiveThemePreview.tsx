@@ -19,6 +19,7 @@ import {
   DEFAULT_GAME_LAYOUT,
   normalizeGameLayout,
   getDefaultUILayout,
+  calculateDraggedPosition,
   DESIGN_WIDTH,
   DESIGN_HEIGHT,
   useGameUiScale,
@@ -46,7 +47,9 @@ interface LiveThemePreviewProps {
   editableLayout?: boolean;
   selectedElementKey?: LayoutElementKey | null;
   onSelectElementKey?: (key: LayoutElementKey) => void;
-  onUpdateLayout?: (newLayout: GameLayoutConfig) => void;
+  onUpdateLayout?: (
+    newLayout: GameLayoutConfig | ((prev: GameLayoutConfig) => GameLayoutConfig)
+  ) => void;
   onPlayLiveGame?: () => void;
 }
 
@@ -85,6 +88,10 @@ interface DragState {
   startX: number;
   startY: number;
   startWidth: number;
+  dragOffsetX: number;
+  dragOffsetY: number;
+  elementWidth: number;
+  elementHeight: number;
 }
 
 export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
@@ -682,6 +689,30 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     const elem = layout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
     const meta = LAYOUT_ELEMENTS_META[key];
 
+    const previewRect = viewportRef.current?.getBoundingClientRect();
+    if (!previewRect || previewRect.width <= 0 || previewRect.height <= 0) return;
+
+    // Pointer coordinates relative to the preview element as percentages (0-100%)
+    const pointerPercentX = ((e.clientX - previewRect.left) / previewRect.width) * 100;
+    const pointerPercentY = ((e.clientY - previewRect.top) / previewRect.height) * 100;
+
+    // Measure rendered element dimensions if available
+    const targetEl = e.currentTarget as HTMLElement | null;
+    const targetRect = targetEl?.getBoundingClientRect();
+    const measuredWidth =
+      targetRect && previewRect.width > 0
+        ? (targetRect.width / previewRect.width) * 100
+        : elem.width || meta.defaultWidth;
+    const measuredHeight =
+      targetRect && previewRect.height > 0 ? (targetRect.height / previewRect.height) * 100 : 8;
+
+    const elemWidth = elem.width || measuredWidth || meta.defaultWidth;
+    const elemHeight = measuredHeight || 8;
+
+    // Drag offset relative to the element's position to prevent jump on grab
+    const dragOffsetX = pointerPercentX - elem.x;
+    const dragOffsetY = pointerPercentY - elem.y;
+
     setDragState({
       isDragging: !isResize,
       isResizing: isResize,
@@ -691,66 +722,100 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
       startX: elem.x,
       startY: elem.y,
       startWidth: elem.width || meta.defaultWidth,
+      dragOffsetX,
+      dragOffsetY,
+      elementWidth: elemWidth,
+      elementHeight: elemHeight,
     });
     onSelectElementKey?.(key);
   };
 
-  const handleContainerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  // Shared move handler for container and window pointer events
+  const handleMove = (pointerX: number, pointerY: number) => {
     if (!dragState || !viewportRef.current || !editableLayout) return;
-    e.preventDefault();
 
-    const rect = viewportRef.current.getBoundingClientRect();
-    const deltaXPercent = ((e.clientX - dragState.startPointerX) / rect.width) * 100;
-    const deltaYPercent = ((e.clientY - dragState.startPointerY) / rect.height) * 100;
+    const previewRect = viewportRef.current.getBoundingClientRect();
+    if (previewRect.width <= 0 || previewRect.height <= 0) return;
 
     const key = dragState.elementKey;
     const meta = LAYOUT_ELEMENTS_META[key];
-    const currentElem = layout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
+    const isBoard = key === 'memoryCardBoard';
 
     if (dragState.isDragging) {
-      if (key === 'memoryCardBoard') {
-        const newX = Math.max(0, Math.min(100, dragState.startX + deltaXPercent));
-        const newY = Math.max(0, Math.min(100, dragState.startY + deltaYPercent));
+      const position = calculateDraggedPosition({
+        elementId: key,
+        pointerX,
+        pointerY,
+        previewRect,
+        dragOffsetX: dragState.dragOffsetX,
+        dragOffsetY: dragState.dragOffsetY,
+        elementWidth: dragState.elementWidth,
+        elementHeight: dragState.elementHeight,
+        isCenterAnchored: isBoard,
+      });
 
-        const nextLayout: GameLayoutConfig = {
-          ...layout,
+      const updater = (prevLayout: GameLayoutConfig): GameLayoutConfig => {
+        const currentElem = prevLayout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
+        return {
+          ...prevLayout,
           [key]: {
             ...currentElem,
-            x: Math.round(newX * 10) / 10,
-            y: Math.round(newY * 10) / 10,
+            x: position.x,
+            y: position.y,
           },
         };
-        onUpdateLayout?.(nextLayout);
-      } else {
-        const elemWidth = currentElem.width || meta.defaultWidth;
-        const newX = Math.max(0, Math.min(100 - elemWidth, dragState.startX + deltaXPercent));
-        const newY = Math.max(0, Math.min(95, dragState.startY + deltaYPercent));
+      };
 
-        const nextLayout: GameLayoutConfig = {
-          ...layout,
-          [key]: {
-            ...currentElem,
-            x: Math.round(newX * 10) / 10,
-            y: Math.round(newY * 10) / 10,
-          },
-        };
-        onUpdateLayout?.(nextLayout);
-      }
+      onUpdateLayout?.(updater);
     } else if (dragState.isResizing) {
+      const deltaXPercent = ((pointerX - dragState.startPointerX) / previewRect.width) * 100;
       const newWidth = Math.max(
         meta.minWidth,
         Math.min(meta.maxWidth, dragState.startWidth + deltaXPercent)
       );
 
-      const nextLayout: GameLayoutConfig = {
-        ...layout,
-        [key]: {
-          ...currentElem,
-          width: Math.round(newWidth * 10) / 10,
-        },
+      const updater = (prevLayout: GameLayoutConfig): GameLayoutConfig => {
+        const currentElem = prevLayout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
+        return {
+          ...prevLayout,
+          [key]: {
+            ...currentElem,
+            width: Math.round(newWidth * 10) / 10,
+          },
+        };
       };
-      onUpdateLayout?.(nextLayout);
+
+      onUpdateLayout?.(updater);
     }
+  };
+
+  // Global pointer listeners to ensure smooth dragging across edges and clean release
+  useEffect(() => {
+    if (!dragState) return;
+
+    const handleWindowPointerMove = (e: PointerEvent) => {
+      handleMove(e.clientX, e.clientY);
+    };
+
+    const handleWindowPointerUp = () => {
+      setDragState(null);
+    };
+
+    window.addEventListener('pointermove', handleWindowPointerMove);
+    window.addEventListener('pointerup', handleWindowPointerUp);
+    window.addEventListener('pointercancel', handleWindowPointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove);
+      window.removeEventListener('pointerup', handleWindowPointerUp);
+      window.removeEventListener('pointercancel', handleWindowPointerUp);
+    };
+  }, [dragState, editableLayout, defaultLayout, onUpdateLayout]);
+
+  const handleContainerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState) return;
+    e.preventDefault();
+    handleMove(e.clientX, e.clientY);
   };
 
   const handleContainerPointerUp = (e?: React.PointerEvent<HTMLDivElement>) => {

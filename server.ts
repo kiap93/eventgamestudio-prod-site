@@ -2411,11 +2411,20 @@ app.all('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       return;
     }
 
+    // Security Rule: Paid event = admin/user cannot manually edit event setup.
+    const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
+    if (isPaid) {
+      res.status(403).json({
+        error: 'Event setup cannot be modified after payment has been completed.',
+        code: 'EVENT_LOCKED_AFTER_PAYMENT',
+      });
+      return;
+    }
+
     // Security check: Block attempts to mutate sensitive / lifecycle / payment columns via standard event edit
     const forbiddenFields = [
       'payment_status',
       'event_status',
-      'status',
       'paid_amount',
       'discount_amount',
       'event_price',
@@ -2436,6 +2445,13 @@ app.all('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       }
     }
 
+    if (req.body.status !== undefined && req.body.status !== 'draft' && req.body.status !== 'scheduled') {
+      res.status(400).json({
+        error: `Modifying protected field 'status' to '${req.body.status}' is strictly prohibited. Event payment, pricing, and lifecycle statuses can only be modified through authoritative payment and lifecycle workflows.`,
+      });
+      return;
+    }
+
     const {
       name,
       game_theme_id,
@@ -2446,6 +2462,7 @@ app.all('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       endDate,
       starts_at,
       expires_at,
+      status,
     } = req.body;
 
     const updated = await updateEvent(eventId, {
@@ -2458,13 +2475,14 @@ app.all('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       endDate,
       starts_at,
       expires_at,
+      status,
     });
 
     const enriched = await getEventById(updated.id);
     res.json({ event: enriched });
   } catch (err: any) {
     console.error('Update event error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message, code: err.code });
   }
 });
 
@@ -3271,14 +3289,17 @@ app.patch('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT,
 
 /**
  * POST /api/events/:eventId/showcase/publish
- * Publish showcase immediately
+ * Publish showcase immediately (safely creates showcase if none exists yet)
  */
 app.post('/api/events/:eventId/showcase/publish', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
 
+    console.log(`[Showcase Publish API] eventId received: ${eventId}`);
+
     const event = await getEventById(eventId);
+    console.log(`[Showcase Publish API] event existence: ${!!event}${event ? ` (id=${event.id}, name="${event.name}")` : ''}`);
     if (!event) {
       res.status(404).json({ error: 'Event not found' });
       return;
@@ -3297,22 +3318,30 @@ app.post('/api/events/:eventId/showcase/publish', showcaseRateLimiter, authentic
     }
 
     const existing = await getShowcaseByEventId(eventId);
-    if (!existing) {
-      res.status(404).json({ error: 'Event Showcase not found' });
-      return;
-    }
+    console.log(`[Showcase Publish API] showcase lookup result: ${existing ? `Found existing showcase (id=${existing.id}, status=${existing.status})` : 'None found (will create and publish new showcase)'}`);
 
-    if (existing.status === 'BLOCKED') {
+    if (existing && existing.status === 'BLOCKED') {
       res.status(403).json({ error: 'Cannot publish a blocked showcase. Please contact support.', code: 'SHOWCASE_BLOCKED' });
       return;
     }
 
-    const showcase = await publishShowcase(eventId);
+    const updates = req.body && typeof req.body === 'object' ? {
+      title: typeof req.body.title === 'string' ? req.body.title : undefined,
+      description: typeof req.body.description === 'string' || req.body.description === null ? req.body.description : undefined,
+      client_name: typeof req.body.client_name === 'string' || req.body.client_name === null ? req.body.client_name : undefined,
+      client_logo_url: typeof req.body.client_logo_url === 'string' || req.body.client_logo_url === null ? req.body.client_logo_url : undefined,
+      cover_image_url: typeof req.body.cover_image_url === 'string' || req.body.cover_image_url === null ? req.body.cover_image_url : undefined,
+    } : undefined;
+
+    const showcase = await publishShowcase(eventId, updates);
+    console.log(`[Showcase Publish API] showcase ID: ${showcase.id}`);
+    console.log(`[Showcase Publish API] publish/update result: status=${showcase.status}, publication_status=${showcase.publication_status}, event_id=${showcase.event_id}`);
+
     evaluateShowcaseRewardEligibility(eventId).catch((err) => console.warn('Reward evaluation notice on publish:', err));
     res.json({ showcase });
   } catch (err: any) {
     console.error('Publish showcase error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message, code: err.code });
   }
 });
 
