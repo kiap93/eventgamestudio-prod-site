@@ -2895,6 +2895,15 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
             startConfig={startConfig}
             theme={theme}
             gameType="memory-match"
+            gameMeta={{
+              rows,
+              cols,
+              totalCards,
+              totalPairs,
+              duration,
+              gameTitle: theme.name || 'Memory Match',
+              logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
+            }}
             onChange={handleUpdateStartScreen}
             onUploadAsset={onUploadAsset as any}
           />

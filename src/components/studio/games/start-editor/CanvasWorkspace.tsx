@@ -4,6 +4,7 @@ import {
   StartScreenCardElement,
   StartScreenGroupElement,
   StartScreenConfig,
+  StartScreenGameMeta,
 } from '../../../../games/shared/startScreenTypes';
 import { StartElementContent } from '../../../../games/shared/StartElementContent';
 import { resolveScreenBackground } from '../../../../themes/screenBackground';
@@ -43,6 +44,7 @@ interface CanvasWorkspaceProps {
   startConfig: StartScreenConfig;
   theme: Partial<GameTheme>;
   gameType?: string;
+  gameMeta?: StartScreenGameMeta;
   elements: StartScreenElement[];
   selectedIds: string[];
   isPreviewMode?: boolean;
@@ -67,6 +69,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
   startConfig,
   theme,
   gameType = 'memory-match',
+  gameMeta,
   elements,
   selectedIds,
   isPreviewMode = false,
@@ -146,10 +149,22 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
     const targetZoom = Math.max(0.2, Math.min(fitScale, 1.0));
     setZoom(Number(targetZoom.toFixed(2)));
     setPan({ x: 0, y: 0 });
-  }, []);
+  }, [CANVAS_WIDTH, CANVAS_HEIGHT]);
 
   useEffect(() => {
     autoFitZoom();
+    window.addEventListener('resize', autoFitZoom);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      ro = new ResizeObserver(() => {
+        autoFitZoom();
+      });
+      ro.observe(containerRef.current);
+    }
+    return () => {
+      window.removeEventListener('resize', autoFitZoom);
+      ro?.disconnect();
+    };
   }, [autoFitZoom]);
 
   // Handle Wheel Zoom & Pan
@@ -765,7 +780,13 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
           parentHeight={parentHeight}
           theme={theme}
           gameType={gameType}
+          gameMeta={gameMeta}
           isEditor={true}
+          isSimulation={true}
+          onStartGame={() => {}}
+          onShowLeaderboard={() => {}}
+          onShowGuide={() => {}}
+          onOpenSettings={() => {}}
           renderChild={(child, pW, pH) => renderElement(child, pW, pH, depth + 1)}
         />
 

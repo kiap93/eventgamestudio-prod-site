@@ -38,12 +38,14 @@ export interface StartElementContentProps {
   parentHeight: number;
   gameMeta?: StartScreenGameMeta;
   theme?: Partial<GameTheme> | null;
-  onStartGame: () => void;
+  onStartGame?: () => void;
   onShowLeaderboard?: () => void;
   onShowGuide?: () => void;
   onOpenSettings?: () => void;
   renderChild?: (child: StartScreenElement, parentWidth: number, parentHeight: number) => React.ReactNode;
   isSimulation?: boolean;
+  isEditor?: boolean;
+  gameType?: string;
 }
 
 /**
@@ -90,16 +92,20 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
   parentHeight,
   gameMeta,
   theme,
-  onStartGame,
-  onShowLeaderboard,
-  onShowGuide,
-  onOpenSettings,
+  onStartGame = () => {},
+  onShowLeaderboard = () => {},
+  onShowGuide = () => {},
+  onOpenSettings = () => {},
   renderChild,
   isSimulation = false,
+  isEditor = false,
+  gameType,
 }) => {
   if (!element || typeof element !== 'object') {
     return null;
   }
+
+  const isSim = isSimulation || isEditor;
 
   // Gracefully handle unknown elements without crashing
   const elType = element.type;
@@ -269,19 +275,19 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
 
       const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (isSimulation) return;
+        if (isSim) return;
 
         if (action === 'start') {
-          onStartGame();
-        } else if (action === 'leaderboard' && onShowLeaderboard) {
-          onShowLeaderboard();
-        } else if (action === 'guide' && onShowGuide) {
-          onShowGuide();
-        } else if (action === 'settings' && onOpenSettings) {
-          onOpenSettings();
+          onStartGame?.();
+        } else if (action === 'leaderboard') {
+          onShowLeaderboard?.();
+        } else if (action === 'guide') {
+          onShowGuide?.();
+        } else if (action === 'settings') {
+          onOpenSettings?.();
         } else {
           // Default start
-          onStartGame();
+          onStartGame?.();
         }
       };
 
@@ -521,7 +527,11 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
       if (process.env.NODE_ENV !== 'production') {
         console.warn(`[StartElementContent] Unknown Start Screen element type: "${(element as any)?.type}"`);
       }
-      return null;
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-slate-800/40 border border-dashed border-slate-700/60 rounded-xl p-2 text-slate-400 text-xs font-mono select-none">
+          <span>{(element as any)?.type || 'Custom Element'}</span>
+        </div>
+      );
     }
   }
 };

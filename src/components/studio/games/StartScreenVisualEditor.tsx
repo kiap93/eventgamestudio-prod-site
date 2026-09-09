@@ -33,13 +33,15 @@ import { EditorTopBar } from './start-editor/EditorTopBar';
 import { PresetLibraryModal } from './start-editor/PresetLibraryModal';
 import { SaveTemplateModal } from './start-editor/SaveTemplateModal';
 import { useStartScreenHistory, filterValidStartSelectedIds } from './start-editor/history';
-import { generateDefaultStartScreenElements } from '../../../games/shared/startScreenTypes';
+import { generateDefaultStartScreenElements, StartScreenGameMeta } from '../../../games/shared/startScreenTypes';
 import { normalizeStartScreenConfigForStage } from '../../../games/shared/startScreenResolver';
+import { StartScreenEditorErrorBoundary } from './start-editor/StartScreenEditorErrorBoundary';
 
 export interface StartScreenVisualEditorProps {
   startConfig: StartScreenConfig;
   theme: Partial<GameTheme>;
   gameType?: string;
+  gameMeta?: StartScreenGameMeta;
   onChange: (updatedConfig: Partial<StartScreenConfig>) => void;
   isOpen?: boolean;
   onClose?: () => void;
@@ -52,6 +54,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   startConfig,
   theme,
   gameType = 'memory-match',
+  gameMeta,
   onChange,
   isOpen = true,
   onClose,
@@ -67,6 +70,61 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
 
     return normalizeStartScreenConfigForStage(startConfig, stageW, stageH);
   }, [startConfig, theme?.orientation]);
+
+  // Effective game metadata for previews, rules cards, and badges
+  const effectiveGameMeta = useMemo<StartScreenGameMeta>(() => {
+    if (gameMeta) return gameMeta;
+
+    const gameConfig = (theme?.game_config || {}) as Record<string, any>;
+    const branding = (theme as any)?.branding;
+
+    const fallingItemImg =
+      (theme as any)?.falling_item_url ||
+      (theme as any)?.fallingItemUrl ||
+      (theme as any)?.theme_assets?.good_item ||
+      (theme as any)?.theme_assets?.item_normal_01 ||
+      (theme as any)?.theme_assets?.reward ||
+      null;
+
+    const badFallingItemImg =
+      (theme as any)?.bad_falling_item_url ||
+      (theme as any)?.badFallingItemUrl ||
+      (theme as any)?.theme_assets?.hazard ||
+      (theme as any)?.theme_assets?.item_hazard_01 ||
+      null;
+
+    const catcherImg =
+      (theme as any)?.catcher_url ||
+      (theme as any)?.catcherUrl ||
+      (theme as any)?.basket_url ||
+      (theme as any)?.theme_assets?.basket ||
+      (theme as any)?.theme_assets?.catcher ||
+      null;
+
+    const logoUrl =
+      branding?.clientLogoUrl ||
+      (theme as any)?.clientLogo ||
+      (theme as any)?.logo ||
+      null;
+
+    return {
+      gameTitle: theme?.name || (gameType === 'catch-brand' ? 'Catch The Brand' : gameType === 'reaction-tap' ? 'Reaction Tap' : 'Memory Match'),
+      logoUrl,
+      duration: gameConfig.gameplay?.duration || gameConfig.duration || 30,
+      fallingItemName: gameConfig.gameplay?.fallingItemName || 'Target Item',
+      fallingItemImg,
+      goodItemImg: fallingItemImg,
+      badFallingItemName: gameConfig.gameplay?.badFallingItemName || 'Hazard Item',
+      badFallingItemImg,
+      badItemImg: badFallingItemImg,
+      catcherImg,
+      rows: gameConfig.grid?.rows || 4,
+      cols: gameConfig.grid?.cols || 4,
+      totalCards: (gameConfig.grid?.rows || 4) * (gameConfig.grid?.cols || 4),
+      totalPairs: Math.floor(((gameConfig.grid?.rows || 4) * (gameConfig.grid?.cols || 4)) / 2),
+      roundsCount: gameConfig.roundsCount || 5,
+    };
+  }, [gameMeta, theme, gameType]);
 
   // Elements initialization with fallback
   const initialElements = useMemo(() => {
@@ -469,12 +527,13 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   if (!isOpen) return null;
 
   return (
-    <div
-      className={`flex flex-col bg-slate-950 text-slate-100 overflow-hidden ${
-        isModal ? 'fixed inset-0 z-50 w-screen h-screen' : 'relative w-full h-full min-h-[600px]'
-      }`}
-    >
-      {/* Top Controls & Action Toolbar */}
+    <StartScreenEditorErrorBoundary onResetLayout={handleResetLayout} onClose={onClose}>
+      <div
+        className={`flex flex-col bg-slate-950 text-slate-100 overflow-hidden ${
+          isModal ? 'fixed inset-0 z-50 w-screen h-screen' : 'relative w-full h-full min-h-[600px]'
+        }`}
+      >
+        {/* Top Controls & Action Toolbar */}
       <EditorTopBar
         selectedIds={selectedIds}
         totalElementsCount={currentElements.length}
@@ -549,6 +608,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
             startConfig={effectiveConfig}
             theme={theme}
             gameType={gameType}
+            gameMeta={effectiveGameMeta}
             elements={currentElements}
             selectedIds={selectedIds}
             isPreviewMode={isPreviewMode}
@@ -621,5 +681,6 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
         onClose={() => setIsSaveModalOpen(false)}
       />
     </div>
+    </StartScreenEditorErrorBoundary>
   );
 };

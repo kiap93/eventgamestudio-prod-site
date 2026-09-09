@@ -38425,5 +38425,24 @@
     },
     "created_by": "cedf23e7-2356-4a8d-8e1d-9c2ecfd0a0a8",
     "created_at": "2026-09-09T09:08:49.510Z"
+  },
+  {
+    "id": "9a001fb5-a519-44fd-aec6-314aae0a4fdc",
+    "organization_id": "b762afed-a6fc-40d0-a39f-b547a69c40bc",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_b762afed-a6fc-40d0-a39f-b547a69c40bc",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "MM Test Org 1788946905797",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "created_at": "2026-09-09T09:41:45.865Z"
   }
 ]
