@@ -126,10 +126,208 @@ export function sanitizeStartScreenElements(
   return validList;
 }
 
+export type StartScreenCoordinateSpace =
+  | 'square-1000x1000'
+  | 'landscape-1024x576'
+  | 'portrait-576x1024'
+  | 'custom';
+
+/**
+ * Detects the coordinate space that the elements in the configuration belong to.
+ * Does NOT rely solely on canvas.width/canvas.height because configurations can
+ * have canvas=1024x576 while elements still contain legacy 1000x1000 coordinates.
+ */
+export function detectStartScreenCoordinateSpace(
+  config?: StartScreenConfig | null
+): StartScreenCoordinateSpace {
+  if (!config) return 'landscape-1024x576';
+
+  const canvas = config.canvas;
+  const elements = config.elements || [];
+
+  // 1. Inspect root card element if present
+  const card = elements.find((e) => e.type === 'card' || e.id === 'main-start-card');
+
+  if (card) {
+    const cardY = Number.isFinite(card.y) ? card.y : 0;
+    const cardH = Number.isFinite(card.height) ? card.height : 0;
+    const cardX = Number.isFinite(card.x) ? card.x : 0;
+    const cardW = Number.isFinite(card.width) ? card.width : 0;
+
+    // Check if card matches known legacy 1000x1000 defaults:
+    // Legacy Memory Match: x=140, y=180, width=720, height=500..650
+    // Legacy Reaction Tap: x=140, y=180, width=720, height=500..580
+    // Notice: cardY >= 135, cardW ~ 720 (680-740), cardH >= 480
+    // On a 576-tall stage, cardY + cardH (180 + 500 = 680) extends far beyond 576.
+    const isLegacyCardY = cardY >= 135;
+    const isLegacyCardBottom = (cardY + cardH) > 560;
+    const isLegacyCardW = cardW >= 680 && cardW <= 740;
+    const isLegacyCardH = cardH >= 480;
+
+    if (isLegacyCardY && (isLegacyCardBottom || isLegacyCardW || isLegacyCardH)) {
+      return 'square-1000x1000';
+    }
+
+    // Check if card matches normalized landscape 1024x576:
+    // (x ≈ 132, y ≈ 53, width ≈ 760, height ≈ 470, cardY + cardH <= 576)
+    const isLandscapeCard =
+      cardY < 100 &&
+      (cardY + cardH) <= 576 &&
+      cardW >= 700 &&
+      cardW <= 800;
+
+    if (isLandscapeCard) {
+      return 'landscape-1024x576';
+    }
+
+    // Check if card matches normalized portrait 576x1024:
+    // (x ≈ 35, y ≈ 82, width ≈ 506, height ≈ 860, cardX + cardW <= 576)
+    const isPortraitCard =
+      (cardX + cardW) <= 576 &&
+      cardH >= 700 &&
+      cardW <= 540;
+
+    if (isPortraitCard) {
+      return 'portrait-576x1024';
+    }
+  }
+
+  // 2. Explicit coordinateSpace or version marker check
+  if (canvas?.coordinateSpace === 'landscape-1024x576') {
+    return 'landscape-1024x576';
+  }
+  if (canvas?.coordinateSpace === 'portrait-576x1024') {
+    return 'portrait-576x1024';
+  }
+  if (canvas?.coordinateSpace === 'square-1000x1000') {
+    return 'square-1000x1000';
+  }
+
+  // 3. Inspect non-card elements bounding box
+  if (elements.length > 0) {
+    let maxY = 0;
+    let maxX = 0;
+    for (const el of elements) {
+      if (Number.isFinite(el.y) && Number.isFinite(el.height)) {
+        maxY = Math.max(maxY, el.y + el.height);
+      }
+      if (Number.isFinite(el.x) && Number.isFinite(el.width)) {
+        maxX = Math.max(maxX, el.x + el.width);
+      }
+    }
+    // In legacy 1000x1000, elements often reach Y > 576 and X > 576
+    if (maxY > 576 * 1.05 && maxX > 576) {
+      return 'square-1000x1000';
+    }
+  }
+
+  // 4. Canvas dimension fallback
+  const cW = canvas?.width || 1000;
+  const cH = canvas?.height || 1000;
+  if (Math.abs(cW - 1000) < 20 && Math.abs(cH - 1000) < 20) {
+    return 'square-1000x1000';
+  }
+  if (Math.abs(cW - 1024) < 20 && Math.abs(cH - 576) < 20) {
+    return 'landscape-1024x576';
+  }
+  if (Math.abs(cW - 576) < 20 && Math.abs(cH - 1024) < 20) {
+    return 'portrait-576x1024';
+  }
+
+  return 'custom';
+}
+
+/**
+ * Determines whether Start Screen elements need normalization to match target dimensions.
+ * Idempotent: returns false if elements are already normalized to the target stage.
+ */
+export function needsStartScreenElementNormalization(
+  config?: StartScreenConfig | null,
+  targetWidth: number = 1024,
+  targetHeight: number = 576
+): boolean {
+  if (!config) return false;
+
+  const currentSpace = detectStartScreenCoordinateSpace(config);
+  const isTargetLandscape = targetWidth >= targetHeight;
+  const targetSpace: StartScreenCoordinateSpace = isTargetLandscape
+    ? 'landscape-1024x576'
+    : 'portrait-576x1024';
+
+  // If already in target coordinate space, no normalization needed (guarantees idempotency)
+  if (currentSpace === targetSpace) {
+    return false;
+  }
+
+  // If from legacy square-1000x1000, normalization is required
+  if (currentSpace === 'square-1000x1000') {
+    return true;
+  }
+
+  // If switching between landscape and portrait, normalization is required
+  if (
+    (currentSpace === 'landscape-1024x576' && targetSpace === 'portrait-576x1024') ||
+    (currentSpace === 'portrait-576x1024' && targetSpace === 'landscape-1024x576')
+  ) {
+    return true;
+  }
+
+  // For custom coordinate spaces, check if elements overflow target canvas
+  const elements = config.elements || [];
+  for (const el of elements) {
+    if ((el.y + el.height) > targetHeight * 1.05 || (el.x + el.width) > targetWidth * 1.05) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Recursively normalizes child elements relative to their parent container.
+ */
+function normalizeElementChildren(
+  children: StartScreenElement[],
+  scaleX: number,
+  scaleY: number
+): StartScreenElement[] {
+  return children.map((child) => {
+    const childStyle = (child as any).style;
+    const fontScale = Math.min(scaleX, scaleY);
+    const normChild: StartScreenElement = {
+      ...child,
+      x: Math.round(child.x * scaleX),
+      y: Math.round(child.y * scaleY),
+      width: Math.round(child.width * scaleX),
+      height: Math.round(child.height * scaleY),
+      ...(childStyle
+        ? {
+            style: {
+              ...childStyle,
+              fontSize: childStyle.fontSize
+                ? Math.max(10, Math.round(childStyle.fontSize * fontScale))
+                : undefined,
+            },
+          }
+        : {}),
+    };
+
+    if (Array.isArray((child as any).children) && (child as any).children.length > 0) {
+      (normChild as any).children = normalizeElementChildren(
+        (child as any).children,
+        scaleX,
+        scaleY
+      );
+    }
+    return normChild;
+  });
+}
+
 /**
  * Normalizes a Start Screen configuration for the target game stage dimensions.
  * Specifically converts legacy 1000 x 1000 square configurations to
  * 16:9 (1024 x 576) or 9:16 (576 x 1024) without corrupting the underlying saved theme.
+ * Idempotent: Calling normalize multiple times produces identical output.
  */
 export function normalizeStartScreenConfigForStage(
   config: StartScreenConfig,
@@ -138,22 +336,58 @@ export function normalizeStartScreenConfigForStage(
 ): StartScreenConfig {
   if (!config) return config;
 
-  const currentW = config.canvas?.width || 1000;
-  const currentH = config.canvas?.height || 1000;
+  const targetSpace: StartScreenCoordinateSpace =
+    targetWidth >= targetHeight ? 'landscape-1024x576' : 'portrait-576x1024';
 
-  // If already matches target canvas dimensions within tolerance, return as is
-  if (Math.abs(currentW - targetWidth) < 2 && Math.abs(currentH - targetHeight) < 2) {
-    return config;
+  // Fast check: if elements already match target coordinate space, return unmodified or stamped
+  if (!needsStartScreenElementNormalization(config, targetWidth, targetHeight)) {
+    if (
+      config.canvas?.width === targetWidth &&
+      config.canvas?.height === targetHeight &&
+      config.canvas?.coordinateSpace === targetSpace
+    ) {
+      return config;
+    }
+    return {
+      ...config,
+      canvas: {
+        ...(config.canvas || {}),
+        width: targetWidth,
+        height: targetHeight,
+        coordinateSpace: targetSpace,
+        version: 2,
+      },
+    };
   }
 
-  const isCurrentSquare = Math.abs(currentW - currentH) < 80;
-  const isTargetLandscape = targetWidth > targetHeight;
+  const detectedSourceSpace = detectStartScreenCoordinateSpace(config);
+  const isSourceSquare = detectedSourceSpace === 'square-1000x1000';
+  const isSourcePortrait = detectedSourceSpace === 'portrait-576x1024';
+  const isSourceLandscape = detectedSourceSpace === 'landscape-1024x576';
+
+  const sourceW = isSourceSquare
+    ? 1000
+    : isSourcePortrait
+    ? 576
+    : isSourceLandscape
+    ? 1024
+    : config.canvas?.width || 1000;
+
+  const sourceH = isSourceSquare
+    ? 1000
+    : isSourcePortrait
+    ? 1024
+    : isSourceLandscape
+    ? 576
+    : config.canvas?.height || 1000;
+
+  const isTargetLandscape = targetWidth >= targetHeight;
   const isTargetPortrait = targetHeight > targetWidth;
 
   const elements = config.elements || [];
 
   const normalizedElements = elements.map((el) => {
-    if (el.type === 'card' && isCurrentSquare) {
+    if (el.type === 'card' || el.id === 'main-start-card') {
       if (isTargetLandscape) {
         // Landscape 1024 x 576: Center card with ~74% width (760px) and ~82% height (470px)
         const newCardWidth = Math.min(Math.round(targetWidth * 0.742), 760);
@@ -161,31 +395,24 @@ export function normalizeStartScreenConfigForStage(
         const newCardX = Math.round((targetWidth - newCardWidth) / 2);
         const newCardY = Math.round((targetHeight - newCardHeight) / 2);
 
-        const originalCardW = el.width || 720;
-        const originalCardH = el.height || 600;
-        const scaleX = newCardWidth / originalCardW;
-        const scaleY = newCardHeight / originalCardH;
+        // Calculate original card bounds and children bounds
+        const cardChildren = Array.isArray((el as any).children) ? ((el as any).children as StartScreenElement[]) : [];
+        const originalCardW = el.width || (isSourceSquare ? 720 : 760);
+        let maxChildBottom = 0;
+        for (const c of cardChildren) {
+          if (Number.isFinite(c.y) && Number.isFinite(c.height)) {
+            maxChildBottom = Math.max(maxChildBottom, c.y + c.height);
+          }
+        }
+        const originalCardH = Math.max(el.height || (isSourceSquare ? 600 : 470), maxChildBottom + 10);
 
-        const normalizedChildren = (el.children || []).map((child) => {
-          const childStyle = (child as any).style;
-          return {
-            ...child,
-            x: Math.round(child.x * scaleX),
-            y: Math.round(child.y * scaleY),
-            width: Math.round(child.width * scaleX),
-            height: Math.round(child.height * scaleY),
-            ...(childStyle
-              ? {
-                  style: {
-                    ...childStyle,
-                    fontSize: childStyle.fontSize
-                      ? Math.max(10, Math.round(childStyle.fontSize * Math.min(scaleX, scaleY)))
-                      : undefined,
-                  },
-                }
-              : {}),
-          };
-        });
+        const scaleX = newCardWidth / originalCardW;
+        // Ensure scaleY guarantees all children fit within the new card height with bottom breathing room
+        const scaleY = maxChildBottom > 0
+          ? Math.min(newCardHeight / originalCardH, (newCardHeight - 20) / maxChildBottom)
+          : newCardHeight / originalCardH;
+
+        const normalizedChildren = normalizeElementChildren(cardChildren, scaleX, scaleY);
 
         return {
           ...el,
@@ -202,31 +429,22 @@ export function normalizeStartScreenConfigForStage(
         const newCardX = Math.round((targetWidth - newCardWidth) / 2);
         const newCardY = Math.round((targetHeight - newCardHeight) / 2);
 
-        const originalCardW = el.width || 720;
-        const originalCardH = el.height || 600;
-        const scaleX = newCardWidth / originalCardW;
-        const scaleY = newCardHeight / originalCardH;
+        const cardChildren = Array.isArray((el as any).children) ? ((el as any).children as StartScreenElement[]) : [];
+        const originalCardW = el.width || (isSourceSquare ? 720 : 506);
+        let maxChildBottom = 0;
+        for (const c of cardChildren) {
+          if (Number.isFinite(c.y) && Number.isFinite(c.height)) {
+            maxChildBottom = Math.max(maxChildBottom, c.y + c.height);
+          }
+        }
+        const originalCardH = Math.max(el.height || (isSourceSquare ? 600 : 860), maxChildBottom + 10);
 
-        const normalizedChildren = (el.children || []).map((child) => {
-          const childStyle = (child as any).style;
-          return {
-            ...child,
-            x: Math.round(child.x * scaleX),
-            y: Math.round(child.y * scaleY),
-            width: Math.round(child.width * scaleX),
-            height: Math.round(child.height * scaleY),
-            ...(childStyle
-              ? {
-                  style: {
-                    ...childStyle,
-                    fontSize: childStyle.fontSize
-                      ? Math.max(10, Math.round(childStyle.fontSize * Math.min(scaleX, scaleY)))
-                      : undefined,
-                  },
-                }
-              : {}),
-          };
-        });
+        const scaleX = newCardWidth / originalCardW;
+        const scaleY = maxChildBottom > 0
+          ? Math.min(newCardHeight / originalCardH, (newCardHeight - 30) / maxChildBottom)
+          : newCardHeight / originalCardH;
+
+        const normalizedChildren = normalizeElementChildren(cardChildren, scaleX, scaleY);
 
         return {
           ...el,
@@ -240,14 +458,31 @@ export function normalizeStartScreenConfigForStage(
     }
 
     // Generic linear scaling for non-card root elements
-    const scaleX = targetWidth / currentW;
-    const scaleY = targetHeight / currentH;
+    const scaleX = targetWidth / sourceW;
+    const scaleY = targetHeight / sourceH;
+    const childStyle = (el as any).style;
+    const fontScale = Math.min(scaleX, scaleY);
     return {
       ...el,
       x: Math.round(el.x * scaleX),
       y: Math.round(el.y * scaleY),
       width: Math.round(el.width * scaleX),
       height: Math.round(el.height * scaleY),
+      ...(childStyle
+        ? {
+            style: {
+              ...childStyle,
+              fontSize: childStyle.fontSize
+                ? Math.max(10, Math.round(childStyle.fontSize * fontScale))
+                : undefined,
+            },
+          }
+        : {}),
+      ...(Array.isArray((el as any).children)
+        ? {
+            children: normalizeElementChildren((el as any).children, scaleX, scaleY),
+          }
+        : {}),
     };
   });
 
@@ -256,6 +491,8 @@ export function normalizeStartScreenConfigForStage(
     canvas: {
       width: targetWidth,
       height: targetHeight,
+      coordinateSpace: targetSpace,
+      version: 2,
     },
     elements: normalizedElements,
   };
@@ -362,11 +599,11 @@ export function getStartScreenConfig(
     elements,
   };
 
-  // 5. If target dimensions provided or configuration has legacy 1000x1000 square canvas, normalize to target dimensions
-  if (targetDimensions) {
-    return normalizeStartScreenConfigForStage(resolvedConfig, targetDimensions.width, targetDimensions.height);
-  } else if (canvas.width === 1000 && canvas.height === 1000) {
-    return normalizeStartScreenConfigForStage(resolvedConfig, 1024, 576);
+  // 5. If target dimensions provided or elements need normalization, normalize to target dimensions
+  const targetW = targetDimensions?.width || 1024;
+  const targetH = targetDimensions?.height || 576;
+  if (targetDimensions || needsStartScreenElementNormalization(resolvedConfig, targetW, targetH)) {
+    return normalizeStartScreenConfigForStage(resolvedConfig, targetW, targetH);
   }
 
   return resolvedConfig;

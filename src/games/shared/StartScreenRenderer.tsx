@@ -7,7 +7,11 @@ import {
 import { resolveScreenBackground } from '../../themes/screenBackground';
 import { GameTheme, getThemeGameType } from '../../themes/types';
 import { StartElementContent } from './StartElementContent';
-import { getStartScreenConfig, normalizeStartScreenConfigForStage } from './startScreenResolver';
+import {
+  getStartScreenConfig,
+  normalizeStartScreenConfigForStage,
+  needsStartScreenElementNormalization,
+} from './startScreenResolver';
 import { StartScreenErrorBoundary } from './StartScreenErrorBoundary';
 
 export interface StartScreenRendererProps {
@@ -68,18 +72,15 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
       : resolvedConfig.elements,
   };
 
-  // If targetDimensions provided, or configuration has legacy square 1000x1000 canvas, normalize for all games
-  if (targetDimensions) {
+  // If targetDimensions provided, or configuration needs normalization, normalize for all games
+  const stageTargetW = targetDimensions?.width || 1024;
+  const stageTargetH = targetDimensions?.height || 576;
+  if (targetDimensions || needsStartScreenElementNormalization(mergedConfig, stageTargetW, stageTargetH)) {
     mergedConfig = normalizeStartScreenConfigForStage(
       mergedConfig,
-      targetDimensions.width,
-      targetDimensions.height
+      stageTargetW,
+      stageTargetH
     );
-  } else if (
-    mergedConfig.canvas?.width === 1000 &&
-    mergedConfig.canvas?.height === 1000
-  ) {
-    mergedConfig = normalizeStartScreenConfigForStage(mergedConfig, 1024, 576);
   }
 
   const finalConfig = mergedConfig;

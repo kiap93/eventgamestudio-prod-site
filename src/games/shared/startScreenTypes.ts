@@ -294,6 +294,8 @@ export interface StartScreenBackgroundConfig {
 export interface StartScreenCanvasConfig {
   width: number;
   height: number;
+  coordinateSpace?: string;
+  version?: number;
 }
 
 export interface StartScreenGameMeta {

@@ -240,7 +240,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
         <div
           className="w-full h-full overflow-hidden flex items-center justify-center select-none"
           style={{
-            borderRadius: s.borderRadius ? `${(s.borderRadius / 1000) * parentWidth}px` : undefined,
+            borderRadius: s.borderRadius ? `${s.borderRadius >= 100 ? 9999 : s.borderRadius}px` : undefined,
             borderWidth: s.borderWidth ? `${s.borderWidth}px` : undefined,
             borderColor: s.borderColor,
           }}
@@ -321,7 +321,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
             color: textColor,
             fontSize: calculatedFontSize,
             fontWeight: s.fontWeight || (isStartAction ? 900 : 700),
-            borderRadius: s.borderRadius ? `${(s.borderRadius / 1000) * parentWidth}px` : '16px',
+            borderRadius: s.borderRadius ? `${s.borderRadius >= 100 ? 9999 : s.borderRadius}px` : '16px',
             borderWidth: s.borderWidth ? `${s.borderWidth}px` : undefined,
             borderColor: s.borderColor,
             boxShadow: s.shadow ? '0 10px 25px -5px rgba(0, 0, 0, 0.4)' : undefined,
@@ -371,7 +371,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
             backgroundColor: s.backgroundColor || 'rgba(2, 6, 23, 0.8)',
             borderColor: s.borderColor || '#1e293b',
             borderWidth: `${s.borderWidth ?? 1}px`,
-            borderRadius: s.borderRadius ? `${(s.borderRadius / 1000) * parentWidth}px` : '16px',
+            borderRadius: s.borderRadius ? `${s.borderRadius >= 100 ? 9999 : s.borderRadius}px` : '16px',
           }}
         >
           <span
@@ -496,7 +496,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
             backgroundColor: s.backgroundColor || 'rgba(2, 6, 23, 0.85)',
             borderColor: s.borderColor || '#334155',
             borderWidth: `${s.borderWidth ?? 1}px`,
-            borderRadius: s.borderRadius ? `${(s.borderRadius / 1000) * parentWidth}px` : '18px',
+            borderRadius: s.borderRadius ? `${s.borderRadius >= 100 ? 9999 : s.borderRadius}px` : '18px',
           }}
         >
           {lbEl.showHeader !== false && (

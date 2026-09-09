@@ -60,21 +60,11 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
 }) => {
   // Effective config with automatic game-stage canvas matching
   const effectiveConfig = useMemo(() => {
-    let cfg = { ...startConfig };
     const orientation = theme?.orientation || 'landscape';
     const stageW = orientation === 'portrait' ? 576 : 1024;
     const stageH = orientation === 'portrait' ? 1024 : 576;
 
-    if (!cfg.canvas) {
-      cfg.canvas = {
-        width: stageW,
-        height: stageH,
-      };
-    }
-    if (cfg.canvas.width === 1000 && cfg.canvas.height === 1000) {
-      cfg = normalizeStartScreenConfigForStage(cfg, stageW, stageH);
-    }
-    return cfg;
+    return normalizeStartScreenConfigForStage(startConfig, stageW, stageH);
   }, [startConfig, theme?.orientation]);
 
   // Elements initialization with fallback
@@ -117,8 +107,18 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   // Keep parent config synced whenever elements change
   const syncToParent = useCallback(
     (newElements: StartScreenElement[]) => {
+      const stageW = effectiveConfig.canvas?.width || 1024;
+      const stageH = effectiveConfig.canvas?.height || 576;
+      const targetSpace = stageW >= stageH ? 'landscape-1024x576' : 'portrait-576x1024';
       onChange({
         ...effectiveConfig,
+        canvas: {
+          ...(effectiveConfig.canvas || {}),
+          width: stageW,
+          height: stageH,
+          coordinateSpace: targetSpace,
+          version: 2,
+        },
         elements: newElements,
       });
     },
