@@ -1306,6 +1306,15 @@ DECLARE
   v_role text;
   v_uid text;
 BEGIN
+  -- Allow database administrator / migration scripts / direct postgres sessions
+  IF current_user IN ('postgres', 'supabase_admin') OR session_user IN ('postgres', 'supabase_admin') THEN
+    IF TG_OP = 'DELETE' THEN
+      RETURN OLD;
+    ELSE
+      RETURN NEW;
+    END IF;
+  END IF;
+
   BEGIN
     v_role := current_setting('request.jwt.claim.role', true);
   EXCEPTION WHEN OTHERS THEN
@@ -1332,6 +1341,15 @@ BEGIN
     EXCEPTION WHEN OTHERS THEN
       v_uid := NULL;
     END;
+  END IF;
+
+  -- Direct SQL sessions without web claims are administrative
+  IF v_role IS NULL AND v_uid IS NULL THEN
+    IF TG_OP = 'DELETE' THEN
+      RETURN OLD;
+    ELSE
+      RETURN NEW;
+    END IF;
   END IF;
 
   IF v_role IN ('authenticated', 'anon') OR (v_uid IS NOT NULL AND (v_role IS NULL OR v_role != 'service_role')) THEN

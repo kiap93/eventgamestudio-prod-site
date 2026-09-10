@@ -16,6 +16,8 @@ import {
   Clock,
   CheckCircle2,
   Lock,
+  Eye,
+  Share2,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
@@ -49,15 +51,21 @@ export const EventCard: React.FC<EventCardProps> = ({
   onRefresh,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [copiedShowcase, setCopiedShowcase] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const publicUrl = `${window.location.origin}/play/${event.public_token}`;
+  const showcaseUrl = `${window.location.origin}/events/${event.id}/showcase`;
   const previewUrl = `/events/${event.id}/preview`;
   const isViewer = userRole === 'viewer';
   const isOwnerOrAdmin = ['owner', 'admin'].includes(userRole || '');
 
   const showcaseStatus = event.showcase?.status || event.showcase_status;
+  const isShowcasePubliclyViewable =
+    showcaseStatus === 'PUBLISHED' &&
+    event.showcase?.status !== 'BLOCKED' &&
+    event.showcase?.status !== 'DELETED';
 
   const availability = getEventAvailabilityState(event);
   const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
@@ -73,6 +81,28 @@ export const EventCard: React.FC<EventCardProps> = ({
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy public URL', err);
+    }
+  };
+
+  const handleShareShowcase = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: event.showcase?.title || event.name || 'Event Showcase',
+          url: showcaseUrl,
+        });
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(showcaseUrl);
+      setCopiedShowcase(true);
+      setTimeout(() => setCopiedShowcase(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy showcase URL', err);
     }
   };
 
@@ -232,7 +262,40 @@ export const EventCard: React.FC<EventCardProps> = ({
           )}
         </div>
 
-        {showcaseStatus && showcaseStatus !== 'NOT_CREATED' ? (
+        {isShowcasePubliclyViewable ? (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigateTo(`/events/${event.id}/showcase`);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+              title="View Public Showcase"
+            >
+              <Eye className="w-3.5 h-3.5 text-emerald-400" />
+              <span>View</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleShareShowcase}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+              title="Share Public Showcase URL"
+            >
+              {copiedShowcase ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400 font-bold">Link copied</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Share</span>
+                </>
+              )}
+            </button>
+          </div>
+        ) : showcaseStatus && showcaseStatus !== 'NOT_CREATED' ? (
           <button
             type="button"
             onClick={() => navigateTo(`/events/${event.id}/showcase`)}

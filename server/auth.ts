@@ -153,6 +153,83 @@ export async function verifyGoogleIdToken(
   }
 }
 
+export interface ResolvedAuthResult {
+  authenticated: boolean;
+  user?: UserRecord;
+  jwtPayload?: AppJWTPayload;
+  error?: 'USER_NOT_FOUND' | 'INVALID_TOKEN' | 'CONFIG_ERROR';
+  errorMessage?: string;
+}
+
+/**
+ * Resolves and authenticates a user from either an App JWT or a Supabase Auth token.
+ * Single source of truth for dual-auth validation across Express and Cloudflare Worker runtimes.
+ */
+export async function resolveAuthToken(
+  token: string,
+  env?: Record<string, any>,
+  orgHeader?: string
+): Promise<ResolvedAuthResult> {
+  if (!token) {
+    return { authenticated: false, error: 'INVALID_TOKEN', errorMessage: 'Missing token' };
+  }
+
+  // 1. Try App JWT first
+  try {
+    const payload = await verifyAppToken(token, undefined, env);
+    const user = await getUserById(payload.sub, env);
+    if (!user) {
+      return {
+        authenticated: false,
+        error: 'USER_NOT_FOUND',
+        errorMessage: 'User no longer exists',
+        jwtPayload: payload,
+      };
+    }
+    return { authenticated: true, user, jwtPayload: payload };
+  } catch (appJwtErr: any) {
+    if (appJwtErr?.message?.includes('JWT_SECRET is required')) {
+      return {
+        authenticated: false,
+        error: 'CONFIG_ERROR',
+        errorMessage: appJwtErr.message,
+      };
+    }
+
+    // 2. If App JWT verification fails, check if it's a Supabase Auth token
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+
+      if (!authError && authData?.user) {
+        let user = await getUserById(authData.user.id, env);
+        if (!user && authData.user.email) {
+          user = await getUserByEmail(authData.user.email, env);
+        }
+
+        if (user) {
+          return {
+            authenticated: true,
+            user,
+            jwtPayload: {
+              sub: user.id,
+              organizationId: orgHeader,
+            },
+          };
+        }
+      }
+    } catch (_supabaseErr) {
+      // ignore and fall through
+    }
+
+    return {
+      authenticated: false,
+      error: 'INVALID_TOKEN',
+      errorMessage: 'Invalid or expired token',
+    };
+  }
+}
+
 export async function authenticateJWT(
   req: AuthenticatedRequest,
   res: Response,
@@ -170,54 +247,78 @@ export async function authenticateJWT(
     return;
   }
 
-  // Try App JWT first
-  try {
-    const payload = await verifyAppToken(token);
-    const user = await getUserById(payload.sub);
-    if (!user) {
-      res.status(401).json({ error: 'Unauthenticated: User no longer exists' });
-      return;
-    }
+  const result = await resolveAuthToken(
+    token,
+    undefined,
+    req.headers['x-organization-id'] as string | undefined
+  );
 
-    req.user = user;
-    req.jwtPayload = payload;
+  if (result.authenticated && result.user) {
+    req.user = result.user;
+    req.jwtPayload = result.jwtPayload;
     next();
     return;
-  } catch (appJwtErr: any) {
-    if (appJwtErr?.message?.includes('JWT_SECRET is required')) {
-      console.error('[AUTH CONFIG ERROR]', appJwtErr.message);
-      res.status(500).json({ error: `Server Configuration Error: ${appJwtErr.message}` });
-      return;
-    }
-    // If App JWT verification fails with normal invalid signature/expired token, check if it's a Supabase Auth token
-    try {
-      const supabase = getSupabaseServerClient();
-      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+  }
 
-      if (!authError && authData.user) {
-        // Match or find user in our public.users table
-        let user = await getUserById(authData.user.id);
-        if (!user && authData.user.email) {
-          user = await getUserByEmail(authData.user.email);
-        }
-
-        if (user) {
-          req.user = user;
-          req.jwtPayload = {
-            sub: user.id,
-            organizationId: req.headers['x-organization-id'] as string | undefined,
-          };
-          next();
-          return;
-        }
-      }
-    } catch (_supabaseErr) {
-      // ignore
-    }
-
-    res.status(401).json({ error: 'Unauthenticated: Invalid or expired token' });
+  if (result.error === 'CONFIG_ERROR') {
+    console.error('[AUTH CONFIG ERROR]', result.errorMessage);
+    res.status(500).json({ error: `Server Configuration Error: ${result.errorMessage}` });
     return;
   }
+
+  if (result.error === 'USER_NOT_FOUND') {
+    req.jwtPayload = result.jwtPayload;
+    res.status(401).json({ error: 'Unauthenticated: User no longer exists' });
+    return;
+  }
+
+  res.status(401).json({ error: 'Unauthenticated: Invalid or expired token' });
+}
+
+/**
+ * Optional JWT authentication middleware for public / guest-accessible endpoints.
+ * Understands both App JWT and Supabase JWT tokens.
+ * - If a valid Bearer token is provided, attaches `req.user` and `req.jwtPayload` for permission verification.
+ * - If no Authorization header or an invalid token is provided, proceeds cleanly as unauthenticated guest.
+ */
+export async function authenticateOptionalJWT(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  const authHeader = req.headers.authorization;
+  let token = '';
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  }
+
+  if (!token) {
+    // No token provided - continue as unauthenticated guest
+    next();
+    return;
+  }
+
+  try {
+    const result = await resolveAuthToken(
+      token,
+      undefined,
+      req.headers['x-organization-id'] as string | undefined
+    );
+
+    if (result.authenticated && result.user) {
+      req.user = result.user;
+      req.jwtPayload = result.jwtPayload;
+    } else if (result.error === 'CONFIG_ERROR') {
+      console.error('[AUTH CONFIG ERROR]', result.errorMessage);
+      res.status(500).json({ error: `Server Configuration Error: ${result.errorMessage}` });
+      return;
+    }
+  } catch {
+    // Graceful fallback to unauthenticated guest
+  }
+
+  next();
 }
 
 export type EventPermission =

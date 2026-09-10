@@ -158,10 +158,10 @@ import {
 
 import {
   authenticateJWT,
+  authenticateOptionalJWT,
   authenticateDeveloperAdmin,
   isUserDeveloperAdmin,
   signAppToken,
-  verifyAppToken,
   verifyGoogleIdToken,
   verifyOrgMembershipAndPermission,
   hashToken,
@@ -3154,9 +3154,9 @@ app.post(['/api/events/:eventId/admin/high-scores/clear', '/api/events/:eventId/
 
 /**
  * GET /api/events/:eventId/showcase
- * Get the showcase for an event
+ * Get the showcase for an event (public for PUBLISHED, org members can preview drafts)
  */
-app.get('/api/events/:eventId/showcase', async (req: AuthenticatedRequest, res) => {
+app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const { eventId } = req.params;
     const event = await getEventById(eventId);
@@ -3167,19 +3167,11 @@ app.get('/api/events/:eventId/showcase', async (req: AuthenticatedRequest, res) 
 
     const showcase = await getShowcaseByEventId(eventId);
 
-    // Check optional auth
-    const authHeader = req.headers.authorization;
+    // Check optional auth (supports both App JWT and Supabase JWT)
     let isOrgMember = false;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.split(' ')[1];
-        const payload = await verifyAppToken(token);
-        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'event.view');
-        isOrgMember = isMember && hasPermission;
-      } catch {
-        // Ignored, proceed as unauthenticated
-      }
+    if (req.user) {
+      const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user.id, event.organization_id, 'event.view');
+      isOrgMember = isMember && hasPermission;
     }
 
     if (!showcase) {
@@ -3489,7 +3481,7 @@ app.delete('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT
  * GET /api/events/:eventId/showcase/media
  * Get all media items for an event's showcase (ordered by sort_order)
  */
-app.get('/api/events/:eventId/showcase/media', async (req: AuthenticatedRequest, res) => {
+app.get('/api/events/:eventId/showcase/media', authenticateOptionalJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const { eventId } = req.params;
     const event = await getEventById(eventId);
@@ -3504,19 +3496,11 @@ app.get('/api/events/:eventId/showcase/media', async (req: AuthenticatedRequest,
       return;
     }
 
-    // Check auth
-    const authHeader = req.headers.authorization;
+    // Check optional auth (supports both App JWT and Supabase JWT)
     let isOrgMember = false;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.split(' ')[1];
-        const payload = await verifyAppToken(token);
-        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'event.view');
-        isOrgMember = isMember && hasPermission;
-      } catch {
-        // Ignored
-      }
+    if (req.user) {
+      const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user.id, event.organization_id, 'event.view');
+      isOrgMember = isMember && hasPermission;
     }
 
     // If not org member, only allow if showcase is PUBLISHED

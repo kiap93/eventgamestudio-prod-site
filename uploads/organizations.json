@@ -4198,5 +4198,125 @@
     "country_code": null,
     "created_at": "2026-09-10T07:00:56.965Z",
     "updated_at": "2026-09-10T07:00:56.965Z"
+  },
+  {
+    "id": "b97af792-5cec-4dd1-9310-93b1910cce91",
+    "name": "Leaderboard Security Org",
+    "slug": "leaderboard-security-org-da0886",
+    "owner_id": "dd3705ce-699b-4929-a48b-66534ce5af9d",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-10T07:47:03.943Z",
+    "updated_at": "2026-09-10T07:47:03.943Z"
+  },
+  {
+    "id": "eeffd93a-8566-47ba-baaf-73cd0a7effde",
+    "name": "Other Org",
+    "slug": "other-org-047316",
+    "owner_id": "44078f1c-61c7-4438-9f73-a69f55ec0936",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-10T07:47:03.989Z",
+    "updated_at": "2026-09-10T07:47:03.989Z"
+  },
+  {
+    "id": "0a61ad36-175c-451a-a9d8-4fcc3e83739d",
+    "name": "Singapore Tech Events",
+    "slug": "singapore-tech-events-2c045f",
+    "owner_id": "ca49b4d5-9991-4232-a37e-86241662009f",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-10T07:57:23.777Z",
+    "updated_at": "2026-09-10T07:57:23.868Z"
+  },
+  {
+    "id": "c8cb7bba-ce5d-4ee2-84e1-5e8c63a0adb8",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-882315",
+    "owner_id": "a62de5cc-2d47-41c7-a754-e1cc93ccc849",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-10T07:57:23.823Z",
+    "updated_at": "2026-09-10T07:57:23.823Z"
+  },
+  {
+    "id": "9a214c2d-5959-4b04-b655-3307cadeacca",
+    "name": "Acme Super Events",
+    "slug": "acme-events-corp-3ee1b5",
+    "owner_id": "2e296945-49c4-4e74-8baf-a6a7e39fc3fc",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-10T07:57:23.940Z",
+    "updated_at": "2026-09-10T07:57:24.194Z"
+  },
+  {
+    "id": "159bb0ef-f7d4-4df9-8412-9519e46f33e9",
+    "name": "Cron Org",
+    "slug": "cron-org-936aa0",
+    "owner_id": "d41a4a4f-e969-4e15-981e-5acc2ba225a9",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-10T07:57:24.197Z",
+    "updated_at": "2026-09-10T07:57:24.197Z"
+  },
+  {
+    "id": "edc22c38-4080-49aa-9d8b-d3379eb54b1c",
+    "name": "Leaderboard Security Org",
+    "slug": "leaderboard-security-org-cc8acc",
+    "owner_id": "96933d54-eff3-4e5c-a968-aaf44ca5a751",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-10T07:57:24.232Z",
+    "updated_at": "2026-09-10T07:57:24.232Z"
+  },
+  {
+    "id": "55aef58d-0b77-4964-9c34-9207f6a971c9",
+    "name": "Other Org",
+    "slug": "other-org-06a305",
+    "owner_id": "cb2f9367-5410-4a39-8c16-9df00c10358d",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-10T07:57:24.256Z",
+    "updated_at": "2026-09-10T07:57:24.256Z"
+  },
+  {
+    "id": "5094245c-870f-4d03-a3ec-18d5e33e845d",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-7c3e89",
+    "owner_id": "5ab86ccc-228d-4603-bc14-9893bdf8312f",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-10T07:57:24.329Z",
+    "updated_at": "2026-09-10T07:57:24.329Z"
+  },
+  {
+    "id": "2208406f-a1ad-4892-a01a-6a517836c839",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-128914",
+    "owner_id": "a7741396-c75d-4896-be21-54c69d6c6c03",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-10T07:57:24.350Z",
+    "updated_at": "2026-09-10T07:57:24.350Z"
+  },
+  {
+    "id": "ec92771b-d8d0-4d9c-88bd-f5fefe6b03a8",
+    "name": "Lock Test Org",
+    "slug": "lock-test-org-db9cd7",
+    "owner_id": "6f6ff262-d17e-49dc-b754-a296f6024a3b",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-10T07:57:24.370Z",
+    "updated_at": "2026-09-10T07:57:24.370Z"
+  },
+  {
+    "id": "a01b2015-f367-445e-90a5-2282d15e3062",
+    "name": "Secure Events Org",
+    "slug": "secure-events-org-3911e6",
+    "owner_id": "6691e145-eb36-42f8-aced-8d3362320217",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-10T07:57:24.396Z",
+    "updated_at": "2026-09-10T07:57:24.396Z"
   }
 ]

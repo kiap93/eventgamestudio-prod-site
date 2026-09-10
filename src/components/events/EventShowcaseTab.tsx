@@ -23,6 +23,8 @@ import {
   XCircle,
   Lock,
   Trash2,
+  Eye,
+  Share2,
 } from 'lucide-react';
 
 interface EventShowcaseTabProps {
@@ -51,10 +53,33 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
   const [clientName, setClientName] = useState('');
   const [clientLogoUrl, setClientLogoUrl] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [copiedShowcase, setCopiedShowcase] = useState(false);
 
   const isViewer = userRole === 'viewer';
   const isBlocked = showcase?.status === 'BLOCKED';
   const isLocked = isViewer || isBlocked;
+
+  const handleShareShowcase = async () => {
+    const showcaseUrl = `${window.location.origin}/events/${event.id}/showcase`;
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: showcase?.title || title || event.name || 'Event Showcase',
+          url: showcaseUrl,
+        });
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(showcaseUrl);
+      setCopiedShowcase(true);
+      setTimeout(() => setCopiedShowcase(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy showcase URL', err);
+    }
+  };
 
   const fetchShowcase = async () => {
     try {
@@ -571,43 +596,77 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
               </div>
             </div>
 
-            {!isViewer && !isBlocked && (
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Publish / Unpublish Toggle */}
-                {showcase.status === 'PUBLISHED' ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {showcase.status === 'PUBLISHED' && !isBlocked && showcase.status !== 'DELETED' && (
+                <>
                   <button
                     type="button"
-                    onClick={handleUnpublish}
-                    disabled={publishing}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
+                    onClick={() => window.open(`/events/${event.id}/showcase`, '_blank')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
+                    title="View Public Showcase"
                   >
-                    <EyeOff className="w-3.5 h-3.5" />
-                    <span>{publishing ? 'Unpublishing...' : 'Unpublish'}</span>
+                    <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>View</span>
                   </button>
-                ) : (
                   <button
                     type="button"
-                    onClick={handlePublish}
-                    disabled={publishing}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-50"
+                    onClick={handleShareShowcase}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
+                    title="Share Public Showcase URL"
                   >
-                    <Globe className="w-3.5 h-3.5" />
-                    <span>{publishing ? 'Publishing...' : 'Publish'}</span>
+                    {copiedShowcase ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-emerald-400 font-bold">Link copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Share2 className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Share</span>
+                      </>
+                    )}
                   </button>
-                )}
+                </>
+              )}
 
-                {/* Delete Showcase Button */}
-                <button
-                  type="button"
-                  onClick={handleDeleteShowcase}
-                  disabled={deleting}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                  <span>{deleting ? 'Deleting...' : 'Delete'}</span>
-                </button>
-              </div>
-            )}
+              {!isViewer && !isBlocked && (
+                <>
+                  {/* Publish / Unpublish Toggle */}
+                  {showcase.status === 'PUBLISHED' ? (
+                    <button
+                      type="button"
+                      onClick={handleUnpublish}
+                      disabled={publishing}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>{publishing ? 'Unpublishing...' : 'Unpublish'}</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handlePublish}
+                      disabled={publishing}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-50"
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>{publishing ? 'Publishing...' : 'Publish'}</span>
+                    </button>
+                  )}
+
+                  {/* Delete Showcase Button */}
+                  <button
+                    type="button"
+                    onClick={handleDeleteShowcase}
+                    disabled={deleting}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                    <span>{deleting ? 'Deleting...' : 'Delete'}</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Sub Navigation: Details vs Media */}

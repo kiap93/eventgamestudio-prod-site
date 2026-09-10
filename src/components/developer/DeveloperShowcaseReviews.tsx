@@ -28,6 +28,7 @@ import {
   ShieldCheck,
   Trash2,
   Ban,
+  Share2,
 } from 'lucide-react';
 
 export const DeveloperShowcaseReviews: React.FC = () => {
@@ -63,6 +64,29 @@ export const DeveloperShowcaseReviews: React.FC = () => {
   // Delete Modal
   const [deletingShowcase, setDeletingShowcase] = useState<AdminShowcaseListItem | null>(null);
   const [deleteReason, setDeleteReason] = useState<string>('');
+  const [copiedShowcaseId, setCopiedShowcaseId] = useState<string | null>(null);
+
+  const handleShareShowcase = async (sc: AdminShowcaseListItem) => {
+    const showcaseUrl = `${window.location.origin}/events/${sc.event_id}/showcase`;
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: sc.title || 'Event Showcase',
+          url: showcaseUrl,
+        });
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(showcaseUrl);
+      setCopiedShowcaseId(sc.id);
+      setTimeout(() => setCopiedShowcaseId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy showcase URL', err);
+    }
+  };
 
   const fetchShowcases = async () => {
     try {
@@ -664,13 +688,46 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                       {/* Action Buttons */}
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* View & Inspect */}
+                          {/* Publicly Viewable: View & Share */}
+                          {((sc.status === 'PUBLISHED' || sc.publication_status === 'PUBLISHED') && sc.status !== 'BLOCKED' && sc.status !== 'DELETED') && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => window.open(`/events/${sc.event_id}/showcase`, '_blank')}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+                                title="Open Public Showcase"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>View</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleShareShowcase(sc)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+                                title="Share Public Showcase URL"
+                              >
+                                {copiedShowcaseId === sc.id ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span className="text-emerald-400 font-bold">Link copied</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Share2 className="w-3.5 h-3.5 text-amber-400" />
+                                    <span>Share</span>
+                                  </>
+                                )}
+                              </button>
+                            </>
+                          )}
+
+                          {/* Inspect Modal Trigger */}
                           <button
                             onClick={() => openPreview(sc)}
                             className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
                             title="Inspect Showcase Details & Media"
                           >
-                            <Eye className="w-3.5 h-3.5" />
+                            <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
                           </button>
 
                           {/* Approve Action */}
@@ -1111,6 +1168,39 @@ export const DeveloperShowcaseReviews: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Publicly Viewable: View & Share */}
+                {((selectedShowcase.status === 'PUBLISHED' || selectedShowcase.publication_status === 'PUBLISHED') && selectedShowcase.status !== 'BLOCKED' && selectedShowcase.status !== 'DELETED') && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => window.open(`/events/${selectedShowcase.event_id}/showcase`, '_blank')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
+                      title="Open Public Showcase"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>View</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleShareShowcase(selectedShowcase)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
+                      title="Share Public Showcase URL"
+                    >
+                      {copiedShowcaseId === selectedShowcase.id ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400 font-bold">Link copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Share</span>
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+
                 {selectedShowcase.review_status === 'SUBMITTED' && selectedShowcase.status !== 'BLOCKED' && selectedShowcase.status !== 'DELETED' && (
                   <>
                     <button

@@ -25,6 +25,18 @@ ALTER TABLE public.event_showcases
   ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
 -- 3. Backfill reward_review_status based on existing records
+-- Temporarily disable client mutation prevention trigger during migration backfill if present
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_trigger 
+    WHERE tgname = 'trg_prevent_event_showcase_unauthorized_client_mutations'
+      AND tgrelid = 'public.event_showcases'::regclass
+  ) THEN
+    ALTER TABLE public.event_showcases DISABLE TRIGGER trg_prevent_event_showcase_unauthorized_client_mutations;
+  END IF;
+END $$;
+
 UPDATE public.event_showcases
 SET reward_review_status = CASE
   WHEN review_status = 'APPROVED' OR reward_status = 'REWARDED' OR reward_status = 'GRANTED' THEN 'REWARDED'
@@ -33,6 +45,18 @@ SET reward_review_status = CASE
   ELSE 'NOT_ELIGIBLE'
 END
 WHERE reward_review_status IS NULL OR reward_review_status = 'NOT_ELIGIBLE';
+
+-- Re-enable the trigger after backfill if it was present
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_trigger 
+    WHERE tgname = 'trg_prevent_event_showcase_unauthorized_client_mutations'
+      AND tgrelid = 'public.event_showcases'::regclass
+  ) THEN
+    ALTER TABLE public.event_showcases ENABLE TRIGGER trg_prevent_event_showcase_unauthorized_client_mutations;
+  END IF;
+END $$;
 
 -- 4. Create Showcase Moderation History / Audit Table
 CREATE TABLE IF NOT EXISTS public.showcase_moderation_logs (

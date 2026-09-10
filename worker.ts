@@ -181,11 +181,11 @@ import {
 
 import {
   signAppToken,
-  verifyAppToken,
   verifyGoogleIdToken,
   verifyOrgMembershipAndPermission,
   hashToken,
   isUserDeveloperAdmin,
+  resolveAuthToken,
   AppJWTPayload,
 } from './server/auth.js';
 
@@ -405,56 +405,74 @@ async function authenticateWorkerRequest(
     };
   }
 
-  // 1. Try App JWT
-  try {
-    const payload = await verifyAppToken(token, undefined, env);
-    const user = await getUserById(payload.sub, env);
-    if (!user) {
-      return {
-        authenticated: false,
-        errorResponse: errorResponse('Unauthenticated: User no longer exists', 401, cors),
-      };
-    }
-    return { authenticated: true, user, jwtPayload: payload };
-  } catch (appErr: any) {
-    if (appErr?.message?.includes('JWT_SECRET is required')) {
-      console.error('[Worker Auth Config Error]', appErr.message);
-      return {
-        authenticated: false,
-        errorResponse: errorResponse(`Server Configuration Error: ${appErr.message}`, 500, cors),
-      };
-    }
+  const orgHeader = request.headers.get('x-organization-id') || undefined;
+  const result = await resolveAuthToken(token, env, orgHeader);
 
-    // 2. Try Supabase Auth Token
-    try {
-      const supabase = getSupabaseServerClient(env);
-      const { data: authData, error: authErr } = await supabase.auth.getUser(token);
-      if (!authErr && authData?.user) {
-        let user = await getUserById(authData.user.id, env);
-        if (!user && authData.user.email) {
-          user = await getUserByEmail(authData.user.email, env);
-        }
-        if (user) {
-          const orgHeader = request.headers.get('x-organization-id') || undefined;
-          return {
-            authenticated: true,
-            user,
-            jwtPayload: {
-              sub: user.id,
-              organizationId: orgHeader,
-            },
-          };
-        }
-      }
-    } catch (_spErr) {
-      // ignore
-    }
+  if (result.authenticated && result.user) {
+    return { authenticated: true, user: result.user, jwtPayload: result.jwtPayload };
+  }
 
+  if (result.error === 'CONFIG_ERROR') {
+    console.error('[Worker Auth Config Error]', result.errorMessage);
     return {
       authenticated: false,
-      errorResponse: errorResponse('Unauthenticated: Invalid or expired token', 401, cors),
+      errorResponse: errorResponse(`Server Configuration Error: ${result.errorMessage}`, 500, cors),
     };
   }
+
+  if (result.error === 'USER_NOT_FOUND') {
+    return {
+      authenticated: false,
+      errorResponse: errorResponse('Unauthenticated: User no longer exists', 401, cors),
+    };
+  }
+
+  return {
+    authenticated: false,
+    errorResponse: errorResponse('Unauthenticated: Invalid or expired token', 401, cors),
+  };
+}
+
+/**
+ * Optional authentication helper for Cloudflare Worker public endpoints.
+ * Understands both App JWT and Supabase JWT tokens.
+ * - If a valid Bearer token is provided, returns { authenticated: true, user, jwtPayload }.
+ * - If no Authorization header or an invalid token is provided, returns { authenticated: false }.
+ */
+async function authenticateOptionalJWT(
+  request: Request,
+  env: Env
+): Promise<{
+  authenticated: boolean;
+  user?: any;
+  jwtPayload?: AppJWTPayload;
+}> {
+  const authHeader = request.headers.get('Authorization');
+  let token = '';
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  }
+
+  if (!token) {
+    return { authenticated: false };
+  }
+
+  try {
+    const orgHeader = request.headers.get('x-organization-id') || undefined;
+    const result = await resolveAuthToken(token, env, orgHeader);
+    if (result.authenticated && result.user) {
+      return {
+        authenticated: true,
+        user: result.user,
+        jwtPayload: result.jwtPayload,
+      };
+    }
+  } catch {
+    // Ignore optional auth errors and proceed as unauthenticated
+  }
+
+  return { authenticated: false };
 }
 
 export default {
@@ -3323,20 +3341,12 @@ export default {
 
         const showcase = await getShowcaseByEventId(eventId, env);
 
-        // Check optional auth for org membership
+        // Check optional auth for org membership (supports both App JWT and Supabase JWT)
         let isOrgMember = false;
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-          try {
-            const token = authHeader.substring(7);
-            const payload = await verifyAppToken(token, undefined, env);
-            if (payload && payload.sub) {
-              const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'event.view', env);
-              isOrgMember = isMember && hasPermission;
-            }
-          } catch {
-            // Ignore optional auth error
-          }
+        const auth = await authenticateOptionalJWT(request, env);
+        if (auth.authenticated && auth.user) {
+          const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.view', env);
+          isOrgMember = isMember && hasPermission;
         }
 
         if (!showcase) {
@@ -3619,19 +3629,12 @@ export default {
           return errorResponse('Showcase not found for this event', 404, cors);
         }
 
+        // Check optional auth for org membership (supports both App JWT and Supabase JWT)
         let isOrgMember = false;
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-          try {
-            const token = authHeader.substring(7);
-            const payload = await verifyAppToken(token, undefined, env);
-            if (payload && payload.sub) {
-              const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(payload.sub, event.organization_id, 'event.view', env);
-              isOrgMember = isMember && hasPermission;
-            }
-          } catch {
-            // Ignore optional auth error
-          }
+        const auth = await authenticateOptionalJWT(request, env);
+        if (auth.authenticated && auth.user) {
+          const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.view', env);
+          isOrgMember = isMember && hasPermission;
         }
 
         if (!isOrgMember && showcase.status !== 'PUBLISHED') {

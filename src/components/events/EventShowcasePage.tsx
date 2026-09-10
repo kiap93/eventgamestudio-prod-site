@@ -31,6 +31,9 @@ import {
   Gamepad2,
   ExternalLink,
   Lock,
+  Eye,
+  Share2,
+  Check,
 } from 'lucide-react';
 import { isEventEligibleForShowcase } from '../../lib/dateUtils';
 
@@ -79,9 +82,32 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
   const [previewMedia, setPreviewMedia] = useState<EventShowcaseMedia | null>(null);
   const [isDraggingPhotos, setIsDraggingPhotos] = useState(false);
   const [isDraggingVideos, setIsDraggingVideos] = useState(false);
+  const [copiedShowcase, setCopiedShowcase] = useState(false);
 
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleShareShowcase = async () => {
+    const showcaseUrl = `${window.location.origin}/events/${eventId}/showcase`;
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: showcase?.title || title || 'Event Showcase',
+          url: showcaseUrl,
+        });
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(showcaseUrl);
+      setCopiedShowcase(true);
+      setTimeout(() => setCopiedShowcase(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy showcase URL', err);
+    }
+  };
 
   // 1. Fetch Event & Showcase
   const loadData = async () => {
@@ -686,41 +712,75 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
           </div>
 
           {/* Action Buttons */}
-          {!isViewer && (
-            <div className="flex items-center gap-3 flex-wrap">
-              <button
-                type="button"
-                onClick={() => handleSave()}
-                disabled={saving}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 transition-all cursor-pointer shadow-sm"
-              >
-                <Save className="w-4 h-4 text-amber-400" />
-                <span>{saving ? 'Saving...' : showcase ? 'Save Changes' : 'Save Draft'}</span>
-              </button>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {showcase?.status === 'PUBLISHED' && showcase?.status !== 'BLOCKED' && showcase?.status !== 'DELETED' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => window.open(`/events/${eventId}/showcase`, '_blank')}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer shadow-sm"
+                  title="Open Public Showcase"
+                >
+                  <Eye className="w-4 h-4 text-emerald-400" />
+                  <span>View</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareShowcase}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer shadow-sm"
+                  title="Share Public Showcase URL"
+                >
+                  {copiedShowcase ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span className="text-emerald-400 font-bold">Link copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-4 h-4 text-amber-400" />
+                      <span>Share</span>
+                    </>
+                  )}
+                </button>
+              </>
+            )}
 
-              {showcase?.status === 'PUBLISHED' ? (
+            {!isViewer && (
+              <>
                 <button
                   type="button"
-                  onClick={handlePublishToggle}
-                  disabled={publishing}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
+                  onClick={() => handleSave()}
+                  disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 transition-all cursor-pointer shadow-sm"
                 >
-                  <EyeOff className="w-4 h-4 text-slate-400" />
-                  <span>{publishing ? 'Unpublishing...' : 'Unpublish Showcase'}</span>
+                  <Save className="w-4 h-4 text-amber-400" />
+                  <span>{saving ? 'Saving...' : showcase ? 'Save Changes' : 'Save Draft'}</span>
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handlePublishToggle}
-                  disabled={publishing}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
-                >
-                  <Globe className="w-4 h-4" />
-                  <span>{publishing ? 'Publishing...' : 'Publish Showcase'}</span>
-                </button>
-              )}
-            </div>
-          )}
+
+                {showcase?.status === 'PUBLISHED' ? (
+                  <button
+                    type="button"
+                    onClick={handlePublishToggle}
+                    disabled={publishing}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
+                  >
+                    <EyeOff className="w-4 h-4 text-slate-400" />
+                    <span>{publishing ? 'Unpublishing...' : 'Unpublish Showcase'}</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePublishToggle}
+                    disabled={publishing}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span>{publishing ? 'Publishing...' : 'Publish Showcase'}</span>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 

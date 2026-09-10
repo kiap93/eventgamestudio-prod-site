@@ -16,7 +16,7 @@
 
 import assert from 'node:assert';
 import * as jose from 'jose';
-import { authenticateJWT, signAppToken } from './auth.js';
+import { authenticateJWT, authenticateOptionalJWT, resolveAuthToken, signAppToken } from './auth.js';
 
 console.log('--- Starting Authentication Header Security Tests ---');
 
@@ -279,6 +279,86 @@ async function runTests() {
 
     assert.strictEqual(inviteToken, 'purpose_built_invite_code_123', 'Invitation link token must be extractable on dedicated endpoint');
     console.log('✓ Test 8 Passed: Dedicated link token functionality for invitations remains preserved');
+  }
+
+  // --------------------------------------------------------------------------
+  // Test 9: authenticateOptionalJWT proceeds as guest when no Authorization header
+  // --------------------------------------------------------------------------
+  {
+    let nextCalled = false;
+    let statusCode: number | null = null;
+    const req: any = { headers: {} };
+    const res: any = {
+      status: (code: number) => {
+        statusCode = code;
+        return { json: () => {} };
+      },
+    };
+
+    await authenticateOptionalJWT(req, res, () => {
+      nextCalled = true;
+    });
+
+    assert.strictEqual(nextCalled, true, 'next() must be called for unauthenticated guest requests');
+    assert.strictEqual(statusCode, null, 'No error status code must be returned');
+    assert.strictEqual(req.user, undefined, 'req.user must remain undefined');
+    console.log('✓ Test 9 Passed: authenticateOptionalJWT proceeds as guest when no Authorization header');
+  }
+
+  // --------------------------------------------------------------------------
+  // Test 10: authenticateOptionalJWT proceeds as guest when token is invalid
+  // --------------------------------------------------------------------------
+  {
+    let nextCalled = false;
+    let statusCode: number | null = null;
+    const req: any = {
+      headers: {
+        authorization: 'Bearer invalid.or.expired.jwt.token',
+      },
+    };
+    const res: any = {
+      status: (code: number) => {
+        statusCode = code;
+        return { json: () => {} };
+      },
+    };
+
+    await authenticateOptionalJWT(req, res, () => {
+      nextCalled = true;
+    });
+
+    assert.strictEqual(nextCalled, true, 'next() must be called even when optional token is invalid');
+    assert.strictEqual(statusCode, null, 'No error status code must be returned for optional token failures');
+    assert.strictEqual(req.user, undefined, 'req.user must remain undefined for invalid token');
+    console.log('✓ Test 10 Passed: authenticateOptionalJWT proceeds as guest when token is invalid');
+  }
+
+  // --------------------------------------------------------------------------
+  // Test 11: resolveAuthToken accepts valid App JWT
+  // --------------------------------------------------------------------------
+  {
+    const result = await resolveAuthToken(validToken);
+    // In test environment without DB mock, token signature passes.
+    // If user is not found in DB, result.error is 'USER_NOT_FOUND' with valid parsed payload.
+    // If user is found, result.authenticated is true.
+    assert(
+      result.authenticated === true || result.error === 'USER_NOT_FOUND',
+      'resolveAuthToken must successfully verify App JWT signature'
+    );
+    if (result.error === 'USER_NOT_FOUND') {
+      assert.strictEqual(result.jwtPayload?.sub, TEST_USER.id, 'Parsed payload sub must match test user ID');
+    }
+    console.log('✓ Test 11 Passed: resolveAuthToken successfully parses and validates App JWT');
+  }
+
+  // --------------------------------------------------------------------------
+  // Test 12: resolveAuthToken rejects invalid token
+  // --------------------------------------------------------------------------
+  {
+    const result = await resolveAuthToken('completely.invalid.token');
+    assert.strictEqual(result.authenticated, false, 'Invalid token must not authenticate');
+    assert.strictEqual(result.error, 'INVALID_TOKEN', 'Error must be INVALID_TOKEN');
+    console.log('✓ Test 12 Passed: resolveAuthToken gracefully rejects invalid token without crashing');
   }
 
   console.log('--- All Authentication Header Security Tests Passed Successfully ---');
