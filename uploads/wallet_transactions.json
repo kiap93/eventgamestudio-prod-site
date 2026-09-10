@@ -39698,5 +39698,24 @@
     },
     "created_by": "6721bf0b-732d-409a-bb57-a7cce2938de8",
     "created_at": "2026-09-09T14:17:23.450Z"
+  },
+  {
+    "id": "c571f67e-2608-4e3f-967a-fa42bd8ac667",
+    "organization_id": "27aaaacb-81de-404b-a0d2-0613d80f6d44",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_27aaaacb-81de-404b-a0d2-0613d80f6d44",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Distributed Racing Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "fec9bf23-d547-45a4-a10f-739706313422",
+    "created_at": "2026-09-10T07:00:56.967Z"
   }
 ]

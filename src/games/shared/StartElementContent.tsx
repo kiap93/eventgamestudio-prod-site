@@ -281,8 +281,8 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
 
       const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (isEditor) {
-          // While editing in canvas authoring mode, selection and drag take priority
+        // Guard only for visual editor canvas and static preview where clicks are intentionally disabled
+        if (isEditor || isSimulation) {
           return;
         }
 
@@ -325,6 +325,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
         <button
           type="button"
           onClick={handleClick}
+          onPointerDown={(e) => e.stopPropagation()}
           className={`w-full h-full flex items-center justify-center gap-2 font-bold cursor-pointer transition-all ${
             isStartAction
               ? 'shadow-lg hover:scale-102 active:scale-98'

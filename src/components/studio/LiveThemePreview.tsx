@@ -1024,6 +1024,8 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             isMuted={isMuted}
             isFullscreen={isFullscreen}
             isEventPreview={true}
+            isSimulation={false}
+            isInteractive={true}
             onToggleMute={() => setIsMuted(!isMuted)}
             onToggleFullscreen={handleToggleFullscreen}
           />

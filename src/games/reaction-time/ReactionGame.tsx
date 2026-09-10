@@ -31,7 +31,13 @@ import { useResponsiveLayout } from '../../themes/responsive';
 import { EventLeaderboardEntry } from '../../types';
 import { apiFetch } from '../../lib/api';
 
-export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
+export interface ReactionGameProps extends GameComponentProps<ReactionGameConfig> {
+  isSimulation?: boolean;
+  isInteractive?: boolean;
+  className?: string;
+}
+
+export const ReactionGame: React.FC<ReactionGameProps> = ({
   activeTheme,
   settings,
   config,
@@ -39,8 +45,11 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
   publicToken,
   isEventPreview = false,
   isEventTest = false,
+  isSimulation = false,
+  isInteractive = true,
   isMuted = false,
   isFullscreen = false,
+  className = '',
   onToggleFullscreen,
   onToggleMute,
   onGameStateChange,
@@ -293,8 +302,12 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
       }
       lastTriggerTimeRef.current = nowPerf;
 
-      // 1. If currently in IDLE or READY: start game
-      if (currentState === 'IDLE' || currentState === 'READY') {
+      // 1. In IDLE state, the game must ONLY start via the Start Screen's START REACTION TEST button
+      // (Requirement: Do NOT use the parent game's generic onClick={handleUserTrigger} as a workaround)
+      if (currentState === 'IDLE') {
+        return;
+      }
+      if (currentState === 'READY') {
         startNewGame();
         return;
       }
@@ -785,7 +798,7 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
             <StartScreenRenderer
               startConfig={reactionConfig.screens?.start}
               theme={activeTheme}
-              gameType="reaction-time"
+              gameType="reaction-tap"
               targetDimensions={{
                 width: responsive.designWidth,
                 height: responsive.designHeight,
@@ -798,6 +811,7 @@ export const ReactionGame: React.FC<GameComponentProps<ReactionGameConfig>> = ({
               }}
               onStartGame={startRoundSequence}
               onShowLeaderboard={() => setShowLeaderboardModal(true)}
+              isSimulation={isSimulation && !isInteractive}
               isEventPreview={isEventPreview}
               isEventTest={isEventTest}
               suppressBackground={true}
