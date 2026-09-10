@@ -143,6 +143,13 @@ export function getNormalizedCurrentDate(currentDate?: string | Date | null, tim
 }
 
 /**
+ * Returns today's date formatted as YYYY-MM-DD in Asia/Singapore (UTC+8).
+ */
+export function getSingaporeCalendarDate(date: Date = new Date(), timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
+  return getNormalizedCurrentDate(date, timeZone);
+}
+
+/**
  * Formats a date value into human-readable format like "07 Sep 2026" or "07 September 2026".
  */
 export function formatDateOnly(
@@ -790,8 +797,12 @@ export function normalizeEventDateBoundaries(
   const [startY, startM, startD] = startDate.split('-').map(Number);
   const [endY, endM, endD] = endDate.split('-').map(Number);
 
-  const startUtc = new Date(Date.UTC(startY, startM - 1, startD, 0, 0, 0, 0));
-  const endUtc = new Date(Date.UTC(endY, endM - 1, endD, 23, 59, 59, 999));
+  // Business Timezone Standard: Asia/Singapore (UTC+8)
+  // 00:00:00 SGT = previous day 16:00:00 UTC (-8 hours)
+  // 23:59:59.999 SGT = same day 15:59:59.999 UTC (-8 hours)
+  const SG_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const startUtc = new Date(Date.UTC(startY, startM - 1, startD, 0, 0, 0, 0) - SG_OFFSET_MS);
+  const endUtc = new Date(Date.UTC(endY, endM - 1, endD, 23, 59, 59, 999) - SG_OFFSET_MS);
 
   if (isNaN(startUtc.getTime()) || isNaN(endUtc.getTime())) {
     const err: any = new Error('Invalid Start Date or End Date');
@@ -820,8 +831,8 @@ export function normalizeEventDateBoundaries(
     }
   }
 
-  // Setup Day begins at 00:00:00 UTC on the calendar day immediately preceding the Start Date
-  const setupUtc = new Date(Date.UTC(startY, startM - 1, startD - 1, 0, 0, 0, 0));
+  // Setup Day begins at 00:00:00 SGT on the calendar day immediately preceding the Start Date
+  const setupUtc = new Date(Date.UTC(startY, startM - 1, startD - 1, 0, 0, 0, 0) - SG_OFFSET_MS);
 
   return {
     startDate,
@@ -838,10 +849,10 @@ export function normalizeEventDateBoundaries(
 /**
  * Calculates the exact start time of Setup Day / Preparation window.
  * Business Rule:
- * The Setup Day is the calendar day immediately before the event starts (00:00:00 UTC).
+ * The Setup Day is the calendar day immediately before the event starts (00:00:00 Asia/Singapore UTC+8).
  * For an event scheduled for:
  * Event date: 2 September – 3 September (e.g. 2026-09-02)
- * the Setup Day / Payment Deduction Day = 1 September 00:00:00 (2026-09-01T00:00:00.000Z)
+ * the Setup Day / Payment Deduction Day = 1 September 00:00:00 SGT (2026-08-31T16:00:00.000Z)
  */
 export function getSetupDayStartTime(event: {
   starts_at?: string | null;
@@ -852,6 +863,8 @@ export function getSetupDayStartTime(event: {
   if (event.setup_starts_at) {
     return new Date(event.setup_starts_at);
   }
+
+  const SG_OFFSET_MS = 8 * 60 * 60 * 1000;
 
   // Derive calendar date from start_date, event_date, or starts_at
   let dateStr = event.start_date || event.event_date;
@@ -870,12 +883,12 @@ export function getSetupDayStartTime(event: {
       const year = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1; // 0-indexed (0 = Jan)
       const day = parseInt(parts[2], 10);
-      return new Date(Date.UTC(year, month, day - 1, 0, 0, 0, 0));
+      return new Date(Date.UTC(year, month, day - 1, 0, 0, 0, 0) - SG_OFFSET_MS);
     }
   }
 
   const startDate = new Date(event.starts_at || Date.now());
-  return new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate() - 1, 0, 0, 0, 0));
+  return new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate() - 1, 0, 0, 0, 0) - SG_OFFSET_MS);
 }
 
 /**
@@ -885,11 +898,22 @@ export function isSetupDayStarted(
   event: {
     starts_at: string;
     event_date?: string | null;
+    start_date?: string | null;
     setup_starts_at?: string | null;
     [key: string]: any;
   },
   now: Date = new Date()
 ): boolean {
+  // 1. First check calendar date comparison in Asia/Singapore
+  const dates = getNormalizedEventDates(event);
+  if (dates.liveOpenDate) {
+    const curDateSg = getSingaporeCalendarDate(now);
+    if (curDateSg >= dates.liveOpenDate) {
+      return true;
+    }
+  }
+
+  // 2. Fall back to timestamp comparison
   const setupTime = getSetupDayStartTime(event);
   return now.getTime() >= setupTime.getTime();
 }

@@ -3595,5 +3595,50 @@
     "sort_order": 2,
     "created_at": "2026-09-09T14:17:23.504Z",
     "updated_at": "2026-09-09T14:17:23.504Z"
+  },
+  {
+    "id": "532b851b-f187-438c-9fd4-8a915797f6f0",
+    "showcase_id": "e2461bda-b8e9-41d5-bae2-45329ef48646",
+    "organization_id": "f86bc775-34bd-48dd-8c9b-e3b56960a3dd",
+    "media_type": "IMAGE",
+    "media_url": "https://bnfjcgkbdluzlwadyycl.supabase.co/storage/v1/object/public/showcase-media/organizations/f86bc775-34bd-48dd-8c9b-e3b56960a3dd/showcases/e2461bda-b8e9-41d5-bae2-45329ef48646/booth_event_photo_1.webp",
+    "storage_path": "organizations/f86bc775-34bd-48dd-8c9b-e3b56960a3dd/showcases/e2461bda-b8e9-41d5-bae2-45329ef48646/booth_event_photo_1.webp",
+    "thumbnail_url": null,
+    "file_name": "booth_event_photo_1.webp",
+    "file_size": 102400,
+    "mime_type": "image/webp",
+    "sort_order": 0,
+    "created_at": "2026-09-10T08:46:25.888Z",
+    "updated_at": "2026-09-10T08:46:25.888Z"
+  },
+  {
+    "id": "9df3fb8b-40c4-49fc-8f9e-a0cbfcb2c1cf",
+    "showcase_id": "7482515a-9253-42d4-a8c9-44676ad29bd0",
+    "organization_id": "afb8095c-984a-4963-9e03-fe5c95205159",
+    "media_type": "IMAGE",
+    "media_url": "https://bnfjcgkbdluzlwadyycl.supabase.co/storage/v1/object/public/showcase-media/organizations/afb8095c-984a-4963-9e03-fe5c95205159/showcases/7482515a-9253-42d4-a8c9-44676ad29bd0/booth_event_photo_1.webp",
+    "storage_path": "organizations/afb8095c-984a-4963-9e03-fe5c95205159/showcases/7482515a-9253-42d4-a8c9-44676ad29bd0/booth_event_photo_1.webp",
+    "thumbnail_url": null,
+    "file_name": "booth_event_photo_1.webp",
+    "file_size": 102400,
+    "mime_type": "image/webp",
+    "sort_order": 0,
+    "created_at": "2026-09-10T08:46:40.443Z",
+    "updated_at": "2026-09-10T08:46:40.443Z"
+  },
+  {
+    "id": "525407ad-0e86-4ff0-9fad-db03a00f1a30",
+    "showcase_id": "6084aab5-abac-4981-a952-475283c35f01",
+    "organization_id": "972a5c70-1c46-4cde-85ab-0e2d27f69878",
+    "media_type": "IMAGE",
+    "media_url": "https://bnfjcgkbdluzlwadyycl.supabase.co/storage/v1/object/public/showcase-media/organizations/972a5c70-1c46-4cde-85ab-0e2d27f69878/showcases/6084aab5-abac-4981-a952-475283c35f01/booth_event_photo_1.webp",
+    "storage_path": "organizations/972a5c70-1c46-4cde-85ab-0e2d27f69878/showcases/6084aab5-abac-4981-a952-475283c35f01/booth_event_photo_1.webp",
+    "thumbnail_url": null,
+    "file_name": "booth_event_photo_1.webp",
+    "file_size": 102400,
+    "mime_type": "image/webp",
+    "sort_order": 0,
+    "created_at": "2026-09-10T09:27:46.933Z",
+    "updated_at": "2026-09-10T09:27:46.933Z"
   }
 ]

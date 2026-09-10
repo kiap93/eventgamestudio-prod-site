@@ -145,6 +145,14 @@ export function detectStartScreenCoordinateSpace(
   const canvas = config.canvas;
   const elements = config.elements || [];
 
+  // 0. Explicit authoritative version 2 marker
+  // If explicitly normalized or authored in visual editor with version 2, trust coordinateSpace
+  if (canvas?.version === 2) {
+    if (canvas.coordinateSpace === 'landscape-1024x576') return 'landscape-1024x576';
+    if (canvas.coordinateSpace === 'portrait-576x1024') return 'portrait-576x1024';
+    if (canvas.coordinateSpace === 'square-1000x1000') return 'square-1000x1000';
+  }
+
   // 1. Inspect root card element if present
   const card = elements.find((e) => e.type === 'card' || e.id === 'main-start-card');
 

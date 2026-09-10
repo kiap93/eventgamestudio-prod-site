@@ -603,7 +603,7 @@ export function generateDefaultMemoryMatchStartScreenElements(
     y: titleY + 60,
     width: 620,
     height: 45,
-    text: `Flip cards, find all ${totalPairs} matching pairs, and score max bonus points before time expires!`,
+    text: 'Flip cards, find all {totalPairs} matching pairs, and score max bonus points before time expires!',
     style: {
       fontSize: 16,
       fontWeight: 400,

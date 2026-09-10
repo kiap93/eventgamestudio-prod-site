@@ -131,7 +131,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
     if (effectiveConfig.elements && effectiveConfig.elements.length > 0) {
       return effectiveConfig.elements;
     }
-    const def = generateDefaultStartScreenElements(gameType, theme, undefined, effectiveConfig);
+    const def = generateDefaultStartScreenElements(gameType, theme, effectiveGameMeta, effectiveConfig);
     if (effectiveConfig.canvas?.width && effectiveConfig.canvas?.height) {
       const normalized = normalizeStartScreenConfigForStage(
         { canvas: { width: 1000, height: 1000 }, elements: def },
@@ -141,28 +141,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
       return normalized.elements || def;
     }
     return def;
-  }, [effectiveConfig, theme, gameType]);
-
-  // History management
-  const {
-    elements: currentElements,
-    pushSnapshot: setSnapshot,
-    beginGesture: recordGestureStart,
-    endGesture: recordGestureEnd,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-  } = useStartScreenHistory(initialElements);
-
-  // Selection state
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [isLayerTreeCollapsed, setIsLayerTreeCollapsed] = useState<boolean>(false);
-  const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
-
-  // Modals state
-  const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
-  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  }, [effectiveConfig, theme, gameType, effectiveGameMeta]);
 
   // Keep parent config synced whenever elements change
   const syncToParent = useCallback(
@@ -185,6 +164,43 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
     [onChange, effectiveConfig]
   );
 
+  // History management
+  const {
+    elements: currentElements,
+    pushSnapshot: setSnapshot,
+    beginGesture: recordGestureStart,
+    endGesture: recordGestureEnd,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    reset: resetHistory,
+  } = useStartScreenHistory(initialElements, syncToParent);
+
+  // Synchronize history manager when initialElements changes (e.g. parent updates or reopen)
+  const lastInitialElementsRef = useRef(initialElements);
+  useEffect(() => {
+    if (initialElements && initialElements !== lastInitialElementsRef.current) {
+      lastInitialElementsRef.current = initialElements;
+      resetHistory(initialElements);
+    }
+  }, [initialElements, resetHistory]);
+
+  // Close handler that guarantees final element state is synced before closing
+  const handleClose = useCallback(() => {
+    syncToParent(currentElements);
+    onClose?.();
+  }, [syncToParent, currentElements, onClose]);
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isLayerTreeCollapsed, setIsLayerTreeCollapsed] = useState<boolean>(false);
+  const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
+
+  // Modals state
+  const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+
   // Update elements and save to history
   const updateElementsWithHistory = useCallback(
     (newElements: StartScreenElement[]) => {
@@ -196,7 +212,10 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
 
   // Clean invalid selectedIds if elements are deleted
   useEffect(() => {
-    setSelectedIds((prev) => filterValidStartSelectedIds(prev, currentElements));
+    setSelectedIds((prev) => {
+      const valid = filterValidStartSelectedIds(prev, currentElements);
+      return Array.isArray(valid) ? [...valid] : [];
+    });
   }, [currentElements]);
 
   // Find currently selected primary element
@@ -491,7 +510,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   // Reset to default layout
   const handleResetLayout = useCallback(() => {
     if (window.confirm('Reset Start Screen layout to default preset? Any unsaved changes will be lost.')) {
-      const defaults = generateDefaultStartScreenElements(gameType, theme, undefined, effectiveConfig);
+      const defaults = generateDefaultStartScreenElements(gameType, theme, effectiveGameMeta, effectiveConfig);
       if (effectiveConfig.canvas?.width && effectiveConfig.canvas?.height) {
         const normalized = normalizeStartScreenConfigForStage(
           { canvas: { width: 1000, height: 1000 }, elements: defaults },
@@ -504,7 +523,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
       }
       setSelectedIds([]);
     }
-  }, [effectiveConfig, theme, gameType, updateElementsWithHistory]);
+  }, [effectiveConfig, theme, gameType, effectiveGameMeta, updateElementsWithHistory]);
 
   // Apply preset
   const handleApplyPreset = useCallback(
@@ -527,7 +546,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   if (!isOpen) return null;
 
   return (
-    <StartScreenEditorErrorBoundary onResetLayout={handleResetLayout} onClose={onClose}>
+    <StartScreenEditorErrorBoundary onResetLayout={handleResetLayout} onClose={handleClose}>
       <div
         className={`flex flex-col bg-slate-950 text-slate-100 overflow-hidden ${
           isModal ? 'fixed inset-0 z-50 w-screen h-screen' : 'relative w-full h-full min-h-[600px]'
@@ -554,7 +573,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
         onResetLayout={handleResetLayout}
         onOpenPresets={() => setIsPresetModalOpen(true)}
         onSaveAsTemplate={() => setIsSaveModalOpen(true)}
-        onClose={onClose || (() => {})}
+        onClose={handleClose}
         canGroup={canGroup}
         canUngroup={canUngroup}
         onGroupSelected={handleGroupSelected}

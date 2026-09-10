@@ -519,7 +519,15 @@ export function getMemoryMatchConfig(theme?: Partial<GameTheme> | null): MemoryM
         },
         elements: Array.isArray(rawStart?.elements) && rawStart.elements.length > 0
           ? rawStart.elements
-          : generateDefaultStartScreenElements('memory-match', theme, undefined, rawStart),
+          : generateDefaultStartScreenElements('memory-match', theme, {
+              rows,
+              cols,
+              totalCards: (rows * cols) % 2 === 0 ? rows * cols : rows * cols - 1,
+              totalPairs: Math.floor(((rows * cols) % 2 === 0 ? rows * cols : rows * cols - 1) / 2),
+              duration: typeof gc.gameplay?.gameDurationSeconds === 'number' ? gc.gameplay.gameDurationSeconds : 45,
+              gameTitle: theme?.name || 'Memory Match',
+              logoUrl: theme?.branding?.clientLogoUrl || (theme as any)?.clientLogo || (theme as any)?.logo || null,
+            }, rawStart),
       },
       result: {
         backgroundType: rawResult?.backgroundType === 'color' || rawResult?.backgroundType === 'image' || rawResult?.backgroundType === 'theme'
