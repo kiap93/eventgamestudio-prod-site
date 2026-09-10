@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   GameTheme,
   ThemeDropItem,
@@ -2247,7 +2247,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
   const totalPairs = Math.floor(totalCards / 2);
   const duration = memoryConfig.gameplay?.gameDurationSeconds ?? 45;
 
-  const startConfig = getStartScreenConfig(theme, 'memory-match', {
+  const memoryGameMeta = useMemo(() => ({
     rows,
     cols,
     totalCards,
@@ -2255,7 +2255,9 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
     duration,
     gameTitle: theme.name || 'Memory Match',
     logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
-  });
+  }), [rows, cols, totalCards, totalPairs, duration, theme.name, theme.branding, theme.clientLogo, theme.logo]);
+
+  const startConfig = getStartScreenConfig(theme, 'memory-match', memoryGameMeta, { width: 1024, height: 576 });
   const resultConfig = screens.result || DEFAULT_RESULT_SCREEN_CONFIG;
 
   const handleUpdateStartScreen = (updates: Partial<StartScreenConfig>) => {
@@ -2301,8 +2303,14 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
     const nextStart: StartScreenConfig = {
       ...startConfig,
       ...updates,
+      canvas: updates.canvas || startConfig.canvas || { width: 1024, height: 576, coordinateSpace: 'landscape-1024x576', version: 2 },
       background: nextBackground,
       elements: nextElements,
+      // Keep legacy properties in sync with background object
+      backgroundType: nextBackground.type,
+      backgroundColor: nextBackground.color,
+      backgroundImageUrl: nextBackground.imageUrl,
+      backgroundOverlayOpacity: nextBackground.overlayOpacity,
     };
     const nextScreens: MemoryMatchScreensConfig = {
       ...screens,
@@ -2849,7 +2857,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
                   <span>Start Screen Visual Canvas Editor</span>
                 </h4>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Design layout, badges, buttons, and graphics using the 1000×1000 visual canvas editor.
+                  Design layout, badges, buttons, and graphics using the 1024×576 visual canvas editor.
                 </p>
               </div>
               <button
@@ -2870,15 +2878,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
                   theme={theme}
                   gameType="memory-match"
                   targetDimensions={{ width: 1024, height: 576 }}
-                  gameMeta={{
-                    rows,
-                    cols,
-                    totalCards,
-                    totalPairs,
-                    duration,
-                    gameTitle: theme.name || 'Memory Match',
-                    logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
-                  }}
+                  gameMeta={memoryGameMeta}
                   onStartGame={() => {}}
                   isSimulation={true}
                 />
@@ -2895,15 +2895,7 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
             startConfig={startConfig}
             theme={theme}
             gameType="memory-match"
-            gameMeta={{
-              rows,
-              cols,
-              totalCards,
-              totalPairs,
-              duration,
-              gameTitle: theme.name || 'Memory Match',
-              logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
-            }}
+            gameMeta={memoryGameMeta}
             onChange={handleUpdateStartScreen}
             onUploadAsset={onUploadAsset as any}
           />

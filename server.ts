@@ -592,7 +592,7 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
       return;
     }
 
-    // 1. Create Organization
+    // 1. Create Organization (creates organization, owner membership, wallet, and welcome credit atomically)
     const organization = await createOrganization({
       name: name.trim(),
       owner_id: user.id,
@@ -600,14 +600,7 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
       country_code: country_code ? country_code.trim().toUpperCase() : null,
     });
 
-    // 2. Add owner membership
-    await addMember({
-      organization_id: organization.id,
-      user_id: user.id,
-      role: 'owner',
-    });
-
-    // 3. Create default game for this organization
+    // 2. Create default game for this organization
     const defaultGame = await ensureDefaultGame(organization.id, organization.name);
 
     const token = signAppToken(user.id, organization.id, 'owner');

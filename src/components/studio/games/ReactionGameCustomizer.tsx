@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   GameTheme,
   isReactionTheme,
@@ -331,10 +331,15 @@ export const ReactionScreensCustomizer: React.FC<{
     ...((theme.game_config as ReactionGameConfig) || {}),
   };
 
-  const startConfig = getStartScreenConfig(theme, 'reaction-tap', {
+  const reactionGameMeta = useMemo(() => ({
     roundsCount: reactionConfig.roundsCount || 5,
+    lightCount: 5,
     duration: 30,
-  });
+    gameTitle: theme.name || 'Reaction Tap',
+    logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
+  }), [reactionConfig.roundsCount, theme.name, theme.branding, theme.clientLogo, theme.logo]);
+
+  const startConfig = getStartScreenConfig(theme, 'reaction-tap', reactionGameMeta, { width: 1024, height: 576 });
 
   const resultConfig = reactionConfig.screens?.result || theme.screens?.result || {
     background: { type: 'solid', color: '#070b14' },
@@ -345,6 +350,7 @@ export const ReactionScreensCustomizer: React.FC<{
     const nextStart = {
       ...startConfig,
       ...updated,
+      canvas: updated.canvas || startConfig.canvas || { width: 1024, height: 576, coordinateSpace: 'landscape-1024x576', version: 2 },
     };
     const nextReactionConfig = {
       ...reactionConfig,
@@ -427,7 +433,7 @@ export const ReactionScreensCustomizer: React.FC<{
                   <span>Start Screen Visual Canvas Editor</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Design the landing screen layout, start button, badges, and background using the 1000×1000 logical editor.
+                  Design the landing screen layout, start button, badges, and background using the 1024×576 visual canvas editor.
                 </p>
               </div>
               <button
@@ -448,7 +454,7 @@ export const ReactionScreensCustomizer: React.FC<{
                   theme={theme}
                   gameType="reaction-tap"
                   targetDimensions={{ width: 1024, height: 576 }}
-                  gameMeta={{ roundsCount: reactionConfig.roundsCount || 5, duration: 30 }}
+                  gameMeta={reactionGameMeta}
                   onStartGame={() => {}}
                   isSimulation={true}
                 />
@@ -465,13 +471,7 @@ export const ReactionScreensCustomizer: React.FC<{
             startConfig={startConfig}
             theme={theme}
             gameType="reaction-tap"
-            gameMeta={{
-              roundsCount: reactionConfig.roundsCount || 5,
-              lightCount: 5,
-              duration: 30,
-              gameTitle: theme.name || 'Reaction Time',
-              logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
-            }}
+            gameMeta={reactionGameMeta}
             onChange={handleUpdateStartConfig}
             onUploadAsset={onUploadAsset as any}
           />

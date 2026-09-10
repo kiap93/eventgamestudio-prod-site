@@ -16,15 +16,36 @@ export function areElementsEqual(a: StartScreenElement[], b: StartScreenElement[
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+export type FilterValidStartResult = string[] & {
+  validSelectedId: string | null;
+  validSelectedIds: string[];
+};
+
 export function filterValidSelectedIds(
-  ids: string[],
+  ids: string[] | { validSelectedId?: string | null; validSelectedIds?: string[] } | Set<string> | string | null | undefined,
   elements: StartScreenElement[]
-): { validSelectedId: string | null; validSelectedIds: string[] } {
-  const validIds = ids.filter((id) => findElementAndParent(id, elements) !== null);
-  return {
-    validSelectedId: validIds.length > 0 ? validIds[0] : null,
-    validSelectedIds: validIds,
-  };
+): FilterValidStartResult {
+  let rawList: string[] = [];
+  if (Array.isArray(ids)) {
+    rawList = ids;
+  } else if (ids && typeof ids === 'object') {
+    if ('validSelectedIds' in ids && Array.isArray((ids as any).validSelectedIds)) {
+      rawList = (ids as any).validSelectedIds;
+    } else if (ids instanceof Set) {
+      rawList = Array.from(ids);
+    }
+  } else if (typeof ids === 'string' && (ids as string).trim()) {
+    rawList = [(ids as string).trim()];
+  }
+
+  const validIds = rawList.filter(
+    (id) => typeof id === 'string' && findElementAndParent(id, elements) !== null
+  );
+
+  const result = [...validIds] as FilterValidStartResult;
+  result.validSelectedId = validIds.length > 0 ? validIds[0] : null;
+  result.validSelectedIds = validIds;
+  return result;
 }
 
 export const filterValidStartSelectedIds = filterValidSelectedIds;

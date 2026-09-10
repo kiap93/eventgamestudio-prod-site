@@ -281,6 +281,36 @@ export async function createOrganization(
   }
 
   const supabase = getSupabaseServerClient(env);
+
+  // 1. Attempt fully atomic creation via PostgreSQL RPC
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('create_organization_atomic', {
+      p_name: params.name.trim(),
+      p_owner_id: params.owner_id,
+      p_logo_url: params.logo_url || null,
+      p_country_code: countryCode,
+      p_org_id: id,
+      p_slug: slug,
+    });
+
+    if (!rpcError && rpcData && rpcData.success && rpcData.organization) {
+      const organization = rpcData.organization as OrganizationRecord;
+      localOrgsCache.set(organization.id, organization);
+      return organization;
+    }
+
+    if (rpcError && rpcError.code !== 'PGRST202' && !rpcError.message?.includes('create_organization_atomic') && !rpcError.message?.includes('Could not find the function')) {
+      console.error('Error from create_organization_atomic RPC:', rpcError);
+      throw new Error(`Failed to create organization atomically: ${rpcError.message || 'Unknown database error'}`);
+    }
+  } catch (rpcCatchErr: any) {
+    if (rpcCatchErr.message?.startsWith('Failed to create organization atomically:')) {
+      throw rpcCatchErr;
+    }
+    console.warn('create_organization_atomic RPC unavailable or failed, falling back to sequential flow:', rpcCatchErr?.message || rpcCatchErr);
+  }
+
+  // 2. Sequential Fallback
   const { data, error } = await supabase
     .from('organizations')
     .insert({
@@ -303,6 +333,8 @@ export async function createOrganization(
 
   const organization = data as OrganizationRecord;
   localOrgsCache.set(organization.id, organization);
+  
+  // Single, authoritative owner membership creation
   try {
     await addMember(
       {
@@ -312,8 +344,11 @@ export async function createOrganization(
       },
       env
     );
-  } catch {
-    // ignore
+  } catch (memErr) {
+    console.error('Failed to add owner member during sequential fallback:', memErr);
+    if (!isLocalFallbackAllowed(env)) {
+      throw memErr;
+    }
   }
 
   // Automatically grant the one-time Welcome Credit to the new Organization's wallet

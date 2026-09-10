@@ -21,6 +21,7 @@ import {
   groupSelectedElements,
   ungroupSelectedElements,
 } from '../src/components/studio/games/start-editor/layerOperations';
+import { filterValidStartSelectedIds } from '../src/components/studio/games/start-editor/history';
 import { GameTheme } from '../src/themes/types';
 
 console.log('======================================================');
@@ -210,6 +211,64 @@ let passed = 0;
   assert.strictEqual(ungroupRes.newElements.length, 2);
   assert.strictEqual(ungroupRes.unpackedIds.length, 2);
   console.log('  ✓ 5. Grouping and ungrouping elements');
+  passed++;
+}
+
+// 6. Selection validation and defensive input handling
+{
+  const elements: StartScreenCardElement[] = [
+    {
+      id: 'card-1',
+      type: 'card',
+      visible: true,
+      locked: false,
+      x: 50,
+      y: 100,
+      width: 400,
+      height: 300,
+      zIndex: 1,
+      children: [
+        {
+          id: 'child-btn',
+          type: 'button',
+          visible: true,
+          locked: false,
+          x: 20,
+          y: 50,
+          width: 200,
+          height: 50,
+          zIndex: 1,
+          text: 'Play Game',
+          action: 'start',
+        },
+      ],
+    },
+  ];
+
+  // Standard array input
+  const resArray = filterValidStartSelectedIds(['card-1', 'non-existent', 'child-btn'], elements);
+  assert.strictEqual(Array.isArray(resArray), true);
+  assert.deepStrictEqual([...resArray], ['card-1', 'child-btn']);
+  assert.strictEqual(resArray.validSelectedId, 'card-1');
+  assert.deepStrictEqual(resArray.validSelectedIds, ['card-1', 'child-btn']);
+
+  // Non-array inputs (objects, undefined, null, Set, string) - must NEVER throw "ids.filter is not a function"
+  const resObj = filterValidStartSelectedIds({ validSelectedIds: ['card-1'] } as any, elements);
+  assert.deepStrictEqual([...resObj], ['card-1']);
+
+  const resUndefined = filterValidStartSelectedIds(undefined as any, elements);
+  assert.deepStrictEqual([...resUndefined], []);
+
+  const resNull = filterValidStartSelectedIds(null as any, elements);
+  assert.deepStrictEqual([...resNull], []);
+
+  const resString = filterValidStartSelectedIds('card-1' as any, elements);
+  assert.deepStrictEqual([...resString], ['card-1']);
+
+  const resSet = filterValidStartSelectedIds(new Set(['card-1']) as any, elements);
+  assert.deepStrictEqual([...resSet], ['card-1']);
+
+  console.log('  ✓ 6. Selection validation and defensive input handling (no ids.filter error)');
   passed++;
 }
 

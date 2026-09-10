@@ -2827,6 +2827,7 @@ export async function refundEventPayment(
     paymentMode?: PaymentMode;
     reason?: string;
     createdBy?: string;
+    now?: Date | string;
   },
   env?: Record<string, any>
 ): Promise<{
@@ -2834,7 +2835,28 @@ export async function refundEventPayment(
   transactions: WalletTransactionRecord[];
   wallet: WalletBalanceSummary;
 }> {
-  const { organizationId, eventId, eventName, reason = 'Event cancelled before Setup Day', createdBy } = params;
+  const { organizationId, eventId, eventName, reason = 'Event cancelled before Setup Day', createdBy, now: evalNow } = params;
+
+  // Verify server-side refund eligibility based on Setup Day
+  if (eventId) {
+    try {
+      const { getEventById, determineEventRefund } = await import('./events.js');
+      const ev = await getEventById(eventId, env);
+      if (ev) {
+        const refundDetermination = determineEventRefund(ev, evalNow ? new Date(evalNow) : undefined);
+        if (!refundDetermination.canRefund) {
+          const err: any = new Error(`Refund rejected: ${refundDetermination.reason}`);
+          err.code = 'REFUND_NOT_ALLOWED';
+          err.status = 422;
+          throw err;
+        }
+      }
+    } catch (err: any) {
+      if (err.code === 'REFUND_NOT_ALLOWED') {
+        throw err;
+      }
+    }
+  }
 
   // 1. Check existing transactions for idempotency
   const existingTransactions = await getLedgerTransactions(organizationId, env);

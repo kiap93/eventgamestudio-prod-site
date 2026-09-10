@@ -100,8 +100,9 @@ When creating an event:
   - If Paid: Live Game loads and is playable.
   - If Unpaid: Shows "Awaiting Activation" screen (NOT Cancelled).
 - **Automated Maintenance**:
-  - Worker attempts automated wallet deduction if organization balance is sufficient.
-  - If balance is insufficient, event remains `UNPAID` and `SCHEDULED` (Never Cancelled).
+  - Setup Day changes cancellation/refund eligibility: the event becomes strictly non-refundable and non-cancellable.
+  - Setup Day does NOT trigger automated payment or wallet balance deduction. Payment remains an explicit user action.
+  - An unpaid event on Setup Day remains `UNPAID` and `SCHEDULED` (Never Cancelled, Never Auto-Charged).
 
 ### Phase 3: During Event Window (2-Sep & 3-Sep)
 - **Status**:

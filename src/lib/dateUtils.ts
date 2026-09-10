@@ -390,6 +390,7 @@ export function getClientLiveGameAccessDetails(
         ? `This event completed on ${formatDateOnly(endDate)}.`
         : `This event expired on ${formatDateOnly(endDate)}.`,
       is_expired: true,
+      is_completed: isPaid,
       start_date: startDate,
       end_date: endDate,
       live_open_date: liveOpenDate,

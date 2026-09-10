@@ -215,6 +215,13 @@ export async function addMember(
   };
 
   if (!isSupabaseConfigured(env)) {
+    const existing = Array.from(localMembersCache.values()).find(
+      (m) => m.organization_id === params.organization_id && m.user_id === params.user_id
+    );
+    if (existing) {
+      existing.role = params.role;
+      return existing;
+    }
     localMembersCache.set(id, memRecord);
     return memRecord;
   }
@@ -233,7 +240,30 @@ export async function addMember(
     .single();
 
   if (error) {
+    // If unique constraint violation (unique_org_user or 23505), fetch and return the existing member
+    if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique_org_user')) {
+      const { data: existing, error: fetchErr } = await supabase
+        .from('organization_members')
+        .select('*')
+        .eq('organization_id', params.organization_id)
+        .eq('user_id', params.user_id)
+        .maybeSingle();
+
+      if (!fetchErr && existing) {
+        const record = existing as OrgMemberRecord;
+        localMembersCache.set(record.id, record);
+        return record;
+      }
+    }
+
     if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      const existing = Array.from(localMembersCache.values()).find(
+        (m) => m.organization_id === params.organization_id && m.user_id === params.user_id
+      );
+      if (existing) {
+        existing.role = params.role;
+        return existing;
+      }
       localMembersCache.set(id, memRecord);
       return memRecord;
     }

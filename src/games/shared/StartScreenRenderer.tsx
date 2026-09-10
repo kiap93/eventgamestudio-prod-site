@@ -11,6 +11,7 @@ import {
   getStartScreenConfig,
   normalizeStartScreenConfigForStage,
   needsStartScreenElementNormalization,
+  resolveGameMetaForStartScreen,
 } from './startScreenResolver';
 import { StartScreenErrorBoundary } from './StartScreenErrorBoundary';
 
@@ -51,12 +52,13 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
   suppressBackground = false,
 }) => {
   const targetGameType = gameType || (theme ? getThemeGameType(theme) : 'catch-brand');
+  const effectiveMeta = resolveGameMetaForStartScreen(theme, targetGameType, gameMeta);
 
   // Authoritative config resolution
   const resolvedConfig = getStartScreenConfig(
     theme,
     targetGameType,
-    gameMeta,
+    effectiveMeta,
     targetDimensions
   );
 
@@ -72,10 +74,10 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
       : resolvedConfig.elements,
   };
 
-  // If targetDimensions provided, or configuration needs normalization, normalize for all games
+  // If configuration needs normalization to match targetDimensions, normalize for all games
   const stageTargetW = targetDimensions?.width || 1024;
   const stageTargetH = targetDimensions?.height || 576;
-  if (targetDimensions || needsStartScreenElementNormalization(mergedConfig, stageTargetW, stageTargetH)) {
+  if (needsStartScreenElementNormalization(mergedConfig, stageTargetW, stageTargetH)) {
     mergedConfig = normalizeStartScreenConfigForStage(
       mergedConfig,
       stageTargetW,
@@ -138,7 +140,7 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
           element={el}
           parentWidth={safeParentW}
           parentHeight={safeParentH}
-          gameMeta={gameMeta}
+          gameMeta={effectiveMeta}
           theme={theme}
           onStartGame={onStartGame}
           onShowLeaderboard={onShowLeaderboard}

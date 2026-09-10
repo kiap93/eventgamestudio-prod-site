@@ -5,6 +5,7 @@ import {
   StartScreenCardElement,
   StartScreenGroupElement,
   StartScreenElementType,
+  generateDefaultStartScreenElements,
 } from '../../../games/shared/startScreenTypes';
 import { GameTheme } from '../../../themes/types';
 import {
@@ -33,8 +34,14 @@ import { EditorTopBar } from './start-editor/EditorTopBar';
 import { PresetLibraryModal } from './start-editor/PresetLibraryModal';
 import { SaveTemplateModal } from './start-editor/SaveTemplateModal';
 import { useStartScreenHistory, filterValidStartSelectedIds } from './start-editor/history';
-import { generateDefaultStartScreenElements, StartScreenGameMeta } from '../../../games/shared/startScreenTypes';
-import { normalizeStartScreenConfigForStage } from '../../../games/shared/startScreenResolver';
+import { StartScreenGameMeta } from '../../../games/shared/startScreenTypes';
+import {
+  getStartScreenConfig,
+  normalizeStartScreenConfigForStage,
+  needsStartScreenElementNormalization,
+  resolveGameMetaForStartScreen,
+  findStartScreenElementVisibility,
+} from '../../../games/shared/startScreenResolver';
 import { StartScreenEditorErrorBoundary } from './start-editor/StartScreenEditorErrorBoundary';
 
 export interface StartScreenVisualEditorProps {
@@ -62,86 +69,69 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   onToggleFullscreen,
   onUploadAsset,
 }) => {
+  // Canonical game metadata for previews, rules cards, and badges
+  const effectiveGameMeta = useMemo<StartScreenGameMeta>(() => {
+    return resolveGameMetaForStartScreen(theme, gameType, gameMeta);
+  }, [theme, gameType, gameMeta]);
+
   // Effective config with automatic game-stage canvas matching
+  // Ensures both Embedded Preview and Full Editor use the EXACT same StartScreenConfig
   const effectiveConfig = useMemo(() => {
     const orientation = theme?.orientation || 'landscape';
     const stageW = orientation === 'portrait' ? 576 : 1024;
     const stageH = orientation === 'portrait' ? 1024 : 576;
 
-    return normalizeStartScreenConfigForStage(startConfig, stageW, stageH);
-  }, [startConfig, theme?.orientation]);
+    // If startConfig is provided and has elements, use it directly (normalizing only if genuinely needed)
+    if (startConfig && Array.isArray(startConfig.elements) && startConfig.elements.length > 0) {
+      if (needsStartScreenElementNormalization(startConfig, stageW, stageH)) {
+        return normalizeStartScreenConfigForStage(startConfig, stageW, stageH);
+      }
+      return startConfig;
+    }
 
-  // Effective game metadata for previews, rules cards, and badges
-  const effectiveGameMeta = useMemo<StartScreenGameMeta>(() => {
-    if (gameMeta) return gameMeta;
+    // Otherwise, resolve authoritatively via getStartScreenConfig
+    return getStartScreenConfig(theme, gameType, effectiveGameMeta, { width: stageW, height: stageH });
+  }, [startConfig, theme, gameType, effectiveGameMeta]);
 
-    const gameConfig = (theme?.game_config || {}) as Record<string, any>;
-    const branding = (theme as any)?.branding;
-
-    const fallingItemImg =
-      (theme as any)?.falling_item_url ||
-      (theme as any)?.fallingItemUrl ||
-      (theme as any)?.theme_assets?.good_item ||
-      (theme as any)?.theme_assets?.item_normal_01 ||
-      (theme as any)?.theme_assets?.reward ||
-      null;
-
-    const badFallingItemImg =
-      (theme as any)?.bad_falling_item_url ||
-      (theme as any)?.badFallingItemUrl ||
-      (theme as any)?.theme_assets?.hazard ||
-      (theme as any)?.theme_assets?.item_hazard_01 ||
-      null;
-
-    const catcherImg =
-      (theme as any)?.catcher_url ||
-      (theme as any)?.catcherUrl ||
-      (theme as any)?.basket_url ||
-      (theme as any)?.theme_assets?.basket ||
-      (theme as any)?.theme_assets?.catcher ||
-      null;
-
-    const logoUrl =
-      branding?.clientLogoUrl ||
-      (theme as any)?.clientLogo ||
-      (theme as any)?.logo ||
-      null;
-
-    return {
-      gameTitle: theme?.name || (gameType === 'catch-brand' ? 'Catch The Brand' : gameType === 'reaction-tap' ? 'Reaction Tap' : 'Memory Match'),
-      logoUrl,
-      duration: gameConfig.gameplay?.duration || gameConfig.duration || 30,
-      fallingItemName: gameConfig.gameplay?.fallingItemName || 'Target Item',
-      fallingItemImg,
-      goodItemImg: fallingItemImg,
-      badFallingItemName: gameConfig.gameplay?.badFallingItemName || 'Hazard Item',
-      badFallingItemImg,
-      badItemImg: badFallingItemImg,
-      catcherImg,
-      rows: gameConfig.grid?.rows || 4,
-      cols: gameConfig.grid?.cols || 4,
-      totalCards: (gameConfig.grid?.rows || 4) * (gameConfig.grid?.cols || 4),
-      totalPairs: Math.floor(((gameConfig.grid?.rows || 4) * (gameConfig.grid?.cols || 4)) / 2),
-      roundsCount: gameConfig.roundsCount || 5,
-    };
-  }, [gameMeta, theme, gameType]);
-
-  // Elements initialization with fallback
+  // Elements initialization directly from effectiveConfig without silent regeneration
   const initialElements = useMemo(() => {
-    if (effectiveConfig.elements && effectiveConfig.elements.length > 0) {
-      return effectiveConfig.elements;
-    }
-    const def = generateDefaultStartScreenElements(gameType, theme, undefined, effectiveConfig);
-    if (effectiveConfig.canvas?.width && effectiveConfig.canvas?.height) {
-      const normalized = normalizeStartScreenConfigForStage(
-        { canvas: { width: 1000, height: 1000 }, elements: def },
-        effectiveConfig.canvas.width,
-        effectiveConfig.canvas.height
-      );
-      return normalized.elements || def;
-    }
-    return def;
-  }, [effectiveConfig, theme, gameType]);
+    return effectiveConfig.elements || [];
+  }, [effectiveConfig.elements]);
+
+  // Keep track of the elements we synced to the parent to prevent circular reset loops
+  const lastSyncedElementsJsonRef = useRef<string>('');
+
+  // Keep parent config synced whenever elements change
+  const syncToParent = useCallback(
+    (newElements: StartScreenElement[]) => {
+      lastSyncedElementsJsonRef.current = JSON.stringify(newElements);
+      const stageW = effectiveConfig.canvas?.width || 1024;
+      const stageH = effectiveConfig.canvas?.height || 576;
+      const targetSpace = stageW >= stageH ? 'landscape-1024x576' : 'portrait-576x1024';
+
+      const topIconVis = findStartScreenElementVisibility(newElements, 'top-icon');
+      const gridVis = findStartScreenElementVisibility(newElements, 'badge-grid');
+      const pairsVis = findStartScreenElementVisibility(newElements, 'badge-pairs');
+      const timerVis = findStartScreenElementVisibility(newElements, 'badge-timer');
+
+      onChange({
+        ...effectiveConfig,
+        canvas: {
+          ...(effectiveConfig.canvas || {}),
+          width: stageW,
+          height: stageH,
+          coordinateSpace: targetSpace,
+          version: 2,
+        },
+        elements: newElements,
+        showIcon: topIconVis !== undefined ? topIconVis : effectiveConfig.showIcon,
+        showGridInfo: gridVis !== undefined ? gridVis : effectiveConfig.showGridInfo,
+        showPairsInfo: pairsVis !== undefined ? pairsVis : effectiveConfig.showPairsInfo,
+        showTimerInfo: timerVis !== undefined ? timerVis : effectiveConfig.showTimerInfo,
+      });
+    },
+    [onChange, effectiveConfig]
+  );
 
   // History management
   const {
@@ -153,7 +143,42 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
     redo,
     canUndo,
     canRedo,
-  } = useStartScreenHistory(initialElements);
+    syncExternal,
+    reset: resetHistory,
+  } = useStartScreenHistory(initialElements, syncToParent);
+
+  // Synchronize history manager without wiping undo/redo history on self-emitted parent updates
+  const lastInitialElementsRef = useRef(initialElements);
+  const prevIsOpenRef = useRef(isOpen);
+
+  useEffect(() => {
+    // If modal just opened, reset history with initialElements
+    if (isOpen && !prevIsOpenRef.current) {
+      prevIsOpenRef.current = true;
+      lastSyncedElementsJsonRef.current = '';
+      lastInitialElementsRef.current = initialElements;
+      resetHistory(initialElements);
+      return;
+    }
+    prevIsOpenRef.current = isOpen;
+
+    if (initialElements && initialElements !== lastInitialElementsRef.current) {
+      lastInitialElementsRef.current = initialElements;
+      const currentJson = JSON.stringify(initialElements);
+      // If the incoming elements were triggered by our own syncToParent, do not re-sync or reset
+      if (currentJson === lastSyncedElementsJsonRef.current) {
+        return;
+      }
+      // Genuine external change (e.g. basic settings toggle or preset applied)
+      syncExternal(initialElements);
+    }
+  }, [initialElements, isOpen, resetHistory, syncExternal]);
+
+  // Close handler that guarantees final element state is synced before closing
+  const handleClose = useCallback(() => {
+    syncToParent(currentElements);
+    onClose?.();
+  }, [syncToParent, currentElements, onClose]);
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -163,27 +188,6 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   // Modals state
   const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
-
-  // Keep parent config synced whenever elements change
-  const syncToParent = useCallback(
-    (newElements: StartScreenElement[]) => {
-      const stageW = effectiveConfig.canvas?.width || 1024;
-      const stageH = effectiveConfig.canvas?.height || 576;
-      const targetSpace = stageW >= stageH ? 'landscape-1024x576' : 'portrait-576x1024';
-      onChange({
-        ...effectiveConfig,
-        canvas: {
-          ...(effectiveConfig.canvas || {}),
-          width: stageW,
-          height: stageH,
-          coordinateSpace: targetSpace,
-          version: 2,
-        },
-        elements: newElements,
-      });
-    },
-    [onChange, effectiveConfig]
-  );
 
   // Update elements and save to history
   const updateElementsWithHistory = useCallback(
@@ -196,7 +200,10 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
 
   // Clean invalid selectedIds if elements are deleted
   useEffect(() => {
-    setSelectedIds((prev) => filterValidStartSelectedIds(prev, currentElements));
+    setSelectedIds((prev) => {
+      const valid = filterValidStartSelectedIds(prev, currentElements);
+      return Array.isArray(valid) ? [...valid] : [];
+    });
   }, [currentElements]);
 
   // Find currently selected primary element
@@ -491,7 +498,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   // Reset to default layout
   const handleResetLayout = useCallback(() => {
     if (window.confirm('Reset Start Screen layout to default preset? Any unsaved changes will be lost.')) {
-      const defaults = generateDefaultStartScreenElements(gameType, theme, undefined, effectiveConfig);
+      const defaults = generateDefaultStartScreenElements(gameType, theme, effectiveGameMeta, effectiveConfig);
       if (effectiveConfig.canvas?.width && effectiveConfig.canvas?.height) {
         const normalized = normalizeStartScreenConfigForStage(
           { canvas: { width: 1000, height: 1000 }, elements: defaults },
@@ -504,7 +511,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
       }
       setSelectedIds([]);
     }
-  }, [effectiveConfig, theme, gameType, updateElementsWithHistory]);
+  }, [effectiveConfig, theme, gameType, effectiveGameMeta, updateElementsWithHistory]);
 
   // Apply preset
   const handleApplyPreset = useCallback(
@@ -527,7 +534,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   if (!isOpen) return null;
 
   return (
-    <StartScreenEditorErrorBoundary onResetLayout={handleResetLayout} onClose={onClose}>
+    <StartScreenEditorErrorBoundary onResetLayout={handleResetLayout} onClose={handleClose}>
       <div
         className={`flex flex-col bg-slate-950 text-slate-100 overflow-hidden ${
           isModal ? 'fixed inset-0 z-50 w-screen h-screen' : 'relative w-full h-full min-h-[600px]'
@@ -554,7 +561,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
         onResetLayout={handleResetLayout}
         onOpenPresets={() => setIsPresetModalOpen(true)}
         onSaveAsTemplate={() => setIsSaveModalOpen(true)}
-        onClose={onClose || (() => {})}
+        onClose={handleClose}
         canGroup={canGroup}
         canUngroup={canUngroup}
         onGroupSelected={handleGroupSelected}

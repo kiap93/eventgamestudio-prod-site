@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { GameTheme, ThemeDropItem, ThemeDifficultyStage } from '../../../themes/types';
 import { ResultScreenVisualEditor } from './ResultScreenVisualEditor';
 import { StartScreenVisualEditorModal } from './start-editor/StartScreenVisualEditorModal';
@@ -723,9 +723,16 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
   const [isStartEditorModalOpen, setIsStartEditorModalOpen] = useState(false);
 
   const gameConfig = (theme.game_config || {}) as Record<string, any>;
-  const startConfig = getStartScreenConfig(theme, 'catch-brand', {
+  const catchGameMeta = useMemo(() => ({
     duration: gameConfig.gameplay?.duration || 30,
-  });
+    gameTitle: theme.name || 'Catch The Brand',
+    logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
+    catcherImg: (theme as any)?.catcher || (theme as any)?.basket || null,
+    goodItemImg: (theme as any)?.drop_items?.find((i: any) => i.type === 'normal' || i.type === 'good')?.url || null,
+    badItemImg: (theme as any)?.drop_items?.find((i: any) => i.type === 'hazard' || i.type === 'bad')?.url || null,
+  }), [gameConfig.gameplay?.duration, theme]);
+
+  const startConfig = getStartScreenConfig(theme, 'catch-brand', catchGameMeta, { width: 1024, height: 576 });
 
   const resultConfig = gameConfig.screens?.result || theme.screens?.result || {
     background: { type: 'solid', color: '#070b14' },
@@ -736,6 +743,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
     const nextStart = {
       ...startConfig,
       ...updated,
+      canvas: updated.canvas || startConfig.canvas || { width: 1024, height: 576, coordinateSpace: 'landscape-1024x576', version: 2 },
     };
     const nextGameConfig = {
       ...gameConfig,
@@ -818,7 +826,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
                   <span>Start Screen Visual Canvas Editor</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Design the landing screen layout, start button, badges, and background using the 1000×1000 logical editor.
+                  Design the landing screen layout, start button, badges, and background using the 1024×576 visual canvas editor.
                 </p>
               </div>
               <button
@@ -839,7 +847,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
                   theme={theme}
                   gameType="catch-brand"
                   targetDimensions={{ width: 1024, height: 576 }}
-                  gameMeta={{ duration: gameConfig.gameplay?.duration || 30 }}
+                  gameMeta={catchGameMeta}
                   onStartGame={() => {}}
                   isSimulation={true}
                 />
@@ -856,14 +864,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
             startConfig={startConfig}
             theme={theme}
             gameType="catch-brand"
-            gameMeta={{
-              duration: gameConfig.gameplay?.duration || 30,
-              gameTitle: theme.name || 'Catch The Brand',
-              logoUrl: theme.branding?.clientLogoUrl || theme.clientLogo || theme.logo || null,
-              catcherImg: (theme as any)?.catcher || (theme as any)?.basket || null,
-              goodItemImg: (theme as any)?.drop_items?.find((i: any) => i.type === 'normal' || i.type === 'good')?.url || null,
-              badItemImg: (theme as any)?.drop_items?.find((i: any) => i.type === 'hazard' || i.type === 'bad')?.url || null,
-            }}
+            gameMeta={catchGameMeta}
             onChange={handleUpdateStartConfig}
             onUploadAsset={onUploadAsset as any}
           />

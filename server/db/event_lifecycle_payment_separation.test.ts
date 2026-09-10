@@ -18,13 +18,16 @@ import {
   getSetupDayStartTime,
   isSetupDayStarted,
   canCancelEvent,
+  determineEventRefund,
   runEventLifecycleMaintenance,
+  getClientLiveGameAccessDetails,
 } from './index.js';
 import {
   processEventPayment,
   calculateEventPaymentQuote,
   createTopup,
   getWalletBalance,
+  getLedgerTransactions,
 } from './wallet.js';
 
 console.log('\n======================================================');
@@ -190,131 +193,357 @@ async function runTests() {
   console.log('  ✓ PASS: Activating pending event frees up slot for future event creations');
 
   console.log('--- Test Case 9: Deterministic Setup Day Calculation ---');
-  // Event scheduled for 2 September 2026 10:00:00 UTC
-  const testEventSep2 = {
-    starts_at: '2026-09-02T10:00:00.000Z',
-    event_date: '2026-09-02',
+  // Event scheduled for 10 September 2026 (starts at 10:00:00 UTC)
+  const testEventSep10 = {
+    starts_at: '2026-09-10T10:00:00.000Z',
+    start_date: '2026-09-10',
+    event_date: '2026-09-10',
   };
-  const setupDayTime = getSetupDayStartTime(testEventSep2);
-  assert.strictEqual(setupDayTime.toISOString(), '2026-09-01T00:00:00.000Z', 'Setup Day must start on 1 Sep at 00:00:00 UTC');
-  console.log('  ✓ PASS: Setup Day correctly calculated as 1 September 00:00:00 UTC');
+  const setupDayTime = getSetupDayStartTime(testEventSep10);
+  // In UTC+8 (SGT), Setup Day is 9 September 00:00:00 SGT, which is 2026-09-08T16:00:00.000Z
+  assert.strictEqual(setupDayTime.toISOString(), '2026-09-08T16:00:00.000Z', 'Setup Day must start on 9 Sep at 00:00:00 SGT');
+  console.log('  ✓ PASS: Setup Day correctly calculated as 9 September 00:00:00 SGT');
 
-  console.log('--- Test Case 10: Before Setup Day (31 Aug) Lifecycle Checks ---');
-  const date31Aug = new Date('2026-08-31T20:00:00.000Z');
-  assert.strictEqual(isSetupDayStarted(testEventSep2, date31Aug), false, 'Setup day not started on 31 Aug');
-
-  // Create an unpaid event scheduled for 2 Sep (created before Setup Day on 31 Aug)
-  const sepEvent = await createEvent({
-    organization_id: orgId,
-    game_theme_id: themeId,
-    name: 'September Carnival Event',
-    event_date: '2026-09-02',
-    starts_at: '2026-09-02T10:00:00.000Z',
-    expires_at: '2026-09-03T23:59:59.000Z',
-    currentDate: date31Aug,
-  }, env);
-
-  const cancelCheckBeforeSetup = canCancelEvent(sepEvent, date31Aug);
-  assert.strictEqual(cancelCheckBeforeSetup.canCancel, true, 'Cancellation allowed before Setup Day');
-  assert.strictEqual(cancelCheckBeforeSetup.canRefund, false, 'No refund needed since unpaid');
-  console.log('  ✓ PASS: Before Setup Day, event is unpaid and cancellation is allowed');
-
-  console.log('--- Test Case 11: Setup Day (1 Sep 00:00:00) Automated Payment Deduction by Worker ---');
-  // Top-up org wallet with funds for the event
-  await createTopup({
-    organizationId: orgId,
-    amount: sepEvent.event_price || 1400,
-    referenceId: 'test_topup_sep_event',
-  }, env);
-
-  const balanceBefore = await getWalletBalance(orgId, env);
-  const date1Sep = new Date('2026-09-01T00:05:00.000Z');
-
-  // Run lifecycle maintenance at 1 Sep 00:05:00
-  const maintResult = await runEventLifecycleMaintenance(env, date1Sep);
-  assert.ok(maintResult.paidEvents.includes(sepEvent.id), 'Sep event must be paid by maintenance worker');
-
-  const sepEventAfterMaint = await getEventById(sepEvent.id, env);
-  assert.strictEqual(sepEventAfterMaint?.payment_status, 'PAID', 'Event payment status must be PAID');
-  assert.strictEqual(sepEventAfterMaint?.event_status, 'LIVE', 'Event status must be LIVE/scheduled');
-
-  const balanceAfter = await getWalletBalance(orgId, env);
-  assert.strictEqual(balanceAfter.paid_balance, balanceBefore.paid_balance - (sepEvent.event_price || 1400), 'Event price deducted from wallet');
-  console.log('  ✓ PASS: Setup Day worker atomically deducts wallet balance and stamps PAID/LIVE');
-
-  console.log('--- Test Case 12: Worker Idempotency on Setup Day ---');
-  // Run maintenance worker again at 1 Sep 01:00:00
-  const date1SepLater = new Date('2026-09-01T01:00:00.000Z');
-  const maintResultReplay = await runEventLifecycleMaintenance(env, date1SepLater);
-  assert.strictEqual(maintResultReplay.paidEvents.includes(sepEvent.id), false, 'Already paid event must not be paid again');
-
-  const balanceAfterReplay = await getWalletBalance(orgId, env);
-  assert.strictEqual(balanceAfterReplay.paid_balance, balanceAfter.paid_balance, 'Balance must remain unchanged on replay');
-  console.log('  ✓ PASS: Worker is idempotent and prevents duplicate payment deductions');
-
-  console.log('--- Test Case 13: Post-Payment Cancellation Rejection ---');
-  const cancelCheckAfterPayment = canCancelEvent(sepEventAfterMaint!, date1Sep);
-  assert.strictEqual(cancelCheckAfterPayment.canCancel, false, 'Cancellation rejected after payment');
-  assert.strictEqual(cancelCheckAfterPayment.code, 'PAYMENT_COMMITTED', 'Code is PAYMENT_COMMITTED');
-
-  let cancelThrew = false;
-  try {
-    await cancelEvent(sepEvent.id, { cancelledBy: testUser.id, reason: 'User changed mind', now: date1Sep }, env);
-  } catch (err: any) {
-    if (err.message.includes('cancellation and refunds are disabled') || err.code === 'PAYMENT_COMMITTED') {
-      cancelThrew = true;
-    }
-  }
-  assert.strictEqual(cancelThrew, true, 'cancelEvent must throw when attempting to cancel a paid event');
-  console.log('  ✓ PASS: Post-payment cancellation, refunds, and credit reversals are strictly rejected');
-
-  console.log('--- Test Case 14: Insufficient Balance on Setup Day Keeps Payment Pending ---');
-  // Create another org with 0 balance and an event on 2 Sep
-  const poorOrg = await createOrganization({
-    name: 'Poor Org',
+  console.log('--- Case 1: Before Setup Day (8 Sep) Lifecycle & Cancellation ---');
+  // Dedicated organization and theme for Setup Day tests
+  const setupOrg = await createOrganization({
+    name: 'Setup Day Test Org',
     owner_id: testUser.id,
   }, env);
-
-  const poorTheme = await createTheme({
-    organization_id: poorOrg.id,
+  const setupTheme = await createTheme({
+    organization_id: setupOrg.id,
     game_id: gameId,
-    name: 'Poor Org Theme',
-    slug: 'poor-theme',
+    name: 'Setup Day Test Theme',
+    slug: 'setup-day-theme',
   }, env);
 
-  const unpaidSepEvent = await createEvent({
-    organization_id: poorOrg.id,
-    game_theme_id: poorTheme.id,
-    name: 'Unfunded Sep Event',
-    event_date: '2026-09-02',
-    starts_at: '2026-09-02T10:00:00.000Z',
-    expires_at: '2026-09-03T23:59:59.000Z',
-    currentDate: date31Aug,
+  // Event: 10 Sep, Current Date: 8 Sep (10:00 UTC) -> Before Setup Day
+  const date8Sep = new Date('2026-09-08T10:00:00.000Z');
+  assert.strictEqual(isSetupDayStarted(testEventSep10, date8Sep), false, 'Setup day not started on 8 Sep 10:00 UTC');
+
+  // Create an unpaid event scheduled for 10 Sep
+  const sep10EventUnpaid = await createEvent({
+    organization_id: setupOrg.id,
+    game_theme_id: setupTheme.id,
+    name: 'Case 1 Unpaid Sep 10 Event',
+    event_date: '2026-09-10',
+    start_date: '2026-09-10',
+    end_date: '2026-09-11',
+    starts_at: '2026-09-10T00:00:00.000Z',
+    expires_at: '2026-09-11T23:59:59.000Z',
+    currentDate: date8Sep,
   }, env);
 
-  // Run maintenance on 1 Sep
-  const maintPoor = await runEventLifecycleMaintenance(env, date1Sep);
-  assert.ok(maintPoor.paymentFailedEvents.includes(unpaidSepEvent.id), 'Payment failure recorded in maintenance');
-
-  const checkUnfunded = await getEventById(unpaidSepEvent.id, env);
+  // Maintenance run before Setup Day: NO automatic payment
+  const maintCase1 = await runEventLifecycleMaintenance(env, date8Sep);
+  assert.strictEqual(maintCase1.paidEvents.includes(sep10EventUnpaid.id), false, 'No automatic payment on 8 Sep');
+  const evCase1AfterMaint = await getEventById(sep10EventUnpaid.id, env);
   assert.ok(
-    checkUnfunded?.payment_status === 'UNPAID' || checkUnfunded?.payment_status === 'PENDING_PAYMENT',
-    'Payment status remains UNPAID or PENDING_PAYMENT'
+    evCase1AfterMaint?.payment_status === 'UNPAID' || evCase1AfterMaint?.payment_status === 'PENDING_PAYMENT',
+    'Payment status remains unpaid/pending_payment'
   );
-  console.log('  ✓ PASS: Insufficient balance on Setup Day leaves event unpaid without throwing/crashing worker');
 
-  console.log('--- Test Case 15: Event Completion at Expiry Window ---');
-  const date4Sep = new Date('2026-09-04T01:00:00.000Z');
-  const maintCompleted = await runEventLifecycleMaintenance(env, date4Sep);
-  assert.ok(maintCompleted.completedEvents.includes(sepEvent.id), 'Sep event marked completed after expiry');
+  // Cancellation check before Setup Day (Unpaid)
+  const cancelCheckUnpaid = canCancelEvent(sep10EventUnpaid, date8Sep);
+  assert.strictEqual(cancelCheckUnpaid.canCancel, true, 'Cancellation allowed before Setup Day for unpaid event');
+  assert.strictEqual(cancelCheckUnpaid.canRefund, false, 'No refund needed since unpaid');
 
-  const completedEvent = await getEventById(sepEvent.id, env);
-  assert.strictEqual(completedEvent?.event_status, 'COMPLETED', 'Event status is COMPLETED');
-  assert.ok(completedEvent?.status === 'completed' || completedEvent?.status === 'expired', 'Status is completed or expired');
-  console.log('  ✓ PASS: Paid event expires and is marked COMPLETED at end of event window');
+  // Now create a paid event scheduled for 10 Sep to verify pre-Setup-Day paid cancellation & refund
+  await createTopup({
+    organizationId: setupOrg.id,
+    amount: 2500,
+    referenceId: 'topup_case1_paid',
+  }, env);
+  const sep10EventPaid = await createEvent({
+    organization_id: setupOrg.id,
+    game_theme_id: setupTheme.id,
+    name: 'Case 1 Paid Sep 10 Event',
+    event_date: '2026-09-10',
+    start_date: '2026-09-10',
+    end_date: '2026-09-11',
+    starts_at: '2026-09-10T00:00:00.000Z',
+    expires_at: '2026-09-11T23:59:59.000Z',
+    currentDate: date8Sep,
+  }, env);
+  await processEventPayment({
+    organizationId: setupOrg.id,
+    eventId: sep10EventPaid.id,
+    paymentMode: 'FULL_PAID',
+    eventName: sep10EventPaid.name,
+  }, env);
+
+  const cancelCheckPaid = canCancelEvent(await getEventById(sep10EventPaid.id, env)!, date8Sep);
+  assert.strictEqual(cancelCheckPaid.canCancel, true, 'Cancellation allowed before Setup Day for paid event');
+  assert.strictEqual(cancelCheckPaid.canRefund, true, 'Refund allowed before Setup Day for paid event');
+  assert.ok(cancelCheckPaid.refundPaidAmount > 0, 'Refund amount matches paid amount');
+
+  // Cancel the paid event before Setup Day and verify refund works
+  const cancelResult = await cancelEvent(sep10EventPaid.id, {
+    cancelledBy: testUser.id,
+    reason: 'Pre-Setup Day cancellation',
+    now: date8Sep,
+  }, env);
+  assert.strictEqual(cancelResult.refundResult?.success, true, 'Refund successfully executed before Setup Day');
+  console.log('  ✓ PASS: Case 1 - Before Setup Day: No automatic payment, cancellation and refund allowed');
+
+  console.log('--- Case 2: Setup Day (9 Sep), Unpaid Event ---');
+  // Event: 10 Sep, Current Date: 9 Sep (02:00 UTC) -> On Setup Day
+  const date9Sep = new Date('2026-09-09T02:00:00.000Z');
+  assert.strictEqual(isSetupDayStarted(testEventSep10, date9Sep), true, 'Setup day started on 9 Sep');
+
+  // Top up org wallet so funds exist (proving worker will NOT silently auto-charge)
+  await createTopup({
+    organizationId: setupOrg.id,
+    amount: 5000,
+    referenceId: 'case2_wallet_funds',
+  }, env);
+  const balanceBeforeCase2 = await getWalletBalance(setupOrg.id, env);
+
+  // Run lifecycle maintenance on Setup Day
+  const maintCase2 = await runEventLifecycleMaintenance(env, date9Sep);
+  assert.strictEqual(maintCase2.paidEvents.includes(sep10EventUnpaid.id), false, 'CRITICAL: Must NEVER auto-pay on Setup Day');
+
+  // Verify wallet balance is completely unchanged
+  const balanceAfterCase2 = await getWalletBalance(setupOrg.id, env);
+  assert.strictEqual(balanceAfterCase2.paid_balance, balanceBeforeCase2.paid_balance, 'Wallet balance unchanged by maintenance');
+
+  // Verify event status remains unpaid
+  const sep10UnpaidAfterMaint = await getEventById(sep10EventUnpaid.id, env);
+  assert.ok(
+    sep10UnpaidAfterMaint?.payment_status === 'UNPAID' || sep10UnpaidAfterMaint?.payment_status === 'PENDING_PAYMENT',
+    'Event payment status remains unpaid/pending_payment'
+  );
+
+  // Verify event is now strictly non-refundable and non-cancellable
+  const cancelCheckSetupUnpaid = canCancelEvent(sep10UnpaidAfterMaint!, date9Sep);
+  assert.strictEqual(cancelCheckSetupUnpaid.canCancel, false, 'Cancellation BLOCKED once Setup Day starts');
+  assert.strictEqual(cancelCheckSetupUnpaid.code, 'SETUP_DAY_STARTED', 'Code is SETUP_DAY_STARTED');
+
+  // Attempting to cancel must throw error
+  let cancelSetupThrew = false;
+  try {
+    await cancelEvent(sep10EventUnpaid.id, {
+      cancelledBy: testUser.id,
+      reason: 'Trying to cancel on Setup Day',
+      now: date9Sep,
+    }, env);
+  } catch (err: any) {
+    cancelSetupThrew = true;
+  }
+  assert.strictEqual(cancelSetupThrew, true, 'cancelEvent must reject cancellation once Setup Day reached');
+
+  // Verify Live URL remains blocked because event is unpaid
+  const liveAccessSetupUnpaid = getClientLiveGameAccessDetails(sep10UnpaidAfterMaint!, date9Sep);
+  assert.strictEqual(liveAccessSetupUnpaid.canAccess, false, 'Live URL must be blocked for unpaid event on Setup Day');
+  assert.strictEqual(liveAccessSetupUnpaid.code, 'PAYMENT_REQUIRED', 'Reason is PAYMENT_REQUIRED');
+  console.log('  ✓ PASS: Case 2 - Setup Day Unpaid: No auto-payment, wallet untouched, non-cancellable, Live URL blocked');
+
+  console.log('--- Case 3: Setup Day (9 Sep), Paid Event ---');
+  // Create an event that was explicitly paid by the user
+  const sep10PaidEvent = await createEvent({
+    organization_id: setupOrg.id,
+    game_theme_id: setupTheme.id,
+    name: 'Case 3 Explicitly Paid Event',
+    event_date: '2026-09-10',
+    start_date: '2026-09-10',
+    end_date: '2026-09-11',
+    starts_at: '2026-09-10T00:00:00.000Z',
+    expires_at: '2026-09-11T23:59:59.000Z',
+    currentDate: date8Sep,
+  }, env);
+  await processEventPayment({
+    organizationId: setupOrg.id,
+    eventId: sep10PaidEvent.id,
+    paymentMode: 'FULL_PAID',
+    eventName: sep10PaidEvent.name,
+  }, env);
+
+  const balanceBeforeCase3 = await getWalletBalance(setupOrg.id, env);
+
+  // Run lifecycle maintenance on Setup Day
+  const maintCase3 = await runEventLifecycleMaintenance(env, date9Sep);
+  assert.strictEqual(maintCase3.paidEvents.includes(sep10PaidEvent.id), false, 'No re-payment attempted on paid event');
+
+  const balanceAfterCase3 = await getWalletBalance(setupOrg.id, env);
+  assert.strictEqual(balanceAfterCase3.paid_balance, balanceBeforeCase3.paid_balance, 'No additional wallet deduction');
+
+  // Verify Live URL is available on Setup Day for paid event
+  const sep10PaidRecord = await getEventById(sep10PaidEvent.id, env);
+  const liveAccessSetupPaid = getClientLiveGameAccessDetails(sep10PaidRecord!, date9Sep);
+  assert.strictEqual(liveAccessSetupPaid.canAccess, true, 'Live URL is available on Setup Day for paid event');
+
+  // Verify cancellation and refunds are blocked once Setup Day starts
+  const cancelCheckSetupPaid = canCancelEvent(sep10PaidRecord!, date9Sep);
+  assert.strictEqual(cancelCheckSetupPaid.canCancel, false, 'Cancellation blocked for paid event on Setup Day');
+  assert.strictEqual(cancelCheckSetupPaid.code, 'SETUP_DAY_STARTED', 'Code is SETUP_DAY_STARTED');
+  console.log('  ✓ PASS: Case 3 - Setup Day Paid: No extra charge, Live URL available, refund/cancellation blocked');
+
+  console.log('--- Case 4: Event Started (10 Sep), Unpaid Event ---');
+  // Current date is 10 Sep (event has started), but event is still unpaid
+  const date10Sep = new Date('2026-09-10T02:00:00.000Z');
+  const balanceBeforeCase4 = await getWalletBalance(setupOrg.id, env);
+
+  // Maintenance must NOT auto-charge
+  const maintCase4 = await runEventLifecycleMaintenance(env, date10Sep);
+  assert.strictEqual(maintCase4.paidEvents.includes(sep10EventUnpaid.id), false, 'No automatic payment even after event start');
+
+  const balanceAfterCase4 = await getWalletBalance(setupOrg.id, env);
+  assert.strictEqual(balanceAfterCase4.paid_balance, balanceBeforeCase4.paid_balance, 'Wallet not silently charged');
+
+  // Live URL remains blocked
+  const liveAccessStartedUnpaid = getClientLiveGameAccessDetails(sep10UnpaidAfterMaint!, date10Sep);
+  assert.strictEqual(liveAccessStartedUnpaid.canAccess, false, 'Live URL remains blocked for unpaid event during event window');
+  assert.strictEqual(liveAccessStartedUnpaid.code, 'PAYMENT_REQUIRED', 'Access code is PAYMENT_REQUIRED');
+
+  // User can still make an explicit payment if needed
+  const explicitPayResult = await processEventPayment({
+    organizationId: setupOrg.id,
+    eventId: sep10EventUnpaid.id,
+    paymentMode: 'FULL_PAID',
+    eventName: sep10EventUnpaid.name,
+  }, env);
+  assert.strictEqual(explicitPayResult.success, true, 'Explicit user payment is successful');
+
+  const sep10PaidNow = await getEventById(sep10EventUnpaid.id, env);
+  assert.strictEqual(sep10PaidNow?.payment_status, 'PAID', 'Event becomes PAID after explicit user action');
+
+  // Now live game access opens
+  const liveAccessAfterExplicitPay = getClientLiveGameAccessDetails(sep10PaidNow!, date10Sep);
+  assert.strictEqual(liveAccessAfterExplicitPay.canAccess, true, 'Live game opens immediately after explicit payment');
+  console.log('  ✓ PASS: Case 4 - Event Started Unpaid: Never auto-charged, Live URL blocked until explicit payment');
+
+  console.log('--- Case 5: Event Ended (12 Sep), Unpaid Event Transitions to EXPIRED ---');
+  // Create another unpaid event in its own org so no pending limits are hit
+  const case5Org = await createOrganization({
+    name: 'Case 5 Org',
+    owner_id: testUser.id,
+  }, env);
+  const case5Theme = await createTheme({
+    organization_id: case5Org.id,
+    game_id: gameId,
+    name: 'Case 5 Theme',
+    slug: 'case-5-theme',
+  }, env);
+  const unpaidEventEndedTest = await createEvent({
+    organization_id: case5Org.id,
+    game_theme_id: case5Theme.id,
+    name: 'Case 5 Unpaid Ended Event',
+    event_date: '2026-09-10',
+    start_date: '2026-09-10',
+    end_date: '2026-09-11',
+    starts_at: '2026-09-10T00:00:00.000Z',
+    expires_at: '2026-09-11T23:59:59.000Z',
+    currentDate: date8Sep,
+  }, env);
+
+  const date12Sep = new Date('2026-09-12T01:00:00.000Z');
+  const balanceBeforeCase5 = await getWalletBalance(case5Org.id, env);
+
+  // Run maintenance after end date
+  const maintCase5 = await runEventLifecycleMaintenance(env, date12Sep);
+  assert.ok(maintCase5.expiredEvents.includes(unpaidEventEndedTest.id), 'Unpaid event marked EXPIRED after end date');
+  assert.strictEqual(maintCase5.paidEvents.includes(unpaidEventEndedTest.id), false, 'Never auto-charged on expiry');
+
+  const balanceAfterCase5 = await getWalletBalance(case5Org.id, env);
+  assert.strictEqual(balanceAfterCase5.paid_balance, balanceBeforeCase5.paid_balance, 'Wallet balance remains intact');
+
+  const endedEventRecord = await getEventById(unpaidEventEndedTest.id, env);
+  assert.strictEqual(endedEventRecord?.event_status, 'EXPIRED', 'Event status transitioned to EXPIRED');
+  assert.strictEqual(endedEventRecord?.status, 'expired', 'Status transitioned to expired');
+  console.log('  ✓ PASS: Case 5 - Event Ended Unpaid: Transitions to EXPIRED with 0 wallet charge');
+
+  console.log('--- Case 6: Cron Runs Repeatedly (Idempotency & Zero Auto-Deductions) ---');
+  // Create an unpaid event in a dedicated org for cron tests
+  const cronOrg = await createOrganization({
+    name: 'Cron Test Org',
+    owner_id: testUser.id,
+  }, env);
+  const cronTheme = await createTheme({
+    organization_id: cronOrg.id,
+    game_id: gameId,
+    name: 'Cron Theme',
+    slug: 'cron-theme',
+  }, env);
+  const cronTestEvent = await createEvent({
+    organization_id: cronOrg.id,
+    game_theme_id: cronTheme.id,
+    name: 'Case 6 Cron Repeat Test Event',
+    event_date: '2026-09-15',
+    start_date: '2026-09-15',
+    end_date: '2026-09-16',
+    starts_at: '2026-09-15T00:00:00.000Z',
+    expires_at: '2026-09-16T23:59:59.000Z',
+    currentDate: new Date('2026-09-14T01:00:00.000Z'),
+  }, env);
+
+  const date14Sep = new Date('2026-09-14T02:00:00.000Z');
+  const balanceBeforeCron = await getWalletBalance(cronOrg.id, env);
+  const txnCountBefore = (await getLedgerTransactions(cronOrg.id, env)).length;
+
+  // Run maintenance 5 times consecutively simulating 1-minute crons
+  for (let i = 1; i <= 5; i++) {
+    const cronMaint = await runEventLifecycleMaintenance(env, date14Sep);
+    assert.strictEqual(cronMaint.paidEvents.includes(cronTestEvent.id), false, `Run ${i}: Must not auto-pay`);
+  }
+
+  const balanceAfterCron = await getWalletBalance(cronOrg.id, env);
+  const txnCountAfter = (await getLedgerTransactions(cronOrg.id, env)).length;
+
+  assert.strictEqual(balanceAfterCron.paid_balance, balanceBeforeCron.paid_balance, 'Wallet balance remains strictly unchanged across cron runs');
+  assert.strictEqual(txnCountAfter, txnCountBefore, 'Zero payment transactions created by cron runs');
+
+  const cronEventAfter = await getEventById(cronTestEvent.id, env);
+  assert.ok(
+    cronEventAfter?.payment_status === 'UNPAID' || cronEventAfter?.payment_status === 'PENDING_PAYMENT',
+    'Event payment status remains UNPAID or PENDING_PAYMENT'
+  );
+  console.log('  ✓ PASS: Case 6 - Cron Idempotency: Repeated maintenance runs never charge or change payment status');
+
+  console.log('--- Case 7: Paid Event Expiry Transitions to COMPLETED ---');
+  const case7Org = await createOrganization({
+    name: 'Case 7 Org',
+    owner_id: testUser.id,
+  }, env);
+  const case7Theme = await createTheme({
+    organization_id: case7Org.id,
+    game_id: gameId,
+    name: 'Case 7 Theme',
+    slug: 'case-7-theme',
+  }, env);
+  await createTopup({
+    organizationId: case7Org.id,
+    amount: 3000,
+    referenceId: 'topup_case7_paid',
+  }, env);
+  const case7PaidEvent = await createEvent({
+    organization_id: case7Org.id,
+    game_theme_id: case7Theme.id,
+    name: 'Case 7 Paid Event',
+    event_date: '2026-09-15',
+    start_date: '2026-09-15',
+    end_date: '2026-09-16',
+    starts_at: '2026-09-15T00:00:00.000Z',
+    expires_at: '2026-09-16T23:59:59.000Z',
+    currentDate: new Date('2026-09-14T01:00:00.000Z'),
+  }, env);
+  await processEventPayment({
+    organizationId: case7Org.id,
+    eventId: case7PaidEvent.id,
+    paymentMode: 'FULL_PAID',
+    eventName: case7PaidEvent.name,
+  }, env);
+
+  const date17Sep = new Date('2026-09-17T01:00:00.000Z');
+  const maintCase7 = await runEventLifecycleMaintenance(env, date17Sep);
+  assert.ok(maintCase7.completedEvents.includes(case7PaidEvent.id), 'Paid event transitioned to COMPLETED after end date');
+
+  const paidEndedRecord = await getEventById(case7PaidEvent.id, env);
+  assert.strictEqual(paidEndedRecord?.event_status, 'COMPLETED', 'Event status is COMPLETED');
+  assert.strictEqual(paidEndedRecord?.status, 'completed', 'Status is completed');
+  console.log('  ✓ PASS: Case 7 - Paid Event Expiry: Transitions to COMPLETED');
 
   console.log('\n======================================================');
-  console.log(' ALL 15 CRITICAL LIFECYCLE TESTS PASSED PERFECTLY');
+  console.log(' ALL CRITICAL LIFECYCLE & REGRESSION TESTS PASSED!');
   console.log('======================================================\n');
 }
 

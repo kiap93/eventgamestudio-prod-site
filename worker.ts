@@ -952,15 +952,6 @@ export default {
           env
         );
 
-        await addMember(
-          {
-            organization_id: organization.id,
-            user_id: user.id,
-            role: 'owner',
-          },
-          env
-        );
-
         const defaultGame = await ensureDefaultGame(organization.id, organization.name, env);
         const token = await signAppToken(user.id, organization.id, 'owner', undefined, env);
 

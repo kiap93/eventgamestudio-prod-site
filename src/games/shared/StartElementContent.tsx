@@ -199,6 +199,31 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
       if (displayedText.includes('{gameSubtitle}') && gameMeta?.gameSubtitle) {
         displayedText = displayedText.replace(/{gameSubtitle}/g, gameMeta.gameSubtitle);
       }
+      if (displayedText.includes('{totalPairs}')) {
+        const pairs = gameMeta?.totalPairs ?? 8;
+        displayedText = displayedText.replace(/{totalPairs}/g, String(pairs));
+      }
+      if (displayedText.includes('{totalCards}')) {
+        const cards = gameMeta?.totalCards ?? 16;
+        displayedText = displayedText.replace(/{totalCards}/g, String(cards));
+      }
+      if (displayedText.includes('{duration}')) {
+        const dur = gameMeta?.duration ?? 45;
+        displayedText = displayedText.replace(/{duration}/g, `${dur}s`);
+      }
+      if (displayedText.includes('{rows}')) {
+        displayedText = displayedText.replace(/{rows}/g, String(gameMeta?.rows ?? 4));
+      }
+      if (displayedText.includes('{cols}')) {
+        displayedText = displayedText.replace(/{cols}/g, String(gameMeta?.cols ?? 4));
+      }
+      // Dynamic fallback for the standard instruction string when gameMeta provides totalPairs
+      if (/Flip cards, find all \d+ matching pairs/i.test(displayedText) && gameMeta?.totalPairs) {
+        displayedText = displayedText.replace(
+          /Flip cards, find all \d+ matching pairs/i,
+          `Flip cards, find all ${gameMeta.totalPairs} matching pairs`
+        );
+      }
 
       // Proportional font sizing based on logical parent dimensions & game UI scale
       const baseFontSize = s.fontSize ?? 16;
@@ -364,24 +389,34 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
       if (badgeEl.metric === 'grid') {
         resolvedLabel = badgeEl.label || 'GRID';
         const totalCards = gameMeta?.totalCards ?? ((gameMeta?.rows || 4) * (gameMeta?.cols || 4));
-        resolvedValue = `${totalCards} Cards`;
+        resolvedValue = badgeEl.value && !/^\d+\s*Cards$/i.test(badgeEl.value) && !badgeEl.value.includes('AUTO')
+          ? badgeEl.value
+          : `${totalCards} Cards`;
       } else if (badgeEl.metric === 'pairs') {
         resolvedLabel = badgeEl.label || 'PAIRS';
         const totalCards = gameMeta?.totalCards ?? 16;
         const totalPairs = gameMeta?.totalPairs ?? Math.floor(totalCards / 2);
-        resolvedValue = `${totalPairs} Pairs`;
+        resolvedValue = badgeEl.value && !/^\d+\s*Pairs$/i.test(badgeEl.value) && !badgeEl.value.includes('AUTO')
+          ? badgeEl.value
+          : `${totalPairs} Pairs`;
       } else if (badgeEl.metric === 'timer' || badgeEl.metric === 'duration') {
         resolvedLabel = badgeEl.label || 'TIMER';
         const duration = gameMeta?.duration ?? 45;
-        resolvedValue = `${duration}s`;
+        resolvedValue = badgeEl.value && !/^\d+s$/i.test(badgeEl.value) && !badgeEl.value.includes('AUTO')
+          ? badgeEl.value
+          : `${duration}s`;
       } else if (badgeEl.metric === 'rounds') {
         resolvedLabel = badgeEl.label || 'ROUNDS';
         const rounds = gameMeta?.roundsCount ?? 5;
-        resolvedValue = `${rounds} Rounds`;
+        resolvedValue = badgeEl.value && !/^\d+\s*Rounds$/i.test(badgeEl.value) && !badgeEl.value.includes('AUTO')
+          ? badgeEl.value
+          : `${rounds} Rounds`;
       } else if (badgeEl.metric === 'lights') {
         resolvedLabel = badgeEl.label || 'GANTRY';
         const lights = gameMeta?.lightCount ?? 5;
-        resolvedValue = `${lights} Lights`;
+        resolvedValue = badgeEl.value && !/^\d+\s*Lights$/i.test(badgeEl.value) && !badgeEl.value.includes('AUTO')
+          ? badgeEl.value
+          : `${lights} Lights`;
       }
 
       return (

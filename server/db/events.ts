@@ -143,6 +143,13 @@ export function getNormalizedCurrentDate(currentDate?: string | Date | null, tim
 }
 
 /**
+ * Returns today's date formatted as YYYY-MM-DD in Asia/Singapore (UTC+8).
+ */
+export function getSingaporeCalendarDate(date: Date = new Date(), timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
+  return getNormalizedCurrentDate(date, timeZone);
+}
+
+/**
  * Formats a date value into human-readable format like "07 Sep 2026" or "07 September 2026".
  */
 export function formatDateOnly(
@@ -790,8 +797,12 @@ export function normalizeEventDateBoundaries(
   const [startY, startM, startD] = startDate.split('-').map(Number);
   const [endY, endM, endD] = endDate.split('-').map(Number);
 
-  const startUtc = new Date(Date.UTC(startY, startM - 1, startD, 0, 0, 0, 0));
-  const endUtc = new Date(Date.UTC(endY, endM - 1, endD, 23, 59, 59, 999));
+  // Business Timezone Standard: Asia/Singapore (UTC+8)
+  // 00:00:00 SGT = previous day 16:00:00 UTC (-8 hours)
+  // 23:59:59.999 SGT = same day 15:59:59.999 UTC (-8 hours)
+  const SG_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const startUtc = new Date(Date.UTC(startY, startM - 1, startD, 0, 0, 0, 0) - SG_OFFSET_MS);
+  const endUtc = new Date(Date.UTC(endY, endM - 1, endD, 23, 59, 59, 999) - SG_OFFSET_MS);
 
   if (isNaN(startUtc.getTime()) || isNaN(endUtc.getTime())) {
     const err: any = new Error('Invalid Start Date or End Date');
@@ -820,8 +831,8 @@ export function normalizeEventDateBoundaries(
     }
   }
 
-  // Setup Day begins at 00:00:00 UTC on the calendar day immediately preceding the Start Date
-  const setupUtc = new Date(Date.UTC(startY, startM - 1, startD - 1, 0, 0, 0, 0));
+  // Setup Day begins at 00:00:00 SGT on the calendar day immediately preceding the Start Date
+  const setupUtc = new Date(Date.UTC(startY, startM - 1, startD - 1, 0, 0, 0, 0) - SG_OFFSET_MS);
 
   return {
     startDate,
@@ -838,10 +849,12 @@ export function normalizeEventDateBoundaries(
 /**
  * Calculates the exact start time of Setup Day / Preparation window.
  * Business Rule:
- * The Setup Day is the calendar day immediately before the event starts (00:00:00 UTC).
+ * The Setup Day is the calendar day immediately before the event starts (00:00:00 Asia/Singapore UTC+8).
  * For an event scheduled for:
  * Event date: 2 September – 3 September (e.g. 2026-09-02)
- * the Setup Day / Payment Deduction Day = 1 September 00:00:00 (2026-09-01T00:00:00.000Z)
+ * the Setup Day = 1 September 00:00:00 SGT (2026-08-31T16:00:00.000Z).
+ * IMPORTANT: Setup Day ONLY governs cancellation/refund eligibility (event becomes strictly non-refundable and non-cancellable).
+ * Setup Day NEVER automatically triggers payment or wallet balance deduction.
  */
 export function getSetupDayStartTime(event: {
   starts_at?: string | null;
@@ -852,6 +865,8 @@ export function getSetupDayStartTime(event: {
   if (event.setup_starts_at) {
     return new Date(event.setup_starts_at);
   }
+
+  const SG_OFFSET_MS = 8 * 60 * 60 * 1000;
 
   // Derive calendar date from start_date, event_date, or starts_at
   let dateStr = event.start_date || event.event_date;
@@ -870,12 +885,12 @@ export function getSetupDayStartTime(event: {
       const year = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1; // 0-indexed (0 = Jan)
       const day = parseInt(parts[2], 10);
-      return new Date(Date.UTC(year, month, day - 1, 0, 0, 0, 0));
+      return new Date(Date.UTC(year, month, day - 1, 0, 0, 0, 0) - SG_OFFSET_MS);
     }
   }
 
   const startDate = new Date(event.starts_at || Date.now());
-  return new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate() - 1, 0, 0, 0, 0));
+  return new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate() - 1, 0, 0, 0, 0) - SG_OFFSET_MS);
 }
 
 /**
@@ -885,11 +900,22 @@ export function isSetupDayStarted(
   event: {
     starts_at: string;
     event_date?: string | null;
+    start_date?: string | null;
     setup_starts_at?: string | null;
     [key: string]: any;
   },
   now: Date = new Date()
 ): boolean {
+  // 1. First check calendar date comparison in Asia/Singapore
+  const dates = getNormalizedEventDates(event);
+  if (dates.liveOpenDate) {
+    const curDateSg = getSingaporeCalendarDate(now);
+    if (curDateSg >= dates.liveOpenDate) {
+      return true;
+    }
+  }
+
+  // 2. Fall back to timestamp comparison
   const setupTime = getSetupDayStartTime(event);
   return now.getTime() >= setupTime.getTime();
 }
@@ -899,7 +925,7 @@ export function isSetupDayStarted(
  *
  * Rules:
  * 1. Before Setup Day: Cancellation is allowed (Unpaid events need no refund; paid events receive 100% full refund).
- * 2. On/After Setup Day starts or After successful payment:
+ * 2. On/After Setup Day starts:
  *    - Cancellation is strictly NOT allowed
  *    - Refund is strictly NOT allowed
  *    - Credit reversal is strictly NOT allowed
@@ -913,21 +939,21 @@ export function determineEventRefund(
   const paidAmount = Number(event.paid_amount || 0);
   const discountAmount = Number(event.discount_amount || 0);
   const paymentMode = event.payment_mode || null;
+  const setupDayStarted = isSetupDayStarted(event, now);
 
-  // After successful payment deduction or on/after Setup Day:
-  if (paymentStatus === 'PAID' || isSetupDayStarted(event, now)) {
+  // 1. Once Setup Day starts: strictly non-refundable
+  if (setupDayStarted) {
     return {
       canRefund: false,
       refundPaidAmount: 0,
       creditReversalAmount: 0,
       creditType: paymentMode,
       paymentStatus,
-      reason: paymentStatus === 'PAID'
-        ? 'After successful payment deduction, cancellation and refunds are disabled.'
-        : 'Once Setup Day starts, cancellation and refunds are not allowed.',
+      reason: 'Once Setup Day starts, cancellation and refunds are not allowed.',
     };
   }
 
+  // 2. Unpaid or no payment recorded
   if (paymentStatus !== 'PAID' || (paidAmount === 0 && discountAmount === 0)) {
     return {
       canRefund: false,
@@ -941,7 +967,7 @@ export function determineEventRefund(
     };
   }
 
-  // Prior to Setup Day with paid balance: full refund
+  // 3. Prior to Setup Day with paid balance: full refund
   const safePaid = Number(paidAmount) || 0;
   const safeDiscount = Number(discountAmount) || 0;
   return {
@@ -960,13 +986,13 @@ export function determineEventRefund(
  * Dedicated cancellation policy engine: evaluates event cancellation rules.
  *
  * Cancellation Matrix:
- * DRAFT (before Setup Day, unpaid)   → YES
+ * DRAFT (before Setup Day, unpaid)     → YES
  * SCHEDULED (before Setup Day, unpaid) → YES
- * PAID (any time)                   → NO
- * ON / AFTER SETUP DAY              → NO
- * ACTIVE / LIVE                     → NO
- * COMPLETED / EXPIRED               → NO
- * CANCELLED                         → NO
+ * SCHEDULED (before Setup Day, paid)   → YES (with full refund)
+ * ON / AFTER SETUP DAY (paid or unpaid) → NO
+ * ACTIVE / LIVE                        → NO
+ * COMPLETED / EXPIRED                  → NO
+ * CANCELLED                            → NO
  */
 export function canCancelEvent(
   event: EventRecord | EventWithDetails,
@@ -979,7 +1005,7 @@ export function canCancelEvent(
   const expiresAtTime = new Date(event.expires_at).getTime();
   const nowTime = now.getTime();
   const setupStartTime = getSetupDayStartTime(event);
-  const setupDayStarted = nowTime >= setupStartTime.getTime();
+  const setupDayStarted = isSetupDayStarted(event, now);
 
   const refundInfo = determineEventRefund(event, now);
 
@@ -991,7 +1017,7 @@ export function canCancelEvent(
     calculatedStatus = 'draft';
   } else if (nowTime >= expiresAtTime || rawStatus === 'expired' || rawStatus === 'completed' || eventStatus === 'COMPLETED') {
     calculatedStatus = 'expired';
-  } else if (nowTime >= startsAtTime || rawStatus === 'live' || rawStatus === 'active' || eventStatus === 'LIVE') {
+  } else if (nowTime >= startsAtTime || (rawStatus === 'live' && nowTime >= startsAtTime) || (rawStatus === 'active' && nowTime >= startsAtTime)) {
     calculatedStatus = 'live';
   } else if (setupDayStarted || rawStatus === 'testing') {
     calculatedStatus = 'testing';
@@ -1035,19 +1061,8 @@ export function canCancelEvent(
     };
   }
 
-  // 3. AFTER SUCCESSFUL PAYMENT -> NO (Once paid, cancellation and refund are strictly disabled)
-  if (payStatus === 'PAID') {
-    return {
-      ...baseResult,
-      canCancel: false,
-      canRefund: false,
-      reason: 'After successful payment deduction, cancellation and refunds are disabled.',
-      code: 'PAYMENT_COMMITTED',
-    };
-  }
-
-  // 4. ACTIVE / LIVE -> NO
-  if (calculatedStatus === 'live' || rawStatus === 'live' || rawStatus === 'active' || (nowTime >= startsAtTime && nowTime < expiresAtTime)) {
+  // 3. ACTIVE / LIVE -> NO
+  if (calculatedStatus === 'live' || (nowTime >= startsAtTime && nowTime < expiresAtTime)) {
     return {
       ...baseResult,
       canCancel: false,
@@ -1057,7 +1072,7 @@ export function canCancelEvent(
     };
   }
 
-  // 5. ONCE SETUP DAY STARTS -> NO
+  // 4. ONCE SETUP DAY STARTS -> NO (strictly non-cancellable and non-refundable)
   if (setupDayStarted) {
     return {
       ...baseResult,
@@ -1068,12 +1083,14 @@ export function canCancelEvent(
     };
   }
 
-  // 6. BEFORE SETUP DAY (DRAFT or SCHEDULED without payment) -> YES
+  // 5. BEFORE SETUP DAY (DRAFT or SCHEDULED, whether paid or unpaid) -> YES
   return {
     ...baseResult,
     canCancel: true,
     canRefund: refundInfo.canRefund,
-    reason: 'Event is scheduled before Setup Day and is eligible for cancellation.',
+    reason: refundInfo.canRefund
+      ? 'Event is scheduled before Setup Day and is eligible for cancellation with full refund.'
+      : 'Event is scheduled before Setup Day and is eligible for cancellation.',
     code: 'ELIGIBLE_FOR_CANCELLATION',
   };
 }
@@ -2689,6 +2706,7 @@ export async function cancelEvent(
         paymentMode: refundInfo.creditType || existing.payment_mode,
         reason: options?.reason || `Event cancellation: ${eligibility.reason}`,
         createdBy: options?.cancelledBy,
+        now,
       },
       env
     );
@@ -2781,20 +2799,24 @@ export async function reactivateEvent(
 
 /**
  * Scheduled Worker Maintenance Job:
- * 1. Checks events on / approaching Setup Day (now >= setup_starts_at):
- *    - If event is unpaid (payment_status !== 'PAID') and not cancelled:
- *      - If event start time has already passed (now >= starts_at):
- *        - Auto-cancel event with cancel_reason = 'PAYMENT_TIMEOUT'.
- *      - Else (now >= setup_starts_at and now < starts_at):
- *        - Attempt automated atomic payment deduction (Setup Day Payment).
- *        - If wallet balance is sufficient:
- *          - processEventPayment succeeds atomically
- *          - Event payment_status becomes 'PAID'
- *          - Event status becomes 'scheduled' / 'live'
- *        - If wallet balance is insufficient:
- *          - Payment fails, event remains UNPAID / PENDING_PAYMENT
- *          - Event is not cancelled yet (until starts_at)
- * 2. Marks expired paid events as COMPLETED (now >= expires_at).
+ * 1. Evaluates business date boundaries across all events.
+ * 2. Unpaid events:
+ *    - If event end date has passed (curDate > endDate):
+ *      - Marks event as EXPIRED (status: 'expired', event_status: 'EXPIRED')
+ *    - Business Rule: Setup Day must NEVER automatically trigger payment.
+ *      - Setup Day only enforces the non-refundable/non-cancellable state.
+ *      - The cron must never silently spend organization wallet balance.
+ *      - Payment remains strictly an explicit user action.
+ * 3. Paid events:
+ *    - If event end date has passed (curDate > endDate):
+ *      - Marks event as COMPLETED (status: 'completed', event_status: 'COMPLETED')
+ *    - While within start_date <= curDate <= end_date:
+ *      - Ensures event status is 'live' and event_status is 'LIVE'
+ *    - If before start_date:
+ *      - Ensures event status is 'scheduled' and event_status is 'SCHEDULED'
+ * 4. Automatic Test Score Clearing:
+ *    - When an event reaches its configured start date (Asia/Singapore calendar date):
+ *    - Automatically and idempotently clears TEST scores for that event while preserving LIVE scores.
  */
 export async function runEventLifecycleMaintenance(
   env?: Record<string, any>,
@@ -2848,7 +2870,6 @@ export async function runEventLifecycleMaintenance(
     const rawStatus = (ev.status || '').toLowerCase();
     const startsAtTime = new Date(ev.starts_at).getTime();
     const expiresAtTime = new Date(ev.expires_at).getTime();
-    const setupStartTime = getSetupDayStartTime(ev);
     const nowTime = now.getTime();
 
     // Skip already cancelled events
@@ -2893,44 +2914,10 @@ export async function runEventLifecycleMaintenance(
           localEventsCache.set(ev.id, { ...cached, ...payload });
         }
       }
-      // If Setup Day has started and event hasn't ended -> Attempt automated atomic payment deduction
-      else if (!isAfterEndDate && nowTime >= setupStartTime.getTime()) {
-        try {
-          const paymentResult = await processEventPayment(
-            {
-              organizationId: ev.organization_id,
-              eventId: ev.id,
-              paymentMode: ev.payment_mode || 'FULL_PAID',
-              eventPrice: ev.event_price || undefined,
-              eventName: ev.name,
-              description: `Automated Setup-Day payment for event "${ev.name}"`,
-            },
-            env
-          );
 
-          if (paymentResult && paymentResult.success) {
-            paidEvents.push(ev.id);
-            const isLiveWindow = hasReachedStartDate;
-            const updatePayload = {
-              payment_status: 'PAID' as PaymentLifecycleStatus,
-              event_status: 'LIVE' as EventLifecycleStatus,
-              status: (isLiveWindow ? 'live' : 'scheduled') as EventStatus,
-              paid_amount: paymentResult.paymentCalculation.paidAmount,
-              discount_amount: paymentResult.paymentCalculation.totalDiscount,
-              payment_mode: (ev.payment_mode || 'FULL_PAID') as PaymentMode,
-              updated_at: nowIso,
-            };
-            await supabase.from('events').update(updatePayload).eq('id', ev.id);
-            const cached = localEventsCache.get(ev.id);
-            if (cached) {
-              localEventsCache.set(ev.id, { ...cached, ...updatePayload });
-            }
-          }
-        } catch (paymentErr: any) {
-          console.warn(`[Maintenance] Setup-day automated payment failed for event ${ev.id} (${ev.name}):`, paymentErr?.message || paymentErr);
-          paymentFailedEvents.push(ev.id);
-        }
-      }
+      // BUSINESS RULE: Setup Day must NEVER automatically trigger payment.
+      // Setup Day exists ONLY to change the event's cancellation/refund eligibility.
+      // Payment requires explicit user action. The cron must never silently spend wallet balance.
       continue;
     }
 

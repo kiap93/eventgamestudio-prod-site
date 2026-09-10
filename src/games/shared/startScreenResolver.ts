@@ -145,6 +145,18 @@ export function detectStartScreenCoordinateSpace(
   const canvas = config.canvas;
   const elements = config.elements || [];
 
+  // 0. Explicit coordinateSpace or version 2 marker
+  // If explicitly normalized or authored with coordinateSpace, trust it immediately
+  if (canvas?.coordinateSpace === 'landscape-1024x576') return 'landscape-1024x576';
+  if (canvas?.coordinateSpace === 'portrait-576x1024') return 'portrait-576x1024';
+  if (canvas?.coordinateSpace === 'square-1000x1000') return 'square-1000x1000';
+
+  if (canvas?.version === 2) {
+    if (canvas.coordinateSpace === 'landscape-1024x576') return 'landscape-1024x576';
+    if (canvas.coordinateSpace === 'portrait-576x1024') return 'portrait-576x1024';
+    if (canvas.coordinateSpace === 'square-1000x1000') return 'square-1000x1000';
+  }
+
   // 1. Inspect root card element if present
   const card = elements.find((e) => e.type === 'card' || e.id === 'main-start-card');
 
@@ -499,6 +511,134 @@ export function normalizeStartScreenConfigForStage(
 }
 
 /**
+ * Canonical game metadata resolver for Start Screen rendering and editing.
+ * Guarantees that title, rows, cols, total cards, total pairs, duration, and logo
+ * are consistently resolved across Embedded Previews and Full Visual Editors.
+ */
+export function resolveGameMetaForStartScreen(
+  theme?: Partial<GameTheme> | null,
+  gameType?: string,
+  overrides?: StartScreenGameMeta
+): StartScreenGameMeta {
+  const resolvedGameType = getThemeGameType(theme, gameType || 'catch-brand');
+  const gc = (theme?.game_config || {}) as Record<string, any>;
+  const branding = (theme as any)?.branding;
+
+  // 1. Logo
+  const logoUrl =
+    overrides?.logoUrl !== undefined
+      ? overrides.logoUrl
+      : (branding?.clientLogoUrl || (theme as any)?.clientLogo || (theme as any)?.logo || null);
+
+  // 2. Game Title & Subtitle
+  const defaultTitle =
+    resolvedGameType === 'catch-brand'
+      ? 'Catch The Brand'
+      : resolvedGameType === 'reaction-tap'
+      ? 'Reaction Tap'
+      : 'Memory Match';
+
+  const gameTitle = overrides?.gameTitle || theme?.name || defaultTitle;
+  const gameSubtitle = overrides?.gameSubtitle || theme?.description || '';
+
+  // 3. Memory Match specifics
+  const rawRows = overrides?.rows ?? gc.board?.rows ?? gc.grid?.rows ?? 4;
+  const rawCols = overrides?.cols ?? gc.board?.cols ?? gc.grid?.cols ?? 4;
+  const rows = Math.max(2, Math.min(6, Number(rawRows) || 4));
+  const cols = Math.max(2, Math.min(6, Number(rawCols) || 4));
+  const calculatedTotalCards = (rows * cols) % 2 === 0 ? rows * cols : rows * cols - 1;
+  const totalCards = overrides?.totalCards ?? calculatedTotalCards;
+  const totalPairs = overrides?.totalPairs ?? Math.floor(totalCards / 2);
+
+  // 4. Durations
+  const memoryDuration = gc.gameplay?.gameDurationSeconds ?? gc.gameplay?.duration ?? gc.duration ?? 45;
+  const catchDuration = gc.gameplay?.duration ?? gc.duration ?? 30;
+  const defaultDuration = resolvedGameType === 'catch-brand' ? catchDuration : memoryDuration;
+  const duration = overrides?.duration ?? defaultDuration;
+
+  // 5. Reaction Tap specifics
+  const roundsCount = overrides?.roundsCount ?? gc.roundsCount ?? 5;
+  const lightCount = overrides?.lightCount ?? gc.lightCount ?? 5;
+
+  // 6. Catch The Brand specifics
+  const themeAssets = (theme as any)?.theme_assets || {};
+  const dropItems = (theme as any)?.drop_items || [];
+  const fallingItemName = overrides?.fallingItemName ?? gc.gameplay?.fallingItemName ?? 'Target Item';
+  const badFallingItemName = overrides?.badFallingItemName ?? gc.gameplay?.badFallingItemName ?? 'Hazard Item';
+
+  const goodDrop = Array.isArray(dropItems) ? dropItems.find((i: any) => i.type === 'normal' || i.type === 'good') : null;
+  const badDrop = Array.isArray(dropItems) ? dropItems.find((i: any) => i.type === 'hazard' || i.type === 'bad') : null;
+
+  const fallingItemImg =
+    overrides?.fallingItemImg ??
+    (theme as any)?.falling_item_url ??
+    (theme as any)?.fallingItemUrl ??
+    themeAssets.good_item ??
+    themeAssets.item_normal_01 ??
+    themeAssets.reward ??
+    goodDrop?.url ??
+    null;
+
+  const badFallingItemImg =
+    overrides?.badFallingItemImg ??
+    (theme as any)?.bad_falling_item_url ??
+    (theme as any)?.badFallingItemUrl ??
+    themeAssets.hazard ??
+    themeAssets.item_hazard_01 ??
+    badDrop?.url ??
+    null;
+
+  const catcherImg =
+    overrides?.catcherImg ??
+    (theme as any)?.catcher_url ??
+    (theme as any)?.catcherUrl ??
+    (theme as any)?.basket_url ??
+    themeAssets.basket ??
+    themeAssets.catcher ??
+    (theme as any)?.catcher ??
+    (theme as any)?.basket ??
+    null;
+
+  return {
+    gameTitle,
+    gameSubtitle,
+    logoUrl,
+    rows,
+    cols,
+    totalCards,
+    totalPairs,
+    duration,
+    roundsCount,
+    lightCount,
+    fallingItemName,
+    fallingItemImg,
+    goodItemImg: overrides?.goodItemImg ?? fallingItemImg,
+    badFallingItemName,
+    badFallingItemImg,
+    badItemImg: overrides?.badItemImg ?? badFallingItemImg,
+    catcherImg,
+    ...(overrides || {}),
+  };
+}
+
+/**
+ * Recursively checks element visibility in a tree of elements.
+ */
+export function findStartScreenElementVisibility(
+  elements: StartScreenElement[],
+  id: string
+): boolean | undefined {
+  for (const el of elements) {
+    if (el.id === id) return el.visible !== false;
+    if (Array.isArray((el as any).children)) {
+      const found = findStartScreenElementVisibility((el as any).children, id);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
+/**
  * The Authoritative Single Resolver for Start Screen Configuration.
  * Guaranteed to produce a complete, non-corrupt, valid StartScreenConfig.
  */
@@ -509,6 +649,7 @@ export function getStartScreenConfig(
   targetDimensions?: { width: number; height: number }
 ): StartScreenConfig {
   const resolvedGameType = getThemeGameType(theme, gameType || 'catch-brand');
+  const effectiveMeta = resolveGameMetaForStartScreen(theme, resolvedGameType, gameMeta);
   const gc = (theme?.game_config || {}) as Record<string, any>;
   const rawScreens = gc.screens || (theme as any)?.screens;
   const rawStart = rawScreens?.start;
@@ -530,29 +671,31 @@ export function getStartScreenConfig(
     height: canvasHeight,
   };
 
-  // 2. Resolve background with bidirectional priority
+  // 2. Resolve background with bidirectional priority (prefer explicit background object from visual editor, then fallback to legacy)
   const bgType =
-    (rawStart?.backgroundType === 'color' ||
-      rawStart?.backgroundType === 'image' ||
-      rawStart?.backgroundType === 'theme')
-      ? rawStart.backgroundType
-      : (rawStart?.background?.type || 'theme');
+    (rawStart?.background?.type)
+      ? rawStart.background.type
+      : ((rawStart?.backgroundType === 'color' || rawStart?.backgroundType === 'image' || rawStart?.backgroundType === 'theme')
+          ? rawStart.backgroundType
+          : 'theme');
 
   const bgColor =
-    (typeof rawStart?.backgroundColor === 'string' && rawStart.backgroundColor)
-      ? rawStart.backgroundColor
-      : (rawStart?.background?.color || '#0f172a');
+    (typeof rawStart?.background?.color === 'string' && rawStart.background.color)
+      ? rawStart.background.color
+      : ((typeof rawStart?.backgroundColor === 'string' && rawStart.backgroundColor)
+          ? rawStart.backgroundColor
+          : '#0f172a');
 
   const bgImageUrl =
-    rawStart?.backgroundImageUrl !== undefined
-      ? rawStart.backgroundImageUrl
-      : (rawStart?.background?.imageUrl ?? null);
+    rawStart?.background?.imageUrl !== undefined
+      ? rawStart.background.imageUrl
+      : (rawStart?.backgroundImageUrl !== undefined ? rawStart.backgroundImageUrl : null);
 
   const bgOverlayOpacity =
-    typeof rawStart?.backgroundOverlayOpacity === 'number'
-      ? Math.max(0, Math.min(1, rawStart.backgroundOverlayOpacity))
-      : (typeof rawStart?.background?.overlayOpacity === 'number'
-          ? Math.max(0, Math.min(1, rawStart.background.overlayOpacity))
+    typeof rawStart?.background?.overlayOpacity === 'number'
+      ? Math.max(0, Math.min(1, rawStart.background.overlayOpacity))
+      : (typeof rawStart?.backgroundOverlayOpacity === 'number'
+          ? Math.max(0, Math.min(1, rawStart.backgroundOverlayOpacity))
           : 0.3);
 
   const background: StartScreenBackgroundConfig = {
@@ -568,12 +711,12 @@ export function getStartScreenConfig(
     elements = sanitizeStartScreenElements(rawStart.elements, canvas.width, canvas.height);
   }
 
-  // 4. Fallback generation if no valid elements exist
+  // 4. Fallback generation only if genuinely no valid elements exist
   if (elements.length === 0) {
     elements = generateDefaultStartScreenElements(
       resolvedGameType,
       theme,
-      gameMeta,
+      effectiveMeta,
       rawStart
     );
     // If elements were generated from 1000x1000 generators and raw canvas wasn't defined,
@@ -584,16 +727,27 @@ export function getStartScreenConfig(
     }
   }
 
+  // 4b. Synchronize legacy visibility flags with element tree visibility
+  const topIconVis = findStartScreenElementVisibility(elements, 'top-icon');
+  const gridVis = findStartScreenElementVisibility(elements, 'badge-grid');
+  const pairsVis = findStartScreenElementVisibility(elements, 'badge-pairs');
+  const timerVis = findStartScreenElementVisibility(elements, 'badge-timer');
+
+  const showIcon = topIconVis !== undefined ? topIconVis : (rawStart?.showIcon !== false);
+  const showGridInfo = gridVis !== undefined ? gridVis : (rawStart?.showGridInfo !== false);
+  const showPairsInfo = pairsVis !== undefined ? pairsVis : (rawStart?.showPairsInfo !== false);
+  const showTimerInfo = timerVis !== undefined ? timerVis : (rawStart?.showTimerInfo !== false);
+
   const resolvedConfig: StartScreenConfig = {
     // Legacy fields for backward compatibility
     backgroundType: bgType,
     backgroundColor: bgColor,
     backgroundImageUrl: bgImageUrl,
     backgroundOverlayOpacity: bgOverlayOpacity,
-    showIcon: rawStart?.showIcon !== false,
-    showGridInfo: rawStart?.showGridInfo !== false,
-    showPairsInfo: rawStart?.showPairsInfo !== false,
-    showTimerInfo: rawStart?.showTimerInfo !== false,
+    showIcon,
+    showGridInfo,
+    showPairsInfo,
+    showTimerInfo,
 
     // Visual Editor architecture
     canvas,
