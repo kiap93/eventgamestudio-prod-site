@@ -261,33 +261,27 @@ export function needsStartScreenElementNormalization(
   if (!config) return false;
 
   const currentSpace = detectStartScreenCoordinateSpace(config);
-  const isTargetLandscape = targetWidth >= targetHeight;
-  const targetSpace: StartScreenCoordinateSpace = isTargetLandscape
-    ? 'landscape-1024x576'
-    : 'portrait-576x1024';
 
-  // If already in target coordinate space, no normalization needed (guarantees idempotency)
-  if (currentSpace === targetSpace) {
+  // The 1024x576 canvas is the single source-of-truth logical canvas:
+  // Never reflow, rearrange, replace, or simplify 1024x576 canvas elements
+  if (currentSpace === 'landscape-1024x576') {
     return false;
   }
 
-  // If from legacy square-1000x1000, normalization is required
+  // If from legacy square-1000x1000, normalization to 1024x576 is required
   if (currentSpace === 'square-1000x1000') {
     return true;
   }
 
-  // If switching between landscape and portrait, normalization is required
-  if (
-    (currentSpace === 'landscape-1024x576' && targetSpace === 'portrait-576x1024') ||
-    (currentSpace === 'portrait-576x1024' && targetSpace === 'landscape-1024x576')
-  ) {
+  // If from portrait-576x1024, upgrade to canonical landscape 1024x576
+  if (currentSpace === 'portrait-576x1024') {
     return true;
   }
 
   // For custom coordinate spaces, check if elements overflow target canvas
   const elements = config.elements || [];
   for (const el of elements) {
-    if ((el.y + el.height) > targetHeight * 1.05 || (el.x + el.width) > targetWidth * 1.05) {
+    if ((el.y + el.height) > 576 * 1.05 || (el.x + el.width) > 1024 * 1.05) {
       return true;
     }
   }
@@ -755,11 +749,10 @@ export function getStartScreenConfig(
     elements,
   };
 
-  // 5. If target dimensions provided or elements need normalization, normalize to target dimensions
-  const targetW = targetDimensions?.width || 1024;
-  const targetH = targetDimensions?.height || 576;
-  if (targetDimensions || needsStartScreenElementNormalization(resolvedConfig, targetW, targetH)) {
-    return normalizeStartScreenConfigForStage(resolvedConfig, targetW, targetH);
+  // 5. If elements are legacy (square-1000x1000), normalize to the canonical 1024x576 canvas.
+  // The 1024x576 logical canvas is the single source of truth and must never be reflowed into another aspect ratio.
+  if (needsStartScreenElementNormalization(resolvedConfig, 1024, 576)) {
+    return normalizeStartScreenConfigForStage(resolvedConfig, 1024, 576);
   }
 
   return resolvedConfig;

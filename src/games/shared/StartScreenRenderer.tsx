@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState, useLayoutEffect } from 'react';
 import {
   StartScreenConfig,
   StartScreenElement,
@@ -14,6 +14,9 @@ import {
   resolveGameMetaForStartScreen,
 } from './startScreenResolver';
 import { StartScreenErrorBoundary } from './StartScreenErrorBoundary';
+
+export const LOGICAL_CANVAS_WIDTH = 1024;
+export const LOGICAL_CANVAS_HEIGHT = 576;
 
 export interface StartScreenRendererProps {
   startConfig?: StartScreenConfig | null;
@@ -51,15 +54,60 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
   isSimulation = false,
   suppressBackground = false,
 }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerDimensions, setContainerDimensions] = useState<{
+    width: number;
+    height: number;
+  }>({
+    width: 0,
+    height: 0,
+  });
+
+  // Dynamically observe container dimensions with ResizeObserver
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      const w = el.clientWidth || rect.width;
+      const h = el.clientHeight || rect.height;
+      if (w > 0 && h > 0) {
+        setContainerDimensions((prev) => {
+          if (Math.abs(prev.width - w) < 0.5 && Math.abs(prev.height - h) < 0.5) {
+            return prev;
+          }
+          return { width: w, height: h };
+        });
+      }
+    };
+
+    measure();
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => {
+        measure();
+      });
+      ro.observe(el);
+    }
+
+    window.addEventListener('resize', measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
+
   const targetGameType = gameType || (theme ? getThemeGameType(theme) : 'catch-brand');
   const effectiveMeta = resolveGameMetaForStartScreen(theme, targetGameType, gameMeta);
 
-  // Authoritative config resolution
+  // Authoritative config resolution: always 1024x576 canonical canvas
   const resolvedConfig = getStartScreenConfig(
     theme,
     targetGameType,
     effectiveMeta,
-    targetDimensions
+    { width: LOGICAL_CANVAS_WIDTH, height: LOGICAL_CANVAS_HEIGHT }
   );
 
   // Merge any caller-provided startConfig (or legacy config prop) if present
@@ -74,33 +122,48 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
       : resolvedConfig.elements,
   };
 
-  // If configuration needs normalization to match targetDimensions, normalize for all games
-  const stageTargetW = targetDimensions?.width || 1024;
-  const stageTargetH = targetDimensions?.height || 576;
-  if (needsStartScreenElementNormalization(mergedConfig, stageTargetW, stageTargetH)) {
+  // If configuration is legacy square-1000x1000, normalize once to the 1024x576 logical canvas
+  if (needsStartScreenElementNormalization(mergedConfig, LOGICAL_CANVAS_WIDTH, LOGICAL_CANVAS_HEIGHT)) {
     mergedConfig = normalizeStartScreenConfigForStage(
       mergedConfig,
-      stageTargetW,
-      stageTargetH
+      LOGICAL_CANVAS_WIDTH,
+      LOGICAL_CANVAS_HEIGHT
     );
   }
 
   const finalConfig = mergedConfig;
   const bg = resolveScreenBackground(finalConfig as any, theme);
-  const canvasWidth =
-    Number.isFinite(finalConfig?.canvas?.width) && (finalConfig?.canvas?.width ?? 0) > 0
-      ? (finalConfig?.canvas?.width ?? 1024)
-      : 1024;
-  const canvasHeight =
-    Number.isFinite(finalConfig?.canvas?.height) && (finalConfig?.canvas?.height ?? 0) > 0
-      ? (finalConfig?.canvas?.height ?? 576)
-      : 576;
-
   const elements: StartScreenElement[] = Array.isArray(finalConfig.elements)
     ? finalConfig.elements
     : [];
 
-  // Recursive element renderer respecting ROOT vs CARD/GROUP coordinates
+  // Determine available container dimensions with fallback to targetDimensions or 1024x576
+  const containerW =
+    containerDimensions.width > 0
+      ? containerDimensions.width
+      : (containerRef.current?.clientWidth && containerRef.current.clientWidth > 0
+          ? containerRef.current.clientWidth
+          : (targetDimensions?.width && targetDimensions.width > 0
+              ? targetDimensions.width
+              : LOGICAL_CANVAS_WIDTH));
+
+  const containerH =
+    containerDimensions.height > 0
+      ? containerDimensions.height
+      : (containerRef.current?.clientHeight && containerRef.current.clientHeight > 0
+          ? containerRef.current.clientHeight
+          : (targetDimensions?.height && targetDimensions.height > 0
+              ? targetDimensions.height
+              : LOGICAL_CANVAS_HEIGHT));
+
+  // Canonical uniform scaling formula:
+  // scale = min(containerWidth / 1024, containerHeight / 576)
+  const scale = Math.min(
+    containerW / LOGICAL_CANVAS_WIDTH,
+    containerH / LOGICAL_CANVAS_HEIGHT
+  );
+
+  // Recursive element renderer respecting ROOT (1024x576) vs CARD/GROUP coordinates
   const renderElement = (
     el: StartScreenElement,
     parentW: number,
@@ -109,8 +172,8 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
   ): React.ReactNode => {
     if (!el || el.visible === false) return null;
 
-    const safeParentW = Number.isFinite(parentW) && parentW > 0 ? parentW : 1000;
-    const safeParentH = Number.isFinite(parentH) && parentH > 0 ? parentH : 1000;
+    const safeParentW = Number.isFinite(parentW) && parentW > 0 ? parentW : LOGICAL_CANVAS_WIDTH;
+    const safeParentH = Number.isFinite(parentH) && parentH > 0 ? parentH : LOGICAL_CANVAS_HEIGHT;
 
     const x = Number.isFinite(el.x) ? el.x : 0;
     const y = Number.isFinite(el.y) ? el.y : 0;
@@ -157,20 +220,48 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
 
   return (
     <div
+      ref={containerRef}
       className={`absolute inset-0 w-full h-full flex items-center justify-center overflow-hidden select-none z-40 ${className}`}
       style={{
         ...(!suppressBackground ? bg.containerStyle : {}),
         zIndex: 40,
       }}
     >
-      {/* Background Overlay */}
+      {/* Outer Background Overlay Layer for letterboxing */}
       {!suppressBackground && (
         <div className="absolute inset-0 pointer-events-none" style={bg.overlayStyle} />
       )}
 
-      {/* Game Stage Logical Canvas - fills game-ui-layer without competing aspect ratio */}
-      <div className="relative w-full h-full overflow-hidden">
-        {elements.map((el) => renderElement(el, canvasWidth, canvasHeight, true))}
+      {/* Logical 1024x576 Canvas: exact coordinates, scaled down uniformly and centered */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: `${LOGICAL_CANVAS_WIDTH}px`,
+          height: `${LOGICAL_CANVAS_HEIGHT}px`,
+          minWidth: `${LOGICAL_CANVAS_WIDTH}px`,
+          minHeight: `${LOGICAL_CANVAS_HEIGHT}px`,
+          maxWidth: `${LOGICAL_CANVAS_WIDTH}px`,
+          maxHeight: `${LOGICAL_CANVAS_HEIGHT}px`,
+          transform: `translate(-50%, -50%) scale(${scale})`,
+          transformOrigin: 'center center',
+          ...(!suppressBackground ? bg.containerStyle : {}),
+        }}
+        className="relative shrink-0 overflow-hidden select-none shadow-2xl rounded-2xl"
+      >
+        {/* Canvas Background Overlay */}
+        {!suppressBackground && (
+          <div
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            style={bg.overlayStyle}
+          />
+        )}
+
+        {/* All Elements at exact 1024x576 logical coordinates */}
+        {elements.map((el) =>
+          renderElement(el, LOGICAL_CANVAS_WIDTH, LOGICAL_CANVAS_HEIGHT, true)
+        )}
       </div>
     </div>
   );

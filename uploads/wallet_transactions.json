@@ -42969,5 +42969,100 @@
     },
     "created_by": "f56ed2ce-1149-4b25-bbca-6ca243a6f3ac",
     "created_at": "2026-09-10T14:50:42.506Z"
+  },
+  {
+    "id": "bfe36b80-eb40-4cdd-9e79-361b2d0499ce",
+    "organization_id": "9dc6e3ab-e448-4de7-95a8-a91a11654381",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_9dc6e3ab-e448-4de7-95a8-a91a11654381",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Cron Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "12b58bd1-85a6-4dd6-a08b-88b3961e03a3",
+    "created_at": "2026-09-11T01:17:49.289Z"
+  },
+  {
+    "id": "2c959926-7ea0-4376-ac42-5aa39d0bbeba",
+    "organization_id": "715e75b4-be52-41f4-bc12-544618dd6a56",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_715e75b4-be52-41f4-bc12-544618dd6a56",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Singapore Tech Events",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "8dec3cf9-d553-4f01-9f75-0764e440e47f",
+    "created_at": "2026-09-11T01:17:49.615Z"
+  },
+  {
+    "id": "c1670fae-531c-48af-b271-35334329c772",
+    "organization_id": "f52ead7d-709e-4af0-84ff-20a3f9a4acab",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_f52ead7d-709e-4af0-84ff-20a3f9a4acab",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Leaderboard Security Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "1e74f511-d890-4543-aa38-4cda8c983d6f",
+    "created_at": "2026-09-11T01:17:49.651Z"
+  },
+  {
+    "id": "ebdbc065-d4c3-4a4c-9496-dd967f59f71f",
+    "organization_id": "f5f56989-4da7-4215-9a1e-ad4ea98d4323",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_f5f56989-4da7-4215-9a1e-ad4ea98d4323",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Other Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "c891a7e2-d034-4ade-80fe-af9f49dd0f76",
+    "created_at": "2026-09-11T01:17:49.690Z"
+  },
+  {
+    "id": "83c5f359-4f08-472f-9343-d40852c34141",
+    "organization_id": "429b3f2f-2d1f-418a-8dbf-1c783087a799",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_429b3f2f-2d1f-418a-8dbf-1c783087a799",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Acme Events Corp",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "486f7042-189c-4dc1-904b-801d271d0379",
+    "created_at": "2026-09-11T01:17:49.758Z"
   }
 ]

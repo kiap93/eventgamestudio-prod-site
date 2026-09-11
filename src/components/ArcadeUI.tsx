@@ -596,38 +596,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
           </>
         )}
 
-        {/* ================= START SCREEN OVERLAY (MAIN MENU DIALOG) ================= */}
-        {gameState === 'START' && (
-          <div className="absolute inset-0 pointer-events-auto z-40 overflow-hidden">
-            <StartScreenRenderer
-              theme={activeTheme}
-              gameType="catch-brand"
-              targetDimensions={{
-                width: designWidth,
-                height: designHeight,
-              }}
-              gameMeta={{
-                fallingItemName,
-                fallingItemImg: goodItemImg,
-                goodItemImg,
-                badFallingItemName,
-                badFallingItemImg: badItemImg,
-                badItemImg,
-                catcherImg,
-                gameTitle,
-                gameSubtitle,
-                logoUrl: clientLogoUrl,
-              }}
-              onStartGame={onStartGame}
-              onShowLeaderboard={() => setShowLeaderboardModal(true)}
-              onShowGuide={() => setShowGuideModal(true)}
-              onOpenSettings={() => setShowSettingsModal(true)}
-              isEventPreview={isEventPreview}
-              isEventTest={isEventTest}
-              suppressBackground={true}
-            />
-          </div>
-        )}
+        {/* START SCREEN OVERLAY (MOVED OUTSIDE GAME-UI-LAYER FOR AUTHORITATIVE UNIFORM 1024x576 SCALING) */}
 
         {/* ================= COUNTDOWN OVERLAY ================= */}
         {gameState === 'COUNTDOWN' && (
@@ -1288,8 +1257,35 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             </div>
           </div>
         )}
-
       </div>
+
+      {/* ================= START SCREEN OVERLAY (AUTHORITATIVE UNIFORM 1024x576 SCALING) ================= */}
+      {gameState === 'START' && (
+        <div className="absolute inset-0 pointer-events-auto z-40 overflow-hidden">
+          <StartScreenRenderer
+            theme={activeTheme}
+            gameType="catch-brand"
+            gameMeta={{
+              fallingItemName,
+              fallingItemImg: goodItemImg,
+              goodItemImg,
+              badFallingItemName,
+              badFallingItemImg: badItemImg,
+              badItemImg,
+              catcherImg,
+              gameTitle,
+              gameSubtitle,
+              logoUrl: clientLogoUrl,
+            }}
+            onStartGame={onStartGame}
+            onShowLeaderboard={() => setShowLeaderboardModal(true)}
+            onShowGuide={() => setShowGuideModal(true)}
+            onOpenSettings={() => setShowSettingsModal(true)}
+            isEventPreview={isEventPreview}
+            isEventTest={isEventTest}
+          />
+        </div>
+      )}
     </div>
   );
 };

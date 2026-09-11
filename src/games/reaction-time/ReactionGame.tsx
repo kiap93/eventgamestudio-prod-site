@@ -778,49 +778,27 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
       {/* Start Screen Overlay */}
       {gameState === 'IDLE' && (
         <div
-          className="absolute inset-0 z-40 pointer-events-auto cursor-default overflow-hidden flex items-center justify-center"
+          className="absolute inset-0 z-40 pointer-events-auto cursor-default overflow-hidden"
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
         >
-          <div
-            className="game-ui-layer relative overflow-hidden select-none"
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              width: `${responsive.designWidth}px`,
-              height: `${responsive.designHeight}px`,
-              minWidth: `${responsive.designWidth}px`,
-              minHeight: `${responsive.designHeight}px`,
-              maxWidth: `${responsive.designWidth}px`,
-              maxHeight: `${responsive.designHeight}px`,
-              transform: `translate(-50%, -50%) scale(${responsive.uiScale})`,
-              transformOrigin: 'center center',
+          <StartScreenRenderer
+            startConfig={reactionConfig.screens?.start}
+            theme={activeTheme}
+            gameType="reaction-tap"
+            gameMeta={{
+              duration: reactionConfig.roundsCount,
+              gameTitle: activeTheme?.branding?.title || activeTheme?.title || 'Reaction Tap',
+              gameSubtitle: activeTheme?.branding?.subtitle || activeTheme?.subtitle || 'Test your lightning reflexes with Formula 1 starting lights!',
+              logoUrl: activeTheme?.branding?.clientLogoUrl || activeTheme?.clientLogo || activeTheme?.logo || null,
             }}
-          >
-            <StartScreenRenderer
-              startConfig={reactionConfig.screens?.start}
-              theme={activeTheme}
-              gameType="reaction-tap"
-              targetDimensions={{
-                width: responsive.designWidth,
-                height: responsive.designHeight,
-              }}
-              gameMeta={{
-                duration: reactionConfig.roundsCount,
-                gameTitle: activeTheme?.branding?.title || activeTheme?.title || 'Reaction Tap',
-                gameSubtitle: activeTheme?.branding?.subtitle || activeTheme?.subtitle || 'Test your lightning reflexes with Formula 1 starting lights!',
-                logoUrl: activeTheme?.branding?.clientLogoUrl || activeTheme?.clientLogo || activeTheme?.logo || null,
-              }}
-              onStartGame={startRoundSequence}
-              onShowLeaderboard={() => setShowLeaderboardModal(true)}
-              isSimulation={isSimulation && !isInteractive}
-              isEventPreview={isEventPreview}
-              isEventTest={isEventTest}
-              suppressBackground={true}
-            />
-          </div>
+            onStartGame={startRoundSequence}
+            onShowLeaderboard={() => setShowLeaderboardModal(true)}
+            isSimulation={isSimulation && !isInteractive}
+            isEventPreview={isEventPreview}
+            isEventTest={isEventTest}
+          />
         </div>
       )}
 

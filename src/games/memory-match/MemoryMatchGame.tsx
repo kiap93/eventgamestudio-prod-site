@@ -2031,36 +2031,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
           </div>
         )}
 
-        {/* ======================================================================= */}
-        {/* 5. START MATCH SCREEN MODAL                                             */}
-        {/* ======================================================================= */}
-        {gameState === 'START' && (
-          <div className="absolute inset-0 pointer-events-auto z-30 overflow-hidden">
-            <StartScreenRenderer
-              startConfig={memoryConfig.screens?.start}
-              theme={activeTheme}
-              gameType="memory-match"
-              targetDimensions={{
-                width: designWidth,
-                height: designHeight,
-              }}
-              gameMeta={{
-                rows,
-                cols,
-                totalCards,
-                totalPairs,
-                duration: gameDuration,
-                gameTitle,
-                logoUrl: activeTheme?.branding?.clientLogoUrl || activeTheme?.clientLogo || activeTheme?.logo || null,
-              }}
-              onStartGame={startCountdown}
-              onShowLeaderboard={() => setShowLeaderboardModal(true)}
-              isEventPreview={isEventPreview}
-              isEventTest={isEventTest}
-              suppressBackground={true}
-            />
-          </div>
-        )}
+        {/* 5. START MATCH SCREEN MODAL (MOVED OUTSIDE GAME-UI-LAYER FOR AUTHORITATIVE UNIFORM 1024x576 SCALING) */}
 
         {/* ======================================================================= */}
         {/* 6. COUNTDOWN OVERLAY                                                    */}
@@ -2210,6 +2181,32 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
           </div>
         )}
       </div>
+
+      {/* ======================================================================= */}
+      {/* 5. START MATCH SCREEN MODAL (AUTHORITATIVE UNIFORM 1024x576 SCALING)    */}
+      {/* ======================================================================= */}
+      {gameState === 'START' && (
+        <div className="absolute inset-0 pointer-events-auto z-40 overflow-hidden">
+          <StartScreenRenderer
+            startConfig={memoryConfig.screens?.start}
+            theme={activeTheme}
+            gameType="memory-match"
+            gameMeta={{
+              rows,
+              cols,
+              totalCards,
+              totalPairs,
+              duration: gameDuration,
+              gameTitle,
+              logoUrl: activeTheme?.branding?.clientLogoUrl || activeTheme?.clientLogo || activeTheme?.logo || null,
+            }}
+            onStartGame={startCountdown}
+            onShowLeaderboard={() => setShowLeaderboardModal(true)}
+            isEventPreview={isEventPreview}
+            isEventTest={isEventTest}
+          />
+        </div>
+      )}
     </div>
   );
 };
