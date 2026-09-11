@@ -67,7 +67,8 @@ export const DeveloperShowcaseReviews: React.FC = () => {
   const [copiedShowcaseId, setCopiedShowcaseId] = useState<string | null>(null);
 
   const handleShareShowcase = async (sc: AdminShowcaseListItem) => {
-    const showcaseUrl = `${window.location.origin}/events/${sc.event_id}/showcase`;
+    const targetId = sc.id || sc.event_id;
+    const showcaseUrl = `${window.location.origin}/showcase/${targetId}`;
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
@@ -693,9 +694,9 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                             <>
                               <button
                                 type="button"
-                                onClick={() => window.open(`/events/${sc.event_id}/showcase`, '_blank')}
+                                onClick={() => window.open(`/showcase/${sc.id || sc.event_id}`, '_blank')}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-                                title="Open Public Showcase"
+                                title="Open Public Showcase in New Tab"
                               >
                                 <Eye className="w-3.5 h-3.5 text-emerald-400" />
                                 <span>View</span>
@@ -1173,9 +1174,9 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   <>
                     <button
                       type="button"
-                      onClick={() => window.open(`/events/${selectedShowcase.event_id}/showcase`, '_blank')}
+                      onClick={() => window.open(`/showcase/${selectedShowcase.id || selectedShowcase.event_id}`, '_blank')}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
-                      title="Open Public Showcase"
+                      title="Open Public Showcase in New Tab"
                     >
                       <Eye className="w-3.5 h-3.5 text-emerald-400" />
                       <span>View</span>

@@ -7,6 +7,7 @@ import { SetOrganizationCountryModal } from './components/auth/SetOrganizationCo
 import { AcceptInvitePage } from './components/auth/AcceptInvitePage';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { PublicEventGameView } from './components/events/PublicEventGameView';
+import { PublicShowcaseView } from './components/events/PublicShowcaseView';
 import { EventPreviewGameView } from './components/events/EventPreviewGameView';
 import { DeveloperAdminPage } from './components/developer/DeveloperAdminPage';
 import { LandingPage } from './components/landing/LandingPage';
@@ -18,6 +19,7 @@ const AppContent: React.FC = () => {
 
   const isPublicRoute =
     routeContext.mode === 'public_event' ||
+    routeContext.mode === 'public_showcase' ||
     routeContext.mode === 'accept_invite' ||
     routeContext.mode === 'landing';
 
@@ -48,6 +50,11 @@ const AppContent: React.FC = () => {
   // 1. PUBLIC EVENT ROUTE: /play/:publicToken or /e/:publicToken (Unauthenticated Public Player View)
   if (routeContext.mode === 'public_event') {
     return <PublicEventGameView />;
+  }
+
+  // 1.2. PUBLIC SHOWCASE ROUTE: /showcase/:showcaseId (Unauthenticated Public Showcase View)
+  if (routeContext.mode === 'public_showcase') {
+    return <PublicShowcaseView />;
   }
 
   // 1.5. AUTHENTICATED EVENT PREVIEW ROUTE: /events/:eventId/preview

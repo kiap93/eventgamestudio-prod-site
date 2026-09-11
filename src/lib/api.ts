@@ -6,12 +6,26 @@
 export const getApiBaseUrl = (): string => {
   let url = import.meta.env.VITE_API_BASE_URL;
   if (!url || typeof url !== 'string' || url.trim() === '') {
+    // If in the browser and running in local dev or container preview, use relative URL to route to server.ts
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      const hostname = window.location.hostname;
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '0.0.0.0' ||
+        window.location.port === '3000' ||
+        hostname.includes('aistudio') ||
+        hostname.includes('googleusercontent.com')
+      ) {
+        return '';
+      }
+    }
     url = 'https://eventgamestudio-api.kiap93-kmj.workers.dev';
   } else {
     url = url.trim();
   }
 
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
     if (url.startsWith('//')) {
       url = `https:${url}`;
     } else {

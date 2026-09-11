@@ -60,7 +60,8 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
   const isLocked = isViewer || isBlocked;
 
   const handleShareShowcase = async () => {
-    const showcaseUrl = `${window.location.origin}/events/${event.id}/showcase`;
+    const targetId = showcase?.id || event.id;
+    const showcaseUrl = `${window.location.origin}/showcase/${targetId}`;
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
@@ -601,12 +602,13 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
                 <>
                   <button
                     type="button"
-                    onClick={() => window.open(`/events/${event.id}/showcase`, '_blank')}
+                    onClick={() => window.open(`/showcase/${showcase.id || event.id}`, '_blank')}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
-                    title="View Public Showcase"
+                    title="View Public Showcase in New Tab"
                   >
                     <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>View</span>
+                    <span>View Public Showcase</span>
+                    <ExternalLink className="w-3 h-3 text-slate-400" />
                   </button>
                   <button
                     type="button"

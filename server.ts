@@ -3210,6 +3210,115 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
 });
 
 /**
+ * GET /api/showcases/:id
+ * Public read-only endpoint for a showcase (resolved by showcase id or event id)
+ * Supports both App JWT and Supabase JWT (optional auth for org members)
+ */
+app.get('/api/showcases/:id', generalApiRateLimiter, authenticateOptionalJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    let showcase = await getShowcaseById(id);
+    if (!showcase) {
+      showcase = await getShowcaseByEventId(id);
+    }
+    if (!showcase) {
+      res.status(404).json({ error: 'Showcase not found' });
+      return;
+    }
+
+    const event = await getEventById(showcase.event_id);
+    if (!event) {
+      res.status(404).json({ error: 'Associated event not found' });
+      return;
+    }
+
+    let isOrgMember = false;
+    if (req.user) {
+      if (req.user.is_developer) {
+        isOrgMember = true;
+      } else {
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user.id, event.organization_id, 'event.view');
+        isOrgMember = isMember && hasPermission;
+      }
+    }
+
+    // Status enforcement:
+    // PUBLISHED -> Public visitor can view
+    // BLOCKED, DELETED, UNPUBLISHED, DRAFT -> Only authorized org members or developers can preview
+    if (!isOrgMember && showcase.status !== 'PUBLISHED') {
+      res.status(404).json({ error: 'Showcase is not publicly accessible', status: showcase.status });
+      return;
+    }
+
+    const media = await getShowcaseMedia(showcase.id, event.organization_id);
+
+    const publicEvent = {
+      id: event.id,
+      name: event.name,
+      game_type: event.game?.game_type || event.game_id || null,
+      start_date: event.start_date,
+      end_date: event.end_date,
+      event_timezone: (event as any).event_timezone || 'Asia/Singapore',
+    };
+
+    res.json({
+      showcase,
+      event: publicEvent,
+      media,
+      isPreview: isOrgMember && showcase.status !== 'PUBLISHED',
+    });
+  } catch (err: any) {
+    console.error('Get public showcase error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/showcases/:id/media
+ * Public read-only endpoint for showcase media
+ */
+app.get('/api/showcases/:id/media', generalApiRateLimiter, authenticateOptionalJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    let showcase = await getShowcaseById(id);
+    if (!showcase) {
+      showcase = await getShowcaseByEventId(id);
+    }
+    if (!showcase) {
+      res.status(404).json({ error: 'Showcase not found' });
+      return;
+    }
+
+    const event = await getEventById(showcase.event_id);
+    if (!event) {
+      res.status(404).json({ error: 'Associated event not found' });
+      return;
+    }
+
+    let isOrgMember = false;
+    if (req.user) {
+      if (req.user.is_developer) {
+        isOrgMember = true;
+      } else {
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(req.user.id, event.organization_id, 'event.view');
+        isOrgMember = isMember && hasPermission;
+      }
+    }
+
+    if (!isOrgMember && showcase.status !== 'PUBLISHED') {
+      res.status(403).json({ error: 'Showcase media is not publicly accessible' });
+      return;
+    }
+
+    const media = await getShowcaseMedia(showcase.id, event.organization_id);
+    res.json({ media });
+  } catch (err: any) {
+    console.error('Get showcase media error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /api/events/:eventId/showcase
  * Create showcase for an event (1:1 constraint)
  */

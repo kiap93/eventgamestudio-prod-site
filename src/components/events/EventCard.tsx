@@ -56,7 +56,8 @@ export const EventCard: React.FC<EventCardProps> = ({
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const publicUrl = `${window.location.origin}/play/${event.public_token}`;
-  const showcaseUrl = `${window.location.origin}/events/${event.id}/showcase`;
+  const targetShowcaseId = event.showcase?.id || event.id;
+  const showcaseUrl = `${window.location.origin}/showcase/${targetShowcaseId}`;
   const previewUrl = `/events/${event.id}/preview`;
   const isViewer = userRole === 'viewer';
   const isOwnerOrAdmin = ['owner', 'admin'].includes(userRole || '');
@@ -268,7 +269,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                navigateTo(`/events/${event.id}/showcase`);
+                window.open(`/showcase/${targetShowcaseId}`, '_blank');
               }}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
               title="View Public Showcase"

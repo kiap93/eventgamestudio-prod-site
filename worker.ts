@@ -3365,6 +3365,101 @@ export default {
         return errorResponse('Showcase is not published', 404, cors);
       }
 
+      // GET /api/showcases/:id
+      const publicShowcaseParams = parseRoute('/api/showcases/:id', pathname);
+      if (publicShowcaseParams && method === 'GET') {
+        const { id } = publicShowcaseParams;
+        let showcase = await getShowcaseById(id, env);
+        if (!showcase) {
+          showcase = await getShowcaseByEventId(id, env);
+        }
+        if (!showcase) {
+          return errorResponse('Showcase not found', 404, cors);
+        }
+
+        const event = await getEventById(showcase.event_id, env);
+        if (!event) {
+          return errorResponse('Associated event not found', 404, cors);
+        }
+
+        let isOrgMember = false;
+        const auth = await authenticateOptionalJWT(request, env);
+        if (auth.authenticated && auth.user) {
+          if (auth.user.is_developer) {
+            isOrgMember = true;
+          } else {
+            const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.view', env);
+            isOrgMember = isMember && hasPermission;
+          }
+        }
+
+        if (!isOrgMember && showcase.status !== 'PUBLISHED') {
+          return errorResponse('Showcase is not publicly accessible', 404, cors);
+        }
+
+        try {
+          const media = await getShowcaseMedia(showcase.id, event.organization_id, env);
+          const publicEvent = {
+            id: event.id,
+            name: event.name,
+            game_type: event.game?.game_type || event.game_id || null,
+            start_date: event.start_date,
+            end_date: event.end_date,
+            event_timezone: (event as any).event_timezone || 'Asia/Singapore',
+          };
+          return jsonResponse({
+            showcase,
+            event: publicEvent,
+            media,
+            isPreview: isOrgMember && showcase.status !== 'PUBLISHED',
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Get public showcase error:', err);
+          return errorResponse(err.message || 'Failed to fetch showcase', 500, cors);
+        }
+      }
+
+      // GET /api/showcases/:id/media
+      const publicShowcaseMediaParams = parseRoute('/api/showcases/:id/media', pathname);
+      if (publicShowcaseMediaParams && method === 'GET') {
+        const { id } = publicShowcaseMediaParams;
+        let showcase = await getShowcaseById(id, env);
+        if (!showcase) {
+          showcase = await getShowcaseByEventId(id, env);
+        }
+        if (!showcase) {
+          return errorResponse('Showcase not found', 404, cors);
+        }
+
+        const event = await getEventById(showcase.event_id, env);
+        if (!event) {
+          return errorResponse('Associated event not found', 404, cors);
+        }
+
+        let isOrgMember = false;
+        const auth = await authenticateOptionalJWT(request, env);
+        if (auth.authenticated && auth.user) {
+          if (auth.user.is_developer) {
+            isOrgMember = true;
+          } else {
+            const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(auth.user.id, event.organization_id, 'event.view', env);
+            isOrgMember = isMember && hasPermission;
+          }
+        }
+
+        if (!isOrgMember && showcase.status !== 'PUBLISHED') {
+          return errorResponse('Showcase media is not publicly accessible', 403, cors);
+        }
+
+        try {
+          const media = await getShowcaseMedia(showcase.id, event.organization_id, env);
+          return jsonResponse({ media }, 200, cors);
+        } catch (err: any) {
+          console.error('Get showcase media error:', err);
+          return errorResponse(err.message || 'Failed to fetch showcase media', 500, cors);
+        }
+      }
+
       // POST /api/events/:eventId/showcase
       if (showcaseRouteParams && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);

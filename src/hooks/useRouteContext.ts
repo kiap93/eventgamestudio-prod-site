@@ -5,6 +5,7 @@ export type PresentationMode =
   | 'landing'
   | 'public_game'
   | 'public_event'
+  | 'public_showcase'
   | 'event_preview'
   | 'studio'
   | 'studio_preview'
@@ -17,11 +18,13 @@ export interface RouteContext {
   mode: PresentationMode;
   isPublicGameRoute: boolean;
   isPublicEventRoute: boolean;
+  isPublicShowcaseRoute?: boolean;
   isEventPreviewRoute: boolean;
   isStudioRoute: boolean;
   isPreviewRoute: boolean;
   isDeveloperAdminRoute: boolean;
   isShowcaseRoute?: boolean;
+  showcaseId?: string;
   eventId?: string;
   publicToken?: string;
   organizationSlug?: string;
@@ -53,6 +56,8 @@ const RESERVED_PREFIXES = new Set([
   'games',
   'developer',
   'wallet',
+  'showcase',
+  'showcases',
 ]);
 
 export function parseRoute(pathname: string): RouteContext {
@@ -154,6 +159,22 @@ export function parseRoute(pathname: string): RouteContext {
       isDeveloperAdminRoute: false,
       publicToken: parts[1],
       gameType: queryGameType,
+      pathname: cleanPath,
+    };
+  }
+
+  // 1.2. Check for Public Showcase Routes: /showcase/:showcaseId or /showcases/:showcaseId
+  if (parts.length >= 2 && (parts[0].toLowerCase() === 'showcase' || parts[0].toLowerCase() === 'showcases')) {
+    return {
+      mode: 'public_showcase',
+      isPublicGameRoute: false,
+      isPublicEventRoute: false,
+      isPublicShowcaseRoute: true,
+      isEventPreviewRoute: false,
+      isStudioRoute: false,
+      isPreviewRoute: false,
+      isDeveloperAdminRoute: false,
+      showcaseId: parts[1],
       pathname: cleanPath,
     };
   }

@@ -88,7 +88,8 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
   const videoInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleShareShowcase = async () => {
-    const showcaseUrl = `${window.location.origin}/events/${eventId}/showcase`;
+    const targetId = showcase?.id || eventId;
+    const showcaseUrl = `${window.location.origin}/showcase/${targetId}`;
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
@@ -717,12 +718,13 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
               <>
                 <button
                   type="button"
-                  onClick={() => window.open(`/events/${eventId}/showcase`, '_blank')}
+                  onClick={() => window.open(`/showcase/${showcase?.id || eventId}`, '_blank')}
                   className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer shadow-sm"
-                  title="Open Public Showcase"
+                  title="View Public Showcase in New Tab"
                 >
                   <Eye className="w-4 h-4 text-emerald-400" />
-                  <span>View</span>
+                  <span>View Public Showcase</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
                 </button>
                 <button
                   type="button"
