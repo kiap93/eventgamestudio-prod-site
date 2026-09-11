@@ -49,9 +49,26 @@ export { ZOOM_PRESETS };
  */
 export const createDefaultStartElement = (
   type: StartScreenElementType,
-  id: string,
+  idOrGameType?: string,
   gameType: string = 'memory-match'
 ): StartScreenElement => {
+  let id: string;
+  let resolvedGameType = gameType;
+
+  if (!idOrGameType) {
+    id = `${type}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  } else if (
+    idOrGameType === 'memory-match' ||
+    idOrGameType === 'reaction-tap' ||
+    idOrGameType === 'reaction-time' ||
+    idOrGameType === 'catch-brand'
+  ) {
+    resolvedGameType = idOrGameType;
+    id = `${type}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  } else {
+    id = idOrGameType;
+  }
+
   switch (type) {
     case 'card':
       return {
@@ -123,7 +140,7 @@ export const createDefaultStartElement = (
         locked: false,
         opacity: 1,
         zIndex: 2,
-        text: gameType === 'memory-match' ? 'MEMORY MATCH' : gameType === 'reaction-tap' ? 'REFLEX CHALLENGE' : 'CATCH THE BRAND',
+        text: resolvedGameType === 'memory-match' ? 'MEMORY MATCH' : resolvedGameType === 'reaction-tap' ? 'REFLEX CHALLENGE' : 'CATCH THE BRAND',
         style: {
           fontSize: 38,
           fontWeight: '900',
@@ -244,7 +261,7 @@ export const createDefaultStartElement = (
       return {
         id,
         type: 'rules',
-        gameType,
+        gameType: resolvedGameType,
         x: 220,
         y: 350,
         width: 560,

@@ -285,7 +285,9 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   // Add new root element
   const handleAddNewRootElement = useCallback(
     (type: StartScreenElementType) => {
-      const newEl = createDefaultStartElement(type, gameType);
+      const id = `${type}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      const newEl = createDefaultStartElement(type, id, gameType);
+      newEl.zIndex = (currentElements.length || 0) + 1;
       const nextElements = [...currentElements, newEl];
       updateElementsWithHistory(nextElements);
       setSelectedIds([newEl.id]);
@@ -296,18 +298,21 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   // Add child element into a container
   const handleAddChildElement = useCallback(
     (parentId: string, type: StartScreenElementType) => {
-      const newEl = createDefaultStartElement(type, gameType);
+      const id = `${type}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      const newEl = createDefaultStartElement(type, id, gameType);
       // Position inside container nicely
-      newEl.x = 20;
-      newEl.y = 20;
+      newEl.x = 24;
+      newEl.y = 24;
 
       const updateRecursive = (list: StartScreenElement[]): StartScreenElement[] => {
         return list.map((item) => {
           if (item.id === parentId && (item.type === 'card' || item.type === 'group')) {
             const container = item as StartScreenCardElement | StartScreenGroupElement;
+            const existingChildren = container.children || [];
+            newEl.zIndex = existingChildren.length + 1;
             return {
               ...item,
-              children: [...(container.children || []), newEl],
+              children: [...existingChildren, newEl],
             };
           }
           if (item.type === 'card' || item.type === 'group') {
@@ -668,6 +673,9 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
             }}
             onMoveToContainer={handleMoveToContainer}
             onUploadAsset={onUploadAsset}
+            onAddNewRootElement={handleAddNewRootElement}
+            onAddChildElement={handleAddChildElement}
+            onClearSelection={handleClearSelection}
           />
         )}
       </div>

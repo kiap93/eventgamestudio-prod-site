@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import {
   StartScreenElement,
   StartScreenCardElement,
@@ -15,11 +15,13 @@ import {
   StartScreenConfig,
   StartBadgeMetric,
   StartButtonAction,
+  StartScreenElementType,
 } from '../../../../games/shared/startScreenTypes';
 import { GameTheme } from '../../../../themes/types';
 import { getAvailableContainers } from './types';
 import { getStartElementIcon } from './LayerTreePanel';
 import { AlignmentType, alignElements } from './alignmentOperations';
+import { getStartElementsGroupedByCategory } from './startElementRegistry';
 import {
   Sliders,
   Layers,
@@ -53,6 +55,8 @@ import {
   AlignVerticalDistributeCenter,
   FolderTree,
   FolderMinus,
+  Plus,
+  X,
 } from 'lucide-react';
 
 interface PropertyInspectorPanelProps {
@@ -62,6 +66,8 @@ interface PropertyInspectorPanelProps {
   startConfig: StartScreenConfig;
   theme: Partial<GameTheme>;
   gameType?: string;
+  canvasWidth?: number;
+  canvasHeight?: number;
   onUpdateElement: (updater: (prev: StartScreenElement) => StartScreenElement) => void;
   onUpdateConfig: (updater: (prev: StartScreenConfig) => StartScreenConfig) => void;
   onAlignSelected?: (type: AlignmentType) => void;
@@ -73,6 +79,11 @@ interface PropertyInspectorPanelProps {
   onUploadAsset?: (file: File, type: string) => Promise<string>;
   canGroup?: boolean;
   onGroupSelected?: () => void;
+  onAddNewRootElement?: (type: StartScreenElementType) => void;
+  onAddChildElement?: (parentId: string, type: StartScreenElementType) => void;
+  onClearSelection?: () => void;
+  onBulkLockToggle?: (lock: boolean) => void;
+  isAllSelectedLocked?: boolean;
 }
 
 export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
@@ -82,6 +93,8 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   startConfig,
   theme,
   gameType = 'memory-match',
+  canvasWidth: propCanvasWidth,
+  canvasHeight: propCanvasHeight,
   onUpdateElement,
   onUpdateConfig,
   onAlignSelected,
@@ -93,6 +106,11 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   onUploadAsset,
   canGroup,
   onGroupSelected,
+  onAddNewRootElement,
+  onAddChildElement,
+  onClearSelection,
+  onBulkLockToggle,
+  isAllSelectedLocked,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadTarget, setUploadTarget] = useState<
@@ -103,8 +121,13 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   >(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
 
-  const canvasWidth = startConfig?.canvas?.width || 1024;
-  const canvasHeight = startConfig?.canvas?.height || 576;
+  const canvasWidth = propCanvasWidth || startConfig?.canvas?.width || 1024;
+  const canvasHeight = propCanvasHeight || startConfig?.canvas?.height || 576;
+
+  const groupedElements = useMemo(
+    () => getStartElementsGroupedByCategory(gameType),
+    [gameType]
+  );
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -169,14 +192,142 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
           className="hidden"
           onChange={handleFileChange}
         />
-        <div className="h-12 px-4 border-b border-slate-800 flex items-center gap-2 shrink-0">
-          <Palette className="w-4 h-4 text-amber-400" />
-          <span className="font-bold text-xs text-slate-200">Start Screen Canvas</span>
+        <div className="h-12 px-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <Palette className="w-4 h-4 text-amber-400" />
+            <span className="font-bold text-xs text-slate-200">Start Screen Canvas</span>
+          </div>
+          <span className="text-[10px] font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
+            {canvasWidth} × {canvasHeight}
+          </span>
         </div>
 
-        <div className="p-4 space-y-5 text-xs text-slate-300">
+        <div className="p-4 space-y-4 text-xs text-slate-300">
+          {/* Canvas Dimensions & Stats */}
+          <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
+            <div className="flex items-center justify-between font-mono text-xs">
+              <span className="text-slate-400">Logical Space:</span>
+              <span className="text-amber-400 font-bold">{canvasWidth} × {canvasHeight} px</span>
+            </div>
+            <div className="flex items-center justify-between font-mono text-xs pt-1 border-t border-slate-800/80">
+              <span className="text-slate-400">Total Elements:</span>
+              <span className="text-slate-200 font-semibold">{elements.length}</span>
+            </div>
+            <p className="text-[10px] text-slate-500 pt-0.5 leading-relaxed">
+              Auto-scales responsively to match any device viewport.
+            </p>
+          </div>
+
+          {/* Quick Add Elements to Canvas */}
+          <div className="p-3 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-3">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Plus className="w-3.5 h-3.5 text-amber-400" />
+              <span>Add Elements to Canvas</span>
+            </span>
+
+            {/* CONTAINERS */}
+            {groupedElements.containers.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Containers
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {groupedElements.containers.map((item) => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={() => onAddNewRootElement?.(item.type)}
+                      className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
+                      title={item.description}
+                    >
+                      <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
+                        {getStartElementIcon(item.type)}
+                      </div>
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* VISUAL ELEMENTS */}
+            {groupedElements.visuals.length > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Visual Elements
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {groupedElements.visuals.map((item) => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={() => onAddNewRootElement?.(item.type)}
+                      className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-emerald-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
+                      title={item.description}
+                    >
+                      <div className="shrink-0 text-emerald-400 group-hover:scale-110 transition-transform">
+                        {getStartElementIcon(item.type)}
+                      </div>
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* GAME INFO & CONTENT */}
+            {groupedElements.info.length > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Game Info & Content
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {groupedElements.info.map((item) => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={() => onAddNewRootElement?.(item.type)}
+                      className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-sky-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
+                      title={item.description}
+                    >
+                      <div className="shrink-0 text-sky-400 group-hover:scale-110 transition-transform">
+                        {getStartElementIcon(item.type)}
+                      </div>
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* INTERACTIVE CONTROLS */}
+            {groupedElements.controls.length > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Interactive Controls
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {groupedElements.controls.map((item) => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={() => onAddNewRootElement?.(item.type)}
+                      className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
+                      title={item.description}
+                    >
+                      <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
+                        {getStartElementIcon(item.type)}
+                      </div>
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Background Mode */}
-          <div>
+          <div className="border-t border-slate-800 pt-3">
             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
               Screen Background
             </label>
@@ -383,6 +534,26 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
             </span>
           </div>
           <div className="flex items-center gap-1">
+            {onClearSelection && (
+              <button
+                onClick={onClearSelection}
+                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+                title="Deselect All (Esc)"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {onBulkLockToggle && (
+              <button
+                onClick={() => onBulkLockToggle(!isAllSelectedLocked)}
+                className={`p-1 rounded hover:bg-slate-800 ${
+                  isAllSelectedLocked ? 'text-rose-400' : 'text-slate-400'
+                }`}
+                title={isAllSelectedLocked ? 'Unlock All' : 'Lock All'}
+              >
+                {isAllSelectedLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+              </button>
+            )}
             {onDuplicateSelected && (
               <button
                 onClick={onDuplicateSelected}
@@ -583,6 +754,15 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
+          {onClearSelection && (
+            <button
+              onClick={onClearSelection}
+              className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white mr-0.5"
+              title="Deselect (View Canvas & Add Elements)"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
           {onToggleLockSelected && (
             <button
               onClick={onToggleLockSelected}
@@ -856,6 +1036,86 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Insert Child into Card */}
+            {onAddChildElement && (
+              <div className="pt-2.5 border-t border-slate-800 space-y-2">
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Plus className="w-3 h-3" />
+                  <span>Insert Element into Card</span>
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[...groupedElements.visuals, ...groupedElements.info, ...groupedElements.controls].map((item) => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={() => onAddChildElement(el.id, item.type)}
+                      className="p-1.5 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/40 border border-slate-800 rounded-lg flex items-center gap-2 text-left text-[11px] font-semibold text-slate-300 hover:text-white transition-colors group"
+                      title={item.description}
+                    >
+                      <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
+                        {getStartElementIcon(item.type)}
+                      </div>
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* GROUP ELEMENT */}
+        {el.type === 'group' && (
+          <div className="space-y-3 border-t border-slate-800 pt-3">
+            <span className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              Group Container Settings
+            </span>
+            <div className="p-2.5 bg-slate-950/80 border border-slate-800 rounded-lg space-y-1 text-[11px]">
+              <div className="flex justify-between text-slate-400">
+                <span>Contained Children:</span>
+                <span className="text-slate-200 font-semibold font-mono">
+                  {((el as StartScreenGroupElement).children || []).length} elements
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Group containers keep child layers organized and transformable together.
+              </p>
+            </div>
+            {canGroup && onGroupSelected && (
+              <button
+                type="button"
+                onClick={onGroupSelected}
+                className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-700 transition-colors"
+              >
+                <FolderMinus className="w-3.5 h-3.5 text-amber-400" />
+                <span>Ungroup Elements</span>
+              </button>
+            )}
+            {onAddChildElement && (
+              <div className="pt-2 border-t border-slate-800 space-y-2">
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Plus className="w-3 h-3" />
+                  <span>Insert Element into Group</span>
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[...groupedElements.visuals, ...groupedElements.info, ...groupedElements.controls].map((item) => (
+                    <button
+                      key={item.type}
+                      type="button"
+                      onClick={() => onAddChildElement(el.id, item.type)}
+                      className="p-1.5 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/40 border border-slate-800 rounded-lg flex items-center gap-2 text-left text-[11px] font-semibold text-slate-300 hover:text-white transition-colors group"
+                      title={item.description}
+                    >
+                      <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
+                        {getStartElementIcon(item.type)}
+                      </div>
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
