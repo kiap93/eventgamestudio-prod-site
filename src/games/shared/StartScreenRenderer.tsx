@@ -63,6 +63,9 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
     height: 0,
   });
 
+  const logicalW = targetDimensions?.width || LOGICAL_CANVAS_WIDTH;
+  const logicalH = targetDimensions?.height || LOGICAL_CANVAS_HEIGHT;
+
   // Dynamically observe container dimensions with ResizeObserver
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -70,8 +73,23 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
 
     const measure = () => {
       const rect = el.getBoundingClientRect();
-      const w = el.clientWidth || rect.width;
-      const h = el.clientHeight || rect.height;
+      let w = el.clientWidth || rect.width;
+      let h = el.clientHeight || rect.height;
+
+      // Fall back to parent container if the absolute inner container has 0 dimensions
+      if ((w <= 0 || h <= 0) && el.parentElement) {
+        const parentRect = el.parentElement.getBoundingClientRect();
+        w = el.parentElement.clientWidth || parentRect.width;
+        h = el.parentElement.clientHeight || parentRect.height;
+      }
+
+      // If width is available but height is pending (common with CSS aspect-ratio), calculate from 16:9 ratio
+      if (w > 0 && h <= 0) {
+        h = (w * logicalH) / logicalW;
+      } else if (h > 0 && w <= 0) {
+        w = (h * logicalW) / logicalH;
+      }
+
       if (w > 0 && h > 0) {
         setContainerDimensions((prev) => {
           if (Math.abs(prev.width - w) < 0.5 && Math.abs(prev.height - h) < 0.5) {
@@ -84,20 +102,31 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
 
     measure();
 
+    // Secondary delayed checks to catch layout settling in tab switches and flex containers
+    const rafId = requestAnimationFrame(measure);
+    const timer1 = setTimeout(measure, 50);
+    const timer2 = setTimeout(measure, 150);
+
     let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined') {
       ro = new ResizeObserver(() => {
         measure();
       });
       ro.observe(el);
+      if (el.parentElement) {
+        ro.observe(el.parentElement);
+      }
     }
 
     window.addEventListener('resize', measure);
     return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
       ro?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, []);
+  }, [logicalW, logicalH]);
 
   const targetGameType = gameType || (theme ? getThemeGameType(theme) : 'catch-brand');
   const effectiveMeta = resolveGameMetaForStartScreen(theme, targetGameType, gameMeta);
@@ -107,7 +136,7 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
     theme,
     targetGameType,
     effectiveMeta,
-    { width: LOGICAL_CANVAS_WIDTH, height: LOGICAL_CANVAS_HEIGHT }
+    { width: logicalW, height: logicalH }
   );
 
   // Merge any caller-provided startConfig (or legacy config prop) if present
@@ -123,11 +152,11 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
   };
 
   // If configuration is legacy square-1000x1000, normalize once to the 1024x576 logical canvas
-  if (needsStartScreenElementNormalization(mergedConfig, LOGICAL_CANVAS_WIDTH, LOGICAL_CANVAS_HEIGHT)) {
+  if (needsStartScreenElementNormalization(mergedConfig, logicalW, logicalH)) {
     mergedConfig = normalizeStartScreenConfigForStage(
       mergedConfig,
-      LOGICAL_CANVAS_WIDTH,
-      LOGICAL_CANVAS_HEIGHT
+      logicalW,
+      logicalH
     );
   }
 
@@ -137,31 +166,39 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
     ? finalConfig.elements
     : [];
 
-  // Determine available container dimensions with fallback to targetDimensions or 1024x576
-  const containerW =
-    containerDimensions.width > 0
-      ? containerDimensions.width
-      : (containerRef.current?.clientWidth && containerRef.current.clientWidth > 0
-          ? containerRef.current.clientWidth
-          : (targetDimensions?.width && targetDimensions.width > 0
-              ? targetDimensions.width
-              : LOGICAL_CANVAS_WIDTH));
+  // Determine physical container dimensions from state or live DOM
+  let containerW = containerDimensions.width;
+  let containerH = containerDimensions.height;
 
-  const containerH =
-    containerDimensions.height > 0
-      ? containerDimensions.height
-      : (containerRef.current?.clientHeight && containerRef.current.clientHeight > 0
-          ? containerRef.current.clientHeight
-          : (targetDimensions?.height && targetDimensions.height > 0
-              ? targetDimensions.height
-              : LOGICAL_CANVAS_HEIGHT));
+  if (containerW <= 0 || containerH <= 0) {
+    const el = containerRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      containerW = el.clientWidth || rect.width;
+      containerH = el.clientHeight || rect.height;
+      if ((containerW <= 0 || containerH <= 0) && el.parentElement) {
+        const pRect = el.parentElement.getBoundingClientRect();
+        containerW = el.parentElement.clientWidth || pRect.width;
+        containerH = el.parentElement.clientHeight || pRect.height;
+      }
+      if (containerW > 0 && containerH <= 0) {
+        containerH = (containerW * logicalH) / logicalW;
+      } else if (containerH > 0 && containerW <= 0) {
+        containerW = (containerH * logicalW) / logicalH;
+      }
+    }
+  }
 
-  // Canonical uniform scaling formula:
+  const effectiveContainerW = containerW > 0 ? containerW : logicalW;
+  const effectiveContainerH = containerH > 0 ? containerH : logicalH;
+
+  // Strict uniform scaling formula:
   // scale = min(containerWidth / 1024, containerHeight / 576)
   const scale = Math.min(
-    containerW / LOGICAL_CANVAS_WIDTH,
-    containerH / LOGICAL_CANVAS_HEIGHT
+    effectiveContainerW / logicalW,
+    effectiveContainerH / logicalH
   );
+  const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
 
   // Recursive element renderer respecting ROOT (1024x576) vs CARD/GROUP coordinates
   const renderElement = (
@@ -238,17 +275,17 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
           position: 'absolute',
           top: '50%',
           left: '50%',
-          width: `${LOGICAL_CANVAS_WIDTH}px`,
-          height: `${LOGICAL_CANVAS_HEIGHT}px`,
-          minWidth: `${LOGICAL_CANVAS_WIDTH}px`,
-          minHeight: `${LOGICAL_CANVAS_HEIGHT}px`,
-          maxWidth: `${LOGICAL_CANVAS_WIDTH}px`,
-          maxHeight: `${LOGICAL_CANVAS_HEIGHT}px`,
-          transform: `translate(-50%, -50%) scale(${scale})`,
+          width: `${logicalW}px`,
+          height: `${logicalH}px`,
+          minWidth: `${logicalW}px`,
+          minHeight: `${logicalH}px`,
+          maxWidth: `${logicalW}px`,
+          maxHeight: `${logicalH}px`,
+          transform: `translate(-50%, -50%) scale(${safeScale})`,
           transformOrigin: 'center center',
           ...(!suppressBackground ? bg.containerStyle : {}),
         }}
-        className="relative shrink-0 overflow-hidden select-none shadow-2xl rounded-2xl"
+        className="shrink-0 overflow-hidden select-none shadow-2xl rounded-2xl"
       >
         {/* Canvas Background Overlay */}
         {!suppressBackground && (
@@ -260,7 +297,7 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
 
         {/* All Elements at exact 1024x576 logical coordinates */}
         {elements.map((el) =>
-          renderElement(el, LOGICAL_CANVAS_WIDTH, LOGICAL_CANVAS_HEIGHT, true)
+          renderElement(el, logicalW, logicalH, true)
         )}
       </div>
     </div>

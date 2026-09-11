@@ -846,7 +846,6 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
                   config={startConfig}
                   theme={theme}
                   gameType="catch-brand"
-                  targetDimensions={{ width: 1024, height: 576 }}
                   gameMeta={catchGameMeta}
                   onStartGame={() => {}}
                   isSimulation={true}

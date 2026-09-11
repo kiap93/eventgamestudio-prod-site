@@ -453,7 +453,6 @@ export const ReactionScreensCustomizer: React.FC<{
                   config={startConfig}
                   theme={theme}
                   gameType="reaction-tap"
-                  targetDimensions={{ width: 1024, height: 576 }}
                   gameMeta={reactionGameMeta}
                   onStartGame={() => {}}
                   isSimulation={true}

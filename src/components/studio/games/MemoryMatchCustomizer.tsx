@@ -2877,7 +2877,6 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
                   config={startConfig}
                   theme={theme}
                   gameType="memory-match"
-                  targetDimensions={{ width: 1024, height: 576 }}
                   gameMeta={memoryGameMeta}
                   onStartGame={() => {}}
                   isSimulation={true}
