@@ -5148,5 +5148,95 @@
     "country_code": null,
     "created_at": "2026-09-11T01:17:49.758Z",
     "updated_at": "2026-09-11T01:17:49.758Z"
+  },
+  {
+    "id": "7a721420-7bf6-41a2-8f31-fa969975def0",
+    "name": "Cron Org",
+    "slug": "cron-org-d8f229",
+    "owner_id": "6383caa0-15a6-4a50-acd0-84eac476ddb4",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-11T07:34:21.122Z",
+    "updated_at": "2026-09-11T07:34:21.122Z"
+  },
+  {
+    "id": "7bc22eaf-a220-4f2f-ae46-a6a421b7740b",
+    "name": "Lock Test Org",
+    "slug": "lock-test-org-e3f3ee",
+    "owner_id": "92049ab0-4821-42a9-96f5-cf074d892599",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-11T07:34:21.275Z",
+    "updated_at": "2026-09-11T07:34:21.275Z"
+  },
+  {
+    "id": "a3f8f273-b4e1-4395-9b1a-c755aaa13bc3",
+    "name": "Singapore Tech Events",
+    "slug": "singapore-tech-events-ca4d9b",
+    "owner_id": "88d24762-44ac-42cd-8fe4-a9987d05e474",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-11T07:34:21.319Z",
+    "updated_at": "2026-09-11T07:34:21.446Z"
+  },
+  {
+    "id": "3ca87e25-c4ea-4093-8419-635a3614219c",
+    "name": "Acme Super Events",
+    "slug": "acme-events-corp-9e6a25",
+    "owner_id": "7fecce23-1d52-4c80-b46f-a455a0af700f",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-11T07:34:21.349Z",
+    "updated_at": "2026-09-11T07:34:21.467Z"
+  },
+  {
+    "id": "d4d0ae5a-d9bb-44a2-9e1f-a32abb41cc4a",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-36e12e",
+    "owner_id": "e2e75e0e-a530-437c-afa4-d0df84dace23",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-11T07:34:21.400Z",
+    "updated_at": "2026-09-11T07:34:21.400Z"
+  },
+  {
+    "id": "5e630c86-31e4-4cf9-b8cb-cf76c1153639",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-33877d",
+    "owner_id": "33b4ac10-633e-462d-b7a2-7ab9eefd5350",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-11T07:34:21.417Z",
+    "updated_at": "2026-09-11T07:34:21.417Z"
+  },
+  {
+    "id": "f87747eb-2f1a-43dc-91a5-8c8b473e116e",
+    "name": "Leaderboard Security Org",
+    "slug": "leaderboard-security-org-756212",
+    "owner_id": "5081c980-3625-4d71-9d26-8ec710fbc120",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-11T07:34:21.574Z",
+    "updated_at": "2026-09-11T07:34:21.574Z"
+  },
+  {
+    "id": "f205ff31-1227-4815-8d2b-c65c667acb26",
+    "name": "Other Org",
+    "slug": "other-org-6a320d",
+    "owner_id": "0ed4466e-2f24-4fba-ab7c-04b92c944a6b",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-11T07:34:21.606Z",
+    "updated_at": "2026-09-11T07:34:21.606Z"
+  },
+  {
+    "id": "adfd292f-6e5c-4ae1-a5be-e89dd4ad63c6",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-58755f",
+    "owner_id": "36d20383-0d76-4b0f-8977-22f42938cd50",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-11T07:34:21.651Z",
+    "updated_at": "2026-09-11T07:34:21.651Z"
   }
 ]
