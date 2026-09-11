@@ -187,7 +187,8 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     setLoadingLeaderboard(true);
     setLeaderboardError(null);
     try {
-      const url = publicToken
+      const isOrganizerTest = Boolean(isEventTest || isEventPreview);
+      const url = (!isOrganizerTest && publicToken)
         ? `/api/public/events/${publicToken}/high-scores?limit=50`
         : `/api/events/${eventId}/admin/high-scores?limit=50`;
       const res = await apiFetch(url);
@@ -284,15 +285,17 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
       return;
     }
 
+    const isOrganizerTest = Boolean(isEventTest || isEventPreview);
+
     // Public players must submit with publicToken; only organizer test sessions can submit via eventId
-    if (!publicToken && !isEventTest) {
+    if (!publicToken && !isOrganizerTest) {
       setLeaderboardError('Public score submission requires a valid event token.');
       setIsSubmittingScore(false);
       return;
     }
 
     try {
-      const url = publicToken
+      const url = (!isOrganizerTest && publicToken)
         ? `/api/public/events/${publicToken}/high-scores`
         : `/api/events/${eventId}/admin/high-scores`;
 
@@ -312,8 +315,8 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             goldenCaught: stats.goldenCaught,
             duriansMissed: stats.duriansMissed,
             itemsCaughtById: stats.itemsCaughtById,
-            score_environment: isEventTest ? 'test' : undefined,
-            is_test: isEventTest ? true : undefined,
+            isEventTest: isOrganizerTest ? true : undefined,
+            score_environment: isOrganizerTest ? 'test' : undefined,
           },
         }),
       });

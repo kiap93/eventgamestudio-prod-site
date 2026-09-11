@@ -624,7 +624,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
     setLoadingLeaderboard(true);
     try {
-      const url = publicToken
+      const isOrganizerTest = Boolean(isEventTest || isEventPreview);
+      const url = (!isOrganizerTest && publicToken)
         ? `/api/public/events/${publicToken}/high-scores?limit=50`
         : `/api/events/${eventId}/admin/high-scores?limit=50`;
       const res = await apiFetch(url);
@@ -1316,8 +1317,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       sessionId,
       gameVersion: MEMORY_MATCH_GAME_VERSION,
       scoringVersion: MEMORY_MATCH_SCORING_VERSION,
-      score_environment: isEventTest ? 'test' : undefined,
-      is_test: isEventTest ? true : undefined,
+      isEventTest: isEventTest || isEventPreview ? true : undefined,
+      score_environment: (isEventTest || isEventPreview) ? 'test' : undefined,
+      is_test: (isEventTest || isEventPreview) ? true : undefined,
     };
 
     if (!hasEventContext) {
@@ -1357,14 +1359,16 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       }
     }
 
+    const isOrganizerTest = Boolean(isEventTest || isEventPreview);
+
     // Public players must submit with publicToken; only organizer test sessions can submit via eventId
-    if (!publicToken && !isEventTest) {
+    if (!publicToken && !isOrganizerTest) {
       setIsSubmittingScore(false);
       return { success: false, error: 'Public score submission requires a valid event token.' };
     }
 
     try {
-      const url = publicToken
+      const url = (!isOrganizerTest && publicToken)
         ? `/api/public/events/${publicToken}/high-scores`
         : `/api/events/${eventId}/admin/high-scores`;
 

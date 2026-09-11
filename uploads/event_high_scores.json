@@ -5151,5 +5151,545 @@
       "is_official": false
     },
     "created_at": "2026-09-10T09:27:47.317Z"
+  },
+  {
+    "id": "284dc6be-d416-4ccf-816f-257fe127d6bd",
+    "event_id": "6c69e44e-7da3-42a1-b527-35550efb7636",
+    "player_name": "Public Player 1",
+    "score": 750,
+    "session_id": "pub-session-player-1",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isPublicSubmission": true,
+      "score_environment": "live",
+      "sessionId": "pub-session-player-1",
+      "session_id": "pub-session-player-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T13:42:13.326Z"
+  },
+  {
+    "id": "6aad767d-2789-4628-b70c-f9cb75be941c",
+    "event_id": "6c69e44e-7da3-42a1-b527-35550efb7636",
+    "player_name": "Organizer Test",
+    "score": 500,
+    "session_id": "org-test-session-1",
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isEventTest": true,
+      "is_test": true,
+      "score_environment": "test",
+      "sessionId": "org-test-session-1",
+      "session_id": "org-test-session-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "TEST",
+      "is_official": false
+    },
+    "created_at": "2026-09-10T13:42:13.319Z"
+  },
+  {
+    "id": "bcb84381-30db-44a8-bf7f-2b95f0ce7325",
+    "event_id": "d4974c0d-bc45-441b-af6e-b5b2e8a4685d",
+    "player_name": "Spoof Test Player",
+    "score": 820,
+    "session_id": "spoof-test-session",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "score_environment": "live",
+      "isPublicSubmission": true,
+      "sessionId": "spoof-test-session",
+      "session_id": "spoof-test-session",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T13:42:52.294Z"
+  },
+  {
+    "id": "f18e4123-2a36-432e-b13a-10f3dfbc017b",
+    "event_id": "d4974c0d-bc45-441b-af6e-b5b2e8a4685d",
+    "player_name": "Public Player 1",
+    "score": 750,
+    "session_id": "pub-session-player-1",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isPublicSubmission": true,
+      "score_environment": "live",
+      "sessionId": "pub-session-player-1",
+      "session_id": "pub-session-player-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T13:42:52.271Z"
+  },
+  {
+    "id": "ae9c2470-167f-475f-898e-55c47c0bdef3",
+    "event_id": "d4974c0d-bc45-441b-af6e-b5b2e8a4685d",
+    "player_name": "Organizer Test",
+    "score": 500,
+    "session_id": "org-test-session-1",
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isEventTest": true,
+      "is_test": true,
+      "score_environment": "test",
+      "sessionId": "org-test-session-1",
+      "session_id": "org-test-session-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "TEST",
+      "is_official": false
+    },
+    "created_at": "2026-09-10T13:42:52.265Z"
+  },
+  {
+    "id": "77149e63-45b3-4ded-8b68-774c386a561f",
+    "event_id": "720f1204-236c-4dd2-8683-6e25513b7ff4",
+    "player_name": "ProGamer",
+    "score": 650,
+    "session_id": "sess_pro_gamer_1789047811080",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "greenCaught": 25,
+      "goldenCaught": 8,
+      "orangeCaught": 0,
+      "sessionId": "sess_pro_gamer_1789047811080",
+      "session_id": "sess_pro_gamer_1789047811080",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T13:43:31.082Z"
+  },
+  {
+    "id": "67721807-0430-4a8f-89b1-8dfd46dacb1f",
+    "event_id": "720f1204-236c-4dd2-8683-6e25513b7ff4",
+    "player_name": "LegitPublicPlayer",
+    "score": 450,
+    "session_id": "pub_legit_1789047811213",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "greenCaught": 15,
+      "goldenCaught": 6,
+      "orangeCaught": 0,
+      "isPublicSubmission": true,
+      "score_environment": "live",
+      "sessionId": "pub_legit_1789047811213",
+      "session_id": "pub_legit_1789047811213",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T13:43:31.216Z"
+  },
+  {
+    "id": "4d0e5091-e769-436e-b7db-55a9e6c0138c",
+    "event_id": "720f1204-236c-4dd2-8683-6e25513b7ff4",
+    "player_name": "HonestPlayerBreakdown",
+    "score": 190,
+    "session_id": "sess_honest_breakdown_1789047811077",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "itemsCaughtById": {
+        "ticket": 10,
+        "star": 2,
+        "mask": 1
+      },
+      "sessionId": "sess_honest_breakdown_1789047811077",
+      "session_id": "sess_honest_breakdown_1789047811077",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T13:43:31.079Z"
+  },
+  {
+    "id": "399a01ae-369a-4687-b830-bd0c2a31dacf",
+    "event_id": "eefc83b2-09de-471d-bbfd-399b012e094b",
+    "player_name": "Max Verstappen",
+    "score": 185,
+    "session_id": "session_142ec79fbc4048008d447297aa455dab",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 185,
+      "bestReactionTimeMs": 172,
+      "worstReactionTimeMs": 198,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 180,
+          "falseStart": false,
+          "timestamp": 1789047834247
+        },
+        {
+          "round": 2,
+          "reactionTimeMs": 172,
+          "falseStart": false,
+          "timestamp": 1789047834247
+        },
+        {
+          "round": 3,
+          "reactionTimeMs": 190,
+          "falseStart": false,
+          "timestamp": 1789047834247
+        },
+        {
+          "round": 4,
+          "reactionTimeMs": 185,
+          "falseStart": false,
+          "timestamp": 1789047834247
+        },
+        {
+          "round": 5,
+          "reactionTimeMs": 198,
+          "falseStart": false,
+          "timestamp": 1789047834247
+        }
+      ],
+      "rating": "SUPERHUMAN",
+      "sessionId": "session_142ec79fbc4048008d447297aa455dab",
+      "session_id": "session_142ec79fbc4048008d447297aa455dab",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T13:43:54.249Z"
+  },
+  {
+    "id": "9fbdba79-4b44-44a7-875e-d22ff895022e",
+    "event_id": "eefc83b2-09de-471d-bbfd-399b012e094b",
+    "player_name": "Public Racer",
+    "score": 205,
+    "session_id": "rt_sess_1789047834257",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 205,
+      "bestReactionTimeMs": 195,
+      "worstReactionTimeMs": 215,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 205,
+          "falseStart": false,
+          "timestamp": 1789047834257
+        }
+      ],
+      "rating": "PRO RACER",
+      "isPublicSubmission": true,
+      "score_environment": "live",
+      "sessionId": "rt_sess_1789047834257",
+      "session_id": "rt_sess_1789047834257",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T13:43:54.335Z"
+  },
+  {
+    "id": "44c83fcb-a03b-40c9-b614-48561e6b58a2",
+    "event_id": "eefc83b2-09de-471d-bbfd-399b012e094b",
+    "player_name": "Lewis Hamilton",
+    "score": 220,
+    "session_id": "session_e923e1c377fa4c52985c7ef419c11bc6",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 220,
+      "bestReactionTimeMs": 195,
+      "worstReactionTimeMs": 245,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 210,
+          "falseStart": false,
+          "timestamp": 1789047826240
+        },
+        {
+          "round": 2,
+          "reactionTimeMs": 195,
+          "falseStart": false,
+          "timestamp": 1789047828240
+        },
+        {
+          "round": 3,
+          "reactionTimeMs": 230,
+          "falseStart": false,
+          "timestamp": 1789047830240
+        },
+        {
+          "round": 4,
+          "reactionTimeMs": 220,
+          "falseStart": false,
+          "timestamp": 1789047832240
+        },
+        {
+          "round": 5,
+          "reactionTimeMs": 245,
+          "falseStart": false,
+          "timestamp": 1789047834240
+        }
+      ],
+      "rating": "PRO RACER",
+      "sessionId": "session_e923e1c377fa4c52985c7ef419c11bc6",
+      "session_id": "session_e923e1c377fa4c52985c7ef419c11bc6",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T13:43:54.246Z"
+  },
+  {
+    "id": "b68a1ceb-2ee7-482b-a7d0-2754d8be88d4",
+    "event_id": "eefc83b2-09de-471d-bbfd-399b012e094b",
+    "player_name": "Rookie Racer",
+    "score": 310,
+    "session_id": "session_a859f0337eed4166b376fe0a998de800",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "gameType": "reaction-tap",
+      "averageReactionTimeMs": 310,
+      "bestReactionTimeMs": 290,
+      "worstReactionTimeMs": 340,
+      "roundsCount": 5,
+      "rounds": [
+        {
+          "round": 1,
+          "reactionTimeMs": 310,
+          "falseStart": false,
+          "timestamp": 1789047834250
+        }
+      ],
+      "rating": "GREAT REFLEXES",
+      "sessionId": "session_a859f0337eed4166b376fe0a998de800",
+      "session_id": "session_a859f0337eed4166b376fe0a998de800",
+      "score_environment": "live",
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T13:43:54.251Z"
+  },
+  {
+    "id": "944a6ce6-e279-4c9e-874d-94f99daf0735",
+    "event_id": "be5f4a12-b9a2-4a4f-9e8b-28857a057ebb",
+    "player_name": "Spoof Test Player",
+    "score": 820,
+    "session_id": "spoof-test-session",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "score_environment": "live",
+      "isPublicSubmission": true,
+      "sessionId": "spoof-test-session",
+      "session_id": "spoof-test-session",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T14:03:27.737Z"
+  },
+  {
+    "id": "de03da3f-da6a-42b3-abd2-846aa8a6b291",
+    "event_id": "be5f4a12-b9a2-4a4f-9e8b-28857a057ebb",
+    "player_name": "Public Player 1",
+    "score": 750,
+    "session_id": "pub-session-player-1",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isPublicSubmission": true,
+      "score_environment": "live",
+      "sessionId": "pub-session-player-1",
+      "session_id": "pub-session-player-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T14:03:27.718Z"
+  },
+  {
+    "id": "36ccc548-e30e-426c-80f2-2a40349f66c3",
+    "event_id": "be5f4a12-b9a2-4a4f-9e8b-28857a057ebb",
+    "player_name": "Organizer Test",
+    "score": 500,
+    "session_id": "org-test-session-1",
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isEventTest": true,
+      "is_test": true,
+      "score_environment": "test",
+      "sessionId": "org-test-session-1",
+      "session_id": "org-test-session-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "TEST",
+      "is_official": false
+    },
+    "created_at": "2026-09-10T14:03:27.712Z"
+  },
+  {
+    "id": "5c60896b-310d-4886-b61a-5c5716b9c6c2",
+    "event_id": "45488190-43ff-4c67-9a23-81b6ff8611e9",
+    "player_name": "Spoof Test Player",
+    "score": 820,
+    "session_id": "spoof-test-session",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "score_environment": "live",
+      "isPublicSubmission": true,
+      "sessionId": "spoof-test-session",
+      "session_id": "spoof-test-session",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T14:50:42.659Z"
+  },
+  {
+    "id": "54396c68-6651-4f91-a84d-1ec45a8be6ea",
+    "event_id": "45488190-43ff-4c67-9a23-81b6ff8611e9",
+    "player_name": "Public Player 1",
+    "score": 750,
+    "session_id": "pub-session-player-1",
+    "score_environment": "live",
+    "score_mode": "LIVE",
+    "is_test": false,
+    "metadata": {
+      "isPublicSubmission": true,
+      "score_environment": "live",
+      "sessionId": "pub-session-player-1",
+      "session_id": "pub-session-player-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "LIVE",
+      "is_test": false,
+      "is_official": true
+    },
+    "created_at": "2026-09-10T14:50:42.643Z"
+  },
+  {
+    "id": "b14cfa93-11ef-4177-8905-828e5e4a257b",
+    "event_id": "45488190-43ff-4c67-9a23-81b6ff8611e9",
+    "player_name": "Organizer Test",
+    "score": 500,
+    "session_id": "org-test-session-1",
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "isEventTest": true,
+      "is_test": true,
+      "score_environment": "test",
+      "sessionId": "org-test-session-1",
+      "session_id": "org-test-session-1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_mode": "TEST",
+      "is_official": false
+    },
+    "created_at": "2026-09-10T14:50:42.637Z"
   }
 ]

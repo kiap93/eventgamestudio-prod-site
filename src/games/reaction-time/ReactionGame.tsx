@@ -123,7 +123,8 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
     if (!eventId && !publicToken) return;
     setLoadingLeaderboard(true);
     try {
-      const url = publicToken
+      const isOrganizerTest = Boolean(isEventTest || isEventPreview);
+      const url = (!isOrganizerTest && publicToken)
         ? `/api/public/events/${publicToken}/high-scores?limit=50`
         : `/api/events/${eventId}/admin/high-scores?limit=50`;
       const res = await apiFetch(url);
@@ -431,6 +432,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
 
     const scoreVal = stats.averageMs > 0 ? stats.averageMs : 250;
 
+    const isOrganizerTest = Boolean(isEventTest || isEventPreview);
     const metadataPayload = {
       gameType: 'reaction-tap',
       averageReactionTimeMs: scoreVal,
@@ -440,12 +442,14 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
       roundsCount: reactionConfig.roundsCount,
       rating: stats.rating.tier,
       sessionId,
-      is_test: isEventTest ? true : undefined,
+      isEventTest: isOrganizerTest ? true : undefined,
+      score_environment: isOrganizerTest ? 'test' : undefined,
+      is_test: isOrganizerTest ? true : undefined,
     };
 
     try {
       if (publicToken || (eventId && eventId !== 'undefined' && eventId !== 'null')) {
-        const url = publicToken
+        const url = (!isOrganizerTest && publicToken)
           ? `/api/public/events/${publicToken}/high-scores`
           : `/api/events/${eventId}/admin/high-scores`;
         const res = await apiFetch(url, {
@@ -456,7 +460,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
             score: scoreVal,
             session_id: sessionId,
             metadata: metadataPayload,
-            is_test: isEventTest,
+            is_test: isOrganizerTest ? true : undefined,
           }),
         });
         const data = await res.json();

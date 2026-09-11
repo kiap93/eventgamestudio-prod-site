@@ -63,6 +63,7 @@ import {
   getEventsByOrgId,
   getEventById,
   getEventByPublicToken,
+  toPublicEventDTO,
   canAccessLiveEvent,
   canAccessPreviewEvent,
   canAccessClientLiveGame,
@@ -2760,7 +2761,6 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
           error: accessDetails.error || 'This event has been cancelled.',
           code: 'EVENT_CANCELLED',
           is_cancelled: true,
-          cancel_reason: rawEvent.cancel_reason,
         });
         return;
       }
@@ -2774,7 +2774,6 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
           end_date: endDate,
           event_id: rawEvent.id,
           event_name: rawEvent.name,
-          event: rawEvent,
         });
         return;
       }
@@ -2784,17 +2783,11 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
           error: accessDetails.error || 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
           code: 'PAYMENT_REQUIRED',
           is_pending_payment: true,
-          event_status: rawEvent.event_status,
-          payment_status: rawEvent.payment_status,
           event_id: rawEvent.id,
           event_name: rawEvent.name,
-          organization_id: rawEvent.organization_id,
-          event_price: rawEvent.event_price,
-          event_currency: rawEvent.event_currency,
           start_date: startDate,
           end_date: endDate,
           live_open_date: liveOpenDate,
-          event: rawEvent,
         });
         return;
       }
@@ -2809,13 +2802,13 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
           end_date: endDate,
           event_id: rawEvent.id,
           event_name: rawEvent.name,
-          event: rawEvent,
         });
         return;
       }
     }
 
-    res.json({ event: rawEvent });
+    const publicEvent = toPublicEventDTO(rawEvent);
+    res.json({ event: publicEvent });
   } catch (err: any) {
     console.error('Public event resolution error:', err);
     res.status(500).json({ error: err.message });
@@ -2855,11 +2848,11 @@ app.get('/api/public/events/:publicToken/high-scores', publicHighScoreReadRateLi
     }
 
     // Security check: Public high scores are only available if the event is in the public live window
-    // (PAID, within live window, not cancelled) and never exposes pre-event TEST scores
+    // (PAID, within live window Setup Day through End Date, and not cancelled).
+    // Pre-event test scores are strictly quarantined and never returned to public players.
     const isLiveAllowed = canAccessLiveEvent(event);
-    const scoreEnvironment = determineScoreEnvironment(event);
 
-    if (!isLiveAllowed || scoreEnvironment === 'test') {
+    if (!isLiveAllowed) {
       res.json({
         event_id: event.id,
         event_name: event.name,
@@ -2867,13 +2860,13 @@ app.get('/api/public/events/:publicToken/high-scores', publicHighScoreReadRateLi
         totalCount: 0,
         page,
         limit,
-        score_environment: 'test',
-        is_test_mode: true,
+        score_environment: 'live',
+        is_test_mode: false,
       });
       return;
     }
 
-    const result = await getEventHighScores(event.id, { limit, page });
+    const result = await getEventHighScores(event.id, { limit, page, scoreEnvironment: 'live' });
     res.json({
       event_id: event.id,
       event_name: event.name,
@@ -2887,15 +2880,17 @@ app.get('/api/public/events/:publicToken/high-scores', publicHighScoreReadRateLi
 
 /**
  * POST /api/public/events/:publicToken/high-scores
- * Public endpoint to submit score by public event token (PAID events only)
+ * Public endpoint to submit score by public event token (PAID live events only).
+ * Public player -> LIVE event only -> LIVE score only.
+ * Organizer test scores must only go through authenticated /api/events/:eventId/admin/high-scores.
  */
 app.post('/api/public/events/:publicToken/high-scores', highScoreRateLimiter, async (req, res) => {
   try {
     const { publicToken } = req.params;
     const { player_name, score, metadata, session_id, sessionId } = req.body;
 
-    if (score === undefined || score === null) {
-      res.status(422).json({ error: 'Score is required' });
+    if (score === undefined || score === null || isNaN(Number(score))) {
+      res.status(422).json({ error: 'Valid numerical score is required' });
       return;
     }
 
@@ -2905,18 +2900,37 @@ app.post('/api/public/events/:publicToken/high-scores', highScoreRateLimiter, as
       return;
     }
 
+    // Security check: Public score submissions strictly require canAccessLiveEvent(event) === true
+    // (PAID, within live window Setup Day through End Date, and not cancelled).
+    // Pre-event/test scores must only go through authenticated organizer endpoints.
+    if (!canAccessLiveEvent(event)) {
+      const accessDetails = getClientLiveGameAccessDetails(event);
+      res.status(403).json({
+        error: accessDetails.reason || 'Score submissions are only permitted for active, paid live events.',
+        code: accessDetails.code || 'EVENT_NOT_LIVE',
+      });
+      return;
+    }
+
     const incomingSessionId =
       session_id !== undefined ? session_id :
       sessionId !== undefined ? sessionId :
       (metadata && typeof metadata === 'object' && metadata.sessionId !== undefined ? metadata.sessionId :
       (metadata && typeof metadata === 'object' && metadata.session_id !== undefined ? metadata.session_id : undefined));
 
+    // Public submissions are strictly LIVE scores. Disallow untrusted test mode flags from public payload.
+    const cleanMetadata = typeof metadata === 'object' && metadata ? { ...metadata } : {};
+    delete cleanMetadata.isEventTest;
+    delete cleanMetadata.is_test;
+    cleanMetadata.isPublicSubmission = true;
+    cleanMetadata.score_environment = 'LIVE';
+
     const result = await submitEventScore({
       event_id: event.id,
       player_name,
       score: Number(score),
       session_id: incomingSessionId,
-      metadata: typeof metadata === 'object' && metadata ? metadata : {},
+      metadata: cleanMetadata,
     });
 
     res.status(201).json({
@@ -2926,7 +2940,7 @@ app.post('/api/public/events/:publicToken/high-scores', highScoreRateLimiter, as
     });
   } catch (err: any) {
     console.error('Submit public event high score error:', err);
-    res.status(err.status || 422).json({ error: err.message });
+    res.status(err.status || 422).json({ error: err.message, code: err.code });
   }
 });
 
@@ -4803,7 +4817,7 @@ const handleRunEventMaintenance = async (_req: AuthenticatedRequest, res: any) =
     res.json({
       success: true,
       result,
-      message: `Maintenance complete: ${result.cancelledCount} unpaid expired events cancelled, ${result.completedCount} expired paid events marked completed.`,
+      message: `Maintenance complete: ${result.expiredCount} unpaid expired events marked expired, ${result.completedCount} expired paid events marked completed.`,
     });
   } catch (err: any) {
     console.error('Run event maintenance error:', err);

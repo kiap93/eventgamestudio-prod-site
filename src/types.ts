@@ -238,6 +238,34 @@ export interface EventCancellationEligibility {
   code: CancellationErrorCode;
 }
 
+export interface PublicEventDTO {
+  id: string;
+  name: string;
+  public_token?: string;
+  game: {
+    id: string;
+    name: string;
+    slug?: string;
+    game_type: string;
+  } | null;
+  theme: any | null;
+  game_theme?: any | null;
+  branding: {
+    organization_name?: string;
+    logo_url?: string | null;
+    client_logo_url?: string | null;
+    game_title?: string;
+    subtitle?: string | null;
+    primary_color?: string;
+    accent_color?: string;
+    hud_color?: string;
+    [key: string]: any;
+  } | null;
+  start_date: string;
+  end_date: string;
+  live_open_date: string;
+}
+
 export interface EventWithDetails extends EventRecord {
   calculated_status?: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
   setup_starts_at?: string;

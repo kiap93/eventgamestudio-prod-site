@@ -14,6 +14,8 @@ import {
 import {
   getEventById,
   getEventByPublicToken,
+  canAccessLiveEvent,
+  getClientLiveGameAccessDetails,
   isEventPlayable,
   deriveEventLifecycleStatus,
   getNormalizedEventDates,
@@ -813,11 +815,25 @@ async function executeSubmitEventScore(
     throw err;
   }
 
+  // Security check: Public score submissions are strictly permitted ONLY when the event is LIVE
+  // (canAccessLiveEvent === true: PAID, within live window Setup Day through End Date, and not cancelled).
+  const isPublicSubmission = metadata.isPublicSubmission === true;
+  if (isPublicSubmission) {
+    if (!canAccessLiveEvent(event, now)) {
+      const accessDetails = getClientLiveGameAccessDetails(event, now);
+      const err: any = new Error(accessDetails.reason || 'Public score submissions are only permitted for active, paid live events');
+      err.status = 403;
+      err.code = accessDetails.code || 'EVENT_NOT_LIVE';
+      throw err;
+    }
+  }
+
   // Determine scoring environment:
+  // Public submissions are strictly LIVE scores only.
   // Explicit organizer internal test flag (isEventTest) quarantines score to TEST mode.
   // Otherwise, authoritatively determined based on event date/lifecycle context (untrusted client flags cannot spoof server authority).
-  const isOrganizerAdminTest = metadata.isEventTest === true;
-  const authoritativeEnv = isOrganizerAdminTest ? 'test' : determineScoreEnvironment(event, now);
+  const isOrganizerAdminTest = !isPublicSubmission && metadata.isEventTest === true;
+  const authoritativeEnv = isPublicSubmission ? 'live' : (isOrganizerAdminTest ? 'test' : determineScoreEnvironment(event, now));
   const isTest = authoritativeEnv === 'test';
   const scoreEnvironment: 'test' | 'live' = isTest ? 'test' : 'live';
 

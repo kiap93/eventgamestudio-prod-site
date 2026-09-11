@@ -28,44 +28,14 @@ import {
   Play,
   Lock,
 } from 'lucide-react';
-
-interface PublicEventData {
-  id: string;
-  name: string;
-  public_token: string;
-  event_date: string | null;
-  start_date?: string | null;
-  end_date?: string | null;
-  startDate?: string | null;
-  endDate?: string | null;
-  event_start_date?: string | null;
-  event_end_date?: string | null;
-  starts_at: string;
-  expires_at: string;
-  status: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
-  event_status?: string;
-  calculated_status?: string;
-  payment_status?: 'PAID' | 'UNPAID' | 'REFUNDED' | 'PENDING_PAYMENT';
-  organization_id?: string;
-  organization_name?: string;
-  organization_slug?: string;
-  event_price?: number;
-  event_currency?: string;
-  game?: {
-    id: string;
-    name: string;
-    slug: string;
-    game_type: string;
-  } | null;
-  game_theme?: any;
-}
+import { PublicEventDTO } from '../../types';
 
 export const PublicEventGameView: React.FC = () => {
   const routeContext = useRouteContext();
   const publicToken = routeContext.publicToken;
-  const { user } = useAuth();
+  const { user, currentOrganization } = useAuth();
 
-  const [eventData, setEventData] = useState<PublicEventData | null>(null);
+  const [eventData, setEventData] = useState<PublicEventDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -84,10 +54,6 @@ export const PublicEventGameView: React.FC = () => {
     end_date?: string;
     event_id?: string;
     event_name?: string;
-    organization_id?: string;
-    event_price?: number;
-    event_currency?: string;
-    event?: any;
   } | null>(null);
 
   // Periodic check for Singapore date boundary change (midnight transition)
@@ -133,16 +99,12 @@ export const PublicEventGameView: React.FC = () => {
               is_pending_payment: true,
               event_id: data.event_id,
               event_name: data.event_name,
-              organization_id: data.organization_id,
-              event_price: data.event_price,
-              event_currency: data.event_currency,
               live_open_date: data.live_open_date,
               start_date: data.start_date,
               end_date: data.end_date,
-              event: data.event,
             });
             setError(data.error || 'This event is currently awaiting payment and activation.');
-            setEventData(data.event || null);
+            setEventData(null);
             return;
           }
           if (data.is_cancelled || data.code === 'EVENT_CANCELLED') {
@@ -163,10 +125,9 @@ export const PublicEventGameView: React.FC = () => {
               end_date: data.end_date,
               event_id: data.event_id,
               event_name: data.event_name,
-              event: data.event,
             });
             setError(data.error || 'This event is not open yet.');
-            setEventData(data.event || null);
+            setEventData(null);
             return;
           }
           if (data.code === 'EVENT_EXPIRED' || data.is_expired) {
@@ -177,10 +138,9 @@ export const PublicEventGameView: React.FC = () => {
               end_date: data.end_date,
               event_id: data.event_id,
               event_name: data.event_name,
-              event: data.event,
             });
             setError(data.error || 'This event has expired.');
-            setEventData(data.event || null);
+            setEventData(null);
             return;
           }
           if (res.status === 404) {
@@ -218,10 +178,10 @@ export const PublicEventGameView: React.FC = () => {
 
     const isAwaitingPayment =
       errorDetails?.is_pending_payment ||
-      (eventData && (eventData.payment_status || '').toUpperCase() !== 'PAID');
+      errorDetails?.code === 'PAYMENT_REQUIRED';
 
     // If event is already confirmed PAID and LIVE, do not fast poll
-    if (!isAwaitingPayment && eventData && canAccessLiveEvent(eventData)) {
+    if (eventData || !isAwaitingPayment) {
       return;
     }
 
@@ -230,7 +190,7 @@ export const PublicEventGameView: React.FC = () => {
     }, 4000);
 
     return () => clearInterval(pollTimer);
-  }, [publicToken, errorDetails?.is_pending_payment, errorDetails?.is_cancelled, eventData, fetchEvent]);
+  }, [publicToken, errorDetails?.is_pending_payment, errorDetails?.code, eventData, fetchEvent]);
 
   // Synchronize fullscreen state strictly with browser events
   const getIsFullscreen = (): boolean => {
@@ -312,15 +272,12 @@ export const PublicEventGameView: React.FC = () => {
     );
   }
 
-  const activeEvent = eventData || errorDetails?.event;
-  const liveAccess = activeEvent ? getClientLiveGameAccessDetails(activeEvent) : null;
-  const availability = activeEvent ? getEventAvailabilityState(activeEvent) : null;
+  const activeEvent = eventData;
   const dates = activeEvent ? getNormalizedEventDates(activeEvent) : null;
 
   // 1. Cancelled State: ONLY when explicitly cancelled by user or admin
   const isCancelled =
-    errorDetails?.code === 'EVENT_CANCELLED' ||
-    (liveAccess ? liveAccess.code === 'EVENT_CANCELLED' : isEventExplicitlyCancelled(activeEvent));
+    errorDetails?.code === 'EVENT_CANCELLED' || Boolean(errorDetails?.is_cancelled);
 
   if (isCancelled) {
     return (
@@ -344,12 +301,8 @@ export const PublicEventGameView: React.FC = () => {
   // Authoritative Rule: "After 3-Sep (Event has ended) -> Live Game CLOSED, Public /play URL shows Event Concluded screen, NOT Cancelled and NOT Payment Pending"
   const isExpired =
     !isCancelled &&
-    (errorDetails?.code === 'EVENT_EXPIRED' ||
-      errorDetails?.is_expired ||
-      (liveAccess && liveAccess.code === 'EVENT_EXPIRED') ||
-      (availability && availability.isAfterLiveWindow) ||
-      activeEvent?.status === 'expired' ||
-      activeEvent?.event_status === 'EXPIRED');
+    !eventData &&
+    (errorDetails?.code === 'EVENT_EXPIRED' || Boolean(errorDetails?.is_expired));
 
   if (isExpired) {
     const endDate = errorDetails?.end_date || dates?.endDate || '';
@@ -361,7 +314,7 @@ export const PublicEventGameView: React.FC = () => {
             <Calendar className="w-8 h-8" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-xl font-bold text-slate-100">{activeEvent?.name || 'Event Game'}</h1>
+            <h1 className="text-xl font-bold text-slate-100">{errorDetails?.event_name || 'Event Game'}</h1>
             <p className="text-xs text-slate-400">
               This event concluded on {formatDateOnly(endDate)}.
             </p>
@@ -378,10 +331,8 @@ export const PublicEventGameView: React.FC = () => {
   const isPendingPayment =
     !isCancelled &&
     !isExpired &&
-    (errorDetails?.code === 'PAYMENT_REQUIRED' ||
-      errorDetails?.is_pending_payment ||
-      (liveAccess && liveAccess.code === 'PAYMENT_REQUIRED') ||
-      (activeEvent && (activeEvent.payment_status || '').toUpperCase() !== 'PAID'));
+    !eventData &&
+    (errorDetails?.code === 'PAYMENT_REQUIRED' || Boolean(errorDetails?.is_pending_payment));
 
   if (isPendingPayment) {
     return (
@@ -442,17 +393,15 @@ export const PublicEventGameView: React.FC = () => {
         </div>
 
         {/* Pay & Activate Modal for logged-in organizer */}
-        {showPaymentModal && (activeEvent || errorDetails?.event_id) && (
+        {showPaymentModal && (errorDetails?.event_id || eventData?.id) && (
           <EventPaymentModal
             isOpen={showPaymentModal}
             onClose={() => setShowPaymentModal(false)}
             event={{
-              id: activeEvent?.id || errorDetails?.event_id || '',
-              name: activeEvent?.name || errorDetails?.event_name || 'Event Game',
+              id: errorDetails?.event_id || eventData?.id || '',
+              name: errorDetails?.event_name || eventData?.name || 'Event Game',
               public_token: publicToken || '',
-              organization_id: activeEvent?.organization_id || errorDetails?.organization_id,
-              event_price: activeEvent?.event_price ?? errorDetails?.event_price ?? undefined,
-              event_currency: activeEvent?.event_currency || errorDetails?.event_currency || 'MYR',
+              organization_id: currentOrganization?.id,
             }}
             onPaymentSuccess={async () => {
               setShowPaymentModal(false);
@@ -464,18 +413,17 @@ export const PublicEventGameView: React.FC = () => {
     );
   }
 
-  // 3. Before Live Window (Scheduled) State
+  // 4. Before Live Window (Scheduled) State
   const isBeforeOpeningDate =
     !isCancelled &&
     !isPendingPayment &&
-    (errorDetails?.code === 'EVENT_NOT_OPEN' ||
-      errorDetails?.is_scheduled ||
-      (liveAccess && liveAccess.code === 'EVENT_NOT_OPEN') ||
-      (availability && availability.isBeforeLiveWindow));
+    !eventData &&
+    (errorDetails?.code === 'EVENT_NOT_OPEN' || Boolean(errorDetails?.is_scheduled));
 
   if (isBeforeOpeningDate) {
-    const liveOpenDate = errorDetails?.live_open_date || dates?.liveOpenDate || '';
-    const startDate = errorDetails?.start_date || dates?.startDate || '';
+    const liveOpenDate = errorDetails?.live_open_date || '';
+    const startDate = errorDetails?.start_date || '';
+    const endDate = errorDetails?.end_date || '';
 
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-6 relative overflow-hidden">
@@ -489,11 +437,8 @@ export const PublicEventGameView: React.FC = () => {
 
           <div className="space-y-2">
             <h1 className="text-2xl font-black text-slate-100 tracking-tight">
-              {activeEvent?.name || errorDetails?.event_name || 'Event Game'}
+              {errorDetails?.event_name || 'Event Game'}
             </h1>
-            <p className="text-xs text-slate-400">
-              Presented by <strong className="text-slate-200">{activeEvent?.organization_name || 'Studio'}</strong>
-            </p>
           </div>
 
           {/* Date Information Card */}
@@ -503,7 +448,7 @@ export const PublicEventGameView: React.FC = () => {
               {formatDateOnly(liveOpenDate)}
             </div>
             <div className="text-xs text-slate-400 border-t border-slate-800/80 pt-3">
-              Event Dates: <span className="font-semibold text-slate-200">{formatDateOnly(startDate)}</span> to <span className="font-semibold text-slate-200">{formatDateOnly(dates?.endDate || '')}</span>
+              Event Dates: <span className="font-semibold text-slate-200">{formatDateOnly(startDate)}</span> to <span className="font-semibold text-slate-200">{formatDateOnly(endDate)}</span>
             </div>
             <p className="text-[11px] text-slate-500">
               Live play will automatically activate on setup day ({formatDateOnly(liveOpenDate)}) at 00:00 UTC+8 (Asia/Singapore & Malaysia).
@@ -551,7 +496,7 @@ export const PublicEventGameView: React.FC = () => {
   }
 
   // 6. Event is LIVE & PAID!
-  const theme = eventData.game_theme;
+  const theme = eventData.game_theme || eventData.theme;
   const gameType = eventData.game?.game_type || 'catch-brand';
   const showHeader = !isFullscreen;
 
@@ -608,7 +553,7 @@ export const PublicEventGameView: React.FC = () => {
             gameType={gameType}
             customTheme={theme}
             eventId={eventData.id}
-            publicToken={eventData.public_token}
+            publicToken={eventData.public_token || publicToken}
             showCabinetFooter={!isFullscreen}
             allowImmersiveFullscreen={true}
             isFullscreen={isFullscreen}

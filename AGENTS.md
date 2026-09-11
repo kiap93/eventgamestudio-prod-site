@@ -51,6 +51,7 @@ Core platform entities (**Organizations**, **Users/Members**, **Events**, **Game
 - **Strict Prohibition**: Never allow frontend code to set `payment_status = 'PAID'` or `status = 'LIVE'`.
 - **No Checkout-Return Trust**: Returning from a checkout redirect does NOT mean payment succeeded. Only backend webhook/verification marks an event paid.
 - **Expired Unpaid Events**: An event whose scheduled end date has passed while unpaid is considered expired/cancelled. Completing a delayed payment must NOT accidentally resurrect expired events into a live state.
+- **Zero Automated Wallet Deductions by Cron**: The background cron (`runEventLifecycleMaintenance`) performs lifecycle transitions only (clearing test scores, transitioning completed/expired events). It must NEVER automatically deduct from an organization's wallet or charge customers on Setup Day or any other day. All payments require deliberate, explicit user action in the UI.
 
 ---
 

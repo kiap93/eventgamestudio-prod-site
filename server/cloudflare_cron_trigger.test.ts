@@ -11,19 +11,6 @@ console.log('======================================================');
 // --- Section 1: Wrangler Configuration Validation ---
 console.log('\n--- Section 1: Wrangler Configs [triggers] Verification ---');
 
-const wranglerFrontendPath = path.resolve(process.cwd(), 'wrangler.toml');
-assert.ok(fs.existsSync(wranglerFrontendPath), 'wrangler.toml must exist');
-const wranglerFrontendContent = fs.readFileSync(wranglerFrontendPath, 'utf8');
-
-assert.ok(
-  wranglerFrontendContent.includes('[triggers]'),
-  'wrangler.toml must contain a [triggers] section'
-);
-assert.ok(
-  wranglerFrontendContent.includes('crons ='),
-  'wrangler.toml [triggers] must define crons'
-);
-
 const wranglerApiPath = path.resolve(process.cwd(), 'wrangler.api.toml');
 assert.ok(fs.existsSync(wranglerApiPath), 'wrangler.api.toml must exist');
 const wranglerApiContent = fs.readFileSync(wranglerApiPath, 'utf8');
@@ -37,8 +24,23 @@ assert.ok(
   'wrangler.api.toml [triggers] must define crons'
 );
 
-console.log('  ✓ 1a. wrangler.toml contains [triggers] with crons schedule');
-console.log('  ✓ 1b. wrangler.api.toml contains [triggers] with crons schedule');
+const wranglerFrontendPath = path.resolve(process.cwd(), 'wrangler.toml');
+assert.ok(fs.existsSync(wranglerFrontendPath), 'wrangler.toml must exist');
+const wranglerFrontendContent = fs.readFileSync(wranglerFrontendPath, 'utf8');
+
+assert.strictEqual(
+  wranglerFrontendContent.includes('[triggers]'),
+  false,
+  'wrangler.toml must NOT contain [triggers] to prevent duplicate cron executions'
+);
+assert.strictEqual(
+  wranglerFrontendContent.includes('crons ='),
+  false,
+  'wrangler.toml must NOT contain crons schedule'
+);
+
+console.log('  ✓ 1a. wrangler.api.toml contains [triggers] with crons schedule');
+console.log('  ✓ 1b. wrangler.toml has [triggers] removed to prevent duplicate cron executions');
 
 // --- Section 2: Worker Export & Scheduled Handler ---
 console.log('\n--- Section 2: Worker Scheduled Handler Verification ---');

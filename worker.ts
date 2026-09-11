@@ -36,6 +36,7 @@ import {
   getEventsByOrgId,
   getEventById,
   getEventByPublicToken,
+  toPublicEventDTO,
   canAccessLiveEvent,
   canAccessPreviewEvent,
   canAccessClientLiveGame,
@@ -2935,7 +2936,6 @@ export default {
               error: accessDetails.error || 'This event has been cancelled.',
               code: 'EVENT_CANCELLED',
               is_cancelled: true,
-              cancel_reason: rawEvent.cancel_reason,
             }, 403, {
               ...cors,
               'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -2953,7 +2953,6 @@ export default {
               end_date: endDate,
               event_id: rawEvent.id,
               event_name: rawEvent.name,
-              event: rawEvent,
             }, 403, {
               ...cors,
               'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -2967,17 +2966,11 @@ export default {
               error: accessDetails.error || 'This event is currently awaiting payment and activation. Public game access is disabled until paid.',
               code: 'PAYMENT_REQUIRED',
               is_pending_payment: true,
-              event_status: rawEvent.event_status,
-              payment_status: rawEvent.payment_status,
               event_id: rawEvent.id,
               event_name: rawEvent.name,
-              organization_id: rawEvent.organization_id,
-              event_price: rawEvent.event_price,
-              event_currency: rawEvent.event_currency,
               start_date: startDate,
               end_date: endDate,
               live_open_date: liveOpenDate,
-              event: rawEvent,
             }, 403, {
               ...cors,
               'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -2996,7 +2989,6 @@ export default {
               end_date: endDate,
               event_id: rawEvent.id,
               event_name: rawEvent.name,
-              event: rawEvent,
             }, 403, {
               ...cors,
               'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -3006,7 +2998,8 @@ export default {
           }
         }
 
-        return jsonResponse({ event: rawEvent }, 200, {
+        const publicEvent = toPublicEventDTO(rawEvent);
+        return jsonResponse({ event: publicEvent }, 200, {
           ...cors,
           'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
           'Pragma': 'no-cache',
@@ -3035,11 +3028,11 @@ export default {
         const page = Number(url.searchParams.get('page') || 1);
 
         // Security check: Public high scores are only available if the event is in the public live window
-        // (PAID, within live window, not cancelled) and never exposes pre-event TEST scores
+        // (PAID, within live window Setup Day through End Date, and not cancelled).
+        // Pre-event test scores are strictly quarantined and never returned to public players.
         const isLiveAllowed = canAccessLiveEvent(event);
-        const scoreEnvironment = determineScoreEnvironment(event);
 
-        if (!isLiveAllowed || scoreEnvironment === 'test') {
+        if (!isLiveAllowed) {
           return jsonResponse({
             event_id: event.id,
             event_name: event.name,
@@ -3047,12 +3040,12 @@ export default {
             totalCount: 0,
             page,
             limit,
-            score_environment: 'test',
-            is_test_mode: true,
+            score_environment: 'live',
+            is_test_mode: false,
           }, 200, cors);
         }
 
-        const result = await getEventHighScores(event.id, { limit, page }, env);
+        const result = await getEventHighScores(event.id, { limit, page, scoreEnvironment: 'live' }, env);
         return jsonResponse({
           event_id: event.id,
           event_name: event.name,
@@ -3072,6 +3065,17 @@ export default {
           return errorResponse('Event not found', 404, cors);
         }
 
+        // Security check: Public score submissions strictly require canAccessLiveEvent(event) === true
+        // (PAID, within live window Setup Day through End Date, and not cancelled).
+        // Pre-event/test scores must only go through authenticated organizer endpoints.
+        if (!canAccessLiveEvent(event)) {
+          const accessDetails = getClientLiveGameAccessDetails(event);
+          return jsonResponse({
+            error: accessDetails.reason || 'Score submissions are only permitted for active, paid live events.',
+            code: accessDetails.code || 'EVENT_NOT_LIVE',
+          }, 403, cors);
+        }
+
         const body = (await request.json().catch(() => ({}))) as any;
         const { player_name, score, metadata, session_id, sessionId } = body;
 
@@ -3085,6 +3089,13 @@ export default {
           (metadata && typeof metadata === 'object' && metadata.sessionId !== undefined ? metadata.sessionId :
           (metadata && typeof metadata === 'object' && metadata.session_id !== undefined ? metadata.session_id : undefined));
 
+        // Public submissions are strictly LIVE scores. Disallow untrusted test mode flags from public payload.
+        const cleanMetadata = typeof metadata === 'object' && metadata ? { ...metadata } : {};
+        delete cleanMetadata.isEventTest;
+        delete cleanMetadata.is_test;
+        cleanMetadata.isPublicSubmission = true;
+        cleanMetadata.score_environment = 'LIVE';
+
         try {
           const result = await submitEventScore(
             {
@@ -3092,7 +3103,7 @@ export default {
               player_name,
               score: Number(score),
               session_id: incomingSessionId,
-              metadata,
+              metadata: cleanMetadata,
             },
             env
           );
@@ -6302,11 +6313,8 @@ export default {
       const result = await runEventLifecycleMaintenance(env);
       console.log(
         `[Worker Cron Maintenance] Processed: ` +
-        `${result.cancelledCount} cancelled, ` +
         `${result.completedCount} completed, ` +
         `${result.expiredCount} expired, ` +
-        `${result.paidCount} auto-paid, ` +
-        `${result.paymentFailedCount} payment failed, ` +
         `${result.testScoresClearedCount} test scores cleared`
       );
     } catch (err) {

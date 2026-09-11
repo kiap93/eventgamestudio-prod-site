@@ -34,6 +34,39 @@ The platform strictly separates **Event Lifecycle Status** from **Payment Lifecy
 > `CANCELLED` is strictly reserved for explicit cancellation by the event organizer or platform admin.
 > `PAYMENT_TIMEOUT` is a reason code for payment expirations, NOT an event cancellation trigger.
 
+### Zero Automated Wallet Deductions Rule
+> **The background maintenance cron (`runEventLifecycleMaintenance`) performs lifecycle maintenance ONLY. It MUST NEVER silently charge or automatically deduct customer wallet balances.**
+>
+> All payments and wallet deductions require deliberate, explicit user action in the UI.
+
+```
+Before Setup Day
+    ↓
+UNPAID
+    ↓
+User chooses Pay
+    ↓
+Payment succeeds
+    ↓
+PAID
+
+Setup Day arrives
+    ↓
+If unpaid → remain UNPAID
+    ↓
+Do NOT automatically deduct wallet
+
+Event starts
+    ↓
+If unpaid → remain UNPAID
+    ↓
+Live URL blocked
+
+After event end
+    ↓
+UNPAID → EXPIRED
+```
+
 ---
 
 ## 2. Event Date Boundaries & Setup Day

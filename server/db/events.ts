@@ -15,6 +15,7 @@ import {
   EventCancellationEligibility,
   EventRefundDetermination,
   CancellationErrorCode,
+  PublicEventDTO,
 } from './types.js';
 import { getThemeById, isUUID, enrichThemesWithGameData, DEFAULT_CARNIVAL_THEME } from './themes.js';
 import { calculateCatchBrandSanityLimits, CatchBrandPhysicsSanityConfig } from '../games/catchBrandScoring.js';
@@ -1534,6 +1535,88 @@ export async function getEventByPublicToken(
       : null,
     organization_name: orgName,
     organization_slug: orgSlug,
+  };
+}
+
+/**
+ * Creates a sanitized Public Event DTO for unauthenticated public players.
+ *
+ * Excludes all sensitive internal data:
+ * - organization_id
+ * - created_by
+ * - payment information (paid_amount, payment_status, payment_mode)
+ * - internal status fields (status, event_status, calculated_status)
+ * - pricing information (event_price, event_currency, discounts, credits)
+ * - cancellation reasons and audit columns
+ *
+ * Contains only the public player necessities:
+ * {
+ *   id,
+ *   name,
+ *   game,
+ *   theme,
+ *   branding,
+ *   start_date,
+ *   end_date,
+ *   live_open_date
+ * }
+ */
+export function toPublicEventDTO(rawEvent: any): PublicEventDTO {
+  if (!rawEvent) {
+    return rawEvent;
+  }
+
+  const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(rawEvent);
+  const rawTheme = rawEvent.game_theme || rawEvent.theme || null;
+
+  // Sanitize theme so internal organization_id / created_by are not leaked
+  let safeTheme: any = null;
+  if (rawTheme) {
+    const { organization_id, created_by, created_at, updated_at, ...restTheme } = rawTheme;
+    safeTheme = restTheme;
+  }
+
+  const rawGame = rawEvent.game;
+  const gameDTO = rawGame
+    ? {
+        id: rawGame.id,
+        name: rawGame.name,
+        slug: rawGame.slug,
+        game_type: rawGame.game_type || rawEvent.game_type || rawEvent.game_id || 'catch-brand',
+      }
+    : (rawEvent.game_id
+      ? {
+          id: rawEvent.game_id,
+          name: rawEvent.name || 'Game',
+          game_type: rawEvent.game_type || rawEvent.game_id || 'catch-brand',
+        }
+      : null);
+
+  const themeBranding = safeTheme?.branding || {};
+  const eventBranding = rawEvent?.branding || {};
+
+  const branding = {
+    organization_name: rawEvent?.organization_name || eventBranding?.organization_name || 'Studio',
+    logo_url: eventBranding?.logo_url || eventBranding?.logoUrl || themeBranding?.clientLogoUrl || themeBranding?.logoUrl || null,
+    client_logo_url: eventBranding?.client_logo_url || eventBranding?.clientLogoUrl || themeBranding?.clientLogoUrl || null,
+    game_title: eventBranding?.game_title || eventBranding?.gameTitle || themeBranding?.gameTitle || rawEvent?.name || '',
+    subtitle: eventBranding?.subtitle || themeBranding?.subtitle || null,
+    primary_color: eventBranding?.primary_color || themeBranding?.primaryColor || safeTheme?.visuals_config?.accentColor || '#f59e0b',
+    accent_color: eventBranding?.accent_color || themeBranding?.accentColor || safeTheme?.visuals_config?.accentColor || '#10b981',
+    hud_color: eventBranding?.hud_color || themeBranding?.hudColor || '#c8e038',
+  };
+
+  return {
+    id: rawEvent.id,
+    name: rawEvent.name,
+    public_token: rawEvent.public_token || '',
+    game: gameDTO,
+    theme: safeTheme,
+    game_theme: safeTheme,
+    branding,
+    start_date: startDate || '',
+    end_date: endDate || '',
+    live_open_date: liveOpenDate || '',
   };
 }
 
