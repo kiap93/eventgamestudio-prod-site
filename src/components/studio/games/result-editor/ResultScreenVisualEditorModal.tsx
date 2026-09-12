@@ -1066,6 +1066,10 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
             findElementAndParent={findElementAndParent}
             onGestureStart={handleGestureStart}
             onGestureEnd={handleGestureEnd}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            onDelete={handleDeleteSelected}
+            onDuplicate={handleDuplicateSelected}
           />
         </div>
 

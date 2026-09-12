@@ -184,7 +184,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   // If no element selected, render Canvas & Screen Settings
   if (!selectedElement || selectedIds.length === 0) {
     return (
-      <div className="w-80 border-l border-slate-800 bg-slate-900/95 flex flex-col shrink-0 select-none z-20 overflow-y-auto">
+      <div className="w-80 border-l border-slate-800 bg-slate-900/95 flex flex-col shrink-0 select-none z-20 overflow-y-auto h-full">
         <input
           ref={fileInputRef}
           type="file"
@@ -232,20 +232,23 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   Containers
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {groupedElements.containers.map((item) => (
-                    <button
-                      key={item.type}
-                      type="button"
-                      onClick={() => onAddNewRootElement?.(item.type)}
-                      className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
-                      title={item.description}
-                    >
-                      <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
-                        {getStartElementIcon(item.type)}
-                      </div>
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  ))}
+                  {groupedElements.containers.map((item) => {
+                    const IconComponent = item.icon || getStartElementIcon(item.type);
+                    return (
+                      <button
+                        key={item.type}
+                        type="button"
+                        onClick={() => onAddNewRootElement?.(item.type)}
+                        className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
+                        title={item.description}
+                      >
+                        <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
+                          <IconComponent className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -257,20 +260,23 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   Visual Elements
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {groupedElements.visuals.map((item) => (
-                    <button
-                      key={item.type}
-                      type="button"
-                      onClick={() => onAddNewRootElement?.(item.type)}
-                      className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-emerald-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
-                      title={item.description}
-                    >
-                      <div className="shrink-0 text-emerald-400 group-hover:scale-110 transition-transform">
-                        {getStartElementIcon(item.type)}
-                      </div>
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  ))}
+                  {groupedElements.visuals.map((item) => {
+                    const IconComponent = item.icon || getStartElementIcon(item.type);
+                    return (
+                      <button
+                        key={item.type}
+                        type="button"
+                        onClick={() => onAddNewRootElement?.(item.type)}
+                        className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-emerald-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
+                        title={item.description}
+                      >
+                        <div className="shrink-0 text-emerald-400 group-hover:scale-110 transition-transform">
+                          <IconComponent className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -282,20 +288,23 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   Game Info & Content
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {groupedElements.info.map((item) => (
-                    <button
-                      key={item.type}
-                      type="button"
-                      onClick={() => onAddNewRootElement?.(item.type)}
-                      className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-sky-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
-                      title={item.description}
-                    >
-                      <div className="shrink-0 text-sky-400 group-hover:scale-110 transition-transform">
-                        {getStartElementIcon(item.type)}
-                      </div>
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  ))}
+                  {groupedElements.info.map((item) => {
+                    const IconComponent = item.icon || getStartElementIcon(item.type);
+                    return (
+                      <button
+                        key={item.type}
+                        type="button"
+                        onClick={() => onAddNewRootElement?.(item.type)}
+                        className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-sky-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
+                        title={item.description}
+                      >
+                        <div className="shrink-0 text-sky-400 group-hover:scale-110 transition-transform">
+                          <IconComponent className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -307,20 +316,23 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   Interactive Controls
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {groupedElements.controls.map((item) => (
-                    <button
-                      key={item.type}
-                      type="button"
-                      onClick={() => onAddNewRootElement?.(item.type)}
-                      className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
-                      title={item.description}
-                    >
-                      <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
-                        {getStartElementIcon(item.type)}
-                      </div>
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  ))}
+                  {groupedElements.controls.map((item) => {
+                    const IconComponent = item.icon || getStartElementIcon(item.type);
+                    return (
+                      <button
+                        key={item.type}
+                        type="button"
+                        onClick={() => onAddNewRootElement?.(item.type)}
+                        className="p-2 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/50 border border-slate-800 rounded-xl flex items-center gap-2 text-left text-xs font-semibold text-slate-200 transition-colors group"
+                        title={item.description}
+                      >
+                        <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
+                          <IconComponent className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -744,7 +756,7 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
   const IconC = getStartElementIcon(el.type);
 
   return (
-    <div className="w-80 border-l border-slate-800 bg-slate-900/95 flex flex-col shrink-0 select-none z-20 overflow-y-auto">
+    <div className="w-80 border-l border-slate-800 bg-slate-900/95 flex flex-col shrink-0 select-none z-20 overflow-y-auto h-full">
       {/* Header */}
       <div className="h-12 px-4 border-b border-slate-800 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
@@ -1045,20 +1057,23 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   <span>Insert Element into Card</span>
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {[...groupedElements.visuals, ...groupedElements.info, ...groupedElements.controls].map((item) => (
-                    <button
-                      key={item.type}
-                      type="button"
-                      onClick={() => onAddChildElement(el.id, item.type)}
-                      className="p-1.5 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/40 border border-slate-800 rounded-lg flex items-center gap-2 text-left text-[11px] font-semibold text-slate-300 hover:text-white transition-colors group"
-                      title={item.description}
-                    >
-                      <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
-                        {getStartElementIcon(item.type)}
-                      </div>
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  ))}
+                  {[...groupedElements.visuals, ...groupedElements.info, ...groupedElements.controls].map((item) => {
+                    const IconComponent = item.icon || getStartElementIcon(item.type);
+                    return (
+                      <button
+                        key={item.type}
+                        type="button"
+                        onClick={() => onAddChildElement(el.id, item.type)}
+                        className="p-1.5 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/40 border border-slate-800 rounded-lg flex items-center gap-2 text-left text-[11px] font-semibold text-slate-300 hover:text-white transition-colors group"
+                        title={item.description}
+                      >
+                        <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
+                          <IconComponent className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1099,20 +1114,23 @@ export const PropertyInspectorPanel: React.FC<PropertyInspectorPanelProps> = ({
                   <span>Insert Element into Group</span>
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {[...groupedElements.visuals, ...groupedElements.info, ...groupedElements.controls].map((item) => (
-                    <button
-                      key={item.type}
-                      type="button"
-                      onClick={() => onAddChildElement(el.id, item.type)}
-                      className="p-1.5 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/40 border border-slate-800 rounded-lg flex items-center gap-2 text-left text-[11px] font-semibold text-slate-300 hover:text-white transition-colors group"
-                      title={item.description}
-                    >
-                      <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
-                        {getStartElementIcon(item.type)}
-                      </div>
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  ))}
+                  {[...groupedElements.visuals, ...groupedElements.info, ...groupedElements.controls].map((item) => {
+                    const IconComponent = item.icon || getStartElementIcon(item.type);
+                    return (
+                      <button
+                        key={item.type}
+                        type="button"
+                        onClick={() => onAddChildElement(el.id, item.type)}
+                        className="p-1.5 bg-slate-950 hover:bg-slate-850 hover:border-amber-500/40 border border-slate-800 rounded-lg flex items-center gap-2 text-left text-[11px] font-semibold text-slate-300 hover:text-white transition-colors group"
+                        title={item.description}
+                      >
+                        <div className="shrink-0 text-amber-400 group-hover:scale-110 transition-transform">
+                          <IconComponent className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
