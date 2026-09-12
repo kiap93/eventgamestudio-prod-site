@@ -183,7 +183,7 @@ The showcase reward utilizes the existing financial ledger infrastructure define
 - **Balance Type**: `SHOWCASE_CREDIT` (separate from `PAID_BALANCE`, `WELCOME_CREDIT`, and `TOPUP_CREDIT`).
 - **Non-Withdrawable**: Showcase credit cannot be cashed out or refunded.
 - **Application**: Can be applied toward future event activations up to RM300 max per event, reducing the cash required from `paid_balance`.
-- **One-Time Only**: Each organization is entitled to exactly **one** lifetime showcase reward.
+- **One-Time Only**: Each **Account Owner (`owner_user_id`)** is entitled to exactly **one** lifetime first-event showcase reward across all organizations they own or create. Tracked authoritatively in `owner_showcase_rewards`.
 
 ### 4.2 Idempotency & Concurrency Guarantees
 

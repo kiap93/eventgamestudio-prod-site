@@ -8,6 +8,7 @@ export interface EventShowcase {
   id: string;
   event_id: string;
   organization_id: string;
+  owner_user_id?: string | null;
   title: string;
   description: string | null;
   client_name: string | null;

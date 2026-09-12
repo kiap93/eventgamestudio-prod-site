@@ -16,47 +16,51 @@ An **Event Showcase** is a post-event marketing case study created by event orga
 
 ## 2. Core Architectural Principle: "Publish First, Moderate Later"
 
-The platform strictly decouples **Public Visibility** from **Financial Rewards**:
+The platform strictly decouples **Public Visibility**, **Admin Event Review**, and **Financial Rewards**:
 
 ```
                                   [ Organizer Publishes Showcase ]
                                                 │
                                                 ▼
                                     ┌───────────────────────┐
-                                    │  Content Status:      │
+                                    │  Publication Status:  │
                                     │  PUBLISHED            │
                                     └───────────┬───────────┘
                                                 │
-                                  Instantly Live & Public
+                                  Instantly Live & Public (Self-Serve)
                                                 │
-                                                ▼
-                                    ┌───────────────────────┐
-                                    │  Reward Status:       │
-                                    │  AWAITING_APPROVAL    │
-                                    │  (If Eligible)        │
-                                    └───────────┬───────────┘
-                                                │
-                                    Admin Reviews for Reward Only
-                                                │
-                        ┌───────────────────────┴───────────────────────┐
-                        ▼                                               ▼
-            ┌───────────────────────┐                       ┌───────────────────────┐
-            │   REWARD APPROVED     │                       │    REWARD REJECTED    │
-            │  RM300 credit granted │                       │  Showcase stays live, │
-            │  to organization      │                       │  no credit granted    │
-            └───────────────────────┘                       └───────────────────────┘
+                ┌───────────────────────────────┴───────────────────────────────┐
+                ▼                                                               ▼
+    ┌───────────────────────┐                                       ┌───────────────────────┐
+    │  Admin Event Review:  │                                       │  Reward Status:       │
+    │  SUBMITTED / PENDING  │                                       │  AWAITING_APPROVAL    │
+    │  (Quality Feedback)   │                                       │  (Owner First Event)  │
+    └───────────┬───────────┘                                       └───────────┬───────────┘
+                │                                                               │
+    Admin Reviews Event Quality                                     Admin Reviews Reward Eligibility
+                │                                                               │
+        ┌───────┴───────┐                                               ┌───────┴───────┐
+        ▼               ▼                                               ▼               ▼
+   [ APPROVED ]   [ REJECTED ]                                    [ REWARDED ]    [ REJECTED ]
+    Quality OK     Feedback Sent                                  RM300 credit     No credit
+   (Showcase stays published)                                     to org wallet   (Showcase stays live)
 ```
 
 ### Inviolable Invariants
 1. **No Visibility Approval Gate**: Organizers can publish their showcase immediately once the event has concluded. There is NO upfront approval required for a showcase to become publicly visible.
-2. **Reactive Moderation**: Showcase content is presumed valid upon publication. Platform developer admins intervene only to **block** (`BLOCKED`) or **delete** (`DELETED`) inappropriate content.
-3. **Decoupled Reward Review**: The developer admin review workflow (`DeveloperShowcaseReviews.tsx`) is solely for determining whether the organization qualifies for the **RM300 showcase reward credit**. Rejecting a reward does NOT unpublish or hide the showcase.
+2. **Reactive Content Moderation**: Showcase content is presumed valid upon publication. Platform developer admins intervene only to **block** (`BLOCKED`) or **delete** (`DELETED`) inappropriate content (TOS, copyright, illegal material).
+3. **Owner-Level First-Event Reward**: The **RM300 Showcase Reward** is tied to the **Account Owner** (`owner_user_id`), NOT the organization. An account owner is eligible for at most **one** showcase reward in their lifetime across all organizations they own or create.
+4. **Three Fully Decoupled Workflows**:
+   - **Showcase Publishing** (`status`: `DRAFT`, `PUBLISHED`, `UNPUBLISHED`, `BLOCKED`, `DELETED`) is self-serve and independent.
+   - **Admin Event Review** (`review_status`: `DRAFT`, `SUBMITTED`, `APPROVED`, `REJECTED`) is an editorial quality review.
+   - **Reward Approval** (`reward_status` / `reward_review_status`: `NOT_ELIGIBLE`, `AWAITING_APPROVAL`, `REWARDED`, `REJECTED`) is a financial decision tracked in `owner_showcase_rewards`.
+   - Rejecting an event review or reward NEVER unpublishes or blocks the showcase!
 
 ---
 
 ## 3. Status Matrices
 
-### Content Status (`status`)
+### Content / Publication Status (`status`, `publication_status`)
 Controls visibility of the showcase:
 - `DRAFT`: Showcase created by organizer; visible only to authenticated organization members.
 - `PUBLISHED`: Publicly live. Content is accessible.
@@ -64,12 +68,19 @@ Controls visibility of the showcase:
 - `BLOCKED`: Blocked by platform developer admin due to policy violations (TOS, copyright, inappropriate imagery). Cannot be viewed publicly or re-published by organizer without admin unblocking.
 - `DELETED`: Soft-deleted by organizer or administrator.
 
-### Reward Status (`reward_status`)
-Controls financial reward tracking:
-- `NOT_ELIGIBLE`: Organization does not meet criteria (e.g. event was unpaid, not completed, or organization already received their one-time showcase reward).
-- `AWAITING_APPROVAL`: Showcase meets automatic criteria and is queued for developer admin review.
-- `REWARDED`: Admin approved reward; RM300 showcase credit deposited into wallet.
-- `REJECTED`: Admin rejected reward (e.g. blurry photos, placeholder text, fake booth setup); showcase remains published without credit.
+### Admin Event Review Status (`review_status`)
+Controls editorial and quality assessment of the event activation:
+- `DRAFT`: Organizer is assembling case study notes.
+- `SUBMITTED`: Organizer submitted event details for platform quality review.
+- `APPROVED`: Developer admin verified high-quality event activation.
+- `REJECTED`: Quality feedback given to organizer. Does NOT unpublish the showcase.
+
+### Reward Status (`reward_status` / `reward_review_status`)
+Controls financial reward tracking at the Account Owner level:
+- `NOT_ELIGIBLE`: Account owner already received their lifetime reward, or event does not meet requirements.
+- `AWAITING_APPROVAL`: First completed event by this account owner meeting all criteria, queued for reward audit.
+- `REWARDED`: Admin approved reward; RM300 showcase credit deposited into the organization's wallet and recorded in `owner_showcase_rewards`.
+- `REJECTED`: Admin rejected reward (e.g. fraudulent or insufficient media); showcase remains published without credit.
 
 ---
 
@@ -77,8 +88,8 @@ Controls financial reward tracking:
 
 To qualify for `AWAITING_APPROVAL` status and receive the **RM300 showcase credit**, all of the following rules MUST be satisfied (`evaluateShowcaseRewardEligibility` in `server/db/showcases.ts`):
 
-1. **One Reward Per Organization Lifetime**:
-   - The organization must NOT have previously received a showcase reward (`organization_wallets.showcase_credit_granted === false`).
+1. **One Reward Per Account Owner Lifetime (`owner_user_id`)**:
+   - The account owner must NOT have previously received a showcase reward (`owner_showcase_rewards` table must have no existing record for this `owner_user_id`).
 2. **Paid Event Only**:
    - The associated event must have `payment_status = 'PAID'`. Free or comped activations do not qualify.
 3. **Completed Event Window**:
@@ -92,7 +103,7 @@ To qualify for `AWAITING_APPROVAL` status and receive the **RM300 showcase credi
 
 ## 5. Atomic Reward Approval RPC
 
-To prevent race conditions, double payouts, and ledger desynchronization, reward approval runs inside a single PostgreSQL stored procedure (`approve_first_event_showcase_reward_atomic` in migration `20260906030000`):
+To prevent race conditions, double payouts, and ledger desynchronization, reward approval runs inside a single PostgreSQL stored procedure (`approve_first_event_showcase_reward_atomic` in migration `20260906040000`):
 
 ```sql
 SELECT * FROM public.approve_first_event_showcase_reward_atomic(
@@ -104,12 +115,14 @@ SELECT * FROM public.approve_first_event_showcase_reward_atomic(
 
 ### Procedure Actions (ACID Transaction):
 1. Acquires row locks (`FOR UPDATE`) on `event_showcases` and `organization_wallets`.
-2. Verifies that `wallet.showcase_credit_granted` is still `false`.
-3. Verifies that `showcase.reward_status` is `AWAITING_APPROVAL`.
-4. Credits `showcase_credit` by `RM300.00` and sets `showcase_credit_granted = true`.
-5. Inserts an immutable transaction row into `wallet_transactions` with `transaction_type = 'SHOWCASE_REWARD'`.
-6. Updates `event_showcases.reward_status = 'REWARDED'`, `reward_amount = 300.00`, and `reviewed_at = now()`.
-7. Inserts an entry into `showcase_moderation_logs`.
+2. Resolves `owner_user_id` from `event_showcases` or `organizations.owner_id`.
+3. Verifies that `owner_showcase_rewards` does NOT already contain `owner_user_id`.
+4. Verifies that `showcase.reward_status` is `AWAITING_APPROVAL` (or `PENDING`).
+5. Inserts a record into `owner_showcase_rewards(owner_user_id, showcase_id, organization_id, amount, granted_by)`.
+6. Credits `showcase_credit` by `RM300.00` and sets `showcase_credit_granted = true` in `organization_wallets`.
+7. Inserts an immutable transaction row into `wallet_transactions` with `transaction_type = 'SHOWCASE_CREDIT'`.
+8. Updates `event_showcases.reward_status = 'REWARDED'`, `reward_amount = 300.00`, and `reward_granted_at = now()`.
+9. Inserts an entry into `showcase_moderation_logs`.
 
 ---
 

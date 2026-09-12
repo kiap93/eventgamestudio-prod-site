@@ -4,6 +4,34 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-09-11] - Owner-Level First-Event Showcase Reward & Decoupled Workflows Refactor
+
+### Summary
+Refactored the First-Event Showcase Reward system from an organization-level reward to an **Owner-Level Reward** (`owner_user_id`), and completely decoupled **Showcase Publishing**, **Admin Event Quality Review**, and **Financial Reward Approval**.
+
+### Key Architectural Changes
+1. **Owner-Level Lifetime Reward (`owner_user_id`)**:
+   - The first-event showcase reward is strictly evaluated against the Account Owner (`owner_user_id`) with a lifetime limit of 1 reward per owner.
+   - Created database table `public.owner_showcase_rewards` with unique constraint on `owner_user_id`.
+   - Migration `20260906040000_owner_level_showcase_reward.sql` provides the atomic RPC `approve_first_event_showcase_reward_atomic`.
+   - Wallet credit grant in `server/db/wallet.ts` verifies `owner_showcase_rewards` before executing the RM300 deposit.
+2. **Three Fully Decoupled Workflows**:
+   - **Showcase Publishing**: Immediate, self-serve publishing (`status`: `DRAFT`, `PUBLISHED`, `UNPUBLISHED`, `BLOCKED`, `DELETED`). Organizers can publish directly once the event ends without admin waiting. Content moderation is reactive.
+   - **Admin Event Review**: Dedicated editorial review workflow (`review_status`: `DRAFT`, `SUBMITTED`, `APPROVED`, `REJECTED`) with quality feedback endpoints (`/review/approve`, `/review/reject`).
+   - **Reward Approval**: Financial approval workflow (`reward_status`: `NOT_ELIGIBLE`, `AWAITING_APPROVAL`, `REWARDED`, `REJECTED`) with endpoints (`/reward/approve`, `/reward/reject`). Rejecting a reward or review never unpublishes the showcase.
+3. **Dual-Runtime API Parity**:
+   - Added separated endpoints in both `server.ts` (Express) and `worker.ts` (Cloudflare Worker).
+   - Added owner reward status endpoint (`/api/developer/showcases/owner-status/:ownerUserId`).
+4. **Onboarding & UI Updates**:
+   - Updated `src/components/events/EventShowcaseTab.tsx` with owner-level reward explanations and `REJECTED` status handling.
+   - Updated `src/components/events/EventsPage.tsx` with an Owner First-Event Onboarding Banner.
+   - Updated `src/components/auth/CreateOrganizationPage.tsx` explaining owner reward benefits.
+   - Updated `src/components/developer/DeveloperShowcaseReviews.tsx` to reflect the decoupled workflows and display owner-level verification details.
+5. **AI Documentation Updated**:
+   - Updated `/docs/ai/business_rules/showcase.md`, `SHOWCASE_LOGIC.md`, and `AGENTS.md`.
+
+---
+
 ## [2026-09-11] - Public Showcase View Page Implementation
 
 ### Summary

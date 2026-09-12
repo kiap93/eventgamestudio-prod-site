@@ -360,6 +360,13 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
             REWARD ELIGIBLE
           </span>
         );
+      case 'REJECTED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/15 border border-rose-500/30 text-rose-300">
+            <XCircle className="w-3.5 h-3.5 text-rose-400" />
+            REWARD NOT APPROVED
+          </span>
+        );
       case 'NOT_ELIGIBLE':
       default:
         return (
@@ -428,16 +435,17 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
             <Sparkles className="w-5 h-5" />
           </div>
           <div className="space-y-1">
-            <div className="text-sm font-black text-amber-300">
-              🎉 This is your first event!
+            <div className="text-sm font-black text-amber-300 flex items-center gap-2">
+              <span>Account Owner First-Event Showcase Reward (RM300)</span>
             </div>
             <p className="text-xs text-amber-100/90 font-medium leading-relaxed">
-              Upload your Showcase to earn RM300.
+              As an organization owner, your first live event showcase earns a one-time <strong className="text-amber-300">RM300 Showcase Credit</strong> for your wallet upon review approval. This is an owner-level reward (limit 1 lifetime reward per account owner).
             </p>
             <div className="pt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-amber-300/80">
               <span className="flex items-center gap-1">• Paid &amp; started event</span>
               <span className="flex items-center gap-1">• Min 3 photos or 1 video</span>
-              <span className="flex items-center gap-1">• Min 50 characters description</span>
+              <span className="flex items-center gap-1">• Min 50 characters recap</span>
+              <span className="flex items-center gap-1">• 1 lifetime reward per account owner</span>
             </div>
           </div>
         </div>

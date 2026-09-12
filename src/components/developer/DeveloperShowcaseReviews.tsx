@@ -820,22 +820,28 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-bold text-white">Approve Showcase & Grant Reward</h3>
+              <h3 className="text-base font-bold text-white">Approve Owner First-Event Reward</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                You are approving <strong className="text-slate-200">{approvingShowcase.title}</strong> for{' '}
-                <strong className="text-emerald-400">{approvingShowcase.organization_name}</strong>.
+                You are approving the first-event showcase reward for <strong className="text-slate-200">{approvingShowcase.title}</strong> (Org:{' '}
+                <strong className="text-emerald-400">{approvingShowcase.organization_name}</strong>).
+                {approvingShowcase.owner_user_id && (
+                  <span className="block text-[11px] text-slate-400 font-mono mt-0.5">
+                    Account Owner: {approvingShowcase.owner_user_id}
+                  </span>
+                )}
               </p>
             </div>
 
             <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl text-xs text-emerald-300 space-y-1">
               <div className="font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Automatic Execution</span>
+                <span>Owner-Level Reward Execution</span>
               </div>
               <p className="text-[11px] text-emerald-200/80">
-                1. Changes review status to <strong>APPROVED</strong>.<br />
-                2. Sets publication status to <strong>PUBLISHED</strong>.<br />
-                3. Idempotently grants <strong>RM300 Showcase Credit</strong> to the organization wallet with transaction audit log.
+                1. Verifies lifetime eligibility for the Account Owner (limit 1 reward per owner).<br />
+                2. Records the grant in <code>owner_showcase_rewards</code> atomically.<br />
+                3. Idempotently deposits <strong>RM300 Showcase Credit</strong> into the organization wallet.<br />
+                4. Showcase publishing and quality review remain independent workflows.
               </p>
             </div>
 
@@ -881,7 +887,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-300">
-              Provide feedback on why this showcase is being returned to Draft. The organization will see this note and will be able to make corrections and re-submit.
+              Provide feedback on why this showcase reward is being declined. Note: Declining the reward does NOT unpublish the showcase from the public gallery.
             </p>
 
             <div>

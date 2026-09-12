@@ -112,6 +112,9 @@ import {
   evaluateShowcaseRewardEligibility,
   approveShowcaseReward,
   rejectShowcaseReward,
+  approveEventReview,
+  rejectEventReview,
+  getOwnerShowcaseRewardStatus,
   submitShowcaseForReview,
   approveShowcaseReview,
   rejectShowcaseReview,
@@ -4768,6 +4771,78 @@ export default {
             return errorResponse(err.message, 422, cors);
           }
           return errorResponse(err.message || 'Failed to reject showcase', 500, cors);
+        }
+      }
+
+      // POST /api/developer/showcases/:id/review/approve & :showcaseId/review/approve
+      const devApproveReview = parseRoute('/api/developer/showcases/:id/review/approve', pathname) ||
+                               parseRoute('/api/developer/showcases/:showcaseId/review/approve', pathname) ||
+                               parseRoute('/api/admin/showcases/:id/review/approve', pathname) ||
+                               parseRoute('/api/admin/showcases/:showcaseId/review/approve', pathname);
+      if (devApproveReview && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+        const showcaseId = devApproveReview.id || devApproveReview.showcaseId;
+        try {
+          const updatedShowcase = await approveEventReview(showcaseId, auth.user.id, env);
+          return jsonResponse({
+            success: true,
+            showcase: updatedShowcase,
+            message: 'Event review approved successfully',
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Approve event review error:', err);
+          return errorResponse(err.message || 'Failed to approve event review', err.code === 'SHOWCASE_NOT_FOUND' ? 404 : 500, cors);
+        }
+      }
+
+      // POST /api/developer/showcases/:id/review/reject & :showcaseId/review/reject
+      const devRejectReview = parseRoute('/api/developer/showcases/:id/review/reject', pathname) ||
+                              parseRoute('/api/developer/showcases/:showcaseId/review/reject', pathname) ||
+                              parseRoute('/api/admin/showcases/:id/review/reject', pathname) ||
+                              parseRoute('/api/admin/showcases/:showcaseId/review/reject', pathname);
+      if (devRejectReview && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+        const showcaseId = devRejectReview.id || devRejectReview.showcaseId;
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { reason, rejection_reason } = body;
+        const finalReason = rejection_reason || reason;
+        if (!finalReason || typeof finalReason !== 'string' || !finalReason.trim()) {
+          return errorResponse('Rejection reason is required', 422, cors);
+        }
+        try {
+          const updatedShowcase = await rejectEventReview(showcaseId, auth.user.id, finalReason.trim(), env);
+          return jsonResponse({
+            success: true,
+            showcase: updatedShowcase,
+            message: 'Event review rejected with feedback',
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Reject event review error:', err);
+          return errorResponse(err.message || 'Failed to reject event review', err.code === 'SHOWCASE_NOT_FOUND' ? 404 : 500, cors);
+        }
+      }
+
+      // GET /api/developer/showcases/owner-status/:ownerUserId
+      const devOwnerStatus = parseRoute('/api/developer/showcases/owner-status/:ownerUserId', pathname);
+      if (devOwnerStatus && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+        try {
+          const status = await getOwnerShowcaseRewardStatus(devOwnerStatus.ownerUserId, env);
+          return jsonResponse(status, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to get owner reward status', 500, cors);
         }
       }
 

@@ -378,6 +378,7 @@ export interface EventShowcaseRecord {
   id: string;
   event_id: string;
   organization_id: string;
+  owner_user_id?: string | null;
   title: string;
   description: string | null;
   client_name: string | null;
@@ -404,6 +405,17 @@ export interface EventShowcaseRecord {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface OwnerShowcaseRewardRecord {
+  owner_user_id: string;
+  organization_id: string;
+  event_id: string;
+  showcase_id: string;
+  transaction_id: string | null;
+  amount: number;
+  rewarded_at: string;
+  created_at: string;
 }
 
 export interface ShowcaseModerationLog {
@@ -482,6 +494,7 @@ export interface OrganizationWalletRecord {
 export interface WalletTransactionRecord {
   id: string;
   organization_id: string;
+  owner_user_id?: string | null;
   event_id: string | null;
   transaction_type: WalletTransactionType;
   balance_type: WalletBalanceType;

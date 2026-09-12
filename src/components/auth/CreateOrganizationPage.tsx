@@ -108,7 +108,7 @@ export const CreateOrganizationPage: React.FC = () => {
               <span>You will be assigned as Organization Owner</span>
             </div>
             <p className="text-slate-400 leading-relaxed text-[11px]">
-              As owner, you can invite team members (admins, designers, viewers), customize backgrounds, items, and basket physics, and manage settings.
+              As owner, you receive an automatic <strong className="text-amber-400">RM300 Welcome Credit</strong> for your first event, and can earn an additional one-time <strong className="text-amber-400">RM300 Showcase Reward</strong> upon publishing photos/video of your first completed event activation.
             </p>
           </div>
 

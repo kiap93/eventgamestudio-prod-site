@@ -23,6 +23,7 @@ import {
   TopupTiersInfo,
   WalletAuditRecord,
   WalletAuditEventType,
+  OwnerShowcaseRewardRecord,
 } from './types.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -57,12 +58,14 @@ const LOCAL_WALLETS_FILE = path.join(process.cwd(), 'uploads', 'wallets.json');
 const LOCAL_TRANSACTIONS_FILE = path.join(process.cwd(), 'uploads', 'wallet_transactions.json');
 const LOCAL_TOPUP_ORDERS_FILE = path.join(process.cwd(), 'uploads', 'topup_orders.json');
 const LOCAL_AUDIT_LOGS_FILE = path.join(process.cwd(), 'uploads', 'wallet_audit_logs.json');
+const LOCAL_OWNER_REWARDS_FILE = path.join(process.cwd(), 'uploads', 'owner_showcase_rewards.json');
 
 // In-memory fallback caches
 const localWalletsCache = new Map<string, OrganizationWalletRecord>();
 const localTransactionsCache = new Map<string, WalletTransactionRecord>();
 const localTopupOrdersCache = new Map<string, TopupOrderRecord>();
 const localAuditLogCache = new Map<string, WalletAuditRecord>();
+export const localOwnerShowcaseRewardsCache = new Map<string, OwnerShowcaseRewardRecord>();
 
 function loadLocalStores(): void {
   // Never attempt file I/O or populate local disk caches in production or on Cloudflare Workers
@@ -101,6 +104,14 @@ function loadLocalStores(): void {
           localAuditLogCache.set(a.id, a);
         }
       }
+      if (fs.existsSync(LOCAL_OWNER_REWARDS_FILE)) {
+        const raw = fs.readFileSync(LOCAL_OWNER_REWARDS_FILE, 'utf-8');
+        const list = JSON.parse(raw) as OwnerShowcaseRewardRecord[];
+        localOwnerShowcaseRewardsCache.clear();
+        for (const r of list) {
+          localOwnerShowcaseRewardsCache.set(r.owner_user_id, r);
+        }
+      }
     }
   } catch (err) {
     console.warn('Warning loading local wallet store:', err);
@@ -134,6 +145,11 @@ function saveLocalStores(): void {
       fs.writeFileSync(
         LOCAL_AUDIT_LOGS_FILE,
         JSON.stringify(Array.from(localAuditLogCache.values()), null, 2),
+        'utf-8'
+      );
+      fs.writeFileSync(
+        LOCAL_OWNER_REWARDS_FILE,
+        JSON.stringify(Array.from(localOwnerShowcaseRewardsCache.values()), null, 2),
         'utf-8'
       );
     }
@@ -759,6 +775,7 @@ async function appendLedgerTransaction(
   const record: WalletTransactionRecord = {
     id,
     organization_id: txn.organization_id,
+    owner_user_id: txn.owner_user_id || null,
     event_id: txn.event_id || null,
     transaction_type: txn.transaction_type,
     balance_type: txn.balance_type,
@@ -1324,6 +1341,7 @@ export async function consumeWelcomeCredit(
 export async function grantShowcaseCredit(
   params: {
     organizationId: string;
+    ownerUserId?: string;
     eventId?: string;
     createdBy?: string;
     referenceId?: string;
@@ -1336,7 +1354,7 @@ export async function grantShowcaseCredit(
   alreadyGranted: boolean;
   message?: string;
 }> {
-  const { organizationId, eventId, createdBy, referenceId, metadata } = params;
+  const { organizationId, ownerUserId, eventId, createdBy, referenceId, metadata } = params;
 
   if (!organizationId) {
     throw new Error('Organization ID is required');
@@ -1348,6 +1366,40 @@ export async function grantShowcaseCredit(
 
     if (isSupabaseConfigured(env)) {
       const supabase = getSupabaseServerClient(env);
+
+      // Check owner-level lifetime eligibility in database
+      if (ownerUserId) {
+        const { data: existingOwnerReward } = await supabase
+          .from('owner_showcase_rewards')
+          .select('*')
+          .eq('owner_user_id', ownerUserId)
+          .maybeSingle();
+
+        if (existingOwnerReward) {
+          const currentWallet = await getWalletBalance(organizationId, env);
+          return {
+            transaction: {
+              id: existingOwnerReward.transaction_id,
+              organization_id: organizationId,
+              owner_user_id: ownerUserId,
+              event_id: eventId || null,
+              transaction_type: 'SHOWCASE_CREDIT',
+              balance_type: 'SHOWCASE_CREDIT',
+              amount: SHOWCASE_CREDIT_AMOUNT,
+              currency: 'MYR',
+              status: 'COMPLETED',
+              reference_id: referenceId || null,
+              description: 'One-time Event Showcase completion reward credit',
+              metadata: null,
+              created_by: null,
+              created_at: existingOwnerReward.rewarded_at,
+            },
+            wallet: currentWallet,
+            alreadyGranted: true,
+            message: 'First-event showcase reward credit has already been granted to this owner (one-time lifetime reward).',
+          };
+        }
+      }
 
       // Option B: Atomic PostgreSQL RPC with row-level FOR UPDATE locking on organization_wallets
       try {
@@ -1577,6 +1629,52 @@ export async function grantShowcaseCredit(
       }
     } else {
       assertProductionSafe('grantShowcaseCredit', env);
+
+      // Check owner-level lifetime eligibility in local stores
+      if (ownerUserId) {
+        const ownerReward = localOwnerShowcaseRewardsCache.get(ownerUserId);
+        if (ownerReward) {
+          const currentWallet = await getWalletBalance(organizationId, env);
+          return {
+            transaction: {
+              id: ownerReward.transaction_id,
+              organization_id: organizationId,
+              owner_user_id: ownerUserId,
+              event_id: eventId || null,
+              transaction_type: 'SHOWCASE_CREDIT',
+              balance_type: 'SHOWCASE_CREDIT',
+              amount: SHOWCASE_CREDIT_AMOUNT,
+              currency: 'MYR',
+              status: 'COMPLETED',
+              reference_id: referenceId || null,
+              description: 'One-time Event Showcase completion reward credit',
+              metadata: null,
+              created_by: null,
+              created_at: ownerReward.rewarded_at,
+            },
+            wallet: currentWallet,
+            alreadyGranted: true,
+            message: 'First-event showcase reward credit has already been granted to this owner (one-time lifetime reward).',
+          };
+        }
+
+        const ownerTxn = Array.from(localTransactionsCache.values()).find(
+          (t) =>
+            t.owner_user_id === ownerUserId &&
+            t.transaction_type === 'SHOWCASE_CREDIT' &&
+            t.status === 'COMPLETED'
+        );
+        if (ownerTxn) {
+          const currentWallet = await getWalletBalance(organizationId, env);
+          return {
+            transaction: ownerTxn,
+            wallet: currentWallet,
+            alreadyGranted: true,
+            message: 'First-event showcase reward credit has already been granted to this owner (one-time lifetime reward).',
+          };
+        }
+      }
+
       existing = Array.from(localTransactionsCache.values()).find(
         (t) =>
           t.organization_id === organizationId &&
@@ -1597,6 +1695,7 @@ export async function grantShowcaseCredit(
       const transaction = await appendLedgerTransaction(
         {
           organization_id: organizationId,
+          owner_user_id: ownerUserId || null,
           event_id: eventId || null,
           transaction_type: 'SHOWCASE_CREDIT',
           balance_type: 'SHOWCASE_CREDIT',
@@ -1609,11 +1708,26 @@ export async function grantShowcaseCredit(
             ...(metadata || {}),
             program: 'EVENT_SHOWCASE_APPROVED_REWARD',
             event_id: eventId || null,
+            owner_user_id: ownerUserId || null,
           },
           created_by: createdBy || null,
         },
         env
       );
+
+      if (ownerUserId) {
+        localOwnerShowcaseRewardsCache.set(ownerUserId, {
+          owner_user_id: ownerUserId,
+          organization_id: organizationId,
+          event_id: eventId || '',
+          showcase_id: metadata?.showcase_id || '',
+          transaction_id: transaction.id,
+          amount: SHOWCASE_CREDIT_AMOUNT,
+          rewarded_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        });
+        saveLocalStores();
+      }
 
       const wallet = await recalculateWalletBalances(organizationId, env);
 

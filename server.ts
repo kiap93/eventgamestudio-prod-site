@@ -93,6 +93,9 @@ import {
   evaluateShowcaseRewardEligibility,
   approveShowcaseReward,
   rejectShowcaseReward,
+  approveEventReview,
+  rejectEventReview,
+  getOwnerShowcaseRewardStatus,
   submitShowcaseForReview,
   approveShowcaseReview,
   rejectShowcaseReview,
@@ -4639,6 +4642,78 @@ app.post('/api/developer/showcases/:id/reward/reject', authenticateDeveloperAdmi
 app.post('/api/developer/showcases/:showcaseId/reward/reject', authenticateDeveloperAdmin, handleRejectShowcase);
 app.post('/api/admin/showcases/:id/reward/reject', authenticateDeveloperAdmin, handleRejectShowcase);
 app.post('/api/admin/showcases/:showcaseId/reward/reject', authenticateDeveloperAdmin, handleRejectShowcase);
+
+/**
+ * POST /api/developer/showcases/:id/review/approve
+ * Separate workflow: Approve Admin Event Review (editorial / quality review)
+ * Does NOT grant monetary rewards!
+ */
+const handleApproveEventReview = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const showcaseId = req.params.id || req.params.showcaseId;
+    const reviewerId = req.user?.id || 'admin';
+    const updated = await approveEventReview(showcaseId, reviewerId);
+    res.json({
+      success: true,
+      showcase: updated,
+      message: 'Event review approved successfully',
+    });
+  } catch (err: any) {
+    console.error('Approve event review error:', err);
+    res.status(err.code === 'SHOWCASE_NOT_FOUND' ? 404 : 500).json({ error: err.message });
+  }
+};
+
+/**
+ * POST /api/developer/showcases/:id/review/reject
+ * Separate workflow: Reject Admin Event Review (editorial / quality feedback)
+ * Does NOT unpublish showcase or affect financial reward!
+ */
+const handleRejectEventReview = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const showcaseId = req.params.id || req.params.showcaseId;
+    const reviewerId = req.user?.id || 'admin';
+    const { reason, rejection_reason } = req.body;
+    const finalReason = rejection_reason || reason;
+    if (!finalReason || typeof finalReason !== 'string' || !finalReason.trim()) {
+      res.status(422).json({ error: 'Rejection reason is required' });
+      return;
+    }
+    const updated = await rejectEventReview(showcaseId, reviewerId, finalReason.trim());
+    res.json({
+      success: true,
+      showcase: updated,
+      message: 'Event review rejected with feedback',
+    });
+  } catch (err: any) {
+    console.error('Reject event review error:', err);
+    res.status(err.code === 'SHOWCASE_NOT_FOUND' ? 404 : 500).json({ error: err.message });
+  }
+};
+
+app.post('/api/developer/showcases/:id/review/approve', authenticateDeveloperAdmin, handleApproveEventReview);
+app.post('/api/developer/showcases/:showcaseId/review/approve', authenticateDeveloperAdmin, handleApproveEventReview);
+app.post('/api/admin/showcases/:id/review/approve', authenticateDeveloperAdmin, handleApproveEventReview);
+app.post('/api/admin/showcases/:showcaseId/review/approve', authenticateDeveloperAdmin, handleApproveEventReview);
+
+app.post('/api/developer/showcases/:id/review/reject', authenticateDeveloperAdmin, handleRejectEventReview);
+app.post('/api/developer/showcases/:showcaseId/review/reject', authenticateDeveloperAdmin, handleRejectEventReview);
+app.post('/api/admin/showcases/:id/review/reject', authenticateDeveloperAdmin, handleRejectEventReview);
+app.post('/api/admin/showcases/:showcaseId/review/reject', authenticateDeveloperAdmin, handleRejectEventReview);
+
+/**
+ * GET /api/developer/showcases/owner-status/:ownerUserId
+ * Check owner showcase reward status
+ */
+app.get('/api/developer/showcases/owner-status/:ownerUserId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { ownerUserId } = req.params;
+    const status = await getOwnerShowcaseRewardStatus(ownerUserId);
+    res.json(status);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 /**
  * POST /api/developer/showcases/:id/block (or /api/admin/showcases/:id/block)
