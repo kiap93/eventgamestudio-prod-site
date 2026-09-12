@@ -5358,5 +5358,25 @@
     "country_code": null,
     "created_at": "2026-09-12T02:54:27.953Z",
     "updated_at": "2026-09-12T02:54:27.953Z"
+  },
+  {
+    "id": "823b595a-8aa8-489b-abaa-621d4e299327",
+    "name": "Auto Welcome Org Test",
+    "slug": "auto-welcome-org-test-e6ffe1",
+    "owner_id": "4c857d15-ab93-45a6-8de5-7858ab4d6bd2",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-12T12:42:37.026Z",
+    "updated_at": "2026-09-12T12:42:37.026Z"
+  },
+  {
+    "id": "b604dec3-d876-47ae-b176-ceccdef7ec11",
+    "name": "TechCorp 1789216975862",
+    "slug": "techcorp-1789216975862-ae0294",
+    "owner_id": "803d42ef-6755-4541-afd0-0567199d6cd7",
+    "logo_url": null,
+    "country_code": "SG",
+    "created_at": "2026-09-12T12:42:55.862Z",
+    "updated_at": "2026-09-12T12:42:55.862Z"
   }
 ]

@@ -3870,6 +3870,28 @@ CREATE TRIGGER trg_check_event_pending_limit
   EXECUTE FUNCTION public.check_event_pending_limit();
 
 -- ------------------------------------------------------------------------------
+-- USER REWARDS TABLE & USER-LEVEL LIFETIME WELCOME CREDIT
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_rewards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  reward_type VARCHAR(50) NOT NULL, -- e.g. 'WELCOME_CREDIT'
+  organization_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
+  transaction_id UUID,
+  amount NUMERIC(12, 2) NOT NULL DEFAULT 800.00,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT ux_user_rewards_user_reward UNIQUE (user_id, reward_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_rewards_user_type ON public.user_rewards (user_id, reward_type);
+
+ALTER TABLE public.wallet_transactions ADD COLUMN IF NOT EXISTS owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_wallet_txns_owner_user_id ON public.wallet_transactions (owner_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_user_welcome_credit_unique 
+  ON public.wallet_transactions (owner_user_id) 
+  WHERE transaction_type = 'WELCOME_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;
+
+-- ------------------------------------------------------------------------------
 -- ATOMIC ORGANIZATION CREATION RPC
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.create_organization_atomic(
@@ -3895,6 +3917,10 @@ DECLARE
   v_base_slug TEXT;
   v_suffix TEXT;
   v_country VARCHAR(2);
+  v_already_received BOOLEAN := false;
+  v_grant_welcome BOOLEAN := false;
+  v_user_reward_id UUID := NULL;
+  v_txn_id UUID;
 BEGIN
   -- 1. Input validations
   IF p_name IS NULL OR trim(p_name) = '' THEN
@@ -3944,6 +3970,21 @@ BEGIN
     v_slug := v_base_slug || '-' || v_suffix;
   END IF;
 
+  -- Check if user already received Welcome Credit in their account lifetime
+  SELECT EXISTS(
+    SELECT 1 FROM public.user_rewards 
+    WHERE user_id = p_owner_id AND reward_type = 'WELCOME_CREDIT'
+  ) INTO v_already_received;
+
+  IF NOT v_already_received THEN
+    SELECT EXISTS(
+      SELECT 1 FROM public.wallet_transactions 
+      WHERE transaction_type = 'WELCOME_CREDIT' 
+        AND status = 'COMPLETED'
+        AND (owner_user_id = p_owner_id OR created_by = p_owner_id)
+    ) INTO v_already_received;
+  END IF;
+
   -- 2. Create Organization
   INSERT INTO public.organizations (
     id,
@@ -3983,7 +4024,37 @@ BEGIN
   ON CONFLICT (organization_id, user_id) 
   DO UPDATE SET role = 'owner';
 
-  -- 4. Create Wallet (idempotent ON CONFLICT)
+  -- 4. Determine Welcome Credit Eligibility
+  IF NOT v_already_received THEN
+    -- Attempt to reserve in user_rewards atomically
+    INSERT INTO public.user_rewards (
+      id,
+      user_id,
+      reward_type,
+      organization_id,
+      amount,
+      created_at
+    ) VALUES (
+      gen_random_uuid(),
+      p_owner_id,
+      'WELCOME_CREDIT',
+      v_org_id,
+      v_welcome_amount,
+      v_now
+    )
+    ON CONFLICT (user_id, reward_type) DO NOTHING
+    RETURNING id INTO v_user_reward_id;
+
+    IF v_user_reward_id IS NOT NULL THEN
+      v_grant_welcome := true;
+    ELSE
+      v_grant_welcome := false;
+    END IF;
+  ELSE
+    v_grant_welcome := false;
+  END IF;
+
+  -- 5. Create Wallet (idempotent ON CONFLICT)
   INSERT INTO public.organization_wallets (
     id,
     organization_id,
@@ -4000,64 +4071,84 @@ BEGIN
     gen_random_uuid(),
     v_org_id,
     0.00,
-    v_welcome_amount,
+    CASE WHEN v_grant_welcome THEN v_welcome_amount ELSE 0.00 END,
     0.00,
     0.00,
     'MYR',
-    true,
+    v_grant_welcome,
     false,
     v_now,
     v_now
   )
   ON CONFLICT (organization_id)
   DO UPDATE SET
-    welcome_credit = GREATEST(organization_wallets.welcome_credit, v_welcome_amount),
-    welcome_credit_granted = true,
+    welcome_credit = CASE 
+      WHEN v_grant_welcome THEN GREATEST(organization_wallets.welcome_credit, v_welcome_amount)
+      ELSE organization_wallets.welcome_credit
+    END,
+    welcome_credit_granted = CASE
+      WHEN v_grant_welcome THEN true
+      ELSE organization_wallets.welcome_credit_granted
+    END,
     updated_at = v_now
   RETURNING * INTO v_wallet;
 
-  -- 5. Grant Welcome Credit transaction in immutable ledger
-  INSERT INTO public.wallet_transactions (
-    id,
-    organization_id,
-    event_id,
-    transaction_type,
-    balance_type,
-    amount,
-    currency,
-    status,
-    reference_id,
-    description,
-    metadata,
-    created_by,
-    created_at
-  ) VALUES (
-    gen_random_uuid(),
-    v_org_id,
-    NULL,
-    'WELCOME_CREDIT',
-    'WELCOME_CREDIT',
-    v_welcome_amount,
-    'MYR',
-    'COMPLETED',
-    'welcome_' || v_org_id::text,
-    'One-time Welcome Credit grant of RM' || to_char(v_welcome_amount, 'FM999,990.00'),
-    jsonb_build_object(
-      'organization_name', v_org.name,
-      'source', 'AUTO_ORGANIZATION_CREATION',
-      'program', 'ORGANIZATION_ONBOARDING_WELCOME'
-    ),
-    p_owner_id,
-    v_now
-  )
-  ON CONFLICT (organization_id, reference_id) WHERE reference_id IS NOT NULL AND status IN ('COMPLETED', 'PENDING')
-  DO NOTHING;
+  -- 6. Grant Welcome Credit transaction in immutable ledger if eligible
+  IF v_grant_welcome THEN
+    v_txn_id := gen_random_uuid();
+    INSERT INTO public.wallet_transactions (
+      id,
+      organization_id,
+      owner_user_id,
+      event_id,
+      transaction_type,
+      balance_type,
+      amount,
+      currency,
+      status,
+      reference_id,
+      description,
+      metadata,
+      created_by,
+      created_at
+    ) VALUES (
+      v_txn_id,
+      v_org_id,
+      p_owner_id,
+      NULL,
+      'WELCOME_CREDIT',
+      'WELCOME_CREDIT',
+      v_welcome_amount,
+      'MYR',
+      'COMPLETED',
+      'welcome_' || v_org_id::text,
+      'One-time Welcome Credit grant of RM' || to_char(v_welcome_amount, 'FM999,990.00'),
+      jsonb_build_object(
+        'organization_name', v_org.name,
+        'owner_user_id', p_owner_id,
+        'source', 'AUTO_ORGANIZATION_CREATION',
+        'program', 'ORGANIZATION_ONBOARDING_WELCOME'
+      ),
+      p_owner_id,
+      v_now
+    )
+    ON CONFLICT (organization_id, reference_id) WHERE reference_id IS NOT NULL AND status IN ('COMPLETED', 'PENDING')
+    DO NOTHING;
 
-  -- 6. Return response
+    -- Update user_rewards with transaction_id
+    IF v_user_reward_id IS NOT NULL THEN
+      UPDATE public.user_rewards
+      SET transaction_id = v_txn_id
+      WHERE id = v_user_reward_id;
+    END IF;
+  END IF;
+
+  -- 7. Return response
   RETURN jsonb_build_object(
     'success', true,
     'organization', to_jsonb(v_org),
     'wallet', to_jsonb(v_wallet),
+    'welcome_credit_granted', v_grant_welcome,
     'message', 'Organization created successfully'
   );
 EXCEPTION
@@ -4103,6 +4194,49 @@ EXCEPTION
     ON CONFLICT (organization_id, user_id) 
     DO UPDATE SET role = 'owner';
 
+    -- Check if user already received Welcome Credit in their account lifetime
+    SELECT EXISTS(
+      SELECT 1 FROM public.user_rewards 
+      WHERE user_id = p_owner_id AND reward_type = 'WELCOME_CREDIT'
+    ) INTO v_already_received;
+
+    IF NOT v_already_received THEN
+      SELECT EXISTS(
+        SELECT 1 FROM public.wallet_transactions 
+        WHERE transaction_type = 'WELCOME_CREDIT' 
+          AND status = 'COMPLETED'
+          AND (owner_user_id = p_owner_id OR created_by = p_owner_id)
+      ) INTO v_already_received;
+    END IF;
+
+    IF NOT v_already_received THEN
+      INSERT INTO public.user_rewards (
+        id,
+        user_id,
+        reward_type,
+        organization_id,
+        amount,
+        created_at
+      ) VALUES (
+        gen_random_uuid(),
+        p_owner_id,
+        'WELCOME_CREDIT',
+        v_org_id,
+        v_welcome_amount,
+        v_now
+      )
+      ON CONFLICT (user_id, reward_type) DO NOTHING
+      RETURNING id INTO v_user_reward_id;
+
+      IF v_user_reward_id IS NOT NULL THEN
+        v_grant_welcome := true;
+      ELSE
+        v_grant_welcome := false;
+      END IF;
+    ELSE
+      v_grant_welcome := false;
+    END IF;
+
     INSERT INTO public.organization_wallets (
       id,
       organization_id,
@@ -4119,62 +4253,81 @@ EXCEPTION
       gen_random_uuid(),
       v_org_id,
       0.00,
-      v_welcome_amount,
+      CASE WHEN v_grant_welcome THEN v_welcome_amount ELSE 0.00 END,
       0.00,
       0.00,
       'MYR',
-      true,
+      v_grant_welcome,
       false,
       v_now,
       v_now
     )
     ON CONFLICT (organization_id)
     DO UPDATE SET
-      welcome_credit = GREATEST(organization_wallets.welcome_credit, v_welcome_amount),
-      welcome_credit_granted = true,
+      welcome_credit = CASE 
+        WHEN v_grant_welcome THEN GREATEST(organization_wallets.welcome_credit, v_welcome_amount)
+        ELSE organization_wallets.welcome_credit
+      END,
+      welcome_credit_granted = CASE
+        WHEN v_grant_welcome THEN true
+        ELSE organization_wallets.welcome_credit_granted
+      END,
       updated_at = v_now
     RETURNING * INTO v_wallet;
 
-    INSERT INTO public.wallet_transactions (
-      id,
-      organization_id,
-      event_id,
-      transaction_type,
-      balance_type,
-      amount,
-      currency,
-      status,
-      reference_id,
-      description,
-      metadata,
-      created_by,
-      created_at
-    ) VALUES (
-      gen_random_uuid(),
-      v_org_id,
-      NULL,
-      'WELCOME_CREDIT',
-      'WELCOME_CREDIT',
-      v_welcome_amount,
-      'MYR',
-      'COMPLETED',
-      'welcome_' || v_org_id::text,
-      'One-time Welcome Credit grant of RM' || to_char(v_welcome_amount, 'FM999,990.00'),
-      jsonb_build_object(
-        'organization_name', v_org.name,
-        'source', 'AUTO_ORGANIZATION_CREATION',
-        'program', 'ORGANIZATION_ONBOARDING_WELCOME'
-      ),
-      p_owner_id,
-      v_now
-    )
-    ON CONFLICT (organization_id, reference_id) WHERE reference_id IS NOT NULL AND status IN ('COMPLETED', 'PENDING')
-    DO NOTHING;
+    IF v_grant_welcome THEN
+      v_txn_id := gen_random_uuid();
+      INSERT INTO public.wallet_transactions (
+        id,
+        organization_id,
+        owner_user_id,
+        event_id,
+        transaction_type,
+        balance_type,
+        amount,
+        currency,
+        status,
+        reference_id,
+        description,
+        metadata,
+        created_by,
+        created_at
+      ) VALUES (
+        v_txn_id,
+        v_org_id,
+        p_owner_id,
+        NULL,
+        'WELCOME_CREDIT',
+        'WELCOME_CREDIT',
+        v_welcome_amount,
+        'MYR',
+        'COMPLETED',
+        'welcome_' || v_org_id::text,
+        'One-time Welcome Credit grant of RM' || to_char(v_welcome_amount, 'FM999,990.00'),
+        jsonb_build_object(
+          'organization_name', v_org.name,
+          'owner_user_id', p_owner_id,
+          'source', 'AUTO_ORGANIZATION_CREATION',
+          'program', 'ORGANIZATION_ONBOARDING_WELCOME'
+        ),
+        p_owner_id,
+        v_now
+      )
+      ON CONFLICT (organization_id, reference_id) WHERE reference_id IS NOT NULL AND status IN ('COMPLETED', 'PENDING')
+      DO NOTHING;
+
+      IF v_user_reward_id IS NOT NULL THEN
+        UPDATE public.user_rewards
+        SET transaction_id = v_txn_id
+        WHERE id = v_user_reward_id;
+      END IF;
+    END IF;
 
     RETURN jsonb_build_object(
       'success', true,
       'organization', to_jsonb(v_org),
       'wallet', to_jsonb(v_wallet),
+      'welcome_credit_granted', v_grant_welcome,
       'message', 'Organization created successfully'
     );
   WHEN OTHERS THEN

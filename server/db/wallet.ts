@@ -24,6 +24,7 @@ import {
   WalletAuditRecord,
   WalletAuditEventType,
   OwnerShowcaseRewardRecord,
+  UserRewardRecord,
 } from './types.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -59,6 +60,7 @@ const LOCAL_TRANSACTIONS_FILE = path.join(process.cwd(), 'uploads', 'wallet_tran
 const LOCAL_TOPUP_ORDERS_FILE = path.join(process.cwd(), 'uploads', 'topup_orders.json');
 const LOCAL_AUDIT_LOGS_FILE = path.join(process.cwd(), 'uploads', 'wallet_audit_logs.json');
 const LOCAL_OWNER_REWARDS_FILE = path.join(process.cwd(), 'uploads', 'owner_showcase_rewards.json');
+const LOCAL_USER_REWARDS_FILE = path.join(process.cwd(), 'uploads', 'user_rewards.json');
 
 // In-memory fallback caches
 const localWalletsCache = new Map<string, OrganizationWalletRecord>();
@@ -66,6 +68,7 @@ const localTransactionsCache = new Map<string, WalletTransactionRecord>();
 const localTopupOrdersCache = new Map<string, TopupOrderRecord>();
 const localAuditLogCache = new Map<string, WalletAuditRecord>();
 export const localOwnerShowcaseRewardsCache = new Map<string, OwnerShowcaseRewardRecord>();
+export const localUserRewardsCache = new Map<string, UserRewardRecord>();
 
 function loadLocalStores(): void {
   // Never attempt file I/O or populate local disk caches in production or on Cloudflare Workers
@@ -112,6 +115,14 @@ function loadLocalStores(): void {
           localOwnerShowcaseRewardsCache.set(r.owner_user_id, r);
         }
       }
+      if (fs.existsSync(LOCAL_USER_REWARDS_FILE)) {
+        const raw = fs.readFileSync(LOCAL_USER_REWARDS_FILE, 'utf-8');
+        const list = JSON.parse(raw) as UserRewardRecord[];
+        localUserRewardsCache.clear();
+        for (const r of list) {
+          localUserRewardsCache.set(`${r.user_id}:${r.reward_type}`, r);
+        }
+      }
     }
   } catch (err) {
     console.warn('Warning loading local wallet store:', err);
@@ -150,6 +161,11 @@ function saveLocalStores(): void {
       fs.writeFileSync(
         LOCAL_OWNER_REWARDS_FILE,
         JSON.stringify(Array.from(localOwnerShowcaseRewardsCache.values()), null, 2),
+        'utf-8'
+      );
+      fs.writeFileSync(
+        LOCAL_USER_REWARDS_FILE,
+        JSON.stringify(Array.from(localUserRewardsCache.values()), null, 2),
         'utf-8'
       );
     }
@@ -195,6 +211,67 @@ export async function withOrganizationLock<T>(
       orgLocks.delete(organizationId);
     }
     releaseLock!();
+  }
+}
+
+// In-memory user-level mutex lock for user-scoped reward allocations
+const userRewardLocks = new Map<string, Promise<void>>();
+
+export async function withUserRewardLock<T>(
+  userId: string,
+  operation: () => Promise<T>
+): Promise<T> {
+  if (!userId) {
+    return await operation();
+  }
+
+  while (userRewardLocks.has(userId)) {
+    try {
+      await userRewardLocks.get(userId);
+    } catch {
+      // Ignore errors from previous operation
+    }
+  }
+
+  let releaseLock: () => void;
+  const lockPromise = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+
+  userRewardLocks.set(userId, lockPromise);
+
+  try {
+    return await operation();
+  } finally {
+    if (userRewardLocks.get(userId) === lockPromise) {
+      userRewardLocks.delete(userId);
+    }
+    releaseLock!();
+  }
+}
+
+async function resolveOrgOwnerId(orgId: string, env?: Record<string, any>): Promise<string | null> {
+  if (!orgId) return null;
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { data } = await supabase
+        .from('organizations')
+        .select('owner_id')
+        .eq('id', orgId)
+        .maybeSingle();
+      return data?.owner_id || null;
+    } catch {
+      return null;
+    }
+  } else {
+    try {
+      const { getOrganizationById } = await import('./organizations.js');
+      const org = await getOrganizationById(orgId, env);
+      return org?.owner_id || null;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -1021,18 +1098,27 @@ export async function createTopup(
 
 /**
  * Grant one-time Welcome Credit (RM800.00) to an organization.
- * Strictly enforced to be granted only once per organization.
+ * Strictly enforced to be granted only once per user in their entire account lifetime.
+ * 
+ * Rules:
+ * - A user can receive Welcome Credit ONLY ONCE in their entire account lifetime.
+ * - Welcome Credit is granted only for an eligible organization creation by the user.
+ * - Inviting a member to an organization, accepting an organization invitation,
+ *   joining an organization, or becoming a member of an existing organization must NEVER grant Welcome Credit.
+ * - Creating multiple organizations must NOT grant Welcome Credit multiple times.
+ * - Deleting an organization and creating another organization must not reset the user's Welcome Credit eligibility.
  */
 export async function grantWelcomeCredit(
   params: {
     organizationId: string;
+    userId?: string;
     createdBy?: string;
     referenceId?: string;
     metadata?: Record<string, any>;
   },
   env?: Record<string, any>
 ): Promise<{
-  transaction: WalletTransactionRecord;
+  transaction: WalletTransactionRecord | null;
   wallet: WalletBalanceSummary;
   alreadyGranted: boolean;
   message?: string;
@@ -1043,80 +1129,286 @@ export async function grantWelcomeCredit(
     throw new Error('Organization ID is required');
   }
 
-  return await withOrganizationLock(organizationId, async () => {
-    let existing: WalletTransactionRecord | undefined = undefined;
+  // 1. Resolve target user ID (the account owner who receives the reward)
+  let targetUserId = params.userId;
+  if (!targetUserId) {
+    targetUserId = (await resolveOrgOwnerId(organizationId, env)) || createdBy;
+  }
 
-    if (isSupabaseConfigured(env)) {
-      const supabase = getSupabaseServerClient(env);
-      const { data, error } = await supabase
-        .from('wallet_transactions')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .eq('transaction_type', 'WELCOME_CREDIT')
-        .eq('status', 'COMPLETED')
-        .maybeSingle();
+  const lockKey = targetUserId || organizationId;
 
-      if (error) {
-        console.error('Fatal: Supabase check welcome credit failed in production:', error);
-        throw new Error(`Financial ledger transaction failed: ${error.message}`);
-      }
+  return await withUserRewardLock(lockKey, async () => {
+    return await withOrganizationLock(organizationId, async () => {
+      let alreadyGranted = false;
+      let existingTxn: WalletTransactionRecord | undefined = undefined;
 
-      if (data) {
-        existing = data as WalletTransactionRecord;
-        if (isLocalFallbackAllowed(env)) {
-          localTransactionsCache.set(existing.id, existing);
+      // 2. Check if user already received Welcome Credit in user_rewards or wallet_transactions
+      if (targetUserId) {
+        if (isSupabaseConfigured(env)) {
+          const supabase = getSupabaseServerClient(env);
+          
+          // Check user_rewards table
+          try {
+            const { data: rewardData } = await supabase
+              .from('user_rewards')
+              .select('*')
+              .eq('user_id', targetUserId)
+              .eq('reward_type', 'WELCOME_CREDIT')
+              .maybeSingle();
+
+            if (rewardData) {
+              alreadyGranted = true;
+            }
+          } catch {
+            // Ignore if table temporarily not migrated
+          }
+
+          // Check wallet_transactions across ANY organization for this user
+          if (!alreadyGranted) {
+            try {
+              const { data: txnData } = await supabase
+                .from('wallet_transactions')
+                .select('*')
+                .eq('transaction_type', 'WELCOME_CREDIT')
+                .eq('status', 'COMPLETED')
+                .or(`owner_user_id.eq.${targetUserId},created_by.eq.${targetUserId}`)
+                .limit(1)
+                .maybeSingle();
+
+              if (txnData) {
+                alreadyGranted = true;
+                existingTxn = txnData as WalletTransactionRecord;
+              }
+            } catch {
+              // Ignore
+            }
+          }
+        } else {
+          // Local cache
+          const cached = localUserRewardsCache.get(`${targetUserId}:WELCOME_CREDIT`);
+          if (cached) {
+            alreadyGranted = true;
+          }
+          if (!alreadyGranted) {
+            const userTxn = Array.from(localTransactionsCache.values()).find(
+              (t) =>
+                (t.owner_user_id === targetUserId || t.created_by === targetUserId) &&
+                t.transaction_type === 'WELCOME_CREDIT' &&
+                t.status === 'COMPLETED'
+            );
+            if (userTxn) {
+              alreadyGranted = true;
+              existingTxn = userTxn;
+            }
+          }
         }
       }
-    } else {
-      assertProductionSafe('grantWelcomeCredit', env);
-      existing = Array.from(localTransactionsCache.values()).find(
-        (t) =>
-          t.organization_id === organizationId &&
-          t.transaction_type === 'WELCOME_CREDIT' &&
-          t.status === 'COMPLETED'
-      );
-    }
 
-    if (existing) {
-      const currentWallet = await getWalletBalance(organizationId, env);
-      return {
-        transaction: existing,
-        wallet: currentWallet,
-        alreadyGranted: true,
-        message: 'Welcome Credit has already been granted to this organization (one-time grant).',
-      };
-    }
+      // Check if this specific organization already has a WELCOME_CREDIT transaction
+      if (!alreadyGranted) {
+        if (isSupabaseConfigured(env)) {
+          const supabase = getSupabaseServerClient(env);
+          const { data: orgTxn } = await supabase
+            .from('wallet_transactions')
+            .select('*')
+            .eq('organization_id', organizationId)
+            .eq('transaction_type', 'WELCOME_CREDIT')
+            .eq('status', 'COMPLETED')
+            .maybeSingle();
 
-    // Append welcome credit transaction to the immutable ledger
-    const transaction = await appendLedgerTransaction(
-      {
-        organization_id: organizationId,
-        event_id: null,
-        transaction_type: 'WELCOME_CREDIT',
-        balance_type: 'WELCOME_CREDIT',
-        amount: WELCOME_CREDIT_AMOUNT,
-        currency: 'MYR',
-        status: 'COMPLETED',
-        reference_id: referenceId || `welcome_${organizationId}`,
-        description: `One-time Welcome Credit grant of RM${WELCOME_CREDIT_AMOUNT.toFixed(2)}`,
-        metadata: {
-          ...(metadata || {}),
-          program: 'ORGANIZATION_ONBOARDING_WELCOME',
+          if (orgTxn) {
+            alreadyGranted = true;
+            existingTxn = orgTxn as WalletTransactionRecord;
+          }
+        } else {
+          assertProductionSafe('grantWelcomeCredit', env);
+          const orgTxn = Array.from(localTransactionsCache.values()).find(
+            (t) =>
+              t.organization_id === organizationId &&
+              t.transaction_type === 'WELCOME_CREDIT' &&
+              t.status === 'COMPLETED'
+          );
+          if (orgTxn) {
+            alreadyGranted = true;
+            existingTxn = orgTxn;
+          }
+        }
+      }
+
+      if (alreadyGranted) {
+        const currentWallet = await getWalletBalance(organizationId, env);
+        return {
+          transaction: existingTxn || null,
+          wallet: currentWallet,
+          alreadyGranted: true,
+          message: 'Welcome Credit has already been granted to this user in their account lifetime (one-time lifetime limit).',
+        };
+      }
+
+      // 3. Atomically reserve in user_rewards if targetUserId is available
+      const now = new Date().toISOString();
+      let userRewardRecord: UserRewardRecord | null = null;
+
+      if (targetUserId) {
+        if (isSupabaseConfigured(env)) {
+          const supabase = getSupabaseServerClient(env);
+          try {
+            const { data: insertReward, error: insertError } = await supabase
+              .from('user_rewards')
+              .insert({
+                user_id: targetUserId,
+                reward_type: 'WELCOME_CREDIT',
+                organization_id: organizationId,
+                amount: WELCOME_CREDIT_AMOUNT,
+                created_at: now,
+              })
+              .select()
+              .single();
+
+            if (insertError) {
+              if (
+                insertError.code === '23505' ||
+                insertError.message?.includes('duplicate key') ||
+                insertError.message?.includes('ux_user_rewards')
+              ) {
+                const currentWallet = await getWalletBalance(organizationId, env);
+                return {
+                  transaction: null,
+                  wallet: currentWallet,
+                  alreadyGranted: true,
+                  message: 'Welcome Credit has already been granted to this user in their account lifetime (one-time lifetime limit).',
+                };
+              }
+              console.warn('Notice inserting into user_rewards:', insertError.message);
+            } else if (insertReward) {
+              userRewardRecord = insertReward as UserRewardRecord;
+            }
+          } catch (rewardErr) {
+            console.warn('Warning inserting into user_rewards:', rewardErr);
+          }
+        } else {
+          assertProductionSafe('grantWelcomeCredit', env);
+          userRewardRecord = {
+            id: crypto.randomUUID(),
+            user_id: targetUserId,
+            reward_type: 'WELCOME_CREDIT',
+            organization_id: organizationId,
+            transaction_id: null,
+            amount: WELCOME_CREDIT_AMOUNT,
+            created_at: now,
+          };
+          localUserRewardsCache.set(`${targetUserId}:WELCOME_CREDIT`, userRewardRecord);
+          saveLocalStores();
+        }
+      }
+
+      // 4. Append welcome credit transaction to the immutable ledger
+      const transaction = await appendLedgerTransaction(
+        {
+          organization_id: organizationId,
+          owner_user_id: targetUserId || null,
+          event_id: null,
+          transaction_type: 'WELCOME_CREDIT',
+          balance_type: 'WELCOME_CREDIT',
+          amount: WELCOME_CREDIT_AMOUNT,
+          currency: 'MYR',
+          status: 'COMPLETED',
+          reference_id: referenceId || `welcome_${organizationId}`,
+          description: `One-time Welcome Credit grant of RM${WELCOME_CREDIT_AMOUNT.toFixed(2)}`,
+          metadata: {
+            ...(metadata || {}),
+            owner_user_id: targetUserId || null,
+            program: 'ORGANIZATION_ONBOARDING_WELCOME',
+          },
+          created_by: createdBy || targetUserId || null,
         },
-        created_by: createdBy || null,
-      },
-      env
-    );
+        env
+      );
 
-    const wallet = await recalculateWalletBalances(organizationId, env);
+      // Link transaction_id in user_rewards if available
+      if (userRewardRecord && transaction?.id) {
+        userRewardRecord.transaction_id = transaction.id;
+        if (isSupabaseConfigured(env)) {
+          try {
+            const supabase = getSupabaseServerClient(env);
+            await supabase
+              .from('user_rewards')
+              .update({ transaction_id: transaction.id })
+              .eq('id', userRewardRecord.id);
+          } catch {
+            // Non-blocking
+          }
+        } else {
+          saveLocalStores();
+        }
+      }
 
-    return {
-      transaction,
-      wallet,
-      alreadyGranted: false,
-      message: `Successfully granted RM${WELCOME_CREDIT_AMOUNT.toFixed(2)} Welcome Credit!`,
-    };
+      const wallet = await recalculateWalletBalances(organizationId, env);
+
+      return {
+        transaction,
+        wallet,
+        alreadyGranted: false,
+        message: `Successfully granted RM${WELCOME_CREDIT_AMOUNT.toFixed(2)} Welcome Credit!`,
+      };
+    });
   });
+}
+
+/**
+ * Check if a user has already received Welcome Credit in their account lifetime.
+ */
+export async function hasUserReceivedWelcomeCredit(
+  userId: string,
+  env?: Record<string, any>
+): Promise<boolean> {
+  if (!userId) return false;
+
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    try {
+      const { data } = await supabase
+        .from('user_rewards')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('reward_type', 'WELCOME_CREDIT')
+        .maybeSingle();
+
+      if (data) return true;
+    } catch {
+      // ignore
+    }
+
+    try {
+      const { data: txnData } = await supabase
+        .from('wallet_transactions')
+        .select('id')
+        .eq('transaction_type', 'WELCOME_CREDIT')
+        .eq('status', 'COMPLETED')
+        .or(`owner_user_id.eq.${userId},created_by.eq.${userId}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (txnData) return true;
+    } catch {
+      // ignore
+    }
+
+    return false;
+  }
+
+  if (localUserRewardsCache.has(`${userId}:WELCOME_CREDIT`)) {
+    return true;
+  }
+
+  const existingTxn = Array.from(localTransactionsCache.values()).find(
+    (t) =>
+      (t.owner_user_id === userId || t.created_by === userId) &&
+      t.transaction_type === 'WELCOME_CREDIT' &&
+      t.status === 'COMPLETED'
+  );
+
+  return !!existingTxn;
 }
 
 /**

@@ -194,7 +194,7 @@ import {
 } from './server/auth.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
-import { checkWorkerRateLimit, isVenueRequest } from './server/rateLimiter.js';
+import { checkWorkerRateLimit, checkWorkerRateLimitWithCloudflare, isVenueRequest } from './server/rateLimiter.js';
 import { validateUploadedFile } from './server/fileValidation.js';
 
 export interface Env {
@@ -207,6 +207,13 @@ export interface Env {
   VITE_GOOGLE_CLIENT_ID?: string;
   VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_ANON_KEY?: string;
+  RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+  AUTH_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+  WALLET_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+  ORG_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+  PUBLIC_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+  SCORE_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+  API_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
   ASSETS?: {
     fetch: (request: Request | string) => Promise<Response>;
   };
@@ -544,21 +551,22 @@ export default {
       }
 
       // ==========================================
-      // Rate Limiting Enforcement on API Routes
+      // Rate Limiting Enforcement on API Routes (Cloudflare Distributed Edge + Sliding Window)
       // ==========================================
       // A. Public Event & Leaderboard Read Rate Limiting (GET /api/public/events/*)
       if (pathname.startsWith('/api/public/events/') && method === 'GET') {
         const isScoresRead = pathname.endsWith('/high-scores');
-        const readLimit = checkWorkerRateLimit(request, {
+        const readLimit = await checkWorkerRateLimitWithCloudflare(request, {
           windowMs: 60 * 1000,
           max: 60,
           venueAllowanceMax: 180,
           isVenueRequest,
           keyPrefix: isScoresRead ? 'worker_public_scores_get' : 'worker_public_event_get',
+          cloudflareBinding: isScoresRead ? 'SCORE_RATE_LIMITER' : 'PUBLIC_RATE_LIMITER',
           message: isScoresRead
             ? 'Leaderboard lookup rate limit reached. Please wait a moment before refreshing scores.'
             : 'Public event lookup rate limit reached. Please wait a moment before trying again.',
-        });
+        }, env);
         if (!readLimit.allowed) {
           return jsonResponse(readLimit.errorResponse, 429, { ...cors, ...readLimit.headers });
         }
@@ -574,12 +582,13 @@ export default {
 
         // 1. Auth Rate Limiting (POST /api/auth/google, POST /api/auth/*)
         else if (pathname.startsWith('/api/auth/')) {
-          const authLimit = checkWorkerRateLimit(request, {
+          const authLimit = await checkWorkerRateLimitWithCloudflare(request, {
             windowMs: 60 * 1000,
             max: 10,
             keyPrefix: 'worker_auth',
+            cloudflareBinding: 'AUTH_RATE_LIMITER',
             message: 'Too many authentication attempts. Please wait 1 minute before trying again.',
-          });
+          }, env);
           if (!authLimit.allowed) {
             return jsonResponse(authLimit.errorResponse, 429, { ...cors, ...authLimit.headers });
           }
@@ -587,12 +596,12 @@ export default {
 
         // 2. Invitation Rate Limiting (POST /api/invitations/*, POST /api/organizations/:id/invitations)
         else if (pathname.startsWith('/api/invitations') || pathname.includes('/invitations')) {
-          const inviteLimit = checkWorkerRateLimit(request, {
+          const inviteLimit = await checkWorkerRateLimitWithCloudflare(request, {
             windowMs: 60 * 1000,
             max: 15,
             keyPrefix: 'worker_invitations',
             message: 'Too many invitations sent in a short period. Please wait a moment before sending more.',
-          });
+          }, env);
           if (!inviteLimit.allowed) {
             return jsonResponse(inviteLimit.errorResponse, 429, { ...cors, ...inviteLimit.headers });
           }
@@ -600,12 +609,13 @@ export default {
 
         // 3. Organization Creation Rate Limiting (POST /api/organizations)
         else if (pathname === '/api/organizations' && method === 'POST') {
-          const orgLimit = checkWorkerRateLimit(request, {
+          const orgLimit = await checkWorkerRateLimitWithCloudflare(request, {
             windowMs: 60 * 1000,
             max: 10,
             keyPrefix: 'worker_org_creation',
+            cloudflareBinding: 'ORG_RATE_LIMITER',
             message: 'Organization creation rate limit exceeded. Please wait a minute before creating another organization.',
-          });
+          }, env);
           if (!orgLimit.allowed) {
             return jsonResponse(orgLimit.errorResponse, 429, { ...cors, ...orgLimit.headers });
           }
@@ -613,12 +623,13 @@ export default {
 
         // 4. Wallet & Financial Rate Limiting (POST /api/organizations/:id/wallet/*)
         else if (pathname.includes('/wallet/')) {
-          const walletLimit = checkWorkerRateLimit(request, {
+          const walletLimit = await checkWorkerRateLimitWithCloudflare(request, {
             windowMs: 60 * 1000,
             max: 15,
             keyPrefix: 'worker_wallet',
+            cloudflareBinding: 'WALLET_RATE_LIMITER',
             message: 'Wallet transaction rate limit exceeded. Please wait a moment before processing another payment or top-up.',
-          });
+          }, env);
           if (!walletLimit.allowed) {
             return jsonResponse(walletLimit.errorResponse, 429, { ...cors, ...walletLimit.headers });
           }
@@ -626,12 +637,12 @@ export default {
 
         // 5. Showcase Rate Limiting (POST/PATCH/DELETE /api/events/:id/showcase/*)
         else if (pathname.includes('/showcase')) {
-          const showcaseLimit = checkWorkerRateLimit(request, {
+          const showcaseLimit = await checkWorkerRateLimitWithCloudflare(request, {
             windowMs: 60 * 1000,
             max: 30,
             keyPrefix: 'worker_showcase',
             message: 'Showcase action rate limit reached. Please slow down and try again shortly.',
-          });
+          }, env);
           if (!showcaseLimit.allowed) {
             return jsonResponse(showcaseLimit.errorResponse, 429, { ...cors, ...showcaseLimit.headers });
           }
@@ -639,12 +650,12 @@ export default {
 
         // 6. Upload Rate Limiting (POST /api/upload/*, direct-upload, upload-url)
         else if (pathname.startsWith('/api/upload') || pathname.includes('upload')) {
-          const uploadLimit = checkWorkerRateLimit(request, {
+          const uploadLimit = await checkWorkerRateLimitWithCloudflare(request, {
             windowMs: 60 * 1000,
             max: 20,
             keyPrefix: 'worker_uploads',
             message: 'File upload rate limit reached. Please wait a moment before uploading more files.',
-          });
+          }, env);
           if (!uploadLimit.allowed) {
             return jsonResponse(uploadLimit.errorResponse, 429, { ...cors, ...uploadLimit.headers });
           }
@@ -652,12 +663,13 @@ export default {
 
         // 7. High Scores Rate Limiting (POST /api/events/:id/high-scores, POST /api/public/events/:token/high-scores)
         else if (pathname.includes('/high-scores') && method === 'POST') {
-          const scoreLimit = checkWorkerRateLimit(request, {
+          const scoreLimit = await checkWorkerRateLimitWithCloudflare(request, {
             windowMs: 60 * 1000,
             max: 300, // Sized generously (300/min per IP, ~5/sec) so shared venue Wi-Fi does not choke tournament gameplay
             keyPrefix: 'worker_high_scores',
+            cloudflareBinding: 'SCORE_RATE_LIMITER',
             message: 'Too many score submissions. Please wait a moment before submitting another score.',
-          });
+          }, env);
           if (!scoreLimit.allowed) {
             return jsonResponse(scoreLimit.errorResponse, 429, { ...cors, ...scoreLimit.headers });
           }
@@ -665,12 +677,12 @@ export default {
 
         // 7B. Event Creation Rate Limiting (POST /api/events) - Max 3 attempts per 10 minutes per organization
         else if (pathname === '/api/events' && method === 'POST') {
-          const creationLimit = checkWorkerRateLimit(request, {
+          const creationLimit = await checkWorkerRateLimitWithCloudflare(request, {
             windowMs: 10 * 60 * 1000,
             max: 3,
             keyPrefix: 'worker_event_creation',
             message: 'Event creation rate limit exceeded: Maximum 3 event creation attempts per 10 minutes per organization.',
-          });
+          }, env);
           if (!creationLimit.allowed) {
             return jsonResponse(creationLimit.errorResponse, 429, { ...cors, ...creationLimit.headers });
           }
@@ -678,12 +690,12 @@ export default {
 
         // 8. Event Mutation Rate Limiting (POST /api/events/quote, /cancel, etc.)
         else if (pathname.startsWith('/api/events')) {
-          const eventLimit = checkWorkerRateLimit(request, {
+          const eventLimit = await checkWorkerRateLimitWithCloudflare(request, {
             windowMs: 60 * 1000,
             max: 20,
             keyPrefix: 'worker_events',
             message: 'Event creation and modification rate limit exceeded. Please slow down.',
-          });
+          }, env);
           if (!eventLimit.allowed) {
             return jsonResponse(eventLimit.errorResponse, 429, { ...cors, ...eventLimit.headers });
           }
@@ -691,12 +703,13 @@ export default {
 
         // 9. General API fallback rate limiting for any other mutating route
         else {
-          const generalLimit = checkWorkerRateLimit(request, {
+          const generalLimit = await checkWorkerRateLimitWithCloudflare(request, {
             windowMs: 60 * 1000,
             max: 120,
             keyPrefix: 'worker_general_api',
+            cloudflareBinding: 'RATE_LIMITER',
             message: 'API request rate limit exceeded. Please try again in a few seconds.',
-          });
+          }, env);
           if (!generalLimit.allowed) {
             return jsonResponse(generalLimit.errorResponse, 429, { ...cors, ...generalLimit.headers });
           }
@@ -6088,11 +6101,17 @@ export default {
           return errorResponse('Forbidden: Welcome credit is automatically granted upon organization creation. Manual invocation is restricted to system administrators.', 403, cors);
         }
 
+        const org = await getOrganizationById(orgId, env);
+        if (!org) {
+          return errorResponse('Organization not found', 404, cors);
+        }
+
         const body = (await request.json().catch(() => ({}))) as any;
         try {
           const result = await grantWelcomeCredit(
             {
               organizationId: orgId,
+              userId: org.owner_id,
               createdBy: auth.user.id,
               referenceId: body.reference_id,
               metadata: body.metadata,

@@ -264,6 +264,7 @@ export async function createOrganization(
       await grantWelcomeCredit(
         {
           organizationId: orgRecord.id,
+          userId: params.owner_id,
           createdBy: params.owner_id,
           referenceId: `welcome_${orgRecord.id}`,
           metadata: {
@@ -356,6 +357,7 @@ export async function createOrganization(
     await grantWelcomeCredit(
       {
         organizationId: organization.id,
+        userId: params.owner_id,
         createdBy: params.owner_id,
         referenceId: `welcome_${organization.id}`,
         metadata: {

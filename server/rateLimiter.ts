@@ -56,6 +56,7 @@ export interface RateLimitOptions {
   skipFailedRequests?: boolean;
   venueAllowanceMax?: number;
   isVenueRequest?: (req: any) => boolean;
+  cloudflareBinding?: string;
 }
 
 export interface RateLimitResult {
@@ -534,14 +535,24 @@ export function checkWorkerRateLimit(
 
 /**
  * Cloudflare-Native Distributed Rate Limiter Support:
- * If a Cloudflare Workers Rate Limiting binding (e.g. env.RATE_LIMITER or env.API_RATE_LIMITER)
- * is bound in wrangler.toml, this helper invokes Cloudflare's globally distributed edge rate
- * limiter first, then falls back to the in-memory sliding window layer.
+ * If Cloudflare Workers Rate Limiting bindings (e.g. env.AUTH_RATE_LIMITER, env.WALLET_RATE_LIMITER,
+ * env.ORG_RATE_LIMITER, env.PUBLIC_RATE_LIMITER, env.SCORE_RATE_LIMITER, env.RATE_LIMITER)
+ * are bound in wrangler.toml, this helper invokes Cloudflare's globally distributed edge rate
+ * limiter across all worldwide edge PoPs first, then falls back to the in-memory sliding window layer.
  */
 export async function checkWorkerRateLimitWithCloudflare(
   request: Request,
   options: RateLimitOptions,
-  env?: { RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> }; [key: string]: any },
+  env?: {
+    RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+    AUTH_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+    WALLET_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+    ORG_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+    PUBLIC_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+    SCORE_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+    API_RATE_LIMITER?: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+    [key: string]: any;
+  },
   userId?: string
 ): Promise<{
   allowed: boolean;
@@ -550,16 +561,44 @@ export async function checkWorkerRateLimitWithCloudflare(
 }> {
   const clientKey = getWorkerClientKey(request, options.keyPrefix || 'worker', userId);
 
-  // 1. Check Cloudflare-native edge rate limiter if bound
-  if (env && typeof env.RATE_LIMITER?.limit === 'function') {
+  // 1. Resolve appropriate Cloudflare-native edge rate limiter binding
+  let edgeLimiter: { limit: (opts: { key: string }) => Promise<{ success: boolean }> } | undefined;
+
+  if (env) {
+    if (options.cloudflareBinding && typeof env[options.cloudflareBinding]?.limit === 'function') {
+      edgeLimiter = env[options.cloudflareBinding];
+    } else {
+      const prefix = (options.keyPrefix || '').toLowerCase();
+      if (prefix.includes('auth') && typeof env.AUTH_RATE_LIMITER?.limit === 'function') {
+        edgeLimiter = env.AUTH_RATE_LIMITER;
+      } else if (prefix.includes('wallet') && typeof env.WALLET_RATE_LIMITER?.limit === 'function') {
+        edgeLimiter = env.WALLET_RATE_LIMITER;
+      } else if ((prefix.includes('org') || prefix.includes('organization')) && typeof env.ORG_RATE_LIMITER?.limit === 'function') {
+        edgeLimiter = env.ORG_RATE_LIMITER;
+      } else if ((prefix.includes('score') || prefix.includes('high_scores')) && typeof env.SCORE_RATE_LIMITER?.limit === 'function') {
+        edgeLimiter = env.SCORE_RATE_LIMITER;
+      } else if (prefix.includes('public') && typeof env.PUBLIC_RATE_LIMITER?.limit === 'function') {
+        edgeLimiter = env.PUBLIC_RATE_LIMITER;
+      } else if (typeof env.RATE_LIMITER?.limit === 'function') {
+        edgeLimiter = env.RATE_LIMITER;
+      } else if (typeof env.API_RATE_LIMITER?.limit === 'function') {
+        edgeLimiter = env.API_RATE_LIMITER;
+      }
+    }
+  }
+
+  // 2. Invoke Cloudflare edge rate limiter if available
+  if (edgeLimiter) {
     try {
-      const cfResult = await env.RATE_LIMITER.limit({ key: clientKey });
+      const cfResult = await edgeLimiter.limit({ key: clientKey });
       if (!cfResult.success) {
         return {
           allowed: false,
           headers: {
             'Retry-After': '60',
-            'X-RateLimit-Source': 'cloudflare-edge',
+            'X-RateLimit-Source': 'cloudflare-edge-distributed',
+            'RateLimit-Limit': options.max.toString(),
+            'RateLimit-Remaining': '0',
           },
           errorResponse: {
             error: 'Too Many Requests',
@@ -573,6 +612,6 @@ export async function checkWorkerRateLimitWithCloudflare(
     }
   }
 
-  // 2. Fall back to / execute in-memory sliding window bucket
+  // 3. Fall back to / execute in-memory sliding window bucket
   return checkWorkerRateLimit(request, options, userId);
 }

@@ -104,24 +104,90 @@ When a client approaches or exceeds rate limits, standard rate limiting headers 
 
 ---
 
-## 5. Integrating Globally Distributed Cloudflare-Native Rate Limiting
+## 5. Globally Distributed Cloudflare-Native Rate Limiting (Dual-Layer Defense)
 
-For organizations requiring globally synchronized rate limiting across all Cloudflare edge locations, the platform is pre-architected to support two Cloudflare-native approaches without altering core code:
+Event Game Studio deploys a **dual-layer defense-in-depth architecture** for rate limiting:
 
-### Approach A: Cloudflare WAF Rate Limiting Rules (Recommended)
-Configure rate limiting rules directly in the **Cloudflare Dashboard**:
+```
+[Incoming HTTP Request]
+         │
+         ▼
+┌────────────────────────────────────────────────────────┐
+│ Layer 1: Cloudflare-Native Edge Rate Limiter           │
+│ (Globally synchronized across all Cloudflare Edge PoPs)│
+│  - AUTH_RATE_LIMITER    (/api/auth/*)        10 req/min│
+│  - ORG_RATE_LIMITER     (/api/organizations) 10 req/min│
+│  - WALLET_RATE_LIMITER  (/api/*/wallet/*)    15 req/min│
+│  - PUBLIC_RATE_LIMITER  (/api/public/events) 60 req/min│
+│  - SCORE_RATE_LIMITER   (/api/*/high-scores)300 req/min│
+│  - RATE_LIMITER         (General fallback)  120 req/min│
+└────────────────────────────────────────────────────────┘
+         │ (Passed Layer 1)
+         ▼
+┌────────────────────────────────────────────────────────┐
+│ Layer 2: Worker Isolate In-Memory Sliding Window Bucket│
+│ (Sub-millisecond local burst protection per isolate)   │
+│  - Protects against micro-burst hammering              │
+│  - Provides seamless local dev and offline fallback    │
+└────────────────────────────────────────────────────────┘
+         │ (Passed Layer 2)
+         ▼
+[Core Application Logic / Database Transaction]
+```
+
+### Approach A: Cloudflare Workers Rate Limiting Bindings (`[[ratelimits]]`)
+Configured in `wrangler.toml` and `wrangler.api.toml`:
+```toml
+[[ratelimits]]
+binding = "AUTH_RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+
+[[ratelimits]]
+binding = "ORG_RATE_LIMITER"
+namespace_id = "1002"
+simple = { limit = 10, period = 60 }
+
+[[ratelimits]]
+binding = "WALLET_RATE_LIMITER"
+namespace_id = "1003"
+simple = { limit = 15, period = 60 }
+
+[[ratelimits]]
+binding = "PUBLIC_RATE_LIMITER"
+namespace_id = "1004"
+simple = { limit = 60, period = 60 }
+
+[[ratelimits]]
+binding = "SCORE_RATE_LIMITER"
+namespace_id = "1005"
+simple = { limit = 300, period = 60 }
+
+[[ratelimits]]
+binding = "RATE_LIMITER"
+namespace_id = "1006"
+simple = { limit = 120, period = 60 }
+```
+
+In `worker.ts`, `checkWorkerRateLimitWithCloudflare(request, options, env)` resolves the route-appropriate binding (`AUTH_RATE_LIMITER`, `WALLET_RATE_LIMITER`, etc.) and invokes Cloudflare's globally distributed counter across edge PoPs before running the in-memory isolate check.
+
+### Approach B: Cloudflare Edge WAF Rate Limiting Rules (Production Perimeter)
+In the Cloudflare Dashboard, administrators can configure complementary edge WAF rules:
 1. Navigate to **Security** -> **WAF** -> **Rate limiting rules**.
-2. Define a rule matching sensitive API paths (e.g. `http.request.uri.path eq "/api/auth/google"`).
-3. Set action to **Block** or **Managed Challenge** with the desired global threshold (e.g., 20 requests per 10 seconds).
-4. Cloudflare's edge network synchronizes these rules globally across all edge PoPs automatically.
+2. **Rule 1: Auth & Login Protection**
+   - Expression: `http.request.uri.path starts_with "/api/auth/"`
+   - Threshold: `10 requests per 1 minute`
+   - Action: `Block` or `Managed Challenge`
+3. **Rule 2: Wallet & Payment Protection**
+   - Expression: `http.request.uri.path contains "/wallet/"`
+   - Threshold: `15 requests per 1 minute`
+   - Action: `Block`
+4. **Rule 3: Organization Creation Protection**
+   - Expression: `http.request.uri.path eq "/api/organizations" and http.request.method eq "POST"`
+   - Threshold: `10 requests per 1 minute`
+   - Action: `Block`
+5. **Rule 4: High Scores Submission Protection**
+   - Expression: `http.request.uri.path contains "/high-scores" and http.request.method eq "POST"`
+   - Threshold: `300 requests per 1 minute`
+   - Action: `Block`
 
-### Approach B: Cloudflare Workers Native Rate Limiting Binding (`[[ratelimits]]`)
-If using Cloudflare's Workers Rate Limiting API:
-1. In `wrangler.toml`, add the binding:
-   ```toml
-   [[ratelimits]]
-   binding = "RATE_LIMITER"
-   namespace_id = "1001"
-   simple = { limit = 120, period = 60 }
-   ```
-2. The `checkWorkerRateLimitWithCloudflare` function in `server/rateLimiter.ts` automatically detects `env.RATE_LIMITER` and enforces Cloudflare edge-synchronized rate limiting before falling back to local memory.

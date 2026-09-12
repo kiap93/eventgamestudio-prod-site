@@ -508,6 +508,16 @@ export interface WalletTransactionRecord {
   created_at: string;
 }
 
+export interface UserRewardRecord {
+  id: string;
+  user_id: string;
+  reward_type: string; // 'WELCOME_CREDIT'
+  organization_id: string | null;
+  transaction_id: string | null;
+  amount: number;
+  created_at: string;
+}
+
 export interface WalletBalanceSummary {
   organization_id: string;
   currency: string;

@@ -86,7 +86,7 @@ All environment variables must be declared in `/.env.example`. Secrets must neve
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase Privileged Service Role Secret Key (bypasses RLS) |
 | `JWT_SECRET` | Yes | 256-bit secret key used to cryptographically sign session JWTs |
 | `STRIPE_SECRET_KEY` | Yes | Stripe Secret Key for creating Checkout Sessions |
-| `PAYMENT_WEBHOOK_SECRET` | Optional | HMAC key for verifying incoming payment gateway webhooks |
+| `PAYMENT_WEBHOOK_SECRET` | Yes (Mandatory) | Stripe signing secret (`whsec_...`) or payment provider HMAC key for verifying incoming webhooks and crediting wallet balances |
 | `DEVELOPER_EMAILS` | Optional | Comma-separated list of admin emails with platform rights |
 | `GOOGLE_MAIL_CLIENT_ID` | Optional | Google Cloud OAuth Client ID for Gmail API sending |
 | `GOOGLE_MAIL_CLIENT_SECRET` | Optional | Google Cloud OAuth Client Secret for Gmail API |
@@ -112,3 +112,42 @@ The backend exposes authenticated webhook endpoints for external payment callbac
 - **`POST /api/webhooks/payment`**: Generic payment gateway webhook handler.
 
 Both handlers verify signatures before mutating wallet balances and enforce transaction idempotency using external `reference_id` keys.
+
+> [!CAUTION]
+> **`PAYMENT_WEBHOOK_SECRET` is MANDATORY in Production.**
+> The server strictly validates incoming HMAC-SHA256 signatures before crediting wallet balances. If `PAYMENT_WEBHOOK_SECRET` (or `STRIPE_WEBHOOK_SECRET`) is not set:
+> 1. The handler throws HTTP 500 (`MISSING_WEBHOOK_SECRET: Server security configuration error: PAYMENT_WEBHOOK_SECRET is not configured on the server. Webhook verification rejected.`).
+> 2. The payment provider webhook is rejected.
+> 3. **Critical failure mode**: The customer's credit card is charged by Stripe, but their order remains `PENDING` and their wallet balance is never credited.
+>
+> Always configure `PAYMENT_WEBHOOK_SECRET` with the signing secret (e.g. `whsec_...` from the Stripe Dashboard) before accepting real payments.
+
+---
+
+## 6. Production Deployment Checklist
+
+Before launching or promoting Event Game Studio to a production environment (Google Cloud Run or Cloudflare Workers), verify every item in this checklist:
+
+### A. Mandatory Secrets & Environment Configuration
+- [ ] **`SUPABASE_URL`**: Verified connection to the production Supabase database.
+- [ ] **`SUPABASE_SERVICE_ROLE_KEY`**: Privileged key configured server-side (never exposed to client).
+- [ ] **`JWT_SECRET`**: Secure 256-bit cryptographically random string configured.
+- [ ] **`STRIPE_SECRET_KEY`**: Production Stripe Secret Key (`sk_live_...`) configured.
+- [ ] **`PAYMENT_WEBHOOK_SECRET` (MANDATORY)**: Production Stripe webhook endpoint signing secret (`whsec_...`) configured in Cloud Run environment variables and Cloudflare Worker secrets (`wrangler secret put PAYMENT_WEBHOOK_SECRET`).
+- [ ] **`VITE_SUPABASE_URL` & `VITE_SUPABASE_ANON_KEY`**: Configured for client-side build.
+- [ ] **`VITE_GOOGLE_CLIENT_ID`**: Production Google Cloud OAuth 2.0 Client ID authorized for production origins.
+
+### B. Payment Gateway & Webhook Setup
+- [ ] **Webhook Endpoint Registration**: In Stripe Dashboard -> Developers -> Webhooks, add endpoint:
+  `https://<your-production-domain>/api/webhooks/stripe`
+- [ ] **Event Subscriptions**: Subscribe to `checkout.session.completed`.
+- [ ] **Signing Secret Verification**: Copy the endpoint's signing secret (`whsec_...`) directly into `PAYMENT_WEBHOOK_SECRET`.
+- [ ] **End-to-End Test**: Trigger a test top-up checkout or test webhook event to confirm HTTP 200 response and verified signature.
+
+### C. Build & Platform Verification
+- [ ] **Dependency Lockfile Integrity**: Confirm `bun.lock` is unchanged and no competing lockfiles exist (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`).
+- [ ] **Type & Lint Check**: `bun run lint` (or `bunx tsc --noEmit`) passes with zero errors.
+- [ ] **Compilation**: `bun run build` succeeds cleanly, generating `./dist` and `dist/server.cjs`.
+- [ ] **Automated Test Suite**: `bun test` passes completely.
+- [ ] **Cron Trigger (Lifecycle Maintenance)**: Cloudflare Worker scheduled trigger (`crons = ["* * * * *"]`) active for `runEventLifecycleMaintenance`.
+

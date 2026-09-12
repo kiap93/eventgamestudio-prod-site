@@ -373,9 +373,9 @@ async function runTests() {
   await submitShowcaseForReview(eventC);
 
   // Admin approves event quality review
-  const qualityApproval = await approveEventReview(scC.id, adminUserId, 'Great activation quality and clear photos');
-  assertEqual(qualityApproval.showcase.review_status, 'APPROVED', 'Editorial review_status is APPROVED');
-  assertEqual(qualityApproval.showcase.reward_status, 'PENDING', 'reward_status is unchanged by editorial review');
+  const qualityApproval = await approveEventReview(scC.id, adminUserId);
+  assertEqual(qualityApproval.review_status, 'APPROVED', 'Editorial review_status is APPROVED');
+  assertEqual(qualityApproval.reward_status, 'PENDING', 'reward_status is unchanged by editorial review');
 
   const wOrgCAfterReview = await getWalletBalance(orgC);
   assertEqual(wOrgCAfterReview.showcase_credit, 0.00, 'Editorial event review approval does NOT grant financial reward');
@@ -385,9 +385,9 @@ async function runTests() {
   // --------------------------------------------------------------------------
   console.log('\n--- Scenario 8: Decoupled Reward Rejection Leaves Showcase Published ---');
   const rewardRejectResult = await rejectShowcaseReward(scC.id, adminUserId, 'Insufficient promotional branding in photos');
-  assertEqual(rewardRejectResult.showcase.reward_status, 'REJECTED', 'Showcase reward_status is REJECTED');
-  assertEqual(rewardRejectResult.showcase.status, 'PUBLISHED', 'Showcase REMAINS PUBLISHED after reward rejection');
-  assertEqual(rewardRejectResult.showcase.publication_status, 'PUBLISHED', 'publication_status REMAINS PUBLISHED');
+  assertEqual(rewardRejectResult.reward_status, 'NOT_ELIGIBLE', 'Showcase reward_status is NOT_ELIGIBLE');
+  assertEqual(rewardRejectResult.status, 'PUBLISHED', 'Showcase REMAINS PUBLISHED after reward rejection');
+  assertEqual(rewardRejectResult.publication_status, 'PUBLISHED', 'publication_status REMAINS PUBLISHED');
 
   const wOrgCAfterReject = await getWalletBalance(orgC);
   assertEqual(wOrgCAfterReject.showcase_credit, 0.00, 'No credit awarded on reward rejection');
@@ -450,9 +450,9 @@ async function runTests() {
     client_name: 'Delta Co',
   });
 
-  const eligibility = await evaluateShowcaseRewardEligibility(scD.id);
-  assertEqual(eligibility.isEligible, false, 'Uncompleted/unpaid event without media is NOT eligible');
-  assertEqual(eligibility.status, 'NOT_ELIGIBLE', 'Eligibility status is NOT_ELIGIBLE');
+  const eligibility = await evaluateShowcaseRewardEligibility(eventD);
+  assertEqual(eligibility.reward_review_status, 'NOT_ELIGIBLE', 'Uncompleted/unpaid event without media is NOT eligible');
+  assertEqual(eligibility.reward_status, 'NOT_ELIGIBLE', 'Eligibility reward_status is NOT_ELIGIBLE');
 
   // --------------------------------------------------------------------------
   // TEST SUMMARY

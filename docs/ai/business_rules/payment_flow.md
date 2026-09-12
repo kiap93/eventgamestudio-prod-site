@@ -140,7 +140,7 @@ For top-up orders where an organization deposits cash funds into their wallet:
 3. **Stripe Checkout**: The user is redirected to Stripe's hosted payment page.
 4. **Webhook Processing**:
    - Endpoint: `/api/webhooks/stripe` (and `/api/webhooks/payment`).
-   - Webhook signature is validated using `PAYMENT_WEBHOOK_SECRET` or Stripe signing secret.
+   - Webhook signature is validated using `PAYMENT_WEBHOOK_SECRET` (mandatory in production; Stripe signing secret `whsec_...` or gateway HMAC key). If missing, webhook processing throws `MISSING_WEBHOOK_SECRET` and returns HTTP 500.
    - On `checkout.session.completed`, `processTopupOrderStatus` executes:
      - Sets order status to `COMPLETED`.
      - Credits `paid_balance` by the net paid amount.

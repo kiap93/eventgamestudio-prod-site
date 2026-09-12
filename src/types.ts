@@ -82,6 +82,7 @@ export interface OrganizationWalletRecord {
 export interface WalletTransactionRecord {
   id: string;
   organization_id: string;
+  owner_user_id?: string | null;
   event_id: string | null;
   transaction_type: WalletTransactionType;
   balance_type: WalletBalanceType;
@@ -92,6 +93,16 @@ export interface WalletTransactionRecord {
   description: string;
   metadata: Record<string, any>;
   created_by: string | null;
+  created_at: string;
+}
+
+export interface UserRewardRecord {
+  id: string;
+  user_id: string;
+  reward_type: string;
+  organization_id: string | null;
+  transaction_id: string | null;
+  amount: number;
   created_at: string;
 }
 

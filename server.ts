@@ -5835,8 +5835,15 @@ app.post('/api/organizations/:orgId/wallet/grant-welcome', walletRateLimiter, au
       return;
     }
 
+    const org = await getOrganizationById(orgId);
+    if (!org) {
+      res.status(404).json({ error: 'Organization not found' });
+      return;
+    }
+
     const result = await grantWelcomeCredit({
       organizationId: orgId,
+      userId: org.owner_id,
       createdBy: req.user!.id,
       referenceId: req.body?.reference_id,
       metadata: req.body?.metadata,
