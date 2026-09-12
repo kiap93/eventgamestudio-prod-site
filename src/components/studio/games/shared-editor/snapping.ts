@@ -342,6 +342,8 @@ export function calculateSnap<T extends Partial<BaseVisualElement> = Partial<Bas
 export interface ResizeSnapResult {
   box: SnapBox;
   guides: AlignmentGuide[];
+  snappedX?: boolean;
+  snappedY?: boolean;
 }
 
 /**
@@ -548,8 +550,13 @@ export function calculateResizeSnap<T extends Partial<BaseVisualElement> = Parti
     }
   }
 
+  const snappedX = guides.some((g) => g.type === 'vertical');
+  const snappedY = guides.some((g) => g.type === 'horizontal');
+
   return {
     box: { x, y, width, height },
     guides,
+    snappedX,
+    snappedY,
   };
 }

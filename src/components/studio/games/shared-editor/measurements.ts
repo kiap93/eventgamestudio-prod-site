@@ -172,7 +172,7 @@ export function calculateMeasurements<T extends Partial<BaseVisualElement> = Par
     }
   }
 
-  if (nearestAbove && nearestAbove.dist > 0 && nearestAbove.dist < 200) {
+  if (nearestAbove && nearestAbove.dist > 0) {
     const sY = nearestAbove.sib.y!;
     const sH = nearestAbove.sib.height!;
     measurements.push({
@@ -188,7 +188,7 @@ export function calculateMeasurements<T extends Partial<BaseVisualElement> = Par
     });
   }
 
-  if (nearestBelow && nearestBelow.dist > 0 && nearestBelow.dist < 200) {
+  if (nearestBelow && nearestBelow.dist > 0) {
     const sY = nearestBelow.sib.y!;
     measurements.push({
       id: `gap-below-${nearestBelow.sib.id}`,
@@ -203,7 +203,7 @@ export function calculateMeasurements<T extends Partial<BaseVisualElement> = Par
     });
   }
 
-  if (nearestLeft && nearestLeft.dist > 0 && nearestLeft.dist < 200) {
+  if (nearestLeft && nearestLeft.dist > 0) {
     const sX = nearestLeft.sib.x!;
     const sW = nearestLeft.sib.width!;
     measurements.push({
@@ -219,7 +219,7 @@ export function calculateMeasurements<T extends Partial<BaseVisualElement> = Par
     });
   }
 
-  if (nearestRight && nearestRight.dist > 0 && nearestRight.dist < 200) {
+  if (nearestRight && nearestRight.dist > 0) {
     const sX = nearestRight.sib.x!;
     measurements.push({
       id: `gap-right-${nearestRight.sib.id}`,

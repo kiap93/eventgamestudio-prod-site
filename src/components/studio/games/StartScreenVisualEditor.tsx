@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { Layers, Layout, Sliders } from 'lucide-react';
 import {
   StartScreenConfig,
   StartScreenElement,
@@ -184,6 +185,7 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isLayerTreeCollapsed, setIsLayerTreeCollapsed] = useState<boolean>(false);
   const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
+  const [mobileActiveTab, setMobileActiveTab] = useState<'layers' | 'canvas' | 'inspector'>('canvas');
 
   // Modals state
   const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
@@ -541,144 +543,197 @@ export const StartScreenVisualEditor: React.FC<StartScreenVisualEditorProps> = (
   return (
     <StartScreenEditorErrorBoundary onResetLayout={handleResetLayout} onClose={handleClose}>
       <div
-        className={`flex flex-col bg-slate-950 text-slate-100 overflow-hidden ${
-          isModal ? 'fixed inset-0 z-50 w-screen h-screen' : 'relative w-full h-full min-h-[600px]'
+        className={`bg-slate-950 text-slate-100 flex flex-col select-none overflow-hidden ${
+          isModal !== false
+            ? 'fixed inset-0 z-[100] w-screen h-screen'
+            : 'relative w-full h-full min-h-0 flex-1'
         }`}
+        style={isModal !== false ? { height: '100vh', width: '100vw' } : undefined}
       >
         {/* Top Controls & Action Toolbar */}
-      <EditorTopBar
-        selectedIds={selectedIds}
-        totalElementsCount={currentElements.length}
-        gameType={gameType}
-        isPreviewMode={isPreviewMode}
-        onTogglePreviewMode={() => setIsPreviewMode((p) => !p)}
-        onAlignSelected={handleAlignSelected}
-        canvasWidth={effectiveConfig.canvas?.width || 1024}
-        canvasHeight={effectiveConfig.canvas?.height || 576}
-        onAddNewRootElement={handleAddNewRootElement}
-        onCenterSelectedHorizontal={handleCenterSelectedHorizontal}
-        onCenterSelectedVertical={handleCenterSelectedVertical}
-        onMoveSelectedLayer={(dir) => {
-          if (selectedIds[0]) handleMoveLayer(selectedIds[0], dir);
-        }}
-        onDuplicateSelected={handleDuplicateSelected}
-        onDeleteSelected={handleDeleteSelected}
-        onResetLayout={handleResetLayout}
-        onOpenPresets={() => setIsPresetModalOpen(true)}
-        onSaveAsTemplate={() => setIsSaveModalOpen(true)}
-        onClose={handleClose}
-        canGroup={canGroup}
-        canUngroup={canUngroup}
-        onGroupSelected={handleGroupSelected}
-        onUngroupSelected={handleUngroupSelected}
-        onToggleLockSelected={() => {
-          if (selectedIds[0]) handleToggleLock(selectedIds[0]);
-        }}
-        isAllSelectedLocked={isAllSelectedLocked}
-        isModal={isModal}
-        onToggleFullscreen={onToggleFullscreen}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onUndo={undo}
-        onRedo={redo}
-      />
+        <EditorTopBar
+          selectedIds={selectedIds}
+          totalElementsCount={currentElements.length}
+          gameType={gameType}
+          isPreviewMode={isPreviewMode}
+          onTogglePreviewMode={() => setIsPreviewMode((p) => !p)}
+          onAlignSelected={handleAlignSelected}
+          canvasWidth={effectiveConfig.canvas?.width || 1024}
+          canvasHeight={effectiveConfig.canvas?.height || 576}
+          onAddNewRootElement={handleAddNewRootElement}
+          onCenterSelectedHorizontal={handleCenterSelectedHorizontal}
+          onCenterSelectedVertical={handleCenterSelectedVertical}
+          onMoveSelectedLayer={(dir) => {
+            if (selectedIds[0]) handleMoveLayer(selectedIds[0], dir);
+          }}
+          onDuplicateSelected={handleDuplicateSelected}
+          onDeleteSelected={handleDeleteSelected}
+          onResetLayout={handleResetLayout}
+          onOpenPresets={() => setIsPresetModalOpen(true)}
+          onSaveAsTemplate={() => setIsSaveModalOpen(true)}
+          onClose={handleClose}
+          canGroup={canGroup}
+          canUngroup={canUngroup}
+          onGroupSelected={handleGroupSelected}
+          onUngroupSelected={handleUngroupSelected}
+          onToggleLockSelected={() => {
+            if (selectedIds[0]) handleToggleLock(selectedIds[0]);
+          }}
+          isAllSelectedLocked={isAllSelectedLocked}
+          isModal={isModal}
+          onToggleFullscreen={onToggleFullscreen}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={undo}
+          onRedo={redo}
+        />
 
-      {/* Main Workspace Body */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Left: Layer Tree Panel (hidden in full live preview mode) */}
-        {!isPreviewMode && (
-          <LayerTreePanel
-            elements={currentElements}
-            selectedIds={selectedIds}
-            gameType={gameType}
-            onSelectElement={handleSelectElement}
-            onToggleVisibility={handleToggleVisibility}
-            onToggleLock={handleToggleLock}
-            onDeleteElement={(id) => {
-              const nextElements = deleteElements(currentElements, [id]);
-              updateElementsWithHistory(nextElements);
-              setSelectedIds((prev) => prev.filter((i) => i !== id));
-            }}
-            onDuplicateElement={(id) => {
-              const res = duplicateElement(currentElements, id);
-              updateElementsWithHistory(res.newElements);
-              if (res.duplicatedId) setSelectedIds([res.duplicatedId]);
-            }}
-            onMoveLayer={handleMoveLayer}
-            onMoveToContainer={handleMoveToContainer}
-            onAddChildElement={handleAddChildElement}
-            isCollapsed={isLayerTreeCollapsed}
-            onToggleCollapse={() => setIsLayerTreeCollapsed((c) => !c)}
-            canvasWidth={effectiveConfig.canvas?.width}
-            canvasHeight={effectiveConfig.canvas?.height}
-          />
-        )}
+        {/* Main Workspace Body */}
+        <div className="flex-1 min-h-0 h-full flex overflow-hidden relative">
+          {/* Left Column: Layer Tree Panel (hidden in full live preview mode) */}
+          {!isPreviewMode && (
+            <div
+              className={`${
+                mobileActiveTab === 'layers' ? 'flex w-full absolute inset-0 z-30' : 'hidden'
+              } md:flex shrink-0 relative z-20 h-full`}
+            >
+              <LayerTreePanel
+                elements={currentElements}
+                selectedIds={selectedIds}
+                gameType={gameType}
+                onSelectElement={handleSelectElement}
+                onToggleVisibility={handleToggleVisibility}
+                onToggleLock={handleToggleLock}
+                onDeleteElement={(id) => {
+                  const nextElements = deleteElements(currentElements, [id]);
+                  updateElementsWithHistory(nextElements);
+                  setSelectedIds((prev) => prev.filter((i) => i !== id));
+                }}
+                onDuplicateElement={(id) => {
+                  const res = duplicateElement(currentElements, id);
+                  updateElementsWithHistory(res.newElements);
+                  if (res.duplicatedId) setSelectedIds([res.duplicatedId]);
+                }}
+                onMoveLayer={handleMoveLayer}
+                onMoveToContainer={handleMoveToContainer}
+                onAddChildElement={handleAddChildElement}
+                isCollapsed={isLayerTreeCollapsed}
+                onToggleCollapse={() => setIsLayerTreeCollapsed((c) => !c)}
+                canvasWidth={effectiveConfig.canvas?.width}
+                canvasHeight={effectiveConfig.canvas?.height}
+              />
+            </div>
+          )}
 
-        {/* Center: Canvas Workspace */}
-        <div className="flex-1 h-full relative overflow-hidden bg-slate-950">
-          <CanvasWorkspace
-            startConfig={effectiveConfig}
-            theme={theme}
-            gameType={gameType}
-            gameMeta={effectiveGameMeta}
-            elements={currentElements}
-            selectedIds={selectedIds}
-            isPreviewMode={isPreviewMode}
-            onExitPreview={() => setIsPreviewMode(false)}
-            onSelectElement={handleSelectElement}
-            onClearSelection={handleClearSelection}
-            onUpdateElements={handleUpdateBatchElements}
-            onUpdateSingleElement={handleUpdateSingleElement}
-            findElementAndParent={findElementAndParent}
-            onGestureStart={recordGestureStart}
-            onGestureEnd={recordGestureEnd}
-            onUndo={undo}
-            onRedo={redo}
-            onDelete={handleDeleteSelected}
-            onDuplicate={handleDuplicateSelected}
-          />
+          {/* Center Column: Interactive Canvas Workspace */}
+          <div
+            className={`${
+              mobileActiveTab === 'canvas' ? 'flex flex-1 w-full h-full' : 'hidden'
+            } md:flex flex-1 h-full min-h-0 relative overflow-hidden bg-slate-950`}
+          >
+            <CanvasWorkspace
+              startConfig={effectiveConfig}
+              theme={theme}
+              gameType={gameType}
+              gameMeta={effectiveGameMeta}
+              elements={currentElements}
+              selectedIds={selectedIds}
+              isPreviewMode={isPreviewMode}
+              onExitPreview={() => setIsPreviewMode(false)}
+              onSelectElement={handleSelectElement}
+              onClearSelection={handleClearSelection}
+              onUpdateElements={handleUpdateBatchElements}
+              onUpdateSingleElement={handleUpdateSingleElement}
+              findElementAndParent={findElementAndParent}
+              onGestureStart={recordGestureStart}
+              onGestureEnd={recordGestureEnd}
+              onUndo={undo}
+              onRedo={redo}
+              onDelete={handleDeleteSelected}
+              onDuplicate={handleDuplicateSelected}
+            />
+          </div>
+
+          {/* Right Column: Property Inspector Panel (hidden in full live preview mode) */}
+          {!isPreviewMode && (
+            <div
+              className={`${
+                mobileActiveTab === 'inspector' ? 'flex w-full absolute inset-0 z-30' : 'hidden'
+              } md:flex shrink-0 h-full relative z-20`}
+            >
+              <PropertyInspectorPanel
+                selectedElement={selectedElement}
+                selectedIds={selectedIds}
+                elements={currentElements}
+                startConfig={effectiveConfig}
+                theme={theme}
+                gameType={gameType}
+                canvasWidth={effectiveConfig.canvas?.width || 1024}
+                canvasHeight={effectiveConfig.canvas?.height || 576}
+                onAlignSelected={handleAlignSelected}
+                onGroupSelected={handleGroupSelected}
+                canGroup={canGroup}
+                onBulkLockToggle={handleBulkLockToggle}
+                isAllSelectedLocked={isAllSelectedLocked}
+                onUpdateElement={(updater) => {
+                  if (selectedElement) {
+                    handleUpdateSingleElement(selectedElement.id, updater);
+                  }
+                }}
+                onUpdateConfig={(updater) => {
+                  onChange(updater(effectiveConfig));
+                }}
+                onDuplicateSelected={handleDuplicateSelected}
+                onDeleteSelected={handleDeleteSelected}
+                onToggleLockSelected={() => {
+                  if (selectedElement) handleToggleLock(selectedElement.id);
+                }}
+                onToggleVisibilitySelected={() => {
+                  if (selectedElement) handleToggleVisibility(selectedElement.id);
+                }}
+                onMoveToContainer={handleMoveToContainer}
+                onUploadAsset={onUploadAsset}
+                onAddNewRootElement={handleAddNewRootElement}
+                onAddChildElement={handleAddChildElement}
+                onClearSelection={handleClearSelection}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Right: Property Inspector Panel (hidden in full live preview mode) */}
-        {!isPreviewMode && (
-          <PropertyInspectorPanel
-            selectedElement={selectedElement}
-            selectedIds={selectedIds}
-            elements={currentElements}
-            startConfig={effectiveConfig}
-            theme={theme}
-            gameType={gameType}
-            canvasWidth={effectiveConfig.canvas?.width || 1024}
-            canvasHeight={effectiveConfig.canvas?.height || 576}
-            onAlignSelected={handleAlignSelected}
-            onGroupSelected={handleGroupSelected}
-            canGroup={canGroup}
-            onBulkLockToggle={handleBulkLockToggle}
-            isAllSelectedLocked={isAllSelectedLocked}
-            onUpdateElement={(updater) => {
-              if (selectedElement) {
-                handleUpdateSingleElement(selectedElement.id, updater);
-              }
-            }}
-            onUpdateConfig={(updater) => {
-              onChange(updater(effectiveConfig));
-            }}
-            onDuplicateSelected={handleDuplicateSelected}
-            onDeleteSelected={handleDeleteSelected}
-            onToggleLockSelected={() => {
-              if (selectedElement) handleToggleLock(selectedElement.id);
-            }}
-            onToggleVisibilitySelected={() => {
-              if (selectedElement) handleToggleVisibility(selectedElement.id);
-            }}
-            onMoveToContainer={handleMoveToContainer}
-            onUploadAsset={onUploadAsset}
-            onAddNewRootElement={handleAddNewRootElement}
-            onAddChildElement={handleAddChildElement}
-            onClearSelection={handleClearSelection}
-          />
-        )}
-      </div>
+        {/* Mobile Workspace Switcher */}
+        <div className="md:hidden h-12 bg-slate-950 border-t border-slate-800 flex items-center justify-around px-4 shrink-0 z-30">
+          <button
+            type="button"
+            onClick={() => setMobileActiveTab('layers')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold ${
+              mobileActiveTab === 'layers' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Layers</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileActiveTab('canvas')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold ${
+              mobileActiveTab === 'canvas' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'
+            }`}
+          >
+            <Layout className="w-3.5 h-3.5" />
+            <span>Canvas</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileActiveTab('inspector')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold ${
+              mobileActiveTab === 'inspector' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Properties</span>
+          </button>
+        </div>
 
       {/* Preset Library Modal */}
       <PresetLibraryModal

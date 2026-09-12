@@ -92,6 +92,14 @@ export function getStartElementIcon(type: StartScreenElementType): React.Element
   }
 }
 
+export function renderStartElementIcon(
+  type: StartScreenElementType,
+  className: string = 'w-3.5 h-3.5'
+): React.ReactElement {
+  const IconC = getStartElementIcon(type);
+  return React.createElement(IconC, { className });
+}
+
 export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
   elements,
   selectedIds,
@@ -306,7 +314,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
 
   if (isCollapsed) {
     return (
-      <div className="w-10 border-r border-slate-800 bg-slate-900/90 flex flex-col items-center py-3 select-none">
+      <div className="w-10 border-r border-slate-800 bg-slate-900/90 flex flex-col items-center py-3 select-none h-full shrink-0 z-20">
         <button
           onClick={onToggleCollapse}
           className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
@@ -319,7 +327,7 @@ export const LayerTreePanel: React.FC<LayerTreePanelProps> = ({
   }
 
   return (
-    <div className="w-64 border-r border-slate-800 bg-slate-900/95 flex flex-col shrink-0 select-none z-20 overflow-hidden">
+    <div className="w-64 border-r border-slate-800 bg-slate-900/95 flex flex-col shrink-0 select-none z-20 overflow-hidden h-full">
       {/* Header */}
       <div className="h-12 px-3 border-b border-slate-800 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
