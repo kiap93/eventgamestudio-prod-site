@@ -39,6 +39,8 @@ import {
   isEventTestScoresCleared,
   ensureTestScoresClearedForLiveEvent,
 } from './highScores.js';
+import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
+import { cleanupExpiredNotifications } from './notifications.js';
 import crypto from 'node:crypto';
 
 // In-memory cache fallback for mock / test environments
@@ -2334,6 +2336,32 @@ export async function createEvent(
           event_currency: currency,
         };
         localEventsCache.set(dbPayload.id, fullRecord);
+
+        dispatchNotificationEvent(
+          {
+            eventType: 'EVENT_CREATED',
+            organizationId: fullRecord.organization_id,
+            eventId: fullRecord.id,
+            eventName: fullRecord.name,
+            startDate: fullRecord.start_date || fullRecord.event_date || '',
+            endDate: fullRecord.end_date || fullRecord.event_date || '',
+          },
+          env
+        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_CREATED:', err));
+
+        if (fullRecord.payment_status === 'PAID' && fullRecord.event_status === 'LIVE') {
+          dispatchNotificationEvent(
+            {
+              eventType: 'EVENT_LIVE',
+              organizationId: fullRecord.organization_id,
+              eventId: fullRecord.id,
+              eventName: fullRecord.name,
+              publicUrl: `/play/${fullRecord.public_token}`,
+            },
+            env
+          ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_LIVE:', err));
+        }
+
         return fullRecord;
       }
       console.error('Error in createEvent:', error);
@@ -2355,6 +2383,32 @@ export async function createEvent(
     event_currency: currency,
   };
   localEventsCache.set(fullRecord.id, fullRecord);
+
+  dispatchNotificationEvent(
+    {
+      eventType: 'EVENT_CREATED',
+      organizationId: fullRecord.organization_id,
+      eventId: fullRecord.id,
+      eventName: fullRecord.name,
+      startDate: fullRecord.start_date || fullRecord.event_date || '',
+      endDate: fullRecord.end_date || fullRecord.event_date || '',
+    },
+    env
+  ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_CREATED:', err));
+
+  if (fullRecord.payment_status === 'PAID' && fullRecord.event_status === 'LIVE') {
+    dispatchNotificationEvent(
+      {
+        eventType: 'EVENT_LIVE',
+        organizationId: fullRecord.organization_id,
+        eventId: fullRecord.id,
+        eventName: fullRecord.name,
+        publicUrl: `/play/${fullRecord.public_token}`,
+      },
+      env
+    ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_LIVE:', err));
+  }
+
   return fullRecord;
   });
 }
@@ -3017,6 +3071,16 @@ export async function runEventLifecycleMaintenance(
           }
         }
         expiredEvents.push(ev.id);
+        dispatchNotificationEvent(
+          {
+            eventType: 'EVENT_EXPIRED',
+            organizationId: ev.organization_id,
+            eventId: ev.id,
+            eventName: ev.name,
+            reason: 'UNPAID_EXPIRED',
+          },
+          env
+        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_EXPIRED (unpaid):', err));
         if (isLocalFallbackAllowed(env)) {
           const cached = localEventsCache.get(ev.id);
           if (cached) {
@@ -3053,6 +3117,16 @@ export async function runEventLifecycleMaintenance(
             }
           }
           completedEvents.push(ev.id);
+          dispatchNotificationEvent(
+            {
+              eventType: 'EVENT_EXPIRED',
+              organizationId: ev.organization_id,
+              eventId: ev.id,
+              eventName: ev.name,
+              reason: 'COMPLETED',
+            },
+            env
+          ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_EXPIRED (completed):', err));
           if (isLocalFallbackAllowed(env)) {
             const cached = localEventsCache.get(ev.id);
             if (cached) {
@@ -3082,9 +3156,42 @@ export async function runEventLifecycleMaintenance(
               localEventsCache.set(ev.id, { ...cached, ...livePayload });
             }
           }
+          dispatchNotificationEvent(
+            {
+              eventType: 'EVENT_LIVE',
+              organizationId: ev.organization_id,
+              eventId: ev.id,
+              eventName: ev.name,
+              publicUrl: `/play/${ev.public_token}`,
+            },
+            env
+          ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_LIVE:', err));
+        }
+
+        if (endDate) {
+          const endDateTime = new Date(`${endDate}T23:59:59+08:00`).getTime();
+          const diffHours = (endDateTime - nowTime) / (1000 * 60 * 60);
+          if (diffHours > 0 && diffHours <= 24) {
+            dispatchNotificationEvent(
+              {
+                eventType: 'EVENT_EXPIRING',
+                organizationId: ev.organization_id,
+                eventId: ev.id,
+                eventName: ev.name,
+                endDate,
+              },
+              env
+            ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_EXPIRING:', err));
+          }
         }
       }
     }
+  }
+
+  try {
+    await cleanupExpiredNotifications(env);
+  } catch (cleanErr) {
+    console.warn('[Event Lifecycle Maintenance] Notification cleanup warning:', cleanErr);
   }
 
   return {

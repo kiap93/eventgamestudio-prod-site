@@ -28,6 +28,7 @@ import {
   resolveAuthoritativeCatchBrandConfig,
 } from './events.js';
 import { isUUID, getThemeById } from './themes.js';
+import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import {
   calculateMemoryMatchScore,
   validateMemoryMatchResult,
@@ -1429,6 +1430,21 @@ async function executeSubmitEventScore(
     rank = calculatedRank > 0 ? calculatedRank : 1;
     totalEntries = finalModeScores.length;
     calculatedNewHighScore = !isDuplicateFromDb && isNewHighScore;
+  }
+
+  if (calculatedNewHighScore && rank === 1 && scoreEnvironment === 'live' && event?.organization_id) {
+    dispatchNotificationEvent(
+      {
+        eventType: 'LEADERBOARD_HIGH_SCORE',
+        organizationId: event.organization_id,
+        eventId: resolvedEventId,
+        eventName: event.name || 'Event',
+        playerName: finalRecord.player_name,
+        score: finalRecord.score,
+        rank: 1,
+      },
+      env
+    ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch LEADERBOARD_HIGH_SCORE:', err));
   }
 
   return {

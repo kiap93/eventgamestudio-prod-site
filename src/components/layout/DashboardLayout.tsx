@@ -23,6 +23,7 @@ import {
   Check,
   ShieldCheck,
 } from 'lucide-react';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 export const DashboardLayout: React.FC = () => {
   const routeContext = useRouteContext();
@@ -369,6 +370,9 @@ export const DashboardLayout: React.FC = () => {
                 </span>
               )}
             </button>
+
+            {/* Notification Bell */}
+            <NotificationBell />
 
             {/* 3. User Name Dropdown */}
             <div className="relative">

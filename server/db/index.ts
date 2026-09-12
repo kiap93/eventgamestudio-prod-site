@@ -13,3 +13,4 @@ export * from './platformSettings.js';
 export * from './googleMailSettings.js';
 export * from './storage.js';
 export * from './highScores.js';
+export * from './notifications.js';

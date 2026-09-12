@@ -11,6 +11,8 @@ import { PublicShowcaseView } from './components/events/PublicShowcaseView';
 import { EventPreviewGameView } from './components/events/EventPreviewGameView';
 import { DeveloperAdminPage } from './components/developer/DeveloperAdminPage';
 import { LandingPage } from './components/landing/LandingPage';
+import { NotificationProvider } from './context/NotificationContext';
+import { NotificationCenterModal } from './components/notifications/NotificationCenterModal';
 import { ShieldAlert } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -143,7 +145,10 @@ const AppContent: React.FC = () => {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <NotificationProvider>
+        <AppContent />
+        <NotificationCenterModal />
+      </NotificationProvider>
     </AuthProvider>
   );
 }

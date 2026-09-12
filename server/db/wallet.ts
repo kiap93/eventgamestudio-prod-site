@@ -29,6 +29,7 @@ import {
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 
 // Business Constants
 export const STANDARD_EVENT_PRICE = 1400.00;
@@ -1344,6 +1345,17 @@ export async function grantWelcomeCredit(
       }
 
       const wallet = await recalculateWalletBalances(organizationId, env);
+
+      dispatchNotificationEvent(
+        {
+          eventType: 'WELCOME_CREDIT_ADDED',
+          organizationId,
+          recipientUserId: targetUserId || undefined,
+          amount: WELCOME_CREDIT_AMOUNT,
+          currency: 'MYR',
+        },
+        env
+      ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch WELCOME_CREDIT_ADDED:', err));
 
       return {
         transaction,
@@ -2971,6 +2983,40 @@ export async function processEventPayment(
 
     const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
 
+    dispatchNotificationEvent(
+      {
+        eventType: 'PAYMENT_SUCCESS',
+        organizationId,
+        recipientUserId: createdBy || undefined,
+        referenceId: referenceId || `event_pay_${eventId}`,
+        amount: calculation.eventPrice,
+        currency: 'MYR',
+        subject: eventLabel || `Event Activation (${eventId.slice(0, 8)})`,
+        eventId,
+        paymentType: 'EVENT_PAYMENT',
+        metadata: {
+          event_id: eventId,
+          paid_amount: calculation.paidAmount,
+          discount_amount: calculation.totalDiscount,
+          payment_mode: mode,
+        },
+      },
+      env
+    ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch PAYMENT_SUCCESS for event:', err));
+
+    if (wallet.paid_balance < 500) {
+      dispatchNotificationEvent(
+        {
+          eventType: 'WALLET_LOW_BALANCE',
+          organizationId,
+          currentBalance: `RM${wallet.paid_balance.toFixed(2)}`,
+          currency: 'MYR',
+          threshold: 'RM500.00',
+        },
+        env
+      ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch WALLET_LOW_BALANCE:', err));
+    }
+
     return {
       success: true,
       paymentCalculation: calculation,
@@ -3560,6 +3606,24 @@ export async function createTopupOrder(
       env
     );
 
+    dispatchNotificationEvent(
+      {
+        eventType: 'PAYMENT_PENDING',
+        organizationId,
+        recipientUserId: userId,
+        referenceId: saved.payment_reference || saved.id,
+        amount: sanitizedAmount,
+        currency,
+        subject: `Wallet Top-Up (${saved.id.slice(0, 8).toUpperCase()})`,
+        checkoutUrl: (saved.metadata as any)?.payment_url || `/wallet/top-up?orderId=${saved.id}`,
+        metadata: {
+          order_id: saved.id,
+          amount: sanitizedAmount,
+        },
+      },
+      env
+    ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch PAYMENT_PENDING:', err));
+
     return saved;
   }
 
@@ -3586,6 +3650,24 @@ export async function createTopupOrder(
     },
     env
   );
+
+  dispatchNotificationEvent(
+    {
+      eventType: 'PAYMENT_PENDING',
+      organizationId,
+      recipientUserId: userId,
+      referenceId: orderRecord.payment_reference || orderRecord.id,
+      amount: sanitizedAmount,
+      currency,
+      subject: `Wallet Top-Up (${orderRecord.id.slice(0, 8).toUpperCase()})`,
+      checkoutUrl: (orderRecord.metadata as any)?.payment_url || `/wallet/top-up?orderId=${orderRecord.id}`,
+      metadata: {
+        order_id: orderRecord.id,
+        amount: sanitizedAmount,
+      },
+    },
+    env
+  ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch PAYMENT_PENDING:', err));
 
   return orderRecord;
 }
@@ -4065,6 +4147,25 @@ export async function processTopupOrderStatus(
       );
 
       const walletSummary = await getWalletBalance(order.organization_id, env);
+
+      dispatchNotificationEvent(
+        {
+          eventType: 'PAYMENT_SUCCESS',
+          organizationId: order.organization_id,
+          recipientUserId: order.user_id,
+          referenceId: order.payment_reference || `topup_${order.id}`,
+          amount: order.top_up_amount,
+          currency: order.currency || 'MYR',
+          subject: `Wallet Top-Up (${order.id.slice(0, 8).toUpperCase()})`,
+          paymentType: 'TOPUP',
+          metadata: {
+            order_id: order.id,
+            top_up_amount: order.top_up_amount,
+            promo_credit: promoCredit,
+          },
+        },
+        env
+      ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch PAYMENT_SUCCESS for top-up:', err));
 
       return {
         order,

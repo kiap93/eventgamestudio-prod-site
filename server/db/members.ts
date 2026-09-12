@@ -1,5 +1,6 @@
 import { getSupabaseServerClient, isLocalFallbackAllowed, isSupabaseConfigured } from '../supabase.js';
 import { OrgMemberRecord, OrgRole } from './types.js';
+import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import crypto from 'node:crypto';
 
 export const localMembersCache = new Map<string, OrgMemberRecord>();
@@ -308,6 +309,16 @@ export async function updateMemberRole(
   if (record) {
     localMembersCache.set(record.id, record);
   }
+
+  dispatchNotificationEvent(
+    {
+      eventType: 'SECURITY_SETTINGS_CHANGED',
+      organizationId,
+      changeDescription: `Member role updated to ${role}`,
+    },
+    env
+  ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch SECURITY_SETTINGS_CHANGED:', err));
+
   return record;
 }
 

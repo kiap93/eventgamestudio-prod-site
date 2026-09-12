@@ -37,7 +37,8 @@ export interface PaymentSuccessEvent extends BaseBusinessEvent {
 export interface PaymentPendingEvent extends BaseBusinessEvent {
   eventType: 'PAYMENT_PENDING';
   recipientUserId?: string | null;
-  orderId: string;
+  orderId?: string;
+  referenceId?: string;
   amount: number | string;
   currency?: string;
   subject: string;
@@ -59,6 +60,7 @@ export interface EventLiveEvent extends BaseBusinessEvent {
   eventId: string;
   eventName: string;
   liveUrl?: string | null;
+  publicUrl?: string | null;
 }
 
 export interface EventExpiringEvent extends BaseBusinessEvent {
@@ -67,6 +69,7 @@ export interface EventExpiringEvent extends BaseBusinessEvent {
   eventId: string;
   eventName: string;
   timeRemaining: string; // e.g. "24 hours", "6 hours"
+  endDate?: string;
 }
 
 export interface EventExpiredEvent extends BaseBusinessEvent {
@@ -74,6 +77,7 @@ export interface EventExpiredEvent extends BaseBusinessEvent {
   recipientUserId?: string | null;
   eventId: string;
   eventName: string;
+  reason?: string;
 }
 
 export interface WalletLowBalanceEvent extends BaseBusinessEvent {
@@ -91,6 +95,7 @@ export interface ThemeReadyEvent extends BaseBusinessEvent {
   themeName: string;
   gameType?: string;
   gameName?: string;
+  previewUrl?: string;
 }
 
 export interface LeaderboardHighScoreEvent extends BaseBusinessEvent {
@@ -103,12 +108,40 @@ export interface LeaderboardHighScoreEvent extends BaseBusinessEvent {
   rank?: number;
 }
 
-export interface ShowcaseApprovedEvent extends BaseBusinessEvent {
-  eventType: 'SHOWCASE_APPROVED';
+export interface ShowcaseDraftCreatedEvent extends BaseBusinessEvent {
+  eventType: 'SHOWCASE_DRAFT_CREATED';
   recipientUserId?: string | null;
   eventId: string;
   eventName: string;
-  rewardAmount?: string | number | null;
+  showcaseId?: string;
+  showcaseTitle?: string;
+}
+
+export interface ShowcasePublishedEvent extends BaseBusinessEvent {
+  eventType: 'SHOWCASE_PUBLISHED';
+  recipientUserId?: string | null;
+  eventId: string;
+  eventName: string;
+  showcaseId?: string;
+  showcaseTitle?: string;
+}
+
+export interface ShowcaseUnpublishedEvent extends BaseBusinessEvent {
+  eventType: 'SHOWCASE_UNPUBLISHED';
+  recipientUserId?: string | null;
+  eventId: string;
+  eventName: string;
+  showcaseId?: string;
+  showcaseTitle?: string;
+}
+
+export interface ShowcaseUpdatedEvent extends BaseBusinessEvent {
+  eventType: 'SHOWCASE_UPDATED';
+  recipientUserId?: string | null;
+  eventId: string;
+  eventName: string;
+  showcaseId?: string;
+  showcaseTitle?: string;
 }
 
 export interface SecuritySettingsChangedEvent extends BaseBusinessEvent {
@@ -116,6 +149,7 @@ export interface SecuritySettingsChangedEvent extends BaseBusinessEvent {
   recipientUserId?: string | null;
   action: 'ROLE_CHANGED' | 'MEMBER_REMOVED' | 'MEMBER_INVITED' | 'ORG_SETTINGS_UPDATED';
   details: string;
+  changeDescription?: string;
 }
 
 export type BusinessNotificationEvent =
@@ -129,7 +163,10 @@ export type BusinessNotificationEvent =
   | WalletLowBalanceEvent
   | ThemeReadyEvent
   | LeaderboardHighScoreEvent
-  | ShowcaseApprovedEvent
+  | ShowcaseDraftCreatedEvent
+  | ShowcasePublishedEvent
+  | ShowcaseUnpublishedEvent
+  | ShowcaseUpdatedEvent
   | SecuritySettingsChangedEvent;
 
 /**
@@ -512,23 +549,67 @@ export class NotificationDispatcher {
         };
       }
 
-      case 'SHOWCASE_APPROVED': {
-        const rewardNote = event.rewardAmount
-          ? `An owner reward of RM${Number(event.rewardAmount).toLocaleString()} has been credited to your wallet.`
-          : '';
+      case 'SHOWCASE_DRAFT_CREATED': {
         return {
-          type: 'showcase_approved',
+          type: 'showcase_draft_created',
           actionUrl: '/events',
           entityType: 'showcase',
-          entityId: event.eventId,
+          entityId: event.showcaseId || event.eventId,
           metadata: {
             event_id: event.eventId,
             event_name: event.eventName,
-            reward_note: rewardNote,
-            reward_amount: event.rewardAmount,
+            showcase_id: event.showcaseId,
             ...event.metadata,
           },
-          deduplicationKey: `showcase_approved_${event.eventId}`,
+          deduplicationKey: `showcase_draft_${event.showcaseId || event.eventId}`,
+        };
+      }
+
+      case 'SHOWCASE_PUBLISHED': {
+        return {
+          type: 'showcase_published',
+          actionUrl: '/events',
+          entityType: 'showcase',
+          entityId: event.showcaseId || event.eventId,
+          metadata: {
+            event_id: event.eventId,
+            event_name: event.eventName,
+            showcase_id: event.showcaseId,
+            ...event.metadata,
+          },
+          deduplicationKey: `showcase_published_${event.showcaseId || event.eventId}`,
+        };
+      }
+
+      case 'SHOWCASE_UNPUBLISHED': {
+        return {
+          type: 'showcase_unpublished',
+          actionUrl: '/events',
+          entityType: 'showcase',
+          entityId: event.showcaseId || event.eventId,
+          metadata: {
+            event_id: event.eventId,
+            event_name: event.eventName,
+            showcase_id: event.showcaseId,
+            ...event.metadata,
+          },
+          deduplicationKey: `showcase_unpublished_${event.showcaseId || event.eventId}`,
+        };
+      }
+
+      case 'SHOWCASE_UPDATED': {
+        return {
+          type: 'showcase_updated',
+          actionUrl: '/events',
+          entityType: 'showcase',
+          entityId: event.showcaseId || event.eventId,
+          metadata: {
+            event_id: event.eventId,
+            event_name: event.eventName,
+            showcase_id: event.showcaseId,
+            ...event.metadata,
+          },
+          deduplicationKey: `showcase_updated_${event.showcaseId || event.eventId}_${Math.floor(Date.now() / 60000)}`,
         };
       }
 

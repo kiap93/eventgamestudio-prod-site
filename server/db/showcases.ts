@@ -12,6 +12,7 @@ import { grantShowcaseCredit, withOrganizationLock, localOwnerShowcaseRewardsCac
 import { getShowcaseMedia } from './showcaseMedia.js';
 import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase } from './events.js';
 import { getOrganizationById } from './organizations.js';
+import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -57,6 +58,25 @@ function saveLocalShowcases(env?: Record<string, any>): void {
   } catch (err) {
     console.warn('Warning: Could not save local showcases file:', err);
   }
+}
+
+function notifyShowcaseEvent(
+  eventType: 'SHOWCASE_DRAFT_CREATED' | 'SHOWCASE_PUBLISHED' | 'SHOWCASE_UNPUBLISHED' | 'SHOWCASE_UPDATED',
+  showcase: EventShowcaseRecord,
+  env?: Record<string, any>
+): void {
+  if (!showcase || !showcase.organization_id) return;
+  dispatchNotificationEvent(
+    {
+      eventType,
+      organizationId: showcase.organization_id,
+      showcaseId: showcase.id || showcase.event_id,
+      eventId: showcase.event_id,
+      showcaseTitle: showcase.title,
+      publicUrl: `/showcase/${showcase.id || showcase.event_id}`,
+    },
+    env
+  ).catch((err) => console.error(`[NOTIFICATION] Failed to dispatch ${eventType}:`, err));
 }
 
 function loadLocalModerationLogs(): void {
@@ -339,6 +359,7 @@ export async function createShowcase(
       // Save to local cache & file in development
       localShowcasesCache.set(params.event_id, record);
       saveLocalShowcases(env);
+      notifyShowcaseEvent(record.status === 'PUBLISHED' ? 'SHOWCASE_PUBLISHED' : 'SHOWCASE_DRAFT_CREATED', record, env);
       return record;
     }
 
@@ -347,6 +368,7 @@ export async function createShowcase(
       localShowcasesCache.set(params.event_id, saved);
       saveLocalShowcases(env);
     }
+    notifyShowcaseEvent(saved.status === 'PUBLISHED' ? 'SHOWCASE_PUBLISHED' : 'SHOWCASE_DRAFT_CREATED', saved, env);
     return saved;
   } catch (err: any) {
     if (!isLocalFallbackAllowed(env)) {
@@ -355,6 +377,7 @@ export async function createShowcase(
     console.warn('Error saving showcase to Supabase, falling back to local file store:', err);
     localShowcasesCache.set(params.event_id, record);
     saveLocalShowcases(env);
+    notifyShowcaseEvent(record.status === 'PUBLISHED' ? 'SHOWCASE_PUBLISHED' : 'SHOWCASE_DRAFT_CREATED', record, env);
     return record;
   }
 }
@@ -1517,6 +1540,8 @@ export async function publishShowcase(
   console.log(`[Showcase Publish] showcase ID: ${result.id}`);
   console.log(`[Showcase Publish] publish/update result: status=${result.status}, publication_status=${result.publication_status}, event_id=${result.event_id}`);
 
+  notifyShowcaseEvent('SHOWCASE_PUBLISHED', result, env);
+
   return result;
 }
 
@@ -1534,7 +1559,7 @@ export async function unpublishShowcase(
     throw err;
   }
 
-  return await updateShowcase(
+  const res = await updateShowcase(
     eventId,
     {
       status: 'UNPUBLISHED',
@@ -1542,6 +1567,8 @@ export async function unpublishShowcase(
     },
     env
   );
+  notifyShowcaseEvent('SHOWCASE_UNPUBLISHED', res, env);
+  return res;
 }
 
 /**

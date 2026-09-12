@@ -20,6 +20,7 @@ import {
   Building2,
   Mail,
 } from 'lucide-react';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 interface DeveloperAdminLayoutProps {
   children: React.ReactNode;
@@ -168,6 +169,9 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
                 <span className="text-[10px] text-emerald-400 font-mono">developer_admin</span>
               </div>
             </div>
+
+            {/* Notification Bell */}
+            <NotificationBell />
 
             {/* Logout / Exit */}
             <button

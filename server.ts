@@ -158,6 +158,11 @@ import {
   getEventTestScoresCount,
   isEventBeforeStartDate,
   determineScoreEnvironment,
+  listNotifications,
+  getUnreadNotificationCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
 } from './server/db/index.js';
 
 import {
@@ -6455,6 +6460,112 @@ app.post('/api/email/test', authenticateDeveloperAdmin, async (req: Authenticate
     res.status(500).json({
       error: err.message || 'Failed to dispatch test email via Gmail API',
     });
+  }
+});
+
+// ----------------------------------------------------
+// NOTIFICATIONS ENDPOINTS
+// ----------------------------------------------------
+
+/**
+ * GET /api/notifications
+ * Lists notifications for authenticated user with optional organization, unread, category filters, and pagination.
+ */
+app.get('/api/notifications', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const organizationId = typeof req.query.organizationId === 'string' ? req.query.organizationId : undefined;
+    const unreadOnly = req.query.unreadOnly === 'true';
+    const category = typeof req.query.category === 'string' ? (req.query.category as any) : undefined;
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '20'), 10) || 20, 1), 100);
+    const offset = Math.max(parseInt(String(req.query.offset || '0'), 10) || 0, 0);
+
+    const result = await listNotifications({
+      userId: user.id,
+      organizationId,
+      unreadOnly,
+      category,
+      limit,
+      offset,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error('List notifications error:', err);
+    res.status(500).json({ error: err.message || 'Failed to list notifications' });
+  }
+});
+
+/**
+ * GET /api/notifications/unread-count
+ * Returns unread notification count for the authenticated user.
+ */
+app.get('/api/notifications/unread-count', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const organizationId = typeof req.query.organizationId === 'string' ? req.query.organizationId : undefined;
+
+    const count = await getUnreadNotificationCount(user.id, organizationId);
+    res.json({ unread_count: count });
+  } catch (err: any) {
+    console.error('Get unread notification count error:', err);
+    res.status(500).json({ error: err.message || 'Failed to get unread count' });
+  }
+});
+
+/**
+ * PATCH /api/notifications/:id/read
+ * Mark a single notification as read.
+ */
+app.patch('/api/notifications/:id/read', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { id } = req.params;
+
+    const notification = await markNotificationAsRead(id, user.id);
+    if (!notification) {
+      res.status(404).json({ error: 'Notification not found' });
+      return;
+    }
+
+    res.json({ notification });
+  } catch (err: any) {
+    console.error('Mark notification read error:', err);
+    res.status(500).json({ error: err.message || 'Failed to mark notification as read' });
+  }
+});
+
+/**
+ * POST /api/notifications/mark-all-read
+ * Mark all notifications as read for the user.
+ */
+app.post('/api/notifications/mark-all-read', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const organizationId = typeof req.body?.organizationId === 'string' ? req.body.organizationId : undefined;
+
+    const count = await markAllNotificationsAsRead(user.id, organizationId);
+    res.json({ success: true, count });
+  } catch (err: any) {
+    console.error('Mark all notifications read error:', err);
+    res.status(500).json({ error: err.message || 'Failed to mark all notifications as read' });
+  }
+});
+
+/**
+ * DELETE /api/notifications/:id
+ * Delete a notification for the authenticated user.
+ */
+app.delete('/api/notifications/:id', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { id } = req.params;
+
+    await deleteNotification(id, user.id);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Delete notification error:', err);
+    res.status(500).json({ error: err.message || 'Failed to delete notification' });
   }
 });
 

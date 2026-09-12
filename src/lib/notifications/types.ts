@@ -14,7 +14,10 @@ export type NotificationType =
   | 'wallet_low_balance'
   | 'theme_ready'
   | 'leaderboard_high_score'
-  | 'showcase_approved'
+  | 'showcase_draft_created'
+  | 'showcase_published'
+  | 'showcase_unpublished'
+  | 'showcase_updated'
   | 'security_settings_changed';
 
 export type NotificationCategory =
@@ -175,16 +178,49 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     duplicatesAllowed: true,
     retentionDays: 30,
   },
-  showcase_approved: {
-    type: 'showcase_approved',
+  showcase_draft_created: {
+    type: 'showcase_draft_created',
     category: 'showcase',
-    defaultTitle: 'Showcase Published & Approved',
-    defaultMessage: 'Your showcase for "{event_name}" has been published to the community showcase hub! {reward_note}',
-    priority: 'high',
+    defaultTitle: 'Showcase Draft Created',
+    defaultMessage: 'Draft showcase created for "{event_name}". You can preview and publish it anytime.',
+    priority: 'normal',
     defaultActionUrl: '/events',
-    mandatory: true,
+    mandatory: false,
+    duplicatesAllowed: false,
+    retentionDays: 60,
+  },
+  showcase_published: {
+    type: 'showcase_published',
+    category: 'showcase',
+    defaultTitle: 'Showcase Published',
+    defaultMessage: 'Your showcase for "{event_name}" is now live on the community showcase hub!',
+    priority: 'normal',
+    defaultActionUrl: '/events',
+    mandatory: false,
     duplicatesAllowed: false,
     retentionDays: 90,
+  },
+  showcase_unpublished: {
+    type: 'showcase_unpublished',
+    category: 'showcase',
+    defaultTitle: 'Showcase Unpublished',
+    defaultMessage: 'Your showcase for "{event_name}" has been unpublished and is no longer publicly visible.',
+    priority: 'normal',
+    defaultActionUrl: '/events',
+    mandatory: false,
+    duplicatesAllowed: false,
+    retentionDays: 60,
+  },
+  showcase_updated: {
+    type: 'showcase_updated',
+    category: 'showcase',
+    defaultTitle: 'Showcase Updated',
+    defaultMessage: 'Showcase details for "{event_name}" have been updated.',
+    priority: 'low',
+    defaultActionUrl: '/events',
+    mandatory: false,
+    duplicatesAllowed: true,
+    retentionDays: 45,
   },
   security_settings_changed: {
     type: 'security_settings_changed',

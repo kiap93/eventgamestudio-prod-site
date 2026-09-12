@@ -156,6 +156,11 @@ import {
   getInvitationById,
   renewInvitation,
   deleteInvitation,
+  listNotifications,
+  getUnreadNotificationCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
 } from './server/db/index.js';
 
 import {
@@ -6483,6 +6488,108 @@ export default {
         } catch (err: any) {
           console.error('Reverse transaction error:', err);
           return errorResponse(err.message || 'Failed to reverse transaction', 500, cors);
+        }
+      }
+
+      // ----------------------------------------------------
+      // NOTIFICATIONS ENDPOINTS
+      // ----------------------------------------------------
+
+      // GET /api/notifications
+      if (pathname === '/api/notifications' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const organizationId = url.searchParams.get('organizationId') || undefined;
+        const unreadOnly = url.searchParams.get('unreadOnly') === 'true';
+        const category = (url.searchParams.get('category') as any) || undefined;
+        const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20', 10) || 20, 1), 100);
+        const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0);
+
+        try {
+          const result = await listNotifications(
+            {
+              userId: auth.user.id,
+              organizationId,
+              unreadOnly,
+              category,
+              limit,
+              offset,
+            },
+            env
+          );
+          return jsonResponse(result, 200, cors);
+        } catch (err: any) {
+          console.error('List notifications error:', err);
+          return errorResponse(err.message || 'Failed to list notifications', 500, cors);
+        }
+      }
+
+      // GET /api/notifications/unread-count
+      if (pathname === '/api/notifications/unread-count' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const organizationId = url.searchParams.get('organizationId') || undefined;
+
+        try {
+          const count = await getUnreadNotificationCount(auth.user.id, organizationId, env);
+          return jsonResponse({ unread_count: count }, 200, cors);
+        } catch (err: any) {
+          console.error('Get unread notification count error:', err);
+          return errorResponse(err.message || 'Failed to get unread count', 500, cors);
+        }
+      }
+
+      // PATCH /api/notifications/:id/read
+      const readMatch = pathname.match(/^\/api\/notifications\/([^\/]+)\/read$/);
+      if (readMatch && method === 'PATCH') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const notificationId = readMatch[1];
+        try {
+          const notification = await markNotificationAsRead(notificationId, auth.user.id, env);
+          if (!notification) {
+            return errorResponse('Notification not found', 404, cors);
+          }
+          return jsonResponse({ notification }, 200, cors);
+        } catch (err: any) {
+          console.error('Mark notification read error:', err);
+          return errorResponse(err.message || 'Failed to mark notification as read', 500, cors);
+        }
+      }
+
+      // POST /api/notifications/mark-all-read
+      if (pathname === '/api/notifications/mark-all-read' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const organizationId = typeof body?.organizationId === 'string' ? body.organizationId : undefined;
+
+        try {
+          const count = await markAllNotificationsAsRead(auth.user.id, organizationId, env);
+          return jsonResponse({ success: true, count }, 200, cors);
+        } catch (err: any) {
+          console.error('Mark all notifications read error:', err);
+          return errorResponse(err.message || 'Failed to mark all notifications as read', 500, cors);
+        }
+      }
+
+      // DELETE /api/notifications/:id
+      const deleteMatch = pathname.match(/^\/api\/notifications\/([^\/]+)$/);
+      if (deleteMatch && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const notificationId = deleteMatch[1];
+        try {
+          await deleteNotification(notificationId, auth.user.id, env);
+          return jsonResponse({ success: true }, 200, cors);
+        } catch (err: any) {
+          console.error('Delete notification error:', err);
+          return errorResponse(err.message || 'Failed to delete notification', 500, cors);
         }
       }
 

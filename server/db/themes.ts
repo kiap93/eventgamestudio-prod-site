@@ -9,6 +9,7 @@ import {
   ThemeSoundsConfig,
 } from './types.js';
 import { CATALOG_GAMES, getGameById } from './games.js';
+import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import crypto from 'node:crypto';
 
 const localThemesCache = new Map<string, GameThemeRecord>();
@@ -1393,6 +1394,19 @@ export async function createTheme(
     fallbackGameSlug: resolvedGameSlug,
     fallbackGameType: resolvedGameType,
   });
+  if (params.organization_id) {
+    dispatchNotificationEvent(
+      {
+        eventType: 'THEME_READY',
+        organizationId: params.organization_id,
+        themeId: enriched.id,
+        themeName: enriched.name,
+        previewUrl: `/preview/${enriched.game_slug || 'catch-brand'}?themeId=${enriched.id}`,
+      },
+      env
+    ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch THEME_READY:', err));
+  }
+
   localThemesCache.set(id, enriched);
   return enriched;
 }
@@ -1441,6 +1455,19 @@ export async function updateTheme(
     fallbackGameName: existing?.game_name,
     fallbackGameSlug: existing?.game_slug,
   });
+  if (enriched.organization_id) {
+    dispatchNotificationEvent(
+      {
+        eventType: 'THEME_READY',
+        organizationId: enriched.organization_id,
+        themeId: enriched.id,
+        themeName: enriched.name,
+        previewUrl: `/preview/${enriched.game_slug || 'catch-brand'}?themeId=${enriched.id}`,
+      },
+      env
+    ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch THEME_READY:', err));
+  }
+
   localThemesCache.set(themeId, enriched);
   return enriched;
 }
