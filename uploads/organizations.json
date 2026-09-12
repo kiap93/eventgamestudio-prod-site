@@ -5238,5 +5238,125 @@
     "country_code": null,
     "created_at": "2026-09-11T07:34:21.651Z",
     "updated_at": "2026-09-11T07:34:21.651Z"
+  },
+  {
+    "id": "75bdd839-4ca1-4899-87e9-15351fa8bdbd",
+    "name": "Cron Org",
+    "slug": "cron-org-b70b92",
+    "owner_id": "dedef08d-0aac-4008-b770-9e0a387fde5c",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-12T02:52:58.813Z",
+    "updated_at": "2026-09-12T02:52:58.813Z"
+  },
+  {
+    "id": "d2ff9739-894b-476e-bc18-781cb2195d62",
+    "name": "Acme Super Events",
+    "slug": "acme-events-corp-0c5c4f",
+    "owner_id": "52c4db3a-c6b4-4368-bd9c-0309c027a51f",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-12T02:52:59.095Z",
+    "updated_at": "2026-09-12T02:52:59.261Z"
+  },
+  {
+    "id": "67dde542-6c76-4ef8-a7b9-808f7805dfb8",
+    "name": "Singapore Tech Events",
+    "slug": "singapore-tech-events-5d662f",
+    "owner_id": "dda43d76-2355-4e25-aef1-ea20f6a55c8c",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-12T02:52:59.201Z",
+    "updated_at": "2026-09-12T02:52:59.255Z"
+  },
+  {
+    "id": "84c8c266-e0a2-4b3e-8a27-9f1608f21648",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-c951be",
+    "owner_id": "c5a6b9db-1a59-4b25-9421-68858ea5514b",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-12T02:52:59.237Z",
+    "updated_at": "2026-09-12T02:52:59.237Z"
+  },
+  {
+    "id": "73b94701-d830-42e3-9259-d8ffc45fc358",
+    "name": "Secure Events Org",
+    "slug": "secure-events-org-e0858e",
+    "owner_id": "c0f6d9bf-8592-44b8-a90d-05107faf550d",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-12T02:52:59.268Z",
+    "updated_at": "2026-09-12T02:52:59.268Z"
+  },
+  {
+    "id": "a9e5cf86-4a5d-41ad-bf12-3ed0ec757d0b",
+    "name": "DTO Test Organization",
+    "slug": "dto-test-organization-485d40",
+    "owner_id": "a8367a6b-78c4-4c96-9a34-c854585c1937",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-12T02:52:59.480Z",
+    "updated_at": "2026-09-12T02:52:59.480Z"
+  },
+  {
+    "id": "b723d8e8-4715-466f-921e-3dbbcc95aa90",
+    "name": "Cron Org",
+    "slug": "cron-org-5743b5",
+    "owner_id": "ee9dedb4-aa5a-4e4c-b1f4-e01d9f54b758",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-12T02:54:27.312Z",
+    "updated_at": "2026-09-12T02:54:27.312Z"
+  },
+  {
+    "id": "ca30a342-a28f-422e-b4ff-2cdaf13697e7",
+    "name": "Acme Super Events",
+    "slug": "acme-events-corp-f8e1b7",
+    "owner_id": "3e1002d7-489c-4a64-9608-daa35da705eb",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-12T02:54:27.583Z",
+    "updated_at": "2026-09-12T02:54:27.683Z"
+  },
+  {
+    "id": "2b6ee8c1-1fb2-4010-b78c-f905310c7459",
+    "name": "Singapore Tech Events",
+    "slug": "singapore-tech-events-6d0904",
+    "owner_id": "29d9831b-af76-4593-9bbd-53103c310b66",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-12T02:54:27.611Z",
+    "updated_at": "2026-09-12T02:54:27.673Z"
+  },
+  {
+    "id": "c082fa19-507a-462a-a8c6-4a96074d5fa8",
+    "name": "Permissions Test Org",
+    "slug": "permissions-test-org-4717cd",
+    "owner_id": "3881062b-4a45-40f5-9aee-d394046090e7",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-12T02:54:27.640Z",
+    "updated_at": "2026-09-12T02:54:27.640Z"
+  },
+  {
+    "id": "8f86ee11-2fe0-4ce6-8850-5a0757ea4dc1",
+    "name": "Secure Events Org",
+    "slug": "secure-events-org-bb3c7a",
+    "owner_id": "5b517474-8dbe-4acb-bb4a-624be3698f4b",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-12T02:54:27.692Z",
+    "updated_at": "2026-09-12T02:54:27.692Z"
+  },
+  {
+    "id": "9d23ee8f-12ab-4da2-bd55-46ee4b6aff8f",
+    "name": "DTO Test Organization",
+    "slug": "dto-test-organization-3c72a3",
+    "owner_id": "e4d863ef-5bf4-41de-8995-8b13b9c73e1f",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-12T02:54:27.953Z",
+    "updated_at": "2026-09-12T02:54:27.953Z"
   }
 ]

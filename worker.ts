@@ -6413,7 +6413,8 @@ export default {
         `${result.testScoresClearedCount} test scores cleared`
       );
     } catch (err) {
-      console.error('[Worker Cron Maintenance] Error running event lifecycle maintenance:', err);
+      console.error('[Worker Cron Maintenance] Fatal error running event lifecycle maintenance:', err);
+      throw err;
     }
   },
 };

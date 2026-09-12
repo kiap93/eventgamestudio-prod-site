@@ -1,4 +1,4 @@
-import { getSupabaseServerClient, isLocalFallbackAllowed } from '../supabase.js';
+import { getSupabaseServerClient, isLocalFallbackAllowed, assertProductionMaintenanceSafe } from '../supabase.js';
 import {
   EventRecord,
   EventStatus,
@@ -2845,7 +2845,13 @@ export async function reactivateEvent(
   };
 
   const supabase = getSupabaseServerClient(env);
-  await supabase.from('events').update(updatePayload).eq('id', eventId);
+  const { error: reopenErr } = await supabase.from('events').update(updatePayload).eq('id', eventId);
+  if (reopenErr) {
+    if (!isLocalFallbackAllowed(env) || (!reopenErr.message?.includes('Placeholder') && reopenErr.code !== 'PGRST000')) {
+      console.error(`Failed to reopen event ${eventId}:`, reopenErr);
+      throw new Error(`Failed to reopen event: ${reopenErr.message}`);
+    }
+  }
 
   const cached = localEventsCache.get(eventId);
   if (cached) {
@@ -2918,6 +2924,8 @@ export async function runEventLifecycleMaintenance(
   expiredEvents: string[];
   testScoresClearedEvents: string[];
 }> {
+  assertProductionMaintenanceSafe('runEventLifecycleMaintenance', env);
+
   const supabase = getSupabaseServerClient(env);
   const nowIso = now.toISOString();
   const paidEvents: string[] = [];
@@ -2930,6 +2938,13 @@ export async function runEventLifecycleMaintenance(
   let allEvents: EventRecord[] = [];
   const { data, error } = await supabase.from('events').select('*');
   if (error || !data) {
+    if (!isLocalFallbackAllowed(env)) {
+      const errorDetail = error ? `[${error.code || 'ERROR'}] ${error.message}` : 'Supabase returned empty or null data response';
+      console.error(`[Event Lifecycle Maintenance] Fatal: Failed to fetch events from database in production: ${errorDetail}`);
+      throw new Error(
+        `[Event Lifecycle Maintenance] Fatal: Failed to fetch events from Supabase in production: ${errorDetail}. Local cache fallback is strictly prohibited in production.`
+      );
+    }
     allEvents = Array.from(localEventsCache.values());
   } else {
     allEvents = data as EventRecord[];
@@ -2974,6 +2989,10 @@ export async function runEventLifecycleMaintenance(
         await clearEventTestScores(ev.id, env);
         testScoresClearedEvents.push(ev.id);
       } catch (clearErr: any) {
+        if (!isLocalFallbackAllowed(env)) {
+          console.error(`[Event Lifecycle Maintenance] Fatal: Failed to clear test scores for event ${ev.id} in production:`, clearErr);
+          throw new Error(`[Event Lifecycle Maintenance] Fatal: Failed to clear test scores for event ${ev.id}: ${clearErr?.message || clearErr}`);
+        }
         console.warn(`[Maintenance] Automatic test score clearing failed for event ${ev.id}:`, clearErr?.message || clearErr);
       }
     }
@@ -2985,16 +3004,24 @@ export async function runEventLifecycleMaintenance(
 
       // If the event date has completely finished without payment -> Mark EXPIRED
       if (isAfterEndDate && (evStatus !== 'EXPIRED' || rawStatus !== 'expired')) {
-        expiredEvents.push(ev.id);
         const payload = {
           event_status: 'EXPIRED' as EventLifecycleStatus,
           status: 'expired' as EventStatus,
           updated_at: nowIso,
         };
-        await supabase.from('events').update(payload).eq('id', ev.id);
-        const cached = localEventsCache.get(ev.id);
-        if (cached) {
-          localEventsCache.set(ev.id, { ...cached, ...payload });
+        const { error: updateErr } = await supabase.from('events').update(payload).eq('id', ev.id);
+        if (updateErr) {
+          if (!isLocalFallbackAllowed(env) || (!updateErr.message?.includes('Placeholder') && updateErr.code !== 'PGRST000')) {
+            console.error(`[Event Lifecycle Maintenance] Fatal: Failed to update event ${ev.id} to EXPIRED in database:`, updateErr);
+            throw new Error(`[Event Lifecycle Maintenance] Failed to update event ${ev.id} to EXPIRED in database: ${updateErr.message}`);
+          }
+        }
+        expiredEvents.push(ev.id);
+        if (isLocalFallbackAllowed(env)) {
+          const cached = localEventsCache.get(ev.id);
+          if (cached) {
+            localEventsCache.set(ev.id, { ...cached, ...payload });
+          }
         }
       }
 
@@ -3013,16 +3040,24 @@ export async function runEventLifecycleMaintenance(
       // Event date has completely passed -> Mark COMPLETED
       if (isAfterEndDate) {
         if (evStatus !== 'COMPLETED' || rawStatus !== 'completed') {
-          completedEvents.push(ev.id);
           const payload = {
             event_status: 'COMPLETED' as EventLifecycleStatus,
             status: 'completed' as EventStatus,
             updated_at: nowIso,
           };
-          await supabase.from('events').update(payload).eq('id', ev.id);
-          const cached = localEventsCache.get(ev.id);
-          if (cached) {
-            localEventsCache.set(ev.id, { ...cached, ...payload });
+          const { error: updateErr } = await supabase.from('events').update(payload).eq('id', ev.id);
+          if (updateErr) {
+            if (!isLocalFallbackAllowed(env) || (!updateErr.message?.includes('Placeholder') && updateErr.code !== 'PGRST000')) {
+              console.error(`[Event Lifecycle Maintenance] Fatal: Failed to update event ${ev.id} to COMPLETED in database:`, updateErr);
+              throw new Error(`[Event Lifecycle Maintenance] Failed to update event ${ev.id} to COMPLETED in database: ${updateErr.message}`);
+            }
+          }
+          completedEvents.push(ev.id);
+          if (isLocalFallbackAllowed(env)) {
+            const cached = localEventsCache.get(ev.id);
+            if (cached) {
+              localEventsCache.set(ev.id, { ...cached, ...payload });
+            }
           }
         }
       }
@@ -3034,10 +3069,18 @@ export async function runEventLifecycleMaintenance(
             status: 'live' as EventStatus,
             updated_at: nowIso,
           };
-          await supabase.from('events').update(livePayload).eq('id', ev.id);
-          const cached = localEventsCache.get(ev.id);
-          if (cached) {
-            localEventsCache.set(ev.id, { ...cached, ...livePayload });
+          const { error: updateErr } = await supabase.from('events').update(livePayload).eq('id', ev.id);
+          if (updateErr) {
+            if (!isLocalFallbackAllowed(env) || (!updateErr.message?.includes('Placeholder') && updateErr.code !== 'PGRST000')) {
+              console.error(`[Event Lifecycle Maintenance] Fatal: Failed to update event ${ev.id} to LIVE in database:`, updateErr);
+              throw new Error(`[Event Lifecycle Maintenance] Failed to update event ${ev.id} to LIVE in database: ${updateErr.message}`);
+            }
+          }
+          if (isLocalFallbackAllowed(env)) {
+            const cached = localEventsCache.get(ev.id);
+            if (cached) {
+              localEventsCache.set(ev.id, { ...cached, ...livePayload });
+            }
           }
         }
       }

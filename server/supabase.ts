@@ -192,6 +192,21 @@ export function assertProductionPricingSafe(operationName: string, env?: Record<
   }
 }
 
+/**
+ * Guard assertion for production event lifecycle maintenance.
+ * Throws a fatal error if execution is in production mode or Cloudflare Workers without a configured Supabase database.
+ * Ensures local cache fallback is never silently used in production.
+ */
+export function assertProductionMaintenanceSafe(operationName: string, env?: Record<string, any>): void {
+  if (isProductionEnvironment(env) || !isLocalFallbackAllowed(env)) {
+    if (!isSupabaseConfigured(env)) {
+      throw new Error(
+        `Fatal: Event lifecycle maintenance operation "${operationName}" requires a valid Supabase database connection in production/Worker environment. Local cache fallback is strictly prohibited.`
+      );
+    }
+  }
+}
+
 export const supabase = {
   get client(): SupabaseClient {
     return getSupabaseServerClient();
