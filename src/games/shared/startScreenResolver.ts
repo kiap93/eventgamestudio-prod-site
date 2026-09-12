@@ -261,27 +261,27 @@ export function needsStartScreenElementNormalization(
   if (!config) return false;
 
   const currentSpace = detectStartScreenCoordinateSpace(config);
+  const targetSpace: StartScreenCoordinateSpace =
+    targetWidth >= targetHeight ? 'landscape-1024x576' : 'portrait-576x1024';
 
-  // The 1024x576 canvas is the single source-of-truth logical canvas:
-  // Never reflow, rearrange, replace, or simplify 1024x576 canvas elements
-  if (currentSpace === 'landscape-1024x576') {
+  // If elements already match the target coordinate space, no normalization needed
+  if (currentSpace === targetSpace) {
     return false;
   }
 
-  // If from legacy square-1000x1000, normalization to 1024x576 is required
-  if (currentSpace === 'square-1000x1000') {
-    return true;
-  }
-
-  // If from portrait-576x1024, upgrade to canonical landscape 1024x576
-  if (currentSpace === 'portrait-576x1024') {
+  // If switching between coordinate spaces (square, landscape, portrait), normalization is required
+  if (
+    currentSpace === 'square-1000x1000' ||
+    currentSpace === 'landscape-1024x576' ||
+    currentSpace === 'portrait-576x1024'
+  ) {
     return true;
   }
 
   // For custom coordinate spaces, check if elements overflow target canvas
   const elements = config.elements || [];
   for (const el of elements) {
-    if ((el.y + el.height) > 576 * 1.05 || (el.x + el.width) > 1024 * 1.05) {
+    if ((el.y + el.height) > targetHeight * 1.05 || (el.x + el.width) > targetWidth * 1.05) {
       return true;
     }
   }

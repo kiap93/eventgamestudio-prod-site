@@ -68,6 +68,22 @@ export function getOrientation(
 }
 
 /**
+ * Authoritative Orientation Resolution for any game rendering context.
+ * Combines theme layout preference, viewport dimensions, and optional explicit override.
+ */
+export function resolveEffectiveGameOrientation(
+  themeOrientation: GameOrientation | undefined,
+  viewportWidth: number,
+  viewportHeight: number,
+  overrideOrientation?: EffectiveOrientation | null
+): EffectiveOrientation {
+  if (overrideOrientation) return overrideOrientation;
+  if (themeOrientation === 'portrait') return 'portrait';
+  if (themeOrientation === 'landscape') return 'landscape';
+  return getOrientation(viewportWidth, viewportHeight, 'auto');
+}
+
+/**
  * Calculates responsive UI scale factor based on container dimensions and orientation.
  */
 export function calculateResponsiveUiScale(
@@ -367,12 +383,18 @@ export function getEffectiveGameLayout(
  */
 export function useResponsiveLayout(
   containerRef: RefObject<HTMLElement | null>,
-  orientationPreference: GameOrientation = 'auto'
+  orientationPreference: GameOrientation = 'auto',
+  overrideOrientation?: EffectiveOrientation | null
 ): ResponsiveLayoutState {
   const [state, setState] = useState<ResponsiveLayoutState>(() => {
     const initialWidth = typeof window !== 'undefined' ? window.innerWidth : LANDSCAPE_DESIGN_WIDTH;
     const initialHeight = typeof window !== 'undefined' ? window.innerHeight : LANDSCAPE_DESIGN_HEIGHT;
-    const orientation = getOrientation(initialWidth, initialHeight, orientationPreference);
+    const orientation = resolveEffectiveGameOrientation(
+      orientationPreference,
+      initialWidth,
+      initialHeight,
+      overrideOrientation
+    );
     const isPortrait = orientation === 'portrait';
     const designWidth = isPortrait ? PORTRAIT_DESIGN_WIDTH : LANDSCAPE_DESIGN_WIDTH;
     const designHeight = isPortrait ? PORTRAIT_DESIGN_HEIGHT : LANDSCAPE_DESIGN_HEIGHT;
@@ -431,7 +453,12 @@ export function useResponsiveLayout(
 
         if (width <= 0 || height <= 0) return;
 
-        const orientation = getOrientation(width, height, orientationPreference);
+        const orientation = resolveEffectiveGameOrientation(
+          orientationPreference,
+          width,
+          height,
+          overrideOrientation
+        );
         const isPortrait = orientation === 'portrait';
         const designWidth = isPortrait ? PORTRAIT_DESIGN_WIDTH : LANDSCAPE_DESIGN_WIDTH;
         const designHeight = isPortrait ? PORTRAIT_DESIGN_HEIGHT : LANDSCAPE_DESIGN_HEIGHT;
@@ -458,6 +485,7 @@ export function useResponsiveLayout(
           if (
             Math.abs(prev.uiScale - uiScale) < 0.001 &&
             prev.isPortrait === isPortrait &&
+            prev.orientation === orientation &&
             Math.abs(prev.stageWidth - stageWidth) < 2 &&
             Math.abs(prev.stageHeight - stageHeight) < 2 &&
             Math.abs(prev.width - width) < 2 &&
@@ -525,7 +553,7 @@ export function useResponsiveLayout(
         window.visualViewport.removeEventListener('resize', measureAndUpdate);
       }
     };
-  }, [containerRef, orientationPreference]);
+  }, [containerRef, orientationPreference, overrideOrientation]);
 
   return state;
 }

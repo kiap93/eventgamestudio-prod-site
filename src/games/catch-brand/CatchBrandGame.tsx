@@ -20,6 +20,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
   publicToken,
   isEventPreview,
   isEventTest,
+  overrideOrientation,
   onStatsChange: externalOnStatsChange,
   onGameStateChange: externalOnGameStateChange,
   isMuted: initialIsMuted = false,
@@ -49,6 +50,9 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
     duriansMissed: 0,
     timeRemaining: settings.gameDurationSeconds || 20,
   });
+
+  const orientationPreference = activeTheme?.layout?.orientation || 'auto';
+  const responsive = useResponsiveLayout(viewportRef, orientationPreference, overrideOrientation);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -102,15 +106,29 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
     [externalOnStatsChange]
   );
 
+  // Dynamic layout resize on orientation change
+  useEffect(() => {
+    if (gameRef.current?.scale) {
+      gameRef.current.scale.resize(responsive.designWidth, responsive.designHeight);
+      gameRef.current.scale.refresh();
+      if (sceneRef.current?.resizeLayout) {
+        sceneRef.current.resizeLayout(responsive.designWidth, responsive.designHeight);
+      }
+    }
+  }, [responsive.designWidth, responsive.designHeight, responsive.isPortrait]);
+
   // Initialize Phaser Game instance
   useEffect(() => {
     if (gameRef.current || !containerRef.current) return;
 
+    const initialWidth = responsive.designWidth || GAME_WIDTH;
+    const initialHeight = responsive.designHeight || GAME_HEIGHT;
+
     const gameConfig: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
       parent: containerRef.current,
-      width: GAME_WIDTH,
-      height: GAME_HEIGHT,
+      width: initialWidth,
+      height: initialHeight,
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.NO_CENTER,
@@ -275,9 +293,6 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
   const handleToggleCamera = () => {
     setCameraActive(!cameraActive);
   };
-
-  const orientationPreference = activeTheme?.layout?.orientation || 'auto';
-  const responsive = useResponsiveLayout(viewportRef, orientationPreference);
 
   const customBgUrl =
     activeTheme?.background_url ||

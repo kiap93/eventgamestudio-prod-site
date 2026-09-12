@@ -111,9 +111,20 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   const [isPlaying] = useState<boolean>(true);
   const [isInteractive, setIsInteractive] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [previewOrientation, setPreviewOrientation] = useState<'landscape' | 'portrait'>('landscape');
+  const [previewOrientation, setPreviewOrientation] = useState<'landscape' | 'portrait'>(() => {
+    return theme.layout?.orientation === 'portrait' ? 'portrait' : 'landscape';
+  });
   const [restartKey, setRestartKey] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Automatically sync preview orientation when theme.layout?.orientation changes
+  useEffect(() => {
+    if (theme.layout?.orientation === 'portrait') {
+      setPreviewOrientation('portrait');
+    } else if (theme.layout?.orientation === 'landscape') {
+      setPreviewOrientation('landscape');
+    }
+  }, [theme.layout?.orientation]);
 
   // Fullscreen synchronization with browser Fullscreen API
   useEffect(() => {
@@ -272,10 +283,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         initH = dims.height;
       }
 
+      const isPortrait = previewOrientation === 'portrait';
+      const designW = isPortrait ? 576 : 1024;
+
       const newItem: SimulatedItem = {
         id: `sim_${Date.now()}_${Math.random()}`,
         config: targetItem,
-        x: Math.random() * 800 + 112,
+        x: Math.random() * (designW - 180) + 90,
         y: -30,
         speed: finalSpeed,
         rotation: 0,
@@ -288,7 +302,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
       simState.current.items.push(newItem);
     },
-    [theme]
+    [theme, previewOrientation, getOrLoadImage]
   );
 
   // Reset simulation
@@ -334,8 +348,11 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     let animationFrameId: number;
     let lastTime = performance.now();
 
-    const V_WIDTH = 1024;
-    const V_HEIGHT = 576;
+    const isPortrait = previewOrientation === 'portrait';
+    const V_WIDTH = isPortrait ? 576 : 1024;
+    const V_HEIGHT = isPortrait ? 1024 : 576;
+    simState.current.basketX = V_WIDTH / 2;
+    simState.current.basketTargetX = V_WIDTH / 2;
 
     const render = (now: number) => {
       const dt = Math.min((now - lastTime) / 1000, 0.1);
@@ -379,7 +396,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           if (nearestGood) {
             state.basketTargetX = nearestGood.x;
           } else {
-            state.basketTargetX = 512 + Math.sin(state.timeElapsed * 1.5) * 220;
+            state.basketTargetX = (V_WIDTH / 2) + Math.sin(state.timeElapsed * 1.5) * (V_WIDTH * 0.22);
           }
         }
 
@@ -663,7 +680,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [isPlaying, isInteractive, isMuted, isMemoryMatch, isReaction, theme, getOrLoadImage]);
+  }, [isPlaying, isInteractive, isMuted, isMemoryMatch, isReaction, theme, getOrLoadImage, previewOrientation]);
 
   // Interactive mouse / touch move on canvas (Catch The Brand)
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -671,7 +688,9 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = 1024 / rect.width;
+    const isPortrait = previewOrientation === 'portrait';
+    const designW = isPortrait ? 576 : 1024;
+    const scaleX = designW / rect.width;
     const clientX = e.clientX - rect.left;
     simState.current.basketTargetX = clientX * scaleX;
   };

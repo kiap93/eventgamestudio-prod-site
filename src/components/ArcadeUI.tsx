@@ -1265,6 +1265,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
           <StartScreenRenderer
             theme={activeTheme}
             gameType="catch-brand"
+            targetDimensions={{ width: designWidth, height: designHeight }}
             gameMeta={{
               fallingItemName,
               fallingItemImg: goodItemImg,

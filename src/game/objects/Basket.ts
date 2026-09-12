@@ -71,12 +71,12 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
 
     // Pointer / Touch / Mouse setup
     scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      this.targetX = Phaser.Math.Clamp(pointer.x, 60, GAME_WIDTH - 60);
+      this.targetX = Phaser.Math.Clamp(pointer.x, 60, this.scene.scale.width - 60);
     });
 
     scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.isPointerDown = true;
-      this.targetX = Phaser.Math.Clamp(pointer.x, 60, GAME_WIDTH - 60);
+      this.targetX = Phaser.Math.Clamp(pointer.x, 60, this.scene.scale.width - 60);
     });
 
     scene.input.on('pointerup', () => {
@@ -128,7 +128,7 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
   }
 
   public setHandTargetX(x: number) {
-    this.targetX = Phaser.Math.Clamp(x, 60, GAME_WIDTH - 60);
+    this.targetX = Phaser.Math.Clamp(x, 60, this.scene.scale.width - 60);
   }
 
   public updateBasket(delta: number) {
@@ -156,13 +156,13 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
       this.setVelocityX(0);
     }
 
-    this.x = Phaser.Math.Clamp(this.x, 60, GAME_WIDTH - 60);
+    this.x = Phaser.Math.Clamp(this.x, 60, this.scene.scale.width - 60);
     this.setAngle(0);
     this.setRotation(0);
   }
 
   public triggerCatchBounce() {
-    const defaultY = GAME_HEIGHT - 70;
+    const defaultY = this.scene.scale.height - 70;
     this.scene.tweens.add({
       targets: this,
       y: defaultY + 4,

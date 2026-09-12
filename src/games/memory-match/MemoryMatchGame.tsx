@@ -128,6 +128,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   publicToken,
   isEventPreview = false,
   isEventTest = false,
+  overrideOrientation,
   onStatsChange,
   onGameStateChange,
   isMuted = false,
@@ -146,7 +147,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 }) => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const orientationPreference = activeTheme?.layout?.orientation || 'auto';
-  const responsive = useResponsiveLayout(viewportRef, orientationPreference);
+  const responsive = useResponsiveLayout(viewportRef, orientationPreference, overrideOrientation);
   const { isPortrait, uiScale, designWidth, designHeight } = responsive;
 
   const memoryConfig = useMemo(() => getMemoryMatchConfig(activeTheme), [activeTheme]);
@@ -2183,7 +2184,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       </div>
 
       {/* ======================================================================= */}
-      {/* 5. START MATCH SCREEN MODAL (AUTHORITATIVE UNIFORM 1024x576 SCALING)    */}
+      {/* 5. START MATCH SCREEN MODAL (AUTHORITATIVE UNIFORM SCALING)             */}
       {/* ======================================================================= */}
       {gameState === 'START' && (
         <div className="absolute inset-0 pointer-events-auto z-40 overflow-hidden">
@@ -2191,6 +2192,12 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             startConfig={memoryConfig.screens?.start}
             theme={activeTheme}
             gameType="memory-match"
+            responsive={responsive}
+            targetDimensions={{
+              width: responsive.designWidth,
+              height: responsive.designHeight,
+              isPortrait: responsive.isPortrait,
+            }}
             gameMeta={{
               rows,
               cols,

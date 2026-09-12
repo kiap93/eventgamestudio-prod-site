@@ -27,6 +27,7 @@ export interface GameComponentProps<TConfig extends BaseGameConfig = BaseGameCon
   publicToken?: string;
   isEventPreview?: boolean;
   isEventTest?: boolean;
+  overrideOrientation?: 'portrait' | 'landscape' | null;
   onStatsChange?: (stats: GameStats) => void;
   onGameStateChange?: (state: GameState) => void;
   isMuted: boolean;

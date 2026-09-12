@@ -45,6 +45,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
   publicToken,
   isEventPreview = false,
   isEventTest = false,
+  overrideOrientation,
   isSimulation = false,
   isInteractive = true,
   isMuted = false,
@@ -116,7 +117,8 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
   const randomDelayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const roundAdvanceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const responsive = useResponsiveLayout(containerRef, 'auto');
+  const orientationPreference = activeTheme?.layout?.orientation || 'auto';
+  const responsive = useResponsiveLayout(containerRef, orientationPreference, overrideOrientation);
 
   // Fetch leaderboard data
   const fetchLeaderboard = useCallback(async () => {
@@ -787,6 +789,12 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
             startConfig={reactionConfig.screens?.start}
             theme={activeTheme}
             gameType="reaction-tap"
+            responsive={responsive}
+            targetDimensions={{
+              width: responsive.designWidth,
+              height: responsive.designHeight,
+              isPortrait: responsive.isPortrait,
+            }}
             gameMeta={{
               duration: reactionConfig.roundsCount,
               gameTitle: activeTheme?.branding?.title || activeTheme?.title || 'Reaction Tap',

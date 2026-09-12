@@ -62,10 +62,13 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
   const selectedPaymentMethod = 'card';
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isPollingStatus, setIsPollingStatus] = useState(false);
+  const [pollAttemptCount, setPollAttemptCount] = useState(0);
+  const [delayedWebhookCountdown, setDelayedWebhookCountdown] = useState<number | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [copiedOrderId, setCopiedOrderId] = useState(false);
 
   const pollingTimerRef = useRef<any>(null);
+  const countdownTimerRef = useRef<any>(null);
 
   const currencyCode = wallet?.currency || 'MYR';
 
@@ -103,7 +106,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
   // 2. Poll server for verified payment status (Zero trust in frontend data)
   const pollOrderStatus = useCallback(
-    async (orderId: string, maxAttempts = 20) => {
+    async (orderId: string, maxAttempts = 60) => {
       if (!currentOrganization?.id) return;
 
       setIsPollingStatus(true);
@@ -112,6 +115,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
       const check = async () => {
         try {
           attempts++;
+          setPollAttemptCount(attempts);
           const res = await apiFetch(
             `/api/organizations/${currentOrganization.id}/wallet/topup-orders/${orderId}`
           );
@@ -123,6 +127,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
             if (['PAID', 'COMPLETED'].includes(order.status)) {
               if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
+              if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+              setDelayedWebhookCountdown(null);
               setIsPollingStatus(false);
               setShowPaymentModal(false);
               await fetchWallet();
@@ -132,6 +138,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
             if (['EXPIRED', 'CANCELLED', 'FAILED'].includes(order.status)) {
               if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
+              if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+              setDelayedWebhookCountdown(null);
               setIsPollingStatus(false);
               setShowPaymentModal(false);
               return;
@@ -158,6 +166,9 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
     return () => {
       if (pollingTimerRef.current) {
         clearTimeout(pollingTimerRef.current);
+      }
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
       }
     };
   }, []);
@@ -189,7 +200,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
               window.dispatchEvent(new CustomEvent('wallet_updated'));
             } else if (data.order.status === 'PENDING') {
               // Start polling to catch incoming webhook delivery or backend reconciliation
-              pollOrderStatus(data.order.id, 25);
+              pollOrderStatus(data.order.id, 60);
             }
           }
         } catch (err) {
@@ -325,10 +336,45 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
   };
 
   // 6. Simulate / Trigger Payment Provider Webhook Dispatch
+  const isDevAdmin = Boolean(currentUser?.is_developer || (import.meta as any).env?.DEV);
+
+  const handleStartDelayedWebhookSimulation = (delaySeconds = 15) => {
+    if (!activeOrder?.id) return;
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+
+    setDelayedWebhookCountdown(delaySeconds);
+    let remaining = delaySeconds;
+
+    countdownTimerRef.current = setInterval(async () => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+        setDelayedWebhookCountdown(null);
+        await handleSimulatePaymentCompletion('payment.succeeded');
+      } else {
+        setDelayedWebhookCountdown(remaining);
+      }
+    }, 1000);
+  };
+
+  const handleCancelDelayedWebhookSimulation = () => {
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    setDelayedWebhookCountdown(null);
+  };
+
+  const handleManualCheckStatus = () => {
+    if (activeOrder?.id) {
+      if (pollingTimerRef.current) clearTimeout(pollingTimerRef.current);
+      pollOrderStatus(activeOrder.id, 60);
+    }
+  };
+
   const handleSimulatePaymentCompletion = async (statusToTrigger: 'payment.succeeded' | 'payment.failed') => {
     if (!currentOrganization?.id || !activeOrder?.id) return;
 
     try {
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+      setDelayedWebhookCountdown(null);
       setIsProcessingPayment(true);
       setPaymentError(null);
 
@@ -352,7 +398,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
       // Close payment modal and poll verified server record
       setShowPaymentModal(false);
-      await pollOrderStatus(activeOrder.id, 5);
+      await pollOrderStatus(activeOrder.id, 10);
     } catch (err: any) {
       console.error('Payment simulation error:', err);
       setPaymentError(err.message || 'Payment processing error');
@@ -377,6 +423,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
   };
 
   const handleResetForNewTopUp = () => {
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    setDelayedWebhookCountdown(null);
     setActiveOrder(null);
     setCheckoutSession(null);
     setShowPaymentModal(false);
@@ -410,6 +458,181 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
       diff,
       targetTier: '7%',
     };
+  }
+
+  // =========================================================================
+  // VIEW RENDER: 0. PAYMENT PENDING SCREEN (Waiting for Authoritative Webhook)
+  // =========================================================================
+  if (activeOrder && activeOrder.status === 'PENDING' && !showPaymentModal) {
+    const topUpAmount = activeOrder.top_up_amount;
+    const creditAmount = activeOrder.expected_credit_amount;
+    const totalAdded = topUpAmount + creditAmount;
+
+    return (
+      <div className="max-w-xl mx-auto px-4 py-12 animate-in fade-in zoom-in-95 duration-300">
+        <div className="bg-slate-900 border border-amber-500/40 rounded-3xl p-8 sm:p-10 space-y-8 shadow-2xl text-center">
+          {/* Pulsing Pending Badge */}
+          <div className="inline-flex p-4 bg-amber-500/10 border border-amber-500/30 rounded-3xl text-amber-400 relative">
+            <RefreshCw className="w-12 h-12 stroke-[2.2] animate-spin text-amber-400" />
+            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500"></span>
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+              <Clock className="w-3.5 h-3.5 animate-pulse" />
+              <span>Payment Gateway Returned • Webhook Pending</span>
+            </div>
+            <h1 className="text-3xl font-black text-slate-100 tracking-tight">Payment Confirmation Pending</h1>
+            <p className="text-sm text-slate-400 max-w-md mx-auto">
+              We received your return from the payment gateway. We are waiting for authoritative cryptographic confirmation (webhook) from Stripe before updating your wallet balance.
+            </p>
+          </div>
+
+          {/* Pending Order Value Breakdown */}
+          <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-6 space-y-4 text-left font-mono">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
+              <span className="text-xs uppercase font-bold text-slate-400">Top Up Amount</span>
+              <span className="text-base font-bold text-slate-100">{formatCurrency(topUpAmount)}</span>
+            </div>
+
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
+              <span className="text-xs uppercase font-bold text-slate-400 flex items-center gap-1.5 font-sans">
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span>Promotional Top-up Credit</span>
+              </span>
+              <span className="text-base font-bold text-cyan-400">+{formatCurrency(creditAmount)}</span>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-xs uppercase font-bold text-slate-200 font-sans">Total Value to Credit</span>
+              <span className="text-xl font-black text-amber-400">{formatCurrency(totalAdded)}</span>
+            </div>
+          </div>
+
+          {/* Live Polling & Safety Reassurance */}
+          <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2.5 text-left">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
+                <span>Real-Time Status Check</span>
+              </span>
+              <span className="font-mono text-amber-400 font-semibold text-[11px]">
+                {isPollingStatus ? `Checking... (Check #${pollAttemptCount || 1})` : 'Awaiting Next Poll'}
+              </span>
+            </div>
+            
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Payment webhooks typically arrive within <strong className="text-slate-200">10–30 seconds</strong>. You can safely stay on this page or refresh your browser — your top-up order is safely tracked on the server.
+            </p>
+
+            <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
+              <span>Order ID: <span className="font-mono text-slate-300">{activeOrder.id.slice(0, 16)}...</span></span>
+              <button
+                type="button"
+                onClick={() => handleCopyOrderId(activeOrder.id)}
+                className="hover:text-amber-400 flex items-center gap-1 transition-colors cursor-pointer text-[10px]"
+              >
+                {copiedOrderId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedOrderId ? 'Copied' : 'Copy Full ID'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Manual Check & Simulation Controls */}
+          <div className="space-y-3 pt-1">
+            <button
+              type="button"
+              onClick={handleManualCheckStatus}
+              disabled={isProcessingPayment}
+              className="w-full py-3.5 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+            >
+              <RefreshCw className={`w-4 h-4 ${isPollingStatus ? 'animate-spin' : ''}`} />
+              <span>Check Payment Status Now</span>
+            </button>
+
+            {/* Developer Sandbox Testing Tools */}
+            {isDevAdmin && (
+              <div className="p-4 rounded-2xl bg-slate-950/90 border border-amber-500/30 text-left space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-bold flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Developer Testing Sandbox (Late Webhook Scenario)</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-400">
+                  Simulate the exact scenario where the customer returns while the webhook is in-flight.
+                </p>
+
+                {delayedWebhookCountdown !== null ? (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center space-y-2 animate-in fade-in">
+                    <div className="flex items-center justify-center gap-2 text-amber-300 font-bold text-xs">
+                      <Clock className="w-4 h-4 animate-spin" />
+                      <span>Simulating Late Webhook: Arrives in {delayedWebhookCountdown}s</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      Try refreshing your browser now to test page refresh during the pending window!
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleCancelDelayedWebhookSimulation}
+                      className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold underline cursor-pointer"
+                    >
+                      Cancel Simulation Timer
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={isProcessingPayment}
+                      onClick={() => handleStartDelayedWebhookSimulation(15)}
+                      className="w-full py-2.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Simulate 15s Delay</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isProcessingPayment}
+                      onClick={() => handleSimulatePaymentCompletion('payment.succeeded')}
+                      className="w-full py-2.5 px-3 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Simulate Arrived Now</span>
+                    </button>
+                  </div>
+                )}
+
+                <div className="pt-1 flex items-center justify-between text-[11px]">
+                  <button
+                    type="button"
+                    disabled={isProcessingPayment}
+                    onClick={() => handleSimulatePaymentCompletion('payment.failed')}
+                    className="text-rose-400 hover:text-rose-300 transition-colors flex items-center gap-1 cursor-pointer font-medium"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>Simulate Webhook Failed</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResetForNewTopUp}
+              className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 font-bold text-xs transition-colors cursor-pointer"
+            >
+              Cancel and Start New Top-up
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // =========================================================================

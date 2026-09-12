@@ -1266,11 +1266,20 @@ export async function verifyAndProcessPaymentWebhook(
  * - Only return 404 when the database order genuinely does not exist.
  */
 export async function syncTopupOrderExpiration(
-  order: TopupOrderRecord,
+  orderOrId: TopupOrderRecord | string,
   options?: { sessionId?: string; status?: string },
   env?: Record<string, any>
 ): Promise<TopupOrderRecord> {
-  if (!order) return order;
+  let order: TopupOrderRecord | null = null;
+  if (typeof orderOrId === 'string') {
+    order = await getTopupOrderById(orderOrId, env);
+  } else {
+    order = orderOrId;
+  }
+
+  if (!order) {
+    throw new Error(`Top-up order not found: ${typeof orderOrId === 'string' ? orderOrId : 'unknown'}`);
+  }
 
   // 1. Terminal states (PAID, EXPIRED, CANCELLED, FAILED) are permanent and never transition again
   if (['PAID', 'EXPIRED', 'CANCELLED', 'FAILED'].includes(order.status)) {

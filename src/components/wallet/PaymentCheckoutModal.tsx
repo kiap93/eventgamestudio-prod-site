@@ -64,7 +64,7 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
 
   // Poll server for verified payment status after webhook dispatch
   const pollOrderStatus = useCallback(
-    async (orderId: string, maxAttempts = 15) => {
+    async (orderId: string, maxAttempts = 60) => {
       if (!organizationId) return;
 
       setIsPollingStatus(true);

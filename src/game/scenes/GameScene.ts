@@ -63,21 +63,24 @@ export class GameScene extends Phaser.Scene {
       bgTexture = theme.background_url;
     }
 
-    this.bgImage = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, bgTexture).setDepth(0);
+    const sceneWidth = this.scale.width;
+    const sceneHeight = this.scale.height;
+
+    this.bgImage = this.add.image(sceneWidth / 2, sceneHeight / 2, bgTexture).setDepth(0);
     // Cover mode scaling to preserve aspect ratio without stretching or distortion
     const bgFrame = this.textures.getFrame(bgTexture, '__BASE');
-    const texW = bgFrame && bgFrame.width > 0 ? bgFrame.width : GAME_WIDTH;
-    const texH = bgFrame && bgFrame.height > 0 ? bgFrame.height : GAME_HEIGHT;
-    const bgScale = Math.max(GAME_WIDTH / texW, GAME_HEIGHT / texH);
+    const texW = bgFrame && bgFrame.width > 0 ? bgFrame.width : sceneWidth;
+    const texH = bgFrame && bgFrame.height > 0 ? bgFrame.height : sceneHeight;
+    const bgScale = Math.max(sceneWidth / texW, sceneHeight / texH);
     this.bgImage.setScale(bgScale);
-    this.bgImage.setPosition(GAME_WIDTH / 2, GAME_HEIGHT / 2);
+    this.bgImage.setPosition(sceneWidth / 2, sceneHeight / 2);
 
     // 2. Ambient Particles Weather Effect
     const particleKey = theme.visuals_config?.particleGood || theme.particles?.good || 'particle_leaf';
     const validParticle = this.textures.exists(particleKey) ? particleKey : 'particle_leaf';
 
     this.leafEmitter = this.add.particles(0, -20, validParticle, {
-      x: { min: 0, max: GAME_WIDTH },
+      x: { min: 0, max: sceneWidth },
       speedY: { min: 30, max: 80 },
       speedX: { min: -20, max: 20 },
       rotate: { min: 0, max: 360 },
@@ -90,13 +93,13 @@ export class GameScene extends Phaser.Scene {
 
     // 3. Red Flash Overlay for Bad Item Warning
     this.redFlashOverlay = this.add
-      .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0xff0000)
+      .rectangle(sceneWidth / 2, sceneHeight / 2, sceneWidth, sceneHeight, 0xff0000)
       .setDepth(30)
       .setAlpha(0);
 
     // 4. Create Player Catcher (Basket)
     const catcherKey = `theme_${theme.id}_catcher`;
-    this.basket = new Basket(this, GAME_WIDTH / 2, GAME_HEIGHT - 70, catcherKey);
+    this.basket = new Basket(this, sceneWidth / 2, sceneHeight - 70, catcherKey);
 
     // 5. Falling Objects Group
     this.itemsGroup = this.physics.add.group({
@@ -150,7 +153,7 @@ export class GameScene extends Phaser.Scene {
       this.itemsGroup.getChildren().forEach((child) => {
         const item = child as FallingItem;
         if (item && item.active && !item.isCollected) {
-          const offscreenThreshold = GAME_HEIGHT + Math.max(30, (item.itemDisplayHeight || item.displayHeight || 64) / 2 + 10);
+          const offscreenThreshold = this.scale.height + Math.max(30, (item.itemDisplayHeight || item.displayHeight || 64) / 2 + 10);
           if (item.y > offscreenThreshold) {
             this.duriansMissed++;
             item.isCollected = true;
@@ -164,7 +167,7 @@ export class GameScene extends Phaser.Scene {
 
   public setHandTargetX(xRatio: number) {
     if (this.gameState === 'PLAYING' && this.basket) {
-      const targetX = 60 + xRatio * (GAME_WIDTH - 120);
+      const targetX = 60 + xRatio * (this.scale.width - 120);
       this.basket.setHandTargetX(targetX);
     }
   }
@@ -367,7 +370,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    const spawnX = Phaser.Math.Between(70, GAME_WIDTH - 70);
+    const spawnX = Phaser.Math.Between(70, this.scale.width - 70);
     const baseSpeed = Phaser.Math.Between(stage.speedMin || 350, stage.speedMax || 550);
     const fallSpeed = Math.round(baseSpeed * this.fallSpeedMultiplier * (selectedItem.speedMultiplier || 1.0));
 
@@ -486,7 +489,7 @@ export class GameScene extends Phaser.Scene {
     this.itemsGroup.clear(true, true);
 
     if (this.basket) {
-      this.basket.setPosition(GAME_WIDTH / 2, GAME_HEIGHT - 70);
+      this.basket.setPosition(this.scale.width / 2, this.scale.height - 70);
       this.basket.setVelocityX(0);
     }
 
@@ -495,6 +498,36 @@ export class GameScene extends Phaser.Scene {
     if (this.countdownTimerEvent) this.countdownTimerEvent.destroy();
 
     this.emitStats();
+  }
+
+  public resizeLayout(newWidth: number, newHeight: number) {
+    if (!this.scene.isActive()) return;
+
+    // 1. Update background image position and cover scale
+    if (this.bgImage && this.bgImage.active) {
+      const textureKey = this.bgImage.texture.key;
+      const bgFrame = this.textures.getFrame(textureKey, '__BASE');
+      const texW = bgFrame && bgFrame.width > 0 ? bgFrame.width : newWidth;
+      const texH = bgFrame && bgFrame.height > 0 ? bgFrame.height : newHeight;
+      const bgScale = Math.max(newWidth / texW, newHeight / texH);
+      this.bgImage.setScale(bgScale);
+      this.bgImage.setPosition(newWidth / 2, newHeight / 2);
+    }
+
+    // 2. Update red flash overlay
+    if (this.redFlashOverlay) {
+      this.redFlashOverlay.setPosition(newWidth / 2, newHeight / 2);
+      this.redFlashOverlay.setSize(newWidth, newHeight);
+    }
+
+    // 3. Update basket position and bounds
+    if (this.basket && this.basket.active) {
+      const currentX = Phaser.Math.Clamp(this.basket.x, 60, newWidth - 60);
+      this.basket.setPosition(currentX, newHeight - 70);
+    }
+
+    // 4. Update physics world bounds
+    this.physics.world.setBounds(0, 0, newWidth, newHeight);
   }
 
   private setGameState(state: GameState) {
