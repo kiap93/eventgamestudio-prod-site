@@ -114,9 +114,11 @@ export interface ThemeConfig {
     card_face_urls?: string[];
   };
   layout: {
-    catcher_width_ratio: number;  // e.g. 0.15 (15% of stage width)
-    item_size_ratio: number;      // e.g. 0.08
-    hud_position: 'top' | 'floating';
+    orientation?: 'auto' | 'landscape' | 'portrait';
+    catcher_width_ratio?: number;  // e.g. 0.15 (15% of stage width)
+    item_size_ratio?: number;      // e.g. 0.08
+    hud_position?: 'top' | 'floating';
+    portraitLayout?: Partial<GameLayoutConfig>; // Explicit portrait HUD coordinate overrides
   };
   audio: {
     bgm_url?: string;
@@ -126,10 +128,21 @@ export interface ThemeConfig {
     bgm_volume: number;
     sfx_volume: number;
   };
-  start_screen_config?: StartScreenConfig;  // 1024x576 canvas overrides
+  start_screen_config?: StartScreenConfig;  // Start screen canvas overrides
   result_screen_config?: ResultScreenConfig;// Game-over screen overrides
 }
 ```
+
+### Orientation & Dual-Layout System (`src/themes/responsive.ts`)
+- **Orientation Modes**:
+  - `'landscape'`: Enforces 16:9 stage (`1024 × 576`).
+  - `'portrait'`: Enforces 9:16 stage (`576 × 1024`).
+  - `'auto'`: Dynamically detects based on container aspect ratio.
+- **Dual-Layout Resolution (`getEffectiveGameLayout`)**:
+  - Reads base landscape coordinates (`layout[key]`).
+  - When in portrait mode, checks for explicit overrides in `layout.portraitLayout[key]`.
+  - If unset, automatically falls back to curated default portrait coordinates per game type (`DEFAULT_PORTRAIT_CATCH_LAYOUT`, `DEFAULT_PORTRAIT_MEMORY_LAYOUT`, `DEFAULT_PORTRAIT_REACTION_LAYOUT`).
+  - Ensures seamless dragging in the Studio editor without coordinate jumps or cross-contamination.
 
 ---
 

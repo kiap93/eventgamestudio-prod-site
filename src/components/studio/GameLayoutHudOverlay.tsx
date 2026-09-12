@@ -9,6 +9,7 @@ import {
   getLayoutElementKeys,
   getDefaultUILayout,
 } from '../../themes/layout';
+import { getEffectiveGameLayout } from '../../themes/responsive';
 import {
   Trophy,
   Clock,
@@ -23,6 +24,7 @@ export interface GameLayoutHudOverlayProps {
   layout?: GameLayoutConfig;
   theme: GameTheme;
   gameType?: string;
+  isPortrait?: boolean;
   score?: number;
   moves?: number;
   pairs?: number;
@@ -43,6 +45,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
   layout: rawLayout,
   theme,
   gameType: explicitGameType,
+  isPortrait: explicitIsPortrait,
   score = 0,
   moves = 0,
   pairs = 0,
@@ -55,8 +58,13 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
   className = '',
 }) => {
   const resolvedGameType = explicitGameType || getThemeGameType(theme);
-  const layout = normalizeGameLayout(rawLayout || theme?.layout, resolvedGameType);
-  const defaultLayout = getDefaultUILayout(resolvedGameType);
+  const effectiveIsPortrait =
+    typeof explicitIsPortrait === 'boolean'
+      ? explicitIsPortrait
+      : (theme?.layout?.orientation === 'portrait');
+  const normalized = normalizeGameLayout(rawLayout || theme?.layout, resolvedGameType);
+  const layout = getEffectiveGameLayout(normalized, effectiveIsPortrait, resolvedGameType);
+  const defaultLayout = getEffectiveGameLayout(getDefaultUILayout(resolvedGameType), effectiveIsPortrait, resolvedGameType);
   const activeElementKeys = getLayoutElementKeys(resolvedGameType).filter(
     (k) => k !== 'memoryCardBoard'
   );

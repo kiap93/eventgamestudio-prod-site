@@ -50,6 +50,8 @@ export interface ResultScreenRendererProps {
   isSimulation?: boolean;
   isEventPreview?: boolean;
   isEventTest?: boolean;
+  targetDimensions?: { width: number; height: number };
+  isPortrait?: boolean;
 }
 
 export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
@@ -72,10 +74,12 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
   isSimulation = false,
   isEventPreview = false,
   isEventTest = false,
+  targetDimensions,
+  isPortrait,
 }) => {
   const bg = resolveScreenBackground(resultConfig, theme);
-  const canvasWidth = resultConfig?.canvas?.width || 1000;
-  const canvasHeight = resultConfig?.canvas?.height || 1000;
+  const canvasWidth = targetDimensions?.width || resultConfig?.canvas?.width || 1000;
+  const canvasHeight = targetDimensions?.height || resultConfig?.canvas?.height || 1000;
 
   const isReactionGame =
     stats.gameType === 'reaction-time' ||
@@ -153,10 +157,13 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
       {/* Background Overlay */}
       <div className="absolute inset-0 pointer-events-none" style={bg.overlayStyle} />
 
-      {/* 1000 x 1000 Logical Canvas scaled responsively to fill container */}
+      {/* Logical Canvas scaled responsively to fill container */}
       <div
-        className="relative w-full h-full max-w-full max-h-full aspect-square"
+        className="relative max-w-full max-h-full"
         style={{
+          width: '100%',
+          height: '100%',
+          aspectRatio: `${canvasWidth} / ${canvasHeight}`,
           containerType: 'inline-size',
         }}
       >

@@ -820,6 +820,8 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
         >
           <ResultScreenRenderer
             resultConfig={reactionConfig.screens?.result}
+            targetDimensions={{ width: responsive.designWidth, height: responsive.designHeight }}
+            isPortrait={responsive.isPortrait}
             stats={{
               score: stats.averageMs,
               averageReactionTimeMs: stats.averageMs,

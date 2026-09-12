@@ -801,3 +801,9 @@ export const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
 export const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
 export const MAX_DIRECT_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB direct in-memory upload limit (Worker / Express) to protect RAM
 
+// ----------------------------------------------------
+// CENTRAL NOTIFICATION SYSTEM TYPES
+// ----------------------------------------------------
+export * from '../notifications/types.js';
+
+

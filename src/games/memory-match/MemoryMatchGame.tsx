@@ -2096,6 +2096,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         {gameState === 'GAME_OVER' && (
           <ResultScreenRenderer
             resultConfig={memoryConfig.screens?.result}
+            targetDimensions={{ width: responsive.designWidth, height: responsive.designHeight }}
+            isPortrait={responsive.isPortrait}
             stats={{
               score,
               moves,

@@ -441,3 +441,6 @@ export interface EventScoreStats {
     }
   >;
 }
+
+export * from './lib/notifications/types';
+

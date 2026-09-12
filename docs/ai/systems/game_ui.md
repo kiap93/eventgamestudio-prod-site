@@ -38,79 +38,79 @@ The Game UI follows a nested stage architecture separating canvas composition fr
 
 ---
 
-## 2. The 1024×576 Logical Canvas Rule
+## 2. Logical Coordinate Systems & Responsive Architecture
 
-Event Game Studio strictly enforces a **1024×576 logical coordinate system** (standard 16:9 widescreen) as the single source of truth for all screen layouts.
+Event Game Studio implements a unified, single-source-of-truth responsive engine in `src/themes/responsive.ts` supporting both standard widescreen (16:9) and mobile vertical (9:16) stages:
 
-### Inviolable Canvas Invariants
-1. **Single Source of Truth**: All element X/Y positions, dimensions, font sizes, border radii, and paddings are authored and stored against a logical `1024 × 576` plane.
-2. **No Second Layout for Normal Screen**: The system **MUST NOT** reflow, reorder, wrap, or rearrange elements between the Full Studio Editor and normal game screen. Normal screens render the exact same composition scaled down uniformly.
-3. **Uniform Aspect Ratio Scaling**: Stretching or independent X/Y distortion is strictly prohibited. The canvas must scale uniformly using `scale(min(containerWidth / 1024, containerHeight / 576))`.
+### Logical Stage Dimensions
+- **Landscape (16:9)**: `1024 × 576` (`LANDSCAPE_DESIGN_WIDTH` × `LANDSCAPE_DESIGN_HEIGHT`)
+- **Portrait (9:16)**: `576 × 1024` (`PORTRAIT_DESIGN_WIDTH` × `PORTRAIT_DESIGN_HEIGHT`)
 
-### Uniform Scaling Formula
+### Single Source of Truth (`useResponsiveLayout`)
+The `useResponsiveLayout(containerRef, orientationPreference, overrideOrientation)` hook manages all viewport observation, scale calculations, safe area insets, and orientation resolution across all games (`catch-brand`, `memory-match`, `reaction-time`) and the Studio `LiveThemePreview`.
+
 ```typescript
-const LOGICAL_WIDTH = 1024;
-const LOGICAL_HEIGHT = 576;
-
-// Measured from the container via ResizeObserver
-const scaleX = containerWidth / LOGICAL_WIDTH;
-const scaleY = containerHeight / LOGICAL_HEIGHT;
-
-// Strict uniform scale factor:
-const scale = Math.min(scaleX, scaleY);
+export interface ResponsiveLayoutState {
+  width: number;
+  height: number;
+  stageWidth: number;
+  stageHeight: number;
+  aspectRatio: number;
+  orientation: 'portrait' | 'landscape';
+  isPortrait: boolean;
+  isLandscape: boolean;
+  uiScale: number;
+  designWidth: number;   // 1024 (landscape) or 576 (portrait)
+  designHeight: number;  // 576 (landscape) or 1024 (portrait)
+  safeArea: SafeAreaInsets;
+}
 ```
 
-### Stage CSS Implementation
+### Orientation Resolution Hierarchy
+1. **Studio/Preview Override (`overrideOrientation`)**: Explicitly overrides orientation when an organizer toggles the Mobile/Desktop preview button in Studio or Event Preview.
+2. **Theme Configuration (`theme.layout.orientation`)**: 'portrait' or 'landscape' when explicitly forced by the theme design.
+3. **Automatic Detection (`'auto'`)**: Viewport dimensions observed via `ResizeObserver`. Viewports with `height > width * 1.05` evaluate to `portrait`; otherwise `landscape`.
+
+### Uniform Scaling Formula
+Stage scales uniformly to fit the container without distortion or aspect ratio drift:
+```typescript
+const scaleX = containerWidth / designWidth;
+const scaleY = containerHeight / designHeight;
+const uiScale = Math.min(scaleX, scaleY);
+```
+
+### Stage CSS Implementation & Custom Properties
+Containers inject CSS variables to ensure child overlay elements and HUD widgets scale proportionally:
 ```tsx
-<div className="relative w-full h-full overflow-hidden flex items-center justify-center bg-slate-950">
-  <div
-    style={{
-      width: '1024px',
-      height: '576px',
-      transform: `translate(-50%, -50%) scale(${scale})`,
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transformOrigin: 'center center',
-    }}
-  >
-    {/* All canvas elements render inside this fixed 1024x576 container */}
-  </div>
+<div
+  ref={containerRef}
+  className="relative rounded-2xl overflow-hidden bg-slate-950 ..."
+  style={{
+    '--game-ui-scale': responsive.uiScale,
+    '--game-design-width': `${responsive.designWidth}px`,
+    '--game-design-height': `${responsive.designHeight}px`,
+  } as React.CSSProperties}
+>
+  {/* Game Canvas / Phaser Container / Start / Result Screens */}
 </div>
 ```
 
 ---
 
-## 3. Screen Renderers
+## 3. Screen Renderers & Orientation Adaptation
 
 ### Start Screen (`StartScreenRenderer.tsx`)
-Renders the authored 1024×576 composition prior to gameplay:
+Renders authored visual compositions with uniform scaling:
 - **`startScreenResolver.ts`**: Merges base theme defaults with custom layout overrides stored in the theme JSON (`theme.startScreenConfig`).
-- **Elements Supported**:
-  - `brand_logo`: Top/center sponsor branding with configurable width and opacity.
-  - `game_title`: Primary display headline with custom font, size, and drop shadow.
-  - `game_subtitle`: Secondary tag line or event slogan.
-  - `rules_card`: Frosted-glass container outlining gameplay rules, point values, and controls.
-  - `start_button`: Primary action button triggering the 3-2-1 countdown sequence.
-  - `custom_badge`: Optional organizer badge (e.g. "Tournament Mode", "Live Rehearsal").
-- **Error Boundary**: Wrapped in `StartScreenErrorBoundary.tsx`. If custom JSON contains corrupt coordinates or invalid image URLs, it falls back to a clean default start screen without crashing the game.
+- **Canvas Scaling**: Fits either landscape or portrait viewport bounds while preserving all typography, button coordinates, and branding proportions without reflow defects.
 
-### In-Game HUD (`GameLayoutHudOverlay.tsx`)
-Overlay displayed during live gameplay:
-- **Score Counter**: Top-left display showing current points with bounce animation on positive score.
-- **Timer Bar**: Center/top visual progress bar indicating remaining seconds.
-- **Lives / Lights Indicator**: Displays remaining lives or active F1 light bulbs.
-- **Combo Meter**: Multiplier pill displaying consecutive match streak.
-- **Pause Trigger**: Floating button opening the pause drawer.
+### In-Game HUD & Layout Engine (`getEffectiveGameLayout` & `GameLayoutHudOverlay.tsx`)
+- **Dual-Layout Resolution**: When `isPortrait = true`, `getEffectiveGameLayout` checks for explicit `portraitLayout` definitions in the theme JSON, falling back cleanly to curated portrait coordinate presets for each game (`DEFAULT_PORTRAIT_CATCH_LAYOUT`, `DEFAULT_PORTRAIT_MEMORY_LAYOUT`, `DEFAULT_PORTRAIT_REACTION_LAYOUT`).
+- **Drag-and-Drop WYSIWYG**: In the Studio's Theme Editor, dragging HUD elements in Portrait mode commits updates directly to `theme.layout.portraitLayout`, keeping Landscape and Portrait configurations neatly decoupled.
 
 ### Result Screen (`ResultScreenRenderer.tsx`)
-Rendered when time expires or the game completes:
-- **Score Card**: Large typographic display of final achieved score.
-- **High Score Indicator**: Animated badge triggered if score ranks in the event's top 10.
-- **Action Group**:
-  - "Play Again": Resets the game loop for a new session.
-  - "View Leaderboard": Opens `EventLeaderboardModal.tsx` showing current event rankings.
-- **Telemetry Display**: Displays accuracy %, total items caught, or millisecond reaction time.
+- Dynamically adapts canvas aspect ratio (`targetDimensions={{ width: responsive.designWidth, height: responsive.designHeight }}`) to seamlessly center in both landscape and portrait viewports.
+- Utilizes container query units (`cqi`), percentages, and proportional font scaling (`ResultElementContent.tsx`) for crisp display across mobile phones, tablets, and tournament kiosk displays.
 
 ---
 
