@@ -333,6 +333,13 @@ export interface StartScreenConfig {
   showGridInfo?: boolean;
   showPairsInfo?: boolean;
   showTimerInfo?: boolean;
+  showRules?: boolean;
+  showKeyboardHints?: boolean;
+  showLeaderboard?: boolean;
+  showGuide?: boolean;
+  showRoundsInfo?: boolean;
+  showLightsInfo?: boolean;
+  [key: string]: any;
 
   // Visual Editor schema
   canvas?: StartScreenCanvasConfig;

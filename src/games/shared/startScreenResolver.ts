@@ -633,6 +633,53 @@ export function findStartScreenElementVisibility(
 }
 
 /**
+ * Recursively updates an element's visibility in a StartScreenElement tree by ID.
+ */
+export function updateStartScreenElementVisibility(
+  elements: StartScreenElement[],
+  id: string,
+  visible: boolean
+): StartScreenElement[] {
+  return elements.map((el) => {
+    let nextVis = el.visible;
+    if (el.id === id) {
+      nextVis = visible;
+    }
+    const children = Array.isArray((el as any).children)
+      ? updateStartScreenElementVisibility((el as any).children, id, visible)
+      : undefined;
+    return {
+      ...el,
+      visible: nextVis,
+      ...(children ? { children } : {}),
+    };
+  });
+}
+
+/**
+ * Recursively updates multiple elements' visibility in a StartScreenElement tree by an ID map.
+ */
+export function updateStartScreenElementsVisibilityMap(
+  elements: StartScreenElement[],
+  visibilityMap: Record<string, boolean>
+): StartScreenElement[] {
+  return elements.map((el) => {
+    let nextVis = el.visible;
+    if (el.id in visibilityMap) {
+      nextVis = visibilityMap[el.id];
+    }
+    const children = Array.isArray((el as any).children)
+      ? updateStartScreenElementsVisibilityMap((el as any).children, visibilityMap)
+      : undefined;
+    return {
+      ...el,
+      visible: nextVis,
+      ...(children ? { children } : {}),
+    };
+  });
+}
+
+/**
  * The Authoritative Single Resolver for Start Screen Configuration.
  * Guaranteed to produce a complete, non-corrupt, valid StartScreenConfig.
  */

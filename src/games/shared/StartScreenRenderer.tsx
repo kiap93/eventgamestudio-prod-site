@@ -222,6 +222,9 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
     const widthPercent = `${(w / safeParentW) * 100}%`;
     const heightPercent = `${(h / safeParentH) * 100}%`;
 
+    const isCard = el.type === 'card';
+    const cardRadius = isCard ? ((el as any).style?.borderRadius ?? 24) : undefined;
+
     const commonStyle: React.CSSProperties = {
       position: 'absolute',
       left: leftPercent,
@@ -232,6 +235,7 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
       zIndex: Number.isFinite(el.zIndex) ? el.zIndex : 1,
       transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
       boxSizing: 'border-box',
+      borderRadius: cardRadius !== undefined ? `${cardRadius}px` : undefined,
     };
 
     return (

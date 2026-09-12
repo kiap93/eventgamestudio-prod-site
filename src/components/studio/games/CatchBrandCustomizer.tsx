@@ -3,8 +3,9 @@ import { GameTheme, ThemeDropItem, ThemeDifficultyStage } from '../../../themes/
 import { ResultScreenVisualEditor } from './ResultScreenVisualEditor';
 import { StartScreenVisualEditorModal } from './start-editor/StartScreenVisualEditorModal';
 import { StartScreenRenderer } from '../../../games/shared/StartScreenRenderer';
-import { getStartScreenConfig } from '../../../games/shared/startScreenResolver';
+import { getStartScreenConfig, saveStartScreenConfig } from '../../../games/shared/startScreenResolver';
 import { StartScreenConfig } from '../../../games/shared/startScreenTypes';
+import { StartScreenBasicEditor } from './start-editor/StartScreenBasicEditor';
 import {
   Layers,
   Sparkles,
@@ -718,6 +719,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
   theme,
   onChange,
   onUploadAsset,
+  uploadingAsset,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
   const [isStartEditorModalOpen, setIsStartEditorModalOpen] = useState(false);
@@ -740,26 +742,13 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
   };
 
   const handleUpdateStartConfig = (updated: Partial<StartScreenConfig>) => {
-    const nextStart = {
+    const nextStart: StartScreenConfig = {
       ...startConfig,
       ...updated,
       canvas: updated.canvas || startConfig.canvas || { width: 1024, height: 576, coordinateSpace: 'landscape-1024x576', version: 2 },
     };
-    const nextGameConfig = {
-      ...gameConfig,
-      screens: {
-        ...(gameConfig.screens || {}),
-        start: nextStart,
-      },
-    };
-    onChange({
-      ...theme,
-      game_config: nextGameConfig as any,
-      screens: {
-        ...(theme.screens || {}),
-        start: nextStart as any,
-      },
-    });
+    const updatedTheme = saveStartScreenConfig(theme, nextStart, 'catch-brand');
+    onChange(updatedTheme);
   };
 
   const handleUpdateResultConfig = (updated: any) => {
@@ -799,7 +788,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Start Screen Canvas</span>
+            <span>Start Screen</span>
           </button>
           <button
             type="button"
@@ -811,28 +800,40 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>Result Screen Canvas</span>
+            <span>Result Screen</span>
           </button>
         </div>
       </div>
 
       {activeSubTab === 'start' ? (
-        <div className="space-y-6">
-          <div className="bg-slate-900/80 border border-slate-800/90 rounded-2xl p-6 relative overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* 1. BASIC EDITOR */}
+          <StartScreenBasicEditor
+            startConfig={startConfig}
+            theme={theme}
+            gameType="catch-brand"
+            gameMeta={catchGameMeta}
+            onChange={handleUpdateStartConfig}
+            onUploadAsset={onUploadAsset as any}
+            uploadingAsset={uploadingAsset}
+          />
+
+          {/* 2. ADVANCED VISUAL CANVAS EDITOR */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <Palette className="w-4 h-4 text-amber-400" />
                   <span>Start Screen Visual Canvas Editor</span>
-                </h3>
+                </h4>
                 <p className="text-xs text-slate-400 mt-1">
-                  Design the landing screen layout, start button, badges, and background using the 1024×576 visual canvas editor.
+                  Design elements, layouts, start button, rules cards, and badges directly on the 1024×576 canvas.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsStartEditorModalOpen(true)}
-                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
               >
                 <Maximize2 className="w-4 h-4" />
                 <span>Open Start Screen Editor</span>

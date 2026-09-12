@@ -1084,6 +1084,9 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
     const widthPercent = `${(el.width / parentWidth) * 100}%`;
     const heightPercent = `${(el.height / parentHeight) * 100}%`;
 
+    const isCard = el.type === 'card';
+    const cardRadius = isCard ? ((el as any).style?.borderRadius ?? 24) : undefined;
+
     const commonStyle: React.CSSProperties = {
       position: 'absolute',
       left: leftPercent,
@@ -1098,6 +1101,7 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
       pointerEvents: isVisible ? 'auto' : 'none',
       outline: isParentOfSelected ? '2px dashed rgba(59, 130, 246, 0.7)' : undefined,
       outlineOffset: isParentOfSelected ? '2px' : undefined,
+      borderRadius: cardRadius !== undefined ? `${cardRadius}px` : undefined,
     };
 
     return (
@@ -1126,6 +1130,9 @@ export const CanvasWorkspace = <T extends BaseVisualElement = BaseVisualElement>
                 ? 'border-rose-500/80 shadow-[0_0_12px_rgba(244,63,94,0.4)]'
                 : 'border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]'
             }`}
+            style={{
+              borderRadius: cardRadius !== undefined ? `${cardRadius}px` : undefined,
+            }}
           >
             {/* Primary Element Controls */}
             {isPrimarySelected && (

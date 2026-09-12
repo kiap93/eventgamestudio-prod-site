@@ -114,10 +114,11 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
     case 'card': {
       const cardEl = element as StartCardElement;
       const style = cardEl.style || {};
-      const borderRadius = style.borderRadius ?? 24;
-      const borderWidth = style.borderWidth ?? 1;
-      const borderColor = style.borderColor ?? '#334155';
-      const backgroundColor = style.backgroundColor ?? 'rgba(15, 23, 42, 0.85)';
+      const cardRadius = typeof style.borderRadius === 'number' ? style.borderRadius : 24;
+      const radiusPx = `${cardRadius}px`;
+      const borderWidth = typeof style.borderWidth === 'number' ? style.borderWidth : 1;
+      const borderColor = style.borderColor || '#334155';
+      const backgroundColor = style.backgroundColor || 'rgba(15, 23, 42, 0.85)';
 
       // Resolve theme background fallback for rich card appearance
       const themeBgUrl =
@@ -131,44 +132,98 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
           ? style.backgroundImageUrl
           : themeBgUrl;
 
+      const hasShadow = style.shadow !== false;
+
       return (
         <div
-          className="relative w-full h-full overflow-hidden"
+          className="card-wrapper relative w-full h-full"
           style={{
-            borderRadius: `${borderRadius}px`,
-            borderWidth: `${borderWidth}px`,
-            borderColor,
-            boxShadow: style.shadow ? '0 25px 50px -12px rgba(0, 0, 0, 0.7)' : undefined,
+            borderRadius: radiusPx,
+            overflow: 'hidden',
+            isolation: 'isolate',
+            WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+            boxShadow: hasShadow ? '0 25px 50px -12px rgba(0, 0, 0, 0.7)' : undefined,
           }}
         >
-          {/* Theme / Custom Background Layer */}
+          {/* Ensure pseudo-elements inherit matching radius */}
+          <style>{`
+            .card-wrapper, .card-wrapper * {
+              --card-radius: ${radiusPx};
+            }
+            .card-wrapper::before, .card-wrapper::after,
+            .card-background::before, .card-background::after,
+            .card-background-image::before, .card-background-image::after,
+            .card-overlay::before, .card-overlay::after,
+            .card-content::before, .card-content::after,
+            .card-outline::before, .card-outline::after {
+              border-radius: inherit;
+            }
+          `}</style>
+
+          {/* 1. Base Card Background Layer */}
+          <div
+            className="card-background absolute inset-0 w-full h-full pointer-events-none"
+            style={{
+              borderRadius: radiusPx,
+              backgroundColor,
+              overflow: 'hidden',
+            }}
+          />
+
+          {/* 2. Theme / Custom Background Image Layer */}
           {cardBgImage && (
             <div
-              className="absolute inset-0 w-full h-full pointer-events-none"
+              className="card-background-image absolute inset-0 w-full h-full pointer-events-none"
               style={{
+                borderRadius: radiusPx,
                 backgroundImage: `url("${cardBgImage}")`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
+                overflow: 'hidden',
               }}
             />
           )}
-          {/* Dark Overlay Layer */}
+
+          {/* 3. Dark Overlay / Backdrop Blur Layer */}
           <div
-            className="absolute inset-0 w-full h-full pointer-events-none"
+            className="card-overlay absolute inset-0 w-full h-full pointer-events-none"
             style={{
-              backgroundColor,
+              borderRadius: radiusPx,
+              backgroundColor: cardBgImage ? backgroundColor : undefined,
               backdropFilter: style.backdropBlur ? 'blur(8px)' : undefined,
               WebkitBackdropFilter: style.backdropBlur ? 'blur(8px)' : undefined,
+              overflow: 'hidden',
             }}
           />
-          {/* Child Elements Layer */}
-          <div className="relative z-10 w-full h-full">
+
+          {/* 4. Child Content Clipping Container */}
+          <div
+            className="card-content relative z-10 w-full h-full"
+            style={{
+              borderRadius: radiusPx,
+              overflow: 'hidden',
+            }}
+          >
             {Array.isArray(cardEl.children) &&
               cardEl.children.map((child) =>
                 renderChild ? renderChild(child, cardEl.width, cardEl.height) : null
               )}
           </div>
+
+          {/* 5. Border / Outline Layer */}
+          {borderWidth > 0 && (
+            <div
+              className="card-outline absolute inset-0 w-full h-full pointer-events-none z-20"
+              style={{
+                borderRadius: radiusPx,
+                borderWidth: `${borderWidth}px`,
+                borderStyle: 'solid',
+                borderColor,
+                boxSizing: 'border-box',
+              }}
+            />
+          )}
         </div>
       );
     }
