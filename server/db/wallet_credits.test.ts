@@ -53,11 +53,24 @@ import {
 let passed = 0;
 let failed = 0;
 
-async function ensureTestOrg(orgId: string) {
+async function createTestUser(): Promise<string> {
   const supabase = getSupabaseServerClient();
+  const id = crypto.randomUUID();
+  await supabase.from('users').insert({
+    id,
+    email: `test-${id.slice(0, 8)}@example.com`,
+    name: `Test User ${id.slice(0, 6)}`,
+  });
+  return id;
+}
+
+async function ensureTestOrg(orgId: string, ownerId?: string): Promise<string> {
+  const supabase = getSupabaseServerClient();
+  let validOwnerId = ownerId;
   try {
-    const { data: users } = await supabase.from('users').select('id').limit(1);
-    const validOwnerId = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+    if (!validOwnerId) {
+      validOwnerId = await createTestUser();
+    }
     await supabase.from('organizations').upsert({
       id: orgId,
       name: `Test Org ${orgId.slice(0, 8)}`,
@@ -66,8 +79,10 @@ async function ensureTestOrg(orgId: string) {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
+    return validOwnerId;
   } catch {
     // Ignore in local mode
+    return validOwnerId || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
   }
 }
 
@@ -112,14 +127,14 @@ async function runTests() {
   console.log(' RUNNING WELCOME & SHOWCASE CREDIT ENGINES TEST SUITE');
   console.log('======================================================\n');
 
-  const testAdminId = '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+  const testAdminId = await createTestUser();
 
   // ----------------------------------------------------
   // TEST GROUP 1: WELCOME CREDIT GRANT & ONE-TIME RULE
   // ----------------------------------------------------
   console.log('--- Test Group 1: Welcome Credit Grant & One-Time Rule ---');
   const org1Id = crypto.randomUUID();
-  await ensureTestOrg(org1Id);
+  await ensureTestOrg(org1Id, testAdminId);
 
   const grant1 = await grantWelcomeCredit({
     organizationId: org1Id,
@@ -146,9 +161,10 @@ async function runTests() {
   // TEST GROUP 1B: AUTOMATIC WELCOME CREDIT ON createOrganization
   // ----------------------------------------------------
   console.log('\n--- Test Group 1B: Automatic Welcome Credit on createOrganization ---');
+  const autoUser = await createTestUser();
   const autoOrg = await createOrganization({
     name: 'Auto Welcome Org Test',
-    owner_id: testAdminId,
+    owner_id: autoUser,
   });
 
   const autoOrgWallet = await getWalletBalance(autoOrg.id);

@@ -20,9 +20,9 @@ function ensureUploadsDir() {
   }
 }
 
-function readLocalNotifications(): NotificationRecord[] {
+function readLocalNotifications(env?: Record<string, any>): NotificationRecord[] {
   try {
-    if (!isLocalFallbackAllowed()) return [];
+    if (!isLocalFallbackAllowed(env)) return [];
     ensureUploadsDir();
     if (!fs.existsSync(LOCAL_NOTIFICATIONS_FILE)) {
       return [];
@@ -35,9 +35,9 @@ function readLocalNotifications(): NotificationRecord[] {
   }
 }
 
-function writeLocalNotifications(notifications: NotificationRecord[]) {
+function writeLocalNotifications(notifications: NotificationRecord[], env?: Record<string, any>) {
   try {
-    if (!isLocalFallbackAllowed()) return;
+    if (!isLocalFallbackAllowed(env)) return;
     ensureUploadsDir();
     fs.writeFileSync(LOCAL_NOTIFICATIONS_FILE, JSON.stringify(notifications, null, 2), 'utf-8');
   } catch (err) {
@@ -46,18 +46,26 @@ function writeLocalNotifications(notifications: NotificationRecord[]) {
 }
 
 export interface CreateNotificationParams {
-  recipientUserId: string;
+  recipientUserId?: string;
+  recipient_user_id?: string;
   organizationId?: string | null;
+  organization_id?: string | null;
   type: NotificationType;
+  category?: NotificationCategory;
   title?: string;
   message?: string;
   priority?: NotificationPriority;
   actionUrl?: string | null;
+  action_url?: string | null;
   entityType?: string | null;
+  entity_type?: string | null;
   entityId?: string | null;
+  entity_id?: string | null;
   metadata?: Record<string, any>;
   deduplicationKey?: string | null;
+  deduplication_key?: string | null;
   expiresAt?: string | null;
+  expires_at?: string | null;
 }
 
 export interface ListNotificationsParams {
@@ -76,20 +84,18 @@ export async function createNotification(
   params: CreateNotificationParams,
   env?: Record<string, any>
 ): Promise<NotificationRecord> {
-  const {
-    recipientUserId,
-    organizationId = null,
-    type,
-    title: customTitle,
-    message: customMessage,
-    priority: customPriority,
-    actionUrl: customActionUrl,
-    entityType = null,
-    entityId = null,
-    metadata = {},
-    deduplicationKey = null,
-    expiresAt = null,
-  } = params;
+  const recipientUserId = params.recipientUserId || params.recipient_user_id;
+  const organizationId = params.organizationId !== undefined ? params.organizationId : (params.organization_id || null);
+  const type = params.type;
+  const customTitle = params.title;
+  const customMessage = params.message;
+  const customPriority = params.priority;
+  const customActionUrl = params.actionUrl !== undefined ? params.actionUrl : params.action_url;
+  const entityType = params.entityType !== undefined ? params.entityType : (params.entity_type || null);
+  const entityId = params.entityId !== undefined ? params.entityId : (params.entity_id || null);
+  const metadata = params.metadata || {};
+  const deduplicationKey = params.deduplicationKey !== undefined ? params.deduplicationKey : (params.deduplication_key || null);
+  const expiresAt = params.expiresAt !== undefined ? params.expiresAt : (params.expires_at || null);
 
   if (!recipientUserId) {
     throw new Error('recipientUserId is required to create a notification');
@@ -123,10 +129,8 @@ export async function createNotification(
       env
     );
     if (existing) {
-      // If duplicates are not allowed, return existing record idempotently
-      if (!catalogItem || !catalogItem.duplicatesAllowed) {
-        return existing;
-      }
+      // Deduplication key exists - return existing record idempotently
+      return existing;
     }
   }
 
@@ -194,9 +198,9 @@ export async function createNotification(
       } else if (data) {
         // Also keep local fallback updated if active
         if (isLocalFallbackAllowed(env)) {
-          const locals = readLocalNotifications();
+          const locals = readLocalNotifications(env);
           locals.unshift(data as NotificationRecord);
-          writeLocalNotifications(locals.slice(0, 500));
+          writeLocalNotifications(locals.slice(0, 500), env);
         }
         return data as NotificationRecord;
       }
@@ -210,9 +214,9 @@ export async function createNotification(
 
   // Local fallback storage
   if (isLocalFallbackAllowed(env)) {
-    const locals = readLocalNotifications();
+    const locals = readLocalNotifications(env);
     locals.unshift(newRecord);
-    writeLocalNotifications(locals.slice(0, 500));
+    writeLocalNotifications(locals.slice(0, 500), env);
     return newRecord;
   }
 
@@ -246,7 +250,7 @@ export async function getNotificationByDeduplicationKey(
   }
 
   if (isLocalFallbackAllowed(env)) {
-    const locals = readLocalNotifications();
+    const locals = readLocalNotifications(env);
     const found = locals.find(
       (n) => n.recipient_user_id === recipientUserId && n.deduplication_key === deduplicationKey
     );
@@ -332,7 +336,7 @@ export async function listNotifications(
 
   // Local fallback
   if (isLocalFallbackAllowed(env)) {
-    let locals = readLocalNotifications().filter((n) => n.recipient_user_id === userId);
+    let locals = readLocalNotifications(env).filter((n) => n.recipient_user_id === userId);
 
     if (organizationId) {
       locals = locals.filter((n) => !n.organization_id || n.organization_id === organizationId);
@@ -394,7 +398,7 @@ export async function getUnreadNotificationCount(
   }
 
   if (isLocalFallbackAllowed(env)) {
-    const locals = readLocalNotifications().filter(
+    const locals = readLocalNotifications(env).filter(
       (n) =>
         n.recipient_user_id === userId &&
         !n.is_read &&
@@ -433,12 +437,12 @@ export async function markNotificationAsRead(
       if (!error && data) {
         // Also update local fallback if present
         if (isLocalFallbackAllowed(env)) {
-          const locals = readLocalNotifications();
+          const locals = readLocalNotifications(env);
           const idx = locals.findIndex((n) => n.id === notificationId && n.recipient_user_id === userId);
           if (idx !== -1) {
             locals[idx].is_read = true;
             locals[idx].read_at = now;
-            writeLocalNotifications(locals);
+            writeLocalNotifications(locals, env);
           }
         }
         return data as NotificationRecord;
@@ -449,12 +453,12 @@ export async function markNotificationAsRead(
   }
 
   if (isLocalFallbackAllowed(env)) {
-    const locals = readLocalNotifications();
+    const locals = readLocalNotifications(env);
     const idx = locals.findIndex((n) => n.id === notificationId && n.recipient_user_id === userId);
     if (idx !== -1) {
       locals[idx].is_read = true;
       locals[idx].read_at = now;
-      writeLocalNotifications(locals);
+      writeLocalNotifications(locals, env);
       return locals[idx];
     }
   }
@@ -492,7 +496,7 @@ export async function markAllNotificationsAsRead(
 
       if (!error && data) {
         if (isLocalFallbackAllowed(env)) {
-          const locals = readLocalNotifications();
+          const locals = readLocalNotifications(env);
           let count = 0;
           locals.forEach((n) => {
             if (
@@ -505,7 +509,7 @@ export async function markAllNotificationsAsRead(
               count++;
             }
           });
-          writeLocalNotifications(locals);
+          writeLocalNotifications(locals, env);
         }
         return { marked_count: data.length };
       }
@@ -515,7 +519,7 @@ export async function markAllNotificationsAsRead(
   }
 
   if (isLocalFallbackAllowed(env)) {
-    const locals = readLocalNotifications();
+    const locals = readLocalNotifications(env);
     let markedCount = 0;
     locals.forEach((n) => {
       if (
@@ -528,7 +532,7 @@ export async function markAllNotificationsAsRead(
         markedCount++;
       }
     });
-    writeLocalNotifications(locals);
+    writeLocalNotifications(locals, env);
     return { marked_count: markedCount };
   }
 
@@ -555,10 +559,10 @@ export async function deleteNotification(
 
       if (!error) {
         if (isLocalFallbackAllowed(env)) {
-          const locals = readLocalNotifications().filter(
+          const locals = readLocalNotifications(env).filter(
             (n) => !(n.id === notificationId && n.recipient_user_id === userId)
           );
-          writeLocalNotifications(locals);
+          writeLocalNotifications(locals, env);
         }
         return true;
       }
@@ -568,10 +572,10 @@ export async function deleteNotification(
   }
 
   if (isLocalFallbackAllowed(env)) {
-    const locals = readLocalNotifications().filter(
+    const locals = readLocalNotifications(env).filter(
       (n) => !(n.id === notificationId && n.recipient_user_id === userId)
     );
-    writeLocalNotifications(locals);
+    writeLocalNotifications(locals, env);
     return true;
   }
 
@@ -602,10 +606,10 @@ export async function cleanupExpiredNotifications(env?: Record<string, any>): Pr
   }
 
   if (isLocalFallbackAllowed(env)) {
-    const locals = readLocalNotifications();
+    const locals = readLocalNotifications(env);
     const remaining = locals.filter((n) => !n.expires_at || n.expires_at >= now);
     const deletedCount = locals.length - remaining.length;
-    writeLocalNotifications(remaining);
+    writeLocalNotifications(remaining, env);
     return deletedCount;
   }
 

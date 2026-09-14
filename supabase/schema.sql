@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS public.events (
   public_token TEXT UNIQUE NOT NULL,
   test_scores_cleared_at TIMESTAMPTZ,
   created_by UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  event_timezone TEXT DEFAULT 'Asia/Singapore',
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
@@ -185,6 +186,7 @@ CREATE INDEX IF NOT EXISTS idx_events_public_token ON public.events (public_toke
 CREATE INDEX IF NOT EXISTS idx_events_status ON public.events (status);
 CREATE INDEX IF NOT EXISTS idx_events_event_status ON public.events (event_status);
 CREATE INDEX IF NOT EXISTS idx_events_payment_status ON public.events (payment_status);
+CREATE INDEX IF NOT EXISTS idx_events_event_timezone ON public.events (event_timezone);
 CREATE INDEX IF NOT EXISTS idx_events_starts_at ON public.events (starts_at);
 CREATE INDEX IF NOT EXISTS idx_events_expires_at ON public.events (expires_at);
 CREATE INDEX IF NOT EXISTS idx_events_start_date ON public.events (start_date);
@@ -3572,7 +3574,8 @@ CREATE OR REPLACE FUNCTION public.create_event_atomic(
   p_created_by UUID DEFAULT NULL,
   p_event_id UUID DEFAULT NULL,
   p_max_pending_events INT DEFAULT 2,
-  p_skip_pending_limit_check BOOLEAN DEFAULT FALSE
+  p_skip_pending_limit_check BOOLEAN DEFAULT FALSE,
+  p_event_timezone TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -3592,6 +3595,7 @@ DECLARE
   v_now TIMESTAMPTZ := timezone('utc'::text, now());
   v_token_attempts INT := 0;
   v_max_limit INT := COALESCE(p_max_pending_events, 2);
+  v_event_timezone TEXT := p_event_timezone;
 BEGIN
   -- 1. Input validations
   IF p_organization_id IS NULL THEN
@@ -3644,6 +3648,43 @@ BEGIN
       'error', 'Organization not found',
       'message', 'Organization not found'
     );
+  END IF;
+
+  -- Resolve event timezone:
+  -- explicit parameter -> organization country default -> 'Asia/Singapore' fallback
+  IF v_event_timezone IS NULL OR TRIM(v_event_timezone) = '' THEN
+    v_event_timezone := CASE UPPER(COALESCE(v_org.country_code, 'SG'))
+      WHEN 'MY' THEN 'Asia/Kuala_Lumpur'
+      WHEN 'TH' THEN 'Asia/Bangkok'
+      WHEN 'ID' THEN 'Asia/Jakarta'
+      WHEN 'PH' THEN 'Asia/Manila'
+      WHEN 'VN' THEN 'Asia/Ho_Chi_Minh'
+      WHEN 'JP' THEN 'Asia/Tokyo'
+      WHEN 'KR' THEN 'Asia/Seoul'
+      WHEN 'TW' THEN 'Asia/Taipei'
+      WHEN 'HK' THEN 'Asia/Hong_Kong'
+      WHEN 'AU' THEN 'Australia/Sydney'
+      WHEN 'NZ' THEN 'Pacific/Auckland'
+      WHEN 'IN' THEN 'Asia/Kolkata'
+      WHEN 'US' THEN 'America/New_York'
+      WHEN 'GB' THEN 'Europe/London'
+      WHEN 'CA' THEN 'America/Toronto'
+      WHEN 'DE' THEN 'Europe/Berlin'
+      WHEN 'FR' THEN 'Europe/Paris'
+      WHEN 'NL' THEN 'Europe/Amsterdam'
+      WHEN 'CH' THEN 'Europe/Zurich'
+      WHEN 'AE' THEN 'Asia/Dubai'
+      WHEN 'SA' THEN 'Asia/Riyadh'
+      WHEN 'BR' THEN 'America/Sao_Paulo'
+      WHEN 'MX' THEN 'America/Mexico_City'
+      WHEN 'ZA' THEN 'Africa/Johannesburg'
+      WHEN 'ES' THEN 'Europe/Madrid'
+      WHEN 'IT' THEN 'Europe/Rome'
+      WHEN 'SE' THEN 'Europe/Stockholm'
+      WHEN 'NO' THEN 'Europe/Oslo'
+      WHEN 'IE' THEN 'Europe/Dublin'
+      ELSE 'Asia/Singapore'
+    END;
   END IF;
 
   -- 3. Theme & Game Isolation & Permissions Validation
@@ -3779,6 +3820,7 @@ BEGIN
     payment_mode,
     public_token,
     created_by,
+    event_timezone,
     created_at,
     updated_at
   ) VALUES (
@@ -3803,6 +3845,7 @@ BEGIN
     p_payment_mode,
     v_token,
     p_created_by,
+    v_event_timezone,
     v_now,
     v_now
   )
@@ -3817,8 +3860,8 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.create_event_atomic(UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN) TO service_role;
-REVOKE EXECUTE ON FUNCTION public.create_event_atomic(UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN) FROM authenticated, anon, public;
+GRANT EXECUTE ON FUNCTION public.create_event_atomic(UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.create_event_atomic(UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT) FROM authenticated, anon, public;
 
 -- ------------------------------------------------------------------------------
 -- DATABASE-LEVEL TRIGGER FOR DISTRIBUTED PENDING LIMIT ENFORCEMENT
@@ -3886,7 +3929,8 @@ CREATE TABLE IF NOT EXISTS public.user_rewards (
 CREATE INDEX IF NOT EXISTS idx_user_rewards_user_type ON public.user_rewards (user_id, reward_type);
 
 ALTER TABLE public.wallet_transactions ADD COLUMN IF NOT EXISTS owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
-CREATE INDEX IF NOT EXISTS idx_wallet_txns_owner_user_id ON public.wallet_transactions (owner_user_id);
+DROP INDEX IF EXISTS public.idx_wallet_txns_owner_user_id;
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_owner_user_id ON public.wallet_transactions (owner_user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_user_welcome_credit_unique 
   ON public.wallet_transactions (owner_user_id) 
   WHERE transaction_type = 'WELCOME_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;

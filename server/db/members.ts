@@ -314,7 +314,8 @@ export async function updateMemberRole(
     {
       eventType: 'SECURITY_SETTINGS_CHANGED',
       organizationId,
-      changeDescription: `Member role updated to ${role}`,
+      action: 'ROLE_CHANGED',
+      details: `Member role updated to ${role}`,
     },
     env
   ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch SECURITY_SETTINGS_CHANGED:', err));
@@ -323,6 +324,7 @@ export async function updateMemberRole(
 }
 
 export async function removeMember(memberId: string, env?: Record<string, any>): Promise<void> {
+  const cached = localMembersCache.get(memberId);
   localMembersCache.delete(memberId);
   const supabase = getSupabaseServerClient(env);
   const { error } = await supabase
@@ -336,5 +338,17 @@ export async function removeMember(memberId: string, env?: Record<string, any>):
     }
     console.error('Error in removeMember:', error);
     throw new Error(`Failed to remove organization member: ${error.message}`);
+  }
+
+  if (cached?.organization_id) {
+    dispatchNotificationEvent(
+      {
+        eventType: 'SECURITY_SETTINGS_CHANGED',
+        organizationId: cached.organization_id,
+        action: 'MEMBER_REMOVED',
+        details: 'A member was removed from the organization',
+      },
+      env
+    ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch SECURITY_SETTINGS_CHANGED:', err));
   }
 }

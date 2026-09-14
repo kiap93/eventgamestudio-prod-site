@@ -3172,6 +3172,7 @@ export async function runEventLifecycleMaintenance(
           const endDateTime = new Date(`${endDate}T23:59:59+08:00`).getTime();
           const diffHours = (endDateTime - nowTime) / (1000 * 60 * 60);
           if (diffHours > 0 && diffHours <= 24) {
+            const timeRemaining = `${Math.ceil(diffHours)} hours`;
             dispatchNotificationEvent(
               {
                 eventType: 'EVENT_EXPIRING',
@@ -3179,6 +3180,7 @@ export async function runEventLifecycleMaintenance(
                 eventId: ev.id,
                 eventName: ev.name,
                 endDate,
+                timeRemaining,
               },
               env
             ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_EXPIRING:', err));

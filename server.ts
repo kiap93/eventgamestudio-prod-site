@@ -164,6 +164,7 @@ import {
   markAllNotificationsAsRead,
   deleteNotification,
 } from './server/db/index.js';
+import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 
 import {
   authenticateJWT,
@@ -364,6 +365,12 @@ app.get('/api/config', (_req, res) => {
  * Verify Google ID Token, find/create user in Supabase, load organizations, sign JWT
  */
 app.post('/api/auth/google', authRateLimiter, async (req, res) => {
+  const correlationId =
+    (req.headers['x-correlation-id'] as string) ||
+    (req.headers['x-request-id'] as string) ||
+    crypto.randomUUID();
+  res.setHeader('x-correlation-id', correlationId);
+
   try {
     const { idToken } = req.body;
     if (!idToken) {
@@ -377,7 +384,8 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
     const user = await upsertGoogleUser(googleUser);
 
     if (!user) {
-      res.status(500).json({ error: 'Failed to create or load user record in Supabase' });
+      console.error(`[Google Auth Error][${correlationId}] Failed to create or load user record`);
+      res.status(401).json({ error: 'Google authentication failed' });
       return;
     }
 
@@ -407,8 +415,14 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
       activeOrganizationId: activeOrgId || null,
     });
   } catch (err: any) {
-    console.error('Google Auth error:', err);
-    res.status(401).json({ error: err.message || 'Authentication failed' });
+    console.error(`[Google Auth Error][${correlationId}]`, {
+      message: err?.message,
+      stack: err?.stack,
+      code: err?.code,
+      details: err?.details,
+      hint: err?.hint,
+    });
+    res.status(401).json({ error: 'Google authentication failed' });
   }
 });
 
@@ -417,6 +431,12 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
  * Get current user & active organization details from Supabase
  */
 app.get('/api/auth/me', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  const correlationId =
+    (req.headers['x-correlation-id'] as string) ||
+    (req.headers['x-request-id'] as string) ||
+    crypto.randomUUID();
+  res.setHeader('x-correlation-id', correlationId);
+
   try {
     const user = req.user!;
     const payload = req.jwtPayload!;
@@ -452,8 +472,8 @@ app.get('/api/auth/me', authenticateJWT, async (req: AuthenticatedRequest, res) 
         : null,
     });
   } catch (err: any) {
-    console.error('Auth /me error:', err);
-    res.status(500).json({ error: err.message });
+    console.error(`[Auth /me error][${correlationId}]`, err);
+    res.status(500).json({ error: 'Failed to retrieve authentication details' });
   }
 });
 
@@ -1229,7 +1249,19 @@ app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
       return;
     }
 
-    const googleUser = await verifyGoogleIdToken(idToken);
+    let googleUser;
+    try {
+      googleUser = await verifyGoogleIdToken(idToken);
+    } catch (tokenErr: any) {
+      const correlationId =
+        (req.headers['x-correlation-id'] as string) ||
+        (req.headers['x-request-id'] as string) ||
+        crypto.randomUUID();
+      console.error(`[Google Auth Error][${correlationId}] Invitation token verification failed:`, tokenErr);
+      res.setHeader('x-correlation-id', correlationId);
+      res.status(401).json({ error: 'Google authentication failed' });
+      return;
+    }
 
     // Verify Google email matches invitation email
     if (googleUser.email.toLowerCase() !== invite.email.toLowerCase()) {
@@ -1277,8 +1309,13 @@ app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
       },
     });
   } catch (err: any) {
-    console.error('Accept invitation error:', err);
-    res.status(500).json({ error: err.message });
+    const correlationId =
+      (req.headers['x-correlation-id'] as string) ||
+      (req.headers['x-request-id'] as string) ||
+      crypto.randomUUID();
+    console.error(`[Accept invitation error][${correlationId}]`, err);
+    res.setHeader('x-correlation-id', correlationId);
+    res.status(500).json({ error: 'Failed to accept invitation' });
   }
 });
 
@@ -6474,8 +6511,10 @@ app.post('/api/email/test', authenticateDeveloperAdmin, async (req: Authenticate
 app.get('/api/notifications', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
-    const organizationId = typeof req.query.organizationId === 'string' ? req.query.organizationId : undefined;
-    const unreadOnly = req.query.unreadOnly === 'true';
+    const organizationId = typeof req.query.organizationId === 'string'
+      ? req.query.organizationId
+      : (typeof req.query.organization_id === 'string' ? req.query.organization_id : undefined);
+    const unreadOnly = req.query.unreadOnly === 'true' || req.query.unread_only === 'true';
     const category = typeof req.query.category === 'string' ? (req.query.category as any) : undefined;
     const limit = Math.min(Math.max(parseInt(String(req.query.limit || '20'), 10) || 20, 1), 100);
     const offset = Math.max(parseInt(String(req.query.offset || '0'), 10) || 0, 0);
@@ -6503,7 +6542,9 @@ app.get('/api/notifications', authenticateJWT, async (req: AuthenticatedRequest,
 app.get('/api/notifications/unread-count', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
-    const organizationId = typeof req.query.organizationId === 'string' ? req.query.organizationId : undefined;
+    const organizationId = typeof req.query.organizationId === 'string'
+      ? req.query.organizationId
+      : (typeof req.query.organization_id === 'string' ? req.query.organization_id : undefined);
 
     const count = await getUnreadNotificationCount(user.id, organizationId);
     res.json({ unread_count: count });
@@ -6542,10 +6583,12 @@ app.patch('/api/notifications/:id/read', authenticateJWT, async (req: Authentica
 app.post('/api/notifications/mark-all-read', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
-    const organizationId = typeof req.body?.organizationId === 'string' ? req.body.organizationId : undefined;
+    const organizationId = typeof req.body?.organizationId === 'string'
+      ? req.body.organizationId
+      : (typeof req.body?.organization_id === 'string' ? req.body.organization_id : undefined);
 
-    const count = await markAllNotificationsAsRead(user.id, organizationId);
-    res.json({ success: true, count });
+    const resObj = await markAllNotificationsAsRead(user.id, organizationId);
+    res.json({ success: true, count: resObj.marked_count, marked_count: resObj.marked_count });
   } catch (err: any) {
     console.error('Mark all notifications read error:', err);
     res.status(500).json({ error: err.message || 'Failed to mark all notifications as read' });
@@ -6566,6 +6609,34 @@ app.delete('/api/notifications/:id', authenticateJWT, async (req: AuthenticatedR
   } catch (err: any) {
     console.error('Delete notification error:', err);
     res.status(500).json({ error: err.message || 'Failed to delete notification' });
+  }
+});
+
+/**
+ * POST /api/developer/notifications/dispatch-test
+ * Developer test endpoint to trigger business events and verify dispatching.
+ */
+app.post('/api/developer/notifications/dispatch-test', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const event = req.body as any;
+    if (!event || !event.eventType) {
+      res.status(400).json({ error: 'Valid BusinessNotificationEvent with eventType is required' });
+      return;
+    }
+
+    if (!event.recipientUserId && !event.organizationId && req.user?.id) {
+      event.recipientUserId = req.user.id;
+    }
+
+    const createdNotifications = await dispatchNotificationEvent(event);
+    res.json({
+      success: true,
+      created_count: createdNotifications.length,
+      notifications: createdNotifications,
+    });
+  } catch (err: any) {
+    console.error('Error in developer dispatch-test:', err);
+    res.status(500).json({ error: err.message || 'Failed to dispatch test notification' });
   }
 });
 

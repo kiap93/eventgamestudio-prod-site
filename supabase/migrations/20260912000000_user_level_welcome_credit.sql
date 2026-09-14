@@ -19,41 +19,169 @@ CREATE TABLE IF NOT EXISTS public.user_rewards (
 
 CREATE INDEX IF NOT EXISTS idx_user_rewards_user_type ON public.user_rewards (user_id, reward_type);
 
--- 2. Add owner_user_id column to wallet_transactions
+-- 2. Ensure owner_user_id column exists on wallet_transactions (added in 20260906040000_owner_level_showcase_reward.sql)
 ALTER TABLE public.wallet_transactions ADD COLUMN IF NOT EXISTS owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
-CREATE INDEX IF NOT EXISTS idx_wallet_txns_owner_user_id ON public.wallet_transactions (owner_user_id);
+-- Clean up redundant index if created by earlier versions, maintaining canonical idx_wallet_transactions_owner_user_id
+DROP INDEX IF EXISTS public.idx_wallet_txns_owner_user_id;
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_owner_user_id ON public.wallet_transactions (owner_user_id);
 
--- Enforce at database index level: each user can only have at most one completed WELCOME_CREDIT transaction
-CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_user_welcome_credit_unique 
-  ON public.wallet_transactions (owner_user_id) 
-  WHERE transaction_type = 'WELCOME_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;
-
--- 3. Backfill owner_user_id on existing welcome credit transactions
+-- 3. Backfill owner_user_id on existing transactions
+-- Backfill from organizations table (owner_id)
 UPDATE public.wallet_transactions wt
 SET owner_user_id = o.owner_id
 FROM public.organizations o
 WHERE wt.organization_id = o.id
-  AND wt.transaction_type = 'WELCOME_CREDIT'
-  AND wt.owner_user_id IS NULL;
+  AND wt.owner_user_id IS NULL
+  AND o.owner_id IS NOT NULL;
 
--- Backfill user_rewards table from existing transactions
-INSERT INTO public.user_rewards (id, user_id, reward_type, organization_id, transaction_id, amount, created_at)
+-- Fallback backfill from created_by if owner_id was not set
+UPDATE public.wallet_transactions wt
+SET owner_user_id = wt.created_by
+WHERE wt.owner_user_id IS NULL
+  AND wt.created_by IS NOT NULL;
+
+-- 4. Detect duplicates and safely reconcile historical duplicates BEFORE creating the unique index
+-- Business rule: Each user account may receive the Welcome Credit strictly ONCE in their lifetime.
+-- Financial ledger immutability:
+--   - Transactions are NEVER deleted.
+--   - For each owner_user_id with multiple completed WELCOME_CREDIT transactions:
+--     * Determine the single canonical transaction:
+--       1) Prioritize transaction already linked in user_rewards (if any)
+--       2) Prioritize transaction where welcome credit was actually consumed for an event
+--       3) Earliest created transaction (created_at ASC, id ASC)
+--     * Mark all other duplicate transactions as status = 'REVERSED' with audit metadata.
+--     * Reconcile unspent wallet balances in organization_wallets so duplicate credits cannot be used.
+
+DO $$
+DECLARE
+  v_reconciled_count INTEGER := 0;
+BEGIN
+  -- Perform ranking and status reconciliation for duplicate welcome credit transactions
+  WITH ranked_welcome_credits AS (
+    SELECT
+      wt.id,
+      wt.organization_id,
+      wt.owner_user_id,
+      wt.amount,
+      wt.created_at,
+      ROW_NUMBER() OVER (
+        PARTITION BY wt.owner_user_id
+        ORDER BY
+          -- 1. Prioritize transaction already linked in user_rewards (if any)
+          CASE WHEN ur.transaction_id = wt.id THEN 0 ELSE 1 END,
+          -- 2. Prioritize transaction where welcome credit was actually consumed
+          CASE WHEN EXISTS (
+            SELECT 1 FROM public.wallet_transactions usage_txn
+            WHERE usage_txn.organization_id = wt.organization_id
+              AND usage_txn.balance_type = 'WELCOME_CREDIT'
+              AND usage_txn.amount < 0
+              AND usage_txn.status = 'COMPLETED'
+          ) THEN 0 ELSE 1 END,
+          -- 3. Earliest created transaction
+          wt.created_at ASC,
+          wt.id ASC
+      ) AS rank_num,
+      FIRST_VALUE(wt.id) OVER (
+        PARTITION BY wt.owner_user_id
+        ORDER BY
+          CASE WHEN ur.transaction_id = wt.id THEN 0 ELSE 1 END,
+          CASE WHEN EXISTS (
+            SELECT 1 FROM public.wallet_transactions usage_txn
+            WHERE usage_txn.organization_id = wt.organization_id
+              AND usage_txn.balance_type = 'WELCOME_CREDIT'
+              AND usage_txn.amount < 0
+              AND usage_txn.status = 'COMPLETED'
+          ) THEN 0 ELSE 1 END,
+          wt.created_at ASC,
+          wt.id ASC
+      ) AS canonical_txn_id
+    FROM public.wallet_transactions wt
+    LEFT JOIN public.user_rewards ur 
+      ON ur.user_id = wt.owner_user_id AND ur.reward_type = 'WELCOME_CREDIT'
+    WHERE wt.transaction_type = 'WELCOME_CREDIT'
+      AND wt.status = 'COMPLETED'
+      AND wt.owner_user_id IS NOT NULL
+  )
+  UPDATE public.wallet_transactions wt
+  SET
+    status = 'REVERSED',
+    description = COALESCE(wt.description, 'Welcome credit') || ' [RECONCILED: Duplicate welcome credit revoked for user-level lifetime limit]',
+    metadata = COALESCE(wt.metadata, '{}'::jsonb) || jsonb_build_object(
+      'reconciled_at', timezone('utc'::text, now()),
+      'reconciliation_reason', 'DUPLICATE_WELCOME_CREDIT_REVOKED',
+      'canonical_transaction_id', rwc.canonical_txn_id,
+      'original_status', 'COMPLETED'
+    )
+  FROM ranked_welcome_credits rwc
+  WHERE wt.id = rwc.id
+    AND rwc.rank_num > 1;
+
+  GET DIAGNOSTICS v_reconciled_count = ROW_COUNT;
+  IF v_reconciled_count > 0 THEN
+    RAISE NOTICE 'Reconciled % duplicate WELCOME_CREDIT transactions to status REVERSED', v_reconciled_count;
+  END IF;
+
+  -- Reconcile organization_wallets for organizations affected by duplicate welcome credit revocations.
+  -- Recalculates welcome_credit balance from the remaining active completed transactions
+  -- and sets welcome_credit_granted = false if no completed welcome credit remains for that organization.
+  UPDATE public.organization_wallets ow
+  SET
+    welcome_credit = GREATEST(0.00, COALESCE(calc.net_welcome, 0.00)),
+    welcome_credit_granted = COALESCE(calc.has_completed_welcome, false),
+    updated_at = timezone('utc'::text, now())
+  FROM (
+    SELECT
+      o.id AS org_id,
+      COALESCE(SUM(CASE WHEN wt.balance_type = 'WELCOME_CREDIT' AND wt.status = 'COMPLETED' THEN wt.amount ELSE 0 END), 0.00) AS net_welcome,
+      COALESCE(BOOL_OR(wt.transaction_type = 'WELCOME_CREDIT' AND wt.status = 'COMPLETED'), false) AS has_completed_welcome
+    FROM public.organizations o
+    LEFT JOIN public.wallet_transactions wt ON wt.organization_id = o.id
+    WHERE o.id IN (
+      SELECT DISTINCT organization_id
+      FROM public.wallet_transactions
+      WHERE transaction_type = 'WELCOME_CREDIT'
+        AND status = 'REVERSED'
+        AND (metadata->>'reconciliation_reason') = 'DUPLICATE_WELCOME_CREDIT_REVOKED'
+    )
+    GROUP BY o.id
+  ) calc
+  WHERE ow.organization_id = calc.org_id;
+
+END $$;
+
+-- 5. Backfill user_rewards table with the single canonical welcome credit for each user
+INSERT INTO public.user_rewards (
+  id,
+  user_id,
+  reward_type,
+  organization_id,
+  transaction_id,
+  amount,
+  created_at
+)
 SELECT
   gen_random_uuid(),
-  COALESCE(wt.owner_user_id, wt.created_by, o.owner_id) AS user_id,
+  wt.owner_user_id,
   'WELCOME_CREDIT',
   wt.organization_id,
   wt.id,
   wt.amount,
   wt.created_at
 FROM public.wallet_transactions wt
-LEFT JOIN public.organizations o ON wt.organization_id = o.id
 WHERE wt.transaction_type = 'WELCOME_CREDIT'
   AND wt.status = 'COMPLETED'
-  AND COALESCE(wt.owner_user_id, wt.created_by, o.owner_id) IS NOT NULL
-ON CONFLICT (user_id, reward_type) DO NOTHING;
+  AND wt.owner_user_id IS NOT NULL
+ON CONFLICT (user_id, reward_type) 
+DO UPDATE SET
+  transaction_id = COALESCE(user_rewards.transaction_id, EXCLUDED.transaction_id),
+  organization_id = COALESCE(user_rewards.organization_id, EXCLUDED.organization_id);
 
--- 4. Recreate create_organization_atomic RPC with user-level Welcome Credit grant logic
+-- 6. Enforce at database index level: each user can only have at most one completed WELCOME_CREDIT transaction
+CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_user_welcome_credit_unique 
+  ON public.wallet_transactions (owner_user_id) 
+  WHERE transaction_type = 'WELCOME_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;
+
+-- 7. Recreate create_organization_atomic RPC with user-level Welcome Credit grant logic
 CREATE OR REPLACE FUNCTION public.create_organization_atomic(
   p_name TEXT,
   p_owner_id UUID,

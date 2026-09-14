@@ -121,3 +121,64 @@ export function getDefaultTimezoneForCountry(countryCode: string | null | undefi
   const country = getCountryByCode(countryCode);
   return country ? country.defaultTimezone : 'Asia/Singapore';
 }
+
+export interface TimezoneOption {
+  timezone: string;
+  label: string;
+  utcOffset: string;
+  countryCode?: string;
+  countryName?: string;
+}
+
+export const SUPPORTED_TIMEZONES: TimezoneOption[] = [
+  { timezone: 'Asia/Singapore', label: 'Singapore, Malaysia (UTC+8)', utcOffset: 'UTC+8', countryCode: 'SG', countryName: 'Singapore' },
+  { timezone: 'Asia/Kuala_Lumpur', label: 'Kuala Lumpur, Malaysia (UTC+8)', utcOffset: 'UTC+8', countryCode: 'MY', countryName: 'Malaysia' },
+  { timezone: 'Asia/Bangkok', label: 'Bangkok, Thailand, Vietnam, Jakarta (UTC+7)', utcOffset: 'UTC+7', countryCode: 'TH', countryName: 'Thailand' },
+  { timezone: 'Asia/Jakarta', label: 'Jakarta, Indonesia (UTC+7)', utcOffset: 'UTC+7', countryCode: 'ID', countryName: 'Indonesia' },
+  { timezone: 'Asia/Manila', label: 'Manila, Philippines (UTC+8)', utcOffset: 'UTC+8', countryCode: 'PH', countryName: 'Philippines' },
+  { timezone: 'Asia/Ho_Chi_Minh', label: 'Ho Chi Minh City, Vietnam (UTC+7)', utcOffset: 'UTC+7', countryCode: 'VN', countryName: 'Vietnam' },
+  { timezone: 'Asia/Tokyo', label: 'Tokyo, Japan (UTC+9)', utcOffset: 'UTC+9', countryCode: 'JP', countryName: 'Japan' },
+  { timezone: 'Asia/Seoul', label: 'Seoul, South Korea (UTC+9)', utcOffset: 'UTC+9', countryCode: 'KR', countryName: 'South Korea' },
+  { timezone: 'Asia/Hong_Kong', label: 'Hong Kong (UTC+8)', utcOffset: 'UTC+8', countryCode: 'HK', countryName: 'Hong Kong' },
+  { timezone: 'Asia/Taipei', label: 'Taipei, Taiwan (UTC+8)', utcOffset: 'UTC+8', countryCode: 'TW', countryName: 'Taiwan' },
+  { timezone: 'Australia/Sydney', label: 'Sydney, Melbourne, Australia (AEST/AEDT)', utcOffset: 'UTC+10/+11', countryCode: 'AU', countryName: 'Australia' },
+  { timezone: 'Australia/Perth', label: 'Perth, Australia (UTC+8)', utcOffset: 'UTC+8', countryCode: 'AU', countryName: 'Australia' },
+  { timezone: 'Pacific/Auckland', label: 'Auckland, New Zealand (NZST/NZDT)', utcOffset: 'UTC+12/+13', countryCode: 'NZ', countryName: 'New Zealand' },
+  { timezone: 'Asia/Kolkata', label: 'India Standard Time (UTC+5:30)', utcOffset: 'UTC+5:30', countryCode: 'IN', countryName: 'India' },
+  { timezone: 'Asia/Dubai', label: 'Dubai, UAE, Gulf (UTC+4)', utcOffset: 'UTC+4', countryCode: 'AE', countryName: 'United Arab Emirates' },
+  { timezone: 'Asia/Riyadh', label: 'Riyadh, Saudi Arabia (UTC+3)', utcOffset: 'UTC+3', countryCode: 'SA', countryName: 'Saudi Arabia' },
+  { timezone: 'Europe/London', label: 'London, United Kingdom (GMT/BST)', utcOffset: 'UTC+0/+1', countryCode: 'GB', countryName: 'United Kingdom' },
+  { timezone: 'Europe/Paris', label: 'Paris, France, CET (UTC+1/+2)', utcOffset: 'UTC+1/+2', countryCode: 'FR', countryName: 'France' },
+  { timezone: 'Europe/Berlin', label: 'Berlin, Germany, CET (UTC+1/+2)', utcOffset: 'UTC+1/+2', countryCode: 'DE', countryName: 'Germany' },
+  { timezone: 'Europe/Amsterdam', label: 'Amsterdam, Netherlands (UTC+1/+2)', utcOffset: 'UTC+1/+2', countryCode: 'NL', countryName: 'Netherlands' },
+  { timezone: 'Europe/Zurich', label: 'Zurich, Switzerland (UTC+1/+2)', utcOffset: 'UTC+1/+2', countryCode: 'CH', countryName: 'Switzerland' },
+  { timezone: 'America/New_York', label: 'New York, US Eastern (EST/EDT)', utcOffset: 'UTC-5/-4', countryCode: 'US', countryName: 'United States' },
+  { timezone: 'America/Chicago', label: 'Chicago, US Central (CST/CDT)', utcOffset: 'UTC-6/-5', countryCode: 'US', countryName: 'United States' },
+  { timezone: 'America/Los_Angeles', label: 'Los Angeles, US Pacific (PST/PDT)', utcOffset: 'UTC-8/-7', countryCode: 'US', countryName: 'United States' },
+  { timezone: 'America/Toronto', label: 'Toronto, Canada Eastern (UTC-5/-4)', utcOffset: 'UTC-5/-4', countryCode: 'CA', countryName: 'Canada' },
+  { timezone: 'America/Sao_Paulo', label: 'Sao Paulo, Brazil (BRT UTC-3)', utcOffset: 'UTC-3', countryCode: 'BR', countryName: 'Brazil' },
+  { timezone: 'Africa/Johannesburg', label: 'Johannesburg, South Africa (SAST UTC+2)', utcOffset: 'UTC+2', countryCode: 'ZA', countryName: 'South Africa' },
+];
+
+/**
+ * Check if a timezone string is valid and recognized by Intl.
+ */
+export function isValidTimezone(tz: string | null | undefined): boolean {
+  if (!tz || typeof tz !== 'string') return false;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz.trim() });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get human-readable timezone label.
+ */
+export function getTimezoneDisplayName(tz: string | null | undefined): string {
+  if (!tz) return 'Asia/Singapore (UTC+8)';
+  const match = SUPPORTED_TIMEZONES.find((t) => t.timezone === tz);
+  return match ? match.label : tz;
+}
+

@@ -162,6 +162,7 @@ import {
   markAllNotificationsAsRead,
   deleteNotification,
 } from './server/db/index.js';
+import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 
 import {
   buildGoogleAuthUrl,
@@ -757,10 +758,15 @@ export default {
       // 2. Auth Routes
       // ==========================================
       if (pathname === '/api/auth/google' && method === 'POST') {
+        const correlationId =
+          request.headers.get('x-correlation-id') ||
+          request.headers.get('x-request-id') ||
+          crypto.randomUUID();
+
         const body = (await request.json().catch(() => ({}))) as any;
         const { idToken } = body;
         if (!idToken) {
-          return errorResponse('Missing idToken', 422, cors);
+          return errorResponse('Missing idToken', 422, { ...cors, 'x-correlation-id': correlationId });
         }
 
         try {
@@ -768,7 +774,8 @@ export default {
           const user = await upsertGoogleUser(googleUser, env);
 
           if (!user) {
-            return errorResponse('Failed to create or load user record in Supabase', 500, cors);
+            console.error(`[Google Auth Error][${correlationId}] Failed to create or load user record`);
+            return errorResponse('Google authentication failed', 401, { ...cors, 'x-correlation-id': correlationId });
           }
 
           const memberships = await getUserOrganizations(user.id, env);
@@ -796,54 +803,70 @@ export default {
               activeOrganizationId: activeOrgId || null,
             },
             200,
-            cors
+            { ...cors, 'x-correlation-id': correlationId }
           );
         } catch (err: any) {
-          console.error('Google Auth Error:', err);
-          return errorResponse('Google authentication failed: ' + (err.message || 'Invalid token'), 401, cors);
+          console.error(`[Google Auth Error][${correlationId}] Details:`, {
+            message: err?.message,
+            stack: err?.stack,
+            code: err?.code,
+            details: err?.details,
+            hint: err?.hint,
+          });
+          return errorResponse('Google authentication failed', 401, { ...cors, 'x-correlation-id': correlationId });
         }
       }
 
       if (pathname === '/api/auth/me' && method === 'GET') {
+        const correlationId =
+          request.headers.get('x-correlation-id') ||
+          request.headers.get('x-request-id') ||
+          crypto.randomUUID();
+
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
         const user = auth.user!;
         const payload = auth.jwtPayload!;
 
-        const memberships = await getUserOrganizations(user.id, env);
-        let activeOrgId = payload.organizationId;
-        let activeMember = memberships.find((m) => m.id === activeOrgId);
+        try {
+          const memberships = await getUserOrganizations(user.id, env);
+          let activeOrgId = payload.organizationId;
+          let activeMember = memberships.find((m) => m.id === activeOrgId);
 
-        if (!activeMember && memberships.length > 0) {
-          activeOrgId = memberships[0].id;
-          activeMember = memberships[0];
-        }
+          if (!activeMember && memberships.length > 0) {
+            activeOrgId = memberships[0].id;
+            activeMember = memberships[0];
+          }
 
-        return jsonResponse(
-          {
-            user: {
-              id: user.id,
-              email: user.email,
-              name: user.name,
-              avatar_url: user.avatar_url,
-              is_developer: user.is_developer === true,
+          return jsonResponse(
+            {
+              user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                avatar_url: user.avatar_url,
+                is_developer: user.is_developer === true,
+              },
+              organizations: memberships,
+              activeOrganization: activeMember
+                ? {
+                    id: activeMember.id,
+                    name: activeMember.name,
+                    slug: activeMember.slug,
+                    role: activeMember.role,
+                    logo_url: activeMember.logo_url,
+                    country_code: activeMember.country_code || null,
+                  }
+                : null,
             },
-            organizations: memberships,
-            activeOrganization: activeMember
-              ? {
-                  id: activeMember.id,
-                  name: activeMember.name,
-                  slug: activeMember.slug,
-                  role: activeMember.role,
-                  logo_url: activeMember.logo_url,
-                  country_code: activeMember.country_code || null,
-                }
-              : null,
-          },
-          200,
-          cors
-        );
+            200,
+            { ...cors, 'x-correlation-id': correlationId }
+          );
+        } catch (err: any) {
+          console.error(`[Auth /me error][${correlationId}]`, err);
+          return errorResponse('Failed to retrieve authentication details', 500, { ...cors, 'x-correlation-id': correlationId });
+        }
       }
 
       if (pathname === '/api/auth/switch-org' && method === 'POST') {
@@ -1550,8 +1573,12 @@ export default {
         try {
           googleUser = await verifyGoogleIdToken(idToken, env);
         } catch (err: any) {
-          console.error('Google ID token verification failed for invite:', err);
-          return errorResponse('Google authentication failed: ' + (err.message || 'Invalid token'), 401, cors);
+          const correlationId =
+            request.headers.get('x-correlation-id') ||
+            request.headers.get('x-request-id') ||
+            crypto.randomUUID();
+          console.error(`[Google Auth Error][${correlationId}] Google ID token verification failed for invite:`, err);
+          return errorResponse('Google authentication failed', 401, { ...cors, 'x-correlation-id': correlationId });
         }
 
         if (googleUser.email.toLowerCase() !== invite.email.toLowerCase()) {
@@ -6566,11 +6593,13 @@ export default {
         if (!auth.authenticated) return auth.errorResponse!;
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const organizationId = typeof body?.organizationId === 'string' ? body.organizationId : undefined;
+        const organizationId = typeof body?.organizationId === 'string'
+          ? body.organizationId
+          : (typeof body?.organization_id === 'string' ? body.organization_id : undefined);
 
         try {
-          const count = await markAllNotificationsAsRead(auth.user.id, organizationId, env);
-          return jsonResponse({ success: true, count }, 200, cors);
+          const resObj = await markAllNotificationsAsRead(auth.user.id, organizationId, env);
+          return jsonResponse({ success: true, count: resObj.marked_count, marked_count: resObj.marked_count }, 200, cors);
         } catch (err: any) {
           console.error('Mark all notifications read error:', err);
           return errorResponse(err.message || 'Failed to mark all notifications as read', 500, cors);
@@ -6593,10 +6622,45 @@ export default {
         }
       }
 
+      // POST /api/developer/notifications/dispatch-test
+      if (pathname === '/api/developer/notifications/dispatch-test' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const event = (await request.json().catch(() => ({}))) as any;
+        if (!event || !event.eventType) {
+          return errorResponse('Valid BusinessNotificationEvent with eventType is required', 400, cors);
+        }
+
+        if (!event.recipientUserId && !event.organizationId && auth.user?.id) {
+          event.recipientUserId = auth.user.id;
+        }
+
+        try {
+          const createdNotifications = await dispatchNotificationEvent(event, env);
+          return jsonResponse({
+            success: true,
+            created_count: createdNotifications.length,
+            notifications: createdNotifications,
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Developer dispatch-test error in worker:', err);
+          return errorResponse(err.message || 'Failed to dispatch test notification', 500, cors);
+        }
+      }
+
       return errorResponse('Not found', 404, cors);
     } catch (err: any) {
-      console.error('Unhandled worker error:', err);
-      return errorResponse(err.message || 'Internal Server Error', 500, cors);
+      const correlationId =
+        request.headers.get('x-correlation-id') ||
+        request.headers.get('x-request-id') ||
+        crypto.randomUUID();
+      console.error(`[Unhandled worker error][${correlationId}]:`, err);
+      return errorResponse('Internal Server Error', 500, { ...cors, 'x-correlation-id': correlationId });
     }
   },
 

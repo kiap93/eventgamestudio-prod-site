@@ -75,8 +75,8 @@ async function runMigrationIntegrityTests() {
   const migrationFiles = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql'));
   assert.strictEqual(
     migrationFiles.length,
-    19,
-    `Scenario 17: migrations/ must contain exactly the 19 canonical migrations, found ${migrationFiles.length}`
+    23,
+    `Scenario 17: migrations/ must contain exactly the 23 canonical migrations, found ${migrationFiles.length}`
   );
 
   const canonicalFiles = [
@@ -95,10 +95,14 @@ async function runMigrationIntegrityTests() {
     '20260906010000_event_showcases_backend_write_only.sql',
     '20260906020000_atomic_showcase_credit_reward.sql',
     '20260906030000_atomic_showcase_reward_approval.sql',
+    '20260906040000_owner_level_showcase_reward.sql',
     '20260907000000_add_expired_to_event_status.sql',
     '20260909000000_add_country_code_to_organizations.sql',
     '20260909010000_atomic_create_event.sql',
     '20260910000000_atomic_create_organization.sql',
+    '20260912000000_user_level_welcome_credit.sql',
+    '20260912010000_create_central_notifications.sql',
+    '20260913000000_add_event_timezone_to_events.sql',
   ];
 
   for (const file of canonicalFiles) {
@@ -157,6 +161,18 @@ async function runMigrationIntegrityTests() {
     completeSchemaSql.includes('claim_checkout_session_creation'),
     'Strategy B: Complete schema.sql must contain claim_checkout_session_creation'
   );
+  assert.ok(
+    completeSchemaSql.includes('event_timezone TEXT DEFAULT \'Asia/Singapore\''),
+    'Strategy B: Complete schema.sql must contain event_timezone column on public.events'
+  );
+  assert.ok(
+    completeSchemaSql.includes('idx_events_event_timezone'),
+    'Strategy B: Complete schema.sql must contain idx_events_event_timezone index'
+  );
+
+  const tzMigrationSql = fs.readFileSync(path.resolve(migrationsDir, '20260913000000_add_event_timezone_to_events.sql'), 'utf-8');
+  assert.ok(tzMigrationSql.includes('ADD COLUMN IF NOT EXISTS event_timezone'), 'Tz Migration: must add event_timezone column');
+  assert.ok(tzMigrationSql.includes('p_event_timezone TEXT DEFAULT NULL'), 'Tz Migration: create_event_atomic must accept p_event_timezone');
 
   console.log('  ✓ PASSED: Strategy B verified - baseline is defined as 2026-09-03 00:00:00 UTC, migration 031 and 20260903010000 provide post-baseline outstanding balance, and schema.sql contains the complete cumulative current schema.');
 

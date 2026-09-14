@@ -869,11 +869,23 @@ async function appendLedgerTransaction(
 
   if (isProdDb) {
     // Production rule: Write directly to Supabase. If Supabase fails, THROW FATAL ERROR.
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('wallet_transactions')
       .insert(record)
       .select()
       .single();
+
+    // Graceful backward-compatibility fallback if owner_user_id column migration is pending
+    if (error && error.code === 'PGRST204' && error.message?.includes('owner_user_id')) {
+      const { owner_user_id, ...recordWithoutOwner } = record;
+      const retryResult = await supabase
+        .from('wallet_transactions')
+        .insert(recordWithoutOwner)
+        .select()
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
 
     if (error) {
       console.error('Fatal: Supabase insert wallet_transactions failed in production:', error);
@@ -1167,7 +1179,7 @@ export async function grantWelcomeCredit(
           // Check wallet_transactions across ANY organization for this user
           if (!alreadyGranted) {
             try {
-              const { data: txnData } = await supabase
+              let { data: txnData, error: txnErr } = await supabase
                 .from('wallet_transactions')
                 .select('*')
                 .eq('transaction_type', 'WELCOME_CREDIT')
@@ -1175,6 +1187,43 @@ export async function grantWelcomeCredit(
                 .or(`owner_user_id.eq.${targetUserId},created_by.eq.${targetUserId}`)
                 .limit(1)
                 .maybeSingle();
+
+              if (txnErr) {
+                // If owner_user_id column is not yet present, query by created_by
+                const fallback = await supabase
+                  .from('wallet_transactions')
+                  .select('*')
+                  .eq('transaction_type', 'WELCOME_CREDIT')
+                  .eq('status', 'COMPLETED')
+                  .eq('created_by', targetUserId)
+                  .limit(1)
+                  .maybeSingle();
+                txnData = fallback.data;
+              }
+
+              // Also check if any organization owned by this user already has a welcome credit
+              if (!txnData) {
+                const { data: userOrgs } = await supabase
+                  .from('organizations')
+                  .select('id')
+                  .eq('owner_id', targetUserId);
+
+                if (userOrgs && userOrgs.length > 0) {
+                  const orgIds = userOrgs.map((o) => o.id);
+                  const { data: orgWelcomeTxn } = await supabase
+                    .from('wallet_transactions')
+                    .select('*')
+                    .eq('transaction_type', 'WELCOME_CREDIT')
+                    .eq('status', 'COMPLETED')
+                    .in('organization_id', orgIds)
+                    .limit(1)
+                    .maybeSingle();
+
+                  if (orgWelcomeTxn) {
+                    txnData = orgWelcomeTxn;
+                  }
+                }
+              }
 
               if (txnData) {
                 alreadyGranted = true;

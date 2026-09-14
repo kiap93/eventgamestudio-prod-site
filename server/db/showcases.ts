@@ -66,14 +66,20 @@ function notifyShowcaseEvent(
   env?: Record<string, any>
 ): void {
   if (!showcase || !showcase.organization_id) return;
+  const ownerUserId = (showcase as any).owner_user_id || (showcase as any).created_by || undefined;
+  const eventName = showcase.title || 'Event Showcase';
   dispatchNotificationEvent(
     {
       eventType,
       organizationId: showcase.organization_id,
-      showcaseId: showcase.id || showcase.event_id,
+      recipientUserId: ownerUserId,
       eventId: showcase.event_id,
+      eventName,
+      showcaseId: showcase.id || showcase.event_id,
       showcaseTitle: showcase.title,
-      publicUrl: `/showcase/${showcase.id || showcase.event_id}`,
+      metadata: {
+        publicUrl: `/showcase/${showcase.id || showcase.event_id}`,
+      },
     },
     env
   ).catch((err) => console.error(`[NOTIFICATION] Failed to dispatch ${eventType}:`, err));
@@ -579,6 +585,10 @@ export async function updateShowcase(
       console.warn('Notice updating Supabase event_showcases:', error.message);
       localShowcasesCache.set(eventId, updatedRecord);
       saveLocalShowcases(env);
+      const hasContentUpdates = updates.title !== undefined || updates.description !== undefined || updates.client_name !== undefined || updates.cover_image_url !== undefined;
+      if (hasContentUpdates && updates.status === undefined) {
+        notifyShowcaseEvent('SHOWCASE_UPDATED', updatedRecord, env);
+      }
       return updatedRecord;
     }
 
@@ -586,6 +596,10 @@ export async function updateShowcase(
     if (isLocalFallbackAllowed(env)) {
       localShowcasesCache.set(eventId, saved);
       saveLocalShowcases(env);
+    }
+    const hasContentUpdates = updates.title !== undefined || updates.description !== undefined || updates.client_name !== undefined || updates.cover_image_url !== undefined;
+    if (hasContentUpdates && updates.status === undefined) {
+      notifyShowcaseEvent('SHOWCASE_UPDATED', saved, env);
     }
     return saved;
   } catch (err: any) {
@@ -595,6 +609,10 @@ export async function updateShowcase(
     console.warn('Error updating showcase in Supabase, using local fallback:', err);
     localShowcasesCache.set(eventId, updatedRecord);
     saveLocalShowcases(env);
+    const hasContentUpdates = updates.title !== undefined || updates.description !== undefined || updates.client_name !== undefined || updates.cover_image_url !== undefined;
+    if (hasContentUpdates && updates.status === undefined) {
+      notifyShowcaseEvent('SHOWCASE_UPDATED', updatedRecord, env);
+    }
     return updatedRecord;
   }
 }
@@ -1519,8 +1537,9 @@ export async function publishShowcase(
       },
       env
     );
+    notifyShowcaseEvent('SHOWCASE_PUBLISHED', result, env);
   } else {
-    // Safe creation during publish flow if no showcase exists yet
+    // Safe creation during publish flow if no showcase exists yet (createShowcase notifies)
     const titleToUse = updates?.title?.trim() || event.name?.trim() || 'Event Showcase';
     result = await createShowcase(
       {
@@ -1539,8 +1558,6 @@ export async function publishShowcase(
 
   console.log(`[Showcase Publish] showcase ID: ${result.id}`);
   console.log(`[Showcase Publish] publish/update result: status=${result.status}, publication_status=${result.publication_status}, event_id=${result.event_id}`);
-
-  notifyShowcaseEvent('SHOWCASE_PUBLISHED', result, env);
 
   return result;
 }

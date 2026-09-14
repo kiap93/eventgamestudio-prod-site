@@ -6,7 +6,10 @@ import {
   NOTIFICATION_CATALOG,
   renderNotificationContent,
 } from './types.js';
-import { createNotification } from '../db/notifications.js';
+import {
+  createNotification,
+  getNotificationByDeduplicationKey,
+} from '../db/notifications.js';
 import { getOrgMembers } from '../db/members.js';
 import { getUserById } from '../db/users.js';
 
@@ -50,8 +53,9 @@ export interface EventCreatedEvent extends BaseBusinessEvent {
   recipientUserId?: string | null;
   eventId: string;
   eventName: string;
-  startDate: string;
-  endDate: string;
+  gameName?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface EventLiveEvent extends BaseBusinessEvent {
@@ -250,6 +254,15 @@ class PushChannelAdapter implements NotificationChannelAdapter {
  * The single, authoritative ingress pipeline for all platform business notifications.
  */
 export class NotificationDispatcher {
+  private static instance: NotificationDispatcher;
+
+  public static getInstance(): NotificationDispatcher {
+    if (!NotificationDispatcher.instance) {
+      NotificationDispatcher.instance = new NotificationDispatcher();
+    }
+    return NotificationDispatcher.instance;
+  }
+
   private adapters: NotificationChannelAdapter[] = [
     new InAppChannelAdapter(),
     new EmailChannelAdapter(),
@@ -289,6 +302,18 @@ export class NotificationDispatcher {
           const userDeduplicationKey = payloadConfig.deduplicationKey
             ? `${payloadConfig.deduplicationKey}_${userId}`
             : null;
+
+          if (userDeduplicationKey) {
+            const existing = await getNotificationByDeduplicationKey(
+              userId,
+              userDeduplicationKey,
+              env
+            );
+            if (existing) {
+              // Duplicate suppressed by deduplication key - do not recreate or re-alert
+              continue;
+            }
+          }
 
           const record = await createNotification(
             {
@@ -350,6 +375,14 @@ export class NotificationDispatcher {
     if (event.organizationId) {
       try {
         const members = await getOrgMembers(event.organizationId, env);
+        // Showcase events strictly target the showcase/account owner, not all admins
+        if (event.eventType.startsWith('SHOWCASE_')) {
+          const owner = members.find((m) => m.role === 'owner');
+          if (owner) {
+            return [owner.user_id];
+          }
+        }
+
         // Target owners and admins for organizational events
         const managers = members.filter(
           (m) => m.role === 'owner' || m.role === 'admin'
