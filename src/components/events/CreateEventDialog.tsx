@@ -15,7 +15,7 @@ import {
   formatEventDateRange,
   calculateEventCalendarDays,
 } from '../../lib/dateUtils';
-import { SUPPORTED_TIMEZONES, getDefaultTimezoneForCountry } from '../../lib/countryUtils';
+import { SUPPORTED_TIMEZONES, getDefaultTimezoneForCountry, resolveEventTimezone } from '../../lib/countryUtils';
 import { PaymentCheckoutModal } from '../wallet/PaymentCheckoutModal';
 import { getGameTypeIcon } from '../../games';
 import {
@@ -93,15 +93,15 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
   // Date-Only Schedule (Calendar Days)
   const [durationPreset, setDurationPreset] = useState<DurationPreset>('1day');
-  const [startDate, setStartDate] = useState<string>(() => getTodayDateString());
-  const [endDate, setEndDate] = useState<string>(() => getTodayDateString());
   const [eventTimezone, setEventTimezone] = useState<string>(() => {
-    return getDefaultTimezoneForCountry(currentOrganization?.country_code) || 'Asia/Singapore';
+    return resolveEventTimezone(undefined, currentOrganization);
   });
+  const [startDate, setStartDate] = useState<string>(() => getTodayDateString(resolveEventTimezone(undefined, currentOrganization)));
+  const [endDate, setEndDate] = useState<string>(() => getTodayDateString(resolveEventTimezone(undefined, currentOrganization)));
 
   useEffect(() => {
     if (currentOrganization?.country_code) {
-      setEventTimezone(getDefaultTimezoneForCountry(currentOrganization.country_code));
+      setEventTimezone(resolveEventTimezone(undefined, currentOrganization));
     }
   }, [currentOrganization?.country_code]);
 
@@ -359,8 +359,6 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
           start_date: startDate,
           end_date: endDate,
           event_date: startDate,
-          starts_at: `${startDate}T00:00:00.000Z`,
-          expires_at: `${endDate}T23:59:59.999Z`,
           status: 'pending_payment',
           event_timezone: eventTimezone,
         }),

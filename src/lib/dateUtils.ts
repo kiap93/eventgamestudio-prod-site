@@ -5,6 +5,22 @@
  * Formats dates consistently across all browsers without timezone shifting artifacts.
  */
 
+import {
+  resolveEventTimezone,
+  isValidTimezone,
+  getDefaultTimezoneForCountry,
+  getTimezoneDisplayName,
+  SUPPORTED_TIMEZONES,
+} from './countryUtils.js';
+
+export {
+  resolveEventTimezone,
+  isValidTimezone,
+  getDefaultTimezoneForCountry,
+  getTimezoneDisplayName,
+  SUPPORTED_TIMEZONES,
+};
+
 const MONTH_NAMES_SHORT = [
   'Jan',
   'Feb',
@@ -113,9 +129,12 @@ export function formatForDateInput(dateVal: string | Date | null | undefined): s
 }
 
 /**
- * Gets today's calendar date as YYYY-MM-DD in local/server time.
+ * Gets today's calendar date as YYYY-MM-DD in the specified timezone (or local time if omitted).
  */
-export function getTodayDateString(): string {
+export function getTodayDateString(timeZone?: string): string {
+  if (timeZone) {
+    return getCalendarDateInTimezone(new Date(), timeZone);
+  }
   const d = new Date();
   const pad = (n: number) => n.toString().padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -420,7 +439,7 @@ export function getClientLiveGameAccessDetails(
   }
 
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
-  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const eventTimezone = resolveEventTimezone(event);
   const curDate = getNormalizedCurrentDate(currentDate, eventTimezone);
 
   // 2. Date window check: Event has ended
@@ -564,7 +583,7 @@ export function canAccessPreviewEvent(
   }
 
   const { endDate } = getNormalizedEventDates(event);
-  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const eventTimezone = resolveEventTimezone(event);
   const curDate = getNormalizedCurrentDate(currentDate, eventTimezone);
 
   // Authoritative Rule: After event_end_date (3-Sep), Preview / Test is CLOSED
@@ -600,7 +619,7 @@ export function isEventBeforeStartDate(
   }
   const { startDate } = getNormalizedEventDates(event);
   if (!startDate) return false;
-  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const eventTimezone = resolveEventTimezone(event);
   const curDate = getNormalizedCurrentDate(currentDate, eventTimezone);
   return curDate < startDate;
 }
@@ -633,7 +652,7 @@ export function getEventAvailabilityState(
   const isPaid = payStatus === 'PAID';
 
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event || {});
-  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const eventTimezone = resolveEventTimezone(event);
   const curDate = getNormalizedCurrentDate(currentDate, eventTimezone);
 
   const isBeforeStartDate = Boolean(startDate && curDate < startDate);
@@ -732,7 +751,7 @@ export function calculateEventStatus(
   }
 
   const { startDate, endDate } = getNormalizedEventDates(event);
-  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const eventTimezone = resolveEventTimezone(event);
   const curDate = getNormalizedCurrentDate(now, eventTimezone);
   const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 
@@ -797,7 +816,7 @@ export function deriveEventLifecycleStatus(
   }
 
   const { startDate, endDate } = getNormalizedEventDates(event);
-  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const eventTimezone = resolveEventTimezone(event);
   const curDate = getNormalizedCurrentDate(now, eventTimezone);
   const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 

@@ -6,7 +6,7 @@ import {
   formatEventDateRange,
   getTodayDateString,
 } from '../../lib/dateUtils';
-import { SUPPORTED_TIMEZONES } from '../../lib/countryUtils';
+import { SUPPORTED_TIMEZONES, resolveEventTimezone } from '../../lib/countryUtils';
 import { getGameTypeIcon } from '../../games';
 import {
   X,
@@ -78,7 +78,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
     const end = event.end_date || extractDateOnly(event.expires_at) || start;
     setStartDate(start);
     setEndDate(end);
-    setEventTimezone(event.event_timezone || event.timezone || 'Asia/Singapore');
+    setEventTimezone(resolveEventTimezone(event));
     setStatus(event.status || 'scheduled');
   }, [event, isOpen]);
 
@@ -156,8 +156,6 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
           start_date: startDate,
           end_date: endDate,
           event_date: startDate,
-          starts_at: `${startDate}T00:00:00.000Z`,
-          expires_at: `${endDate}T23:59:59.999Z`,
           event_timezone: eventTimezone,
           status,
         }),

@@ -7,17 +7,23 @@ export type NotificationType =
   | 'welcome_credit_added'
   | 'payment_success'
   | 'payment_pending'
+  | 'payment_failed'
   | 'event_created'
+  | 'event_approaching'
   | 'event_live'
   | 'event_expiring'
   | 'event_expired'
+  | 'event_payment_failed'
   | 'wallet_low_balance'
+  | 'insufficient_balance'
   | 'theme_ready'
   | 'leaderboard_high_score'
   | 'showcase_draft_created'
   | 'showcase_published'
   | 'showcase_unpublished'
   | 'showcase_updated'
+  | 'org_invitation'
+  | 'member_joined'
   | 'security_settings_changed';
 
 export type NotificationCategory =
@@ -218,6 +224,72 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     defaultMessage: 'Showcase details for "{event_name}" have been updated.',
     priority: 'low',
     defaultActionUrl: '/events',
+    mandatory: false,
+    duplicatesAllowed: true,
+    retentionDays: 45,
+  },
+  payment_failed: {
+    type: 'payment_failed',
+    category: 'billing',
+    defaultTitle: 'Payment Failed',
+    defaultMessage: 'Payment of {amount} for {subject} was not successful. Please retry with a valid payment method.',
+    priority: 'urgent',
+    defaultActionUrl: '/wallet',
+    mandatory: true,
+    duplicatesAllowed: true,
+    retentionDays: 90,
+  },
+  event_payment_failed: {
+    type: 'event_payment_failed',
+    category: 'billing',
+    defaultTitle: 'Event Activation Payment Failed',
+    defaultMessage: 'Payment for event "{event_name}" could not be completed. Please review your billing details to activate the event.',
+    priority: 'urgent',
+    defaultActionUrl: '/events',
+    mandatory: true,
+    duplicatesAllowed: true,
+    retentionDays: 90,
+  },
+  event_approaching: {
+    type: 'event_approaching',
+    category: 'event',
+    defaultTitle: 'Your Event Starts Tomorrow',
+    defaultMessage: '"{event_name}" starts on {start_date}. Ensure custom themes and arcade setups are ready.',
+    priority: 'normal',
+    defaultActionUrl: '/events',
+    mandatory: false,
+    duplicatesAllowed: false,
+    retentionDays: 30,
+  },
+  insufficient_balance: {
+    type: 'insufficient_balance',
+    category: 'wallet',
+    defaultTitle: 'Insufficient Balance',
+    defaultMessage: 'Your organization wallet has insufficient funds ({current_balance}) to complete this transaction ({required_amount}).',
+    priority: 'high',
+    defaultActionUrl: '/wallet/top-up',
+    mandatory: true,
+    duplicatesAllowed: true,
+    retentionDays: 45,
+  },
+  org_invitation: {
+    type: 'org_invitation',
+    category: 'security',
+    defaultTitle: 'Team Workspace Invitation',
+    defaultMessage: 'You have been invited to join "{org_name}" as a {role}.',
+    priority: 'normal',
+    defaultActionUrl: '/team',
+    mandatory: true,
+    duplicatesAllowed: false,
+    retentionDays: 60,
+  },
+  member_joined: {
+    type: 'member_joined',
+    category: 'security',
+    defaultTitle: 'New Team Member Joined',
+    defaultMessage: '{member_name} has joined the organization "{org_name}".',
+    priority: 'normal',
+    defaultActionUrl: '/team',
     mandatory: false,
     duplicatesAllowed: true,
     retentionDays: 45,

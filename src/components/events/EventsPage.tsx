@@ -142,9 +142,17 @@ export const EventsPage: React.FC = () => {
             <h1 className="text-2xl font-black text-slate-100 tracking-tight">
               Event Deployments
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400">
-              {totalCount} Total
-            </span>
+            {loading ? (
+              <div className="h-5 w-16 bg-slate-800 rounded-full animate-pulse border border-slate-700/40" />
+            ) : error ? (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-500/10 border border-red-500/30 text-red-400">
+                Error
+              </span>
+            ) : (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                {totalCount} Total
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-400 mt-1">
             Deploy playable Game Themes to dedicated public links for events, campaigns, and corporate activations.
@@ -196,32 +204,75 @@ export const EventsPage: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Live</span>
-          <div className="text-2xl font-black text-emerald-400">{liveCount}</div>
+          {loading ? (
+            <div className="h-8 w-12 bg-slate-800/80 rounded-xl animate-pulse mt-0.5" />
+          ) : error ? (
+            <div className="text-2xl font-black text-slate-600">—</div>
+          ) : (
+            <div className="text-2xl font-black text-emerald-400">{liveCount}</div>
+          )}
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Scheduled</span>
-          <div className="text-2xl font-black text-blue-400">{scheduledCount}</div>
+          {loading ? (
+            <div className="h-8 w-12 bg-slate-800/80 rounded-xl animate-pulse mt-0.5" />
+          ) : error ? (
+            <div className="text-2xl font-black text-slate-600">—</div>
+          ) : (
+            <div className="text-2xl font-black text-blue-400">{scheduledCount}</div>
+          )}
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending Payment</span>
-          <div className="text-2xl font-black text-amber-400">{pendingCount}</div>
+          {loading ? (
+            <div className="h-8 w-12 bg-slate-800/80 rounded-xl animate-pulse mt-0.5" />
+          ) : error ? (
+            <div className="text-2xl font-black text-slate-600">—</div>
+          ) : (
+            <div className="text-2xl font-black text-amber-400">{pendingCount}</div>
+          )}
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Completed</span>
-          <div className="text-2xl font-black text-emerald-300">{completedCount}</div>
+          {loading ? (
+            <div className="h-8 w-12 bg-slate-800/80 rounded-xl animate-pulse mt-0.5" />
+          ) : error ? (
+            <div className="text-2xl font-black text-slate-600">—</div>
+          ) : (
+            <div className="text-2xl font-black text-emerald-300">{completedCount}</div>
+          )}
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm col-span-2 sm:col-span-1">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Expired</span>
-          <div className="text-2xl font-black text-slate-400">{expiredCount}</div>
+          {loading ? (
+            <div className="h-8 w-12 bg-slate-800/80 rounded-xl animate-pulse mt-0.5" />
+          ) : error ? (
+            <div className="text-2xl font-black text-slate-600">—</div>
+          ) : (
+            <div className="text-2xl font-black text-slate-400">{expiredCount}</div>
+          )}
         </div>
       </div>
 
       {/* Owner First-Event Onboarding Banner */}
-      {currentOrganization?.role === 'owner' && events.length === 0 && (
+      {loading ? (
+        currentOrganization?.role === 'owner' && (
+          <div className="bg-slate-900/40 border border-slate-800/60 rounded-3xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-pulse">
+            <div className="flex items-start gap-3 w-full max-w-xl">
+              <div className="w-10 h-10 bg-slate-800 rounded-2xl shrink-0" />
+              <div className="space-y-2 flex-1">
+                <div className="h-4 w-48 bg-slate-800 rounded" />
+                <div className="h-3 w-full max-w-md bg-slate-800/60 rounded" />
+              </div>
+            </div>
+            <div className="h-9 w-36 bg-slate-800 rounded-xl shrink-0" />
+          </div>
+        )
+      ) : !error && currentOrganization?.role === 'owner' && events.length === 0 ? (
         <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-slate-900/40 border border-amber-500/30 rounded-3xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="p-2.5 bg-amber-500/20 border border-amber-500/30 rounded-2xl text-amber-400 shrink-0">
@@ -245,19 +296,55 @@ export const EventsPage: React.FC = () => {
             <span>Deploy First Event</span>
           </button>
         </div>
-      )}
+      ) : null}
 
-      {/* View Mode Switching */}
-      {viewMode === 'calendar' ? (
-        <EventCalendarView
-          events={events}
-          userRole={currentOrganization?.role}
-          organizations={organizations}
-          currentOrganizationId={currentOrganization?.id}
-          onSelectOrganization={(orgId) => switchOrganization(orgId)}
-          onEditEvent={(eventToEdit) => setEditingEvent(eventToEdit)}
-          onCreateEvent={() => setIsCreateOpen(true)}
-        />
+      {/* Main Content Area: Error State | View Mode (List or Calendar) */}
+      {error ? (
+        <div className="bg-slate-900/60 border border-red-500/30 rounded-3xl p-10 text-center space-y-4 max-w-xl mx-auto shadow-lg">
+          <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto text-red-400">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="text-base font-bold text-slate-100">Unable to load events</h3>
+            <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
+              We couldn't retrieve your event deployments. Please check your connection and try again.
+            </p>
+            {error && error !== 'Unable to load events' && (
+              <p className="text-[11px] font-mono text-red-400/80 bg-red-500/5 py-1 px-3 rounded-lg inline-block mt-1">
+                {error}
+              </p>
+            )}
+          </div>
+          <div>
+            <button
+              onClick={fetchEvents}
+              className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+            >
+              <span>Try Again</span>
+            </button>
+          </div>
+        </div>
+      ) : viewMode === 'calendar' ? (
+        loading ? (
+          <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-10 text-center space-y-4">
+            <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-slate-200">Loading your events...</h3>
+              <p className="text-xs text-slate-400">Retrieving your event deployments. This may take a moment.</p>
+            </div>
+            <div className="h-96 bg-slate-950/40 rounded-2xl border border-slate-800/60 animate-pulse mt-6" />
+          </div>
+        ) : (
+          <EventCalendarView
+            events={events}
+            userRole={currentOrganization?.role}
+            organizations={organizations}
+            currentOrganizationId={currentOrganization?.id}
+            onSelectOrganization={(orgId) => switchOrganization(orgId)}
+            onEditEvent={(eventToEdit) => setEditingEvent(eventToEdit)}
+            onCreateEvent={() => setIsCreateOpen(true)}
+          />
+        )
       ) : (
         /* List View */
         <div className="space-y-6">
@@ -265,13 +352,16 @@ export const EventsPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/60 border border-slate-800 p-3 rounded-2xl">
             {/* Search */}
             <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors ${loading ? 'text-slate-600' : 'text-slate-500'}`} />
               <input
                 type="text"
                 value={searchQuery}
+                disabled={loading}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by event name, game, theme, or token..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-600 outline-none focus:border-amber-500"
+                placeholder={loading ? 'Loading events...' : 'Search by event name, game, theme, or token...'}
+                className={`w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-600 outline-none focus:border-amber-500 transition-opacity ${
+                  loading ? 'opacity-60 cursor-not-allowed' : ''
+                }`}
               />
             </div>
 
@@ -292,11 +382,14 @@ export const EventsPage: React.FC = () => {
                 return (
                   <button
                     key={key}
+                    disabled={loading}
                     onClick={() => setStatusFilter(key)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-wider whitespace-nowrap transition-all ${
+                      loading
+                        ? 'opacity-40 cursor-not-allowed text-slate-500'
+                        : isSelected
+                        ? 'bg-amber-500 text-slate-950 font-bold shadow-sm cursor-pointer'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800 cursor-pointer'
                     }`}
                   >
                     {label}
@@ -306,41 +399,73 @@ export const EventsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Events List Grid */}
-          {loading && events.length === 0 ? (
-            <div className="py-20 text-center space-y-3">
-              <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-xs text-slate-400 font-medium">Loading event deployments...</p>
-            </div>
-          ) : error ? (
-            <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-3xl text-center space-y-3">
-              <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
-              <p className="text-sm font-semibold text-red-300">{error}</p>
-              <button
-                onClick={fetchEvents}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold cursor-pointer"
-              >
-                Retry
-              </button>
+          {/* Events List Grid / Loading / Empty States */}
+          {loading ? (
+            <div className="space-y-6">
+              {/* Centered Loading Indicator Banner */}
+              <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-8 text-center space-y-3">
+                <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-200">Loading your events...</h3>
+                  <p className="text-xs text-slate-400">Retrieving your event deployments. This may take a moment.</p>
+                </div>
+              </div>
+
+              {/* Skeletons for Event Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div
+                    key={i}
+                    className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 animate-pulse shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-2 flex-1">
+                        <div className="h-4.5 w-3/4 bg-slate-800 rounded-lg" />
+                        <div className="h-3 w-1/2 bg-slate-800/60 rounded" />
+                      </div>
+                      <div className="h-6 w-16 bg-slate-800 rounded-full" />
+                    </div>
+                    <div className="h-36 bg-slate-950/60 border border-slate-800/60 rounded-2xl" />
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-800/50">
+                      <div className="h-3 w-28 bg-slate-800/60 rounded" />
+                      <div className="h-7 w-20 bg-slate-800 rounded-xl" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : filteredEvents.length === 0 ? (
             <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-3xl p-12 text-center space-y-4">
               <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto text-amber-400">
-                <CalendarIcon className="w-8 h-8" />
+                {searchQuery || statusFilter !== 'all' ? (
+                  <Search className="w-8 h-8" />
+                ) : (
+                  <CalendarIcon className="w-8 h-8" />
+                )}
               </div>
               <div className="space-y-1 max-w-sm mx-auto">
                 <h3 className="text-base font-bold text-slate-200">
                   {searchQuery || statusFilter !== 'all'
                     ? 'No matching events found'
-                    : 'No event deployments yet'}
+                    : 'No events yet'}
                 </h3>
                 <p className="text-xs text-slate-400">
                   {searchQuery || statusFilter !== 'all'
                     ? 'Try clearing your search query or status filter.'
-                    : 'Create your first event deployment to assign a Game Theme to a public URL.'}
+                    : 'Create your first event to start deploying interactive games.'}
                 </p>
               </div>
-              {!isViewer && !searchQuery && statusFilter === 'all' && (
+              {searchQuery || statusFilter !== 'all' ? (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setStatusFilter('all');
+                  }}
+                  className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  <span>Clear Filters</span>
+                </button>
+              ) : !isViewer ? (
                 <button
                   onClick={() => setIsCreateOpen(true)}
                   className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-2xl text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer"
@@ -348,7 +473,7 @@ export const EventsPage: React.FC = () => {
                   <Plus className="w-4 h-4" />
                   <span>Create Event</span>
                 </button>
-              )}
+              ) : null}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

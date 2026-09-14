@@ -42,7 +42,8 @@ import {
 import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import { cleanupExpiredNotifications } from './notifications.js';
 import { getOrganizationById } from './organizations.js';
-import { getDefaultTimezoneForCountry, isValidTimezone } from '../../src/lib/countryUtils.js';
+import { getDefaultTimezoneForCountry, isValidTimezone, resolveEventTimezone } from '../../src/lib/countryUtils.js';
+export { resolveEventTimezone };
 import crypto from 'node:crypto';
 
 // In-memory cache fallback for mock / test environments
@@ -151,6 +152,13 @@ export function getNormalizedCurrentDate(currentDate?: string | Date | null, tim
  * Returns today's date formatted as YYYY-MM-DD in Asia/Singapore (UTC+8).
  */
 export function getSingaporeCalendarDate(date: Date = new Date(), timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
+  return getNormalizedCurrentDate(date, timeZone);
+}
+
+/**
+ * Returns the calendar date formatted as 'YYYY-MM-DD' in the specified timezone.
+ */
+export function getCalendarDateInTimezone(date: Date = new Date(), timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
   return getNormalizedCurrentDate(date, timeZone);
 }
 
@@ -269,7 +277,7 @@ export function isEventBeforeStartDate(
   }
   const { startDate } = getNormalizedEventDates(event);
   if (!startDate) return false;
-  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const eventTimezone = resolveEventTimezone(event);
   const curDate = getNormalizedCurrentDate(currentDate, eventTimezone);
   return curDate < startDate;
 }
@@ -410,7 +418,7 @@ export function getClientLiveGameAccessDetails(
   }
 
   const { startDate, endDate, liveOpenDate } = getNormalizedEventDates(event);
-  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const eventTimezone = resolveEventTimezone(event);
   const curDate = getNormalizedCurrentDate(currentDate, eventTimezone);
 
   // 2. Date window check: Event has ended
@@ -554,7 +562,7 @@ export function canAccessPreviewEvent(
   }
 
   const { endDate } = getNormalizedEventDates(event);
-  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const eventTimezone = resolveEventTimezone(event);
   const curDate = getNormalizedCurrentDate(currentDate, eventTimezone);
 
   // Authoritative Rule: After event_end_date (3-Sep), Preview / Test is CLOSED
@@ -607,7 +615,7 @@ export function calculateEventStatus(
   }
 
   const { startDate, endDate } = getNormalizedEventDates(event);
-  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const eventTimezone = resolveEventTimezone(event);
   const curDate = getNormalizedCurrentDate(now, eventTimezone);
   const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 
@@ -693,7 +701,7 @@ export function deriveEventLifecycleStatus(
   }
 
   const { startDate, endDate } = getNormalizedEventDates(event);
-  const eventTimezone = event?.event_timezone || event?.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const eventTimezone = resolveEventTimezone(event);
   const curDate = getNormalizedCurrentDate(now, eventTimezone);
   const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
 
@@ -823,6 +831,7 @@ export function normalizeEventDateBoundaries(
 ): {
   startDate: string;
   endDate: string;
+  liveOpenDate: string;
   event_date: string;
   start_date: string;
   end_date: string;
@@ -867,7 +876,7 @@ export function normalizeEventDateBoundaries(
   }
 
   // Timezone resolution: explicit parameter -> options -> default business timezone
-  const timeZone = params.event_timezone || options?.event_timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const timeZone = resolveEventTimezone(params.event_timezone || options?.event_timezone);
 
   const startUtc = getUtcBoundaryInTimezone(startDate, 'start', timeZone);
   const endUtc = getUtcBoundaryInTimezone(endDate, 'end', timeZone);
@@ -909,6 +918,7 @@ export function normalizeEventDateBoundaries(
   return {
     startDate,
     endDate,
+    liveOpenDate: setupDayStr,
     event_date: startDate,
     start_date: startDate,
     end_date: endDate,
@@ -940,7 +950,7 @@ export function getSetupDayStartTime(event: {
     return new Date(event.setup_starts_at);
   }
 
-  const timeZone = event.event_timezone || event.timezone || PLATFORM_BUSINESS_TIMEZONE;
+  const timeZone = resolveEventTimezone(event);
 
   // Derive calendar date from start_date, event_date, or starts_at
   let dateStr = event.start_date || event.event_date;
@@ -982,20 +992,22 @@ export function isSetupDayStarted(
     event_date?: string | null;
     start_date?: string | null;
     setup_starts_at?: string | null;
+    event_timezone?: string | null;
+    timezone?: string | null;
     [key: string]: any;
   },
   now: Date = new Date()
 ): boolean {
-  // 1. First check calendar date comparison in Asia/Singapore
+  const timeZone = resolveEventTimezone(event);
   const dates = getNormalizedEventDates(event);
   if (dates.liveOpenDate) {
-    const curDateSg = getSingaporeCalendarDate(now);
-    if (curDateSg >= dates.liveOpenDate) {
+    const curDate = getCalendarDateInTimezone(now, timeZone);
+    if (curDate >= dates.liveOpenDate) {
       return true;
     }
   }
 
-  // 2. Fall back to timestamp comparison
+  // Fall back to timestamp comparison
   const setupTime = getSetupDayStartTime(event);
   return now.getTime() >= setupTime.getTime();
 }
@@ -2181,17 +2193,8 @@ export async function createEvent(
   }
 
   // Resolve authoritative event timezone: explicit parameter -> organization country default -> business default (Asia/Singapore)
-  let resolvedTimezone = params.event_timezone;
-  if (resolvedTimezone && !isValidTimezone(resolvedTimezone)) {
-    resolvedTimezone = null;
-  }
-  if (!resolvedTimezone) {
-    const org = await getOrganizationById(params.organization_id, env);
-    resolvedTimezone = getDefaultTimezoneForCountry(org?.country_code);
-  }
-  if (!resolvedTimezone) {
-    resolvedTimezone = PLATFORM_BUSINESS_TIMEZONE;
-  }
+  const org = await getOrganizationById(params.organization_id, env);
+  const resolvedTimezone = resolveEventTimezone(params.event_timezone, org);
 
   // 3. Normalize calendar date boundaries (Start Date to End Date) in the event's timezone
   const norm = normalizeEventDateBoundaries(
@@ -2826,9 +2829,9 @@ export async function updateEvent(
 
   if (hasDateUpdate) {
     const norm = normalizeEventDateBoundaries({
-      start_date: updates.start_date || updates.startDate,
-      end_date: updates.end_date || updates.endDate,
-      event_date: updates.event_date,
+      start_date: updates.start_date || updates.startDate || existing.start_date || existing.event_date,
+      end_date: updates.end_date || updates.endDate || existing.end_date || existing.event_date,
+      event_date: updates.event_date || existing.event_date || existing.start_date,
       starts_at: updates.starts_at || existing.starts_at,
       expires_at: updates.expires_at || existing.expires_at,
       event_timezone: targetTimezone,
@@ -2840,6 +2843,7 @@ export async function updateEvent(
     payload.end_date = norm.end_date;
     payload.starts_at = norm.starts_at;
     payload.expires_at = norm.expires_at;
+    payload.setup_starts_at = norm.setup_starts_at;
   }
 
   if (updates.status !== undefined) {
@@ -3147,7 +3151,7 @@ export async function runEventLifecycleMaintenance(
     }
 
     const { startDate } = getNormalizedEventDates(ev);
-    const evTimezone = ev.event_timezone || ev.timezone || PLATFORM_BUSINESS_TIMEZONE;
+    const evTimezone = resolveEventTimezone(ev);
     const curDate = getNormalizedCurrentDate(now, evTimezone);
     const hasReachedStartDate = Boolean(startDate && curDate >= startDate);
 

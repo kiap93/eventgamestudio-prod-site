@@ -27,6 +27,7 @@
     "test:score-lifecycle": "tsx server/db/score_environment_lifecycle.test.ts",
     "test:payment-methods": "tsx server/db/payment_method_alignment.test.ts",
     "test:event-permissions": "tsx server/event_permissions.test.ts",
+    "test:timezone": "tsx server/db/event_timezone.test.ts",
     "test:cron": "bun test server/cloudflare_cron_trigger.test.ts"
   },
   "dependencies": {

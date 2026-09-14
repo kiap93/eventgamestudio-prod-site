@@ -298,6 +298,7 @@ export interface EventRecord {
   test_scores_cleared_at?: string | null;
   created_by?: string | null;
   event_timezone?: string | null;
+  setup_starts_at?: string | null;
   created_at: string;
   updated_at: string;
 }

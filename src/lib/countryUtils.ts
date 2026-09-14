@@ -182,3 +182,63 @@ export function getTimezoneDisplayName(tz: string | null | undefined): string {
   return match ? match.label : tz;
 }
 
+/**
+ * Authoritative Canonical Event Timezone Resolver.
+ * Resolves event timezone strictly following the platform hierarchy:
+ * 1. Explicit event timezone (if present and valid)
+ * 2. Organization country default timezone (if valid)
+ * 3. Fallback to Asia/Singapore (PLATFORM_BUSINESS_TIMEZONE)
+ *
+ * Can accept an event object, a timezone string, and/or an organization / countryCode.
+ */
+export function resolveEventTimezone(
+  eventOrTimezone?: any,
+  orgOrCountryCode?: any
+): string {
+  // 1. Check if first argument is a string timezone
+  if (typeof eventOrTimezone === 'string' && eventOrTimezone.trim()) {
+    const trimmed = eventOrTimezone.trim();
+    if (isValidTimezone(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  // 2. Check if first argument is an event object with event_timezone or timezone
+  if (eventOrTimezone && typeof eventOrTimezone === 'object') {
+    const candidate = eventOrTimezone.event_timezone || eventOrTimezone.timezone;
+    if (typeof candidate === 'string' && candidate.trim()) {
+      const trimmedCandidate = candidate.trim();
+      if (isValidTimezone(trimmedCandidate)) {
+        return trimmedCandidate;
+      }
+    }
+    // Also check if the event object has an embedded organization or country_code
+    if (!orgOrCountryCode) {
+      if (eventOrTimezone.organization) {
+        orgOrCountryCode = eventOrTimezone.organization;
+      } else if (eventOrTimezone.country_code || eventOrTimezone.country) {
+        orgOrCountryCode = eventOrTimezone;
+      }
+    }
+  }
+
+  // 3. Check organization country default
+  if (typeof orgOrCountryCode === 'string' && orgOrCountryCode.trim()) {
+    const tz = getDefaultTimezoneForCountry(orgOrCountryCode.trim());
+    if (tz && isValidTimezone(tz)) {
+      return tz;
+    }
+  } else if (orgOrCountryCode && typeof orgOrCountryCode === 'object') {
+    const country = orgOrCountryCode.country_code || orgOrCountryCode.country;
+    if (typeof country === 'string' && country.trim()) {
+      const tz = getDefaultTimezoneForCountry(country.trim());
+      if (tz && isValidTimezone(tz)) {
+        return tz;
+      }
+    }
+  }
+
+  // 4. Default business timezone fallback
+  return 'Asia/Singapore';
+}
+

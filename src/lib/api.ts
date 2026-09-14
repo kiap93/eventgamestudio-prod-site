@@ -15,7 +15,8 @@ export const getApiBaseUrl = (): string => {
         hostname === '0.0.0.0' ||
         window.location.port === '3000' ||
         hostname.includes('aistudio') ||
-        hostname.includes('googleusercontent.com')
+        hostname.includes('googleusercontent.com') ||
+        hostname.includes('run.app')
       ) {
         return '';
       }
