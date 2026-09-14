@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { GameTheme, registerThemes, setActiveTheme, normalizeGameTheme, getActiveTheme } from '../themes';
 import { apiFetch } from '../lib/api';
+import { navigateTo } from '../hooks/useRouteContext';
 
 export interface User {
   id: string;
@@ -47,6 +48,7 @@ interface AuthContextType {
   logout: () => void;
   switchOrganization: (orgId: string) => Promise<void>;
   createOrganization: (name: string, logoUrl?: string, countryCode?: string) => Promise<string>;
+  startCreateOrganization: () => void;
   updateOrganizationCountry: (countryCode: string) => Promise<void>;
   refreshSession: () => Promise<void>;
   fetchActiveGame: () => Promise<void>;
@@ -383,7 +385,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const startCreateOrganization = useCallback(() => {
+    console.log('[AuthContext] Initiating new organization creation flow');
+    setCurrentOrganization(null);
+    navigateTo('/create-organization');
+  }, []);
+
   const createOrganization = async (name: string, logoUrl?: string, countryCode?: string): Promise<string> => {
+    console.log('[AuthContext] Sending POST /api/organizations request:', {
+      name,
+      hasLogo: Boolean(logoUrl),
+      countryCode,
+    });
+
     const res = await authFetch('/api/organizations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -391,20 +405,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (!res.ok) {
-      const errorData = await res.json();
+      const errorData = await res.json().catch(() => ({}));
+      console.error('[AuthContext] POST /api/organizations failed with status:', res.status, errorData);
       throw new Error(errorData.error || 'Failed to create organization');
     }
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    console.log('[AuthContext] POST /api/organizations response received:', {
+      status: res.status,
+      hasToken: Boolean(data.token),
+      hasOrganization: Boolean(data.organization),
+      orgId: data.organization?.id,
+    });
+
+    // Validate required API response shape (Requirement 2 & 8)
+    if (!data.token || typeof data.token !== 'string') {
+      console.error('[AuthContext] Organization creation error: missing or invalid token in response:', data);
+      throw new Error('Server returned an invalid response: missing authentication token.');
+    }
+
+    if (!data.organization || typeof data.organization !== 'object' || !data.organization.id) {
+      console.error('[AuthContext] Organization creation error: missing organization or organization.id in response:', data);
+      throw new Error('Server returned an invalid response: missing organization information.');
+    }
+
+    // Save token and update state immediately (Requirement 3)
+    console.log('[AuthContext] Organization creation success. Updating token and currentOrganization:', {
+      id: data.organization.id,
+      name: data.organization.name,
+      country_code: data.organization.country_code,
+    });
+
     localStorage.setItem('app_token', data.token);
     setToken(data.token);
     setCurrentOrganization(data.organization);
-    setOrganizations((prev) => [...prev, data.organization]);
-    await fetchActiveGame();
-    await fetchThemes();
+    setOrganizations((prev) => {
+      const exists = prev.some((o) => o.id === data.organization.id);
+      return exists ? prev.map((o) => (o.id === data.organization.id ? data.organization : o)) : [...prev, data.organization];
+    });
+
+    // Post-creation secondary initialization (Requirement 4: Non-blocking)
+    try {
+      await fetchActiveGame();
+    } catch (gameErr) {
+      console.error('[AuthContext] Post-creation fetchActiveGame failed (non-blocking):', gameErr);
+    }
+
+    try {
+      await fetchThemes();
+    } catch (themesErr) {
+      console.error('[AuthContext] Post-creation fetchThemes failed (non-blocking):', themesErr);
+    }
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('wallet_updated'));
     }
+
     return data.organization.id;
   };
 
@@ -506,6 +562,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         switchOrganization,
         createOrganization,
+        startCreateOrganization,
         updateOrganizationCountry,
         refreshSession,
         fetchActiveGame,

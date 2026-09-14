@@ -75,7 +75,11 @@ export class BootScene extends Phaser.Scene {
     TextureGenerator.generateTextures(this);
     TextureGenerator.generateThemeTextures(this, theme);
 
-    // Launch main GameScene
-    this.scene.start('GameScene');
+    // Launch main GameScene with canonical design dimensions
+    this.scene.start('GameScene', {
+      designWidth: this.scale.width,
+      designHeight: this.scale.height,
+      isPortrait: this.scale.height > this.scale.width,
+    });
   }
 }

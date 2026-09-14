@@ -6562,10 +6562,10 @@ app.get('/api/notifications/unread-count', authenticateJWT, async (req: Authenti
 });
 
 /**
- * PATCH /api/notifications/:id/read
+ * PATCH / POST /api/notifications/:id/read
  * Mark a single notification as read.
  */
-app.patch('/api/notifications/:id/read', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+const handleMarkNotificationRead = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const user = req.user!;
     const { id } = req.params;
@@ -6581,7 +6581,9 @@ app.patch('/api/notifications/:id/read', authenticateJWT, async (req: Authentica
     console.error('Mark notification read error:', err);
     res.status(500).json({ error: err.message || 'Failed to mark notification as read' });
   }
-});
+};
+app.patch('/api/notifications/:id/read', authenticateJWT, handleMarkNotificationRead);
+app.post('/api/notifications/:id/read', authenticateJWT, handleMarkNotificationRead);
 
 /**
  * POST /api/notifications/mark-all-read

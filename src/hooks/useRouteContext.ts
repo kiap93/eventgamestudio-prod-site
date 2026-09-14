@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { DEFAULT_GAME_TYPE } from '../games/registry';
+import { DEFAULT_GAME_TYPE } from '../games/types';
 
 export type PresentationMode =
   | 'landing'
@@ -63,7 +63,7 @@ const RESERVED_PREFIXES = new Set([
 export function parseRoute(pathname: string): RouteContext {
   const cleanPath = pathname.trim();
   const parts = cleanPath.split('?')[0].split('/').filter(Boolean);
-  const searchParams = new URLSearchParams(window.location.search);
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const queryGameType = searchParams.get('game') || searchParams.get('gameType') || DEFAULT_GAME_TYPE;
 
   // Check for static asset files (e.g. /logo.png, /favicon.ico, /assets/*, /images/*, /uploads/*)
@@ -318,6 +318,6 @@ export function navigateTo(url: string) {
   const currentFull = window.location.pathname + window.location.search;
   if (currentFull !== url) {
     window.history.pushState(null, '', url);
-    window.dispatchEvent(new Event('popstate'));
   }
+  window.dispatchEvent(new Event('popstate'));
 }

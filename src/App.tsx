@@ -40,14 +40,18 @@ const AppContent: React.FC = () => {
       } else if (routeContext.mode === 'developer_admin' && !currentUser?.is_developer) {
         // 2. Non-developer visiting /developer -> redirect to /events
         navigateTo('/events');
+      } else if (routeContext.mode === 'create_org' && currentOrganization) {
+        // 3. User with active organization on create_org route -> redirect to /events (Requirement 6)
+        console.log('[App] Active organization present on create_org route, transitioning to /events');
+        navigateTo('/events');
       }
     } else {
-      // 3. Unauthenticated user visiting a protected route -> redirect automatically to /login
+      // 4. Unauthenticated user visiting a protected route -> redirect automatically to /login
       if (isProtectedRoute) {
         navigateTo('/login');
       }
     }
-  }, [isLoading, isAuthenticated, isLoginRoute, isProtectedRoute, routeContext.mode, currentUser?.is_developer]);
+  }, [isLoading, isAuthenticated, isLoginRoute, isProtectedRoute, routeContext.mode, currentUser?.is_developer, currentOrganization]);
 
   // 1. PUBLIC EVENT ROUTE: /play/:publicToken or /e/:publicToken (Unauthenticated Public Player View)
   if (routeContext.mode === 'public_event') {
@@ -128,8 +132,20 @@ const AppContent: React.FC = () => {
   }
 
   // 8. ONBOARDING / CREATE ORGANIZATION ROUTE
-  if (!currentOrganization || routeContext.mode === 'create_org') {
+  // Once currentOrganization exists, CreateOrganizationPage must no longer render (Requirement 6).
+  if (!currentOrganization) {
     return <CreateOrganizationPage />;
+  }
+
+  // If routeContext.mode === 'create_org' remains true after creation, fix the route transition
+  // rather than repeatedly rendering the creation page.
+  if (routeContext.mode === 'create_org') {
+    return (
+      <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans space-y-3">
+        <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-slate-400 font-medium">Entering Studio...</p>
+      </div>
+    );
   }
 
   // 8b. EXISTING ORGANIZATION MISSING COUNTRY CODE

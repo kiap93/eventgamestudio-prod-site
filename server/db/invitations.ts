@@ -1,6 +1,8 @@
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
 import { OrgInvitationRecord, OrgRole } from './types.js';
 import crypto from 'node:crypto';
+
+export const localInvitationsCache = new Map<string, OrgInvitationRecord>();
 
 export interface InvitationWithOrgDetails extends OrgInvitationRecord {
   organization_name: string;
@@ -21,9 +23,30 @@ export async function createInvitation(
   },
   env?: Record<string, any>
 ): Promise<OrgInvitationRecord> {
-  const supabase = getSupabaseServerClient(env);
   const id = params.id || crypto.randomUUID();
   const now = new Date().toISOString();
+
+  const record: OrgInvitationRecord = {
+    id,
+    organization_id: params.organization_id,
+    email: params.email.trim().toLowerCase(),
+    role: params.role,
+    token_hash: params.token_hash,
+    invited_by: params.invited_by,
+    expires_at: params.expires_at,
+    created_at: now,
+    accepted_at: null,
+    email_status: params.email_status || 'pending',
+    email_sent_at: params.email_sent_at || null,
+    email_error: params.email_error || null,
+  };
+
+  if (!isSupabaseConfigured(env)) {
+    localInvitationsCache.set(id, record);
+    return record;
+  }
+
+  const supabase = getSupabaseServerClient(env);
 
   const insertPayload: Record<string, any> = {
     id,
@@ -85,6 +108,15 @@ export async function getInvitationByTokenHash(
   tokenHash: string,
   env?: Record<string, any>
 ): Promise<InvitationWithOrgDetails | null> {
+  if (!isSupabaseConfigured(env)) {
+    const found = Array.from(localInvitationsCache.values()).find((inv) => inv.token_hash === tokenHash);
+    if (!found) return null;
+    return {
+      ...found,
+      organization_name: 'Organization',
+    };
+  }
+
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('organization_invitations')
@@ -122,6 +154,13 @@ export async function getActiveOrgInvitations(
   organizationId: string,
   env?: Record<string, any>
 ): Promise<OrgInvitationRecord[]> {
+  if (!isSupabaseConfigured(env)) {
+    const now = new Date().toISOString();
+    return Array.from(localInvitationsCache.values()).filter(
+      (inv) => inv.organization_id === organizationId && !inv.accepted_at && inv.expires_at > now
+    );
+  }
+
   const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
 
@@ -161,6 +200,10 @@ export async function getInvitationById(
   id: string,
   env?: Record<string, any>
 ): Promise<OrgInvitationRecord | null> {
+  if (!isSupabaseConfigured(env)) {
+    return localInvitationsCache.get(id) || null;
+  }
+
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('organization_invitations')
@@ -187,6 +230,17 @@ export async function renewInvitation(
   },
   env?: Record<string, any>
 ): Promise<OrgInvitationRecord> {
+  if (!isSupabaseConfigured(env)) {
+    const existing = localInvitationsCache.get(id);
+    if (!existing) throw new Error('Invitation not found');
+    existing.token_hash = params.token_hash;
+    existing.expires_at = params.expires_at;
+    if (params.email_status) existing.email_status = params.email_status;
+    if (params.email_sent_at !== undefined) existing.email_sent_at = params.email_sent_at;
+    if (params.email_error !== undefined) existing.email_error = params.email_error;
+    return existing;
+  }
+
   const supabase = getSupabaseServerClient(env);
 
   try {
@@ -232,6 +286,11 @@ export async function deleteInvitation(
   id: string,
   env?: Record<string, any>
 ): Promise<boolean> {
+  if (!isSupabaseConfigured(env)) {
+    localInvitationsCache.delete(id);
+    return true;
+  }
+
   const supabase = getSupabaseServerClient(env);
   const { error } = await supabase
     .from('organization_invitations')
@@ -250,6 +309,13 @@ export async function markInvitationAccepted(
   id: string,
   env?: Record<string, any>
 ): Promise<OrgInvitationRecord> {
+  if (!isSupabaseConfigured(env)) {
+    const existing = localInvitationsCache.get(id);
+    if (!existing) throw new Error('Invitation not found');
+    existing.accepted_at = new Date().toISOString();
+    return existing;
+  }
+
   const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
 
@@ -276,6 +342,16 @@ export async function updateInvitationEmailStatus(
   emailError?: string | null,
   env?: Record<string, any>
 ): Promise<void> {
+  if (!isSupabaseConfigured(env)) {
+    const existing = localInvitationsCache.get(id);
+    if (existing) {
+      existing.email_status = emailStatus;
+      if (emailStatus === 'sent') existing.email_sent_at = new Date().toISOString();
+      if (emailError !== undefined) existing.email_error = emailError;
+    }
+    return;
+  }
+
   const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
 

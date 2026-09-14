@@ -13,7 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
-import { formatNotificationTime, CATEGORY_VISUALS, PRIORITY_VISUALS } from '../../lib/notifications/formatters';
+import { formatNotificationTime, CATEGORY_VISUALS, PRIORITY_VISUALS, resolveNotificationUrl } from '../../lib/notifications/formatters';
 import { NotificationRecord, NotificationCategory } from '../../lib/notifications/types';
 import { navigateTo } from '../../hooks/useRouteContext';
 
@@ -72,9 +72,10 @@ export const NotificationCenterModal: React.FC = () => {
     if (!notif.is_read) {
       await markAsRead(notif.id);
     }
-    if (notif.action_url) {
+    const targetUrl = resolveNotificationUrl(notif);
+    if (targetUrl) {
       setIsOpenCenter(false);
-      navigateTo(notif.action_url);
+      navigateTo(targetUrl);
     }
   };
 
@@ -303,7 +304,7 @@ export const NotificationCenterModal: React.FC = () => {
 
                   {/* Actions Right */}
                   <div className="flex items-center gap-2 sm:self-center shrink-0 border-t sm:border-t-0 border-slate-800 pt-2 sm:pt-0">
-                    {notif.action_url && (
+                    {resolveNotificationUrl(notif) && (
                       <button
                         onClick={() => handleActionClick(notif)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-colors cursor-pointer shadow-sm shadow-amber-500/20"

@@ -14,6 +14,9 @@ import {
   normalizeEventDateBoundaries,
   isSetupDayStarted,
   canAccessLiveEvent,
+  canAccessClientLiveGame,
+  getClientLiveGameAccessDetails,
+  runEventLifecycleMaintenance,
   localEventsCache,
   createEvent,
   updateEvent,
@@ -268,6 +271,152 @@ try {
 assert.ok(paidUpdateError, 'Expected updateEvent to reject on paid event');
 assert.strictEqual(paidUpdateError.code, 'EVENT_LOCKED_AFTER_PAYMENT');
 console.log('  ✓ 5b. Paid event timezone is strictly immutable (EVENT_LOCKED_AFTER_PAYMENT)');
+
+// ----------------------------------------------------
+// Section 6: Client Live Game Access Evaluation Across Timezones
+// ----------------------------------------------------
+console.log('\n--- Section 6: Client Live Game Access Evaluation ---');
+
+const londonEvent = {
+  start_date: '2026-09-25',
+  end_date: '2026-09-26',
+  event_timezone: 'Europe/London',
+  payment_status: 'PAID',
+  status: 'live',
+  event_status: 'LIVE',
+};
+
+// 2026-09-24 22:30:00 UTC:
+// In Singapore: 06:30 Sept 25 (Event start date)
+// In London (BST UTC+1): 23:30 Sept 24 (Setup day in London)
+// Because Setup Day is live-accessible for paid events, this is accessible:
+const londonInstantSetup = new Date('2026-09-24T22:30:00.000Z');
+assert.strictEqual(canAccessClientLiveGame(londonEvent, londonInstantSetup), true);
+
+// 2026-09-23 22:30:00 UTC:
+// In London: 23:30 Sept 23 (Before Setup day)
+const londonBeforeSetup = new Date('2026-09-23T22:30:00.000Z');
+assert.strictEqual(canAccessClientLiveGame(londonEvent, londonBeforeSetup), false);
+const beforeDetails = getClientLiveGameAccessDetails(londonEvent, londonBeforeSetup);
+assert.strictEqual(beforeDetails.code, 'EVENT_NOT_OPEN');
+assert.strictEqual(beforeDetails.event_timezone, 'Europe/London');
+console.log('  ✓ 6a. canAccessClientLiveGame correctly respects event_timezone and Setup Day');
+
+// 2026-09-26 22:59:00 UTC:
+// In London (BST UTC+1): 23:59 Sept 26 (still end_date in London)
+const londonEndDay = new Date('2026-09-26T22:59:00.000Z');
+assert.strictEqual(canAccessClientLiveGame(londonEvent, londonEndDay), true);
+
+// 2026-09-26 23:01:00 UTC:
+// In London (BST UTC+1): 00:01 Sept 27 (day has ended in London)
+const londonAfterEnd = new Date('2026-09-26T23:01:00.000Z');
+assert.strictEqual(canAccessClientLiveGame(londonEvent, londonAfterEnd), false);
+const afterDetails = getClientLiveGameAccessDetails(londonEvent, londonAfterEnd);
+assert.strictEqual(afterDetails.code, 'EVENT_COMPLETED');
+console.log('  ✓ 6b. canAccessClientLiveGame closes live access at local midnight in event timezone');
+
+// ----------------------------------------------------
+// Section 7: Daylight Saving Time (DST) Transitions
+// ----------------------------------------------------
+console.log('\n--- Section 7: Daylight Saving Transitions ---');
+
+// America/New_York DST end in 2026 is November 1.
+// 2026-10-15 is during EDT (UTC-4)
+const summerBoundaryStart = getUtcBoundaryInTimezone('2026-10-15', 'start', 'America/New_York');
+assert.strictEqual(summerBoundaryStart.toISOString(), '2026-10-15T04:00:00.000Z');
+const summerBoundaryEnd = getUtcBoundaryInTimezone('2026-10-15', 'end', 'America/New_York');
+assert.strictEqual(summerBoundaryEnd.toISOString(), '2026-10-16T03:59:59.999Z');
+
+// 2026-11-15 is during EST (UTC-5)
+const winterBoundaryStart = getUtcBoundaryInTimezone('2026-11-15', 'start', 'America/New_York');
+assert.strictEqual(winterBoundaryStart.toISOString(), '2026-11-15T05:00:00.000Z');
+const winterBoundaryEnd = getUtcBoundaryInTimezone('2026-11-15', 'end', 'America/New_York');
+assert.strictEqual(winterBoundaryEnd.toISOString(), '2026-11-16T04:59:59.999Z');
+console.log('  ✓ 7a. America/New_York boundary correctly shifts between EDT (UTC-4) and EST (UTC-5)');
+
+// ----------------------------------------------------
+// Section 8: Authoritative Derivation Overrides Client Timestamps
+// ----------------------------------------------------
+console.log('\n--- Section 8: Server Authoritative Timestamp Derivation ---');
+
+// When client sends conflicting/misleading UTC timestamps with start_date and event_timezone:
+const normConflicting = normalizeEventDateBoundaries({
+  start_date: '2026-09-20',
+  end_date: '2026-09-22',
+  event_timezone: 'America/New_York',
+  starts_at: '2026-09-20T00:00:00.000Z', // misleading client-generated timestamp
+  expires_at: '2026-09-22T23:59:59.999Z',
+});
+
+// The server MUST derive starts_at as 2026-09-20T04:00:00.000Z (00:00 EDT)
+assert.strictEqual(normConflicting.starts_at, '2026-09-20T04:00:00.000Z');
+assert.strictEqual(normConflicting.expires_at, '2026-09-23T03:59:59.999Z');
+assert.strictEqual(normConflicting.setup_starts_at, '2026-09-19T04:00:00.000Z');
+console.log('  ✓ 8a. Server normalizer completely ignores conflicting client-provided UTC timestamps');
+
+// ----------------------------------------------------
+// Section 9: Lifecycle Maintenance Multi-Timezone Evaluation
+// ----------------------------------------------------
+console.log('\n--- Section 9: Lifecycle Maintenance Multi-Timezone Evaluation ---');
+
+const tokyoMaintId = 'e48a9999-1111-2222-3333-444455556666';
+const nyMaintId = 'e48a8888-1111-2222-3333-444455556666';
+
+// Both events are for start_date: 2026-09-20, end_date: 2026-09-20
+localEventsCache.set(tokyoMaintId, {
+  id: tokyoMaintId,
+  organization_id: 'org-maint',
+  game_id: 'catch-brand',
+  game_theme_id: 'theme-123',
+  name: 'Tokyo Live Event',
+  start_date: '2026-09-20',
+  end_date: '2026-09-20',
+  event_date: '2026-09-20',
+  starts_at: '2026-09-19T15:00:00.000Z',
+  expires_at: '2026-09-20T14:59:59.999Z',
+  setup_starts_at: '2026-09-18T15:00:00.000Z',
+  event_timezone: 'Asia/Tokyo',
+  payment_status: 'PAID',
+  status: 'scheduled',
+  event_status: 'SCHEDULED',
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+} as any);
+
+localEventsCache.set(nyMaintId, {
+  id: nyMaintId,
+  organization_id: 'org-maint',
+  game_id: 'catch-brand',
+  game_theme_id: 'theme-123',
+  name: 'NY Scheduled Event',
+  start_date: '2026-09-20',
+  end_date: '2026-09-20',
+  event_date: '2026-09-20',
+  starts_at: '2026-09-20T04:00:00.000Z',
+  expires_at: '2026-09-21T03:59:59.999Z',
+  setup_starts_at: '2026-09-19T04:00:00.000Z',
+  event_timezone: 'America/New_York',
+  payment_status: 'PAID',
+  status: 'scheduled',
+  event_status: 'SCHEDULED',
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+} as any);
+
+// At 2026-09-19 16:00:00 UTC:
+// In Tokyo (UTC+9): 2026-09-20 01:00 (Start date reached! Should transition to LIVE)
+// In NY (EDT UTC-4): 2026-09-19 12:00 (Setup day! Should stay SCHEDULED)
+const instantMaint = new Date('2026-09-19T16:00:00.000Z');
+await runEventLifecycleMaintenance(mockTestEnv, instantMaint);
+
+const cachedTokyo = localEventsCache.get(tokyoMaintId);
+const cachedNy = localEventsCache.get(nyMaintId);
+
+assert.strictEqual(cachedTokyo?.status, 'live');
+assert.strictEqual(cachedTokyo?.event_status, 'LIVE');
+assert.strictEqual(cachedNy?.status, 'scheduled');
+assert.strictEqual(cachedNy?.event_status, 'SCHEDULED');
+console.log('  ✓ 9a. runEventLifecycleMaintenance accurately transitions Tokyo to LIVE while NY stays SCHEDULED');
 
 console.log('\n======================================================');
 console.log('All Event Timezone regression tests passed successfully!');

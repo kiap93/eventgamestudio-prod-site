@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { CountrySelect } from '../common/CountrySelect';
-import { Building2, Sparkles, ArrowRight, Shield } from 'lucide-react';
+import { navigateTo } from '../../hooks/useRouteContext';
+import { Building2, Sparkles, ArrowRight, Shield, Loader2 } from 'lucide-react';
 
 export const CreateOrganizationPage: React.FC = () => {
   const { createOrganization, logout, currentUser } = useAuth();
@@ -9,27 +10,56 @@ export const CreateOrganizationPage: React.FC = () => {
   const [logoUrl, setLogoUrl] = useState('');
   const [countryCode, setCountryCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // Prevent double submission (Requirement 7)
+
     if (!name.trim()) {
       setError('Please enter your organization name');
       return;
     }
     if (!countryCode.trim()) {
-      setError('Please select your organization\'s country');
+      setError("Please select your organization's country");
       return;
     }
 
     setLoading(true);
     setError(null);
+    setStatusMessage('Creating workspace...');
+
     try {
-      await createOrganization(name.trim(), logoUrl.trim() || undefined, countryCode.trim());
+      console.log('[CreateOrganizationPage] Submitting organization creation:', {
+        name: name.trim(),
+        hasLogo: Boolean(logoUrl.trim()),
+        country_code: countryCode.trim(),
+        user_id: currentUser?.id,
+      });
+
+      const orgId = await createOrganization(
+        name.trim(),
+        logoUrl.trim() || undefined,
+        countryCode.trim()
+      );
+
+      console.log('[CreateOrganizationPage] Organization created successfully with id:', orgId);
+      setStatusMessage('Launching Studio...');
+
+      // Explicitly navigate to /events (Requirement 3 & 5)
+      try {
+        navigateTo('/events');
+      } catch (navErr) {
+        console.error('[CreateOrganizationPage] Navigation failure while navigating to /events:', navErr);
+        // Direct browser fallback
+        window.location.href = '/events';
+      }
     } catch (err: any) {
+      console.error('[CreateOrganizationPage] Organization creation failed:', err);
       setError(err.message || 'Failed to create organization');
-    } finally {
       setLoading(false);
+      setStatusMessage(null);
     }
   };
 
@@ -108,7 +138,7 @@ export const CreateOrganizationPage: React.FC = () => {
               <span>You will be assigned as Organization Owner</span>
             </div>
             <p className="text-slate-400 leading-relaxed text-[11px]">
-              As owner, you receive an automatic <strong className="text-amber-400">RM300 Welcome Credit</strong> for your first event, and can earn an additional one-time <strong className="text-amber-400">RM300 Showcase Reward</strong> upon publishing photos/video of your first completed event activation.
+              As owner, you receive an automatic <strong className="text-amber-400">RM800 Welcome Credit</strong> for your first event, and can earn an additional one-time <strong className="text-amber-400">RM300 Showcase Reward</strong> upon publishing photos/video of your first completed event activation.
             </p>
           </div>
 
@@ -117,8 +147,9 @@ export const CreateOrganizationPage: React.FC = () => {
             disabled={loading || !name.trim() || !countryCode}
             className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg active:scale-[0.99] disabled:opacity-50 cursor-pointer"
           >
-            <span>{loading ? 'Creating...' : 'Create Workspace & Launch Studio'}</span>
-            <ArrowRight className="w-4 h-4" />
+            {loading && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+            <span>{statusMessage || (loading ? 'Creating...' : 'Create Workspace & Launch Studio')}</span>
+            {!loading && <ArrowRight className="w-4 h-4" />}
           </button>
         </form>
       </div>

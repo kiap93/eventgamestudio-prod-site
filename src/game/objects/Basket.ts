@@ -71,17 +71,55 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
 
     // Pointer / Touch / Mouse setup
     scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      this.targetX = Phaser.Math.Clamp(pointer.x, 60, this.scene.scale.width - 60);
+      const halfW = Math.max(50, this.basketWidth / 2);
+      const maxX = this.getLogicalWidth() - halfW;
+      this.targetX = Phaser.Math.Clamp(pointer.x, halfW, maxX);
     });
 
     scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.isPointerDown = true;
-      this.targetX = Phaser.Math.Clamp(pointer.x, 60, this.scene.scale.width - 60);
+      const halfW = Math.max(50, this.basketWidth / 2);
+      const maxX = this.getLogicalWidth() - halfW;
+      this.targetX = Phaser.Math.Clamp(pointer.x, halfW, maxX);
     });
 
     scene.input.on('pointerup', () => {
       this.isPointerDown = false;
     });
+  }
+
+  public getBasketWidth(): number {
+    return this.basketWidth;
+  }
+
+  public getBasketHeight(): number {
+    return this.basketHeight;
+  }
+
+  public getLogicalWidth(): number {
+    const gameScene = this.scene as any;
+    if (gameScene && typeof gameScene.getLogicalWidth === 'function') {
+      return gameScene.getLogicalWidth();
+    }
+    return this.scene.scale.width;
+  }
+
+  public getLogicalHeight(): number {
+    const gameScene = this.scene as any;
+    if (gameScene && typeof gameScene.getLogicalHeight === 'function') {
+      return gameScene.getLogicalHeight();
+    }
+    return this.scene.scale.height;
+  }
+
+  /**
+   * Responds to orientation / dimension changes from the scene
+   */
+  public onSceneResize(newWidth: number, newHeight: number) {
+    const halfW = Math.max(50, this.basketWidth / 2);
+    this.targetX = null;
+    this.x = Phaser.Math.Clamp(this.x, halfW, newWidth - halfW);
+    this.y = newHeight - 70;
   }
 
   /**
@@ -128,7 +166,9 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
   }
 
   public setHandTargetX(x: number) {
-    this.targetX = Phaser.Math.Clamp(x, 60, this.scene.scale.width - 60);
+    const halfW = Math.max(50, this.basketWidth / 2);
+    const maxX = this.getLogicalWidth() - halfW;
+    this.targetX = Phaser.Math.Clamp(x, halfW, maxX);
   }
 
   public updateBasket(delta: number) {
@@ -156,13 +196,15 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
       this.setVelocityX(0);
     }
 
-    this.x = Phaser.Math.Clamp(this.x, 60, this.scene.scale.width - 60);
+    const halfW = Math.max(50, this.basketWidth / 2);
+    const maxX = this.getLogicalWidth() - halfW;
+    this.x = Phaser.Math.Clamp(this.x, halfW, maxX);
     this.setAngle(0);
     this.setRotation(0);
   }
 
   public triggerCatchBounce() {
-    const defaultY = this.scene.scale.height - 70;
+    const defaultY = this.getLogicalHeight() - 70;
     this.scene.tweens.add({
       targets: this,
       y: defaultY + 4,

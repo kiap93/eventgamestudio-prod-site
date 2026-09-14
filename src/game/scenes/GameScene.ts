@@ -38,6 +38,11 @@ export class GameScene extends Phaser.Scene {
   private loadedThemeId: string = 'carnival';
   private currentDifficultyStageIndex: number = -1;
 
+  // Authoritative Canonical Logical Dimensions (1024x576 Landscape / 576x1024 Portrait)
+  private logicalWidth: number = 1024;
+  private logicalHeight: number = 576;
+  private isPortraitMode: boolean = false;
+
   // React Callbacks
   public onStatsChange?: (stats: GameStats) => void;
   public onStateChange?: (state: GameState) => void;
@@ -47,12 +52,46 @@ export class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
+  public init(data?: { designWidth?: number; designHeight?: number; isPortrait?: boolean }) {
+    if (data?.designWidth && data?.designHeight) {
+      this.logicalWidth = data.designWidth;
+      this.logicalHeight = data.designHeight;
+      this.isPortraitMode = Boolean(data.isPortrait);
+    } else {
+      this.logicalWidth = this.scale.width || (GAME_WIDTH ?? 1024);
+      this.logicalHeight = this.scale.height || (GAME_HEIGHT ?? 576);
+      this.isPortraitMode = this.logicalHeight > this.logicalWidth;
+    }
+  }
+
+  public getLogicalWidth(): number {
+    return this.logicalWidth;
+  }
+
+  public getLogicalHeight(): number {
+    return this.logicalHeight;
+  }
+
+  public isPortrait(): boolean {
+    return this.isPortraitMode;
+  }
+
   create() {
     const theme = getActiveTheme();
     this.loadedThemeId = theme.id;
     this.customGameDuration = theme.physics_config?.gameDurationSeconds || 20;
     this.fallSpeedMultiplier = theme.physics_config?.fallSpeedMultiplier || 0.7;
     this.timeRemaining = this.customGameDuration;
+
+    // Resolve canonical logical dimensions
+    const sceneWidth = this.logicalWidth || this.scale.width;
+    const sceneHeight = this.logicalHeight || this.scale.height;
+    this.logicalWidth = sceneWidth;
+    this.logicalHeight = sceneHeight;
+    this.isPortraitMode = sceneHeight > sceneWidth;
+
+    // 0. Initialize Arcade Physics World Bounds strictly to logical coordinate dimensions
+    this.physics.world.setBounds(0, 0, sceneWidth, sceneHeight);
 
     // 1. Background Image (Theme-driven with fallback)
     const bgKey = `theme_${theme.id}_bg`;
@@ -62,9 +101,6 @@ export class GameScene extends Phaser.Scene {
     } else if (this.textures.exists(theme.background_url)) {
       bgTexture = theme.background_url;
     }
-
-    const sceneWidth = this.scale.width;
-    const sceneHeight = this.scale.height;
 
     this.bgImage = this.add.image(sceneWidth / 2, sceneHeight / 2, bgTexture).setDepth(0);
     // Cover mode scaling to preserve aspect ratio without stretching or distortion
@@ -149,11 +185,12 @@ export class GameScene extends Phaser.Scene {
     if (this.gameState === 'PLAYING') {
       this.basket.updateBasket(delta);
 
-      // Check for missed falling objects reaching floor
+      // Check for missed falling objects reaching floor in logical coordinate space
       this.itemsGroup.getChildren().forEach((child) => {
         const item = child as FallingItem;
         if (item && item.active && !item.isCollected) {
-          const offscreenThreshold = this.scale.height + Math.max(30, (item.itemDisplayHeight || item.displayHeight || 64) / 2 + 10);
+          const offscreenThreshold =
+            this.logicalHeight + Math.max(30, (item.itemDisplayHeight || item.displayHeight || 64) / 2 + 10);
           if (item.y > offscreenThreshold) {
             this.duriansMissed++;
             item.isCollected = true;
@@ -167,7 +204,8 @@ export class GameScene extends Phaser.Scene {
 
   public setHandTargetX(xRatio: number) {
     if (this.gameState === 'PLAYING' && this.basket) {
-      const targetX = 60 + xRatio * (this.scale.width - 120);
+      const halfBasketW = (this.basket.getBasketWidth?.() || 140) / 2;
+      const targetX = halfBasketW + xRatio * (this.logicalWidth - halfBasketW * 2);
       this.basket.setHandTargetX(targetX);
     }
   }
@@ -370,9 +408,17 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    const spawnX = Phaser.Math.Between(70, this.scale.width - 70);
+    const halfBasketW = (this.basket?.getBasketWidth?.() || 140) / 2;
+    const minSpawnX = Math.max(60, halfBasketW * 0.7);
+    const maxSpawnX = this.logicalWidth - minSpawnX;
+    const spawnX = Phaser.Math.Between(minSpawnX, maxSpawnX);
+
     const baseSpeed = Phaser.Math.Between(stage.speedMin || 350, stage.speedMax || 550);
-    const fallSpeed = Math.round(baseSpeed * this.fallSpeedMultiplier * (selectedItem.speedMultiplier || 1.0));
+    // Scale fall speed by height ratio so traversal duration is preserved across aspect ratios
+    const heightRatio = this.logicalHeight / 576;
+    const fallSpeed = Math.round(
+      baseSpeed * this.fallSpeedMultiplier * (selectedItem.speedMultiplier || 1.0) * heightRatio
+    );
 
     const itemSprite = new FallingItem(this, spawnX, -30, selectedItem, fallSpeed, textureKey);
     this.itemsGroup.add(itemSprite);
@@ -489,7 +535,7 @@ export class GameScene extends Phaser.Scene {
     this.itemsGroup.clear(true, true);
 
     if (this.basket) {
-      this.basket.setPosition(this.scale.width / 2, this.scale.height - 70);
+      this.basket.setPosition(this.logicalWidth / 2, this.logicalHeight - 70);
       this.basket.setVelocityX(0);
     }
 
@@ -501,9 +547,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   public resizeLayout(newWidth: number, newHeight: number) {
+    const oldWidth = this.logicalWidth || 1024;
+    const oldHeight = this.logicalHeight || 576;
+
+    this.logicalWidth = newWidth;
+    this.logicalHeight = newHeight;
+    this.isPortraitMode = newHeight > newWidth;
+
+    // 1. Update physics world bounds immediately
+    if (this.physics?.world) {
+      this.physics.world.setBounds(0, 0, newWidth, newHeight);
+    }
+
     if (!this.scene.isActive()) return;
 
-    // 1. Update background image position and cover scale
+    // 2. Update background image position and cover scale
     if (this.bgImage && this.bgImage.active) {
       const textureKey = this.bgImage.texture.key;
       const bgFrame = this.textures.getFrame(textureKey, '__BASE');
@@ -514,20 +572,40 @@ export class GameScene extends Phaser.Scene {
       this.bgImage.setPosition(newWidth / 2, newHeight / 2);
     }
 
-    // 2. Update red flash overlay
+    // 3. Update ambient particles emitter bounds
+    if (this.leafEmitter && this.leafEmitter.active) {
+      this.leafEmitter.addEmitZone({
+        type: 'random',
+        source: new Phaser.Geom.Rectangle(0, -20, newWidth, 10),
+      });
+    }
+
+    // 4. Update red flash overlay
     if (this.redFlashOverlay) {
       this.redFlashOverlay.setPosition(newWidth / 2, newHeight / 2);
       this.redFlashOverlay.setSize(newWidth, newHeight);
     }
 
-    // 3. Update basket position and bounds
+    // 5. Update basket position and bounds proportionally
     if (this.basket && this.basket.active) {
-      const currentX = Phaser.Math.Clamp(this.basket.x, 60, newWidth - 60);
-      this.basket.setPosition(currentX, newHeight - 70);
+      const halfBasketW = (this.basket.getBasketWidth?.() || 140) / 2;
+      const ratioX = oldWidth > 0 ? this.basket.x / oldWidth : 0.5;
+      const newX = Phaser.Math.Clamp(ratioX * newWidth, halfBasketW, newWidth - halfBasketW);
+      const newY = newHeight - 70;
+      this.basket.setPosition(newX, newY);
+      this.basket.onSceneResize(newWidth, newHeight);
     }
 
-    // 4. Update physics world bounds
-    this.physics.world.setBounds(0, 0, newWidth, newHeight);
+    // 6. Proportional adjustment for active falling items
+    if (this.itemsGroup && oldWidth > 0 && oldWidth !== newWidth) {
+      const widthRatio = newWidth / oldWidth;
+      this.itemsGroup.getChildren().forEach((child) => {
+        const item = child as FallingItem;
+        if (item && item.active && !item.isCollected) {
+          item.x = Phaser.Math.Clamp(item.x * widthRatio, 40, newWidth - 40);
+        }
+      });
+    }
   }
 
   private setGameState(state: GameState) {

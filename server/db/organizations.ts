@@ -63,9 +63,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const LOCAL_ORGS_FILE = path.join(process.cwd(), 'uploads', 'organizations.json');
-const localOrgsCache = new Map<string, OrganizationRecord>();
+export const localOrgsCache = new Map<string, OrganizationRecord>();
 
-function loadLocalOrgs(): void {
+export function loadLocalOrgs(): void {
   if (!isLocalFallbackAllowed()) return;
   try {
     if (typeof fs !== 'undefined' && typeof fs.existsSync === 'function' && fs.existsSync(LOCAL_ORGS_FILE)) {
@@ -81,7 +81,7 @@ function loadLocalOrgs(): void {
   }
 }
 
-function saveLocalOrgs(): void {
+export function saveLocalOrgs(): void {
   if (!isLocalFallbackAllowed()) return;
   try {
     if (typeof fs !== 'undefined' && typeof fs.writeFileSync === 'function') {
@@ -219,6 +219,13 @@ export async function createOrganization(
   },
   env?: Record<string, any>
 ): Promise<OrganizationRecord> {
+  if (!params.name || !params.name.trim()) {
+    throw new Error('Organization name is required and cannot be empty.');
+  }
+  if (!params.owner_id || !params.owner_id.trim()) {
+    throw new Error('Organization owner_id is required.');
+  }
+
   const id = params.id || crypto.randomUUID();
   const now = new Date().toISOString();
 

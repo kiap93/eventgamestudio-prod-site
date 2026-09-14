@@ -3291,7 +3291,7 @@ export async function runEventLifecycleMaintenance(
         }
 
         if (endDate) {
-          const endDateTime = new Date(`${endDate}T23:59:59+08:00`).getTime();
+          const endDateTime = getUtcBoundaryInTimezone(endDate, 'end', evTimezone).getTime();
           const diffHours = (endDateTime - nowTime) / (1000 * 60 * 60);
           if (diffHours > 0 && diffHours <= 24) {
             const timeRemaining = `${Math.ceil(diffHours)} hours`;

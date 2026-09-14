@@ -2,7 +2,9 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { getSupabaseServerClient } from '../supabase.js';
+import { getSupabaseServerClient, isSupabaseConfigured } from '../supabase.js';
+import { createUser } from './users.js';
+import { localOrgsCache, saveLocalOrgs } from './organizations.js';
 import {
   grantWelcomeCredit,
   getWalletBalance,
@@ -10,33 +12,37 @@ import {
 } from './wallet.js';
 
 async function createTestUser(): Promise<string> {
-  const supabase = getSupabaseServerClient();
   const id = crypto.randomUUID();
-  const { error } = await supabase.from('users').insert({
-    id,
+  const user = await createUser({
     email: `test-${id.slice(0, 8)}@example.com`,
     name: `Test User ${id.slice(0, 6)}`,
   });
-  if (error) {
-    throw new Error(`Failed to create test user: ${error.message}`);
-  }
-  return id;
+  return user.id;
 }
 
 async function createTestOrgRecord(ownerId: string): Promise<string> {
-  const supabase = getSupabaseServerClient();
   const orgId = crypto.randomUUID();
   const now = new Date().toISOString();
-  const { error } = await supabase.from('organizations').insert({
+  const orgRecord = {
     id: orgId,
     name: `Test Org ${orgId.slice(0, 6)}`,
     slug: `org-${orgId.slice(0, 8)}`,
     owner_id: ownerId,
+    logo_url: null,
+    country_code: 'MY',
     created_at: now,
     updated_at: now,
-  });
-  if (error) {
-    throw new Error(`Failed to create test organization: ${error.message}`);
+  };
+
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseServerClient();
+    const { error } = await supabase.from('organizations').insert(orgRecord);
+    if (error) {
+      throw new Error(`Failed to create test organization: ${error.message}`);
+    }
+  } else {
+    localOrgsCache.set(orgId, orgRecord as any);
+    saveLocalOrgs();
   }
   return orgId;
 }

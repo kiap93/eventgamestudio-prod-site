@@ -3,6 +3,7 @@ import { GameTheme } from '../themes/types';
 import { GameSettings, GameState, GameStats } from '../types';
 
 export type GameTypeId = 'catch-brand' | 'reaction-tap' | 'memory-match' | 'speed-quiz';
+export const DEFAULT_GAME_TYPE: GameTypeId = 'catch-brand';
 
 export interface BaseGameConfig {
   gameDurationSeconds?: number;

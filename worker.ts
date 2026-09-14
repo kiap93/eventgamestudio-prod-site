@@ -6575,9 +6575,9 @@ export default {
         }
       }
 
-      // PATCH /api/notifications/:id/read
+      // PATCH / POST /api/notifications/:id/read
       const readMatch = pathname.match(/^\/api\/notifications\/([^\/]+)\/read$/);
-      if (readMatch && method === 'PATCH') {
+      if (readMatch && (method === 'PATCH' || method === 'POST')) {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 

@@ -194,6 +194,12 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
 
         // Apply initial settings
         scene.applySettings(settings);
+
+        // Ensure canonical logical sizing once GameScene finishes create lifecycle
+        scene.events.once('create', () => {
+          scene.resizeLayout(responsive.designWidth, responsive.designHeight);
+          handleResize();
+        });
       }
       handleResize();
     });

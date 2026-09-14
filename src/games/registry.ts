@@ -1,11 +1,11 @@
-import { GameDefinition, CatchBrandConfig } from './types';
+import { GameDefinition, CatchBrandConfig, DEFAULT_GAME_TYPE } from './types';
 import { CatchBrandGame } from './catch-brand/CatchBrandGame';
 import { MemoryMatchGame } from './memory-match/MemoryMatchGame';
 import { MemoryMatchConfig } from './memory-match/types';
 import { ReactionGame } from './reaction-time/ReactionGame';
 import { DEFAULT_REACTION_CONFIG, ReactionGameConfig } from './reaction-time/types';
 
-export const DEFAULT_GAME_TYPE = 'catch-brand';
+export { DEFAULT_GAME_TYPE };
 
 export const GAME_REGISTRY: Record<string, GameDefinition<any>> = {
   'catch-brand': {

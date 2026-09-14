@@ -22,6 +22,8 @@ import {
   Wallet,
   Check,
   ShieldCheck,
+  Menu,
+  X,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 
@@ -32,6 +34,7 @@ export const DashboardLayout: React.FC = () => {
     currentOrganization,
     organizations,
     switchOrganization,
+    startCreateOrganization,
     logout,
   } = useAuth();
 
@@ -48,6 +51,7 @@ export const DashboardLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'events' | 'games' | 'team' | 'wallet' | 'wallet-topup'>(() => getInitialTab());
   const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [wallet, setWallet] = useState<WalletBalanceSummary | null>(null);
   const [loadingWallet, setLoadingWallet] = useState<boolean>(true);
@@ -187,8 +191,19 @@ export const DashboardLayout: React.FC = () => {
       {/* Top Navigation Bar */}
       <header ref={headerRef} className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
-          {/* Left: Brand */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Left: Brand + Mobile Toggle */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Mobile Menu Toggle [☰] */}
+            <button
+              id="dashboard-mobile-nav-btn"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              title="Toggle Navigation Menu"
+              className="md:hidden p-2 -ml-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl cursor-pointer shrink-0"
+              aria-label="Toggle navigation menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+
             <button
               onClick={() => navigateTo('/')}
               title="View Public Landing Page"
@@ -197,14 +212,14 @@ export const DashboardLayout: React.FC = () => {
               <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 group-hover:border-amber-400/60 group-hover:bg-amber-500/20 transition-all">
                 <Gamepad2 className="w-5 h-5 group-hover:scale-105 transition-transform" />
               </div>
-              <span className="font-bold text-sm tracking-tight text-amber-400 hidden md:inline group-hover:text-amber-300 transition-colors">
+              <span className="font-bold text-sm tracking-tight text-amber-400 group-hover:text-amber-300 transition-colors">
                 Event Game Studio
               </span>
             </button>
           </div>
 
-          {/* Center: Main Navigation */}
-          <div className="flex items-center gap-1 bg-slate-950 p-1 border border-slate-800 rounded-xl text-xs shrink-0">
+          {/* Center: Main Navigation (Desktop) */}
+          <div className="hidden md:flex items-center gap-1 bg-slate-950 p-1 border border-slate-800 rounded-xl text-xs shrink-0">
             <button
               onClick={() => handleTabChange('events')}
               className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
@@ -257,7 +272,7 @@ export const DashboardLayout: React.FC = () => {
             )}
 
             {/* 1. Organization Selector */}
-            <div className="relative">
+            <div className="relative hidden lg:block">
               <button
                 onClick={() => {
                   setShowOrgDropdown(!showOrgDropdown);
@@ -321,13 +336,17 @@ export const DashboardLayout: React.FC = () => {
                   </div>
 
                   <div className="border-t border-slate-800 pt-1 mt-1">
-                    <a
-                      href="/create-organization"
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-amber-400 hover:bg-slate-800 rounded-xl transition-colors font-medium cursor-pointer"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowOrgDropdown(false);
+                        startCreateOrganization();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-amber-400 hover:bg-slate-800 rounded-xl transition-colors font-medium cursor-pointer text-left"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Create New Organization</span>
-                    </a>
+                    </button>
                   </div>
                 </div>
               )}
@@ -466,12 +485,113 @@ export const DashboardLayout: React.FC = () => {
             <button
               onClick={logout}
               title="Sign Out"
-              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer shrink-0"
+              className="hidden sm:flex p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer shrink-0"
             >
               <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div
+            id="dashboard-mobile-nav-drawer"
+            className="md:hidden px-4 py-3 bg-slate-950/98 border-t border-slate-800 space-y-3 animate-in slide-in-from-top-2 duration-150"
+          >
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl text-xs">
+              <button
+                onClick={() => {
+                  handleTabChange('events');
+                  setMobileMenuOpen(false);
+                }}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-semibold transition-all cursor-pointer ${
+                  activeTab === 'events'
+                    ? 'bg-amber-500 text-slate-950 font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Events</span>
+              </button>
+              <button
+                onClick={() => {
+                  handleTabChange('games');
+                  setMobileMenuOpen(false);
+                }}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-semibold transition-all cursor-pointer ${
+                  activeTab === 'games'
+                    ? 'bg-amber-500 text-slate-950 font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Gamepad2 className="w-3.5 h-3.5" />
+                <span>Games</span>
+              </button>
+              <button
+                onClick={() => {
+                  handleTabChange('team');
+                  setMobileMenuOpen(false);
+                }}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-semibold transition-all cursor-pointer ${
+                  activeTab === 'team'
+                    ? 'bg-amber-500 text-slate-950 font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Team</span>
+              </button>
+            </div>
+
+            {/* Mobile Workspace & Balance Row */}
+            <div className="flex items-center justify-between gap-2 p-2.5 bg-slate-900/80 border border-slate-800 rounded-xl text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="font-semibold text-slate-200 truncate">
+                  {currentOrganization?.name || 'My Workspace'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => {
+                  handleTabChange('wallet');
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg text-xs font-bold text-amber-300 shrink-0 cursor-pointer"
+              >
+                <Wallet className="w-3.5 h-3.5" />
+                <span>{availableBalanceText}</span>
+              </button>
+            </div>
+
+            {/* Mobile Actions */}
+            <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-xs">
+              {currentUser?.is_developer && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigateTo('/developer');
+                  }}
+                  className="flex items-center gap-1.5 text-emerald-400 font-semibold p-1 cursor-pointer"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Dev Admin</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  logout();
+                }}
+                className="flex items-center gap-1.5 text-rose-400 font-semibold ml-auto p-1 cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Content Body */}

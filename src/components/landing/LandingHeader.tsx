@@ -12,6 +12,7 @@ import {
   X,
   Layers,
 } from 'lucide-react';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 interface LandingHeaderProps {
   onExploreGames: () => void;
@@ -146,6 +147,8 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
 
+              <NotificationBell />
+
               <button
                 onClick={logout}
                 title="Sign Out"
@@ -173,8 +176,9 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
           )}
         </div>
 
-        {/* Mobile Menu Toggle */}
+        {/* Mobile Menu Toggle & Actions */}
         <div className="sm:hidden flex items-center gap-2">
+          {isAuthenticated && <NotificationBell />}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-900 rounded-xl border border-slate-800"

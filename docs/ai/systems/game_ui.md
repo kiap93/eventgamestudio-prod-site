@@ -95,6 +95,36 @@ Containers inject CSS variables to ensure child overlay elements and HUD widgets
 </div>
 ```
 
+### Canonical Gameplay Coordinate Architecture (Phaser & Catch The Brand)
+
+In mini-game runtimes powered by Phaser (`src/games/catch-brand/`), gameplay physics and sprite rendering MUST operate strictly within canonical logical coordinates:
+- **Landscape**: $1024 \times 576$ logical units.
+- **Portrait**: $576 \times 1024$ logical units.
+
+#### Principles & Invariants:
+1. **Separation of Logical Space and Pixel Presentation**:
+   - The DOM layer (`CatchBrandGame.tsx`) hosts a `<div className="game-stage">` sized precisely to `stageWidth × stageHeight` computed by `useResponsiveLayout`.
+   - Phaser's canvas fills this stage (`100% width and height`).
+   - The internal Phaser scale manager runs in `Phaser.Scale.FIT` configured with canonical design dimensions (`576 × 1024` for portrait, `1024 × 576` for landscape).
+2. **Arcade Physics World Bounds**:
+   - `this.physics.world.setBounds(0, 0, logicalWidth, logicalHeight)` is strictly bound to logical design dimensions.
+   - Gameplay code must NEVER query `window.innerWidth`, `window.innerHeight`, or raw viewport pixels for game mechanics.
+3. **Catcher (Basket) Positioning & Bounds**:
+   - Base vertical position: `logicalHeight - 70` (consistently 70 logical units above stage bottom in both landscape and portrait).
+   - Horizontal clamping: $X \in [\text{halfWidth}, \text{logicalWidth} - \text{halfWidth}]$, dynamically derived from `basket.getBasketWidth() / 2` rather than hardcoded viewport offsets.
+   - Bounce tween targets `logicalHeight - 70 + 4` and returns to `logicalHeight - 70`.
+4. **Drop Item System & Spawn Bounds**:
+   - Spawns at $Y = -30$ with $X \in [\text{minSpawnX}, \text{logicalWidth} - \text{minSpawnX}]$.
+   - Fall velocity scales proportionally with aspect height ratio ($\frac{\text{logicalHeight}}{576}$) so that item traverse duration from sky to ground remains constant regardless of aspect ratio.
+   - Floor miss threshold: $Y > \text{logicalHeight} + \text{itemRadius} + 10$.
+5. **Dynamic Orientation & Resize Resynchronization**:
+   - When orientation flips (landscape $\leftrightarrow$ portrait) or container resizes:
+     - `game.scale.resize(responsive.designWidth, responsive.designHeight)` updates the renderer.
+     - `GameScene.resizeLayout(newWidth, newHeight)` updates logical dimensions, physics world bounds, background cover scale, ambient weather emitter zones, and repositions the basket and falling items proportionally ($X_{\text{new}} = X_{\text{old}} \times \frac{W_{\text{new}}}{W_{\text{old}}}$).
+6. **Touch & Pointer Input Mapping**:
+   - Pointer events in Phaser (`pointer.x`, `pointer.y`) are automatically transformed by Phaser's input manager into logical coordinates matching the canvas coordinate space.
+   - Clamping uses canonical `logicalWidth`, ensuring that touch/mouse controls stay perfectly inside the gameplay arena on mobile screens.
+
 ---
 
 ## 3. Screen Renderers & Orientation Adaptation
