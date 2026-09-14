@@ -8,7 +8,13 @@ import {
   RewardReviewStatus,
   ShowcaseModerationLog,
 } from './types.js';
-import { grantShowcaseCredit, withOrganizationLock, localOwnerShowcaseRewardsCache } from './wallet.js';
+import {
+  grantShowcaseCredit,
+  withOrganizationLock,
+  withUserRewardLock,
+  hasUserReceivedShowcaseCredit,
+  localOwnerShowcaseRewardsCache,
+} from './wallet.js';
 import { getShowcaseMedia } from './showcaseMedia.js';
 import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase } from './events.js';
 import { getOrganizationById } from './organizations.js';
@@ -931,6 +937,21 @@ export async function evaluateShowcaseRewardEligibility(
         );
       }
     }
+
+    // Strict check across all user rewards and transactions
+    const userAlreadyRewarded = await hasUserReceivedShowcaseCredit(ownerUserId, env);
+    if (userAlreadyRewarded) {
+      return await updateShowcase(
+        eventId,
+        {
+          reward_review_status: 'NOT_ELIGIBLE',
+          reward_status: 'NOT_ELIGIBLE',
+          owner_user_id: ownerUserId,
+        },
+        env,
+        true
+      );
+    }
   }
 
   // Also check if this organization already received showcase credit
@@ -1111,9 +1132,23 @@ export async function approveShowcaseReward(
     ownerUserId = org?.owner_id || null;
   }
 
-  // Execute under per-organization lock to prevent race conditions
-  return await withOrganizationLock(showcase.organization_id, async () => {
-    // 1. Preferred Production Path: Single Atomic PostgreSQL RPC
+  // Execute under per-user and per-organization lock to prevent race conditions
+  const lockTargetUser = ownerUserId || showcase.organization_id;
+  return await withUserRewardLock(lockTargetUser, async () => {
+    return await withOrganizationLock(showcase.organization_id, async () => {
+      // Strictly verify owner lifetime eligibility before processing reward
+      if (ownerUserId) {
+        const alreadyRewarded = await hasUserReceivedShowcaseCredit(ownerUserId, env);
+        if (alreadyRewarded && showcase.reward_review_status !== 'REWARDED' && showcase.reward_status !== 'REWARDED') {
+          const err = new Error(
+            'First-event showcase reward credit has already been granted to this owner account (one-time lifetime reward).'
+          );
+          (err as any).code = 'SHOWCASE_ALREADY_REWARDED_TO_OWNER';
+          throw err;
+        }
+      }
+
+      // 1. Preferred Production Path: Single Atomic PostgreSQL RPC
     // Performs wallet row lock (FOR UPDATE), verifies first-reward invariant,
     // verifies showcase is AWAITING_APPROVAL, re-verifies all eligibility rules,
     // creates SHOWCASE_CREDIT transaction, updates organization_wallets and event_showcases
@@ -1234,6 +1269,7 @@ export async function approveShowcaseReward(
       reward: rewardResult,
       alreadyRewarded: rewardResult.alreadyGranted,
     };
+    });
   });
 }
 

@@ -6468,5 +6468,395 @@
     "country_code": null,
     "created_at": "2026-09-14T08:57:06.114Z",
     "updated_at": "2026-09-14T08:57:06.114Z"
+  },
+  {
+    "id": "41eafe4c-e025-4c89-abd9-7f3359d58c9d",
+    "name": "Test Org 41eafe",
+    "slug": "org-41eafe4c",
+    "owner_id": "0b1695c6-f3ad-4d1d-8d49-1ab1912a1ca2",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:10:36.861Z",
+    "updated_at": "2026-09-14T09:10:36.861Z"
+  },
+  {
+    "id": "28f95be8-fb17-408f-a852-db5f80160b38",
+    "name": "Test Org 28f95b",
+    "slug": "org-28f95be8",
+    "owner_id": "0b11fd4f-e526-4e1c-9f69-9b990153995e",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:10:36.977Z",
+    "updated_at": "2026-09-14T09:10:36.977Z"
+  },
+  {
+    "id": "7e083720-0759-4c5b-a20c-ffdb46f0bb7e",
+    "name": "Test Org 7e0837",
+    "slug": "org-7e083720",
+    "owner_id": "0b11fd4f-e526-4e1c-9f69-9b990153995e",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:10:36.978Z",
+    "updated_at": "2026-09-14T09:10:36.978Z"
+  },
+  {
+    "id": "b462a49d-3cd3-4ae7-a469-6a96c09e55be",
+    "name": "Test Org b462a4",
+    "slug": "org-b462a49d",
+    "owner_id": "ade50559-1bb4-48d5-b416-d5583b6b9511",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:10:37.063Z",
+    "updated_at": "2026-09-14T09:10:37.063Z"
+  },
+  {
+    "id": "231d9186-db42-428e-b43a-038d6f7fdcae",
+    "name": "Test Org 231d91",
+    "slug": "org-231d9186",
+    "owner_id": "ade50559-1bb4-48d5-b416-d5583b6b9511",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:10:37.064Z",
+    "updated_at": "2026-09-14T09:10:37.064Z"
+  },
+  {
+    "id": "ca5fdfa2-f7c9-425c-aead-14d6e0462efa",
+    "name": "Test Org ca5fdf",
+    "slug": "org-ca5fdfa2",
+    "owner_id": "ade50559-1bb4-48d5-b416-d5583b6b9511",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:10:37.064Z",
+    "updated_at": "2026-09-14T09:10:37.064Z"
+  },
+  {
+    "id": "55d6a84b-562b-4286-9374-d22e1bbccc19",
+    "name": "Alpha Org 2",
+    "slug": "alpha-org-2-9138a5",
+    "owner_id": "50d182da-7e00-4660-ac6c-62a8604e33f3",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:11:20.370Z",
+    "updated_at": "2026-09-14T09:11:20.370Z"
+  },
+  {
+    "id": "b9ca0a17-037a-4e86-b29f-709004e8c73c",
+    "name": "Alpha Org 3",
+    "slug": "alpha-org-3-ff6e4c",
+    "owner_id": "50d182da-7e00-4660-ac6c-62a8604e33f3",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:11:20.398Z",
+    "updated_at": "2026-09-14T09:11:20.398Z"
+  },
+  {
+    "id": "37e9de1b-f0fd-4bfa-923b-414856a52f90",
+    "name": "Alpha Org 4",
+    "slug": "alpha-org-4-77d974",
+    "owner_id": "50d182da-7e00-4660-ac6c-62a8604e33f3",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:11:20.433Z",
+    "updated_at": "2026-09-14T09:11:20.433Z"
+  },
+  {
+    "id": "2aeda26f-099c-484e-83ae-a60c816fda4d",
+    "name": "Beta Org 1",
+    "slug": "beta-org-1-e9d44e",
+    "owner_id": "fe488524-f1c7-4861-bbd2-dc067dc3e931",
+    "logo_url": null,
+    "country_code": "SG",
+    "created_at": "2026-09-14T09:11:20.468Z",
+    "updated_at": "2026-09-14T09:11:20.468Z"
+  },
+  {
+    "id": "c471794a-594d-4425-84af-c5d2a1fff76b",
+    "name": "Beta Org 2",
+    "slug": "beta-org-2-ec2c3d",
+    "owner_id": "fe488524-f1c7-4861-bbd2-dc067dc3e931",
+    "logo_url": null,
+    "country_code": "SG",
+    "created_at": "2026-09-14T09:11:20.544Z",
+    "updated_at": "2026-09-14T09:11:20.544Z"
+  },
+  {
+    "id": "3461a423-f91b-4732-9b9c-46863eb96ab3",
+    "name": "OAuth Org 1",
+    "slug": "oauth-org-1-d16ca7",
+    "owner_id": "65cb065d-29b3-4f9b-980e-5fac664170a0",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:11:20.566Z",
+    "updated_at": "2026-09-14T09:11:20.566Z"
+  },
+  {
+    "id": "79d529b5-47cd-4874-97cb-0f5249d4b703",
+    "name": "OAuth Org 2",
+    "slug": "oauth-org-2-805eea",
+    "owner_id": "65cb065d-29b3-4f9b-980e-5fac664170a0",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:11:20.633Z",
+    "updated_at": "2026-09-14T09:11:20.633Z"
+  },
+  {
+    "id": "3c24714c-1123-4168-845e-17447b1635cd",
+    "name": "Admin Created Org for User A",
+    "slug": "admin-created-org-for-user-a-5ab3bd",
+    "owner_id": "50d182da-7e00-4660-ac6c-62a8604e33f3",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:11:20.662Z",
+    "updated_at": "2026-09-14T09:11:20.662Z"
+  },
+  {
+    "id": "f44a2797-623d-4814-bcb2-71130e285cf9",
+    "name": "Second Isolated Org",
+    "slug": "second-isolated-org-6bc17e",
+    "owner_id": "e8a40536-5f40-4c9e-a9c0-f055c512a747",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:11:20.765Z",
+    "updated_at": "2026-09-14T09:11:20.765Z"
+  },
+  {
+    "id": "f00edc9c-97f3-4b50-a939-ef156500c1f5",
+    "name": "Conc Org 1",
+    "slug": "conc-org-1-8101aa",
+    "owner_id": "c8d879af-b7f1-4b8f-8f22-719c57c73088",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:11:20.793Z",
+    "updated_at": "2026-09-14T09:11:20.793Z"
+  },
+  {
+    "id": "781716cd-5a56-4677-8e56-234e55908a63",
+    "name": "Conc Org 2",
+    "slug": "conc-org-2-7f516b",
+    "owner_id": "c8d879af-b7f1-4b8f-8f22-719c57c73088",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:11:20.794Z",
+    "updated_at": "2026-09-14T09:11:20.794Z"
+  },
+  {
+    "id": "07bf842c-401a-43d2-8874-2a1e5d3a46cb",
+    "name": "Conc Org 3",
+    "slug": "conc-org-3-14a217",
+    "owner_id": "c8d879af-b7f1-4b8f-8f22-719c57c73088",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:11:20.794Z",
+    "updated_at": "2026-09-14T09:11:20.794Z"
+  },
+  {
+    "id": "2f70b2bb-923c-415a-9097-875f662c28c2",
+    "name": "Test Org 2f70b2",
+    "slug": "org-2f70b2bb",
+    "owner_id": "82e2579c-c420-4831-9869-d91265f30f36",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:18:45.107Z",
+    "updated_at": "2026-09-14T09:18:45.107Z"
+  },
+  {
+    "id": "f5a53a11-0d63-49d5-a18f-485d66d86707",
+    "name": "Test Org f5a53a",
+    "slug": "org-f5a53a11",
+    "owner_id": "794a902c-ad8a-42e0-961b-c8f7f9def921",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:18:45.228Z",
+    "updated_at": "2026-09-14T09:18:45.228Z"
+  },
+  {
+    "id": "d48c41ad-4c79-4247-b9e0-1681d0acbf47",
+    "name": "Test Org d48c41",
+    "slug": "org-d48c41ad",
+    "owner_id": "794a902c-ad8a-42e0-961b-c8f7f9def921",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:18:45.228Z",
+    "updated_at": "2026-09-14T09:18:45.228Z"
+  },
+  {
+    "id": "d5f060dc-bd6d-4479-8ca5-4574c2edb86a",
+    "name": "Test Org d5f060",
+    "slug": "org-d5f060dc",
+    "owner_id": "820a7db5-dbce-44cd-a81f-ec9a7afeb5ff",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:18:45.309Z",
+    "updated_at": "2026-09-14T09:18:45.309Z"
+  },
+  {
+    "id": "546e6959-8e9a-4e3e-bdc1-c77686cbe5ca",
+    "name": "Test Org 546e69",
+    "slug": "org-546e6959",
+    "owner_id": "820a7db5-dbce-44cd-a81f-ec9a7afeb5ff",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:18:45.309Z",
+    "updated_at": "2026-09-14T09:18:45.309Z"
+  },
+  {
+    "id": "d87f332c-972e-46d4-9fe7-ed213aeef86d",
+    "name": "Test Org d87f33",
+    "slug": "org-d87f332c",
+    "owner_id": "820a7db5-dbce-44cd-a81f-ec9a7afeb5ff",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:18:45.310Z",
+    "updated_at": "2026-09-14T09:18:45.310Z"
+  },
+  {
+    "id": "1b22e15e-6520-4fa7-87f9-35b6fa49d2c2",
+    "name": "User Org Beta",
+    "slug": "user-org-beta-d9c283",
+    "owner_id": "test-user-328ddeea-bc80-414a-a574-d2af38267fd8",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:19:11.554Z",
+    "updated_at": "2026-09-14T09:19:11.554Z"
+  },
+  {
+    "id": "be378c01-2049-4eff-999d-c000424ab5d4",
+    "name": "User Org Gamma",
+    "slug": "user-org-gamma-170af1",
+    "owner_id": "test-user-328ddeea-bc80-414a-a574-d2af38267fd8",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:19:11.646Z",
+    "updated_at": "2026-09-14T09:19:11.646Z"
+  },
+  {
+    "id": "de041e84-bf61-4d02-a394-7bc768d16f3c",
+    "name": "User Org Delta",
+    "slug": "user-org-delta-47f071",
+    "owner_id": "test-user-328ddeea-bc80-414a-a574-d2af38267fd8",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:19:11.702Z",
+    "updated_at": "2026-09-14T09:19:11.702Z"
+  },
+  {
+    "id": "17ccf4b6-8274-410f-a99f-5c2eae294447",
+    "name": "Race Org 1",
+    "slug": "race-org-1-f89ae3",
+    "owner_id": "test-concurrent-8e0ec376-e39c-41d2-a582-2b545940edc1",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-14T09:19:11.908Z",
+    "updated_at": "2026-09-14T09:19:11.908Z"
+  },
+  {
+    "id": "5e23c155-f880-415b-a49a-b835478d5bfb",
+    "name": "Race Org 2",
+    "slug": "race-org-2-54338c",
+    "owner_id": "test-concurrent-8e0ec376-e39c-41d2-a582-2b545940edc1",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-14T09:19:11.909Z",
+    "updated_at": "2026-09-14T09:19:11.909Z"
+  },
+  {
+    "id": "7021fee9-b8f5-49fb-be41-794a7c8a4343",
+    "name": "Race Org 3",
+    "slug": "race-org-3-9bfc59",
+    "owner_id": "test-concurrent-8e0ec376-e39c-41d2-a582-2b545940edc1",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-14T09:19:11.909Z",
+    "updated_at": "2026-09-14T09:19:11.909Z"
+  },
+  {
+    "id": "b775667a-c45b-4128-99a9-629ea6b6f5e5",
+    "name": "Auto Welcome Org Test",
+    "slug": "auto-welcome-org-test-87cf00",
+    "owner_id": "b2653887-3ec6-4a99-bafc-8e4b8a9546be",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-14T09:19:26.960Z",
+    "updated_at": "2026-09-14T09:19:26.960Z"
+  },
+  {
+    "id": "5a7ed625-9684-4744-891b-3639ba0a759e",
+    "name": "User Org Beta",
+    "slug": "user-org-beta-0263c1",
+    "owner_id": "test-user-98aecf44-7e41-4324-92b7-13effd9ccfb9",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:21:25.987Z",
+    "updated_at": "2026-09-14T09:21:25.987Z"
+  },
+  {
+    "id": "dfa1d348-9b29-46e3-bf84-62a0fbe8f31f",
+    "name": "User Org Gamma",
+    "slug": "user-org-gamma-dc00a1",
+    "owner_id": "test-user-98aecf44-7e41-4324-92b7-13effd9ccfb9",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:21:26.047Z",
+    "updated_at": "2026-09-14T09:21:26.047Z"
+  },
+  {
+    "id": "7b45cab5-78c5-4fd3-907b-aaa197856283",
+    "name": "User Org Delta",
+    "slug": "user-org-delta-0ca01e",
+    "owner_id": "test-user-98aecf44-7e41-4324-92b7-13effd9ccfb9",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:21:26.065Z",
+    "updated_at": "2026-09-14T09:21:26.065Z"
+  },
+  {
+    "id": "d59bd94b-e0f4-4dd6-b687-1a523f868c42",
+    "name": "Race Org 1",
+    "slug": "race-org-1-d908dd",
+    "owner_id": "test-concurrent-2643aff0-5f1c-4b86-920e-8123a75a39c1",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-14T09:21:26.139Z",
+    "updated_at": "2026-09-14T09:21:26.139Z"
+  },
+  {
+    "id": "402ca511-cc1a-457e-9e82-3fc5f2c4d1a6",
+    "name": "Race Org 2",
+    "slug": "race-org-2-b6cd75",
+    "owner_id": "test-concurrent-2643aff0-5f1c-4b86-920e-8123a75a39c1",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-14T09:21:26.139Z",
+    "updated_at": "2026-09-14T09:21:26.139Z"
+  },
+  {
+    "id": "28ae545a-65fe-475c-be62-a05b0e1db3bd",
+    "name": "Race Org 3",
+    "slug": "race-org-3-ccda1c",
+    "owner_id": "test-concurrent-2643aff0-5f1c-4b86-920e-8123a75a39c1",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-14T09:21:26.139Z",
+    "updated_at": "2026-09-14T09:21:26.139Z"
+  },
+  {
+    "id": "a844a28c-7bf4-48dc-a024-9f949e004559",
+    "name": "Launch Studio Org",
+    "slug": "launch-studio-org-890cfc",
+    "owner_id": "71120ca0-6ee3-41bb-9814-778d79b85930",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:29:04.784Z",
+    "updated_at": "2026-09-14T09:29:04.784Z"
+  },
+  {
+    "id": "fea030cf-b35d-4676-83d4-23c3eea47535",
+    "name": "Launch Studio Org",
+    "slug": "launch-studio-org-4f7955",
+    "owner_id": "fccaef17-2f4d-42ec-ada2-b5db54c79864",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-14T09:31:35.705Z",
+    "updated_at": "2026-09-14T09:31:35.705Z"
   }
 ]

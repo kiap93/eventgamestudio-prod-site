@@ -592,5 +592,203 @@
     "transaction_id": "bbfc92be-607b-4e17-97fd-67d2ed8f553f",
     "amount": 800,
     "created_at": "2026-09-14T08:57:06.130Z"
+  },
+  {
+    "id": "1c6f2e22-d58b-412c-a327-7d71600cb064",
+    "user_id": "0b1695c6-f3ad-4d1d-8d49-1ab1912a1ca2",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "41eafe4c-e025-4c89-abd9-7f3359d58c9d",
+    "transaction_id": "7a98d71b-1d9e-4c52-aa02-58b2619b0f8b",
+    "amount": 800,
+    "created_at": "2026-09-14T09:10:36.867Z"
+  },
+  {
+    "id": "61ac72c5-fbf3-459f-8a0f-b249b04403a7",
+    "user_id": "0b11fd4f-e526-4e1c-9f69-9b990153995e",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "28f95be8-fb17-408f-a852-db5f80160b38",
+    "transaction_id": "146b2929-e2a6-47ee-a476-6f60ea7f5fa8",
+    "amount": 800,
+    "created_at": "2026-09-14T09:10:36.980Z"
+  },
+  {
+    "id": "2dbed93e-ddfd-4fae-84a2-5de8ba2e9c49",
+    "user_id": "ade50559-1bb4-48d5-b416-d5583b6b9511",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "b462a49d-3cd3-4ae7-a469-6a96c09e55be",
+    "transaction_id": "c6a29f94-d91a-47c9-866d-e1fc93e83adb",
+    "amount": 800,
+    "created_at": "2026-09-14T09:10:37.066Z"
+  },
+  {
+    "id": "373915be-4533-40dc-a2b1-c971ca72caa9",
+    "user_id": "50d182da-7e00-4660-ac6c-62a8604e33f3",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "07dfa424-6b70-4611-a9dc-3f623cda5f05",
+    "transaction_id": "ae594da3-2d19-4cf6-b327-78b9f02ac5ae",
+    "amount": 800,
+    "created_at": "2026-09-14T09:11:20.225Z"
+  },
+  {
+    "id": "54921fe0-f1cf-424d-9967-98f2daf3a767",
+    "user_id": "fe488524-f1c7-4861-bbd2-dc067dc3e931",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "2aeda26f-099c-484e-83ae-a60c816fda4d",
+    "transaction_id": "8cac25ad-dcc8-4730-b742-6cd906988dce",
+    "amount": 800,
+    "created_at": "2026-09-14T09:11:20.469Z"
+  },
+  {
+    "id": "10d944a3-be05-4b84-b5fc-7689bf5c471c",
+    "user_id": "65cb065d-29b3-4f9b-980e-5fac664170a0",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "3461a423-f91b-4732-9b9c-46863eb96ab3",
+    "transaction_id": "c5fa3109-7fcf-4b82-8ac8-710bcfcd9bf0",
+    "amount": 800,
+    "created_at": "2026-09-14T09:11:20.567Z"
+  },
+  {
+    "id": "67ce02b6-088a-41e1-ae21-ab57d4c642dd",
+    "user_id": "e8a40536-5f40-4c9e-a9c0-f055c512a747",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "c5f56393-c8fe-4be6-9fa7-9f0a97f57b9a",
+    "transaction_id": "258379dd-ce37-40b2-b082-dc3f177c812e",
+    "amount": 800,
+    "created_at": "2026-09-14T09:11:20.692Z"
+  },
+  {
+    "id": "ba0dda4e-8996-4b66-84af-631603be8639",
+    "user_id": "c8d879af-b7f1-4b8f-8f22-719c57c73088",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "f00edc9c-97f3-4b50-a939-ef156500c1f5",
+    "transaction_id": "e24870f0-3596-4796-b4f6-85db643bae4d",
+    "amount": 800,
+    "created_at": "2026-09-14T09:11:20.794Z"
+  },
+  {
+    "id": "ca9a68a4-df45-4548-9e67-c2f9d235d283",
+    "user_id": "82e2579c-c420-4831-9869-d91265f30f36",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "2f70b2bb-923c-415a-9097-875f662c28c2",
+    "transaction_id": "de59164b-2d61-4cda-9be9-1a0fa6579e49",
+    "amount": 800,
+    "created_at": "2026-09-14T09:18:45.115Z"
+  },
+  {
+    "id": "05d70095-e0cd-4f9c-a166-5c60f174bd64",
+    "user_id": "794a902c-ad8a-42e0-961b-c8f7f9def921",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "f5a53a11-0d63-49d5-a18f-485d66d86707",
+    "transaction_id": "a235340f-3af5-4572-ba33-5872753829e5",
+    "amount": 800,
+    "created_at": "2026-09-14T09:18:45.230Z"
+  },
+  {
+    "id": "ad3cadb6-65b3-45f9-a26c-462ee5000275",
+    "user_id": "820a7db5-dbce-44cd-a81f-ec9a7afeb5ff",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "d5f060dc-bd6d-4479-8ca5-4574c2edb86a",
+    "transaction_id": "b30c0a53-3345-46c5-af51-36093eacefce",
+    "amount": 800,
+    "created_at": "2026-09-14T09:18:45.311Z"
+  },
+  {
+    "id": "ccf17822-aff6-4603-85b9-b17518ed1c90",
+    "user_id": "test-user-328ddeea-bc80-414a-a574-d2af38267fd8",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "8d7d5ca4-194a-427e-94cb-8ee7018b8c9a",
+    "transaction_id": "1557428e-1a8c-4844-bae0-8c8064e19a5c",
+    "amount": 800,
+    "created_at": "2026-09-14T09:19:11.285Z"
+  },
+  {
+    "id": "c1a58ff4-4a5c-4367-81bf-738194a58c20",
+    "user_id": "test-user-328ddeea-bc80-414a-a574-d2af38267fd8",
+    "reward_type": "SHOWCASE_CREDIT",
+    "organization_id": "1b22e15e-6520-4fa7-87f9-35b6fa49d2c2",
+    "transaction_id": "52bf50fb-32c2-415c-b915-cbc8a658f6c5",
+    "amount": 300,
+    "created_at": "2026-09-14T09:19:11.763Z"
+  },
+  {
+    "id": "27d85c74-1cb2-4292-a6ee-341b3c875803",
+    "user_id": "test-concurrent-8e0ec376-e39c-41d2-a582-2b545940edc1",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "17ccf4b6-8274-410f-a99f-5c2eae294447",
+    "transaction_id": "e99f19df-15a0-486e-b25e-35a293db67f2",
+    "amount": 800,
+    "created_at": "2026-09-14T09:19:11.910Z"
+  },
+  {
+    "id": "157fea47-7e74-4131-b18a-62422c7c0873",
+    "user_id": "f77bc21a-81ea-4aae-a9b8-5b2ce9525746",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "cb6893ae-13d1-4135-b06c-9ade0da9f2e9",
+    "transaction_id": "213c6e5b-d955-4d58-b90a-e0698ddfaca1",
+    "amount": 800,
+    "created_at": "2026-09-14T09:19:26.747Z"
+  },
+  {
+    "id": "81dc5211-1b9b-4432-8236-eea7151f83c9",
+    "user_id": "b2653887-3ec6-4a99-bafc-8e4b8a9546be",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "b775667a-c45b-4128-99a9-629ea6b6f5e5",
+    "transaction_id": "83950d31-0050-4dfc-81a3-643054de2cf8",
+    "amount": 800,
+    "created_at": "2026-09-14T09:19:26.965Z"
+  },
+  {
+    "id": "6b75fa46-7d28-4f31-a70b-0cbda230e21e",
+    "user_id": "f77bc21a-81ea-4aae-a9b8-5b2ce9525746",
+    "reward_type": "SHOWCASE_CREDIT",
+    "organization_id": "3ba5aed7-f6dd-4964-80e7-d5bee3083bc2",
+    "transaction_id": "de13017a-56b4-46de-b6fd-c030b6b86132",
+    "amount": 300,
+    "created_at": "2026-09-14T09:19:27.819Z"
+  },
+  {
+    "id": "5ff6d053-3322-4614-bc5c-70b0047d9b07",
+    "user_id": "test-user-98aecf44-7e41-4324-92b7-13effd9ccfb9",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "f187a60e-7d78-42a7-a4b7-1c9f383c4b55",
+    "transaction_id": "fd5ae1b3-0f2e-442c-8691-b20b79123be3",
+    "amount": 800,
+    "created_at": "2026-09-14T09:21:25.853Z"
+  },
+  {
+    "id": "6f9847f7-338a-45d5-aa15-ee9f626b92b6",
+    "user_id": "test-user-98aecf44-7e41-4324-92b7-13effd9ccfb9",
+    "reward_type": "SHOWCASE_CREDIT",
+    "organization_id": "5a7ed625-9684-4744-891b-3639ba0a759e",
+    "transaction_id": "c25c716c-0f0a-4dae-89f8-91e00428607a",
+    "amount": 300,
+    "created_at": "2026-09-14T09:21:26.084Z"
+  },
+  {
+    "id": "2b1f1449-a725-424f-9aea-a2f955f0ab04",
+    "user_id": "test-concurrent-2643aff0-5f1c-4b86-920e-8123a75a39c1",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "d59bd94b-e0f4-4dd6-b687-1a523f868c42",
+    "transaction_id": "98f9a01b-82f7-4351-9c20-be5841dd8d08",
+    "amount": 800,
+    "created_at": "2026-09-14T09:21:26.141Z"
+  },
+  {
+    "id": "028adc15-2309-4b8c-8e21-927e3303bb63",
+    "user_id": "71120ca0-6ee3-41bb-9814-778d79b85930",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "a844a28c-7bf4-48dc-a024-9f949e004559",
+    "transaction_id": "6228d889-01d4-4a11-9d79-b1f815736f8d",
+    "amount": 800,
+    "created_at": "2026-09-14T09:29:04.790Z"
+  },
+  {
+    "id": "e2780f8d-0012-4cfd-a78e-ff821110acb6",
+    "user_id": "fccaef17-2f4d-42ec-ada2-b5db54c79864",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "fea030cf-b35d-4676-83d4-23c3eea47535",
+    "transaction_id": "02be63dd-1f9d-47c2-bafd-5620d9f6bc9a",
+    "amount": 800,
+    "created_at": "2026-09-14T09:31:35.711Z"
   }
 ]

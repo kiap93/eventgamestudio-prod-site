@@ -1,1 +1,32 @@
-[]
+[
+  {
+    "owner_user_id": "test-user-328ddeea-bc80-414a-a574-d2af38267fd8",
+    "organization_id": "1b22e15e-6520-4fa7-87f9-35b6fa49d2c2",
+    "event_id": "fbace8e8-545b-471e-8c30-29cfaf6cfa87",
+    "showcase_id": "",
+    "transaction_id": "52bf50fb-32c2-415c-b915-cbc8a658f6c5",
+    "amount": 300,
+    "rewarded_at": "2026-09-14T09:19:11.763Z",
+    "created_at": "2026-09-14T09:19:11.763Z"
+  },
+  {
+    "owner_user_id": "f77bc21a-81ea-4aae-a9b8-5b2ce9525746",
+    "organization_id": "3ba5aed7-f6dd-4964-80e7-d5bee3083bc2",
+    "event_id": "",
+    "showcase_id": "",
+    "transaction_id": "de13017a-56b4-46de-b6fd-c030b6b86132",
+    "amount": 300,
+    "rewarded_at": "2026-09-14T09:19:27.819Z",
+    "created_at": "2026-09-14T09:19:27.819Z"
+  },
+  {
+    "owner_user_id": "test-user-98aecf44-7e41-4324-92b7-13effd9ccfb9",
+    "organization_id": "5a7ed625-9684-4744-891b-3639ba0a759e",
+    "event_id": "69af622b-d2b5-4dcc-90bc-d44d948fa485",
+    "showcase_id": "",
+    "transaction_id": "c25c716c-0f0a-4dae-89f8-91e00428607a",
+    "amount": 300,
+    "rewarded_at": "2026-09-14T09:21:26.084Z",
+    "created_at": "2026-09-14T09:21:26.084Z"
+  }
+]

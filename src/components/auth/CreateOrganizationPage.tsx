@@ -1,17 +1,26 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { CountrySelect } from '../common/CountrySelect';
-import { navigateTo } from '../../hooks/useRouteContext';
-import { Building2, Sparkles, ArrowRight, Shield, Loader2 } from 'lucide-react';
+import { navigateTo, navigateBack } from '../../hooks/useRouteContext';
+import { Building2, Sparkles, ArrowRight, ArrowLeft, Shield, Loader2 } from 'lucide-react';
 
 export const CreateOrganizationPage: React.FC = () => {
-  const { createOrganization, logout, currentUser } = useAuth();
+  const { createOrganization, logout, currentUser, cancelCreateOrganization } = useAuth();
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [countryCode, setCountryCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const handleGoBack = () => {
+    // Safely restore previous active organization if user belongs to existing organization(s)
+    if (cancelCreateOrganization) {
+      cancelCreateOrganization();
+    }
+    // Navigate back to the previous route, safely falling back to /dashboard
+    navigateBack('/dashboard');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +74,19 @@ export const CreateOrganizationPage: React.FC = () => {
 
   return (
     <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans">
+      {/* Top-left Go Back button above the form/card */}
+      <div className="w-full max-w-lg mb-4 flex items-center justify-start z-10">
+        <button
+          id="create-org-go-back-btn"
+          type="button"
+          onClick={handleGoBack}
+          className="inline-flex items-center gap-2 px-3.5 py-2.5 min-h-[44px] bg-slate-900/90 hover:bg-slate-850 active:scale-95 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-md group focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+        >
+          <ArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-amber-400 group-hover:-translate-x-0.5 transition-all shrink-0" />
+          <span>Go Back</span>
+        </button>
+      </div>
+
       <div className="max-w-lg w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl relative z-10">
         <div className="flex items-center justify-between mb-6 border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
@@ -138,7 +160,7 @@ export const CreateOrganizationPage: React.FC = () => {
               <span>You will be assigned as Organization Owner</span>
             </div>
             <p className="text-slate-400 leading-relaxed text-[11px]">
-              As owner, you receive an automatic <strong className="text-amber-400">RM800 Welcome Credit</strong> for your first event, and can earn an additional one-time <strong className="text-amber-400">RM300 Showcase Reward</strong> upon publishing photos/video of your first completed event activation.
+              First-time owners receive an automatic <strong className="text-amber-400">RM800 Welcome Credit</strong> for their first event, and can earn an additional one-time <strong className="text-amber-400">RM300 Showcase Reward</strong> upon publishing photos/video of their first completed event activation (strictly one-time per user account lifetime across all organizations).
             </p>
           </div>
 

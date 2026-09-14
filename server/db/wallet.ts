@@ -1514,6 +1514,7 @@ export async function grantWelcomeCredit(
 
 /**
  * Check if a user has already received Welcome Credit in their account lifetime.
+ * This is strictly a one-time per user account lifetime limit.
  */
 export async function hasUserReceivedWelcomeCredit(
   userId: string,
@@ -1523,55 +1524,60 @@ export async function hasUserReceivedWelcomeCredit(
 
   if (isSupabaseConfigured(env)) {
     const supabase = getSupabaseServerClient(env);
-    try {
-      const { data } = await supabase
-        .from('user_rewards')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('reward_type', 'WELCOME_CREDIT')
-        .maybeSingle();
 
-      if (data) return true;
-    } catch {
-      // ignore
+    // 1. Check user_rewards table
+    const { data: rewardData, error: rewardErr } = await supabase
+      .from('user_rewards')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('reward_type', 'WELCOME_CREDIT')
+      .maybeSingle();
+
+    if (rewardErr && !isLocalFallbackAllowed(env)) {
+      throw new Error(`Database error checking user_rewards for welcome credit: ${rewardErr.message}`);
+    }
+    if (rewardData) return true;
+
+    // 2. Check wallet_transactions table
+    const { data: txnData, error: txnErr } = await supabase
+      .from('wallet_transactions')
+      .select('id')
+      .eq('transaction_type', 'WELCOME_CREDIT')
+      .eq('status', 'COMPLETED')
+      .or(`owner_user_id.eq.${userId},created_by.eq.${userId}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (txnErr && !isLocalFallbackAllowed(env)) {
+      throw new Error(`Database error checking wallet_transactions for welcome credit: ${txnErr.message}`);
+    }
+    if (txnData) return true;
+
+    // 3. Check organizations owned by this user
+    const { data: userOrgs, error: orgsErr } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('owner_id', userId);
+
+    if (orgsErr && !isLocalFallbackAllowed(env)) {
+      throw new Error(`Database error checking organizations for welcome credit: ${orgsErr.message}`);
     }
 
-    try {
-      const { data: txnData } = await supabase
+    if (userOrgs && userOrgs.length > 0) {
+      const orgIds = userOrgs.map((o) => o.id);
+      const { data: orgTxn, error: orgTxnErr } = await supabase
         .from('wallet_transactions')
         .select('id')
         .eq('transaction_type', 'WELCOME_CREDIT')
         .eq('status', 'COMPLETED')
-        .or(`owner_user_id.eq.${userId},created_by.eq.${userId}`)
+        .in('organization_id', orgIds)
         .limit(1)
         .maybeSingle();
 
-      if (txnData) return true;
-    } catch {
-      // ignore
-    }
-
-    try {
-      const { data: userOrgs } = await supabase
-        .from('organizations')
-        .select('id')
-        .eq('owner_id', userId);
-
-      if (userOrgs && userOrgs.length > 0) {
-        const orgIds = userOrgs.map((o) => o.id);
-        const { data: orgTxn } = await supabase
-          .from('wallet_transactions')
-          .select('id')
-          .eq('transaction_type', 'WELCOME_CREDIT')
-          .eq('status', 'COMPLETED')
-          .in('organization_id', orgIds)
-          .limit(1)
-          .maybeSingle();
-
-        if (orgTxn) return true;
+      if (orgTxnErr && !isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error checking organization transactions for welcome credit: ${orgTxnErr.message}`);
       }
-    } catch {
-      // ignore
+      if (orgTxn) return true;
     }
 
     return false;
@@ -1604,6 +1610,126 @@ export async function hasUserReceivedWelcomeCredit(
         t.status === 'COMPLETED'
     );
     if (orgWelcomeTxn) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Check if a user/owner has already received Showcase Credit in their account lifetime.
+ * This is strictly a one-time per user account lifetime limit.
+ */
+export async function hasUserReceivedShowcaseCredit(
+  userId: string,
+  env?: Record<string, any>
+): Promise<boolean> {
+  if (!userId) return false;
+
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+
+    // 1. Check user_rewards table
+    const { data: userReward, error: userRewardErr } = await supabase
+      .from('user_rewards')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('reward_type', 'SHOWCASE_CREDIT')
+      .maybeSingle();
+
+    if (userRewardErr && !isLocalFallbackAllowed(env)) {
+      throw new Error(`Database error checking user_rewards for showcase credit: ${userRewardErr.message}`);
+    }
+    if (userReward) return true;
+
+    // 2. Check owner_showcase_rewards ledger
+    const { data: ownerReward, error: ownerRewardErr } = await supabase
+      .from('owner_showcase_rewards')
+      .select('owner_user_id')
+      .eq('owner_user_id', userId)
+      .maybeSingle();
+
+    if (ownerRewardErr && !isLocalFallbackAllowed(env)) {
+      throw new Error(`Database error checking owner_showcase_rewards: ${ownerRewardErr.message}`);
+    }
+    if (ownerReward) return true;
+
+    // 3. Check wallet_transactions table
+    const { data: txnData, error: txnErr } = await supabase
+      .from('wallet_transactions')
+      .select('id')
+      .eq('transaction_type', 'SHOWCASE_CREDIT')
+      .eq('status', 'COMPLETED')
+      .or(`owner_user_id.eq.${userId},created_by.eq.${userId}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (txnErr && !isLocalFallbackAllowed(env)) {
+      throw new Error(`Database error checking wallet_transactions for showcase credit: ${txnErr.message}`);
+    }
+    if (txnData) return true;
+
+    // 4. Check organizations owned by this user
+    const { data: userOrgs, error: orgsErr } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('owner_id', userId);
+
+    if (orgsErr && !isLocalFallbackAllowed(env)) {
+      throw new Error(`Database error checking organizations for showcase credit: ${orgsErr.message}`);
+    }
+
+    if (userOrgs && userOrgs.length > 0) {
+      const orgIds = userOrgs.map((o) => o.id);
+      const { data: orgTxn, error: orgTxnErr } = await supabase
+        .from('wallet_transactions')
+        .select('id')
+        .eq('transaction_type', 'SHOWCASE_CREDIT')
+        .eq('status', 'COMPLETED')
+        .in('organization_id', orgIds)
+        .limit(1)
+        .maybeSingle();
+
+      if (orgTxnErr && !isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error checking organization showcase transactions: ${orgTxnErr.message}`);
+      }
+      if (orgTxn) return true;
+    }
+
+    return false;
+  }
+
+  // Local fallback
+  if (localUserRewardsCache.has(`${userId}:SHOWCASE_CREDIT`)) {
+    return true;
+  }
+
+  if (localOwnerShowcaseRewardsCache.has(userId)) {
+    return true;
+  }
+
+  const existingTxn = Array.from(localTransactionsCache.values()).find(
+    (t) =>
+      (t.owner_user_id === userId || t.created_by === userId) &&
+      t.transaction_type === 'SHOWCASE_CREDIT' &&
+      t.status === 'COMPLETED'
+  );
+  if (existingTxn) return true;
+
+  const { localOrgsCache } = await import('./organizations.js');
+  const userOrgIds = new Set(
+    Array.from(localOrgsCache.values())
+      .filter((o) => o.owner_id === userId)
+      .map((o) => o.id)
+  );
+
+  if (userOrgIds.size > 0) {
+    const orgTxn = Array.from(localTransactionsCache.values()).find(
+      (t) =>
+        userOrgIds.has(t.organization_id) &&
+        t.transaction_type === 'SHOWCASE_CREDIT' &&
+        t.status === 'COMPLETED'
+    );
+    if (orgTxn) return true;
   }
 
   return false;
@@ -1826,7 +1952,7 @@ export async function consumeWelcomeCredit(
 
 /**
  * Grant one-time Showcase Credit (RM300.00) after approved Showcase program completion.
- * Strictly enforced to be granted only once per organization.
+ * Strictly enforced to be granted only once per user/owner account lifetime across all organizations.
  */
 export async function grantShowcaseCredit(
   params: {
@@ -1850,206 +1976,228 @@ export async function grantShowcaseCredit(
     throw new Error('Organization ID is required');
   }
 
-  // Serialize execution per organization to prevent in-process race conditions
-  return await withOrganizationLock(organizationId, async () => {
-    let existing: WalletTransactionRecord | undefined = undefined;
+  // 1. Resolve target owner user ID (Showcase Credit is strictly an owner-level lifetime reward)
+  let targetOwnerId = ownerUserId;
+  if (!targetOwnerId) {
+    targetOwnerId = (await resolveOrgOwnerId(organizationId, env)) || createdBy;
+  }
 
-    if (isSupabaseConfigured(env)) {
-      const supabase = getSupabaseServerClient(env);
+  if (!targetOwnerId) {
+    const currentWallet = await getWalletBalance(organizationId, env);
+    return {
+      transaction: null as any,
+      wallet: currentWallet,
+      alreadyGranted: true,
+      message: 'Valid owner user ID is required to evaluate and grant Showcase Credit (Showcase Credit is strictly an owner-level lifetime reward).',
+    };
+  }
 
-      // Check owner-level lifetime eligibility in database
-      if (ownerUserId) {
-        const { data: existingOwnerReward } = await supabase
-          .from('owner_showcase_rewards')
-          .select('*')
-          .eq('owner_user_id', ownerUserId)
-          .maybeSingle();
+  // 2. Serialize execution per user and per organization to prevent in-process race conditions
+  return await withUserRewardLock(targetOwnerId, async () => {
+    return await withOrganizationLock(organizationId, async () => {
+      // 3. Check owner-level lifetime eligibility first
+      const alreadyRewarded = await hasUserReceivedShowcaseCredit(targetOwnerId!, env);
+      if (alreadyRewarded) {
+        let existingTxn: WalletTransactionRecord | null = null;
+        if (isSupabaseConfigured(env)) {
+          const supabase = getSupabaseServerClient(env);
+          const { data } = await supabase
+            .from('wallet_transactions')
+            .select('*')
+            .eq('transaction_type', 'SHOWCASE_CREDIT')
+            .eq('status', 'COMPLETED')
+            .or(`owner_user_id.eq.${targetOwnerId},created_by.eq.${targetOwnerId}`)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (data) {
+            existingTxn = data as WalletTransactionRecord;
+          }
+        } else {
+          existingTxn = Array.from(localTransactionsCache.values()).find(
+            (t) =>
+              (t.owner_user_id === targetOwnerId || t.created_by === targetOwnerId) &&
+              t.transaction_type === 'SHOWCASE_CREDIT' &&
+              t.status === 'COMPLETED'
+          ) || null;
+        }
 
-        if (existingOwnerReward) {
-          const currentWallet = await getWalletBalance(organizationId, env);
-          return {
-            transaction: {
-              id: existingOwnerReward.transaction_id,
+        const currentWallet = await getWalletBalance(organizationId, env);
+        return {
+          transaction: existingTxn || ({
+            id: crypto.randomUUID(),
+            organization_id: organizationId,
+            owner_user_id: targetOwnerId,
+            event_id: eventId || null,
+            transaction_type: 'SHOWCASE_CREDIT',
+            balance_type: 'SHOWCASE_CREDIT',
+            amount: SHOWCASE_CREDIT_AMOUNT,
+            currency: 'MYR',
+            status: 'COMPLETED',
+            reference_id: referenceId || null,
+            description: 'One-time Event Showcase completion reward credit',
+            metadata: null,
+            created_by: null,
+            created_at: new Date().toISOString(),
+          } as WalletTransactionRecord),
+          wallet: currentWallet,
+          alreadyGranted: true,
+          message: 'First-event showcase reward credit has already been granted to this owner (one-time lifetime reward).',
+        };
+      }
+
+      const now = new Date().toISOString();
+
+      if (isSupabaseConfigured(env)) {
+        const supabase = getSupabaseServerClient(env);
+
+        // 4. Atomically reserve reward in user_rewards table
+        let userRewardRecord: UserRewardRecord | null = null;
+        try {
+          const { data: insertReward, error: insertError } = await supabase
+            .from('user_rewards')
+            .insert({
+              user_id: targetOwnerId,
+              reward_type: 'SHOWCASE_CREDIT',
               organization_id: organizationId,
-              owner_user_id: ownerUserId,
+              amount: SHOWCASE_CREDIT_AMOUNT,
+              created_at: now,
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            if (
+              insertError.code === '23505' ||
+              insertError.message?.includes('duplicate key') ||
+              insertError.message?.includes('ux_user_rewards') ||
+              insertError.message?.includes('unique')
+            ) {
+              const currentWallet = await getWalletBalance(organizationId, env);
+              return {
+                transaction: null as any,
+                wallet: currentWallet,
+                alreadyGranted: true,
+                message: 'First-event showcase reward credit has already been granted to this owner (one-time lifetime reward).',
+              };
+            }
+            if (!isLocalFallbackAllowed(env)) {
+              throw new Error(`Failed to record user showcase credit reward reservation: ${insertError.message}`);
+            }
+          } else if (insertReward) {
+            userRewardRecord = insertReward as UserRewardRecord;
+          }
+        } catch (rewardErr: any) {
+          if (!isLocalFallbackAllowed(env)) {
+            throw rewardErr;
+          }
+        }
+
+        if (!userRewardRecord && !isLocalFallbackAllowed(env)) {
+          throw new Error('Showcase Credit user reservation failed: database could not confirm reservation.');
+        }
+
+        // 5. Append SHOWCASE_CREDIT to immutable wallet transactions ledger
+        let transaction: WalletTransactionRecord;
+        try {
+          transaction = await appendLedgerTransaction(
+            {
+              organization_id: organizationId,
+              owner_user_id: targetOwnerId,
               event_id: eventId || null,
               transaction_type: 'SHOWCASE_CREDIT',
               balance_type: 'SHOWCASE_CREDIT',
               amount: SHOWCASE_CREDIT_AMOUNT,
               currency: 'MYR',
               status: 'COMPLETED',
-              reference_id: referenceId || null,
-              description: 'One-time Event Showcase completion reward credit',
-              metadata: null,
-              created_by: null,
-              created_at: existingOwnerReward.rewarded_at,
+              reference_id: referenceId || `showcase_${organizationId}`,
+              description: `One-time Event Showcase completion reward credit of RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)}`,
+              metadata: {
+                ...(metadata || {}),
+                program: 'EVENT_SHOWCASE_APPROVED_REWARD',
+                event_id: eventId || null,
+                owner_user_id: targetOwnerId,
+              },
+              created_by: createdBy || null,
             },
-            wallet: currentWallet,
-            alreadyGranted: true,
-            message: 'First-event showcase reward credit has already been granted to this owner (one-time lifetime reward).',
-          };
-        }
-      }
-
-      // Option B: Atomic PostgreSQL RPC with row-level FOR UPDATE locking on organization_wallets
-      try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('grant_showcase_credit_atomic', {
-          p_organization_id: organizationId,
-          p_event_id: eventId || null,
-          p_created_by: createdBy || null,
-          p_reference_id: referenceId || null,
-          p_metadata: metadata || {},
-        });
-
-        if (!rpcError && rpcData && rpcData.success) {
-          const txn = rpcData.transaction as WalletTransactionRecord;
-          if (isLocalFallbackAllowed(env)) {
-            localTransactionsCache.set(txn.id, txn);
+            env
+          );
+        } catch (insertErr: any) {
+          if (
+            insertErr.message?.includes('duplicate key') ||
+            insertErr.message?.includes('ux_wallet_txns_owner_showcase_credit_unique') ||
+            insertErr.message?.includes('ux_wallet_txns_showcase_credit') ||
+            insertErr.code === '23505'
+          ) {
+            const currentWallet = await getWalletBalance(organizationId, env);
+            return {
+              transaction: null as any,
+              wallet: currentWallet,
+              alreadyGranted: true,
+              message: 'First-event showcase reward credit has already been granted to this owner (one-time lifetime reward).',
+            };
           }
-          const wallet = await getWalletBalance(organizationId, env);
-
-          return {
-            transaction: txn,
-            wallet,
-            alreadyGranted: Boolean(rpcData.already_granted),
-            message: rpcData.message,
-          };
+          throw insertErr;
         }
 
-        if (rpcError) {
-          const isMissingRpc =
-            rpcError.code === 'PGRST202' ||
-            rpcError.message?.includes('does not exist') ||
-            rpcError.message?.includes('function');
-
-          if (!isMissingRpc) {
-            // If it's a unique constraint violation from concurrent execution, gracefully return alreadyGranted
-            if (
-              rpcError.message?.includes('duplicate key') ||
-              rpcError.message?.includes('ux_wallet_txns_showcase_credit') ||
-              rpcError.message?.includes('idx_wallet_tx_org_showcase_credit_unique') ||
-              rpcError.code === '23505'
-            ) {
-              const { data: racedTxn } = await supabase
-                .from('wallet_transactions')
-                .select('*')
-                .eq('organization_id', organizationId)
-                .eq('transaction_type', 'SHOWCASE_CREDIT')
-                .eq('status', 'COMPLETED')
-                .maybeSingle();
-
-              const currentWallet = await getWalletBalance(organizationId, env);
-              const fallbackTxn: WalletTransactionRecord = {
-                id: crypto.randomUUID(),
-                organization_id: organizationId,
-                event_id: null,
-                transaction_type: 'SHOWCASE_CREDIT',
-                balance_type: 'SHOWCASE_CREDIT',
-                amount: SHOWCASE_CREDIT_AMOUNT,
-                currency: 'MYR',
-                status: 'COMPLETED',
-                reference_id: null,
-                description: 'One-time Event Showcase completion reward credit',
-                metadata: null,
-                created_by: null,
-                created_at: new Date().toISOString(),
-              };
-              return {
-                transaction: (racedTxn as WalletTransactionRecord) || fallbackTxn,
-                wallet: currentWallet,
-                alreadyGranted: true,
-                message: 'Showcase Credit has already been granted to this organization (one-time reward).',
-              };
-            }
-
-            console.error('Fatal: Supabase grant_showcase_credit_atomic failed in production:', rpcError);
-            throw new Error(`Financial ledger transaction failed: ${rpcError.message}`);
+        // 6. Update user_rewards with the transaction_id
+        if (userRewardRecord?.id) {
+          try {
+            await supabase
+              .from('user_rewards')
+              .update({ transaction_id: transaction.id })
+              .eq('id', userRewardRecord.id);
+          } catch {
+            // non-fatal
           }
         }
-      } catch (err: any) {
-        if (
-          err.message?.includes('duplicate key') ||
-          err.message?.includes('ux_wallet_txns_showcase_credit') ||
-          err.message?.includes('idx_wallet_tx_org_showcase_credit_unique') ||
-          err.code === '23505'
-        ) {
-          const { data: racedTxn } = await supabase
-            .from('wallet_transactions')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .eq('transaction_type', 'SHOWCASE_CREDIT')
-            .eq('status', 'COMPLETED')
-            .maybeSingle();
 
-          const currentWallet = await getWalletBalance(organizationId, env);
-          const fallbackTxn: WalletTransactionRecord = {
-            id: crypto.randomUUID(),
-            organization_id: organizationId,
-            event_id: null,
-            transaction_type: 'SHOWCASE_CREDIT',
-            balance_type: 'SHOWCASE_CREDIT',
-            amount: SHOWCASE_CREDIT_AMOUNT,
-            currency: 'MYR',
-            status: 'COMPLETED',
-            reference_id: null,
-            description: 'One-time Event Showcase completion reward credit',
-            metadata: null,
-            created_by: null,
-            created_at: new Date().toISOString(),
-          };
-          return {
-            transaction: (racedTxn as WalletTransactionRecord) || fallbackTxn,
-            wallet: currentWallet,
-            alreadyGranted: true,
-            message: 'Showcase Credit has already been granted to this organization (one-time reward).',
-          };
+        // 7. Upsert into owner_showcase_rewards
+        try {
+          await supabase
+            .from('owner_showcase_rewards')
+            .upsert({
+              owner_user_id: targetOwnerId,
+              organization_id: organizationId,
+              event_id: eventId || null,
+              showcase_id: metadata?.showcase_id || null,
+              transaction_id: transaction.id,
+              amount: SHOWCASE_CREDIT_AMOUNT,
+              rewarded_at: now,
+              created_at: now,
+            });
+        } catch {
+          // non-fatal
         }
 
-        // If not missing function error, propagate fatal error in production
-        if (
-          !err.message?.includes('does not exist') &&
-          !err.message?.includes('function') &&
-          (isProductionEnvironment(env) || !isLocalFallbackAllowed(env))
-        ) {
-          throw err;
-        }
-      }
+        const wallet = await recalculateWalletBalances(organizationId, env);
 
-      // Fallback query if RPC was not deployed
-      const { data, error } = await supabase
-        .from('wallet_transactions')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .eq('transaction_type', 'SHOWCASE_CREDIT')
-        .eq('status', 'COMPLETED')
-        .maybeSingle();
-
-      if (error) {
-        console.error('Fatal: Supabase check showcase credit failed in production:', error);
-        throw new Error(`Financial ledger transaction failed: ${error.message}`);
-      }
-
-      if (data) {
-        existing = data as WalletTransactionRecord;
-        if (isLocalFallbackAllowed(env)) {
-          localTransactionsCache.set(existing.id, existing);
-        }
-      }
-
-      if (existing) {
-        const currentWallet = await getWalletBalance(organizationId, env);
         return {
-          transaction: existing,
-          wallet: currentWallet,
-          alreadyGranted: true,
-          message: 'Showcase Credit has already been granted to this organization (one-time reward).',
+          transaction,
+          wallet,
+          alreadyGranted: false,
+          message: `Successfully granted RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)} Showcase Reward Credit!`,
         };
-      }
+      } else {
+        assertProductionSafe('grantShowcaseCredit', env);
 
-      try {
+        // Record in user_rewards local cache
+        const userRewardRecord: UserRewardRecord = {
+          id: crypto.randomUUID(),
+          user_id: targetOwnerId,
+          reward_type: 'SHOWCASE_CREDIT',
+          organization_id: organizationId,
+          transaction_id: null,
+          amount: SHOWCASE_CREDIT_AMOUNT,
+          created_at: now,
+        };
+        localUserRewardsCache.set(`${targetOwnerId}:SHOWCASE_CREDIT`, userRewardRecord);
+
+        // Append to immutable ledger
         const transaction = await appendLedgerTransaction(
           {
             organization_id: organizationId,
+            owner_user_id: targetOwnerId,
             event_id: eventId || null,
             transaction_type: 'SHOWCASE_CREDIT',
             balance_type: 'SHOWCASE_CREDIT',
@@ -2062,11 +2210,28 @@ export async function grantShowcaseCredit(
               ...(metadata || {}),
               program: 'EVENT_SHOWCASE_APPROVED_REWARD',
               event_id: eventId || null,
+              owner_user_id: targetOwnerId,
             },
             created_by: createdBy || null,
           },
           env
         );
+
+        userRewardRecord.transaction_id = transaction.id;
+
+        // Record in owner_showcase_rewards cache
+        localOwnerShowcaseRewardsCache.set(targetOwnerId, {
+          owner_user_id: targetOwnerId,
+          organization_id: organizationId,
+          event_id: eventId || '',
+          showcase_id: metadata?.showcase_id || '',
+          transaction_id: transaction.id,
+          amount: SHOWCASE_CREDIT_AMOUNT,
+          rewarded_at: now,
+          created_at: now,
+        });
+
+        saveLocalStores();
 
         const wallet = await recalculateWalletBalances(organizationId, env);
 
@@ -2076,158 +2241,8 @@ export async function grantShowcaseCredit(
           alreadyGranted: false,
           message: `Successfully granted RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)} Showcase Reward Credit!`,
         };
-      } catch (insertErr: any) {
-        // Option A Unique Constraint check: catch concurrent insert collision
-        if (
-          insertErr.message?.includes('duplicate key') ||
-          insertErr.message?.includes('ux_wallet_txns_showcase_credit') ||
-          insertErr.message?.includes('idx_wallet_tx_org_showcase_credit_unique') ||
-          insertErr.code === '23505'
-        ) {
-          const { data: racedTxn } = await supabase
-            .from('wallet_transactions')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .eq('transaction_type', 'SHOWCASE_CREDIT')
-            .eq('status', 'COMPLETED')
-            .maybeSingle();
-
-          const currentWallet = await getWalletBalance(organizationId, env);
-          const fallbackTxn: WalletTransactionRecord = {
-            id: crypto.randomUUID(),
-            organization_id: organizationId,
-            event_id: null,
-            transaction_type: 'SHOWCASE_CREDIT',
-            balance_type: 'SHOWCASE_CREDIT',
-            amount: SHOWCASE_CREDIT_AMOUNT,
-            currency: 'MYR',
-            status: 'COMPLETED',
-            reference_id: null,
-            description: 'One-time Event Showcase completion reward credit',
-            metadata: null,
-            created_by: null,
-            created_at: new Date().toISOString(),
-          };
-          return {
-            transaction: (racedTxn as WalletTransactionRecord) || fallbackTxn,
-            wallet: currentWallet,
-            alreadyGranted: true,
-            message: 'Showcase Credit has already been granted to this organization (one-time reward).',
-          };
-        }
-        throw insertErr;
       }
-    } else {
-      assertProductionSafe('grantShowcaseCredit', env);
-
-      // Check owner-level lifetime eligibility in local stores
-      if (ownerUserId) {
-        const ownerReward = localOwnerShowcaseRewardsCache.get(ownerUserId);
-        if (ownerReward) {
-          const currentWallet = await getWalletBalance(organizationId, env);
-          return {
-            transaction: {
-              id: ownerReward.transaction_id,
-              organization_id: organizationId,
-              owner_user_id: ownerUserId,
-              event_id: eventId || null,
-              transaction_type: 'SHOWCASE_CREDIT',
-              balance_type: 'SHOWCASE_CREDIT',
-              amount: SHOWCASE_CREDIT_AMOUNT,
-              currency: 'MYR',
-              status: 'COMPLETED',
-              reference_id: referenceId || null,
-              description: 'One-time Event Showcase completion reward credit',
-              metadata: null,
-              created_by: null,
-              created_at: ownerReward.rewarded_at,
-            },
-            wallet: currentWallet,
-            alreadyGranted: true,
-            message: 'First-event showcase reward credit has already been granted to this owner (one-time lifetime reward).',
-          };
-        }
-
-        const ownerTxn = Array.from(localTransactionsCache.values()).find(
-          (t) =>
-            t.owner_user_id === ownerUserId &&
-            t.transaction_type === 'SHOWCASE_CREDIT' &&
-            t.status === 'COMPLETED'
-        );
-        if (ownerTxn) {
-          const currentWallet = await getWalletBalance(organizationId, env);
-          return {
-            transaction: ownerTxn,
-            wallet: currentWallet,
-            alreadyGranted: true,
-            message: 'First-event showcase reward credit has already been granted to this owner (one-time lifetime reward).',
-          };
-        }
-      }
-
-      existing = Array.from(localTransactionsCache.values()).find(
-        (t) =>
-          t.organization_id === organizationId &&
-          t.transaction_type === 'SHOWCASE_CREDIT' &&
-          t.status === 'COMPLETED'
-      );
-
-      if (existing) {
-        const currentWallet = await getWalletBalance(organizationId, env);
-        return {
-          transaction: existing,
-          wallet: currentWallet,
-          alreadyGranted: true,
-          message: 'Showcase Credit has already been granted to this organization (one-time reward).',
-        };
-      }
-
-      const transaction = await appendLedgerTransaction(
-        {
-          organization_id: organizationId,
-          owner_user_id: ownerUserId || null,
-          event_id: eventId || null,
-          transaction_type: 'SHOWCASE_CREDIT',
-          balance_type: 'SHOWCASE_CREDIT',
-          amount: SHOWCASE_CREDIT_AMOUNT,
-          currency: 'MYR',
-          status: 'COMPLETED',
-          reference_id: referenceId || `showcase_${organizationId}`,
-          description: `One-time Event Showcase completion reward credit of RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)}`,
-          metadata: {
-            ...(metadata || {}),
-            program: 'EVENT_SHOWCASE_APPROVED_REWARD',
-            event_id: eventId || null,
-            owner_user_id: ownerUserId || null,
-          },
-          created_by: createdBy || null,
-        },
-        env
-      );
-
-      if (ownerUserId) {
-        localOwnerShowcaseRewardsCache.set(ownerUserId, {
-          owner_user_id: ownerUserId,
-          organization_id: organizationId,
-          event_id: eventId || '',
-          showcase_id: metadata?.showcase_id || '',
-          transaction_id: transaction.id,
-          amount: SHOWCASE_CREDIT_AMOUNT,
-          rewarded_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        });
-        saveLocalStores();
-      }
-
-      const wallet = await recalculateWalletBalances(organizationId, env);
-
-      return {
-        transaction,
-        wallet,
-        alreadyGranted: false,
-        message: `Successfully granted RM${SHOWCASE_CREDIT_AMOUNT.toFixed(2)} Showcase Reward Credit!`,
-      };
-    }
+    });
   });
 }
 

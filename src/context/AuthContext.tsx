@@ -49,6 +49,7 @@ interface AuthContextType {
   switchOrganization: (orgId: string) => Promise<void>;
   createOrganization: (name: string, logoUrl?: string, countryCode?: string) => Promise<string>;
   startCreateOrganization: () => void;
+  cancelCreateOrganization: () => void;
   updateOrganizationCountry: (countryCode: string) => Promise<void>;
   refreshSession: () => Promise<void>;
   fetchActiveGame: () => Promise<void>;
@@ -75,6 +76,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
+  const [previousActiveOrg, setPreviousActiveOrg] = useState<Organization | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [token, setToken] = useState<string | null>(localStorage.getItem('app_token'));
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -387,9 +389,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const startCreateOrganization = useCallback(() => {
     console.log('[AuthContext] Initiating new organization creation flow');
+    if (currentOrganization) {
+      setPreviousActiveOrg(currentOrganization);
+    }
     setCurrentOrganization(null);
     navigateTo('/create-organization');
-  }, []);
+  }, [currentOrganization]);
+
+  const cancelCreateOrganization = useCallback(() => {
+    console.log('[AuthContext] Cancelling organization creation flow, restoring active organization');
+    if (previousActiveOrg) {
+      setCurrentOrganization(previousActiveOrg);
+    } else if (organizations.length > 0) {
+      setCurrentOrganization(organizations[0]);
+    }
+  }, [previousActiveOrg, organizations]);
 
   const createOrganization = async (name: string, logoUrl?: string, countryCode?: string): Promise<string> => {
     console.log('[AuthContext] Sending POST /api/organizations request:', {
@@ -563,6 +577,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchOrganization,
         createOrganization,
         startCreateOrganization,
+        cancelCreateOrganization,
         updateOrganizationCountry,
         refreshSession,
         fetchActiveGame,

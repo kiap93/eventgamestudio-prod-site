@@ -298,7 +298,20 @@ export function useRouteContext(): RouteContext {
   );
 
   useEffect(() => {
+    let lastPath = window.location.pathname + window.location.search;
+
     const handleLocationChange = () => {
+      const newPath = window.location.pathname + window.location.search;
+      if (newPath !== lastPath) {
+        try {
+          if (window.sessionStorage) {
+            window.sessionStorage.setItem('egs_previous_route', lastPath);
+          }
+        } catch {
+          // ignore storage errors in restricted contexts
+        }
+        lastPath = newPath;
+      }
       setRouteContext(parseRoute(window.location.pathname));
     };
 
@@ -314,10 +327,80 @@ export function useRouteContext(): RouteContext {
   return routeContext;
 }
 
-export function navigateTo(url: string) {
+/**
+ * Returns the previous internal application route if one is known and valid.
+ * Returns null if the page was directly opened, reloaded, or arrived from an external origin.
+ */
+export function getPreviousInternalRoute(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    // 1. Check window.history.state for tracked previous route
+    const statePrev = window.history.state?.prevRoute;
+    if (statePrev && typeof statePrev === 'string' && statePrev !== window.location.pathname) {
+      return statePrev;
+    }
+
+    // 2. Check sessionStorage for recorded previous internal route
+    const sessionPrev = window.sessionStorage?.getItem('egs_previous_route');
+    if (sessionPrev && sessionPrev !== window.location.pathname) {
+      return sessionPrev;
+    }
+
+    // 3. Check document.referrer (if same origin and not current pathname)
+    if (document.referrer) {
+      const referrerUrl = new URL(document.referrer, window.location.origin);
+      if (referrerUrl.origin === window.location.origin) {
+        const refPath = referrerUrl.pathname + referrerUrl.search;
+        if (refPath !== window.location.pathname) {
+          return refPath;
+        }
+      }
+    }
+  } catch {
+    // Graceful fallback on storage / URL parse failure
+  }
+
+  return null;
+}
+
+export function navigateTo(url: string, state?: any) {
+  if (typeof window === 'undefined') return;
   const currentFull = window.location.pathname + window.location.search;
   if (currentFull !== url) {
-    window.history.pushState(null, '', url);
+    try {
+      if (window.sessionStorage) {
+        window.sessionStorage.setItem('egs_previous_route', currentFull);
+      }
+    } catch {
+      // Ignore storage errors in restricted contexts
+    }
+    window.history.pushState({ ...state, prevRoute: currentFull }, '', url);
   }
   window.dispatchEvent(new Event('popstate'));
+}
+
+/**
+ * Navigates to the previous page in history if a meaningful internal route exists,
+ * otherwise safely falls back to the specified route (default: /dashboard).
+ */
+export function navigateBack(fallbackUrl: string = '/dashboard') {
+  if (typeof window === 'undefined') return;
+
+  const prev = getPreviousInternalRoute();
+
+  // If there's valid browser history with a known internal previous route:
+  if (window.history.length > 1 && prev) {
+    window.history.back();
+    return;
+  }
+
+  // If we have a recorded internal route but browser history stack is 1:
+  if (prev && prev !== window.location.pathname) {
+    navigateTo(prev);
+    return;
+  }
+
+  // Safe fallback if there is no meaningful previous internal route:
+  navigateTo(fallbackUrl);
 }
