@@ -18,6 +18,7 @@ import {
   Lock,
   Eye,
   Share2,
+  Globe,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
@@ -214,6 +215,14 @@ export const EventCard: React.FC<EventCardProps> = ({
             Live Window Opens:
           </span>
           <span className="text-slate-300 font-mono">{formatDateOnly(availability.liveOpenDate)}</span>
+        </div>
+
+        <div className="flex items-center justify-between text-slate-400">
+          <span className="flex items-center gap-1">
+            <Globe className="w-3 h-3 text-slate-500" />
+            Timezone:
+          </span>
+          <span className="text-slate-300 font-mono text-[10px]">{event.event_timezone || event.timezone || 'Asia/Singapore'}</span>
         </div>
 
         {event.payment_status && (

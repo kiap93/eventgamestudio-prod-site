@@ -2616,6 +2616,7 @@ export default {
           starts_at,
           expires_at,
           event_price,
+          event_timezone,
         } = body;
 
         if (!name || typeof name !== 'string' || !name.trim()) {
@@ -2666,6 +2667,7 @@ export default {
               payment_status: 'UNPAID',
               created_by: user.id,
               event_price,
+              event_timezone,
             },
             env
           );
@@ -2837,6 +2839,7 @@ export default {
           starts_at,
           expires_at,
           status,
+          event_timezone,
         } = body;
 
         try {
@@ -2853,6 +2856,7 @@ export default {
               starts_at,
               expires_at,
               status,
+              event_timezone,
             },
             env
           );
@@ -3001,6 +3005,7 @@ export default {
               end_date: endDate,
               event_id: rawEvent.id,
               event_name: rawEvent.name,
+              event_timezone: accessDetails.event_timezone || rawEvent.event_timezone,
             }, 403, {
               ...cors,
               'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -3019,6 +3024,7 @@ export default {
               start_date: startDate,
               end_date: endDate,
               live_open_date: liveOpenDate,
+              event_timezone: accessDetails.event_timezone || rawEvent.event_timezone,
             }, 403, {
               ...cors,
               'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -3037,6 +3043,7 @@ export default {
               end_date: endDate,
               event_id: rawEvent.id,
               event_name: rawEvent.name,
+              event_timezone: accessDetails.event_timezone || rawEvent.event_timezone,
             }, 403, {
               ...cors,
               'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',

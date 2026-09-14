@@ -41,6 +41,8 @@ import {
 } from './highScores.js';
 import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import { cleanupExpiredNotifications } from './notifications.js';
+import { getOrganizationById } from './organizations.js';
+import { getDefaultTimezoneForCountry, isValidTimezone } from '../../src/lib/countryUtils.js';
 import crypto from 'node:crypto';
 
 // In-memory cache fallback for mock / test environments
@@ -150,6 +152,66 @@ export function getNormalizedCurrentDate(currentDate?: string | Date | null, tim
  */
 export function getSingaporeCalendarDate(date: Date = new Date(), timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
   return getNormalizedCurrentDate(date, timeZone);
+}
+
+/**
+ * Calculates the UTC offset in milliseconds for a specific date in a given IANA timezone.
+ */
+export function getTimezoneOffsetMs(date: Date, timeZone: string = PLATFORM_BUSINESS_TIMEZONE): number {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      fractionalSecondDigits: 3,
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(date);
+    let y = 0, m = 0, d = 0, h = 0, min = 0, s = 0, ms = 0;
+    for (const part of parts) {
+      if (part.type === 'year') y = parseInt(part.value, 10);
+      else if (part.type === 'month') m = parseInt(part.value, 10);
+      else if (part.type === 'day') d = parseInt(part.value, 10);
+      else if (part.type === 'hour') {
+        const val = parseInt(part.value, 10);
+        h = val === 24 ? 0 : val;
+      } else if (part.type === 'minute') min = parseInt(part.value, 10);
+      else if (part.type === 'second') s = parseInt(part.value, 10);
+      else if (part.type === 'fractionalSecond') ms = parseInt(part.value, 10);
+    }
+    const asUtcTimestamp = Date.UTC(y, m - 1, d, h, min, s, ms);
+    return asUtcTimestamp - date.getTime();
+  } catch {
+    return 8 * 60 * 60 * 1000;
+  }
+}
+
+/**
+ * Calculates the exact UTC Date corresponding to a calendar day's start (00:00:00.000) or end (23:59:59.999)
+ * in a specified IANA timezone.
+ */
+export function getUtcBoundaryInTimezone(
+  calendarDateStr: string,
+  boundary: 'start' | 'end',
+  timeZone: string = PLATFORM_BUSINESS_TIMEZONE
+): Date {
+  const [yearStr, monthStr, dayStr] = calendarDateStr.split('-');
+  const y = parseInt(yearStr, 10);
+  const m = parseInt(monthStr, 10);
+  const d = parseInt(dayStr, 10);
+
+  const hour = boundary === 'start' ? 0 : 23;
+  const min = boundary === 'start' ? 0 : 59;
+  const sec = boundary === 'start' ? 0 : 59;
+  const ms = boundary === 'start' ? 0 : 999;
+
+  const approxUtc = new Date(Date.UTC(y, m - 1, d, hour, min, sec, ms));
+  const offsetMs = getTimezoneOffsetMs(approxUtc, timeZone);
+  return new Date(approxUtc.getTime() - offsetMs);
 }
 
 /**
@@ -288,6 +350,7 @@ export interface ClientLiveGameAccessResult {
   start_date?: string;
   end_date?: string;
   live_open_date?: string;
+  event_timezone?: string;
 }
 
 /**
@@ -370,6 +433,7 @@ export function getClientLiveGameAccessDetails(
       start_date: startDate,
       end_date: endDate,
       live_open_date: liveOpenDate,
+      event_timezone: eventTimezone,
     };
   }
 
@@ -387,6 +451,7 @@ export function getClientLiveGameAccessDetails(
       start_date: startDate,
       end_date: endDate,
       live_open_date: liveOpenDate,
+      event_timezone: eventTimezone,
     };
   }
 
@@ -401,6 +466,7 @@ export function getClientLiveGameAccessDetails(
       start_date: startDate,
       end_date: endDate,
       live_open_date: liveOpenDate,
+      event_timezone: eventTimezone,
     };
   }
 
@@ -414,6 +480,7 @@ export function getClientLiveGameAccessDetails(
     start_date: startDate,
     end_date: endDate,
     live_open_date: liveOpenDate,
+    event_timezone: eventTimezone,
   };
 }
 
@@ -746,10 +813,12 @@ export function normalizeEventDateBoundaries(
     event_date?: string | null;
     starts_at?: string | null;
     expires_at?: string | null;
+    event_timezone?: string | null;
   },
   options?: {
     forCreation?: boolean;
     currentDate?: string | Date | null;
+    event_timezone?: string | null;
   }
 ): {
   startDate: string;
@@ -797,15 +866,11 @@ export function normalizeEventDateBoundaries(
     endDate = startDate;
   }
 
-  const [startY, startM, startD] = startDate.split('-').map(Number);
-  const [endY, endM, endD] = endDate.split('-').map(Number);
+  // Timezone resolution: explicit parameter -> options -> default business timezone
+  const timeZone = params.event_timezone || options?.event_timezone || PLATFORM_BUSINESS_TIMEZONE;
 
-  // Business Timezone Standard: Asia/Singapore (UTC+8)
-  // 00:00:00 SGT = previous day 16:00:00 UTC (-8 hours)
-  // 23:59:59.999 SGT = same day 15:59:59.999 UTC (-8 hours)
-  const SG_OFFSET_MS = 8 * 60 * 60 * 1000;
-  const startUtc = new Date(Date.UTC(startY, startM - 1, startD, 0, 0, 0, 0) - SG_OFFSET_MS);
-  const endUtc = new Date(Date.UTC(endY, endM - 1, endD, 23, 59, 59, 999) - SG_OFFSET_MS);
+  const startUtc = getUtcBoundaryInTimezone(startDate, 'start', timeZone);
+  const endUtc = getUtcBoundaryInTimezone(endDate, 'end', timeZone);
 
   if (isNaN(startUtc.getTime()) || isNaN(endUtc.getTime())) {
     const err: any = new Error('Invalid Start Date or End Date');
@@ -825,7 +890,7 @@ export function normalizeEventDateBoundaries(
   // IF event_end_date < current calendar date: BLOCK EVENT CREATION
   // Error: "This event date has already passed. Please select a current or future event date."
   if (options?.forCreation) {
-    const curDate = getNormalizedCurrentDate(options.currentDate);
+    const curDate = getNormalizedCurrentDate(options.currentDate, timeZone);
     if (endDate < curDate) {
       const err: any = new Error('This event date has already passed. Please select a current or future event date.');
       err.status = 422;
@@ -834,8 +899,12 @@ export function normalizeEventDateBoundaries(
     }
   }
 
-  // Setup Day begins at 00:00:00 SGT on the calendar day immediately preceding the Start Date
-  const setupUtc = new Date(Date.UTC(startY, startM - 1, startD - 1, 0, 0, 0, 0) - SG_OFFSET_MS);
+  // Setup Day begins at 00:00:00 on the calendar day immediately preceding the Start Date in event's timezone
+  const [startY, startM, startD] = startDate.split('-').map(Number);
+  const prevDate = new Date(Date.UTC(startY, startM - 1, startD - 1));
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const setupDayStr = `${prevDate.getUTCFullYear()}-${pad(prevDate.getUTCMonth() + 1)}-${pad(prevDate.getUTCDate())}`;
+  const setupUtc = getUtcBoundaryInTimezone(setupDayStr, 'start', timeZone);
 
   return {
     startDate,
@@ -864,12 +933,14 @@ export function getSetupDayStartTime(event: {
   event_date?: string | null;
   start_date?: string | null;
   setup_starts_at?: string | null;
+  event_timezone?: string | null;
+  timezone?: string | null;
 }): Date {
   if (event.setup_starts_at) {
     return new Date(event.setup_starts_at);
   }
 
-  const SG_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const timeZone = event.event_timezone || event.timezone || PLATFORM_BUSINESS_TIMEZONE;
 
   // Derive calendar date from start_date, event_date, or starts_at
   let dateStr = event.start_date || event.event_date;
@@ -888,12 +959,18 @@ export function getSetupDayStartTime(event: {
       const year = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1; // 0-indexed (0 = Jan)
       const day = parseInt(parts[2], 10);
-      return new Date(Date.UTC(year, month, day - 1, 0, 0, 0, 0) - SG_OFFSET_MS);
+      const prev = new Date(Date.UTC(year, month, day - 1));
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const setupDayStr = `${prev.getUTCFullYear()}-${pad(prev.getUTCMonth() + 1)}-${pad(prev.getUTCDate())}`;
+      return getUtcBoundaryInTimezone(setupDayStr, 'start', timeZone);
     }
   }
 
   const startDate = new Date(event.starts_at || Date.now());
-  return new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate() - 1, 0, 0, 0, 0) - SG_OFFSET_MS);
+  const prev = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate() - 1));
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const setupDayStr = `${prev.getUTCFullYear()}-${pad(prev.getUTCMonth() + 1)}-${pad(prev.getUTCDate())}`;
+  return getUtcBoundaryInTimezone(setupDayStr, 'start', timeZone);
 }
 
 /**
@@ -1619,6 +1696,7 @@ export function toPublicEventDTO(rawEvent: any): PublicEventDTO {
     start_date: startDate || '',
     end_date: endDate || '',
     live_open_date: liveOpenDate || '',
+    event_timezone: rawEvent.event_timezone || rawEvent.timezone || PLATFORM_BUSINESS_TIMEZONE,
   };
 }
 
@@ -2024,6 +2102,7 @@ export async function createEvent(
     created_by?: string | null;
     skipPendingLimitCheck?: boolean;
     currentDate?: string | Date | null;
+    event_timezone?: string | null;
   },
   env?: Record<string, any>
 ): Promise<EventRecord> {
@@ -2101,7 +2180,20 @@ export async function createEvent(
     throw err;
   }
 
-  // 3. Normalize calendar date boundaries (Start Date to End Date)
+  // Resolve authoritative event timezone: explicit parameter -> organization country default -> business default (Asia/Singapore)
+  let resolvedTimezone = params.event_timezone;
+  if (resolvedTimezone && !isValidTimezone(resolvedTimezone)) {
+    resolvedTimezone = null;
+  }
+  if (!resolvedTimezone) {
+    const org = await getOrganizationById(params.organization_id, env);
+    resolvedTimezone = getDefaultTimezoneForCountry(org?.country_code);
+  }
+  if (!resolvedTimezone) {
+    resolvedTimezone = PLATFORM_BUSINESS_TIMEZONE;
+  }
+
+  // 3. Normalize calendar date boundaries (Start Date to End Date) in the event's timezone
   const norm = normalizeEventDateBoundaries(
     {
       start_date: params.start_date || params.startDate,
@@ -2109,8 +2201,9 @@ export async function createEvent(
       event_date: params.event_date,
       starts_at: params.starts_at,
       expires_at: params.expires_at,
+      event_timezone: resolvedTimezone,
     },
-    { forCreation: true, currentDate: params.currentDate }
+    { forCreation: true, currentDate: params.currentDate, event_timezone: resolvedTimezone }
   );
 
   // 4. Evaluate whether this event counts against the pending payment limit
@@ -2182,6 +2275,7 @@ export async function createEvent(
     p_event_id: id,
     p_max_pending_events: 2,
     p_skip_pending_limit_check: Boolean(params.skipPendingLimitCheck),
+    p_event_timezone: resolvedTimezone,
   };
 
   let rpcAttempted = false;
@@ -2216,6 +2310,7 @@ export async function createEvent(
           discount_amount: params.discount_amount || 0,
           event_price: price,
           event_currency: currency,
+          event_timezone: (rpcData.event as any)?.event_timezone || resolvedTimezone,
         };
         localEventsCache.set(fullRecord.id, fullRecord);
         return fullRecord;
@@ -2266,6 +2361,7 @@ export async function createEvent(
     cancel_reason: params.cancel_reason || null,
     event_price: price,
     event_currency: currency,
+    event_timezone: resolvedTimezone,
     public_token: token,
     created_by: params.created_by || null,
     created_at: now,
@@ -2437,6 +2533,7 @@ export async function createEventWithAtomicPayment(
     event_currency?: string;
     custom_price_override?: boolean;
     reference_id?: string;
+    event_timezone?: string | null;
   },
   env?: Record<string, any>
 ): Promise<{
@@ -2541,8 +2638,9 @@ export async function createEventWithAtomicPayment(
         event_date: params.event_date,
         starts_at: params.starts_at,
         expires_at: params.expires_at,
+        event_timezone: params.event_timezone,
       },
-      { forCreation: true }
+      { forCreation: true, event_timezone: params.event_timezone }
     );
 
     const startsAtTime = new Date(norm.starts_at).getTime();
@@ -2594,6 +2692,7 @@ export async function createEventWithAtomicPayment(
         discount_amount: calculation.totalDiscount,
         event_price: eventPrice,
         event_currency: eventCurrency,
+        event_timezone: params.event_timezone,
       },
       env
     );
@@ -2657,6 +2756,7 @@ export async function updateEvent(
     event_status?: EventLifecycleStatus;
     payment_status?: PaymentLifecycleStatus | 'PENDING_PAYMENT';
     cancel_reason?: EventCancelReason | null;
+    event_timezone?: string | null;
   },
   env?: Record<string, any>,
   options?: { isSystemLifecycle?: boolean }
@@ -2684,7 +2784,8 @@ export async function updateEvent(
     (updates.starts_at !== undefined && updates.starts_at !== existing.starts_at) ||
     (updates.expires_at !== undefined && updates.expires_at !== existing.expires_at) ||
     (updates.status !== undefined && updates.status !== existing.status) ||
-    (updates.event_status !== undefined && updates.event_status !== existing.event_status);
+    (updates.event_status !== undefined && updates.event_status !== existing.event_status) ||
+    (updates.event_timezone !== undefined && updates.event_timezone !== existing.event_timezone);
 
   if (isPaid && hasSetupFieldUpdate && !options?.isSystemLifecycle) {
     const err: any = new Error('Event setup cannot be modified after payment has been completed.');
@@ -2701,6 +2802,18 @@ export async function updateEvent(
     payload.name = updates.name.trim();
   }
 
+  if (updates.event_timezone !== undefined) {
+    if (updates.event_timezone && !isValidTimezone(updates.event_timezone)) {
+      const err: any = new Error(`Invalid timezone: ${updates.event_timezone}`);
+      err.status = 422;
+      err.code = 'INVALID_TIMEZONE';
+      throw err;
+    }
+    payload.event_timezone = updates.event_timezone;
+  }
+
+  const targetTimezone = updates.event_timezone || existing.event_timezone || PLATFORM_BUSINESS_TIMEZONE;
+
   const hasDateUpdate =
     updates.start_date !== undefined ||
     updates.end_date !== undefined ||
@@ -2708,7 +2821,8 @@ export async function updateEvent(
     updates.endDate !== undefined ||
     updates.event_date !== undefined ||
     updates.starts_at !== undefined ||
-    updates.expires_at !== undefined;
+    updates.expires_at !== undefined ||
+    (updates.event_timezone !== undefined && updates.event_timezone !== existing.event_timezone);
 
   if (hasDateUpdate) {
     const norm = normalizeEventDateBoundaries({
@@ -2717,6 +2831,9 @@ export async function updateEvent(
       event_date: updates.event_date,
       starts_at: updates.starts_at || existing.starts_at,
       expires_at: updates.expires_at || existing.expires_at,
+      event_timezone: targetTimezone,
+    }, {
+      event_timezone: targetTimezone,
     });
     payload.event_date = norm.event_date;
     payload.start_date = norm.start_date;
@@ -3030,7 +3147,8 @@ export async function runEventLifecycleMaintenance(
     }
 
     const { startDate } = getNormalizedEventDates(ev);
-    const curDate = getNormalizedCurrentDate(now);
+    const evTimezone = ev.event_timezone || ev.timezone || PLATFORM_BUSINESS_TIMEZONE;
+    const curDate = getNormalizedCurrentDate(now, evTimezone);
     const hasReachedStartDate = Boolean(startDate && curDate >= startDate);
 
     // 0. Automatic Test Score Clearing:

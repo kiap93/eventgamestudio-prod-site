@@ -2350,6 +2350,7 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       starts_at,
       expires_at,
       event_price,
+      event_timezone,
     } = req.body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
@@ -2404,6 +2405,7 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       payment_status: 'UNPAID',
       created_by: user.id,
       event_price,
+      event_timezone,
     });
 
     const enriched = await getEventById(created.id);
@@ -2574,6 +2576,7 @@ app.all('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       starts_at,
       expires_at,
       status,
+      event_timezone,
     } = req.body;
 
     const updated = await updateEvent(eventId, {
@@ -2587,6 +2590,7 @@ app.all('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
       starts_at,
       expires_at,
       status,
+      event_timezone,
     });
 
     const enriched = await getEventById(updated.id);
@@ -2819,6 +2823,7 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
           end_date: endDate,
           event_id: rawEvent.id,
           event_name: rawEvent.name,
+          event_timezone: accessDetails.event_timezone || rawEvent.event_timezone,
         });
         return;
       }
@@ -2833,6 +2838,7 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
           start_date: startDate,
           end_date: endDate,
           live_open_date: liveOpenDate,
+          event_timezone: accessDetails.event_timezone || rawEvent.event_timezone,
         });
         return;
       }
@@ -2847,6 +2853,7 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
           end_date: endDate,
           event_id: rawEvent.id,
           event_name: rawEvent.name,
+          event_timezone: accessDetails.event_timezone || rawEvent.event_timezone,
         });
         return;
       }

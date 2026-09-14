@@ -11,9 +11,11 @@ import {
   getEventAvailabilityState,
   getNormalizedEventDates,
   formatDateOnly,
+  getCalendarDateInTimezone,
   getSingaporeCalendarDate,
   isEventExplicitlyCancelled,
 } from '../../lib/dateUtils';
+import { getTimezoneDisplayName } from '../../lib/countryUtils';
 import {
   Calendar,
   Clock,
@@ -54,16 +56,18 @@ export const PublicEventGameView: React.FC = () => {
     end_date?: string;
     event_id?: string;
     event_name?: string;
+    event_timezone?: string;
   } | null>(null);
 
-  // Periodic check for Singapore date boundary change (midnight transition)
+  // Periodic check for event date boundary change (midnight transition in event timezone)
   useEffect(() => {
+    const activeTz = eventData?.event_timezone || errorDetails?.event_timezone || 'Asia/Singapore';
     const dateTimer = setInterval(() => {
-      const todaySg = getSingaporeCalendarDate();
-      setSingaporeDateKey((prev) => (prev !== todaySg ? todaySg : prev));
+      const todayInTz = getCalendarDateInTimezone(new Date(), activeTz);
+      setSingaporeDateKey((prev) => (prev !== todayInTz ? todayInTz : prev));
     }, 15000);
     return () => clearInterval(dateTimer);
-  }, []);
+  }, [eventData?.event_timezone, errorDetails?.event_timezone]);
 
   /**
    * Authoritative Event Fetcher with cache-busting
@@ -102,6 +106,7 @@ export const PublicEventGameView: React.FC = () => {
               live_open_date: data.live_open_date,
               start_date: data.start_date,
               end_date: data.end_date,
+              event_timezone: data.event_timezone,
             });
             setError(data.error || 'This event is currently awaiting payment and activation.');
             setEventData(null);
@@ -111,6 +116,7 @@ export const PublicEventGameView: React.FC = () => {
             setErrorDetails({
               code: 'EVENT_CANCELLED',
               is_cancelled: true,
+              event_timezone: data.event_timezone,
             });
             setError(data.error || 'This event has been cancelled by the organizer.');
             setEventData(null);
@@ -125,6 +131,7 @@ export const PublicEventGameView: React.FC = () => {
               end_date: data.end_date,
               event_id: data.event_id,
               event_name: data.event_name,
+              event_timezone: data.event_timezone,
             });
             setError(data.error || 'This event is not open yet.');
             setEventData(null);
@@ -138,6 +145,7 @@ export const PublicEventGameView: React.FC = () => {
               end_date: data.end_date,
               event_id: data.event_id,
               event_name: data.event_name,
+              event_timezone: data.event_timezone,
             });
             setError(data.error || 'This event has expired.');
             setEventData(null);
@@ -451,7 +459,7 @@ export const PublicEventGameView: React.FC = () => {
               Event Dates: <span className="font-semibold text-slate-200">{formatDateOnly(startDate)}</span> to <span className="font-semibold text-slate-200">{formatDateOnly(endDate)}</span>
             </div>
             <p className="text-[11px] text-slate-500">
-              Live play will automatically activate on setup day ({formatDateOnly(liveOpenDate)}) at 00:00 UTC+8 (Asia/Singapore & Malaysia).
+              Live play will automatically activate on setup day ({formatDateOnly(liveOpenDate)}) at 00:00 ({getTimezoneDisplayName(errorDetails?.event_timezone || eventData?.event_timezone)}).
             </p>
           </div>
 

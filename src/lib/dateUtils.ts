@@ -179,6 +179,54 @@ export function getSingaporeCalendarDate(date: Date = new Date(), timeZone: stri
 }
 
 /**
+ * Calculates the UTC offset in milliseconds for a specific date in a given timezone.
+ * Uses standard Intl.DateTimeFormat to ensure accurate offsets across timezones and DST shifts.
+ */
+export function getTimezoneOffsetMs(date: Date, timeZone: string = PLATFORM_BUSINESS_TIMEZONE): number {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timeZone || PLATFORM_BUSINESS_TIMEZONE,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(date);
+    const getPart = (type: string) => parseInt(parts.find((p) => p.type === type)?.value || '0', 10);
+    const year = getPart('year');
+    const month = getPart('month');
+    const day = getPart('day');
+    let hour = getPart('hour');
+    if (hour === 24) hour = 0;
+    const minute = getPart('minute');
+    const second = getPart('second');
+    const asUtc = Date.UTC(year, month - 1, day, hour, minute, second, date.getUTCMilliseconds());
+    return asUtc - date.getTime();
+  } catch {
+    return 8 * 60 * 60 * 1000;
+  }
+}
+
+/**
+ * Returns the exact UTC Date object representing a specific calendar date and time in a given timezone.
+ */
+export function getUtcBoundaryInTimezone(
+  dateStr: string,
+  timeStr: string,
+  timeZone: string = PLATFORM_BUSINESS_TIMEZONE
+): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const [hh, mm, ss] = timeStr.split(':').map(Number);
+  const ms = timeStr.includes('.') ? parseInt(timeStr.split('.')[1], 10) : 0;
+  const tentative = new Date(Date.UTC(y, m - 1, d, hh, mm, ss, ms));
+  const offset = getTimezoneOffsetMs(tentative, timeZone);
+  return new Date(tentative.getTime() - offset);
+}
+
+/**
  * Normalizes input date representation to YYYY-MM-DD string in the target timezone (defaults to Asia/Singapore UTC+8).
  */
 export function getNormalizedCurrentDate(currentDate?: string | Date | null, timeZone: string = PLATFORM_BUSINESS_TIMEZONE): string {
@@ -312,6 +360,7 @@ export interface ClientLiveGameAccessResult {
   start_date?: string;
   end_date?: string;
   live_open_date?: string;
+  event_timezone?: string;
 }
 
 /**
@@ -394,6 +443,7 @@ export function getClientLiveGameAccessDetails(
       start_date: startDate,
       end_date: endDate,
       live_open_date: liveOpenDate,
+      event_timezone: eventTimezone,
     };
   }
 
@@ -411,6 +461,7 @@ export function getClientLiveGameAccessDetails(
       start_date: startDate,
       end_date: endDate,
       live_open_date: liveOpenDate,
+      event_timezone: eventTimezone,
     };
   }
 
@@ -425,6 +476,7 @@ export function getClientLiveGameAccessDetails(
       start_date: startDate,
       end_date: endDate,
       live_open_date: liveOpenDate,
+      event_timezone: eventTimezone,
     };
   }
 
@@ -438,6 +490,7 @@ export function getClientLiveGameAccessDetails(
     start_date: startDate,
     end_date: endDate,
     live_open_date: liveOpenDate,
+    event_timezone: eventTimezone,
   };
 }
 

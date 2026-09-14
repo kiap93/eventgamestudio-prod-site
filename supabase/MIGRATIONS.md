@@ -114,6 +114,15 @@ Contains the canonical timestamp migrations:
 - `20260906000000_showcase_moderation_and_reward_decoupling.sql` — Showcase moderation & reward decoupling with audit log table
 - `20260906010000_event_showcases_backend_write_only.sql` — Event showcases backend-write-only RLS hardening & trigger protection
 - `20260906020000_atomic_showcase_credit_reward.sql` — Atomic PostgreSQL RPC & unique constraint preventing concurrent duplicate showcase reward grants
+- `20260906030000_atomic_showcase_reward_approval.sql` — Showcase reward approval atomic procedure
+- `20260906040000_owner_level_showcase_reward.sql` — Owner-level showcase reward constraint & verification
+- `20260907000000_add_expired_to_event_status.sql` — Adds EXPIRED enum state to event status
+- `20260909000000_add_country_code_to_organizations.sql` — Adds country_code column to organizations
+- `20260909010000_atomic_create_event.sql` — Atomic event creation procedure with collision-resistant token generation
+- `20260910000000_atomic_create_organization.sql` — Atomic organization creation procedure
+- `20260912000000_user_level_welcome_credit.sql` — User-level welcome credit granting and tracking
+- `20260912010000_create_central_notifications.sql` — Central notifications ledger and trigger system
+- `20260913000000_add_event_timezone_to_events.sql` — Adds event_timezone column to public.events and updates create_event_atomic with country-based resolution and override support
 
 ### Historical Archive (`supabase/migrations_history/`)
 Preserves the complete original sequential migration chain (`001_...` through `031_...`), branch collision variants (`013`, `014`, `017b`), and `MIGRATIONS_AUDIT.md`.

@@ -15,6 +15,7 @@ import {
   formatEventDateRange,
   calculateEventCalendarDays,
 } from '../../lib/dateUtils';
+import { SUPPORTED_TIMEZONES, getDefaultTimezoneForCountry } from '../../lib/countryUtils';
 import { PaymentCheckoutModal } from '../wallet/PaymentCheckoutModal';
 import { getGameTypeIcon } from '../../games';
 import {
@@ -94,6 +95,15 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const [durationPreset, setDurationPreset] = useState<DurationPreset>('1day');
   const [startDate, setStartDate] = useState<string>(() => getTodayDateString());
   const [endDate, setEndDate] = useState<string>(() => getTodayDateString());
+  const [eventTimezone, setEventTimezone] = useState<string>(() => {
+    return getDefaultTimezoneForCountry(currentOrganization?.country_code) || 'Asia/Singapore';
+  });
+
+  useEffect(() => {
+    if (currentOrganization?.country_code) {
+      setEventTimezone(getDefaultTimezoneForCountry(currentOrganization.country_code));
+    }
+  }, [currentOrganization?.country_code]);
 
   // Creation State
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
@@ -352,6 +362,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
           starts_at: `${startDate}T00:00:00.000Z`,
           expires_at: `${endDate}T23:59:59.999Z`,
           status: 'pending_payment',
+          event_timezone: eventTimezone,
         }),
       });
 
@@ -784,9 +795,29 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   </p>
                 )}
 
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-950/60 px-3 py-2 rounded-xl border border-slate-800/80">
-                  <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>All events use Asia/Singapore / Malaysia UTC+8 business timezone.</span>
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-300">
+                      Event Timezone
+                    </label>
+                    <span className="text-[10px] text-slate-500">
+                      Evaluates setup day & midnight cutoffs
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <select
+                      value={eventTimezone}
+                      onChange={(e) => setEventTimezone(e.target.value)}
+                      className="w-full appearance-none bg-slate-950/80 border border-slate-800 focus:border-amber-500 text-slate-100 px-3.5 py-2.5 rounded-xl text-xs focus:outline-none pr-8 cursor-pointer"
+                    >
+                      {SUPPORTED_TIMEZONES.map((tz) => (
+                        <option key={tz.timezone} value={tz.timezone} className="bg-slate-900 text-slate-200">
+                          {tz.label} ({tz.timezone})
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
               </div>
 

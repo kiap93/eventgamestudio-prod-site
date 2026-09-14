@@ -276,6 +276,7 @@ export interface PublicEventDTO {
   start_date: string;
   end_date: string;
   live_open_date: string;
+  event_timezone?: string | null;
 }
 
 export interface EventWithDetails extends EventRecord {
