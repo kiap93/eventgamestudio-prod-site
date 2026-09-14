@@ -139,32 +139,32 @@ Event Game Studio deploys a **dual-layer defense-in-depth architecture** for rat
 Configured in `wrangler.toml` and `wrangler.api.toml`:
 ```toml
 [[ratelimits]]
-binding = "AUTH_RATE_LIMITER"
+name = "AUTH_RATE_LIMITER"
 namespace_id = "1001"
 simple = { limit = 10, period = 60 }
 
 [[ratelimits]]
-binding = "ORG_RATE_LIMITER"
+name = "ORG_RATE_LIMITER"
 namespace_id = "1002"
 simple = { limit = 10, period = 60 }
 
 [[ratelimits]]
-binding = "WALLET_RATE_LIMITER"
+name = "WALLET_RATE_LIMITER"
 namespace_id = "1003"
 simple = { limit = 15, period = 60 }
 
 [[ratelimits]]
-binding = "PUBLIC_RATE_LIMITER"
+name = "PUBLIC_RATE_LIMITER"
 namespace_id = "1004"
 simple = { limit = 60, period = 60 }
 
 [[ratelimits]]
-binding = "SCORE_RATE_LIMITER"
+name = "SCORE_RATE_LIMITER"
 namespace_id = "1005"
 simple = { limit = 300, period = 60 }
 
 [[ratelimits]]
-binding = "RATE_LIMITER"
+name = "RATE_LIMITER"
 namespace_id = "1006"
 simple = { limit = 120, period = 60 }
 ```

@@ -46240,5 +46240,26 @@
     },
     "created_by": "e48f0de5-2dd4-4f75-bfeb-6e650b7cb06e",
     "created_at": "2026-09-14T07:44:42.685Z"
+  },
+  {
+    "id": "bbfc92be-607b-4e17-97fd-67d2ed8f553f",
+    "organization_id": "824f7e0a-16c2-4adb-9848-79de921b4133",
+    "owner_user_id": "d5969710-c9c8-4ab6-ad91-3a46cc85d47f",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_824f7e0a-16c2-4adb-9848-79de921b4133",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "organization_name": "Cron Org",
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "owner_user_id": "d5969710-c9c8-4ab6-ad91-3a46cc85d47f",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "d5969710-c9c8-4ab6-ad91-3a46cc85d47f",
+    "created_at": "2026-09-14T08:57:06.172Z"
   }
 ]
