@@ -1191,7 +1191,12 @@ export async function approveShowcaseReward(
             rpcError.message?.includes('does not exist') ||
             rpcError.message?.includes('function');
 
-          if (!isMissingRpc) {
+          const isLocalShowcaseFallback =
+            isLocalFallbackAllowed(env) &&
+            rpcError.code === 'P0001' &&
+            rpcError.message?.includes('Showcase not found');
+
+          if (!isMissingRpc && !isLocalShowcaseFallback) {
             console.error('Supabase approve_first_event_showcase_reward_atomic error:', rpcError);
             const err = new Error(rpcError.message || 'Reward approval failed');
             (err as any).code = rpcError.code || 'REWARD_APPROVAL_FAILED';
@@ -1199,7 +1204,11 @@ export async function approveShowcaseReward(
           }
         }
       } catch (err: any) {
-        if (err.code && err.code !== 'PGRST202' && !err.message?.includes('does not exist')) {
+        const isLocalShowcaseFallback =
+          isLocalFallbackAllowed(env) &&
+          (err.code === 'P0001' || err.message?.includes('Showcase not found'));
+
+        if (err.code && err.code !== 'PGRST202' && !err.message?.includes('does not exist') && !isLocalShowcaseFallback) {
           throw err;
         }
         // Fall back to atomic in-process execution below

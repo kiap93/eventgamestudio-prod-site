@@ -70,10 +70,20 @@ export const EventCard: React.FC<EventCardProps> = ({
     event.showcase?.status !== 'DELETED';
 
   const availability = getEventAvailabilityState(event);
-  const isPaid = (event.payment_status || '').toUpperCase() === 'PAID';
+  const normalizedPaymentStatus = (event.payment_status || 'UNPAID').trim().toUpperCase();
+  const isPaid = normalizedPaymentStatus === 'PAID';
   const isCancelled = isEventExplicitlyCancelled(event);
   const effectiveStatus = calculateEventStatus(event);
-  const isPendingPayment = effectiveStatus === 'pending_payment';
+  const isRefunded = normalizedPaymentStatus === 'REFUNDED';
+  const isPaymentFailed = normalizedPaymentStatus === 'FAILED';
+  const isPaymentRequired =
+    !isPaid &&
+    !isRefunded &&
+    !isCancelled &&
+    effectiveStatus !== 'cancelled' &&
+    effectiveStatus !== 'expired' &&
+    !availability.isAfterLiveWindow;
+  const isPendingPayment = isPaymentRequired || effectiveStatus === 'pending_payment';
 
   const copyLink = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -119,51 +129,52 @@ export const EventCard: React.FC<EventCardProps> = ({
   };
 
   const getStatusBadge = () => {
-    switch (effectiveStatus) {
-      case 'cancelled':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 border border-red-500/30 text-red-400">
-            <Ban className="w-3 h-3" />
-            Cancelled
-          </span>
-        );
-      case 'completed':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
-            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-            Completed
-          </span>
-        );
-      case 'expired':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 border border-slate-700 text-slate-400">
-            <Clock className="w-3 h-3 text-slate-500" />
-            Expired
-          </span>
-        );
-      case 'pending_payment':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400">
-            <AlertCircle className="w-3 h-3" />
-            Pending Payment
-          </span>
-        );
-      case 'live':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-            Live Now
-          </span>
-        );
-      case 'scheduled':
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 border border-blue-500/30 text-blue-400">
-            <Calendar className="w-3 h-3" />
-            Scheduled
-          </span>
-        );
+    if (isCancelled || effectiveStatus === 'cancelled') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 border border-red-500/30 text-red-400">
+          <Ban className="w-3 h-3" />
+          Cancelled
+        </span>
+      );
     }
+    if (effectiveStatus === 'completed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+          Completed
+        </span>
+      );
+    }
+    if (effectiveStatus === 'expired' || (!isPaid && availability.isAfterLiveWindow)) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 border border-slate-700 text-slate-400">
+          <Clock className="w-3 h-3 text-slate-500" />
+          Expired
+        </span>
+      );
+    }
+    if (isPendingPayment) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400">
+          <AlertCircle className="w-3 h-3" />
+          Pending Payment
+        </span>
+      );
+    }
+    if (effectiveStatus === 'live') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+          Live Now
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 border border-blue-500/30 text-blue-400">
+        <Calendar className="w-3 h-3" />
+        Scheduled
+      </span>
+    );
   };
 
   const gameName = event.game?.name || 'Catch The Brand';
@@ -225,35 +236,43 @@ export const EventCard: React.FC<EventCardProps> = ({
           <span className="text-slate-300 font-mono text-[10px]">{event.event_timezone || event.timezone || 'Asia/Singapore'}</span>
         </div>
 
-        {event.payment_status && (
-          <div className="flex items-center justify-between pt-1.5 border-t border-slate-900 text-slate-400">
-            <span className="flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-emerald-400" />
-              Payment:
-            </span>
-            <span className={`text-[10px] font-mono font-semibold ${
-              event.payment_status === 'REFUNDED'
-                ? 'text-amber-400'
-                : isPendingPayment
-                ? 'text-amber-400'
-                : 'text-emerald-400'
-            }`}>
-              {event.payment_status === 'REFUNDED'
-                ? 'REFUNDED'
-                : isPendingPayment
-                ? 'PENDING PAYMENT'
-                : event.payment_mode === 'WELCOME_CREDIT'
-                ? 'Welcome Credit (RM600 Paid)'
+        <div className="flex items-center justify-between pt-1.5 border-t border-slate-900 text-slate-400">
+          <span className="flex items-center gap-1">
+            <ShieldCheck className={`w-3 h-3 ${isPaid ? 'text-emerald-400' : isRefunded ? 'text-amber-400' : 'text-amber-500'}`} />
+            Payment:
+          </span>
+          <span className={`text-[10px] font-mono font-semibold ${
+            isPaid
+              ? 'text-emerald-400'
+              : isRefunded
+              ? 'text-amber-400'
+              : isPaymentFailed
+              ? 'text-red-400'
+              : 'text-amber-400'
+          }`}>
+            {isPaid
+              ? event.payment_mode === 'WELCOME_CREDIT'
+                ? `Welcome Credit (${event.paid_amount ? `RM ${Number(event.paid_amount).toFixed(2)} Paid` : 'Paid'})`
                 : event.payment_mode === 'SHOWCASE_CREDIT'
-                ? 'Showcase Credit (RM1,100 Paid)'
+                ? `Showcase Credit (${event.paid_amount ? `RM ${Number(event.paid_amount).toFixed(2)} Paid` : 'Paid'})`
                 : event.payment_mode === 'TOPUP_CREDIT'
-                ? 'Top-up Promo (RM1,120 Paid)'
-                : event.paid_amount !== undefined && event.paid_amount !== null && !isNaN(Number(event.paid_amount))
-                ? `RM ${(Number(event.paid_amount) || 0).toFixed(2)} Paid`
-                : 'PAID'}
-            </span>
-          </div>
-        )}
+                ? `Top-up Promo (${event.paid_amount ? `RM ${Number(event.paid_amount).toFixed(2)} Paid` : 'Paid'})`
+                : event.paid_amount !== undefined && event.paid_amount !== null && Number(event.paid_amount) > 0
+                ? `RM ${Number(event.paid_amount).toFixed(2)} Paid`
+                : event.event_price !== undefined && event.event_price !== null && Number(event.event_price) > 0
+                ? `RM ${Number(event.event_price).toFixed(2)} Paid`
+                : 'PAID'
+              : isRefunded
+              ? 'REFUNDED'
+              : isPaymentFailed
+              ? 'PAYMENT FAILED'
+              : isCancelled || effectiveStatus === 'cancelled'
+              ? 'UNPAID (CANCELLED)'
+              : effectiveStatus === 'expired' || availability.isAfterLiveWindow
+              ? 'UNPAID (EXPIRED)'
+              : 'PENDING PAYMENT'}
+          </span>
+        </div>
       </div>
 
       {/* Showcase Status Button */}
@@ -394,7 +413,7 @@ export const EventCard: React.FC<EventCardProps> = ({
       <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           {/* Action 1: Pay CTA or Play Live CTA */}
-          {effectiveStatus === 'pending_payment' ? (
+          {isPendingPayment ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -490,10 +509,9 @@ export const EventCard: React.FC<EventCardProps> = ({
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           event={event}
-          onPaymentSuccess={(updated) => {
+          onPaymentSuccess={(_updated) => {
             setShowPaymentModal(false);
             if (onRefresh) onRefresh();
-            onEdit(updated);
           }}
         />
       )}

@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { createOrganization } from './organizations.js';
-import { getWalletBalance, createTopup, processTopupOrderStatus, createTopupOrder } from './wallet.js';
+import { createUser } from './users.js';
+import { getWalletBalance, createTopup, processTopupOrderStatus, createTopupOrder, grantWelcomeCredit } from './wallet.js';
 import { createEventWithAtomicPayment } from './events.js';
 import { createTheme } from './themes.js';
 import { ensureDefaultGame } from './games.js';
@@ -8,11 +9,17 @@ import { ensureDefaultGame } from './games.js';
 async function runTests() {
   console.log('--- STARTING CREATE EVENT PAYMENT FLOW & TOP UP SHORTFALL TESTS ---');
 
-  // Test 1: Create Organization (Starts with 0 paid balance and RM800 Welcome Credit)
+  // Test 1: Create Organization and grant Welcome Credit (Starts with 0 paid balance and RM800 Welcome Credit)
+  const testUser = await createUser({
+    email: `test-${crypto.randomUUID().slice(0, 8)}@example.com`,
+    name: 'Shortfall Tester',
+  });
+  const testUserId = testUser.id;
   const org = await createOrganization({
     name: 'Shortfall Test Corp ' + Date.now(),
-    owner_id: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
+    owner_id: testUserId,
   });
+  await grantWelcomeCredit({ organizationId: org.id, userId: testUserId });
 
   const initialWallet = await getWalletBalance(org.id);
   console.log('1. Initial Wallet:', initialWallet);
@@ -54,7 +61,7 @@ async function runTests() {
   // Test 3: Create Top Up Order with exact shortfall (RM 600)
   const topUpOrder = await createTopupOrder({
     organizationId: org.id,
-    userId: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
+    userId: testUserId,
     amount: 600,
     currency: 'MYR',
     notes: 'Cover shortfall for event creation',
@@ -73,7 +80,7 @@ async function runTests() {
     newStatus: 'PAID',
     paymentMethod: 'card',
     paymentReference: 'test_ref_shortfall_paid',
-    processedBy: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
+    processedBy: testUserId,
     isTrustedSettlement: true,
   });
 

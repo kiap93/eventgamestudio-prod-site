@@ -1303,7 +1303,7 @@ export async function getEventsByOrgId(
     const storedPrice = event.event_price !== undefined && event.event_price !== null
       ? Number(event.event_price)
       : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : 1400.00);
-    const paymentStatus = event.payment_status || (event.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
+    const paymentStatus = (event.payment_status || (event.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'UNPAID')).toUpperCase();
     const isPaid = paymentStatus === 'PAID';
     const eventLifecycle = event.event_status || deriveEventLifecycleStatus(event);
 
@@ -1426,7 +1426,7 @@ export async function getEventById(
   const storedPrice = eventRecord.event_price !== undefined && eventRecord.event_price !== null
     ? Number(eventRecord.event_price)
     : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : 1400.00);
-  const paymentStatus = eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
+  const paymentStatus = (eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'UNPAID')).toUpperCase();
   const isPaid = paymentStatus === 'PAID';
   const eventLifecycle = eventRecord.event_status || deriveEventLifecycleStatus(eventRecord);
 
@@ -2677,7 +2677,7 @@ export async function createEventWithAtomicPayment(
       throw error;
     }
 
-    // 5. Create the Event Record with PAID status & payment details
+    // 5. Create the Event Record with UNPAID status before atomic payment transaction
     const createdEventRecord = await createEvent(
       {
         organization_id,
@@ -2687,15 +2687,16 @@ export async function createEventWithAtomicPayment(
         event_date,
         starts_at,
         expires_at,
-        status,
+        status: 'pending_payment',
         created_by,
-        payment_status: 'PAID',
+        payment_status: 'UNPAID',
         payment_mode,
         paid_amount: calculation.paidAmount,
         discount_amount: calculation.totalDiscount,
         event_price: eventPrice,
         event_currency: eventCurrency,
         event_timezone: params.event_timezone,
+        skipPendingLimitCheck: true,
       },
       env
     );
@@ -3410,7 +3411,7 @@ export async function getAllAdminEvents(
     const storedPrice = event.event_price !== undefined && event.event_price !== null
       ? Number(event.event_price)
       : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : 1400.00);
-    const paymentStatus = event.payment_status || (event.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'PAID');
+    const paymentStatus = (event.payment_status || (event.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'UNPAID')).toUpperCase();
     const isPaid = paymentStatus === 'PAID';
     const eventLifecycle = event.event_status || deriveEventLifecycleStatus(event);
 

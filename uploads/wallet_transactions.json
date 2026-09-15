@@ -48713,5 +48713,89 @@
     },
     "created_by": "987fe0b4-f215-4d41-88aa-83834046e528",
     "created_at": "2026-09-15T02:36:38.316Z"
+  },
+  {
+    "id": "a93c1b6f-8bf4-4a39-b9ad-d04c01901e23",
+    "amount": 600,
+    "status": "COMPLETED",
+    "currency": "MYR",
+    "event_id": null,
+    "metadata": {
+      "reason": null,
+      "payment_method": "card",
+      "topup_order_id": "9fa96664-e6bf-4896-af59-934324f2f051",
+      "payment_reference": "test_ref_shortfall_paid"
+    },
+    "created_at": "2026-09-15T07:03:20.960449+00:00",
+    "created_by": "20bfd36c-88a1-422f-ad0b-9fb7a480a97c",
+    "description": "Top-up Order 9FA96664",
+    "balance_type": "PAID_BALANCE",
+    "reference_id": "topup_order_9fa96664-e6bf-4896-af59-934324f2f051",
+    "owner_user_id": null,
+    "organization_id": "c9fecc92-5f1f-4f8d-b91c-7ba2ef4d11be",
+    "transaction_type": "TOPUP"
+  },
+  {
+    "id": "bf6d8077-3c4f-4aed-abd5-838c68426f8e",
+    "amount": 600,
+    "status": "COMPLETED",
+    "currency": "MYR",
+    "event_id": null,
+    "metadata": {
+      "reason": null,
+      "payment_method": "card",
+      "topup_order_id": "95f731b1-f208-4f73-a2d8-88170dd6b649",
+      "payment_reference": "test_ref_shortfall_paid"
+    },
+    "created_at": "2026-09-15T07:04:51.101161+00:00",
+    "created_by": "99b95d9c-c118-4480-b98b-0065c24c9c39",
+    "description": "Top-up Order 95F731B1",
+    "balance_type": "PAID_BALANCE",
+    "reference_id": "topup_order_95f731b1-f208-4f73-a2d8-88170dd6b649",
+    "owner_user_id": null,
+    "organization_id": "fef3f0c2-9cb2-4d93-a4a8-48ff0d33e0e4",
+    "transaction_type": "TOPUP"
+  },
+  {
+    "id": "63945c7e-54e0-43e9-b770-2de0f169f895",
+    "amount": 600,
+    "status": "COMPLETED",
+    "currency": "MYR",
+    "event_id": null,
+    "metadata": {
+      "reason": null,
+      "payment_method": "card",
+      "topup_order_id": "e73858e4-ec99-4b3b-a141-786f1bada6ed",
+      "payment_reference": "test_ref_shortfall_paid"
+    },
+    "created_at": "2026-09-15T07:07:50.254924+00:00",
+    "created_by": "6e89a0ed-cc7e-4236-bdfc-7a12611ac32d",
+    "description": "Top-up Order E73858E4",
+    "balance_type": "PAID_BALANCE",
+    "reference_id": "topup_order_e73858e4-ec99-4b3b-a141-786f1bada6ed",
+    "owner_user_id": null,
+    "organization_id": "daa835a5-2cbe-424d-8c6d-cd690a734007",
+    "transaction_type": "TOPUP"
+  },
+  {
+    "id": "0b1790ef-b9a3-4aae-89ba-9b0bfe0fea84",
+    "amount": 600,
+    "status": "COMPLETED",
+    "currency": "MYR",
+    "event_id": null,
+    "metadata": {
+      "reason": null,
+      "payment_method": "card",
+      "topup_order_id": "91c53d24-7760-4dcb-84ee-de57fe082f21",
+      "payment_reference": "test_ref_shortfall_paid"
+    },
+    "created_at": "2026-09-15T07:09:08.116171+00:00",
+    "created_by": "2e53ca28-5c6d-4784-b1c9-fde630192efa",
+    "description": "Top-up Order 91C53D24",
+    "balance_type": "PAID_BALANCE",
+    "reference_id": "topup_order_91c53d24-7760-4dcb-84ee-de57fe082f21",
+    "owner_user_id": null,
+    "organization_id": "41e61c37-8efb-48e9-ac6c-b130ff246215",
+    "transaction_type": "TOPUP"
   }
 ]

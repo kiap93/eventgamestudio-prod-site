@@ -404,7 +404,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
   }
 
   const isPendingPayment =
-    eventData.payment_status !== 'PAID' ||
+    (eventData.payment_status || '').toUpperCase() !== 'PAID' ||
     eventData.status === 'pending_payment' ||
     eventData.calculated_status === 'pending_payment';
 

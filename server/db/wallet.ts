@@ -29,6 +29,7 @@ import {
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 
 // Business Constants
@@ -180,12 +181,20 @@ loadLocalStores();
 
 // In-memory organization mutex lock to prevent concurrent race conditions
 const orgLocks = new Map<string, Promise<void>>();
+const heldLocksContext = new AsyncLocalStorage<Set<string>>();
 
 export async function withOrganizationLock<T>(
   organizationId: string,
   operation: () => Promise<T>
 ): Promise<T> {
   if (!organizationId) {
+    return await operation();
+  }
+
+  const currentLocks = heldLocksContext.getStore();
+  const lockKey = `org:${organizationId}`;
+  if (currentLocks && currentLocks.has(lockKey)) {
+    // Already held in current reentrant call stack
     return await operation();
   }
 
@@ -205,14 +214,19 @@ export async function withOrganizationLock<T>(
 
   orgLocks.set(organizationId, lockPromise);
 
-  try {
-    return await operation();
-  } finally {
-    if (orgLocks.get(organizationId) === lockPromise) {
-      orgLocks.delete(organizationId);
+  const nextLocks = new Set(currentLocks || []);
+  nextLocks.add(lockKey);
+
+  return await heldLocksContext.run(nextLocks, async () => {
+    try {
+      return await operation();
+    } finally {
+      if (orgLocks.get(organizationId) === lockPromise) {
+        orgLocks.delete(organizationId);
+      }
+      releaseLock!();
     }
-    releaseLock!();
-  }
+  });
 }
 
 // In-memory user-level mutex lock for user-scoped reward allocations
@@ -223,6 +237,13 @@ export async function withUserRewardLock<T>(
   operation: () => Promise<T>
 ): Promise<T> {
   if (!userId) {
+    return await operation();
+  }
+
+  const currentLocks = heldLocksContext.getStore();
+  const lockKey = `user_reward:${userId}`;
+  if (currentLocks && currentLocks.has(lockKey)) {
+    // Already held in current reentrant call stack
     return await operation();
   }
 
@@ -241,14 +262,19 @@ export async function withUserRewardLock<T>(
 
   userRewardLocks.set(userId, lockPromise);
 
-  try {
-    return await operation();
-  } finally {
-    if (userRewardLocks.get(userId) === lockPromise) {
-      userRewardLocks.delete(userId);
+  const nextLocks = new Set(currentLocks || []);
+  nextLocks.add(lockKey);
+
+  return await heldLocksContext.run(nextLocks, async () => {
+    try {
+      return await operation();
+    } finally {
+      if (userRewardLocks.get(userId) === lockPromise) {
+        userRewardLocks.delete(userId);
+      }
+      releaseLock!();
     }
-    releaseLock!();
-  }
+  });
 }
 
 async function resolveOrgOwnerId(orgId: string, env?: Record<string, any>): Promise<string | null> {
