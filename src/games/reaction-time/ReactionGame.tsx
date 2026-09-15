@@ -813,13 +813,14 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
       {/* Final Victory / Leaderboard Completion Screen */}
       {gameState === 'FINAL_RESULT' && (
         <div
-          className="absolute inset-0 z-50 pointer-events-auto cursor-default"
+          className="absolute inset-0 z-50 pointer-events-auto cursor-default flex items-center justify-center"
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
         >
           <ResultScreenRenderer
             resultConfig={reactionConfig.screens?.result}
+            layout={activeTheme?.layout}
             targetDimensions={{ width: responsive.designWidth, height: responsive.designHeight }}
             isPortrait={responsive.isPortrait}
             stats={{

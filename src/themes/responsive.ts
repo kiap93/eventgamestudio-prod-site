@@ -337,6 +337,10 @@ export function getEffectiveGameLayout(
 
   const res: GameLayoutConfig = {
     orientation: layout.orientation || 'auto',
+    ...(layout.position ? { position: layout.position } : {}),
+    ...(layout.contentAlignment ? { contentAlignment: layout.contentAlignment } : {}),
+    ...(layout.horizontalAlignment ? { horizontalAlignment: layout.horizontalAlignment } : {}),
+    ...(layout.verticalAlignment ? { verticalAlignment: layout.verticalAlignment } : {}),
     clientLogo: {
       ...portraitDefaults.clientLogo,
       visible: layout.clientLogo?.visible ?? true,

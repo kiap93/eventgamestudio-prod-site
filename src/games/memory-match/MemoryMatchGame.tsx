@@ -2091,43 +2091,6 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         )}
 
         {/* ======================================================================= */}
-        {/* 8. GAME OVER / VICTORY COMPLETION MODAL                                 */}
-        {/* ======================================================================= */}
-        {gameState === 'GAME_OVER' && (
-          <ResultScreenRenderer
-            resultConfig={memoryConfig.screens?.result}
-            targetDimensions={{ width: responsive.designWidth, height: responsive.designHeight }}
-            isPortrait={responsive.isPortrait}
-            stats={{
-              score,
-              moves,
-              matchedPairsCount,
-              totalPairs,
-              accuracyPercent,
-              timeElapsedSeconds: Math.max(0, (memoryConfig.gameplay.gameDurationSeconds || 45) - timeRemaining),
-              isVictory,
-            }}
-            theme={activeTheme}
-            leaderboardData={leaderboardScores}
-            loadingLeaderboard={loadingLeaderboard}
-            currentPlayerName={playerName}
-            isEventPreview={isEventPreview}
-            isEventTest={isEventTest}
-            scoreSubmitted={scoreSubmitted}
-            submittedRank={submittedRank}
-            isSubmittingScore={isSubmittingScore}
-            onSubmitScore={handleSubmitScore}
-            onAction={(action) => {
-              if (action === 'playAgain') {
-                startCountdown();
-              } else if (action === 'exit') {
-                stopGame();
-              }
-            }}
-          />
-        )}
-
-        {/* ======================================================================= */}
         {/* 9. LEADERBOARD MODAL                                                    */}
         {/* ======================================================================= */}
         {showLeaderboardModal && (
@@ -2184,6 +2147,46 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
           </div>
         )}
       </div>
+
+      {/* ======================================================================= */}
+      {/* 8. GAME OVER / VICTORY COMPLETION MODAL                                 */}
+      {/* ======================================================================= */}
+      {gameState === 'GAME_OVER' && (
+        <div className="absolute inset-0 pointer-events-auto z-50 overflow-hidden flex items-center justify-center">
+          <ResultScreenRenderer
+            resultConfig={memoryConfig.screens?.result}
+            layout={layout}
+            targetDimensions={{ width: responsive.designWidth, height: responsive.designHeight }}
+            isPortrait={responsive.isPortrait}
+            stats={{
+              score,
+              moves,
+              matchedPairsCount,
+              totalPairs,
+              accuracyPercent,
+              timeElapsedSeconds: Math.max(0, (memoryConfig.gameplay.gameDurationSeconds || 45) - timeRemaining),
+              isVictory,
+            }}
+            theme={activeTheme}
+            leaderboardData={leaderboardScores}
+            loadingLeaderboard={loadingLeaderboard}
+            currentPlayerName={playerName}
+            isEventPreview={isEventPreview}
+            isEventTest={isEventTest}
+            scoreSubmitted={scoreSubmitted}
+            submittedRank={submittedRank}
+            isSubmittingScore={isSubmittingScore}
+            onSubmitScore={handleSubmitScore}
+            onAction={(action) => {
+              if (action === 'playAgain') {
+                startCountdown();
+              } else if (action === 'exit') {
+                stopGame();
+              }
+            }}
+          />
+        </div>
+      )}
 
       {/* ======================================================================= */}
       {/* 5. START MATCH SCREEN MODAL (AUTHORITATIVE UNIFORM SCALING)             */}

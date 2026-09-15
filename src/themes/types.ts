@@ -187,6 +187,10 @@ export interface GameLayoutElement {
 
 export interface GameLayoutConfig {
   orientation?: GameOrientation;
+  position?: 'left' | 'center' | 'right' | string;
+  contentAlignment?: 'left' | 'center' | 'right' | string;
+  horizontalAlignment?: 'left' | 'center' | 'right' | string;
+  verticalAlignment?: 'top' | 'center' | 'bottom' | string;
   clientLogo: GameLayoutElement;
   scoreHud: GameLayoutElement;
   timer: GameLayoutElement;
