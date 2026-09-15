@@ -6858,5 +6858,35 @@
     "country_code": "MY",
     "created_at": "2026-09-14T09:31:35.705Z",
     "updated_at": "2026-09-14T09:31:35.705Z"
+  },
+  {
+    "id": "02e88ab8-1c8a-4e9e-867e-44325c2a5aa5",
+    "name": "Auto Welcome Org Test",
+    "slug": "auto-welcome-org-test-1b63b5",
+    "owner_id": "5af8c91f-1f79-4b1d-bbd3-59e2fba920a8",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-15T01:24:40.282Z",
+    "updated_at": "2026-09-15T01:24:40.282Z"
+  },
+  {
+    "id": "a1ee62b4-ee05-47a5-9b76-34b3f8ae745e",
+    "name": "No Auto Welcome Org Test",
+    "slug": "no-auto-welcome-org-test-376e25",
+    "owner_id": "20b979db-9222-4f6e-b9fb-23483b21c957",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-15T01:25:07.400Z",
+    "updated_at": "2026-09-15T01:25:07.400Z"
+  },
+  {
+    "id": "ee97995f-2ab5-4fe9-82e7-62ea276fb77a",
+    "name": "Second Org Same User",
+    "slug": "second-org-same-user-bf13d3",
+    "owner_id": "20b979db-9222-4f6e-b9fb-23483b21c957",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-15T01:25:07.457Z",
+    "updated_at": "2026-09-15T01:25:07.457Z"
   }
 ]

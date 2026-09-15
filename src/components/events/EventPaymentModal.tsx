@@ -43,8 +43,8 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [activeCalculation, setActiveCalculation] = useState<EventPaymentCalculation | null>(null);
 
-  // Credit checkboxes (both enabled by default)
-  const [useWelcomeCredit, setUseWelcomeCredit] = useState(true);
+  // Credit checkboxes (welcome credit only enabled if available in wallet)
+  const [useWelcomeCredit, setUseWelcomeCredit] = useState(false);
   const [useEventCredit, setUseEventCredit] = useState(true);
 
   const [submittingPayment, setSubmittingPayment] = useState(false);
@@ -78,10 +78,18 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
       setQuoteError(null);
 
       // Fetch wallet balance
+      let hasWelcome = false;
       const walletRes = await apiFetch(`/api/organizations/${orgId}/wallet`);
       if (walletRes.ok) {
         const wData = await walletRes.json();
-        setWallet(wData.wallet);
+        const wl = wData.wallet || wData;
+        setWallet(wl);
+        if (Number(wl?.welcome_credit ?? 0) > 0) {
+          hasWelcome = true;
+          setUseWelcomeCredit(true);
+        } else {
+          setUseWelcomeCredit(false);
+        }
       }
 
       // Fetch quote for pricing validation
@@ -94,7 +102,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
           event_price: event.event_price || undefined,
           start_date: event.start_date || undefined,
           end_date: event.end_date || undefined,
-          use_welcome_credit: true,
+          use_welcome_credit: hasWelcome,
           use_event_credit: true,
         }),
       });
@@ -401,29 +409,31 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                       <span className="font-mono font-bold text-slate-100 text-sm">{formatCurrency(eventPrice)}</span>
                     </div>
 
-                    {/* Welcome Credit Row */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={useWelcomeCredit}
-                            onChange={(e) => setUseWelcomeCredit(e.target.checked)}
-                            className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500/30 focus:ring-offset-slate-950 accent-amber-500 cursor-pointer"
-                          />
-                          <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Welcome Credit</span>
+                    {/* Welcome Credit Row (Only visible if promotional credit exists in wallet) */}
+                    {availableWelcomeCredit > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={useWelcomeCredit}
+                              onChange={(e) => setUseWelcomeCredit(e.target.checked)}
+                              className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500/30 focus:ring-offset-slate-950 accent-amber-500 cursor-pointer"
+                            />
+                            <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Welcome Credit</span>
+                            </span>
+                          </label>
+                          <span className={`font-mono font-bold ${useWelcomeCredit && welcomeCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            {useWelcomeCredit && welcomeCreditUsed > 0 ? `-${formatCurrency(welcomeCreditUsed)}` : 'RM0'}
                           </span>
-                        </label>
-                        <span className={`font-mono font-bold ${useWelcomeCredit && welcomeCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                          {useWelcomeCredit && welcomeCreditUsed > 0 ? `-${formatCurrency(welcomeCreditUsed)}` : 'RM0'}
-                        </span>
+                        </div>
+                        <div className="pl-6.5 text-[11px] text-slate-400">
+                          Available: {formatCurrency(availableWelcomeCredit)}
+                        </div>
                       </div>
-                      <div className="pl-6.5 text-[11px] text-slate-400">
-                        Available: {formatCurrency(availableWelcomeCredit)}
-                      </div>
-                    </div>
+                    )}
 
                     {/* Event Credit Row */}
                     <div className="space-y-1">

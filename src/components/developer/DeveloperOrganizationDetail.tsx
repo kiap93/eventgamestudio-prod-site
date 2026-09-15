@@ -105,6 +105,7 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
   const [error, setError] = useState<string | null>(null);
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [grantingWelcome, setGrantingWelcome] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'events' | 'transactions'>('overview');
 
   const fetchOrganizationDetail = async () => {
@@ -160,6 +161,52 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
       });
     } finally {
       setRecalculating(false);
+    }
+  };
+
+  const handleGrantWelcomeCredit = async () => {
+    if (!orgId || grantingWelcome) return;
+    if (!window.confirm('Are you sure you want to manually grant Welcome Credit (RM800.00) to this organization? This is strictly an owner-level promotional grant.')) {
+      return;
+    }
+    setGrantingWelcome(true);
+    setActionMessage(null);
+    try {
+      const res = await apiFetch(`/api/organizations/${orgId}/wallet/grant-welcome`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference_id: `manual_dev_grant_${Date.now()}`,
+          metadata: {
+            source: 'MANUAL_DEVELOPER_PROMOTION',
+            granted_by_role: 'developer_admin',
+          },
+        }),
+      });
+      const resJson = await res.json();
+      if (!res.ok) {
+        throw new Error(resJson.error || 'Failed to grant Welcome Credit');
+      }
+      if (resJson.already_granted) {
+        setActionMessage({
+          type: 'error',
+          text: resJson.message || 'Welcome Credit was already granted or owner reached lifetime limit.',
+        });
+      } else {
+        setActionMessage({
+          type: 'success',
+          text: 'Welcome Credit (RM800.00) successfully granted.',
+        });
+      }
+      await fetchOrganizationDetail();
+    } catch (err: any) {
+      console.error('Grant welcome error:', err);
+      setActionMessage({
+        type: 'error',
+        text: err.message || 'Error occurred while granting Welcome Credit.',
+      });
+    } finally {
+      setGrantingWelcome(false);
     }
   };
 
@@ -372,25 +419,39 @@ export const DeveloperOrganizationDetail: React.FC<Props> = ({ orgId }) => {
           </div>
 
           {/* Welcome Credit */}
-          <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
-                Welcome Credit
-              </span>
-              <span
-                className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
-                  wallet.welcome_credit_granted
-                    ? 'bg-emerald-500/10 text-emerald-400'
-                    : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                {wallet.welcome_credit_granted ? 'Granted' : 'Pending'}
-              </span>
+          <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                  Welcome Credit
+                </span>
+                <span
+                  className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
+                    wallet.welcome_credit_granted
+                      ? 'bg-emerald-500/10 text-emerald-400'
+                      : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  {wallet.welcome_credit_granted ? 'Granted' : 'Not Granted'}
+                </span>
+              </div>
+              <div className="text-lg font-bold text-cyan-400 font-mono">
+                {formatCurrency(wallet.welcome_credit, wallet.currency)}
+              </div>
+              <span className="text-[10px] text-slate-500 mt-1 block">Promotional manual grant</span>
             </div>
-            <div className="text-lg font-bold text-cyan-400 font-mono">
-              {formatCurrency(wallet.welcome_credit, wallet.currency)}
-            </div>
-            <span className="text-[10px] text-slate-500 mt-1 block">RM800 for 1st event</span>
+            {!wallet.welcome_credit_granted && (
+              <div className="mt-2.5 pt-2 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={handleGrantWelcomeCredit}
+                  disabled={grantingWelcome}
+                  className="w-full text-center py-1 px-2 text-[10px] font-bold rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {grantingWelcome ? 'Granting...' : 'Grant Welcome Credit'}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Showcase Credit */}

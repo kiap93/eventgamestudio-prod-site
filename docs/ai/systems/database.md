@@ -123,12 +123,37 @@ Live tournament and rehearsal score logs.
 Marketing case studies and attached media assets.
 - `event_showcases.id` (UUID, Primary Key).
 - `event_showcases.event_id` (UUID, Unique, Foreign Key $\rightarrow$ `events.id`).
+- `event_showcases.owner_user_id` (UUID, References `users.id`).
 - `event_showcases.status` (TEXT): `'DRAFT'` | `'PUBLISHED'` | `'UNPUBLISHED'` | `'BLOCKED'` | `'DELETED'`.
 - `event_showcases.reward_status` (TEXT): `'NOT_ELIGIBLE'` | `'AWAITING_APPROVAL'` | `'REWARDED'` | `'REJECTED'`.
 - `event_showcase_media.id` (UUID, Primary Key).
 - `event_showcase_media.media_type` (TEXT): `'photo'` | `'video'`.
 - `event_showcase_media.storage_path` (TEXT): Object key in `showcase-media` bucket.
 - `event_showcase_media.display_order` (INTEGER): Manual sorting index.
+
+### 9. `public.owner_showcase_rewards`
+Authoritative lifetime ledger for owner-level first-event showcase rewards (RM300.00).
+- `id` (UUID, Primary Key, Default: `gen_random_uuid()`).
+- `owner_user_id` (UUID, Unique, NOT NULL, Foreign Key $\rightarrow$ `users.id`, ON DELETE CASCADE).
+- `organization_id` (UUID, Foreign Key $\rightarrow$ `organizations.id`, ON DELETE SET NULL).
+- `event_id` (UUID, Foreign Key $\rightarrow$ `events.id`, ON DELETE SET NULL).
+- `showcase_id` (UUID, Foreign Key $\rightarrow$ `event_showcases.id`, ON DELETE SET NULL).
+- `transaction_id` (UUID, Foreign Key $\rightarrow$ `wallet_transactions.id`, ON DELETE SET NULL).
+- `amount` (NUMERIC(10,2), NOT NULL, Default: `300.00`).
+- `rewarded_at` (TIMESTAMPTZ, Default: `now()`).
+- `created_at` (TIMESTAMPTZ, Default: `now()`).
+- *Inviolable Rule*: Foreign keys on `organization_id`, `event_id`, and `showcase_id` use `ON DELETE SET NULL`. If an organization or event is deleted, the owner's reward history is permanently preserved, preventing any reset of lifetime reward eligibility.
+
+### 10. `public.user_rewards`
+Centralized user-level promotional and lifetime reward ledger.
+- `id` (UUID, Primary Key, Default: `gen_random_uuid()`).
+- `user_id` (UUID, NOT NULL, Foreign Key $\rightarrow$ `users.id`, ON DELETE CASCADE).
+- `reward_type` (VARCHAR(50), NOT NULL): `'WELCOME_CREDIT'` (RM800) | `'SHOWCASE_CREDIT'` (RM300).
+- `organization_id` (UUID, Foreign Key $\rightarrow$ `organizations.id`, ON DELETE SET NULL).
+- `transaction_id` (UUID).
+- `amount` (NUMERIC(12,2), NOT NULL).
+- `created_at` (TIMESTAMPTZ, Default: `now()`).
+- Unique Constraint: `(user_id, reward_type)` guaranteeing strictly at most one reward per user account lifetime.
 
 ---
 
@@ -137,14 +162,18 @@ Marketing case studies and attached media assets.
 Critical multi-step operations execute inside PostgreSQL stored procedures with explicit row-level locks (`FOR UPDATE`):
 
 ### `public.approve_first_event_showcase_reward_atomic`
-- **Migration**: `20260906030000_atomic_showcase_reward_approval.sql`
+- **Migrations**: `20260906040000_owner_level_showcase_reward.sql` & `20260914000000_user_level_reward_security_and_reconciliation.sql`
 - **Actions**:
   1. Locks `event_showcases` and `organization_wallets` rows `FOR UPDATE`.
-  2. Verifies `wallet.showcase_credit_granted = false`.
-  3. Verifies `showcase.reward_status = 'AWAITING_APPROVAL'`.
-  4. Increments `wallet.showcase_credit` by `300.00` and sets `showcase_credit_granted = true`.
-  5. Inserts `wallet_transactions` row with `SHOWCASE_REWARD`.
-  6. Updates `showcase.reward_status = 'REWARDED'` and sets `reviewed_at = now()`.
+  2. Resolves `owner_user_id` from `event_showcases` or `organizations.owner_id`.
+  3. Verifies `owner_showcase_rewards` and `user_rewards` do not already contain `owner_user_id`.
+  4. Verifies `wallet.showcase_credit_granted = false`.
+  5. Verifies `showcase.reward_status IN ('AWAITING_APPROVAL', 'PENDING')`.
+  6. Atomically inserts the reward into `owner_showcase_rewards` AND `user_rewards(user_id, 'SHOWCASE_CREDIT')`.
+  7. Increments `wallet.showcase_credit` by `300.00` and sets `showcase_credit_granted = true`.
+  8. Inserts `wallet_transactions` row with `SHOWCASE_CREDIT` and `owner_user_id`.
+  9. Updates `showcase.reward_status = 'REWARDED'` and sets `reviewed_at = now()`.
+  10. Inserts moderation audit entry into `showcase_moderation_logs`.
 
 ### `public.atomic_checkout_claim`
 - **Migration**: `20260904010000_atomic_checkout_claim.sql`
@@ -155,26 +184,42 @@ Critical multi-step operations execute inside PostgreSQL stored procedures with 
 - **Actions**: Deducts deposited top-up funds against any existing debt in `outstanding_balance` before crediting `paid_balance`.
 
 ### `public.create_organization_atomic`
-- **Migration**: `20260909000000_atomic_create_organization.sql`
-- **Actions**: Atomically inserts the organization, inserts the owner membership, and initializes the wallet row with `welcome_credit = 800.00`.
+- **Migration**: `20260910000000_atomic_create_organization.sql`
+- **Actions**: Atomically inserts the organization, inserts the owner membership, checks `user_rewards` for `'WELCOME_CREDIT'`, and initializes the wallet row with `welcome_credit = 800.00` only if the user has not claimed their lifetime welcome bonus.
+
+### `public.create_event_atomic`
+- **Migration**: `20260909010000_atomic_create_event.sql`
+- **Actions**: Atomically creates an event with authoritative pricing, public token generation, and initial booking status.
 
 ---
 
 ## 4. Migration History & Timeline
 
-Migrations in `/supabase/migrations/` document the progressive security hardening:
+Migrations in `/supabase/migrations/` document the progressive security hardening and follow **Strategy B** (Historical Baseline Date Snapshot + Post-Baseline Timestamped Migrations):
 
 | Migration File | Architectural Milestone |
 | :--- | :--- |
-| `20260901000000_initial_schema.sql` | Base schema: users, orgs, events, games, themes, scores, wallets |
-| `20260902000000_wallet_multi_ledger.sql` | Split wallet into cash, welcome, showcase, and topup ledgers |
-| `20260903000000_score_environments.sql` | Added `score_environment` ('test' / 'live') and session tracking |
+| `20260903000000_initial_baseline.sql` | Production schema snapshot as of 2026-09-03 00:00:00 UTC |
+| `20260903010000_add_outstanding_balance_to_organization_wallets.sql` | Introduces `outstanding_balance` and minimum-payment tracking |
 | `20260904000000_atomic_outstanding_balance_settlement.sql` | Implemented outstanding balance settlement RPC |
 | `20260904010000_atomic_checkout_claim.sql` | Implemented atomic checkout session lock RPC |
-| `20260904020000_organizations_backend_write_only.sql` | Revoked client writes; added defense triggers to orgs and members |
-| `20260904030000_events_backend_write_only.sql` | Enforced backend-write-only security on events table |
+| `20260904020000_prevent_user_privilege_escalation.sql` | Blocked non-service tampering with `is_developer` flag |
+| `20260904030000_events_backend_write_only.sql` | Revoked direct client mutations on `events` table |
+| `20260904040000_games_themes_backend_write_only.sql` | Revoked direct client mutations on `games` & `game_themes` |
+| `20260904050000_leaderboard_rls_live_window.sql` | Restricts public leaderboard SELECT to paid live event window |
+| `20260904060000_storage_buckets_alignment.sql` | Storage limits and dedicated `showcase-media` bucket provisioning |
+| `20260904070000_organizations_members_backend_write_only.sql` | Revoked direct client mutations on organizations and members |
+| `20260904080000_showcase_media_storage_path_verification.sql` | Storage path hierarchy and SVG upload prevention |
 | `20260906000000_showcase_moderation_and_reward_decoupling.sql` | Decoupled showcase visibility (`PUBLISHED`) from rewards |
 | `20260906010000_event_showcases_backend_write_only.sql` | Revoked direct client mutations on `event_showcases` |
-| `20260906030000_atomic_showcase_reward_approval.sql` | Implemented `approve_first_event_showcase_reward_atomic` RPC |
-| `20260909000000_atomic_create_organization.sql` | Implemented `create_organization_atomic` RPC |
+| `20260906020000_atomic_showcase_credit_reward.sql` | Atomic showcase credit reward RPC |
+| `20260906030000_atomic_showcase_reward_approval.sql` | Atomic developer approval RPC |
+| `20260906040000_owner_level_showcase_reward.sql` | Created `owner_showcase_rewards` ledger table & owner-level RPC |
+| `20260907000000_add_expired_to_event_status.sql` | Added `EXPIRED` status check constraint to `events` |
+| `20260909000000_add_country_code_to_organizations.sql` | Added `country_code` to `organizations` |
 | `20260909010000_atomic_create_event.sql` | Implemented `create_event_atomic` RPC |
+| `20260910000000_atomic_create_organization.sql` | Implemented `create_organization_atomic` RPC |
+| `20260912000000_user_level_welcome_credit.sql` | Created `user_rewards` table for user-level lifetime welcome credits |
+| `20260912010000_create_central_notifications.sql` | Centralized system notifications table (`central_notifications`) |
+| `20260913000000_add_event_timezone_to_events.sql` | Added `event_timezone` column to `events` |
+| `20260914000000_user_level_reward_security_and_reconciliation.sql` | Hardened `owner_showcase_rewards` foreign keys (`ON DELETE SET NULL`), backfilled `user_rewards`, reconciled historical duplicate transactions to `REVERSED`, and enforced RLS write blocks |

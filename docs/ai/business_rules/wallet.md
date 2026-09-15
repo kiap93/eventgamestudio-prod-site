@@ -99,13 +99,13 @@ Reward credits are dynamically calculated by `calculateTopupCredit(amount)`:
 ### Welcome Credit
 - **Amount**: RM800.00 one-time grant.
 - **Trigger**: Organization creation (`grantWelcomeCredit` or `create_organization_atomic`).
-- **Idempotency**: Guarded by `welcome_credit_granted` boolean flag on the wallet row and unique constraint on `wallet_transactions (organization_id, reference_id)`.
+- **Idempotency & Lifetime Scope**: Guarded at the user level by `public.user_rewards (user_id, 'WELCOME_CREDIT')` and on the wallet row by `welcome_credit_granted`. A user who creates multiple organizations only receives the welcome bonus on their first organization.
 - **Consumption**: Applied to the organization's first event license purchase.
 
 ### Showcase Reward Credit
 - **Amount**: RM300.00 one-time grant.
-- **Trigger**: Platform administrator approval of the organization's first eligible event showcase (`approve_first_event_showcase_reward_atomic`).
-- **Idempotency**: Guarded by `showcase_credit_granted` flag on the wallet row. Subsequent showcases do not receive financial rewards.
+- **Trigger**: Platform administrator approval of the owner's first eligible event showcase (`approve_first_event_showcase_reward_atomic`).
+- **Idempotency & Lifetime Scope**: Guarded at the owner account level by `public.owner_showcase_rewards` and `public.user_rewards (user_id, 'SHOWCASE_CREDIT')`. An owner is eligible for at most ONE showcase reward in their lifetime across all organizations. Deleting an event or organization never resets this eligibility (`ON DELETE SET NULL`).
 
 ---
 
@@ -144,6 +144,8 @@ Refunds are supported via `refundEventPayment` and `reverseTransaction`:
 | `public.organization_wallets` | Core balance table with separate balance columns per ledger |
 | `public.wallet_transactions` | Immutable double-entry transaction log |
 | `public.topup_orders` | Tracks top-up lifecycle (`PENDING`, `COMPLETED`, `FAILED`, `EXPIRED`) |
+| `public.user_rewards` | Centralized user-level ledger for lifetime welcome and showcase credits |
+| `public.owner_showcase_rewards` | Authoritative owner-level first-event showcase reward ledger |
 | `public.wallet_audit_events` | Security audit trail recording IP, user ID, and balance deltas |
 | `atomic_checkout_claim` | Stored procedure preventing duplicate Stripe session generation |
 | `atomic_outstanding_balance_settlement` | Stored procedure netting outstanding debts during top-ups |

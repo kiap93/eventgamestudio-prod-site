@@ -411,6 +411,7 @@ export interface EventShowcaseRecord {
 }
 
 export interface OwnerShowcaseRewardRecord {
+  id?: string;
   owner_user_id: string;
   organization_id: string;
   event_id: string;
@@ -425,7 +426,7 @@ export interface ShowcaseModerationLog {
   id: string;
   showcase_id: string;
   moderator_id: string;
-  action: 'BLOCK' | 'UNBLOCK' | 'DELETE' | 'RESTORE';
+  action: 'BLOCK' | 'UNBLOCK' | 'DELETE' | 'RESTORE' | 'APPROVE_REWARD' | 'REJECT_REWARD';
   reason: string;
   metadata?: Record<string, any>;
   created_at: string;

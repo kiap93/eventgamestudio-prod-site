@@ -21,6 +21,17 @@ In accordance with **Strategy B** (explicit baseline date boundary + post-baseli
 | **Post-Baseline 10** | `supabase/migrations/20260904080000_showcase_media_storage_path_verification.sql` | **Showcase Media Backend-Write-Only & Storage Validation**: Enforces storage path hierarchy, disallows SVG uploads, and revokes direct client mutations on `event_showcase_media`. |
 | **Post-Baseline 11** | `supabase/migrations/20260906000000_showcase_moderation_and_reward_decoupling.sql` | **Showcase Moderation & Reward Decoupling**: Decouples content visibility from financial reward, adds moderation audit log table (`showcase_moderation_logs`), and introduces `BLOCKED`/`DELETED` statuses. |
 | **Post-Baseline 12** | `supabase/migrations/20260906010000_event_showcases_backend_write_only.sql` | **Event Showcases Backend-Write-Only**: Revokes direct client mutation privileges (`INSERT`, `UPDATE`, `DELETE`) on `event_showcases`, preserves tenant SELECT, and installs defense-in-depth triggers protecting critical reward/moderation columns. |
+| **Post-Baseline 13** | `supabase/migrations/20260906020000_atomic_showcase_credit_reward.sql` | **Atomic Showcase Credit Reward**: Implements atomic showcase reward reservation RPC. |
+| **Post-Baseline 14** | `supabase/migrations/20260906030000_atomic_showcase_reward_approval.sql` | **Atomic Showcase Reward Approval**: Implements atomic developer approval RPC. |
+| **Post-Baseline 15** | `supabase/migrations/20260906040000_owner_level_showcase_reward.sql` | **Owner-Level Showcase Reward**: Dedicated `public.owner_showcase_rewards` ledger, `owner_user_id` on showcases and transactions, unique constraints and atomic approval RPC. |
+| **Post-Baseline 16** | `supabase/migrations/20260907000000_add_expired_to_event_status.sql` | **Event Lifecycle Expired Status**: Adds `EXPIRED` status check constraint to `public.events`. |
+| **Post-Baseline 17** | `supabase/migrations/20260909000000_add_country_code_to_organizations.sql` | **Country Code Support**: Adds `country_code` to `public.organizations`. |
+| **Post-Baseline 18** | `supabase/migrations/20260909010000_atomic_create_event.sql` | **Atomic Event Creation**: Implements `create_event_atomic` RPC. |
+| **Post-Baseline 19** | `supabase/migrations/20260910000000_atomic_create_organization.sql` | **Atomic Organization Creation**: Implements `create_organization_atomic` RPC. |
+| **Post-Baseline 20** | `supabase/migrations/20260912000000_user_level_welcome_credit.sql` | **User-Level Welcome Credit**: Dedicated `public.user_rewards` ledger table with unique constraint `(user_id, reward_type)`. |
+| **Post-Baseline 21** | `supabase/migrations/20260912010000_create_central_notifications.sql` | **Central Notifications**: Dedicated `public.central_notifications` table for system notifications. |
+| **Post-Baseline 22** | `supabase/migrations/20260913000000_add_event_timezone_to_events.sql` | **Event Timezone**: Adds `event_timezone` column to `public.events`. |
+| **Post-Baseline 23** | `supabase/migrations/20260914000000_user_level_reward_security_and_reconciliation.sql` | **User-Level Reward Security & Reconciliation**: Hardens `owner_showcase_rewards` foreign keys (`ON DELETE SET NULL`), backfills `user_rewards`, reconciles historical duplicate transactions to `REVERSED`, and hardens RLS. |
 | **Complete Cumulative Schema** | `supabase/schema.sql` | **Latest Canonical Single-File Snapshot**: Contains all tables, indexes, RLS policies, `outstanding_balance`, and all RPCs. |
 
 ---

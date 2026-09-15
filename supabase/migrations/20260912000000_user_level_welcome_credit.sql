@@ -24,6 +24,8 @@ ALTER TABLE public.wallet_transactions ADD COLUMN IF NOT EXISTS owner_user_id UU
 -- Clean up redundant index if created by earlier versions, maintaining canonical idx_wallet_transactions_owner_user_id
 DROP INDEX IF EXISTS public.idx_wallet_txns_owner_user_id;
 CREATE INDEX IF NOT EXISTS idx_wallet_transactions_owner_user_id ON public.wallet_transactions (owner_user_id);
+-- Temporarily drop unique index prior to duplicate reconciliation and backfill if re-running
+DROP INDEX IF EXISTS public.ux_wallet_txns_user_welcome_credit_unique;
 
 -- 3. Backfill owner_user_id on existing transactions
 -- Backfill from organizations table (owner_id)

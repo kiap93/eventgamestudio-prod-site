@@ -160,7 +160,7 @@ export const CreateOrganizationPage: React.FC = () => {
               <span>You will be assigned as Organization Owner</span>
             </div>
             <p className="text-slate-400 leading-relaxed text-[11px]">
-              First-time owners receive an automatic <strong className="text-amber-400">RM800 Welcome Credit</strong> for their first event, and can earn an additional one-time <strong className="text-amber-400">RM300 Showcase Reward</strong> upon publishing photos/video of their first completed event activation (strictly one-time per user account lifetime across all organizations).
+              Account owners can earn a one-time <strong className="text-amber-400">RM300 Showcase Reward</strong> upon publishing verified photos or videos of an event activation (strictly one-time per user account lifetime across all organizations).
             </p>
           </div>
 

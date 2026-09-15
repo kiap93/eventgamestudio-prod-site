@@ -116,13 +116,18 @@ SELECT * FROM public.approve_first_event_showcase_reward_atomic(
 ### Procedure Actions (ACID Transaction):
 1. Acquires row locks (`FOR UPDATE`) on `event_showcases` and `organization_wallets`.
 2. Resolves `owner_user_id` from `event_showcases` or `organizations.owner_id`.
-3. Verifies that `owner_showcase_rewards` does NOT already contain `owner_user_id`.
+3. Verifies that neither `owner_showcase_rewards` nor `user_rewards(user_id, 'SHOWCASE_CREDIT')` contains `owner_user_id`.
 4. Verifies that `showcase.reward_status` is `AWAITING_APPROVAL` (or `PENDING`).
-5. Inserts a record into `owner_showcase_rewards(owner_user_id, showcase_id, organization_id, amount, granted_by)`.
+5. Atomically inserts records into:
+   - `owner_showcase_rewards(owner_user_id, showcase_id, organization_id, amount, ...)`
+   - `user_rewards(user_id, 'SHOWCASE_CREDIT', organization_id, amount, ...)`
 6. Credits `showcase_credit` by `RM300.00` and sets `showcase_credit_granted = true` in `organization_wallets`.
-7. Inserts an immutable transaction row into `wallet_transactions` with `transaction_type = 'SHOWCASE_CREDIT'`.
+7. Inserts an immutable transaction row into `wallet_transactions` with `transaction_type = 'SHOWCASE_CREDIT'` and `owner_user_id`.
 8. Updates `event_showcases.reward_status = 'REWARDED'`, `reward_amount = 300.00`, and `reward_granted_at = now()`.
 9. Inserts an entry into `showcase_moderation_logs`.
+
+> **Critical Lifetime Reward Preservation**:
+> In `owner_showcase_rewards`, `organization_id`, `event_id`, and `showcase_id` foreign keys are configured with `ON DELETE SET NULL`. If an organization, event, or showcase is subsequently deleted, the reward record remains permanently anchored to `owner_user_id`, guaranteeing that deleting an entity can NEVER reset the owner's lifetime reward eligibility.
 
 ---
 
@@ -167,5 +172,7 @@ Managed via `server/db/showcaseMedia.ts` and Supabase Storage bucket `showcase-m
 | :--- | :--- |
 | `public.event_showcases` | Core showcase record with status, reward_status, metrics |
 | `public.event_showcase_media` | Associated media attachments with display order |
+| `public.owner_showcase_rewards` | Authoritative ledger enforcing one showcase reward per owner lifetime |
+| `public.user_rewards` | Centralized user-level promotional ledger (type: 'SHOWCASE_CREDIT') |
 | `public.showcase_moderation_logs` | Audit trail of all admin moderation and reward decisions |
 | `trg_prevent_event_showcase_unauthorized_client_mutations` | Trigger blocking direct client mutations on `event_showcases` |

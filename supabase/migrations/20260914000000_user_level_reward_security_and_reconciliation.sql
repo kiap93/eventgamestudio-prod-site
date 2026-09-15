@@ -14,6 +14,76 @@
 --                 in public.user_rewards.
 -- ==============================================================================
 
+-- 0. Ensure prerequisite tables, columns, and foreign keys exist defensively
+CREATE TABLE IF NOT EXISTS public.owner_showcase_rewards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_user_id UUID NOT NULL UNIQUE REFERENCES public.users(id) ON DELETE CASCADE,
+  organization_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
+  event_id UUID REFERENCES public.events(id) ON DELETE SET NULL,
+  showcase_id UUID REFERENCES public.event_showcases(id) ON DELETE SET NULL,
+  transaction_id UUID REFERENCES public.wallet_transactions(id) ON DELETE SET NULL,
+  amount NUMERIC(10,2) NOT NULL DEFAULT 300.00,
+  rewarded_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- Ensure id column exists if table was originally created with an earlier schema without id
+ALTER TABLE public.owner_showcase_rewards
+  ADD COLUMN IF NOT EXISTS id UUID DEFAULT gen_random_uuid();
+
+-- Ensure public.user_rewards exists
+CREATE TABLE IF NOT EXISTS public.user_rewards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  reward_type VARCHAR(50) NOT NULL,
+  organization_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
+  transaction_id UUID,
+  amount NUMERIC(12, 2) NOT NULL DEFAULT 800.00,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT ux_user_rewards_user_reward UNIQUE (user_id, reward_type)
+);
+
+-- Ensure owner_user_id exists on wallet_transactions
+ALTER TABLE public.wallet_transactions
+  ADD COLUMN IF NOT EXISTS owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_owner_user_id
+  ON public.wallet_transactions (owner_user_id);
+
+-- Ensure owner_user_id exists on event_showcases
+ALTER TABLE public.event_showcases
+  ADD COLUMN IF NOT EXISTS owner_user_id UUID;
+
+CREATE INDEX IF NOT EXISTS idx_event_showcases_owner_user_id
+  ON public.event_showcases (owner_user_id);
+
+-- Ensure showcase_credit_granted exists on organization_wallets
+ALTER TABLE public.organization_wallets
+  ADD COLUMN IF NOT EXISTS showcase_credit_granted BOOLEAN DEFAULT FALSE;
+
+-- Ensure showcase_moderation_logs exists and supports reward actions
+CREATE TABLE IF NOT EXISTS public.showcase_moderation_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  showcase_id UUID NOT NULL REFERENCES public.event_showcases(id) ON DELETE CASCADE,
+  moderator_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  action TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+DO $$
+BEGIN
+  ALTER TABLE public.showcase_moderation_logs
+    DROP CONSTRAINT IF EXISTS showcase_moderation_logs_action_check;
+  ALTER TABLE public.showcase_moderation_logs
+    ADD CONSTRAINT showcase_moderation_logs_action_check
+    CHECK (action IN ('BLOCK', 'UNBLOCK', 'DELETE', 'RESTORE', 'APPROVE_REWARD', 'REJECT_REWARD'));
+EXCEPTION
+  WHEN OTHERS THEN
+    NULL;
+END $$;
+
 -- 1. Alter owner_showcase_rewards foreign keys so deleting an organization NEVER deletes the reward
 ALTER TABLE public.owner_showcase_rewards
   ALTER COLUMN organization_id DROP NOT NULL,
@@ -23,6 +93,32 @@ ALTER TABLE public.owner_showcase_rewards
 -- Re-point foreign keys with ON DELETE SET NULL
 DO $$
 BEGIN
+  -- owner_user_id foreign key
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'owner_showcase_rewards_owner_user_id_fkey'
+      AND table_name = 'owner_showcase_rewards'
+  ) THEN
+    ALTER TABLE public.owner_showcase_rewards
+      ADD CONSTRAINT owner_showcase_rewards_owner_user_id_fkey
+      FOREIGN KEY (owner_user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+  END IF;
+
+  -- Ensure UNIQUE(owner_user_id) exists if not primary key
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'owner_showcase_rewards_owner_user_id_key'
+      AND table_name = 'owner_showcase_rewards'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.key_column_usage
+    WHERE table_name = 'owner_showcase_rewards'
+      AND column_name = 'owner_user_id'
+      AND constraint_name LIKE '%pkey'
+  ) THEN
+    ALTER TABLE public.owner_showcase_rewards
+      ADD CONSTRAINT owner_showcase_rewards_owner_user_id_key UNIQUE (owner_user_id);
+  END IF;
+
   -- organization_id
   IF EXISTS (
     SELECT 1 FROM information_schema.table_constraints

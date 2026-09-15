@@ -2534,17 +2534,19 @@ export default {
             remainingCreditBalance: 0,
             reasons: fullPaidCalc.reasons,
           },
-          {
-            mode: 'WELCOME_CREDIT',
-            title: 'Welcome Credit',
-            badge: 'Save RM800.00',
-            isEligible: welcomeCalc.isPayable,
-            creditApplied: welcomeCalc.welcomeCreditUsed,
-            paidAmount: welcomeCalc.paidAmount,
-            remainingPaidBalance: welcomeCalc.remainingPaidBalance,
-            remainingCreditBalance: welcomeCalc.remainingCreditBalance,
-            reasons: welcomeCalc.reasons,
-          },
+          ...(walletSummary.welcome_credit > 0 ? [
+            {
+              mode: 'WELCOME_CREDIT' as const,
+              title: 'Welcome Credit',
+              badge: 'Save RM800.00',
+              isEligible: welcomeCalc.isPayable,
+              creditApplied: welcomeCalc.welcomeCreditUsed,
+              paidAmount: welcomeCalc.paidAmount,
+              remainingPaidBalance: welcomeCalc.remainingPaidBalance,
+              remainingCreditBalance: welcomeCalc.remainingCreditBalance,
+              reasons: welcomeCalc.reasons,
+            }
+          ] : []),
           {
             mode: 'SHOWCASE_CREDIT',
             title: 'Showcase Credit',
@@ -6137,7 +6139,7 @@ export default {
 
         const isDev = isUserDeveloperAdmin(auth.user, env);
         if (!isDev) {
-          return errorResponse('Forbidden: Welcome credit is automatically granted upon organization creation. Manual invocation is restricted to system administrators.', 403, cors);
+          return errorResponse('Forbidden: Automatic welcome credit upon organization creation is discontinued. Promotional grants are restricted to developer administrators.', 403, cors);
         }
 
         const org = await getOrganizationById(orgId, env);

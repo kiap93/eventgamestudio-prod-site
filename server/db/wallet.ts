@@ -580,6 +580,66 @@ export async function recalculateWalletBalances(
 }
 
 /**
+ * Initialize a brand new organization wallet with zero balances.
+ * Automatic Welcome Credit is completely disabled.
+ */
+export async function initializeEmptyWallet(
+  organizationId: string,
+  env?: Record<string, any>
+): Promise<OrganizationWalletRecord> {
+  const isProdDb = isSupabaseConfigured(env);
+  const now = new Date().toISOString();
+
+  const emptyWallet: OrganizationWalletRecord = {
+    id: crypto.randomUUID(),
+    organization_id: organizationId,
+    paid_balance: 0.0,
+    welcome_credit: 0.0,
+    showcase_credit: 0.0,
+    topup_credit: 0.0,
+    outstanding_balance: 0.0,
+    currency: 'MYR',
+    welcome_credit_granted: false,
+    showcase_credit_granted: false,
+    created_at: now,
+    updated_at: now,
+  };
+
+  if (isProdDb) {
+    const supabase = getSupabaseServerClient(env);
+    const { data, error } = await supabase
+      .from('organization_wallets')
+      .upsert(
+        {
+          organization_id: organizationId,
+          paid_balance: 0.0,
+          welcome_credit: 0.0,
+          showcase_credit: 0.0,
+          topup_credit: 0.0,
+          outstanding_balance: 0.0,
+          currency: 'MYR',
+          welcome_credit_granted: false,
+          showcase_credit_granted: false,
+          updated_at: now,
+        },
+        { onConflict: 'organization_id' }
+      )
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('Failed to initialize organization wallet in Supabase:', error);
+    } else if (data) {
+      return data as OrganizationWalletRecord;
+    }
+  }
+
+  localWalletsCache.set(organizationId, emptyWallet);
+  saveLocalStores();
+  return emptyWallet;
+}
+
+/**
  * Get comprehensive wallet balances and credit eligibility for an organization.
  */
 export async function getWalletBalance(
@@ -1110,16 +1170,15 @@ export async function createTopup(
 }
 
 /**
- * Grant one-time Welcome Credit (RM800.00) to an organization.
- * Strictly enforced to be granted only once per user in their entire account lifetime.
+ * Grant Welcome Credit (RM800.00) to an organization.
  * 
- * Rules:
- * - A user can receive Welcome Credit ONLY ONCE in their entire account lifetime.
- * - Welcome Credit is granted only for an eligible organization creation by the user.
- * - Inviting a member to an organization, accepting an organization invitation,
- *   joining an organization, or becoming a member of an existing organization must NEVER grant Welcome Credit.
- * - Creating multiple organizations must NOT grant Welcome Credit multiple times.
- * - Deleting an organization and creating another organization must not reset the user's Welcome Credit eligibility.
+ * BUSINESS RULES:
+ * - Automatic Welcome Credit upon organization creation is DISCONTINUED:
+ *   - User creates first organization: ❌ No automatic grant.
+ *   - Same user creates another organization: ❌ No automatic grant.
+ *   - User is invited as member or accepts invitation: ❌ No automatic grant.
+ * - Welcome Credit can ONLY be granted manually by a verified developer admin for promotional campaigns.
+ * - Even when manually granted, it is strictly an Account Owner-Level Lifetime Reward (max 1 lifetime per user account).
  */
 export async function grantWelcomeCredit(
   params: {
@@ -1140,6 +1199,17 @@ export async function grantWelcomeCredit(
 
   if (!organizationId) {
     throw new Error('Organization ID is required');
+  }
+
+  // Reject automatic organization onboarding grants
+  if (metadata?.source === 'AUTO_ORGANIZATION_CREATION') {
+    const currentWallet = await getWalletBalance(organizationId, env);
+    return {
+      transaction: null,
+      wallet: currentWallet,
+      alreadyGranted: true,
+      message: 'Automatic Welcome Credit upon organization creation is discontinued.',
+    };
   }
 
   // 1. Resolve target user ID (the account owner who receives the reward)
@@ -1868,6 +1938,11 @@ export async function consumeWelcomeCredit(
     throw new Error('Event ID is required');
   }
 
+  const currentWallet = await getWalletBalance(organizationId, env);
+  if (!currentWallet || currentWallet.welcome_credit <= 0) {
+    throw new Error('No Welcome Credit is available in this organization wallet to consume.');
+  }
+
   // Idempotency check: if event is already paid with welcome credit, return existing transactions without double-charging
   try {
     const { getEventById } = await import('./events.js');
@@ -2490,7 +2565,7 @@ export async function calculateEventPayment(
     (options && (options.useWelcomeCredit !== undefined || options.useEventCredit !== undefined || options.useTopupCredit !== undefined));
 
   if (isExplicitCombined) {
-    const useWelcome = options?.useWelcomeCredit ?? (paymentMode === 'WELCOME_CREDIT' || paymentMode === 'COMBINED_CREDIT');
+    const useWelcome = options?.useWelcomeCredit === true || paymentMode === 'WELCOME_CREDIT';
     const useEvent = options?.useEventCredit ?? options?.useTopupCredit ?? (paymentMode === 'TOPUP_CREDIT' || paymentMode === 'COMBINED_CREDIT');
 
     if (useWelcome && wallet.welcome_credit > 0) {

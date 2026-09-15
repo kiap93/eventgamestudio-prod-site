@@ -158,28 +158,43 @@ async function runTests() {
   assertEqual(grant1Duplicate.wallet.welcome_credit, 800.00, 'Wallet welcome_credit remains exactly RM800.00 (not doubled)');
 
   // ----------------------------------------------------
-  // TEST GROUP 1B: AUTOMATIC WELCOME CREDIT ON createOrganization
+  // TEST GROUP 1B: NO AUTOMATIC WELCOME CREDIT ON createOrganization
   // ----------------------------------------------------
-  console.log('\n--- Test Group 1B: Automatic Welcome Credit on createOrganization ---');
+  console.log('\n--- Test Group 1B: No Automatic Welcome Credit on createOrganization ---');
   const autoUser = await createTestUser();
   const autoOrg = await createOrganization({
-    name: 'Auto Welcome Org Test',
+    name: 'No Auto Welcome Org Test',
     owner_id: autoUser,
   });
 
   const autoOrgWallet = await getWalletBalance(autoOrg.id);
-  assertEqual(autoOrgWallet.welcome_credit, 800.00, 'createOrganization automatically grants RM800.00 Welcome Credit');
-  assertEqual(autoOrgWallet.total_balance, 800.00, 'Total available balance reflects Welcome Credit immediately');
-  assertEqual(autoOrgWallet.welcome_credit_granted, true, 'welcome_credit_granted flag is true');
+  assertEqual(autoOrgWallet.welcome_credit, 0.00, 'createOrganization does NOT automatically grant Welcome Credit (RM0)');
+  assertEqual(autoOrgWallet.total_balance, 0.00, 'Total available balance is RM0 immediately');
+  assertEqual(autoOrgWallet.welcome_credit_granted, false, 'welcome_credit_granted flag is false');
 
-  // Calling grantWelcomeCredit again on this new org is safely idempotent
-  const secondGrant = await grantWelcomeCredit({
+  // Same user creating a second organization also gets zero welcome credit
+  const secondOrg = await createOrganization({
+    name: 'Second Org Same User',
+    owner_id: autoUser,
+  });
+  const secondOrgWallet = await getWalletBalance(secondOrg.id);
+  assertEqual(secondOrgWallet.welcome_credit, 0.00, 'Second org created by same user also has RM0 Welcome Credit');
+  assertEqual(secondOrgWallet.welcome_credit_granted, false, 'Second org welcome_credit_granted is false');
+
+  // Explicit admin grant works on the first org
+  const manualGrant = await grantWelcomeCredit({
     organizationId: autoOrg.id,
     createdBy: testAdminId,
   });
-  assertEqual(secondGrant.alreadyGranted, true, 'Subsequent grant to auto-created org is recognized as already granted');
-  const autoOrgWalletAfter = await getWalletBalance(autoOrg.id);
-  assertEqual(autoOrgWalletAfter.welcome_credit, 800.00, 'Wallet balance remains strictly RM800.00 (no duplicate credits)');
+  assertEqual(manualGrant.alreadyGranted, false, 'Manual developer grant succeeds for first org');
+  assertEqual(manualGrant.wallet.welcome_credit, 800.00, 'Manual developer grant adds RM800.00');
+
+  // Attempting manual grant on the second org belonging to the same owner is rejected by owner-level unique constraint
+  const secondOrgManualGrant = await grantWelcomeCredit({
+    organizationId: secondOrg.id,
+    createdBy: testAdminId,
+  });
+  assertEqual(secondOrgManualGrant.alreadyGranted, true, 'Subsequent grant to another org of same owner is rejected by owner-level rule');
 
   // ----------------------------------------------------
   // TEST GROUP 2: WELCOME CREDIT EVENT ELIGIBILITY

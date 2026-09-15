@@ -11,7 +11,7 @@ import {
   WalletTransactionRecord,
   EventWithDetails,
 } from './types.js';
-import { grantWelcomeCredit, getWalletBalance, getWalletTransactions } from './wallet.js';
+import { initializeEmptyWallet, getWalletBalance, getWalletTransactions } from './wallet.js';
 import { getUserById } from './users.js';
 import { getOrgMembers, addMember, OrgMemberWithUserDetails } from './members.js';
 import { getEventsByOrgId } from './events.js';
@@ -268,21 +268,9 @@ export async function createOrganization(
       // ignore
     }
     try {
-      await grantWelcomeCredit(
-        {
-          organizationId: orgRecord.id,
-          userId: params.owner_id,
-          createdBy: params.owner_id,
-          referenceId: `welcome_${orgRecord.id}`,
-          metadata: {
-            organization_name: orgRecord.name,
-            source: 'AUTO_ORGANIZATION_CREATION',
-          },
-        },
-        env
-      );
-    } catch (grantErr) {
-      console.error('Failed to grant welcome credit upon organization creation:', grantErr);
+      await initializeEmptyWallet(orgRecord.id, env);
+    } catch (walletErr) {
+      console.error('Failed to initialize empty wallet for organization in local cache:', walletErr);
     }
     saveLocalOrgs();
     return orgRecord;
@@ -359,25 +347,13 @@ export async function createOrganization(
     }
   }
 
-  // Automatically grant the one-time Welcome Credit to the new Organization's wallet
+  // Initialize wallet with 0 balances (Automatic Welcome Credit is disabled)
   try {
-    await grantWelcomeCredit(
-      {
-        organizationId: organization.id,
-        userId: params.owner_id,
-        createdBy: params.owner_id,
-        referenceId: `welcome_${organization.id}`,
-        metadata: {
-          organization_name: organization.name,
-          source: 'AUTO_ORGANIZATION_CREATION',
-        },
-      },
-      env
-    );
-  } catch (grantErr) {
-    console.error('Failed to grant welcome credit upon organization creation:', grantErr);
+    await initializeEmptyWallet(organization.id, env);
+  } catch (walletErr) {
+    console.error('Failed to initialize empty wallet during sequential fallback:', walletErr);
     if (!isLocalFallbackAllowed(env)) {
-      throw grantErr;
+      throw walletErr;
     }
   }
 

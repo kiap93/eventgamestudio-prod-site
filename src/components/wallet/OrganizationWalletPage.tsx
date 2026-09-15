@@ -670,7 +670,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 ? 'Ready to Use'
                 : wallet?.welcome_credit_granted
                 ? 'Claimed'
-                : '1st Event Bonus'}
+                : 'Promotional'}
             </span>
           </div>
           <div>
@@ -681,10 +681,10 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed border-t border-slate-800/80 pt-2.5">
             {wallet?.can_use_welcome_credit
-              ? 'RM300 instant discount available for your organization’s inaugural event deployment.'
+              ? 'Promotional discount credit available to offset your event deployment.'
               : wallet?.welcome_credit_granted
               ? 'Welcome bonus discount has already been redeemed on an active event.'
-              : 'RM300 inaugural discount granted upon your first event deployment.'}
+              : 'Promotional credit available for special marketing campaigns or administrative grants.'}
           </p>
         </div>
 

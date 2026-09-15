@@ -21,12 +21,35 @@ ALTER TABLE public.event_showcases
 CREATE INDEX IF NOT EXISTS idx_event_showcases_owner_user_id
   ON public.event_showcases (owner_user_id);
 
+-- Safely disable trigger during backfill if present
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_trigger 
+    WHERE tgname = 'trg_prevent_event_showcase_unauthorized_client_mutations'
+      AND tgrelid = 'public.event_showcases'::regclass
+  ) THEN
+    ALTER TABLE public.event_showcases DISABLE TRIGGER trg_prevent_event_showcase_unauthorized_client_mutations;
+  END IF;
+END $$;
+
 -- Backfill owner_user_id from organizations.owner_id
 UPDATE public.event_showcases es
 SET owner_user_id = o.owner_id
 FROM public.organizations o
 WHERE es.organization_id = o.id
   AND es.owner_user_id IS NULL;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_trigger 
+    WHERE tgname = 'trg_prevent_event_showcase_unauthorized_client_mutations'
+      AND tgrelid = 'public.event_showcases'::regclass
+  ) THEN
+    ALTER TABLE public.event_showcases ENABLE TRIGGER trg_prevent_event_showcase_unauthorized_client_mutations;
+  END IF;
+END $$;
 
 -- 2. Add owner_user_id to public.wallet_transactions
 ALTER TABLE public.wallet_transactions
@@ -35,6 +58,11 @@ ALTER TABLE public.wallet_transactions
 CREATE INDEX IF NOT EXISTS idx_wallet_transactions_owner_user_id
   ON public.wallet_transactions (owner_user_id);
 
+-- Safely drop unique indexes temporarily during backfill if they exist
+-- (e.g. if migrations are re-run on an existing database where 20260912000000 or unique indexes were already applied)
+DROP INDEX IF EXISTS public.ux_wallet_txns_user_welcome_credit_unique;
+DROP INDEX IF EXISTS public.ux_wallet_txns_owner_showcase_credit_unique;
+
 -- Backfill owner_user_id for existing transactions
 UPDATE public.wallet_transactions wt
 SET owner_user_id = o.owner_id
@@ -42,12 +70,69 @@ FROM public.organizations o
 WHERE wt.organization_id = o.id
   AND wt.owner_user_id IS NULL;
 
+-- Fallback backfill from created_by if owner_id was not set
+UPDATE public.wallet_transactions wt
+SET owner_user_id = wt.created_by
+WHERE wt.owner_user_id IS NULL
+  AND wt.created_by IS NOT NULL;
+
+-- If multiple completed WELCOME_CREDIT transactions exist for the same owner_user_id,
+-- safely reconcile duplicates to REVERSED (consistent with user-level lifetime limit)
+DO $$
+BEGIN
+  WITH ranked_welcome_credits AS (
+    SELECT
+      wt.id,
+      ROW_NUMBER() OVER (
+        PARTITION BY wt.owner_user_id
+        ORDER BY
+          -- Prioritize transaction where welcome credit was actually consumed
+          CASE WHEN EXISTS (
+            SELECT 1 FROM public.wallet_transactions usage_txn
+            WHERE usage_txn.organization_id = wt.organization_id
+              AND usage_txn.balance_type = 'WELCOME_CREDIT'
+              AND usage_txn.amount < 0
+              AND usage_txn.status = 'COMPLETED'
+          ) THEN 0 ELSE 1 END,
+          wt.created_at ASC,
+          wt.id ASC
+      ) AS rank_num
+    FROM public.wallet_transactions wt
+    WHERE wt.transaction_type = 'WELCOME_CREDIT'
+      AND wt.status = 'COMPLETED'
+      AND wt.owner_user_id IS NOT NULL
+  )
+  UPDATE public.wallet_transactions wt
+  SET
+    status = 'REVERSED',
+    description = COALESCE(wt.description, 'Welcome credit') || ' [RECONCILED: Duplicate welcome credit revoked for user-level lifetime limit]',
+    metadata = COALESCE(wt.metadata, '{}'::jsonb) || jsonb_build_object(
+      'reconciled_at', timezone('utc'::text, now()),
+      'reconciliation_reason', 'DUPLICATE_WELCOME_CREDIT_REVOKED',
+      'original_status', 'COMPLETED'
+    )
+  FROM ranked_welcome_credits rwc
+  WHERE wt.id = rwc.id
+    AND rwc.rank_num > 1;
+
+  -- Restore ux_wallet_txns_user_welcome_credit_unique if user_rewards table exists (migration 20260912000000+)
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'user_rewards'
+  ) THEN
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_user_welcome_credit_unique 
+      ON public.wallet_transactions (owner_user_id) 
+      WHERE transaction_type = 'WELCOME_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;
+  END IF;
+END $$;
+
 -- 3. Create Dedicated Owner Showcase Reward Ledger Table
 CREATE TABLE IF NOT EXISTS public.owner_showcase_rewards (
-  owner_user_id UUID PRIMARY KEY,
-  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
-  showcase_id UUID NOT NULL REFERENCES public.event_showcases(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_user_id UUID NOT NULL UNIQUE REFERENCES public.users(id) ON DELETE CASCADE,
+  organization_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
+  event_id UUID REFERENCES public.events(id) ON DELETE SET NULL,
+  showcase_id UUID REFERENCES public.event_showcases(id) ON DELETE SET NULL,
   transaction_id UUID REFERENCES public.wallet_transactions(id) ON DELETE SET NULL,
   amount NUMERIC(10,2) NOT NULL DEFAULT 300.00,
   rewarded_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
@@ -60,11 +145,60 @@ CREATE INDEX IF NOT EXISTS idx_owner_showcase_rewards_org
 CREATE INDEX IF NOT EXISTS idx_owner_showcase_rewards_event
   ON public.owner_showcase_rewards (event_id);
 
+-- Ensure showcase_moderation_logs supports reward actions
+DO $$
+BEGIN
+  ALTER TABLE public.showcase_moderation_logs
+    DROP CONSTRAINT IF EXISTS showcase_moderation_logs_action_check;
+  ALTER TABLE public.showcase_moderation_logs
+    ADD CONSTRAINT showcase_moderation_logs_action_check
+    CHECK (action IN ('BLOCK', 'UNBLOCK', 'DELETE', 'RESTORE', 'APPROVE_REWARD', 'REJECT_REWARD'));
+EXCEPTION
+  WHEN OTHERS THEN
+    NULL;
+END $$;
+
 -- 4. Database-Level Unique Constraints for Owner-Level Idempotency
 -- Enforce that at most ONE completed SHOWCASE_CREDIT transaction can ever exist per owner_user_id
-CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_owner_showcase_credit_unique
-  ON public.wallet_transactions (owner_user_id)
-  WHERE transaction_type = 'SHOWCASE_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;
+DO $$
+BEGIN
+  -- Reconcile any duplicate SHOWCASE_CREDIT transactions if present
+  WITH ranked_showcase_credits AS (
+    SELECT
+      wt.id,
+      ROW_NUMBER() OVER (
+        PARTITION BY wt.owner_user_id
+        ORDER BY
+          CASE WHEN EXISTS (
+            SELECT 1 FROM public.wallet_transactions usage_txn
+            WHERE usage_txn.organization_id = wt.organization_id
+              AND usage_txn.balance_type = 'SHOWCASE_CREDIT'
+              AND usage_txn.amount < 0
+              AND usage_txn.status = 'COMPLETED'
+          ) THEN 0 ELSE 1 END,
+          wt.created_at ASC,
+          wt.id ASC
+      ) AS rank_num
+    FROM public.wallet_transactions wt
+    WHERE wt.transaction_type = 'SHOWCASE_CREDIT'
+      AND wt.status = 'COMPLETED'
+      AND wt.owner_user_id IS NOT NULL
+  )
+  UPDATE public.wallet_transactions wt
+  SET
+    status = 'REVERSED',
+    metadata = COALESCE(wt.metadata, '{}'::jsonb) || jsonb_build_object(
+      'reversal_reason', 'DUPLICATE_SHOWCASE_CREDIT_REVOKED',
+      'reconciled_at', timezone('utc'::text, now())
+    )
+  FROM ranked_showcase_credits rsc
+  WHERE wt.id = rsc.id
+    AND rsc.rank_num > 1;
+
+  CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_owner_showcase_credit_unique
+    ON public.wallet_transactions (owner_user_id)
+    WHERE transaction_type = 'SHOWCASE_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;
+END $$;
 
 -- 5. Atomic PostgreSQL RPC Function for Owner-Level Showcase Reward Approval
 CREATE OR REPLACE FUNCTION public.approve_first_event_showcase_reward_atomic(

@@ -621,7 +621,7 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
       return;
     }
 
-    // 1. Create Organization (creates organization, owner membership, wallet, and welcome credit atomically)
+    // 1. Create Organization (creates organization, owner membership, and initializes wallet atomically)
     const organization = await createOrganization({
       name: name.trim(),
       owner_id: user.id,
@@ -2258,17 +2258,19 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
         remainingCreditBalance: 0,
         reasons: fullPaidCalc.reasons,
       },
-      {
-        mode: 'WELCOME_CREDIT',
-        title: 'Welcome Credit',
-        badge: 'Save RM800.00',
-        isEligible: welcomeCalc.isPayable,
-        creditApplied: welcomeCalc.welcomeCreditUsed,
-        paidAmount: welcomeCalc.paidAmount,
-        remainingPaidBalance: welcomeCalc.remainingPaidBalance,
-        remainingCreditBalance: welcomeCalc.remainingCreditBalance,
-        reasons: welcomeCalc.reasons,
-      },
+      ...(walletSummary.welcome_credit > 0 ? [
+        {
+          mode: 'WELCOME_CREDIT' as const,
+          title: 'Welcome Credit',
+          badge: 'Save RM800.00',
+          isEligible: welcomeCalc.isPayable,
+          creditApplied: welcomeCalc.welcomeCreditUsed,
+          paidAmount: welcomeCalc.paidAmount,
+          remainingPaidBalance: welcomeCalc.remainingPaidBalance,
+          remainingCreditBalance: welcomeCalc.remainingCreditBalance,
+          reasons: welcomeCalc.reasons,
+        }
+      ] : []),
       {
         mode: 'SHOWCASE_CREDIT',
         title: 'Showcase Credit',
@@ -5866,9 +5868,9 @@ app.get('/api/organizations/:orgId/wallet/topup/orders/:orderId', authenticateJW
 
 /**
  * POST /api/organizations/:orgId/wallet/grant-welcome
- * Internal / Admin fallback endpoint to grant one-time Welcome Credit (RM800.00).
- * Welcome Credit is granted automatically upon organization creation; this endpoint
- * is restricted to verified developer admins for administrative maintenance / backfill.
+ * Developer Admin endpoint to grant promotional Welcome Credit (RM800.00).
+ * Automatic Welcome Credit on organization creation is discontinued; this endpoint
+ * is restricted to verified developer admins for promotional campaigns or manual grants.
  */
 app.post('/api/organizations/:orgId/wallet/grant-welcome', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -5880,7 +5882,7 @@ app.post('/api/organizations/:orgId/wallet/grant-welcome', walletRateLimiter, au
 
     const isDev = isUserDeveloperAdmin(req.user);
     if (!isDev) {
-      res.status(403).json({ error: 'Welcome credit is automatically granted upon organization creation. Manual invocation is restricted to system administrators.' });
+      res.status(403).json({ error: 'Automatic welcome credit upon organization creation is discontinued. Promotional grants are restricted to system administrators.' });
       return;
     }
 
