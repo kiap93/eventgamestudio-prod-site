@@ -2316,6 +2316,47 @@ export async function createEvent(
           event_timezone: (rpcData.event as any)?.event_timezone || resolvedTimezone,
         };
         localEventsCache.set(fullRecord.id, fullRecord);
+
+        // Dispatch central EVENT_CREATED notification upon verified RPC creation success
+        await dispatchNotificationEvent(
+          {
+            eventType: 'EVENT_CREATED',
+            organizationId: fullRecord.organization_id,
+            recipientUserId: params.created_by || undefined,
+            eventId: fullRecord.id,
+            eventName: fullRecord.name,
+            startDate: fullRecord.start_date || fullRecord.event_date || '',
+            endDate: fullRecord.end_date || fullRecord.event_date || '',
+          },
+          env
+        ).catch((err) => {
+          console.error('[NOTIFICATION] EVENT_CREATED notification dispatch failed on RPC success:', {
+            error: err?.message || err,
+            eventId: fullRecord.id,
+            organizationId: fullRecord.organization_id,
+          });
+        });
+
+        if (fullRecord.payment_status === 'PAID' && fullRecord.event_status === 'LIVE') {
+          await dispatchNotificationEvent(
+            {
+              eventType: 'EVENT_LIVE',
+              organizationId: fullRecord.organization_id,
+              recipientUserId: params.created_by || undefined,
+              eventId: fullRecord.id,
+              eventName: fullRecord.name,
+              publicUrl: `/play/${fullRecord.public_token}`,
+            },
+            env
+          ).catch((err) => {
+            console.error('[NOTIFICATION] EVENT_LIVE notification dispatch failed on RPC success:', {
+              error: err?.message || err,
+              eventId: fullRecord.id,
+              organizationId: fullRecord.organization_id,
+            });
+          });
+        }
+
         return fullRecord;
       }
     }
@@ -2436,29 +2477,43 @@ export async function createEvent(
         };
         localEventsCache.set(dbPayload.id, fullRecord);
 
-        dispatchNotificationEvent(
+        await dispatchNotificationEvent(
           {
             eventType: 'EVENT_CREATED',
             organizationId: fullRecord.organization_id,
+            recipientUserId: params.created_by || undefined,
             eventId: fullRecord.id,
             eventName: fullRecord.name,
             startDate: fullRecord.start_date || fullRecord.event_date || '',
             endDate: fullRecord.end_date || fullRecord.event_date || '',
           },
           env
-        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_CREATED:', err));
+        ).catch((err) => {
+          console.error('[NOTIFICATION] EVENT_CREATED notification dispatch failed on local fallback:', {
+            error: err?.message || err,
+            eventId: fullRecord.id,
+            organizationId: fullRecord.organization_id,
+          });
+        });
 
         if (fullRecord.payment_status === 'PAID' && fullRecord.event_status === 'LIVE') {
-          dispatchNotificationEvent(
+          await dispatchNotificationEvent(
             {
               eventType: 'EVENT_LIVE',
               organizationId: fullRecord.organization_id,
+              recipientUserId: params.created_by || undefined,
               eventId: fullRecord.id,
               eventName: fullRecord.name,
               publicUrl: `/play/${fullRecord.public_token}`,
             },
             env
-          ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_LIVE:', err));
+          ).catch((err) => {
+            console.error('[NOTIFICATION] EVENT_LIVE notification dispatch failed on local fallback:', {
+              error: err?.message || err,
+              eventId: fullRecord.id,
+              organizationId: fullRecord.organization_id,
+            });
+          });
         }
 
         return fullRecord;
@@ -2483,29 +2538,43 @@ export async function createEvent(
   };
   localEventsCache.set(fullRecord.id, fullRecord);
 
-  dispatchNotificationEvent(
+  await dispatchNotificationEvent(
     {
       eventType: 'EVENT_CREATED',
       organizationId: fullRecord.organization_id,
+      recipientUserId: params.created_by || undefined,
       eventId: fullRecord.id,
       eventName: fullRecord.name,
       startDate: fullRecord.start_date || fullRecord.event_date || '',
       endDate: fullRecord.end_date || fullRecord.event_date || '',
     },
     env
-  ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_CREATED:', err));
+  ).catch((err) => {
+    console.error('[NOTIFICATION] EVENT_CREATED notification dispatch failed on direct insert:', {
+      error: err?.message || err,
+      eventId: fullRecord.id,
+      organizationId: fullRecord.organization_id,
+    });
+  });
 
   if (fullRecord.payment_status === 'PAID' && fullRecord.event_status === 'LIVE') {
-    dispatchNotificationEvent(
+    await dispatchNotificationEvent(
       {
         eventType: 'EVENT_LIVE',
         organizationId: fullRecord.organization_id,
+        recipientUserId: params.created_by || undefined,
         eventId: fullRecord.id,
         eventName: fullRecord.name,
         publicUrl: `/play/${fullRecord.public_token}`,
       },
       env
-    ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_LIVE:', err));
+    ).catch((err) => {
+      console.error('[NOTIFICATION] EVENT_LIVE notification dispatch failed on direct insert:', {
+        error: err?.message || err,
+        eventId: fullRecord.id,
+        organizationId: fullRecord.organization_id,
+      });
+    });
   }
 
   return fullRecord;

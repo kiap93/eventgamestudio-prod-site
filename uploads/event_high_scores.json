@@ -6235,5 +6235,77 @@
       "is_official": true
     },
     "created_at": "2026-09-15T08:18:32.961Z"
+  },
+  {
+    "id": "7b31fb68-0828-40b8-9ac8-b8cbc4557f5d",
+    "event_id": "ffaacf72-d035-4ff7-8663-535aa2ddfbe8",
+    "player_name": "SuperPlayer99",
+    "score": 250,
+    "session_id": "session_db0fbe39764a4de3ae148000cc27851d",
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "sessionId": "session_db0fbe39764a4de3ae148000cc27851d",
+      "session_id": "session_db0fbe39764a4de3ae148000cc27851d",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_environment": "test",
+      "score_mode": "TEST",
+      "is_test": true,
+      "is_official": false
+    },
+    "created_at": "2026-09-15T11:34:20.704Z"
+  },
+  {
+    "id": "659ffbae-fc6f-43d2-9d2c-c9aa0a1a9ca3",
+    "event_id": "f55d33cd-2210-4c92-be41-dcb1232909ef",
+    "player_name": "SuperPlayer99",
+    "score": 250,
+    "session_id": "session_1cc46ebca8e44cb6bfde8bf3c07d37a1",
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "sessionId": "session_1cc46ebca8e44cb6bfde8bf3c07d37a1",
+      "session_id": "session_1cc46ebca8e44cb6bfde8bf3c07d37a1",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_environment": "test",
+      "score_mode": "TEST",
+      "is_test": true,
+      "is_official": false
+    },
+    "created_at": "2026-09-15T11:35:52.802Z"
+  },
+  {
+    "id": "a705a557-49ad-48aa-a017-2f22c78e5d83",
+    "event_id": "5fa05625-825f-4cd5-a6d7-64c903c5f4d0",
+    "player_name": "SuperPlayer99",
+    "score": 250,
+    "session_id": "session_19c81a543dc4447ca89ce941450dc78a",
+    "score_environment": "test",
+    "score_mode": "TEST",
+    "is_test": true,
+    "metadata": {
+      "sessionId": "session_19c81a543dc4447ca89ce941450dc78a",
+      "session_id": "session_19c81a543dc4447ca89ce941450dc78a",
+      "gameType": "catch-brand",
+      "gameVersion": 1,
+      "scoringVersion": 1,
+      "authoritativeMaxScore": 5000,
+      "authoritativeDuration": 20,
+      "score_environment": "test",
+      "score_mode": "TEST",
+      "is_test": true,
+      "is_official": false
+    },
+    "created_at": "2026-09-15T12:55:05.551Z"
   }
 ]

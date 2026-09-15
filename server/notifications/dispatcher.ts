@@ -102,16 +102,6 @@ export interface ThemeReadyEvent extends BaseBusinessEvent {
   previewUrl?: string;
 }
 
-export interface LeaderboardHighScoreEvent extends BaseBusinessEvent {
-  eventType: 'LEADERBOARD_HIGH_SCORE';
-  recipientUserId?: string | null;
-  eventId: string;
-  eventName: string;
-  playerName: string;
-  score: number;
-  rank?: number;
-}
-
 export interface ShowcaseDraftCreatedEvent extends BaseBusinessEvent {
   eventType: 'SHOWCASE_DRAFT_CREATED';
   recipientUserId?: string | null;
@@ -166,7 +156,6 @@ export type BusinessNotificationEvent =
   | EventExpiredEvent
   | WalletLowBalanceEvent
   | ThemeReadyEvent
-  | LeaderboardHighScoreEvent
   | ShowcaseDraftCreatedEvent
   | ShowcasePublishedEvent
   | ShowcaseUnpublishedEvent
@@ -561,24 +550,6 @@ export class NotificationDispatcher {
             ...event.metadata,
           },
           deduplicationKey: `theme_ready_${event.themeId}`,
-        };
-      }
-
-      case 'LEADERBOARD_HIGH_SCORE': {
-        return {
-          type: 'leaderboard_high_score',
-          actionUrl: '/events',
-          entityType: 'event_score',
-          entityId: event.eventId,
-          metadata: {
-            event_id: event.eventId,
-            event_name: event.eventName,
-            player_name: event.playerName,
-            score: event.score,
-            rank: event.rank || 1,
-            ...event.metadata,
-          },
-          deduplicationKey: `high_score_${event.eventId}_${event.playerName}_${event.score}`,
         };
       }
 

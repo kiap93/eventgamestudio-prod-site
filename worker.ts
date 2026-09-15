@@ -387,37 +387,52 @@ function errorResponse(
     `worker-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
   let safeMessage = message;
-  // If this is an unexpected 500 error, sanitize internal database/infrastructure messages
-  if (status >= 500) {
-    const lower = (message || '').toLowerCase();
-    const isInternal =
-      lower.includes('supabase') ||
-      lower.includes('postgres') ||
-      lower.includes('syntax error') ||
-      lower.includes('relation') ||
-      lower.includes('column') ||
-      lower.includes('jwt') ||
-      lower.includes('secret') ||
-      lower.includes('failed to fetch') ||
-      lower.includes('networkerror') ||
-      lower.includes('cannot read properties') ||
-      lower.includes('null value in column') ||
-      lower.includes('violates foreign key') ||
-      lower.includes('database error');
+  let finalStatus = status;
 
-    if (isInternal) {
-      console.error(`[Internal Error Sanitized][${reqId}]:`, message);
-      safeMessage = 'An unexpected internal server error occurred. Please contact support with your Request ID.';
+  const lower = (message || '').toLowerCase();
+  const isInternal =
+    finalStatus >= 500 ||
+    lower.includes('supabase') ||
+    lower.includes('postgres') ||
+    lower.includes('pgrst') ||
+    lower.includes('postgrest') ||
+    lower.includes('syntax error') ||
+    lower.includes('relation') ||
+    lower.includes('column') ||
+    lower.includes('schema') ||
+    lower.includes('table ') ||
+    lower.includes('jwt') ||
+    lower.includes('secret') ||
+    lower.includes('failed to fetch') ||
+    lower.includes('networkerror') ||
+    lower.includes('cannot read properties') ||
+    lower.includes('null value') ||
+    lower.includes('violates') ||
+    lower.includes('constraint') ||
+    lower.includes('permission denied') ||
+    lower.includes('row-level security') ||
+    lower.includes('database error') ||
+    lower.includes('duplicate key') ||
+    lower.includes('foreign key') ||
+    lower.includes('unique constraint') ||
+    lower.includes('econnrefused');
+
+  if (isInternal) {
+    if (finalStatus < 500) {
+      finalStatus = 500;
     }
+    console.error(`[Internal Error Sanitized][${reqId}]:`, message);
+    safeMessage = 'An unexpected internal server error occurred. Please contact support with your Request ID.';
   }
 
   return new Response(
     JSON.stringify({
       error: safeMessage,
       requestId: reqId,
+      ...(finalStatus >= 500 ? { code: 'INTERNAL_ERROR' } : {}),
     }),
     {
-      status,
+      status: finalStatus,
       headers: {
         'Content-Type': 'application/json',
         'x-correlation-id': reqId,
@@ -997,7 +1012,7 @@ export default {
             cors
           );
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to update profile', 400, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -1812,7 +1827,7 @@ export default {
           return jsonResponse({ url: result.url, path: result.path }, 200, cors);
         } catch (storageErr: any) {
           console.error('Supabase storage upload error:', storageErr);
-          return errorResponse(storageErr.message || 'File upload failed', 500, cors);
+          return handleWorkerApiError(storageErr, request, cors, env);
         }
       }
 
@@ -2049,7 +2064,7 @@ export default {
           return jsonResponse({ ...theme, theme }, 201, cors);
         } catch (err: any) {
           console.error('Error in worker createTheme:', err);
-          return errorResponse(err.message || 'Failed to create theme', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -2136,7 +2151,7 @@ export default {
           return jsonResponse({ ...updatedTheme, theme: updatedTheme }, 200, cors);
         } catch (err: any) {
           console.error('Error in worker updateTheme:', err);
-          return errorResponse(err.message || 'Failed to update theme', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -2728,19 +2743,7 @@ export default {
           }, 201, cors);
         } catch (err: any) {
           console.error('Create event error in worker:', err);
-          if (err.code === 'PENDING_EVENT_LIMIT_REACHED' || err.status === 422) {
-            return jsonResponse({
-              code: err.code || 'VALIDATION_ERROR',
-              error: err.message || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.',
-            }, 422, cors);
-          }
-          if (err.code === 'GAME_INACTIVE' || err.code === 'THEME_GAME_MISMATCH' || err.code === 'GAME_NOT_FOUND') {
-            return jsonResponse({
-              code: err.code,
-              error: err.message,
-            }, 422, cors);
-          }
-          return errorResponse(err.message || 'Failed to create event', err.status || 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -2806,7 +2809,7 @@ export default {
               shortfall: err.shortfall,
             }, 402, cors);
           }
-          return errorResponse(err.message || 'Failed to process payment', err.status || 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -3219,10 +3222,7 @@ export default {
           }, 201, cors);
         } catch (err: any) {
           console.error('Submit public score error:', err);
-          return jsonResponse({
-            error: err.message || 'Failed to submit score',
-            code: err.code || 'SCORE_SUBMISSION_ERROR',
-          }, err.status || 400, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -3318,10 +3318,7 @@ export default {
           }, 201, cors);
         } catch (err: any) {
           console.error('Submit organizer score error:', err);
-          return jsonResponse({
-            error: err.message || 'Failed to submit score',
-            code: err.code || 'SCORE_SUBMISSION_ERROR',
-          }, err.status || 400, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -3524,7 +3521,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Get public showcase error:', err);
-          return errorResponse(err.message || 'Failed to fetch showcase', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -3565,7 +3562,7 @@ export default {
           return jsonResponse({ media }, 200, cors);
         } catch (err: any) {
           console.error('Get showcase media error:', err);
-          return errorResponse(err.message || 'Failed to fetch showcase media', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -3624,7 +3621,7 @@ export default {
           return jsonResponse({ showcase }, 201, cors);
         } catch (err: any) {
           console.error('Create showcase error:', err);
-          return errorResponse(err.message || 'Failed to create showcase', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -3699,7 +3696,7 @@ export default {
           return jsonResponse({ showcase }, 200, cors);
         } catch (err: any) {
           console.error('Update showcase error:', err);
-          return errorResponse(err.message || 'Failed to update showcase', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -3759,7 +3756,7 @@ export default {
           return jsonResponse({ showcase }, 200, cors);
         } catch (err: any) {
           console.error('Publish showcase error:', err);
-          return errorResponse(err.message || 'Failed to publish showcase', err.status || 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -3790,7 +3787,7 @@ export default {
           return jsonResponse({ showcase }, 200, cors);
         } catch (err: any) {
           console.error('Unpublish showcase error:', err);
-          return errorResponse(err.message || 'Failed to unpublish showcase', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -3816,7 +3813,7 @@ export default {
           return jsonResponse({ success: true, message: 'Showcase deleted successfully' }, 200, cors);
         } catch (err: any) {
           console.error('Delete showcase error:', err);
-          return errorResponse(err.message || 'Failed to delete showcase', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -3852,7 +3849,7 @@ export default {
           return jsonResponse({ media }, 200, cors);
         } catch (err: any) {
           console.error('Get showcase media error:', err);
-          return errorResponse(err.message || 'Failed to load showcase media', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4003,7 +4000,7 @@ export default {
           );
         } catch (err: any) {
           console.error('Create showcase upload URL error:', err);
-          return errorResponse(err.message || 'Failed to create upload URL', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4194,7 +4191,7 @@ export default {
           );
         } catch (err: any) {
           console.error('Direct media upload error:', err);
-          return errorResponse(err.message || 'Direct upload failed', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4286,7 +4283,7 @@ export default {
           return jsonResponse({ media }, 201, cors);
         } catch (err: any) {
           console.error('Create showcase media record error:', err);
-          return errorResponse(err.message || 'Failed to create showcase media', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4328,7 +4325,7 @@ export default {
           return jsonResponse({ success: true, media: updatedMedia }, 200, cors);
         } catch (err: any) {
           console.error('Reorder showcase media error:', err);
-          return errorResponse(err.message || 'Failed to reorder media', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4379,7 +4376,7 @@ export default {
           return jsonResponse({ success: true }, 200, cors);
         } catch (err: any) {
           console.error('Delete showcase media error:', err);
-          return errorResponse(err.message || 'Failed to delete showcase media', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4488,7 +4485,7 @@ export default {
           if (err.code === 'GAME_TYPE_ALREADY_REGISTERED' || err.code === 'GAME_SLUG_ALREADY_REGISTERED' || err.name === 'GameConflictError') {
             return jsonResponse({ success: false, error: err.code || 'GAME_CONFLICT', message: err.message }, 409, cors);
           }
-          return errorResponse(err.message, 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4570,7 +4567,7 @@ export default {
           return jsonResponse({ theme }, 201, cors);
         } catch (err: any) {
           console.error('Developer create theme error:', err);
-          return errorResponse(err.message || 'Failed to create system theme', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4609,7 +4606,7 @@ export default {
           if (err.code === 'GAME_TYPE_ALREADY_REGISTERED' || err.code === 'GAME_SLUG_ALREADY_REGISTERED' || err.name === 'GameConflictError') {
             return jsonResponse({ success: false, error: err.code || 'GAME_CONFLICT', message: err.message }, 409, cors);
           }
-          return errorResponse(err.message, 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4626,18 +4623,7 @@ export default {
           return jsonResponse({ success: true, message: 'Game deleted successfully' }, 200, cors);
         } catch (err: any) {
           console.error('Developer delete game error:', err);
-          if (err.code === 'GAME_IN_USE' || err.code === '23503' || err.status === 409) {
-            return jsonResponse(
-              {
-                success: false,
-                code: 'GAME_IN_USE',
-                error: err.message || 'Cannot delete game because it is used by existing events. Deactivate the game instead.',
-              },
-              409,
-              cors
-            );
-          }
-          return errorResponse(err.message || 'Failed to delete game', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4661,7 +4647,7 @@ export default {
           return jsonResponse({ theme: duplicated }, 201, cors);
         } catch (err: any) {
           console.error('Developer duplicate theme error:', err);
-          return errorResponse(err.message || 'Failed to duplicate theme', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4684,7 +4670,7 @@ export default {
           return jsonResponse({ success: true, theme: updatedTheme }, 200, cors);
         } catch (err: any) {
           console.error('Developer set default theme error:', err);
-          return errorResponse(err.message || 'Failed to set default theme', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4707,7 +4693,7 @@ export default {
           return jsonResponse({ success: true, theme: updatedTheme }, 200, cors);
         } catch (err: any) {
           console.error('Developer unset default theme error:', err);
-          return errorResponse(err.message || 'Failed to unset default theme', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4750,7 +4736,7 @@ export default {
           return jsonResponse({ theme }, 200, cors);
         } catch (err: any) {
           console.error('Developer update theme error:', err);
-          return errorResponse(err.message || 'Failed to update theme', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4771,7 +4757,7 @@ export default {
           return jsonResponse({ success: true }, 200, cors);
         } catch (err: any) {
           console.error('Developer delete theme error:', err);
-          return errorResponse(err.message || 'Failed to delete theme', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4792,7 +4778,7 @@ export default {
           return jsonResponse({ showcases }, 200, cors);
         } catch (err: any) {
           console.error('Admin get showcases error:', err);
-          return errorResponse(err.message || 'Failed to list showcases', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4826,13 +4812,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Approve showcase error:', err);
-          if (err.code === 'SHOWCASE_NOT_FOUND') {
-            return errorResponse(err.message, 404, cors);
-          }
-          if (err.code === 'INVALID_STATUS_TRANSITION') {
-            return errorResponse(err.message, 400, cors);
-          }
-          return errorResponse(err.message || 'Failed to approve showcase', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4870,13 +4850,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Reject showcase error:', err);
-          if (err.code === 'SHOWCASE_NOT_FOUND') {
-            return errorResponse(err.message, 404, cors);
-          }
-          if (err.code === 'REJECTION_REASON_REQUIRED') {
-            return errorResponse(err.message, 422, cors);
-          }
-          return errorResponse(err.message || 'Failed to reject showcase', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4901,7 +4875,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Approve event review error:', err);
-          return errorResponse(err.message || 'Failed to approve event review', err.code === 'SHOWCASE_NOT_FOUND' ? 404 : 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4932,7 +4906,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Reject event review error:', err);
-          return errorResponse(err.message || 'Failed to reject event review', err.code === 'SHOWCASE_NOT_FOUND' ? 404 : 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4946,7 +4920,7 @@ export default {
           const status = await getOwnerShowcaseRewardStatus(user.id, env);
           return jsonResponse(status, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to get showcase reward status', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4962,7 +4936,7 @@ export default {
           const status = await getOwnerShowcaseRewardStatus(devOwnerStatus.ownerUserId, env);
           return jsonResponse(status, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to get owner reward status', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -4995,10 +4969,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Block showcase error:', err);
-          if (err.code === 'SHOWCASE_NOT_FOUND') {
-            return errorResponse(err.message, 404, cors);
-          }
-          return errorResponse(err.message || 'Failed to block showcase', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5027,10 +4998,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Unblock showcase error:', err);
-          if (err.code === 'SHOWCASE_NOT_FOUND') {
-            return errorResponse(err.message, 404, cors);
-          }
-          return errorResponse(err.message || 'Failed to unblock showcase', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5063,10 +5031,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Admin delete showcase error:', err);
-          if (err.code === 'SHOWCASE_NOT_FOUND') {
-            return errorResponse(err.message, 404, cors);
-          }
-          return errorResponse(err.message || 'Failed to delete showcase', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5141,7 +5106,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Admin update pricing settings error:', err);
-          return errorResponse(err.message || 'Failed to update pricing settings', 422, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5158,7 +5123,7 @@ export default {
           return jsonResponse({ success: true, events }, 200, cors);
         } catch (err: any) {
           console.error('Admin get all events error:', err);
-          return errorResponse(err.message || 'Failed to fetch admin events', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5199,10 +5164,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Admin update event price error:', err);
-          if (err.code === 'EVENT_NOT_FOUND' || err.message?.includes('not found')) {
-            return errorResponse(err.message, 404, cors);
-          }
-          return errorResponse(err.message || 'Failed to update event price', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5237,7 +5199,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Admin reactivate event error:', err);
-          return errorResponse(err.message || 'Failed to reactivate event', err.status || 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5258,7 +5220,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Run event maintenance error in worker:', err);
-          return errorResponse(err.message || 'Failed to run event lifecycle maintenance', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5279,7 +5241,7 @@ export default {
           return jsonResponse({ success: true, organizations }, 200, cors);
         } catch (err: any) {
           console.error('Developer get organizations error:', err);
-          return errorResponse(err.message || 'Failed to fetch developer organizations', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5301,7 +5263,7 @@ export default {
           return jsonResponse({ success: true, ...detail }, 200, cors);
         } catch (err: any) {
           console.error('Developer get organization detail error:', err);
-          return errorResponse(err.message || 'Failed to fetch organization detail', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5324,7 +5286,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Developer recalculate wallet error:', err);
-          return errorResponse(err.message || 'Failed to recalculate wallet balances', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5381,7 +5343,7 @@ export default {
           );
         } catch (err: any) {
           console.error('Error generating Google connect URL:', err);
-          return errorResponse(err.message || 'Failed to initiate Google OAuth connect', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5503,7 +5465,7 @@ export default {
           );
         } catch (err: any) {
           console.error('Error fetching Google Mail status:', err);
-          return errorResponse(err.message || 'Failed to fetch Google Mail status', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5528,7 +5490,7 @@ export default {
           );
         } catch (err: any) {
           console.error('Error disconnecting Google Mail:', err);
-          return errorResponse(err.message || 'Failed to disconnect Google Mail', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5585,7 +5547,7 @@ export default {
           );
         } catch (err: any) {
           console.error('Test email delivery error:', err);
-          return errorResponse(err.message || 'Failed to send test email via Gmail API', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5617,7 +5579,7 @@ export default {
           }
           return jsonResponse({ wallet, standard_event_price: standardEventPrice }, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to get wallet', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5660,7 +5622,7 @@ export default {
           );
           return jsonResponse(result, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to get transactions', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5685,7 +5647,7 @@ export default {
           const result = await getWalletAuditTrail(orgId, { limit, offset, eventType }, env);
           return jsonResponse(result, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to get audit trail', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5732,16 +5694,8 @@ export default {
             cors
           );
         } catch (err: any) {
-          console.error('Worker payment webhook error:', err.message);
-          const statusCode = err.status || (err.code === 'INVALID_SIGNATURE' ? 400 : 422);
-          return jsonResponse(
-            {
-              error: err.message || 'Payment webhook verification failed',
-              code: err.code || 'WEBHOOK_VERIFICATION_FAILED',
-            },
-            statusCode,
-            cors
-          );
+          console.error('Worker payment webhook error:', err);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5765,7 +5719,7 @@ export default {
           const quote = await getTopupQuote({ organizationId: orgId, amount, currency }, env);
           return jsonResponse(quote, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to get top-up quote', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5846,7 +5800,7 @@ export default {
             cors
           );
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to create top-up order', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5903,7 +5857,7 @@ export default {
             cors
           );
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to create checkout session', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5973,7 +5927,7 @@ export default {
 
           return jsonResponse({ order }, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to get top-up order', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6003,7 +5957,7 @@ export default {
           const orders = await listTopupOrdersByOrganization(orgId, env);
           return jsonResponse({ orders }, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to list top-up orders', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6075,7 +6029,7 @@ export default {
 
           return jsonResponse(result, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to process top-up status', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6117,7 +6071,7 @@ export default {
 
           return jsonResponse({ success: true, reconciled: true, ...result }, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to reconcile top-up order', 400, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6178,7 +6132,7 @@ export default {
 
           return jsonResponse({ success: true, simulation: true, result }, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Test webhook failed', err.status || 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6236,7 +6190,7 @@ export default {
             cors
           );
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to grant welcome credit', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6258,7 +6212,7 @@ export default {
           const eligibility = await canUseWelcomeCredit(orgId, eventId, env);
           return jsonResponse(eligibility, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to check welcome credit eligibility', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6294,7 +6248,7 @@ export default {
           );
           return jsonResponse(result, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to consume welcome credit', 400, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6339,7 +6293,7 @@ export default {
             cors
           );
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to grant showcase credit', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6361,7 +6315,7 @@ export default {
           const eligibility = await canUseShowcaseCredit(orgId, eventId, env);
           return jsonResponse(eligibility, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to check showcase credit eligibility', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6397,7 +6351,7 @@ export default {
           );
           return jsonResponse(result, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to consume showcase credit', 400, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6453,7 +6407,7 @@ export default {
             reasons: calculation.reasons,
           }, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to calculate event payment', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6483,7 +6437,7 @@ export default {
           );
           return jsonResponse({ quote }, 200, cors);
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to calculate quote', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6532,7 +6486,7 @@ export default {
             cors
           );
         } catch (err: any) {
-          return errorResponse(err.message || 'Failed to process event payment', 400, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6551,7 +6505,7 @@ export default {
           return jsonResponse({ success: true, wallet }, 200, cors);
         } catch (err: any) {
           console.error('Recalculate wallet error:', err);
-          return errorResponse(err.message || 'Failed to recalculate wallet', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6589,7 +6543,7 @@ export default {
           );
         } catch (err: any) {
           console.error('Reverse transaction error:', err);
-          return errorResponse(err.message || 'Failed to reverse transaction', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6623,7 +6577,7 @@ export default {
           return jsonResponse(result, 200, cors);
         } catch (err: any) {
           console.error('List notifications error:', err);
-          return errorResponse(err.message || 'Failed to list notifications', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6639,7 +6593,7 @@ export default {
           return jsonResponse({ unread_count: count }, 200, cors);
         } catch (err: any) {
           console.error('Get unread notification count error:', err);
-          return errorResponse(err.message || 'Failed to get unread count', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6658,7 +6612,7 @@ export default {
           return jsonResponse({ notification }, 200, cors);
         } catch (err: any) {
           console.error('Mark notification read error:', err);
-          return errorResponse(err.message || 'Failed to mark notification as read', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6677,7 +6631,7 @@ export default {
           return jsonResponse({ success: true, count: resObj.marked_count, marked_count: resObj.marked_count }, 200, cors);
         } catch (err: any) {
           console.error('Mark all notifications read error:', err);
-          return errorResponse(err.message || 'Failed to mark all notifications as read', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6693,7 +6647,7 @@ export default {
           return jsonResponse({ success: true }, 200, cors);
         } catch (err: any) {
           console.error('Delete notification error:', err);
-          return errorResponse(err.message || 'Failed to delete notification', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -6724,7 +6678,7 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Developer dispatch-test error in worker:', err);
-          return errorResponse(err.message || 'Failed to dispatch test notification', 500, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 

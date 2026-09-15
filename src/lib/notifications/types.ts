@@ -17,7 +17,6 @@ export type NotificationType =
   | 'wallet_low_balance'
   | 'insufficient_balance'
   | 'theme_ready'
-  | 'leaderboard_high_score'
   | 'showcase_draft_created'
   | 'showcase_published'
   | 'showcase_unpublished'
@@ -172,17 +171,6 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: true,
     retentionDays: 45,
-  },
-  leaderboard_high_score: {
-    type: 'leaderboard_high_score',
-    category: 'leaderboard',
-    defaultTitle: 'New High Score Record!',
-    defaultMessage: '{player_name} set a new high score of {score} points on "{event_name}"!',
-    priority: 'normal',
-    defaultActionUrl: '/events',
-    mandatory: false,
-    duplicatesAllowed: true,
-    retentionDays: 30,
   },
   showcase_draft_created: {
     type: 'showcase_draft_created',

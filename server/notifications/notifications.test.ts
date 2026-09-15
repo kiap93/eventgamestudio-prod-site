@@ -58,7 +58,6 @@ async function runTestSuite() {
     'event_expired',
     'wallet_low_balance',
     'theme_ready',
-    'leaderboard_high_score',
     'showcase_draft_created',
     'showcase_published',
     'showcase_unpublished',
@@ -293,18 +292,6 @@ async function runTestSuite() {
       gameName: 'Reaction Tap',
     });
     assert(themeReady.length === 1 && themeReady[0]?.type === 'theme_ready', 'THEME_READY handled correctly');
-
-    // High Score Record
-    const highScore = await dispatchNotificationEvent({
-      eventType: 'LEADERBOARD_HIGH_SCORE',
-      recipientUserId: testUser,
-      organizationId: testOrg,
-      eventId: 'ev-new-1',
-      eventName: 'Summer Festival',
-      playerName: 'Champion99',
-      score: 4500,
-    });
-    assert(highScore.length === 1 && highScore[0]?.type === 'leaderboard_high_score', 'LEADERBOARD_HIGH_SCORE handled correctly');
 
     // Security Settings Changed
     const secAlert = await dispatchNotificationEvent({

@@ -331,6 +331,38 @@ export function detectErrorService(err: any, endpoint?: string): string {
  * Checks whether an error is an expected business/operational error that can be safely presented to users.
  */
 export function isOperationalError(err: any): boolean {
+  const msg = (err?.message || '').toLowerCase();
+
+  // Strict sanitization: reject any error containing internal database, SQL, or infrastructure leaks
+  if (
+    msg.includes('relation "') ||
+    msg.includes('syntax error') ||
+    msg.includes('column ') ||
+    msg.includes('schema ') ||
+    msg.includes('table ') ||
+    msg.includes('violates') ||
+    msg.includes('constraint') ||
+    msg.includes('permission denied') ||
+    msg.includes('row-level security') ||
+    msg.includes('postgresql') ||
+    msg.includes('supabase') ||
+    msg.includes('pgrst') ||
+    msg.includes('postgrest') ||
+    msg.includes('duplicate key') ||
+    msg.includes('foreign key') ||
+    msg.includes('unique constraint') ||
+    msg.includes('null value in column') ||
+    msg.includes('database error') ||
+    msg.includes('cannot read properties') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('networkerror') ||
+    msg.includes('econnrefused') ||
+    msg.includes('jwt') ||
+    msg.includes('secret')
+  ) {
+    return false;
+  }
+
   if (err instanceof AppError) {
     return err.isOperational;
   }
@@ -338,16 +370,42 @@ export function isOperationalError(err: any): boolean {
   // Certain status codes on custom errors indicate operational business exceptions (400 - 499)
   const status = Number(err?.status || err?.statusCode);
   if (status >= 400 && status < 500) {
-    const msg = (err?.message || '').toLowerCase();
-    // Verify it is NOT a leaked SQL/Postgres/Supabase message disguised with a 4xx status
-    if (
-      msg.includes('relation "') ||
-      msg.includes('syntax error') ||
-      msg.includes('column ') ||
-      msg.includes('schema ')
-    ) {
-      return false;
-    }
+    return true;
+  }
+
+  // Known application-level business error codes that are safe to expose
+  const code = String(err?.code || '');
+  if (
+    code.endsWith('_NOT_FOUND') ||
+    code === 'INVALID_STATUS_TRANSITION' ||
+    code === 'REJECTION_REASON_REQUIRED' ||
+    code === 'INSUFFICIENT_BALANCE' ||
+    code === 'PENDING_EVENT_LIMIT_REACHED' ||
+    code === 'THEME_GAME_MISMATCH' ||
+    code === 'GAME_INACTIVE' ||
+    code === 'GAME_CONFLICT' ||
+    code === 'GAME_IN_USE' ||
+    code === 'GAME_TYPE_ALREADY_REGISTERED' ||
+    code === 'GAME_SLUG_ALREADY_REGISTERED' ||
+    code === 'UNSUPPORTED_FILE_TYPE' ||
+    code === 'DIRECT_UPLOAD_SIZE_EXCEEDED' ||
+    code === 'FILE_TOO_LARGE' ||
+    code === 'INVALID_FILE_TYPE' ||
+    code === 'MALICIOUS_SVG_DETECTED' ||
+    code === 'INVALID_AMOUNT' ||
+    code === 'INVALID_CURRENCY' ||
+    code === 'INVALID_PAYMENT_METHOD' ||
+    code === 'INVALID_PAYMENT_MODE' ||
+    code === 'INVALID_SIGNATURE' ||
+    code === 'WEBHOOK_VERIFICATION_FAILED' ||
+    code === 'SCORE_SUBMISSION_ERROR' ||
+    code === 'DUPLICATE_ORDER' ||
+    code === 'ORGANIZATION_NOT_FOUND' ||
+    code === 'THEME_NOT_FOUND' ||
+    code === 'EVENT_NOT_FOUND' ||
+    code === 'GAME_NOT_FOUND' ||
+    code === 'SHOWCASE_NOT_FOUND'
+  ) {
     return true;
   }
 
@@ -535,7 +593,42 @@ export async function handleWorkerApiError(
 
   let statusCode = Number(err?.statusCode || err?.status);
   if (!statusCode || statusCode < 400 || statusCode > 599) {
-    statusCode = isOperational ? 400 : 500;
+    if (isOperational) {
+      const code = String(err?.code || '');
+      if (code.endsWith('_NOT_FOUND')) {
+        statusCode = 404;
+      } else if (
+        code === 'GAME_CONFLICT' ||
+        code === 'GAME_IN_USE' ||
+        code === 'GAME_TYPE_ALREADY_REGISTERED' ||
+        code === 'GAME_SLUG_ALREADY_REGISTERED' ||
+        code === 'DUPLICATE_ORDER'
+      ) {
+        statusCode = 409;
+      } else if (code === 'INSUFFICIENT_BALANCE') {
+        statusCode = 402;
+      } else if (code === 'DIRECT_UPLOAD_SIZE_EXCEEDED' || code === 'FILE_TOO_LARGE') {
+        statusCode = 413;
+      } else if (
+        code === 'REJECTION_REASON_REQUIRED' ||
+        code === 'PENDING_EVENT_LIMIT_REACHED' ||
+        code === 'THEME_GAME_MISMATCH' ||
+        code === 'GAME_INACTIVE' ||
+        code === 'UNSUPPORTED_FILE_TYPE' ||
+        code === 'INVALID_FILE_TYPE' ||
+        code === 'MALICIOUS_SVG_DETECTED' ||
+        code === 'INVALID_AMOUNT' ||
+        code === 'INVALID_CURRENCY' ||
+        code === 'INVALID_PAYMENT_METHOD' ||
+        code === 'INVALID_PAYMENT_MODE'
+      ) {
+        statusCode = 422;
+      } else {
+        statusCode = 400;
+      }
+    } else {
+      statusCode = 500;
+    }
   }
 
   const userId = options?.userId || null;

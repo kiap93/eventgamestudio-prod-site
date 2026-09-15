@@ -58,7 +58,6 @@ Every notification dispatched on the platform must be registered in the authorit
 | `event_expired` | `event` | `normal` | 60 days | No | Org Admins & Owner |
 | `wallet_low_balance` | `wallet` | `high` | 30 days | Daily dedup | Org Admins & Owner |
 | `theme_ready` | `theme` | `low` | 45 days | No | Theme Creator / Org |
-| `leaderboard_high_score` | `leaderboard` | `normal` | 30 days | No | Org Admins & Owner |
 | `showcase_draft_created` | `showcase` | `normal` | 60 days | No | **Showcase Owner Only** |
 | `showcase_published` | `showcase` | `normal` | 90 days | No | **Showcase Owner Only** |
 | `showcase_unpublished` | `showcase` | `normal` | 60 days | No | **Showcase Owner Only** |
