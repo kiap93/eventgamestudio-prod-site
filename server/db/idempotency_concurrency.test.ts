@@ -49,14 +49,14 @@ async function runIdempotencyTests() {
   const firstSubmission = await submitEventScore({
     event_id: event.id,
     player_name: 'PlayerSequential',
-    score: 800,
+    score: 250,
     metadata: {
       sessionId: sessionIdSequential,
-      greenCaught: 8,
+      greenCaught: 25,
     },
   });
 
-  assert.strictEqual(firstSubmission.score.score, 800, 'Scenario 13: Initial score must be 800');
+  assert.strictEqual(firstSubmission.score.score, 250, 'Scenario 13: Initial score must be 250');
   assert.strictEqual(firstSubmission.rank, 1, 'Scenario 13: First score is rank 1');
   assert.strictEqual(firstSubmission.isNewHighScore, true, 'Scenario 13: isNewHighScore is true');
   const recordId = firstSubmission.score.id;
@@ -65,10 +65,10 @@ async function runIdempotencyTests() {
   const secondSubmission = await submitEventScore({
     event_id: event.id,
     player_name: 'PlayerSequential',
-    score: 800,
+    score: 250,
     metadata: {
       sessionId: sessionIdSequential,
-      greenCaught: 8,
+      greenCaught: 25,
     },
   });
 
@@ -107,32 +107,32 @@ async function runIdempotencyTests() {
     submitEventScore({
       event_id: event.id,
       player_name: 'ConcurrentRacer',
-      score: 950,
-      metadata: { sessionId: sessionIdConcurrent },
+      score: 300,
+      metadata: { sessionId: sessionIdConcurrent, greenCaught: 30 },
     }),
     submitEventScore({
       event_id: event.id,
       player_name: 'ConcurrentRacer',
-      score: 950,
-      metadata: { sessionId: sessionIdConcurrent },
+      score: 300,
+      metadata: { sessionId: sessionIdConcurrent, greenCaught: 30 },
     }),
     submitEventScore({
       event_id: event.id,
       player_name: 'ConcurrentRacer',
-      score: 950,
-      metadata: { sessionId: sessionIdConcurrent },
+      score: 300,
+      metadata: { sessionId: sessionIdConcurrent, greenCaught: 30 },
     }),
     submitEventScore({
       event_id: event.id,
       player_name: 'ConcurrentRacer',
-      score: 950,
-      metadata: { sessionId: sessionIdConcurrent },
+      score: 300,
+      metadata: { sessionId: sessionIdConcurrent, greenCaught: 30 },
     }),
     submitEventScore({
       event_id: event.id,
       player_name: 'ConcurrentRacer',
-      score: 950,
-      metadata: { sessionId: sessionIdConcurrent },
+      score: 300,
+      metadata: { sessionId: sessionIdConcurrent, greenCaught: 30 },
     }),
   ]);
 

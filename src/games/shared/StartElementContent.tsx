@@ -29,8 +29,69 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   AlertTriangle,
+  Loader2,
+  AlertCircle,
+  Users,
 } from 'lucide-react';
 import { GameTheme } from '../../themes/types';
+import { EventLeaderboardEntry } from '../../types';
+
+export const SIMULATED_START_LEADERBOARD_ENTRIES: EventLeaderboardEntry[] = [
+  {
+    id: 'sim_1',
+    event_id: 'sim',
+    player_name: 'ACE',
+    score: 2450,
+    rank: 1,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'sim_2',
+    event_id: 'sim',
+    player_name: 'NEO',
+    score: 1980,
+    rank: 2,
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'sim_3',
+    event_id: 'sim',
+    player_name: 'MAX',
+    score: 1620,
+    rank: 3,
+    created_at: new Date().toISOString(),
+  },
+];
+
+export const SIMULATED_REACTION_START_LEADERBOARD_ENTRIES: EventLeaderboardEntry[] = [
+  {
+    id: 'sim_r1',
+    event_id: 'sim',
+    player_name: 'MAX',
+    score: 182,
+    rank: 1,
+    created_at: new Date().toISOString(),
+    metadata: { reactionTimeMs: 182, gameType: 'reaction-tap' },
+  },
+  {
+    id: 'sim_r2',
+    event_id: 'sim',
+    player_name: 'LEO',
+    score: 194,
+    rank: 2,
+    created_at: new Date().toISOString(),
+    metadata: { reactionTimeMs: 194, gameType: 'reaction-tap' },
+  },
+  {
+    id: 'sim_r3',
+    event_id: 'sim',
+    player_name: 'SAM',
+    score: 201,
+    rank: 3,
+    created_at: new Date().toISOString(),
+    metadata: { reactionTimeMs: 201, gameType: 'reaction-tap' },
+  },
+];
 
 export interface StartElementContentProps {
   element: StartScreenElement;
@@ -46,6 +107,9 @@ export interface StartElementContentProps {
   isSimulation?: boolean;
   isEditor?: boolean;
   gameType?: string;
+  leaderboardData?: EventLeaderboardEntry[];
+  loadingLeaderboard?: boolean;
+  leaderboardError?: string | null;
 }
 
 /**
@@ -100,6 +164,9 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
   isSimulation = false,
   isEditor = false,
   gameType,
+  leaderboardData,
+  loadingLeaderboard = false,
+  leaderboardError = null,
 }) => {
   if (!element || typeof element !== 'object') {
     return null;
@@ -651,6 +718,24 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
     case 'leaderboard': {
       const lbEl = element as StartLeaderboardElement;
       const s = lbEl.style || {};
+
+      const isReactionGame =
+        gameType === 'reaction-tap' ||
+        gameType === 'reaction-time' ||
+        gameMeta?.gameType === 'reaction-tap' ||
+        gameMeta?.gameType === 'reaction-time';
+
+      const simPreset = isReactionGame
+        ? SIMULATED_REACTION_START_LEADERBOARD_ENTRIES
+        : SIMULATED_START_LEADERBOARD_ENTRIES;
+
+      const entries: EventLeaderboardEntry[] = isSim
+        ? (leaderboardData && leaderboardData.length > 0 ? leaderboardData : simPreset)
+        : (leaderboardData || []);
+
+      const maxRows = Math.max(1, lbEl.maxRows || 3);
+      const displayRows = entries.slice(0, maxRows);
+
       return (
         <div
           className="w-full h-full flex flex-col p-3 rounded-2xl select-none"
@@ -668,12 +753,61 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
             </div>
           )}
           <div className="space-y-1.5 flex-1 flex flex-col justify-center">
-            {['1. ACE - 2,450', '2. NEO - 1,980', '3. MAX - 1,620'].slice(0, lbEl.maxRows || 3).map((row, i) => (
-              <div key={i} className="flex justify-between text-xs font-mono text-slate-300 bg-slate-800/50 px-2 py-1 rounded">
-                <span>{row.split(' - ')[0]}</span>
-                <span className="text-amber-300 font-bold">{row.split(' - ')[1]}</span>
+            {!isSim && loadingLeaderboard ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-1.5 text-slate-400">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                <span className="text-xs font-sans">Loading rankings...</span>
               </div>
-            ))}
+            ) : !isSim && leaderboardError ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
+                <AlertCircle className="w-4 h-4 text-rose-400/80" />
+                <span className="text-xs font-sans">Leaderboard unavailable</span>
+              </div>
+            ) : displayRows.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-1 text-slate-500">
+                <Users className="w-4 h-4 text-slate-600" />
+                <span className="text-xs font-sans">No scores recorded yet</span>
+              </div>
+            ) : (
+              displayRows.map((entry, i) => {
+                const rank = entry.rank ?? (i + 1);
+                const playerName = entry.player_name || 'Player';
+                const isReactionEntry =
+                  isReactionGame ||
+                  entry.metadata?.gameType === 'reaction-time' ||
+                  entry.metadata?.gameType === 'reaction-tap' ||
+                  entry.metadata?.reactionTimeMs !== undefined;
+                const formattedScore = isReactionEntry
+                  ? `${entry.score} ms`
+                  : Number(entry.score || 0).toLocaleString();
+
+                return (
+                  <div
+                    key={entry.id || `lb-row-${i}`}
+                    className="flex justify-between items-center text-xs font-mono text-slate-300 bg-slate-800/50 px-2 py-1 rounded"
+                    style={{
+                      fontSize: s.fontSize ? `${s.fontSize}px` : undefined,
+                    }}
+                  >
+                    <span className="truncate mr-2" style={{ color: s.textColor || undefined }}>
+                      <span
+                        style={{ color: s.rankColor || '#fbbf24' }}
+                        className="font-bold mr-1"
+                      >
+                        {rank}.
+                      </span>
+                      {playerName}
+                    </span>
+                    <span
+                      style={{ color: s.scoreColor || '#fcd34d' }}
+                      className="font-bold shrink-0"
+                    >
+                      {formattedScore}
+                    </span>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       );

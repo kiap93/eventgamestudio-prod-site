@@ -229,6 +229,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const [submittedRank, setSubmittedRank] = useState<number | null>(null);
   const [leaderboardScores, setLeaderboardScores] = useState<EventLeaderboardEntry[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [activeEndTab, setActiveEndTab] = useState<'summary' | 'leaderboard'>('summary');
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
 
@@ -624,6 +625,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     }
 
     setLoadingLeaderboard(true);
+    setLeaderboardError(null);
     try {
       const isOrganizerTest = Boolean(isEventTest || isEventPreview);
       const url = (!isOrganizerTest && publicToken)
@@ -633,13 +635,23 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       if (res.ok) {
         const data = await res.json();
         setLeaderboardScores(data.scores || []);
+      } else {
+        setLeaderboardError('Leaderboard unavailable');
       }
     } catch (err) {
       console.warn('Leaderboard fetch error:', err);
+      setLeaderboardError('Leaderboard unavailable');
     } finally {
       setLoadingLeaderboard(false);
     }
-  }, [showLeaderboard, hasEventContext, publicToken, eventId]);
+  }, [showLeaderboard, hasEventContext, publicToken, eventId, isEventTest, isEventPreview]);
+
+  // Fetch leaderboard when Start Screen is active so real event rankings are visible immediately
+  useEffect(() => {
+    if (gameState === 'START') {
+      fetchLeaderboard();
+    }
+  }, [gameState, fetchLeaderboard]);
 
   // Handle Game Over / Victory
   const handleGameOver = useCallback(
@@ -2091,43 +2103,6 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         )}
 
         {/* ======================================================================= */}
-        {/* 8. GAME OVER / VICTORY COMPLETION MODAL                                 */}
-        {/* ======================================================================= */}
-        {gameState === 'GAME_OVER' && (
-          <ResultScreenRenderer
-            resultConfig={memoryConfig.screens?.result}
-            targetDimensions={{ width: responsive.designWidth, height: responsive.designHeight }}
-            isPortrait={responsive.isPortrait}
-            stats={{
-              score,
-              moves,
-              matchedPairsCount,
-              totalPairs,
-              accuracyPercent,
-              timeElapsedSeconds: Math.max(0, (memoryConfig.gameplay.gameDurationSeconds || 45) - timeRemaining),
-              isVictory,
-            }}
-            theme={activeTheme}
-            leaderboardData={leaderboardScores}
-            loadingLeaderboard={loadingLeaderboard}
-            currentPlayerName={playerName}
-            isEventPreview={isEventPreview}
-            isEventTest={isEventTest}
-            scoreSubmitted={scoreSubmitted}
-            submittedRank={submittedRank}
-            isSubmittingScore={isSubmittingScore}
-            onSubmitScore={handleSubmitScore}
-            onAction={(action) => {
-              if (action === 'playAgain') {
-                startCountdown();
-              } else if (action === 'exit') {
-                stopGame();
-              }
-            }}
-          />
-        )}
-
-        {/* ======================================================================= */}
         {/* 9. LEADERBOARD MODAL                                                    */}
         {/* ======================================================================= */}
         {showLeaderboardModal && (
@@ -2186,6 +2161,46 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       </div>
 
       {/* ======================================================================= */}
+      {/* 8. GAME OVER / VICTORY COMPLETION MODAL                                 */}
+      {/* ======================================================================= */}
+      {gameState === 'GAME_OVER' && (
+        <div className="absolute inset-0 pointer-events-auto z-50 overflow-hidden flex items-center justify-center">
+          <ResultScreenRenderer
+            resultConfig={memoryConfig.screens?.result}
+            layout={layout}
+            targetDimensions={{ width: responsive.designWidth, height: responsive.designHeight }}
+            isPortrait={responsive.isPortrait}
+            stats={{
+              score,
+              moves,
+              matchedPairsCount,
+              totalPairs,
+              accuracyPercent,
+              timeElapsedSeconds: Math.max(0, (memoryConfig.gameplay.gameDurationSeconds || 45) - timeRemaining),
+              isVictory,
+            }}
+            theme={activeTheme}
+            leaderboardData={leaderboardScores}
+            loadingLeaderboard={loadingLeaderboard}
+            currentPlayerName={playerName}
+            isEventPreview={isEventPreview}
+            isEventTest={isEventTest}
+            scoreSubmitted={scoreSubmitted}
+            submittedRank={submittedRank}
+            isSubmittingScore={isSubmittingScore}
+            onSubmitScore={handleSubmitScore}
+            onAction={(action) => {
+              if (action === 'playAgain') {
+                startCountdown();
+              } else if (action === 'exit') {
+                stopGame();
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {/* ======================================================================= */}
       {/* 5. START MATCH SCREEN MODAL (AUTHORITATIVE UNIFORM SCALING)             */}
       {/* ======================================================================= */}
       {gameState === 'START' && (
@@ -2213,6 +2228,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
             onShowLeaderboard={() => setShowLeaderboardModal(true)}
             isEventPreview={isEventPreview}
             isEventTest={isEventTest}
+            leaderboardData={leaderboardScores}
+            loadingLeaderboard={loadingLeaderboard}
+            leaderboardError={leaderboardError}
           />
         </div>
       )}

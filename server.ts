@@ -163,8 +163,15 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
+  listApiErrorLogs,
+  getApiErrorLogById,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
+import {
+  handleApiError,
+  AppError,
+  resolveCorrelationId,
+} from './server/errors.js';
 
 import {
   authenticateJWT,
@@ -295,6 +302,13 @@ app.use(
   })
 );
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Correlation / Request ID assignment & header propagation
+app.use((req: any, res, next) => {
+  req.id = resolveCorrelationId(req);
+  res.setHeader('x-correlation-id', req.id);
+  next();
+});
 
 // Global API rate limiter on all mutating endpoints to prevent volumetric request flood
 app.use('/api', (req, res, next) => {
@@ -6686,8 +6700,88 @@ app.post('/api/developer/notifications/dispatch-test', authenticateDeveloperAdmi
     });
   } catch (err: any) {
     console.error('Error in developer dispatch-test:', err);
-    res.status(500).json({ error: err.message || 'Failed to dispatch test notification' });
+    handleApiError(err, req, res);
   }
+});
+
+// ----------------------------------------------------
+// DEVELOPER & ADMIN ERROR LOGS AUDITING ENDPOINTS
+// ----------------------------------------------------
+
+/**
+ * Handler for listing sanitized API error logs for Developer/Admin inspection.
+ */
+async function handleGetApiErrorLogs(req: AuthenticatedRequest, res: express.Response) {
+  try {
+    const {
+      page,
+      pageSize,
+      requestId,
+      startDate,
+      endDate,
+      endpoint,
+      statusCode,
+      service,
+      errorType,
+      userId,
+      search,
+    } = req.query as Record<string, string>;
+
+    const result = await listApiErrorLogs({
+      page: page ? Number(page) : 1,
+      pageSize: pageSize ? Number(pageSize) : 25,
+      requestId,
+      startDate,
+      endDate,
+      endpoint,
+      statusCode: statusCode ? Number(statusCode) : undefined,
+      service,
+      errorType,
+      userId,
+      search,
+    });
+
+    res.json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+}
+
+/**
+ * Handler for retrieving a single API error log by ID.
+ */
+async function handleGetApiErrorLogDetail(req: AuthenticatedRequest, res: express.Response) {
+  try {
+    const { id } = req.params;
+    const log = await getApiErrorLogById(id);
+    if (!log) {
+      res.status(404).json({ error: 'Error log entry not found' });
+      return;
+    }
+    res.json({
+      success: true,
+      data: log,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+}
+
+app.get('/api/developer/error-logs', authenticateDeveloperAdmin, handleGetApiErrorLogs);
+app.get('/api/admin/error-logs', authenticateDeveloperAdmin, handleGetApiErrorLogs);
+app.get('/api/developer/error-logs/:id', authenticateDeveloperAdmin, handleGetApiErrorLogDetail);
+app.get('/api/admin/error-logs/:id', authenticateDeveloperAdmin, handleGetApiErrorLogDetail);
+
+// ----------------------------------------------------
+// GLOBAL CENTRALIZED API ERROR MIDDLEWARE
+// ----------------------------------------------------
+
+app.use('/api', (err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  handleApiError(err, req, res);
 });
 
 // ----------------------------------------------------

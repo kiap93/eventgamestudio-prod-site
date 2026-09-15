@@ -1,0 +1,176 @@
+[
+  {
+    "id": "cb8aa9ce-9bcd-428a-80f0-7c99640bba70",
+    "request_id": "test-log-1789461455402",
+    "created_at": "2026-09-15T08:37:35.402Z",
+    "user_id": "test-user-uuid",
+    "method": "POST",
+    "endpoint": "/api/test/failure",
+    "status_code": 500,
+    "error_type": "TestError",
+    "error_code": "TEST_FAILURE",
+    "error_message": "Simulated failure for audit verification",
+    "stack_trace": "Error: Simulated failure\n    at runErrorHandlingTests (server/errors.test.ts:100:20)",
+    "service": "postgres",
+    "metadata": {
+      "key": "value"
+    }
+  },
+  {
+    "id": "3c705e8d-a113-471d-8c4b-b39a06d230e7",
+    "request_id": "worker-corr-777",
+    "created_at": "2026-09-15T08:37:35.402Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/wallets/topup",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "error_message": "Supabase RPC failure: constraint uq_wallet_orders violated",
+    "stack_trace": "Error: Supabase RPC failure: constraint uq_wallet_orders violated\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:191:32)\n    at /app/applet/server/errors.test.ts:247",
+    "service": "supabase",
+    "metadata": {
+      "headers": {
+        "x-correlation-id": "worker-corr-777"
+      },
+      "query": {}
+    }
+  },
+  {
+    "id": "6e861bd9-393c-4084-8cde-7e8dfbb7619c",
+    "request_id": "req-audit-12345",
+    "created_at": "2026-09-15T08:37:35.401Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/events/checkout",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "42601",
+    "error_message": "syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords",
+    "stack_trace": "Error: syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:158:30)\n    at /app/applet/server/errors.test.ts:247",
+    "service": "postgres",
+    "metadata": {
+      "headers": {},
+      "body": {
+        "password": "[REDACTED]",
+        "amount": 1400
+      }
+    }
+  },
+  {
+    "id": "b7e04203-fada-4ffb-98aa-1ff9586c0924",
+    "request_id": "test-log-1789461407813",
+    "created_at": "2026-09-15T08:36:47.814Z",
+    "user_id": "test-user-uuid",
+    "method": "POST",
+    "endpoint": "/api/test/failure",
+    "status_code": 500,
+    "error_type": "TestError",
+    "error_code": "TEST_FAILURE",
+    "error_message": "Simulated failure for audit verification",
+    "stack_trace": "Error: Simulated failure\n    at runErrorHandlingTests (server/errors.test.ts:100:20)",
+    "service": "postgres",
+    "metadata": {
+      "key": "value"
+    }
+  },
+  {
+    "id": "0498e8fc-1282-437e-a80b-ee13fbf3ff2c",
+    "request_id": "worker-corr-777",
+    "created_at": "2026-09-15T08:36:47.813Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/wallets/topup",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "error_message": "Supabase RPC failure: constraint uq_wallet_orders violated",
+    "stack_trace": "Error: Supabase RPC failure: constraint uq_wallet_orders violated\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:191:32)\n    at /app/applet/server/errors.test.ts:247",
+    "service": "supabase",
+    "metadata": {
+      "headers": {
+        "x-correlation-id": "worker-corr-777"
+      },
+      "query": {}
+    }
+  },
+  {
+    "id": "4d7dae01-63f1-4fec-b804-b6ceb47de60d",
+    "request_id": "req-audit-12345",
+    "created_at": "2026-09-15T08:36:47.812Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/events/checkout",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "42601",
+    "error_message": "syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords",
+    "stack_trace": "Error: syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:158:30)\n    at /app/applet/server/errors.test.ts:247",
+    "service": "postgres",
+    "metadata": {
+      "headers": {},
+      "body": {
+        "password": "[REDACTED]",
+        "amount": 1400
+      }
+    }
+  },
+  {
+    "id": "0aff4eaa-424d-407c-bd8a-87d263be0cfd",
+    "request_id": "test-log-1789461390209",
+    "created_at": "2026-09-15T08:36:30.209Z",
+    "user_id": "test-user-uuid",
+    "method": "POST",
+    "endpoint": "/api/test/failure",
+    "status_code": 500,
+    "error_type": "TestError",
+    "error_code": "TEST_FAILURE",
+    "error_message": "Simulated failure for audit verification",
+    "stack_trace": "Error: Simulated failure\n    at runErrorHandlingTests (server/errors.test.ts:100:20)",
+    "service": "postgres",
+    "metadata": {
+      "key": "value"
+    }
+  },
+  {
+    "id": "32ecb273-94e9-4e02-9fca-b8344de973bb",
+    "request_id": "worker-corr-777",
+    "created_at": "2026-09-15T08:36:30.208Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/wallets/topup",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "error_message": "Supabase RPC failure: constraint uq_wallet_orders violated",
+    "stack_trace": "Error: Supabase RPC failure: constraint uq_wallet_orders violated\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:191:32)\n    at /app/applet/server/errors.test.ts:247",
+    "service": "supabase",
+    "metadata": {
+      "headers": {
+        "x-correlation-id": "worker-corr-777"
+      },
+      "query": {}
+    }
+  },
+  {
+    "id": "e8f88957-2abc-4c3e-8ce5-514759cf9cdb",
+    "request_id": "req-audit-12345",
+    "created_at": "2026-09-15T08:36:30.206Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/events/checkout",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "42601",
+    "error_message": "syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords",
+    "stack_trace": "Error: syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:158:30)\n    at /app/applet/server/errors.test.ts:247",
+    "service": "postgres",
+    "metadata": {
+      "headers": {},
+      "body": {
+        "password": "[REDACTED]",
+        "amount": 1400
+      }
+    }
+  }
+]

@@ -19,12 +19,13 @@ import {
   Coins,
   Building2,
   Mail,
+  AlertOctagon,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 
 interface DeveloperAdminLayoutProps {
   children: React.ReactNode;
-  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing' | 'organizations' | 'email';
+  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing' | 'organizations' | 'email' | 'errors';
 }
 
 export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
@@ -145,6 +146,18 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
               >
                 <Mail className="w-4 h-4 text-indigo-400" />
                 <span>Gmail API Email</span>
+              </button>
+
+              <button
+                onClick={() => navigateTo('/developer/errors')}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  activeSection === 'errors'
+                    ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <AlertOctagon className="w-4 h-4 text-rose-400" />
+                <span>API Error Logs</span>
               </button>
             </nav>
           </div>
@@ -268,6 +281,21 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             >
               <Mail className="w-4 h-4 text-indigo-400" />
               <span>Gmail API Email</span>
+            </button>
+
+            <button
+              onClick={() => {
+                navigateTo('/developer/errors');
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold ${
+                activeSection === 'errors'
+                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <AlertOctagon className="w-4 h-4 text-rose-400" />
+              <span>API Error Logs</span>
             </button>
 
             <button

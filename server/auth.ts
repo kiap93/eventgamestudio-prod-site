@@ -5,6 +5,7 @@ import { getUserById, getUserByEmail, getMember } from './db/index.js';
 import { UserRecord, OrgMemberRecord, OrgRole } from './db/types.js';
 import { getSupabaseServerClient } from './supabase.js';
 import { verifyGoogleJwt, VerifyGoogleTokenOptions } from './google_jwks.js';
+import { AUTH_COOKIE_NAME, parseCookie } from './securityHeaders.js';
 
 // Ephemeral in-memory dev secret ONLY for local Node.js development servers,
 // NEVER allowed in production or Cloudflare Worker / serverless runtime environments.
@@ -230,20 +231,43 @@ export async function resolveAuthToken(
   }
 }
 
+/**
+ * Extracts authentication token from either Authorization header (Bearer token)
+ * or HttpOnly session cookie (app_token).
+ */
+export function extractAuthTokenFromRequest(req: Request): string {
+  // 1. Check Authorization: Bearer <token>
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    if (token) return token;
+  }
+
+  // 2. Check req.cookies if cookie-parser is used
+  if ((req as any).cookies && (req as any).cookies[AUTH_COOKIE_NAME]) {
+    const token = (req as any).cookies[AUTH_COOKIE_NAME];
+    if (token && typeof token === 'string') return token.trim();
+  }
+
+  // 3. Parse raw Cookie header
+  const rawCookieHeader = req.headers.cookie;
+  if (rawCookieHeader) {
+    const token = parseCookie(rawCookieHeader, AUTH_COOKIE_NAME);
+    if (token) return token;
+  }
+
+  return '';
+}
+
 export async function authenticateJWT(
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const authHeader = req.headers.authorization;
-  let token = '';
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.substring(7).trim();
-  }
+  const token = extractAuthTokenFromRequest(req);
 
   if (!token) {
-    res.status(401).json({ error: 'Unauthenticated: Missing or invalid Authorization header (Bearer token required)' });
+    res.status(401).json({ error: 'Unauthenticated: Missing or invalid Authorization header or session cookie' });
     return;
   }
 
@@ -277,21 +301,16 @@ export async function authenticateJWT(
 
 /**
  * Optional JWT authentication middleware for public / guest-accessible endpoints.
- * Understands both App JWT and Supabase JWT tokens.
- * - If a valid Bearer token is provided, attaches `req.user` and `req.jwtPayload` for permission verification.
- * - If no Authorization header or an invalid token is provided, proceeds cleanly as unauthenticated guest.
+ * Understands both App JWT and Supabase JWT tokens via Bearer header or HttpOnly cookie.
+ * - If a valid token is provided, attaches `req.user` and `req.jwtPayload` for permission verification.
+ * - If no token or an invalid token is provided, proceeds cleanly as unauthenticated guest.
  */
 export async function authenticateOptionalJWT(
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const authHeader = req.headers.authorization;
-  let token = '';
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.substring(7).trim();
-  }
+  const token = extractAuthTokenFromRequest(req);
 
   if (!token) {
     // No token provided - continue as unauthenticated guest

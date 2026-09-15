@@ -1114,5 +1114,14 @@
     "transaction_id": "dfb4043f-492a-4494-8889-738165834e0a",
     "amount": 300,
     "created_at": "2026-09-15T02:24:56.621Z"
+  },
+  {
+    "id": "bda63a86-da2c-4270-9042-f224dbb75cf8",
+    "user_id": "4a745922-b043-46d5-b30a-c4bf0b708b43",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "04b83a75-ceb2-4556-ae64-9024bacd6876",
+    "transaction_id": "b282bc43-7bf5-47e9-bc37-ace25606cedb",
+    "amount": 800,
+    "created_at": "2026-09-15T08:11:24.969Z"
   }
 ]

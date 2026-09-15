@@ -43078,5 +43078,35 @@
       "payment_method": "card"
     },
     "timestamp": "2026-09-15T07:09:08.225Z"
+  },
+  {
+    "id": "a7bb20fd-7d00-415e-8a00-daccabf10b9c",
+    "organization_id": "04b83a75-ceb2-4556-ae64-9024bacd6876",
+    "event_type": "TOP_UP_CREATED",
+    "order_id": "4e61b58a-d37c-4b04-a924-4fa43af4653d",
+    "payment_reference": null,
+    "amount": 600,
+    "currency": "MYR",
+    "actor_id": "4a745922-b043-46d5-b30a-c4bf0b708b43",
+    "metadata": {
+      "expected_credit_amount": 0,
+      "bonus_percentage": 0,
+      "total_wallet_value": 600
+    },
+    "timestamp": "2026-09-15T08:11:25.195Z"
+  },
+  {
+    "id": "18f1eb89-3b35-4f45-91d3-298acf29bef5",
+    "organization_id": "04b83a75-ceb2-4556-ae64-9024bacd6876",
+    "event_type": "PAYMENT_COMPLETED",
+    "order_id": "4e61b58a-d37c-4b04-a924-4fa43af4653d",
+    "payment_reference": "test_ref_shortfall_paid",
+    "amount": 600,
+    "currency": "MYR",
+    "actor_id": "4a745922-b043-46d5-b30a-c4bf0b708b43",
+    "metadata": {
+      "payment_method": "card"
+    },
+    "timestamp": "2026-09-15T08:11:25.283Z"
   }
 ]

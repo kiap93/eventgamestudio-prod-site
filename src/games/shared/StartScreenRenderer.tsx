@@ -6,6 +6,7 @@ import {
 } from './startScreenTypes';
 import { resolveScreenBackground } from '../../themes/screenBackground';
 import { GameTheme, getThemeGameType } from '../../themes/types';
+import { EventLeaderboardEntry } from '../../types';
 import { StartElementContent } from './StartElementContent';
 import {
   getStartScreenConfig,
@@ -26,6 +27,7 @@ export interface StartScreenRendererProps {
   targetDimensions?: {
     width: number;
     height: number;
+    isPortrait?: boolean;
   };
   gameMeta?: StartScreenGameMeta;
   onStartGame: () => void;
@@ -34,9 +36,14 @@ export interface StartScreenRendererProps {
   onOpenSettings?: () => void;
   className?: string;
   isSimulation?: boolean;
+  isEditor?: boolean;
   isEventPreview?: boolean;
   isEventTest?: boolean;
   suppressBackground?: boolean;
+  leaderboardData?: EventLeaderboardEntry[];
+  loadingLeaderboard?: boolean;
+  leaderboardError?: string | null;
+  responsive?: any;
 }
 
 const StartScreenContent: React.FC<StartScreenRendererProps> = ({
@@ -52,7 +59,11 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
   onOpenSettings,
   className = '',
   isSimulation = false,
+  isEditor = false,
   suppressBackground = false,
+  leaderboardData,
+  loadingLeaderboard,
+  leaderboardError,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerDimensions, setContainerDimensions] = useState<{
@@ -254,6 +265,11 @@ const StartScreenContent: React.FC<StartScreenRendererProps> = ({
             renderElement(child, childParentW, childParentH, false)
           }
           isSimulation={isSimulation}
+          isEditor={isEditor}
+          gameType={targetGameType}
+          leaderboardData={leaderboardData}
+          loadingLeaderboard={loadingLeaderboard}
+          leaderboardError={leaderboardError}
         />
       </div>
     );

@@ -161,8 +161,11 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
+  listApiErrorLogs,
+  getApiErrorLogById,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
+import { handleWorkerApiError, AppError, resolveCorrelationId } from './server/errors.js';
 
 import {
   buildGoogleAuthUrl,
@@ -371,14 +374,57 @@ function jsonResponse(data: any, status = 200, extraHeaders: Record<string, stri
   });
 }
 
-function errorResponse(message: string, status = 400, extraHeaders: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify({ error: message }), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      ...extraHeaders,
-    },
-  });
+function errorResponse(
+  message: string,
+  status = 400,
+  extraHeaders: Record<string, string> = {},
+  requestId?: string
+): Response {
+  const reqId =
+    requestId ||
+    extraHeaders['x-correlation-id'] ||
+    extraHeaders['x-request-id'] ||
+    `worker-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+
+  let safeMessage = message;
+  // If this is an unexpected 500 error, sanitize internal database/infrastructure messages
+  if (status >= 500) {
+    const lower = (message || '').toLowerCase();
+    const isInternal =
+      lower.includes('supabase') ||
+      lower.includes('postgres') ||
+      lower.includes('syntax error') ||
+      lower.includes('relation') ||
+      lower.includes('column') ||
+      lower.includes('jwt') ||
+      lower.includes('secret') ||
+      lower.includes('failed to fetch') ||
+      lower.includes('networkerror') ||
+      lower.includes('cannot read properties') ||
+      lower.includes('null value in column') ||
+      lower.includes('violates foreign key') ||
+      lower.includes('database error');
+
+    if (isInternal) {
+      console.error(`[Internal Error Sanitized][${reqId}]:`, message);
+      safeMessage = 'An unexpected internal server error occurred. Please contact support with your Request ID.';
+    }
+  }
+
+  return new Response(
+    JSON.stringify({
+      error: safeMessage,
+      requestId: reqId,
+    }),
+    {
+      status,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-correlation-id': reqId,
+        ...extraHeaders,
+      },
+    }
+  );
 }
 
 function parseRoute(pattern: string, pathname: string): Record<string, string> | null {
@@ -6682,14 +6728,71 @@ export default {
         }
       }
 
+      // GET /api/developer/error-logs or /api/admin/error-logs
+      if (
+        (pathname === '/api/developer/error-logs' || pathname === '/api/admin/error-logs') &&
+        method === 'GET'
+      ) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const result = await listApiErrorLogs({
+            page: url.searchParams.get('page') ? Number(url.searchParams.get('page')) : 1,
+            pageSize: url.searchParams.get('pageSize') ? Number(url.searchParams.get('pageSize')) : 25,
+            requestId: url.searchParams.get('requestId') || undefined,
+            startDate: url.searchParams.get('startDate') || undefined,
+            endDate: url.searchParams.get('endDate') || undefined,
+            endpoint: url.searchParams.get('endpoint') || undefined,
+            statusCode: url.searchParams.get('statusCode') ? Number(url.searchParams.get('statusCode')) : undefined,
+            service: url.searchParams.get('service') || undefined,
+            errorType: url.searchParams.get('errorType') || undefined,
+            userId: url.searchParams.get('userId') || undefined,
+            search: url.searchParams.get('search') || undefined,
+          }, env);
+
+          return jsonResponse({
+            success: true,
+            data: result.data,
+            pagination: result.pagination,
+          }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/error-logs/:id or /api/admin/error-logs/:id
+      const errorLogDetailMatch = pathname.match(/^\/api\/(?:developer|admin)\/error-logs\/([^\/]+)$/);
+      if (errorLogDetailMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const logId = errorLogDetailMatch[1];
+        try {
+          const log = await getApiErrorLogById(logId, env);
+          if (!log) {
+            return errorResponse('Error log not found', 404, cors);
+          }
+          return jsonResponse({
+            success: true,
+            data: log,
+          }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
       return errorResponse('Not found', 404, cors);
     } catch (err: any) {
-      const correlationId =
-        request.headers.get('x-correlation-id') ||
-        request.headers.get('x-request-id') ||
-        crypto.randomUUID();
-      console.error(`[Unhandled worker error][${correlationId}]:`, err);
-      return errorResponse('Internal Server Error', 500, { ...cors, 'x-correlation-id': correlationId });
+      return handleWorkerApiError(err, request, cors, env);
     }
   },
 

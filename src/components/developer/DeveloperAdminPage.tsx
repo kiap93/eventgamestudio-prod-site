@@ -11,6 +11,7 @@ import { DeveloperPricingManager } from './DeveloperPricingManager';
 import { DeveloperOrganizationsList } from './DeveloperOrganizationsList';
 import { DeveloperOrganizationDetail } from './DeveloperOrganizationDetail';
 import { DeveloperEmailSettings } from './DeveloperEmailSettings';
+import { DeveloperErrorLogs } from './DeveloperErrorLogs';
 import { ShieldAlert } from 'lucide-react';
 
 export const DeveloperAdminPage: React.FC = () => {
@@ -94,6 +95,15 @@ export const DeveloperAdminPage: React.FC = () => {
     return (
       <DeveloperAdminLayout activeSection="email">
         <DeveloperEmailSettings />
+      </DeveloperAdminLayout>
+    );
+  }
+
+  // 1d. If viewing API Error Logs: /developer/errors
+  if (route.developerSection === 'errors') {
+    return (
+      <DeveloperAdminLayout activeSection="errors">
+        <DeveloperErrorLogs />
       </DeveloperAdminLayout>
     );
   }

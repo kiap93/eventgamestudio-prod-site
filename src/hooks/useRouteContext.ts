@@ -34,7 +34,7 @@ export interface RouteContext {
   developerGameId?: string;
   developerThemeId?: string;
   developerOrgId?: string;
-  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing' | 'organizations' | 'email';
+  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing' | 'organizations' | 'email' | 'errors';
   developerAction?: 'new-theme' | 'edit-theme' | 'new-game' | 'edit-game' | 'test-play';
   pathname: string;
 }
@@ -55,6 +55,7 @@ const RESERVED_PREFIXES = new Set([
   'play',
   'games',
   'developer',
+  'admin',
   'wallet',
   'showcase',
   'showcases',
@@ -87,8 +88,8 @@ export function parseRoute(pathname: string): RouteContext {
     };
   }
 
-  // 0. Check for Developer Admin routes (/developer/...)
-  if (parts.length >= 1 && parts[0].toLowerCase() === 'developer') {
+  // 0. Check for Developer Admin routes (/developer/... or /admin/...)
+  if (parts.length >= 1 && (parts[0].toLowerCase() === 'developer' || parts[0].toLowerCase() === 'admin')) {
     // /developer
     // /developer/games
     // /developer/games/:gameId
@@ -106,6 +107,8 @@ export function parseRoute(pathname: string): RouteContext {
       if (parts[2]) {
         developerOrgId = parts[2];
       }
+    } else if (parts[1] === 'errors' || parts[1] === 'error-logs') {
+      developerSection = 'errors';
     } else if (parts[1] === 'email' || parts[1] === 'mail') {
       developerSection = 'email';
     } else if (parts[1] === 'showcases') {

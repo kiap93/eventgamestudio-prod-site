@@ -214,6 +214,13 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     }
   }, [gameState, eventId, publicToken, isEventPreview]);
 
+  // When start screen is active, load the leaderboard so real event rankings are visible immediately
+  useEffect(() => {
+    if (gameState === 'START') {
+      fetchEventLeaderboard();
+    }
+  }, [gameState, eventId, publicToken, isEventPreview]);
+
   // Load leaderboard when modal opens
   useEffect(() => {
     if (showLeaderboardModal) {
@@ -1284,6 +1291,9 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             onOpenSettings={() => setShowSettingsModal(true)}
             isEventPreview={isEventPreview}
             isEventTest={isEventTest}
+            leaderboardData={leaderboardScores}
+            loadingLeaderboard={loadingLeaderboard}
+            leaderboardError={leaderboardError}
           />
         </div>
       )}

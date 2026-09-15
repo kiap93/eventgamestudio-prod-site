@@ -99,6 +99,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
   const [isSubmittingScore, setIsSubmittingScore] = useState<boolean>(false);
   const [leaderboardScores, setLeaderboardScores] = useState<EventLeaderboardEntry[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState<boolean>(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState<boolean>(false);
 
   // Ref trackers for microsecond accuracy and event handler stabilization
@@ -124,6 +125,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
   const fetchLeaderboard = useCallback(async () => {
     if (!eventId && !publicToken) return;
     setLoadingLeaderboard(true);
+    setLeaderboardError(null);
     try {
       const isOrganizerTest = Boolean(isEventTest || isEventPreview);
       const url = (!isOrganizerTest && publicToken)
@@ -133,13 +135,16 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
       if (res.ok) {
         const data = await res.json();
         setLeaderboardScores(data.scores || []);
+      } else {
+        setLeaderboardError('Leaderboard unavailable');
       }
     } catch (err) {
       console.warn('Failed to load leaderboard scores:', err);
+      setLeaderboardError('Leaderboard unavailable');
     } finally {
       setLoadingLeaderboard(false);
     }
-  }, [eventId, publicToken]);
+  }, [eventId, publicToken, isEventTest, isEventPreview]);
 
   useEffect(() => {
     fetchLeaderboard();
@@ -806,6 +811,9 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
             isSimulation={isSimulation && !isInteractive}
             isEventPreview={isEventPreview}
             isEventTest={isEventTest}
+            leaderboardData={leaderboardScores}
+            loadingLeaderboard={loadingLeaderboard}
+            leaderboardError={leaderboardError}
           />
         </div>
       )}
@@ -813,13 +821,14 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
       {/* Final Victory / Leaderboard Completion Screen */}
       {gameState === 'FINAL_RESULT' && (
         <div
-          className="absolute inset-0 z-50 pointer-events-auto cursor-default"
+          className="absolute inset-0 z-50 pointer-events-auto cursor-default flex items-center justify-center"
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
         >
           <ResultScreenRenderer
             resultConfig={reactionConfig.screens?.result}
+            layout={activeTheme?.layout}
             targetDimensions={{ width: responsive.designWidth, height: responsive.designHeight }}
             isPortrait={responsive.isPortrait}
             stats={{

@@ -384,6 +384,10 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
     orientation: raw.orientation === 'portrait' || raw.orientation === 'landscape' || raw.orientation === 'auto'
       ? raw.orientation
       : 'auto',
+    ...(raw.position ? { position: raw.position } : {}),
+    ...(raw.contentAlignment ? { contentAlignment: raw.contentAlignment } : {}),
+    ...(raw.horizontalAlignment ? { horizontalAlignment: raw.horizontalAlignment } : {}),
+    ...(raw.verticalAlignment ? { verticalAlignment: raw.verticalAlignment } : {}),
     ...(raw.portraitLayout && typeof raw.portraitLayout === 'object' ? { portraitLayout: raw.portraitLayout } : {}),
     clientLogo: normalizeElement('clientLogo', defaults.clientLogo),
     scoreHud: normalizeElement('scoreHud', defaults.scoreHud),

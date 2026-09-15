@@ -67,6 +67,16 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     }
   }
 
+  // 1b. Automatic Correlation ID propagation for client-to-server request tracing
+  if (!headers.has('x-correlation-id') && !headers.has('x-request-id')) {
+    try {
+      const generatedId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      headers.set('x-correlation-id', generatedId);
+    } catch {
+      // ignore
+    }
+  }
+
   // 2. Body & Content-Type handling
   let body = options.body;
 
@@ -91,5 +101,22 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     headers,
     body,
   });
+}
+
+/**
+ * Friendly error message formatter that displays reference ID when available,
+ * ensuring users never see raw SQL or stack traces while having a traceable ID for support.
+ */
+export function formatApiErrorMessage(
+  errData: any,
+  fallbackMessage = 'An unexpected error occurred. Please try again.'
+): string {
+  if (!errData) return fallbackMessage;
+  if (typeof errData === 'string') return errData;
+  const msg = errData.error || errData.message || fallbackMessage;
+  if (errData.requestId) {
+    return `${msg} (Reference ID: ${errData.requestId.slice(0, 8)})`;
+  }
+  return msg;
 }
 

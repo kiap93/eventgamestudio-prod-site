@@ -32,6 +32,8 @@ In accordance with **Strategy B** (explicit baseline date boundary + post-baseli
 | **Post-Baseline 21** | `supabase/migrations/20260912010000_create_central_notifications.sql` | **Central Notifications**: Dedicated `public.central_notifications` table for system notifications. |
 | **Post-Baseline 22** | `supabase/migrations/20260913000000_add_event_timezone_to_events.sql` | **Event Timezone**: Adds `event_timezone` column to `public.events`. |
 | **Post-Baseline 23** | `supabase/migrations/20260914000000_user_level_reward_security_and_reconciliation.sql` | **User-Level Reward Security & Reconciliation**: Hardens `owner_showcase_rewards` foreign keys (`ON DELETE SET NULL`), backfills `user_rewards`, reconciles historical duplicate transactions to `REVERSED`, and hardens RLS. |
+| **Post-Baseline 24** | `supabase/migrations/20260914010000_disable_automatic_welcome_credit.sql` | **Disable Automatic Welcome Credit**: Updates `create_organization_atomic` RPC to initialize wallets with RM0.00 and eliminates automated welcome credit grants on organization creation. |
+| **Post-Baseline 25** | `supabase/migrations/20260914020000_lock_topup_payment_constraints_and_idempotency.sql` | **Top-Up Payment Constraints & Idempotency**: Adds unique indexes for transaction reference IDs, paid payment references, Stripe session & payment intent IDs, `payment_webhook_events` dedup table, and hardened settlement RPC. |
 | **Complete Cumulative Schema** | `supabase/schema.sql` | **Latest Canonical Single-File Snapshot**: Contains all tables, indexes, RLS policies, `outstanding_balance`, and all RPCs. |
 
 ---
@@ -134,6 +136,10 @@ Contains the canonical timestamp migrations:
 - `20260912000000_user_level_welcome_credit.sql` — User-level welcome credit granting and tracking
 - `20260912010000_create_central_notifications.sql` — Central notifications ledger and trigger system
 - `20260913000000_add_event_timezone_to_events.sql` — Adds event_timezone column to public.events and updates create_event_atomic with country-based resolution and override support
+- `20260914000000_user_level_reward_security_and_reconciliation.sql` — User-level reward security and reconciliation
+- `20260914010000_disable_automatic_welcome_credit.sql` — Disables automatic welcome credit grant on organization creation
+- `20260914020000_lock_topup_payment_constraints_and_idempotency.sql` — Topup payment constraints, webhook event dedup, and idempotency
+- `20260915000000_create_api_error_logs.sql` — Centralized API error logs table, indexes, and service role / developer admin RLS policies
 
 ### Historical Archive (`supabase/migrations_history/`)
 Preserves the complete original sequential migration chain (`001_...` through `031_...`), branch collision variants (`013`, `014`, `017b`), and `MIGRATIONS_AUDIT.md`.
