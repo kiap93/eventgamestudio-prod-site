@@ -96,7 +96,7 @@ Core platform entities (**Organizations**, **Users/Members**, **Events**, **Game
 
 Keep distinct balance ledgers logically separated:
 1. **Cash / Purchased Wallet Balance**: Real funds topped up via payment gateways.
-2. **Welcome Credits**: One-time onboarding bonus awarded upon organization registration.
+2. **Welcome Credits**: One-time promotional bonus manually granted by developer admins (strictly one-time per user lifetime across all organizations; automatic grant on organization registration is discontinued).
 3. **Top-Up Reward Credits**: Bonus credits awarded on qualifying top-up tiers (subject to event payment application caps, e.g., max 20% of event price).
 4. **Showcase Reward Credits**: Credits awarded for approved event showcases. This is strictly an **Owner-Level Reward** (`owner_user_id`) with a lifetime limit of one reward per account owner. Showcase publishing, editorial event review, and reward approval are three completely decoupled workflows.
 5. **Event Credits**: Specific promotional credits tied to event creation.

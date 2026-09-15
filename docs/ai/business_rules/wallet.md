@@ -16,7 +16,7 @@ Every organization has a dedicated row in `public.organization_wallets` created 
 │    Real deposited money from payment gateways (Stripe Checkout).          │
 │                                                                           │
 │ 2. Welcome Credit (welcome_credit)                                        │
-│    One-time RM800.00 promotional credit granted upon registration.        │
+│    One-time RM800.00 promotional credit granted manually by developer.   │
 │                                                                           │
 │ 3. Showcase Credit (showcase_credit)                                      │
 │    One-time RM300.00 reward credit awarded for first approved showcase.  │
@@ -97,10 +97,10 @@ Reward credits are dynamically calculated by `calculateTopupCredit(amount)`:
 ## 4. Promotional Credits Lifecycle
 
 ### Welcome Credit
-- **Amount**: RM800.00 one-time grant.
-- **Trigger**: Organization creation (`grantWelcomeCredit` or `create_organization_atomic`).
-- **Idempotency & Lifetime Scope**: Guarded at the user level by `public.user_rewards (user_id, 'WELCOME_CREDIT')` and on the wallet row by `welcome_credit_granted`. A user who creates multiple organizations only receives the welcome bonus on their first organization.
-- **Consumption**: Applied to the organization's first event license purchase.
+- **Amount**: RM800.00 one-time promotional grant.
+- **Trigger**: Explicit manual grant by a developer admin (`grantWelcomeCredit` or `POST /api/developer/organizations/:id/grant-welcome-credit`). *Note: Automatic Welcome Credit upon organization creation is discontinued.*
+- **Idempotency & Lifetime Scope**: Guarded at the user level by `public.user_rewards (user_id, 'WELCOME_CREDIT')` and on the wallet row by `welcome_credit_granted`. A user who owns multiple organizations can receive the welcome promotional grant at most ONCE in their lifetime across all organizations. Deleting an organization does not reset this eligibility.
+- **Consumption**: Applied to the organization's event license purchase.
 
 ### Showcase Reward Credit
 - **Amount**: RM300.00 one-time grant.

@@ -77,7 +77,7 @@ async function runAllTests() {
   assert.ok(walletReconcileIdx !== -1, 'Migration must reconcile unspent welcome credits in organization_wallets');
 
   // 5. Must create unique index STRICTLY AFTER duplicate reconciliation
-  const uniqueIndexIdx = migrationSql.indexOf('ux_wallet_txns_user_welcome_credit_unique');
+  const uniqueIndexIdx = migrationSql.indexOf('CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_user_welcome_credit_unique');
   assert.ok(uniqueIndexIdx !== -1, 'Migration must create ux_wallet_txns_user_welcome_credit_unique unique index');
 
   // Verify strict ordering:

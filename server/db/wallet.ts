@@ -1938,37 +1938,33 @@ export async function consumeWelcomeCredit(
     throw new Error('Event ID is required');
   }
 
-  const currentWallet = await getWalletBalance(organizationId, env);
-  if (!currentWallet || currentWallet.welcome_credit <= 0) {
-    throw new Error('No Welcome Credit is available in this organization wallet to consume.');
-  }
-
-  // Idempotency check: if event is already paid with welcome credit, return existing transactions without double-charging
+  // Idempotency check: if event or referenceId is already paid with welcome credit, return existing transactions without double-charging
   try {
-    const { getEventById } = await import('./events.js');
-    const ev = await getEventById(eventId, env);
-    if (ev && (ev.payment_status === 'PAID' || (ev as any).event_status === 'LIVE')) {
+    const { transactions: orgTxns } = await getWalletTransactions(organizationId, undefined, env);
+    const creditTransaction = orgTxns.find(
+      (t) => (t.event_id === eventId || (referenceId && t.reference_id === referenceId)) &&
+             (t.balance_type === 'WELCOME_CREDIT' || t.transaction_type === 'CREDIT_USAGE')
+    );
+    const paidTransaction = orgTxns.find(
+      (t) => (t.event_id === eventId || (referenceId && t.reference_id === referenceId)) &&
+             (t.balance_type === 'PAID_BALANCE' || t.transaction_type === 'EVENT_PAYMENT')
+    );
+    if (creditTransaction && paidTransaction) {
       const currentWallet = await getWalletBalance(organizationId, env);
-      const { transactions: orgTxns } = await getWalletTransactions(organizationId, undefined, env);
-      const creditTransaction = orgTxns.find(
-        (t) => (t.event_id === eventId || (referenceId && t.reference_id === referenceId)) &&
-               (t.balance_type === 'WELCOME_CREDIT' || t.transaction_type === 'CREDIT_USAGE')
-      );
-      const paidTransaction = orgTxns.find(
-        (t) => (t.event_id === eventId || (referenceId && t.reference_id === referenceId)) &&
-               (t.balance_type === 'PAID_BALANCE' || t.transaction_type === 'EVENT_PAYMENT')
-      );
-      if (creditTransaction && paidTransaction) {
-        return {
-          success: true,
-          creditTransaction,
-          paidTransaction,
-          wallet: currentWallet,
-        };
-      }
+      return {
+        success: true,
+        creditTransaction,
+        paidTransaction,
+        wallet: currentWallet,
+      };
     }
   } catch (e) {
     // Continue with standard payment process
+  }
+
+  const currentWallet = await getWalletBalance(organizationId, env);
+  if (!currentWallet || currentWallet.welcome_credit <= 0) {
+    throw new Error('No Welcome Credit is available in this organization wallet to consume.');
   }
 
   let resolvedEventPrice: number | undefined;
@@ -3810,6 +3806,12 @@ export async function createTopupOrder(
     throw new Error('Top-up amount must be greater than or equal to zero');
   }
 
+  const sanitizedCurrency = (currency || 'MYR').trim().toUpperCase();
+  const wallet = await getWalletBalance(organizationId, env);
+  if (wallet.currency && wallet.currency.toUpperCase() !== sanitizedCurrency) {
+    throw new Error(`Currency mismatch: Top-up order currency (${sanitizedCurrency}) does not match organization wallet currency (${wallet.currency})`);
+  }
+
   // Calculate promotional credit using the central Wallet Engine
   const expectedCreditAmount = calculateTopupCredit(sanitizedAmount);
   const bonusPercentage = sanitizedAmount > 0 ? (expectedCreditAmount / sanitizedAmount) * 100 : 0;
@@ -4288,6 +4290,11 @@ export async function processTopupOrderStatus(
 
     // 3. Process Status Transitions
     if (newStatus === 'PAID') {
+      const wallet = await getWalletBalance(order.organization_id, env);
+      if (wallet.currency && order.currency && wallet.currency.toUpperCase() !== order.currency.toUpperCase()) {
+        throw new Error(`Currency mismatch: Top-up order currency (${order.currency}) does not match organization wallet currency (${wallet.currency})`);
+      }
+
       // Calculate promo credit based on qualifying tier
       let promoCredit = 0;
       let tierRate = '0%';

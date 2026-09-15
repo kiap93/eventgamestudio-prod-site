@@ -1395,16 +1395,17 @@ export async function getOwnerShowcaseRewardStatus(
   env?: Record<string, any>
 ): Promise<{
   hasReceivedReward: boolean;
+  eligible: boolean;
   reward: any | null;
 }> {
   if (!ownerUserId) {
-    return { hasReceivedReward: false, reward: null };
+    return { hasReceivedReward: false, eligible: false, reward: null };
   }
 
   // 1. Check local cache
   const localReward = localOwnerShowcaseRewardsCache.get(ownerUserId);
   if (localReward) {
-    return { hasReceivedReward: true, reward: localReward };
+    return { hasReceivedReward: true, eligible: false, reward: localReward };
   }
 
   // 2. Check Supabase
@@ -1417,11 +1418,25 @@ export async function getOwnerShowcaseRewardStatus(
       .maybeSingle();
 
     if (data) {
-      return { hasReceivedReward: true, reward: data };
+      return { hasReceivedReward: true, eligible: false, reward: data };
     }
   }
 
-  return { hasReceivedReward: false, reward: null };
+  // 3. Comprehensive check across user_rewards, wallet_transactions, and organization ledgers
+  const hasReceived = await hasUserReceivedShowcaseCredit(ownerUserId, env);
+  if (hasReceived) {
+    return {
+      hasReceivedReward: true,
+      eligible: false,
+      reward: {
+        owner_user_id: ownerUserId,
+        amount: 300,
+        reward_type: 'SHOWCASE_CREDIT',
+      },
+    };
+  }
+
+  return { hasReceivedReward: false, eligible: true, reward: null };
 }
 
 /**

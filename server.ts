@@ -3237,7 +3237,8 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
 
     if (!showcase) {
       if (isOrgMember) {
-        res.json({ showcase: null });
+        const lifetimeRewardStatus = req.user?.id ? await getOwnerShowcaseRewardStatus(req.user.id) : null;
+        res.json({ showcase: null, lifetimeRewardStatus });
         return;
       }
       res.status(404).json({ error: 'Showcase not found' });
@@ -3246,7 +3247,8 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
 
     // If org member, return showcase regardless of status
     if (isOrgMember) {
-      res.json({ showcase });
+      const lifetimeRewardStatus = req.user?.id ? await getOwnerShowcaseRewardStatus(req.user.id) : null;
+      res.json({ showcase, lifetimeRewardStatus });
       return;
     }
 
@@ -3259,6 +3261,43 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
     res.status(404).json({ error: 'Showcase is not published' });
   } catch (err: any) {
     console.error('Get showcase error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/user/showcase-reward-status
+ * Check current authenticated user's lifetime showcase reward status
+ * Strictly uses authenticated user ID from JWT (never trusts browser-supplied IDs)
+ */
+app.get('/api/user/showcase-reward-status', authenticateJWT, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized: Authenticated user required' });
+      return;
+    }
+    const status = await getOwnerShowcaseRewardStatus(userId);
+    res.json(status);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/showcases/user-reward-status
+ * Alias for /api/user/showcase-reward-status
+ */
+app.get('/api/showcases/user-reward-status', authenticateJWT, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized: Authenticated user required' });
+      return;
+    }
+    const status = await getOwnerShowcaseRewardStatus(userId);
+    res.json(status);
+  } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });

@@ -1150,6 +1150,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_org_reference
   ON public.wallet_transactions (organization_id, reference_id) 
   WHERE reference_id IS NOT NULL AND status IN ('COMPLETED', 'PENDING');
 
+CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_reference_id_unique
+  ON public.wallet_transactions (reference_id)
+  WHERE reference_id IS NOT NULL AND status IN ('COMPLETED', 'PENDING');
+
 -- Single-grant constraints
 CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_welcome_credit 
   ON public.wallet_transactions (organization_id) 
@@ -2017,6 +2021,35 @@ CREATE INDEX IF NOT EXISTS idx_wallet_topup_orders_status ON public.wallet_topup
 CREATE INDEX IF NOT EXISTS idx_wallet_topup_orders_payment_ref ON public.wallet_topup_orders (payment_reference);
 CREATE INDEX IF NOT EXISTS idx_wallet_topup_orders_created_at ON public.wallet_topup_orders (created_at DESC);
 
+-- Unique constraints for idempotent payment settlement
+CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_topup_orders_paid_payment_ref
+  ON public.wallet_topup_orders (payment_reference)
+  WHERE payment_reference IS NOT NULL AND status = 'PAID';
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_topup_orders_paid_stripe_session
+  ON public.wallet_topup_orders ((metadata->>'stripe_session_id'))
+  WHERE (metadata->>'stripe_session_id') IS NOT NULL AND status = 'PAID';
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_topup_orders_paid_payment_intent
+  ON public.wallet_topup_orders ((metadata->>'stripe_payment_intent'))
+  WHERE (metadata->>'stripe_payment_intent') IS NOT NULL AND status = 'PAID';
+
+-- Dedicated table for logging and deduplicating payment provider webhooks
+CREATE TABLE IF NOT EXISTS public.payment_webhook_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id TEXT NOT NULL UNIQUE,
+  provider TEXT NOT NULL DEFAULT 'stripe',
+  event_type TEXT NOT NULL,
+  order_id UUID REFERENCES public.wallet_topup_orders(id) ON DELETE SET NULL,
+  status TEXT NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_webhook_events_order_id ON public.payment_webhook_events (order_id);
+CREATE INDEX IF NOT EXISTS idx_payment_webhook_events_created_at ON public.payment_webhook_events (created_at DESC);
+
 ALTER TABLE public.wallet_topup_orders ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Members can view organization top-up orders" ON public.wallet_topup_orders;
@@ -2074,6 +2107,7 @@ DECLARE
   v_topup_txn_created BOOLEAN := false;
   v_promo_txn_created BOOLEAN := false;
   v_included_outstanding NUMERIC(12,2) := 0.00;
+  v_resolved_payment_ref TEXT;
 BEGIN
   -- 1. Input validations
   IF p_order_id IS NULL THEN
@@ -2162,6 +2196,18 @@ BEGIN
 
   -- 5. Process Transition to PAID
   IF p_status = 'PAID' THEN
+    -- A. Security Gate: Verify trusted settlement flag
+    IF (COALESCE(p_metadata->>'is_trusted_settlement', 'false') <> 'true') AND (CURRENT_USER NOT IN ('postgres', 'service_role')) THEN
+      RAISE EXCEPTION 'Security Error: Top-up order status transition to PAID requires trusted settlement verification';
+    END IF;
+
+    -- B. Payment Reference Validation
+    v_resolved_payment_ref := COALESCE(p_payment_reference, v_order.payment_reference);
+    IF v_resolved_payment_ref IS NULL OR LENGTH(TRIM(v_resolved_payment_ref)) = 0 THEN
+      RAISE EXCEPTION 'Security Error: Transition to PAID requires a valid non-empty payment reference';
+    END IF;
+
+    -- C. Lock Organization Wallet & Verify Currency
     SELECT * INTO v_wallet
     FROM public.organization_wallets
     WHERE organization_id = p_organization_id
@@ -2183,11 +2229,17 @@ BEGIN
         0.00,
         0.00,
         0.00,
-        'MYR'
+        COALESCE(v_order.currency, 'MYR')
       )
       RETURNING * INTO v_wallet;
     END IF;
 
+    -- Currency Match Enforcement: Order currency MUST match Wallet currency
+    IF v_wallet.currency IS NOT NULL AND v_order.currency IS NOT NULL AND UPPER(v_order.currency) <> UPPER(v_wallet.currency) THEN
+      RAISE EXCEPTION 'Currency mismatch: Top-up order currency (%) does not match organization wallet currency (%)', v_order.currency, v_wallet.currency;
+    END IF;
+
+    -- D. Calculate Qualifying Promotional Credit
     IF v_order.top_up_amount >= 10000.00 THEN
       v_promo_credit := ROUND(v_order.top_up_amount * 0.07, 2);
       v_tier_rate := '7%';
@@ -2199,12 +2251,13 @@ BEGIN
       v_tier_rate := '0%';
     END IF;
 
+    -- E. Update Order Record
     UPDATE public.wallet_topup_orders
     SET
       status = 'PAID',
       paid_at = v_now,
       updated_at = v_now,
-      payment_reference = COALESCE(p_payment_reference, v_order.payment_reference),
+      payment_reference = v_resolved_payment_ref,
       payment_method = COALESCE(p_payment_method, v_order.payment_method),
       notes = COALESCE(p_reason, v_order.notes),
       metadata = v_order.metadata || COALESCE(p_metadata, '{}'::jsonb)

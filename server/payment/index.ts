@@ -1079,7 +1079,14 @@ export async function verifyAndProcessPaymentWebhook(
     }
   }
 
-  const receivedCurrency = (dataObject.currency || 'MYR').toUpperCase();
+  const rawCurrency = dataObject.currency;
+  if (!rawCurrency || typeof rawCurrency !== 'string') {
+    const err: any = new Error('Payment webhook payload is missing valid currency');
+    err.status = 422;
+    err.code = 'MISSING_CURRENCY';
+    throw err;
+  }
+  const receivedCurrency = rawCurrency.trim().toUpperCase();
   if (receivedCurrency !== order.currency.toUpperCase()) {
     console.warn(
       `[Payment Webhook] Rejected: Currency mismatch on order ${order.id}. Expected ${order.currency}, received ${receivedCurrency}`
@@ -1406,14 +1413,13 @@ export async function syncTopupOrderExpiration(
         if (isStripePaid) {
           const expectedCents = toCents(order.top_up_amount);
           const stripeCents = stripeSession.amount_total;
-          const currencyMatches =
-            !stripeSession.currency ||
-            stripeSession.currency.toUpperCase() === order.currency.toUpperCase();
-          const amountMatches =
-            typeof stripeCents !== 'number' || Math.round(stripeCents) === expectedCents;
-          const orgMatches =
-            !stripeSession.metadata?.organization_id ||
-            stripeSession.metadata.organization_id === order.organization_id;
+          const stripeCurrency = stripeSession.currency ? String(stripeSession.currency).trim().toUpperCase() : null;
+          const currencyMatches = Boolean(stripeCurrency && stripeCurrency === order.currency.toUpperCase());
+          const amountMatches = typeof stripeCents === 'number' && Math.round(stripeCents) === expectedCents;
+          const orgMatches = Boolean(
+            stripeSession.metadata?.organization_id &&
+            stripeSession.metadata.organization_id === order.organization_id
+          );
 
           if (currencyMatches && amountMatches && orgMatches) {
             console.log(`[Topup Sync] Stripe Checkout session ${cleanSessionId} is PAID. Reconciling order ${order.id} to PAID.`);

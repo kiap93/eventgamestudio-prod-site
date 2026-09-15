@@ -81,6 +81,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
   const [topUpDetail, setTopUpDetail] = useState<TopUpDetailData | null>(null);
   const [isLoadingTopUpDetail, setIsLoadingTopUpDetail] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [userLifetimeShowcaseRewardClaimed, setUserLifetimeShowcaseRewardClaimed] = useState(false);
 
   // Currency Formatter
   const currencyCode = wallet?.currency || 'MYR';
@@ -208,6 +209,14 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
   useEffect(() => {
     fetchWallet();
     fetchTransactions();
+    apiFetch('/api/user/showcase-reward-status')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.hasReceivedReward) {
+          setUserLifetimeShowcaseRewardClaimed(true);
+        }
+      })
+      .catch(() => {});
   }, [fetchWallet, fetchTransactions]);
 
   // Listen for wallet_updated custom event
@@ -698,7 +707,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
                 wallet?.can_use_showcase_credit
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                  : wallet?.showcase_credit_granted
+                  : wallet?.showcase_credit_granted || userLifetimeShowcaseRewardClaimed
                   ? 'bg-slate-800 text-slate-400'
                   : 'bg-slate-800 text-slate-500'
               }`}
@@ -707,6 +716,8 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
                 ? 'Available'
                 : wallet?.showcase_credit_granted
                 ? 'Claimed'
+                : userLifetimeShowcaseRewardClaimed
+                ? 'Claimed (Account)'
                 : 'Earn RM300'}
             </span>
           </div>
@@ -1136,7 +1147,7 @@ export const OrganizationWalletPage: React.FC<OrganizationWalletPageProps> = ({
               <span>Promotional Credit Priority</span>
             </div>
             <p className="text-[11px] leading-relaxed">
-              Welcome Credit (RM300), Showcase Credit (RM300), or Top-up Credits (5%–7%) can be chosen to offset event deployments instantly.
+              Welcome Credit (RM800), Showcase Credit (RM300), or Top-up Credits (5%–7%) can be chosen to offset event deployments instantly.
             </p>
           </div>
 

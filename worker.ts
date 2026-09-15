@@ -3410,12 +3410,18 @@ export default {
 
         if (!showcase) {
           if (isOrgMember) {
-            return jsonResponse({ showcase: null }, 200, cors);
+            const lifetimeRewardStatus = auth.user?.id ? await getOwnerShowcaseRewardStatus(auth.user.id, env) : null;
+            return jsonResponse({ showcase: null, lifetimeRewardStatus }, 200, cors);
           }
           return errorResponse('Showcase not found', 404, cors);
         }
 
-        if (isOrgMember || showcase.status === 'PUBLISHED') {
+        if (isOrgMember) {
+          const lifetimeRewardStatus = auth.user?.id ? await getOwnerShowcaseRewardStatus(auth.user.id, env) : null;
+          return jsonResponse({ showcase, lifetimeRewardStatus }, 200, cors);
+        }
+
+        if (showcase.status === 'PUBLISHED') {
           return jsonResponse({ showcase }, 200, cors);
         }
 
@@ -4881,6 +4887,20 @@ export default {
         } catch (err: any) {
           console.error('Reject event review error:', err);
           return errorResponse(err.message || 'Failed to reject event review', err.code === 'SHOWCASE_NOT_FOUND' ? 404 : 500, cors);
+        }
+      }
+
+      // GET /api/user/showcase-reward-status & /api/showcases/user-reward-status
+      if ((pathname === '/api/user/showcase-reward-status' || pathname === '/api/showcases/user-reward-status') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        try {
+          const status = await getOwnerShowcaseRewardStatus(user.id, env);
+          return jsonResponse(status, 200, cors);
+        } catch (err: any) {
+          return errorResponse(err.message || 'Failed to get showcase reward status', 500, cors);
         }
       }
 

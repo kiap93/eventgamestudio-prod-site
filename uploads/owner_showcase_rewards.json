@@ -28,5 +28,55 @@
     "amount": 300,
     "rewarded_at": "2026-09-14T09:21:26.084Z",
     "created_at": "2026-09-14T09:21:26.084Z"
+  },
+  {
+    "owner_user_id": "c8753523-54ad-429d-b73e-d38d41332f6b",
+    "organization_id": "043aa0d0-049c-4c8f-9adf-1dc4c78b94cc",
+    "event_id": "",
+    "showcase_id": "",
+    "transaction_id": "3ffdf97a-9dc8-4b45-8330-680b500572b9",
+    "amount": 300,
+    "rewarded_at": "2026-09-15T02:20:11.926Z",
+    "created_at": "2026-09-15T02:20:11.926Z"
+  },
+  {
+    "owner_user_id": "test-user-483491e5-8403-40d4-b934-4c360c1d1ced",
+    "organization_id": "94d9a79a-7a9a-4555-81c5-7aa8c1b6b592",
+    "event_id": "f41b12c4-dd18-4656-81f3-c77eea31940f",
+    "showcase_id": "",
+    "transaction_id": "6cf2a6ad-a518-4af6-aa32-b658efc36013",
+    "amount": 300,
+    "rewarded_at": "2026-09-15T02:21:16.578Z",
+    "created_at": "2026-09-15T02:21:16.578Z"
+  },
+  {
+    "owner_user_id": "test-user-bbf29d33-22ff-4daf-8a56-463127057bf8",
+    "organization_id": "21458f40-a622-40dd-8aae-002cae2b0bf6",
+    "event_id": "d5ec21eb-d6de-4c40-8913-537a71947cc2",
+    "showcase_id": "",
+    "transaction_id": "fde4ae4a-78cd-4a97-8fd2-4bcdc4d02bfc",
+    "amount": 300,
+    "rewarded_at": "2026-09-15T02:21:36.213Z",
+    "created_at": "2026-09-15T02:21:36.213Z"
+  },
+  {
+    "owner_user_id": "test-user-f125e01d-9007-4df7-954c-d55e1f7abfb1",
+    "organization_id": "cf81e972-5da1-4a23-abc3-d1ff737941b9",
+    "event_id": "33a494c1-ff70-4726-a8b3-604e2de6b49a",
+    "showcase_id": "",
+    "transaction_id": "c0626ae7-f61a-4781-87b7-c4bf8b1a1dd3",
+    "amount": 300,
+    "rewarded_at": "2026-09-15T02:24:55.719Z",
+    "created_at": "2026-09-15T02:24:55.719Z"
+  },
+  {
+    "owner_user_id": "e16ef60f-cb37-4200-8801-642ee818afaf",
+    "organization_id": "d8ac4293-02ba-4792-bed7-14fc44d87455",
+    "event_id": "",
+    "showcase_id": "",
+    "transaction_id": "dfb4043f-492a-4494-8889-738165834e0a",
+    "amount": 300,
+    "rewarded_at": "2026-09-15T02:24:56.621Z",
+    "created_at": "2026-09-15T02:24:56.621Z"
   }
 ]
