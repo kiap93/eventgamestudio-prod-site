@@ -389,6 +389,7 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
     crypto.randomUUID();
   res.setHeader('x-correlation-id', correlationId);
 
+  let stage = 'GOOGLE_TOKEN_VERIFY';
   try {
     const { idToken } = req.body;
     if (!idToken) {
@@ -396,19 +397,26 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
       return;
     }
 
+    stage = 'GOOGLE_TOKEN_VERIFY';
     const googleUser = await verifyGoogleIdToken(idToken);
 
-    // Upsert user into Supabase users table
-    const user = await upsertGoogleUser(googleUser);
+    stage = 'GOOGLE_USER_UPSERT';
+    const user = await upsertGoogleUser(googleUser, undefined, { correlationId });
 
     if (!user) {
-      console.error(`[Google Auth Error][${correlationId}] Failed to create or load user record`);
+      console.error(`[Google Auth Error][${correlationId}] GOOGLE_USER_NOT_FOUND: Failed to create or load user record`);
       res.status(401).json({ error: 'Google authentication failed' });
       return;
     }
 
-    // Load organization memberships from Supabase
-    const memberships = await getUserOrganizations(user.id);
+    stage = 'GOOGLE_LOAD_MEMBERSHIPS';
+    let memberships: any[] = [];
+    try {
+      memberships = await getUserOrganizations(user.id);
+    } catch (memErr: any) {
+      console.warn(`[Google Auth][${correlationId}] GOOGLE_MEMBERSHIPS_LOAD_WARNING:`, memErr?.message);
+      memberships = [];
+    }
 
     let activeOrgId: string | undefined = undefined;
     let activeRole: string | undefined = undefined;
@@ -418,7 +426,8 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
       activeRole = memberships[0].role;
     }
 
-    const token = signAppToken(user.id, activeOrgId, activeRole as any);
+    stage = 'GOOGLE_SIGN_TOKEN';
+    const token = await signAppToken(user.id, activeOrgId, activeRole as any);
 
     res.json({
       token,
@@ -433,7 +442,17 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
       activeOrganizationId: activeOrgId || null,
     });
   } catch (err: any) {
-    console.error(`[Google Auth Error][${correlationId}]`, {
+    const stageTag =
+      stage === 'GOOGLE_TOKEN_VERIFY'
+        ? 'GOOGLE_TOKEN_VERIFICATION_FAILED'
+        : stage === 'GOOGLE_USER_UPSERT'
+        ? 'GOOGLE_USER_CREATE_FAILED'
+        : stage === 'GOOGLE_SIGN_TOKEN'
+        ? 'GOOGLE_TOKEN_SIGNING_FAILED'
+        : 'GOOGLE_AUTH_FAILED';
+
+    console.error(`[Google Auth Error][${correlationId}] ${stageTag}: Details:`, {
+      stage,
       message: err?.message,
       stack: err?.stack,
       code: err?.code,
@@ -522,7 +541,7 @@ app.post('/api/auth/switch-org', authRateLimiter, authenticateJWT, async (req: A
     }
 
     const memberships = await getUserOrganizations(user.id);
-    const newToken = signAppToken(user.id, organizationId, role);
+    const newToken = await signAppToken(user.id, organizationId, role);
     res.json({
       token: newToken,
       activeOrganization: {

@@ -27,17 +27,19 @@ export async function getUserById(id: string, env?: Record<string, any>): Promis
 }
 
 export async function getUserByGoogleId(googleId: string, env?: Record<string, any>): Promise<UserRecord | null> {
+  const normalized = (googleId || '').trim();
+  if (!normalized) return null;
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('users')
     .select('*')
-    .eq('google_id', googleId)
+    .eq('google_id', normalized)
     .maybeSingle();
 
   if (error) {
     if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
       for (const u of localUsersCache.values()) {
-        if (u.google_id === googleId) return u;
+        if (u.google_id === normalized) return u;
       }
       return null;
     }
@@ -52,7 +54,8 @@ export async function getUserByGoogleId(googleId: string, env?: Record<string, a
 }
 
 export async function getUserByEmail(email: string, env?: Record<string, any>): Promise<UserRecord | null> {
-  const normalized = email.trim().toLowerCase();
+  const normalized = (email || '').trim().toLowerCase();
+  if (!normalized) return null;
   const supabase = getSupabaseServerClient(env);
   const { data, error } = await supabase
     .from('users')
@@ -77,6 +80,21 @@ export async function getUserByEmail(email: string, env?: Record<string, any>): 
   return data as UserRecord | null;
 }
 
+export function isUniqueViolationError(err: any): boolean {
+  if (!err) return false;
+  if (err.code === '23505') return true;
+  const msg = (err.message || '').toLowerCase();
+  const details = (err.details || '').toLowerCase();
+  return (
+    msg.includes('duplicate key') ||
+    msg.includes('unique constraint') ||
+    msg.includes('already exists') ||
+    msg.includes('23505') ||
+    details.includes('already exists') ||
+    details.includes('duplicate')
+  );
+}
+
 export async function createUser(
   userData: {
     id?: string;
@@ -92,15 +110,19 @@ export async function createUser(
   const id = userData.id || crypto.randomUUID();
   const now = new Date().toISOString();
   const isDeveloper = userData.is_developer === true;
+  const normalizedEmail = (userData.email || '').trim().toLowerCase();
+  const normalizedName = (userData.name || '').trim() || normalizedEmail.split('@')[0] || 'User';
+  const normalizedGoogleId = userData.google_id ? userData.google_id.trim() : null;
+  const avatarUrl = userData.avatar_url ? userData.avatar_url.trim() : null;
 
   const { data, error } = await supabase
     .from('users')
     .insert({
       id,
-      google_id: userData.google_id || null,
-      email: userData.email.trim().toLowerCase(),
-      name: userData.name,
-      avatar_url: userData.avatar_url || null,
+      google_id: normalizedGoogleId,
+      email: normalizedEmail,
+      name: normalizedName,
+      avatar_url: avatarUrl,
       is_developer: isDeveloper,
       created_at: now,
       updated_at: now,
@@ -110,12 +132,25 @@ export async function createUser(
 
   if (error) {
     if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      // Check local cache for unique constraint violations (simulate PostgreSQL 23505)
+      for (const existing of localUsersCache.values()) {
+        if (normalizedGoogleId && existing.google_id === normalizedGoogleId) {
+          const err: any = new Error(`duplicate key value violates unique constraint "users_google_id_key"`);
+          err.code = '23505';
+          throw err;
+        }
+        if (existing.email.toLowerCase() === normalizedEmail) {
+          const err: any = new Error(`duplicate key value violates unique constraint "users_email_key"`);
+          err.code = '23505';
+          throw err;
+        }
+      }
       const user: UserRecord = {
         id,
-        google_id: userData.google_id || null,
-        email: userData.email.trim().toLowerCase(),
-        name: userData.name,
-        avatar_url: userData.avatar_url || null,
+        google_id: normalizedGoogleId,
+        email: normalizedEmail,
+        name: normalizedName,
+        avatar_url: avatarUrl,
         is_developer: isDeveloper,
         created_at: now,
         updated_at: now,
@@ -124,7 +159,11 @@ export async function createUser(
       return user;
     }
     console.error('Error in createUser:', error);
-    throw new Error(`Failed to create user: ${error.message}`);
+    const err: any = new Error(`Failed to create user: ${error.message}`);
+    err.code = error.code;
+    err.details = error.details;
+    err.hint = error.hint;
+    throw err;
   }
 
   const user = data as UserRecord;
@@ -149,10 +188,10 @@ export async function updateUser(
     safePayload.name = updates.name.trim();
   }
   if (updates.avatar_url !== undefined) {
-    safePayload.avatar_url = updates.avatar_url;
+    safePayload.avatar_url = updates.avatar_url ? updates.avatar_url.trim() : null;
   }
   if (updates.google_id !== undefined) {
-    safePayload.google_id = updates.google_id;
+    safePayload.google_id = updates.google_id ? updates.google_id.trim() : null;
   }
 
   const { data, error } = await supabase
@@ -166,6 +205,15 @@ export async function updateUser(
     if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
       const existing = localUsersCache.get(id);
       if (existing) {
+        if (safePayload.google_id) {
+          for (const u of localUsersCache.values()) {
+            if (u.id !== id && u.google_id === safePayload.google_id) {
+              const err: any = new Error(`duplicate key value violates unique constraint "users_google_id_key"`);
+              err.code = '23505';
+              throw err;
+            }
+          }
+        }
         const updated: UserRecord = {
           ...existing,
           ...safePayload,
@@ -176,7 +224,11 @@ export async function updateUser(
       }
     }
     console.error('Error in updateUser:', error);
-    throw new Error(`Failed to update user: ${error.message}`);
+    const err: any = new Error(`Failed to update user: ${error.message}`);
+    err.code = error.code;
+    err.details = error.details;
+    err.hint = error.hint;
+    throw err;
   }
 
   const user = data as UserRecord;
@@ -233,50 +285,128 @@ export async function upsertGoogleUser(
     name: string;
     picture?: string;
   },
-  env?: Record<string, any>
+  env?: Record<string, any>,
+  options?: { correlationId?: string }
 ): Promise<UserRecord> {
-  // First, check by google_id
-  let user = await getUserByGoogleId(googleUser.sub, env);
+  const correlationId = options?.correlationId || 'internal';
+  const normalizedSub = (googleUser.sub || '').trim();
+  const normalizedEmail = (googleUser.email || '').trim().toLowerCase();
+  const normalizedName = (googleUser.name || '').trim() || normalizedEmail.split('@')[0] || 'User';
+  const normalizedPicture = (googleUser.picture || '').trim() || null;
+
+  if (!normalizedSub) {
+    throw new Error('Google user profile is missing required "sub" identifier');
+  }
+  if (!normalizedEmail) {
+    throw new Error('Google user profile is missing required "email" identifier');
+  }
+
+  // 1. First, check by google_id
+  let user = await getUserByGoogleId(normalizedSub, env);
   if (user) {
-    // Optionally update name/avatar if changed
-    if (googleUser.name !== user.name || (googleUser.picture && googleUser.picture !== user.avatar_url)) {
-      user = await updateUser(
-        user.id,
-        {
-          name: googleUser.name,
-          avatar_url: googleUser.picture || user.avatar_url,
-        },
-        env
-      );
+    const needsNameUpdate = normalizedName && normalizedName !== user.name;
+    const needsAvatarUpdate = normalizedPicture && normalizedPicture !== user.avatar_url;
+    if (needsNameUpdate || needsAvatarUpdate) {
+      try {
+        user = await updateUser(
+          user.id,
+          {
+            name: normalizedName || user.name,
+            avatar_url: normalizedPicture || user.avatar_url,
+          },
+          env
+        );
+      } catch (updateErr: any) {
+        console.warn(`[Google Auth][${correlationId}] Non-fatal: Profile update failed on login:`, updateErr?.message);
+      }
     }
     return user;
   }
 
-  // Second, check by email
-  user = await getUserByEmail(googleUser.email, env);
+  // 2. Second, check by email (link google_id to existing email user)
+  user = await getUserByEmail(normalizedEmail, env);
   if (user) {
-    // Link google_id
-    user = await updateUser(
-      user.id,
+    try {
+      user = await updateUser(
+        user.id,
+        {
+          google_id: normalizedSub,
+          name: user.name || normalizedName,
+          avatar_url: user.avatar_url || normalizedPicture,
+        },
+        env
+      );
+      return user;
+    } catch (linkErr: any) {
+      if (isUniqueViolationError(linkErr)) {
+        const existing = await getUserByGoogleId(normalizedSub, env);
+        if (existing) return existing;
+      }
+      console.error(`[Google Auth Error][${correlationId}] GOOGLE_USER_LINK_FAILED:`, linkErr?.message);
+      throw linkErr;
+    }
+  }
+
+  // 3. User does not exist by google_id or email: Create new user with standard UUID
+  try {
+    const newUser = await createUser(
       {
-        google_id: googleUser.sub,
-        name: googleUser.name,
-        avatar_url: googleUser.picture || user.avatar_url,
+        id: crypto.randomUUID(),
+        google_id: normalizedSub,
+        email: normalizedEmail,
+        name: normalizedName,
+        avatar_url: normalizedPicture,
+        is_developer: false,
       },
       env
     );
-    return user;
-  }
+    return newUser;
+  } catch (createErr: any) {
+    // Detect and recover from concurrent registration races or unique constraint collisions
+    if (isUniqueViolationError(createErr)) {
+      console.warn(`[Google Auth][${correlationId}] Unique collision during user creation, recovering via lookup`);
 
-  // Create new user with standard UUID
-  return await createUser(
-    {
-      id: crypto.randomUUID(),
-      google_id: googleUser.sub,
-      email: googleUser.email,
-      name: googleUser.name,
-      avatar_url: googleUser.picture || null,
-    },
-    env
-  );
+      // Recovery attempt 1: lookup by google_id
+      const existingByGoogle = await getUserByGoogleId(normalizedSub, env);
+      if (existingByGoogle) {
+        return existingByGoogle;
+      }
+
+      // Recovery attempt 2: lookup by email and link
+      const existingByEmail = await getUserByEmail(normalizedEmail, env);
+      if (existingByEmail) {
+        try {
+          const linked = await updateUser(
+            existingByEmail.id,
+            {
+              google_id: normalizedSub,
+              name: existingByEmail.name || normalizedName,
+              avatar_url: existingByEmail.avatar_url || normalizedPicture,
+            },
+            env
+          );
+          return linked;
+        } catch (linkErr: any) {
+          if (isUniqueViolationError(linkErr)) {
+            const finalByGoogle = await getUserByGoogleId(normalizedSub, env);
+            if (finalByGoogle) return finalByGoogle;
+          }
+        }
+      }
+
+      // Brief backoff before final retry lookup
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const retryUser = (await getUserByGoogleId(normalizedSub, env)) || (await getUserByEmail(normalizedEmail, env));
+      if (retryUser) {
+        return retryUser;
+      }
+    }
+
+    console.error(`[Google Auth Error][${correlationId}] GOOGLE_USER_CREATE_FAILED:`, {
+      message: createErr?.message,
+      code: createErr?.code,
+      details: createErr?.details,
+    });
+    throw createErr;
+  }
 }

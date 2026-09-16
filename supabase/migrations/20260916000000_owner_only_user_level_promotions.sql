@@ -12,7 +12,171 @@
 -- 6. Historical claims preserved and reconciled into public.user_rewards.
 -- ==============================================================================
 
+-- ==============================================================================
+-- 0. PREREQUISITE TABLE DEFENSIVE DEFINITIONS
+-- Guarantees core wallet, showcase, and user/organization tables exist so this
+-- migration can execute cleanly either sequentially or standalone in the Supabase SQL editor.
+-- ==============================================================================
+
+-- Ensure users table exists
+CREATE TABLE IF NOT EXISTS public.users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  avatar_url TEXT,
+  is_developer BOOLEAN NOT NULL DEFAULT false,
+  google_id TEXT UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- Ensure organizations table exists
+CREATE TABLE IF NOT EXISTS public.organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  logo_url TEXT,
+  owner_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  country_code VARCHAR(2) NOT NULL DEFAULT 'MY',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.organizations 
+  ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
+
+-- Ensure organization_members table exists
+CREATE TABLE IF NOT EXISTS public.organization_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'member',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT ux_org_members_org_user UNIQUE (organization_id, user_id)
+);
+
+-- Ensure events table exists
+CREATE TABLE IF NOT EXISTS public.events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  game_id TEXT NOT NULL,
+  theme_id UUID,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'DRAFT',
+  payment_status TEXT NOT NULL DEFAULT 'UNPAID',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- Ensure organization_wallets exists
+CREATE TABLE IF NOT EXISTS public.organization_wallets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL UNIQUE REFERENCES public.organizations(id) ON DELETE CASCADE,
+  paid_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (paid_balance >= 0.00),
+  welcome_credit NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (welcome_credit >= 0.00),
+  showcase_credit NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (showcase_credit >= 0.00),
+  topup_credit NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (topup_credit >= 0.00),
+  outstanding_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (outstanding_balance >= 0.00),
+  currency TEXT NOT NULL DEFAULT 'MYR',
+  welcome_credit_granted BOOLEAN NOT NULL DEFAULT false,
+  showcase_credit_granted BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.organization_wallets 
+  ADD COLUMN IF NOT EXISTS outstanding_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (outstanding_balance >= 0.00);
+
+-- Ensure wallet_transactions exists
+CREATE TABLE IF NOT EXISTS public.wallet_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  event_id UUID,
+  owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  transaction_type TEXT NOT NULL,
+  balance_type TEXT NOT NULL,
+  amount NUMERIC(12, 2) NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'MYR',
+  status TEXT NOT NULL DEFAULT 'COMPLETED',
+  reference_id TEXT,
+  description TEXT NOT NULL DEFAULT '',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.wallet_transactions 
+  ADD COLUMN IF NOT EXISTS owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.wallet_transactions 
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now());
+
+-- Ensure event_showcases exists
+CREATE TABLE IF NOT EXISTS public.event_showcases (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL UNIQUE REFERENCES public.events(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  created_by UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  headline TEXT,
+  game_id TEXT NOT NULL,
+  theme_id UUID,
+  status TEXT NOT NULL DEFAULT 'DRAFT',
+  reward_status TEXT NOT NULL DEFAULT 'NOT_ELIGIBLE',
+  reward_review_status TEXT NOT NULL DEFAULT 'PENDING_REVIEW',
+  reward_reviewed_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  reward_reviewed_at TIMESTAMPTZ,
+  reward_rejection_reason TEXT,
+  reward_transaction_id UUID REFERENCES public.wallet_transactions(id) ON DELETE SET NULL,
+  reward_granted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.event_showcases
+  ADD COLUMN IF NOT EXISTS owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.event_showcases
+  ADD COLUMN IF NOT EXISTS reward_status TEXT NOT NULL DEFAULT 'NOT_ELIGIBLE';
+ALTER TABLE public.event_showcases
+  ADD COLUMN IF NOT EXISTS reward_review_status TEXT NOT NULL DEFAULT 'PENDING_REVIEW';
+ALTER TABLE public.event_showcases
+  ADD COLUMN IF NOT EXISTS reward_reviewed_by UUID REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.event_showcases
+  ADD COLUMN IF NOT EXISTS reward_reviewed_at TIMESTAMPTZ;
+ALTER TABLE public.event_showcases
+  ADD COLUMN IF NOT EXISTS reward_rejection_reason TEXT;
+ALTER TABLE public.event_showcases
+  ADD COLUMN IF NOT EXISTS reward_transaction_id UUID REFERENCES public.wallet_transactions(id) ON DELETE SET NULL;
+ALTER TABLE public.event_showcases
+  ADD COLUMN IF NOT EXISTS reward_granted_at TIMESTAMPTZ;
+
+-- Ensure owner_showcase_rewards exists
+CREATE TABLE IF NOT EXISTS public.owner_showcase_rewards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_user_id UUID NOT NULL UNIQUE REFERENCES public.users(id) ON DELETE CASCADE,
+  organization_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
+  event_id UUID REFERENCES public.events(id) ON DELETE SET NULL,
+  showcase_id UUID REFERENCES public.event_showcases(id) ON DELETE SET NULL,
+  transaction_id UUID REFERENCES public.wallet_transactions(id) ON DELETE SET NULL,
+  amount NUMERIC(10,2) NOT NULL DEFAULT 300.00,
+  rewarded_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_owner_showcase_rewards_org
+  ON public.owner_showcase_rewards (organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_owner_showcase_rewards_event
+  ON public.owner_showcase_rewards (event_id);
+
+-- ==============================================================================
 -- 1. Ensure public.user_rewards table exists with strict UNIQUE(user_id, reward_type)
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.user_rewards (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,

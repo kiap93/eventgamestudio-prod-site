@@ -1,5 +1,6 @@
 -- Migration: 20260914020000_lock_topup_payment_constraints_and_idempotency.sql
 -- Description: Production database constraints and security hardening for wallet top-up payment settlement:
+--   0. Defensive prerequisite tables & columns (ensures safe standalone execution even if baseline was not yet applied)
 --   1. Unique constraint on wallet_transactions (reference_id) for global idempotency
 --   2. Unique constraint on wallet_topup_orders (payment_reference) for PAID orders
 --   3. Unique constraint on wallet_topup_orders (stripe_session_id) for PAID orders
@@ -7,7 +8,120 @@
 --   5. Dedup table for payment_webhook_events
 --   6. Hardened process_topup_order_atomic with currency matching and trusted settlement validation.
 
+-- ==============================================================================
+-- 0. PREREQUISITE TABLE DEFENSIVE DEFINITIONS
+-- Guarantees core wallet and user/organization tables exist so this migration can
+-- execute cleanly either sequentially or standalone in the Supabase SQL editor.
+-- ==============================================================================
+
+-- Ensure users table exists
+CREATE TABLE IF NOT EXISTS public.users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  avatar_url TEXT,
+  is_developer BOOLEAN NOT NULL DEFAULT false,
+  google_id TEXT UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- Ensure organizations table exists
+CREATE TABLE IF NOT EXISTS public.organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  logo_url TEXT,
+  country_code VARCHAR(2) NOT NULL DEFAULT 'MY',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- Ensure organization_wallets exists
+CREATE TABLE IF NOT EXISTS public.organization_wallets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL UNIQUE REFERENCES public.organizations(id) ON DELETE CASCADE,
+  paid_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (paid_balance >= 0.00),
+  welcome_credit NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (welcome_credit >= 0.00),
+  showcase_credit NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (showcase_credit >= 0.00),
+  topup_credit NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (topup_credit >= 0.00),
+  outstanding_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (outstanding_balance >= 0.00),
+  currency TEXT NOT NULL DEFAULT 'MYR',
+  welcome_credit_granted BOOLEAN NOT NULL DEFAULT false,
+  showcase_credit_granted BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.organization_wallets 
+  ADD COLUMN IF NOT EXISTS outstanding_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (outstanding_balance >= 0.00);
+
+CREATE INDEX IF NOT EXISTS idx_org_wallets_org_id ON public.organization_wallets (organization_id);
+
+-- Ensure wallet_transactions exists
+CREATE TABLE IF NOT EXISTS public.wallet_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  event_id UUID,
+  owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  transaction_type TEXT NOT NULL,
+  balance_type TEXT NOT NULL,
+  amount NUMERIC(12, 2) NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'MYR',
+  status TEXT NOT NULL DEFAULT 'COMPLETED',
+  reference_id TEXT,
+  description TEXT NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.wallet_transactions 
+  ADD COLUMN IF NOT EXISTS owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_wallet_txns_org_id ON public.wallet_transactions (organization_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_txns_event_id ON public.wallet_transactions (event_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_txns_type ON public.wallet_transactions (transaction_type);
+CREATE INDEX IF NOT EXISTS idx_wallet_txns_balance_type ON public.wallet_transactions (balance_type);
+CREATE INDEX IF NOT EXISTS idx_wallet_txns_status ON public.wallet_transactions (status);
+CREATE INDEX IF NOT EXISTS idx_wallet_txns_ref_id ON public.wallet_transactions (reference_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_txns_created_at ON public.wallet_transactions (created_at DESC);
+
+-- Ensure wallet_topup_orders exists
+CREATE TABLE IF NOT EXISTS public.wallet_topup_orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  currency TEXT NOT NULL DEFAULT 'MYR',
+  top_up_amount NUMERIC(12, 2) NOT NULL CHECK (top_up_amount > 0),
+  expected_credit_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (expected_credit_amount >= 0),
+  bonus_percentage NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
+  total_wallet_value NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  payment_reference TEXT,
+  payment_method TEXT,
+  notes TEXT,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  expired_at TIMESTAMPTZ,
+  paid_at TIMESTAMPTZ,
+  failed_at TIMESTAMPTZ,
+  cancelled_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.wallet_topup_orders 
+  ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_wallet_topup_orders_org_id ON public.wallet_topup_orders (organization_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_topup_orders_user_id ON public.wallet_topup_orders (user_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_topup_orders_status ON public.wallet_topup_orders (status);
+CREATE INDEX IF NOT EXISTS idx_wallet_topup_orders_created_at ON public.wallet_topup_orders (created_at DESC);
+
+-- ==============================================================================
 -- 1. Unique constraint on wallet_transactions (reference_id)
+-- ==============================================================================
 CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_reference_id_unique
   ON public.wallet_transactions (reference_id)
   WHERE reference_id IS NOT NULL AND status IN ('COMPLETED', 'PENDING');

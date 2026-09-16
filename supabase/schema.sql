@@ -275,6 +275,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION public.is_developer_admin(lookup_user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = COALESCE(lookup_user_id, auth.uid()) AND is_developer = true
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- USERS POLICIES
 DROP POLICY IF EXISTS "Users can view own user record" ON public.users;
 CREATE POLICY "Users can view own user record"
@@ -4399,9 +4409,10 @@ DROP POLICY IF EXISTS "Developer admins can view api error logs" ON public.api_e
 CREATE POLICY "Developer admins can view api error logs"
   ON public.api_error_logs FOR SELECT
   TO authenticated
-  USING (public.is_developer_admin(auth.uid()));
+  USING (public.is_developer_admin());
 
 GRANT ALL ON public.api_error_logs TO service_role;
+GRANT SELECT ON public.api_error_logs TO authenticated;
 
 
 

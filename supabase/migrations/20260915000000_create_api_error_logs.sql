@@ -2,6 +2,48 @@
 -- Description: Creates the centralized api_error_logs table for production error tracking,
 -- correlation ID tracing, sanitized metadata capture, and developer-admin auditing.
 
+-- ==============================================================================
+-- 0. PREREQUISITES DEFENSIVE DEFINITIONS
+-- ==============================================================================
+
+-- Ensure users table exists for foreign key reference
+CREATE TABLE IF NOT EXISTS public.users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  avatar_url TEXT,
+  is_developer BOOLEAN NOT NULL DEFAULT false,
+  google_id TEXT UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- Ensure is_developer_admin() function exists (0-argument standard signature)
+CREATE OR REPLACE FUNCTION public.is_developer_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = auth.uid() AND is_developer = true
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Overload for is_developer_admin(uuid) in case caller passes user ID explicitly
+CREATE OR REPLACE FUNCTION public.is_developer_admin(lookup_user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = COALESCE(lookup_user_id, auth.uid()) AND is_developer = true
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ==============================================================================
+-- 1. API ERROR LOGS TABLE & INDEXES
+-- ==============================================================================
+
 CREATE TABLE IF NOT EXISTS public.api_error_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   request_id TEXT NOT NULL,
@@ -41,4 +83,7 @@ DROP POLICY IF EXISTS "Developer admins can view api error logs" ON public.api_e
 CREATE POLICY "Developer admins can view api error logs"
   ON public.api_error_logs FOR SELECT
   TO authenticated
-  USING (public.is_developer_admin(auth.uid()));
+  USING (public.is_developer_admin());
+
+GRANT ALL ON public.api_error_logs TO service_role;
+GRANT SELECT ON public.api_error_logs TO authenticated;

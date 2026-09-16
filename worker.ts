@@ -809,16 +809,28 @@ export default {
           return errorResponse('Missing idToken', 422, { ...cors, 'x-correlation-id': correlationId });
         }
 
+        let stage = 'GOOGLE_TOKEN_VERIFY';
         try {
+          stage = 'GOOGLE_TOKEN_VERIFY';
           const googleUser = await verifyGoogleIdToken(idToken, env);
-          const user = await upsertGoogleUser(googleUser, env);
+
+          stage = 'GOOGLE_USER_UPSERT';
+          const user = await upsertGoogleUser(googleUser, env, { correlationId });
 
           if (!user) {
-            console.error(`[Google Auth Error][${correlationId}] Failed to create or load user record`);
+            console.error(`[Google Auth Error][${correlationId}] GOOGLE_USER_NOT_FOUND: Failed to create or load user record`);
             return errorResponse('Google authentication failed', 401, { ...cors, 'x-correlation-id': correlationId });
           }
 
-          const memberships = await getUserOrganizations(user.id, env);
+          stage = 'GOOGLE_LOAD_MEMBERSHIPS';
+          let memberships: any[] = [];
+          try {
+            memberships = await getUserOrganizations(user.id, env);
+          } catch (memErr: any) {
+            console.warn(`[Google Auth][${correlationId}] GOOGLE_MEMBERSHIPS_LOAD_WARNING:`, memErr?.message);
+            memberships = [];
+          }
+
           let activeOrgId: string | undefined = undefined;
           let activeRole: string | undefined = undefined;
 
@@ -827,6 +839,7 @@ export default {
             activeRole = memberships[0].role;
           }
 
+          stage = 'GOOGLE_SIGN_TOKEN';
           const token = await signAppToken(user.id, activeOrgId, activeRole as any, undefined, env);
 
           return jsonResponse(
@@ -846,7 +859,17 @@ export default {
             { ...cors, 'x-correlation-id': correlationId }
           );
         } catch (err: any) {
-          console.error(`[Google Auth Error][${correlationId}] Details:`, {
+          const stageTag =
+            stage === 'GOOGLE_TOKEN_VERIFY'
+              ? 'GOOGLE_TOKEN_VERIFICATION_FAILED'
+              : stage === 'GOOGLE_USER_UPSERT'
+              ? 'GOOGLE_USER_CREATE_FAILED'
+              : stage === 'GOOGLE_SIGN_TOKEN'
+              ? 'GOOGLE_TOKEN_SIGNING_FAILED'
+              : 'GOOGLE_AUTH_FAILED';
+
+          console.error(`[Google Auth Error][${correlationId}] ${stageTag}: Details:`, {
+            stage,
             message: err?.message,
             stack: err?.stack,
             code: err?.code,
