@@ -66,15 +66,15 @@ function saveLocalShowcases(env?: Record<string, any>): void {
   }
 }
 
-function notifyShowcaseEvent(
+async function notifyShowcaseEvent(
   eventType: 'SHOWCASE_DRAFT_CREATED' | 'SHOWCASE_PUBLISHED' | 'SHOWCASE_UNPUBLISHED' | 'SHOWCASE_UPDATED',
   showcase: EventShowcaseRecord,
   env?: Record<string, any>
-): void {
+): Promise<void> {
   if (!showcase || !showcase.organization_id) return;
   const ownerUserId = (showcase as any).owner_user_id || (showcase as any).created_by || undefined;
   const eventName = showcase.title || 'Event Showcase';
-  dispatchNotificationEvent(
+  await dispatchNotificationEvent(
     {
       eventType,
       organizationId: showcase.organization_id,
@@ -371,7 +371,7 @@ export async function createShowcase(
       // Save to local cache & file in development
       localShowcasesCache.set(params.event_id, record);
       saveLocalShowcases(env);
-      notifyShowcaseEvent(record.status === 'PUBLISHED' ? 'SHOWCASE_PUBLISHED' : 'SHOWCASE_DRAFT_CREATED', record, env);
+      await notifyShowcaseEvent(record.status === 'PUBLISHED' ? 'SHOWCASE_PUBLISHED' : 'SHOWCASE_DRAFT_CREATED', record, env);
       return record;
     }
 
@@ -380,7 +380,7 @@ export async function createShowcase(
       localShowcasesCache.set(params.event_id, saved);
       saveLocalShowcases(env);
     }
-    notifyShowcaseEvent(saved.status === 'PUBLISHED' ? 'SHOWCASE_PUBLISHED' : 'SHOWCASE_DRAFT_CREATED', saved, env);
+    await notifyShowcaseEvent(saved.status === 'PUBLISHED' ? 'SHOWCASE_PUBLISHED' : 'SHOWCASE_DRAFT_CREATED', saved, env);
     return saved;
   } catch (err: any) {
     if (!isLocalFallbackAllowed(env)) {
@@ -389,7 +389,7 @@ export async function createShowcase(
     console.warn('Error saving showcase to Supabase, falling back to local file store:', err);
     localShowcasesCache.set(params.event_id, record);
     saveLocalShowcases(env);
-    notifyShowcaseEvent(record.status === 'PUBLISHED' ? 'SHOWCASE_PUBLISHED' : 'SHOWCASE_DRAFT_CREATED', record, env);
+    await notifyShowcaseEvent(record.status === 'PUBLISHED' ? 'SHOWCASE_PUBLISHED' : 'SHOWCASE_DRAFT_CREATED', record, env);
     return record;
   }
 }
@@ -593,7 +593,7 @@ export async function updateShowcase(
       saveLocalShowcases(env);
       const hasContentUpdates = updates.title !== undefined || updates.description !== undefined || updates.client_name !== undefined || updates.cover_image_url !== undefined;
       if (hasContentUpdates && updates.status === undefined) {
-        notifyShowcaseEvent('SHOWCASE_UPDATED', updatedRecord, env);
+        await notifyShowcaseEvent('SHOWCASE_UPDATED', updatedRecord, env);
       }
       return updatedRecord;
     }
@@ -605,7 +605,7 @@ export async function updateShowcase(
     }
     const hasContentUpdates = updates.title !== undefined || updates.description !== undefined || updates.client_name !== undefined || updates.cover_image_url !== undefined;
     if (hasContentUpdates && updates.status === undefined) {
-      notifyShowcaseEvent('SHOWCASE_UPDATED', saved, env);
+      await notifyShowcaseEvent('SHOWCASE_UPDATED', saved, env);
     }
     return saved;
   } catch (err: any) {
@@ -617,7 +617,7 @@ export async function updateShowcase(
     saveLocalShowcases(env);
     const hasContentUpdates = updates.title !== undefined || updates.description !== undefined || updates.client_name !== undefined || updates.cover_image_url !== undefined;
     if (hasContentUpdates && updates.status === undefined) {
-      notifyShowcaseEvent('SHOWCASE_UPDATED', updatedRecord, env);
+      await notifyShowcaseEvent('SHOWCASE_UPDATED', updatedRecord, env);
     }
     return updatedRecord;
   }
@@ -1597,7 +1597,7 @@ export async function publishShowcase(
       },
       env
     );
-    notifyShowcaseEvent('SHOWCASE_PUBLISHED', result, env);
+    await notifyShowcaseEvent('SHOWCASE_PUBLISHED', result, env);
   } else {
     // Safe creation during publish flow if no showcase exists yet (createShowcase notifies)
     const titleToUse = updates?.title?.trim() || event.name?.trim() || 'Event Showcase';
@@ -1644,7 +1644,7 @@ export async function unpublishShowcase(
     },
     env
   );
-  notifyShowcaseEvent('SHOWCASE_UNPUBLISHED', res, env);
+  await notifyShowcaseEvent('SHOWCASE_UNPUBLISHED', res, env);
   return res;
 }
 

@@ -310,7 +310,7 @@ export async function updateMemberRole(
     localMembersCache.set(record.id, record);
   }
 
-  dispatchNotificationEvent(
+  await dispatchNotificationEvent(
     {
       eventType: 'SECURITY_SETTINGS_CHANGED',
       organizationId,
@@ -341,7 +341,7 @@ export async function removeMember(memberId: string, env?: Record<string, any>):
   }
 
   if (cached?.organization_id) {
-    dispatchNotificationEvent(
+    await dispatchNotificationEvent(
       {
         eventType: 'SECURITY_SETTINGS_CHANGED',
         organizationId: cached.organization_id,

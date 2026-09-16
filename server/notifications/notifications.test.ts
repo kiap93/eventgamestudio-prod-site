@@ -52,16 +52,22 @@ async function runTestSuite() {
     'welcome_credit_added',
     'payment_success',
     'payment_pending',
+    'payment_failed',
     'event_created',
+    'event_approaching',
     'event_live',
     'event_expiring',
     'event_expired',
+    'event_payment_failed',
     'wallet_low_balance',
+    'insufficient_balance',
     'theme_ready',
     'showcase_draft_created',
     'showcase_published',
     'showcase_unpublished',
     'showcase_updated',
+    'org_invitation',
+    'member_joined',
     'security_settings_changed',
   ];
 
@@ -303,6 +309,92 @@ async function runTestSuite() {
     });
     assert(secAlert.length === 1 && secAlert[0]?.type === 'security_settings_changed', 'SECURITY_SETTINGS_CHANGED handled correctly');
     assert(secAlert[0]?.priority === 'urgent', 'Security alert has urgent priority');
+
+    // Payment Failed
+    const payFailed = await dispatchNotificationEvent({
+      eventType: 'PAYMENT_FAILED',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      referenceId: 'ref_topup_fail_1',
+      orderId: 'order_fail_1',
+      amount: 500,
+      currency: 'MYR',
+      subject: 'Top-up Order ORDER_FA',
+      reason: 'Card declined by issuing bank',
+    });
+    assert(payFailed.length === 1 && payFailed[0]?.type === 'payment_failed', 'PAYMENT_FAILED handled correctly');
+    assert(payFailed[0]?.priority === 'urgent', 'PAYMENT_FAILED priority is urgent');
+    assert(payFailed[0]?.title === 'Payment Failed', 'PAYMENT_FAILED default title matches catalog');
+    assert(payFailed[0]?.message.includes('Top-up Order ORDER_FA'), 'PAYMENT_FAILED message contains subject');
+
+    // Event Payment Failed
+    const evPayFailed = await dispatchNotificationEvent({
+      eventType: 'EVENT_PAYMENT_FAILED',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      eventId: 'ev_fail_1',
+      eventName: 'Grand Expo 2026',
+      amount: 1400,
+      reason: 'Payment processor timeout',
+    });
+    assert(evPayFailed.length === 1 && evPayFailed[0]?.type === 'event_payment_failed', 'EVENT_PAYMENT_FAILED handled correctly');
+    assert(evPayFailed[0]?.priority === 'urgent', 'EVENT_PAYMENT_FAILED priority is urgent');
+    assert(evPayFailed[0]?.message.includes('Grand Expo 2026'), 'EVENT_PAYMENT_FAILED message includes event name');
+
+    // Event Approaching
+    const evApproaching = await dispatchNotificationEvent({
+      eventType: 'EVENT_APPROACHING',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      eventId: 'ev_appr_1',
+      eventName: 'Winter Carnival',
+      startDate: '2026-10-01',
+    });
+    assert(evApproaching.length === 1 && evApproaching[0]?.type === 'event_approaching', 'EVENT_APPROACHING handled correctly');
+    assert(evApproaching[0]?.title === 'Your Event Starts Tomorrow', 'EVENT_APPROACHING title matches catalog');
+    assert(evApproaching[0]?.message.includes('Winter Carnival') && evApproaching[0]?.message.includes('2026-10-01'), 'EVENT_APPROACHING message includes name and start date');
+
+    // Insufficient Balance
+    const insuffBal = await dispatchNotificationEvent({
+      eventType: 'INSUFFICIENT_BALANCE',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      currentBalance: 200,
+      requiredAmount: 1400,
+      eventId: 'ev_appr_1',
+      eventName: 'Winter Carnival',
+    });
+    assert(insuffBal.length === 1 && insuffBal[0]?.type === 'insufficient_balance', 'INSUFFICIENT_BALANCE handled correctly');
+    assert(insuffBal[0]?.priority === 'high', 'INSUFFICIENT_BALANCE priority is high');
+    assert(insuffBal[0]?.message.includes('RM200') && insuffBal[0]?.message.includes('RM1,400'), 'INSUFFICIENT_BALANCE message formatted with balances');
+
+    // Org Invitation
+    const orgInvite = await dispatchNotificationEvent({
+      eventType: 'ORG_INVITATION',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      inviteeEmail: 'colleague@example.com',
+      orgName: 'Acme Studio',
+      role: 'admin',
+      invitationId: 'inv_123',
+    });
+    assert(orgInvite.length === 1 && orgInvite[0]?.type === 'org_invitation', 'ORG_INVITATION handled correctly');
+    assert(orgInvite[0]?.title === 'Team Workspace Invitation', 'ORG_INVITATION title matches catalog');
+    assert(orgInvite[0]?.message.includes('Acme Studio') && orgInvite[0]?.message.includes('admin'), 'ORG_INVITATION message includes org name and role');
+
+    // Member Joined
+    const memberJoined = await dispatchNotificationEvent({
+      eventType: 'MEMBER_JOINED',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      memberUserId: 'usr_new_999',
+      memberName: 'Sarah Connor',
+      orgName: 'Acme Studio',
+      role: 'member',
+    });
+    assert(memberJoined.length === 1 && memberJoined[0]?.type === 'member_joined', 'MEMBER_JOINED handled correctly');
+    assert(memberJoined[0]?.title === 'New Team Member Joined', 'MEMBER_JOINED title matches catalog');
+    assert(memberJoined[0]?.message.includes('Sarah Connor') && memberJoined[0]?.message.includes('Acme Studio'), 'MEMBER_JOINED message includes member name and org');
   }
 
   // -----------------------------------------------------------------

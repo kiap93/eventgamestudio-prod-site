@@ -165,7 +165,7 @@ import {
   getApiErrorLogById,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
-import { handleWorkerApiError, AppError, resolveCorrelationId } from './server/errors.js';
+import { handleWorkerApiError, AppError, resolveCorrelationId, isOperationalError } from './server/errors.js';
 
 import {
   buildGoogleAuthUrl,
@@ -389,33 +389,9 @@ function errorResponse(
   let safeMessage = message;
   let finalStatus = status;
 
-  const lower = (message || '').toLowerCase();
-  const isInternal =
-    finalStatus >= 500 ||
-    lower.includes('supabase') ||
-    lower.includes('postgres') ||
-    lower.includes('pgrst') ||
-    lower.includes('postgrest') ||
-    lower.includes('syntax error') ||
-    lower.includes('relation') ||
-    lower.includes('column') ||
-    lower.includes('schema') ||
-    lower.includes('table ') ||
-    lower.includes('jwt') ||
-    lower.includes('secret') ||
-    lower.includes('failed to fetch') ||
-    lower.includes('networkerror') ||
-    lower.includes('cannot read properties') ||
-    lower.includes('null value') ||
-    lower.includes('violates') ||
-    lower.includes('constraint') ||
-    lower.includes('permission denied') ||
-    lower.includes('row-level security') ||
-    lower.includes('database error') ||
-    lower.includes('duplicate key') ||
-    lower.includes('foreign key') ||
-    lower.includes('unique constraint') ||
-    lower.includes('econnrefused');
+  // Use the centralized operational error verifier to reject all database and infrastructure leaks
+  const isOperational = isOperationalError({ message, status: finalStatus, statusCode: finalStatus });
+  const isInternal = finalStatus >= 500 || !isOperational;
 
   if (isInternal) {
     if (finalStatus < 500) {
@@ -926,7 +902,7 @@ export default {
           );
         } catch (err: any) {
           console.error(`[Auth /me error][${correlationId}]`, err);
-          return errorResponse('Failed to retrieve authentication details', 500, { ...cors, 'x-correlation-id': correlationId });
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -1264,6 +1240,21 @@ export default {
         const frontendBaseUrl = getFrontendBaseUrl(env, request);
         const absoluteInviteUrl = `${frontendBaseUrl}/accept-invite?token=${rawToken}`;
         const relativeInviteUrl = `/accept-invite?token=${rawToken}`;
+
+        await dispatchNotificationEvent(
+          {
+            eventType: 'ORG_INVITATION',
+            organizationId,
+            recipientUserId: null,
+            inviteeEmail: email.trim().toLowerCase(),
+            orgName: org.name,
+            role,
+            invitationId: invitation.id,
+            inviteUrl: absoluteInviteUrl,
+            actionUrl: relativeInviteUrl,
+          },
+          env
+        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch ORG_INVITATION in worker:', err));
 
         let emailStatus: 'sent' | 'failed' | 'not_configured' = 'not_configured';
         let emailError: string | null = null;
@@ -1669,6 +1660,19 @@ export default {
         await markInvitationAccepted(invite.id, env);
 
         const org = await getOrganizationById(invite.organization_id, env);
+
+        await dispatchNotificationEvent(
+          {
+            eventType: 'MEMBER_JOINED',
+            organizationId: invite.organization_id,
+            memberUserId: user.id,
+            memberName: user.name || user.email,
+            orgName: org?.name || invite.organization_name || 'Organization',
+            role: invite.role,
+          },
+          env
+        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch MEMBER_JOINED in worker:', err));
+
         const appToken = await signAppToken(user.id, invite.organization_id, invite.role, undefined, env);
 
         return jsonResponse(
@@ -2543,8 +2547,7 @@ export default {
             ruleLabel = pricing.ruleLabel;
           } catch (e: any) {
             console.error('Authoritative pricing calculation failed in quote (worker):', e);
-            const isUnavailable = e?.message?.includes('Pricing service temporarily unavailable') || e?.status === 503;
-            return errorResponse('Pricing service temporarily unavailable', isUnavailable ? 503 : 500, cors);
+            return handleWorkerApiError(e, request, cors, env);
           }
         }
 
@@ -2800,10 +2803,10 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Pay event error in worker:', err);
-          if (err.code === 'INSUFFICIENT_BALANCE' || (err.message && err.message.toLowerCase().includes('insufficient'))) {
+          if (err.code === 'INSUFFICIENT_BALANCE' || (isOperationalError(err) && err.message && err.message.toLowerCase().includes('insufficient'))) {
             return jsonResponse({
               code: 'INSUFFICIENT_BALANCE',
-              error: err.message || 'Insufficient balance',
+              error: isOperationalError(err) ? (err.message || 'Insufficient balance') : 'Insufficient balance',
               required: err.required,
               available: err.available,
               shortfall: err.shortfall,
@@ -2915,14 +2918,8 @@ export default {
           const enriched = await getEventById(updated.id, env);
           return jsonResponse({ event: enriched }, 200, cors);
         } catch (updateErr: any) {
-          return jsonResponse(
-            {
-              error: updateErr.message || 'Failed to update event',
-              code: updateErr.code || undefined,
-            },
-            updateErr.status || 400,
-            cors
-          );
+          console.error('Update event error in worker:', updateErr);
+          return handleWorkerApiError(updateErr, request, cors, env);
         }
       }
 
@@ -4482,9 +4479,6 @@ export default {
 
           return jsonResponse({ game }, 201, cors);
         } catch (err: any) {
-          if (err.code === 'GAME_TYPE_ALREADY_REGISTERED' || err.code === 'GAME_SLUG_ALREADY_REGISTERED' || err.name === 'GameConflictError') {
-            return jsonResponse({ success: false, error: err.code || 'GAME_CONFLICT', message: err.message }, 409, cors);
-          }
           return handleWorkerApiError(err, request, cors, env);
         }
       }
@@ -4603,9 +4597,6 @@ export default {
           const game = await updatePlatformGame(gameId, body, env);
           return jsonResponse({ game }, 200, cors);
         } catch (err: any) {
-          if (err.code === 'GAME_TYPE_ALREADY_REGISTERED' || err.code === 'GAME_SLUG_ALREADY_REGISTERED' || err.name === 'GameConflictError') {
-            return jsonResponse({ success: false, error: err.code || 'GAME_CONFLICT', message: err.message }, 409, cors);
-          }
           return handleWorkerApiError(err, request, cors, env);
         }
       }
@@ -5046,8 +5037,7 @@ export default {
           return jsonResponse(settings, 200, cors);
         } catch (err: any) {
           console.error('Get platform pricing error in worker:', err);
-          const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
-          return errorResponse('Pricing service temporarily unavailable', status, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5064,8 +5054,7 @@ export default {
           return jsonResponse({ success: true, settings }, 200, cors);
         } catch (err: any) {
           console.error('Admin get pricing settings error in worker:', err);
-          const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
-          return errorResponse('Pricing service temporarily unavailable', status, cors);
+          return handleWorkerApiError(err, request, cors, env);
         }
       }
 
@@ -5420,8 +5409,9 @@ export default {
           return Response.redirect(redirectSuccess, 302);
         } catch (err: any) {
           console.error('[Gmail OAuth] Failed to complete token exchange or save settings:', err);
+          const safeDetail = isOperationalError(err) ? encodeURIComponent(err.message || '') : 'internal_error';
           return Response.redirect(
-            `${redirectErrorBase}&reason=exchange_failed&detail=${encodeURIComponent(err.message || '')}`,
+            `${redirectErrorBase}&reason=exchange_failed&detail=${safeDetail}`,
             302
           );
         }
@@ -6376,8 +6366,7 @@ export default {
             price = settings.default_price;
           } catch (err: any) {
             console.error('Failed to resolve authoritative price in calculate-event-payment (worker):', err);
-            const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
-            return errorResponse('Pricing service temporarily unavailable', status, cors);
+            return handleWorkerApiError(err, request, cors, env);
           }
         }
         const mode = (body.payment_mode || 'FULL_PAID') as any;
@@ -6754,9 +6743,13 @@ export default {
    * Cloudflare Worker Scheduled Cron Trigger Handler
    * Periodically runs event lifecycle maintenance (configured via [triggers] crons in wrangler.toml)
    */
-  async scheduled(_controller: any, env: Env, _ctx: any): Promise<void> {
+  async scheduled(_controller: any, env: Env, ctx: any): Promise<void> {
     try {
-      const result = await runEventLifecycleMaintenance(env);
+      const maintenancePromise = runEventLifecycleMaintenance(env);
+      if (ctx && typeof ctx.waitUntil === 'function') {
+        ctx.waitUntil(maintenancePromise);
+      }
+      const result = await maintenancePromise;
       console.log(
         `[Worker Cron Maintenance] Processed: ` +
         `${result.completedCount} completed, ` +

@@ -171,6 +171,7 @@ import {
   handleApiError,
   AppError,
   resolveCorrelationId,
+  isOperationalError,
 } from './server/errors.js';
 
 import {
@@ -865,6 +866,18 @@ app.post('/api/organizations/:organizationId/invitations', invitationRateLimiter
     const absoluteInviteUrl = `${frontendBaseUrl}/accept-invite?token=${rawToken}`;
     const relativeInviteUrl = `/accept-invite?token=${rawToken}`;
 
+    await dispatchNotificationEvent({
+      eventType: 'ORG_INVITATION',
+      organizationId,
+      recipientUserId: null,
+      inviteeEmail: email.trim().toLowerCase(),
+      orgName: org.name,
+      role,
+      invitationId: invitation.id,
+      inviteUrl: absoluteInviteUrl,
+      actionUrl: relativeInviteUrl,
+    }).catch((err) => console.error('[NOTIFICATION] Failed to dispatch ORG_INVITATION in server:', err));
+
     let emailStatus: 'sent' | 'failed' | 'not_configured' = 'not_configured';
     let emailError: string | null = null;
 
@@ -1304,6 +1317,16 @@ app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
     await markInvitationAccepted(invite.id);
 
     const org = await getOrganizationById(invite.organization_id);
+
+    await dispatchNotificationEvent({
+      eventType: 'MEMBER_JOINED',
+      organizationId: invite.organization_id,
+      memberUserId: user.id,
+      memberName: user.name || user.email,
+      orgName: org?.name || invite.organization_name || 'Organization',
+      role: invite.role,
+    }).catch((err) => console.error('[NOTIFICATION] Failed to dispatch MEMBER_JOINED in server:', err));
+
     const appToken = signAppToken(user.id, invite.organization_id, invite.role);
 
     res.json({
@@ -2446,7 +2469,7 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
       });
       return;
     }
-    res.status(err.status || 500).json({ error: err.message || 'Failed to create event' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2501,17 +2524,17 @@ app.post('/api/events/:eventId/pay', walletRateLimiter, authenticateJWT, async (
     });
   } catch (err: any) {
     console.error('Pay event error:', err);
-    if (err.code === 'INSUFFICIENT_BALANCE' || (err.message && err.message.toLowerCase().includes('insufficient'))) {
+    if (err.code === 'INSUFFICIENT_BALANCE' || (isOperationalError(err) && err.message && err.message.toLowerCase().includes('insufficient'))) {
       res.status(402).json({
         code: 'INSUFFICIENT_BALANCE',
-        error: err.message || 'Insufficient balance',
+        error: isOperationalError(err) ? (err.message || 'Insufficient balance') : 'Insufficient balance',
         required: err.required,
         available: err.available,
         shortfall: err.shortfall,
       });
       return;
     }
-    res.status(err.status || 500).json({ error: err.message || 'Failed to process payment' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2613,7 +2636,7 @@ app.all('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
     res.json({ event: enriched });
   } catch (err: any) {
     console.error('Update event error:', err);
-    res.status(err.status || 500).json({ error: err.message, code: err.code });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2642,7 +2665,7 @@ app.delete('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReq
     res.json({ success: true });
   } catch (err: any) {
     console.error('Delete event error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 

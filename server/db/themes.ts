@@ -1395,7 +1395,7 @@ export async function createTheme(
     fallbackGameType: resolvedGameType,
   });
   if (params.organization_id) {
-    dispatchNotificationEvent(
+    await dispatchNotificationEvent(
       {
         eventType: 'THEME_READY',
         organizationId: params.organization_id,
@@ -1456,7 +1456,7 @@ export async function updateTheme(
     fallbackGameSlug: existing?.game_slug,
   });
   if (enriched.organization_id) {
-    dispatchNotificationEvent(
+    await dispatchNotificationEvent(
       {
         eventType: 'THEME_READY',
         organizationId: enriched.organization_id,

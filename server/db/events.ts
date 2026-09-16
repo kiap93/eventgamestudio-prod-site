@@ -3263,7 +3263,7 @@ export async function runEventLifecycleMaintenance(
           }
         }
         expiredEvents.push(ev.id);
-        dispatchNotificationEvent(
+        await dispatchNotificationEvent(
           {
             eventType: 'EVENT_EXPIRED',
             organizationId: ev.organization_id,
@@ -3309,7 +3309,7 @@ export async function runEventLifecycleMaintenance(
             }
           }
           completedEvents.push(ev.id);
-          dispatchNotificationEvent(
+          await dispatchNotificationEvent(
             {
               eventType: 'EVENT_EXPIRED',
               organizationId: ev.organization_id,
@@ -3348,7 +3348,7 @@ export async function runEventLifecycleMaintenance(
               localEventsCache.set(ev.id, { ...cached, ...livePayload });
             }
           }
-          dispatchNotificationEvent(
+          await dispatchNotificationEvent(
             {
               eventType: 'EVENT_LIVE',
               organizationId: ev.organization_id,
@@ -3365,7 +3365,7 @@ export async function runEventLifecycleMaintenance(
           const diffHours = (endDateTime - nowTime) / (1000 * 60 * 60);
           if (diffHours > 0 && diffHours <= 24) {
             const timeRemaining = `${Math.ceil(diffHours)} hours`;
-            dispatchNotificationEvent(
+            await dispatchNotificationEvent(
               {
                 eventType: 'EVENT_EXPIRING',
                 organizationId: ev.organization_id,
@@ -3377,6 +3377,23 @@ export async function runEventLifecycleMaintenance(
               env
             ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_EXPIRING:', err));
           }
+        }
+      } else if (startDate && curDate < startDate) {
+        const startDateTime = getUtcBoundaryInTimezone(startDate, 'start', evTimezone).getTime();
+        const diffHoursToStart = (startDateTime - nowTime) / (1000 * 60 * 60);
+        // Approaching when within 36 hours of start date (tomorrow / setup day)
+        if (diffHoursToStart > 0 && diffHoursToStart <= 36) {
+          await dispatchNotificationEvent(
+            {
+              eventType: 'EVENT_APPROACHING',
+              organizationId: ev.organization_id,
+              eventId: ev.id,
+              eventName: ev.name,
+              startDate,
+              setupDate: ev.setup_date,
+            },
+            env
+          ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_APPROACHING:', err));
         }
       }
     }

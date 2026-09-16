@@ -1587,7 +1587,7 @@ export async function grantWelcomeCredit(
 
       const wallet = await recalculateWalletBalances(organizationId, env);
 
-      dispatchNotificationEvent(
+      await dispatchNotificationEvent(
         {
           eventType: 'WELCOME_CREDIT_ADDED',
           organizationId,
@@ -2883,13 +2883,19 @@ export async function processEventPayment(
   }
 
   let eventPrice = params.eventPrice;
-  if (!eventPrice || eventPrice <= 0) {
+  let resolvedEventName = params.eventName;
+  if (!eventPrice || eventPrice <= 0 || !resolvedEventName) {
     if (eventId) {
       try {
         const { getEventById } = await import('./events.js');
         const ev = await getEventById(eventId, env);
-        if (ev && ev.event_price) {
-          eventPrice = ev.event_price;
+        if (ev) {
+          if (ev.event_price && (!eventPrice || eventPrice <= 0)) {
+            eventPrice = ev.event_price;
+          }
+          if (!resolvedEventName) {
+            resolvedEventName = ev.name;
+          }
         }
       } catch (e) {
         // ignore
@@ -2987,6 +2993,37 @@ export async function processEventPayment(
 
     const payload = data as any;
     if (payload.success === false) {
+      const isInsufficient = payload.code === 'INSUFFICIENT_BALANCE' || (payload.message && payload.message.toLowerCase().includes('insufficient'));
+      if (isInsufficient) {
+        await dispatchNotificationEvent(
+          {
+            eventType: 'INSUFFICIENT_BALANCE',
+            organizationId,
+            recipientUserId: createdBy || null,
+            currentBalance: payload.available ?? 0,
+            requiredAmount: payload.required ?? eventPrice,
+            currency: 'MYR',
+            eventId,
+            eventName: resolvedEventName,
+          },
+          env
+        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch INSUFFICIENT_BALANCE:', err));
+      }
+
+      await dispatchNotificationEvent(
+        {
+          eventType: 'EVENT_PAYMENT_FAILED',
+          organizationId,
+          recipientUserId: createdBy || null,
+          eventId,
+          eventName: resolvedEventName || `Event #${eventId.slice(0, 8)}`,
+          amount: eventPrice,
+          currency: 'MYR',
+          reason: payload.message || payload.error || 'Payment failed',
+        },
+        env
+      ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_PAYMENT_FAILED:', err));
+
       const err: any = new Error(payload.error || payload.message || 'Atomic payment transaction rejected by database');
       if (payload.code) err.code = payload.code;
       throw err;
@@ -3118,6 +3155,43 @@ export async function processEventPayment(
     );
 
     if (!calculation.isPayable) {
+      if (calculation.reasons.some((r) => r.toLowerCase().includes('insufficient'))) {
+        await dispatchNotificationEvent(
+          {
+            eventType: 'INSUFFICIENT_BALANCE',
+            organizationId,
+            recipientUserId: createdBy || null,
+            currentBalance: calculation.availableBalances.paid_balance,
+            requiredAmount: calculation.paidAmount,
+            currency: 'MYR',
+            eventId,
+            eventName: resolvedEventName,
+            metadata: {
+              reasons: calculation.reasons,
+            },
+          },
+          env
+        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch INSUFFICIENT_BALANCE:', err));
+      }
+
+      await dispatchNotificationEvent(
+        {
+          eventType: 'EVENT_PAYMENT_FAILED',
+          organizationId,
+          recipientUserId: createdBy || null,
+          eventId,
+          eventName: resolvedEventName || `Event #${eventId.slice(0, 8)}`,
+          amount: eventPrice,
+          currency: 'MYR',
+          reason: calculation.reasons.join('; ') || 'Payment cannot be processed',
+          metadata: {
+            payment_mode: mode,
+            reasons: calculation.reasons,
+          },
+        },
+        env
+      ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_PAYMENT_FAILED:', err));
+
       throw new Error(`Event payment cannot be processed: ${calculation.reasons.join(' ')}`);
     }
 
@@ -3281,7 +3355,7 @@ export async function processEventPayment(
 
     const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
 
-    dispatchNotificationEvent(
+    await dispatchNotificationEvent(
       {
         eventType: 'PAYMENT_SUCCESS',
         organizationId,
@@ -3303,7 +3377,7 @@ export async function processEventPayment(
     ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch PAYMENT_SUCCESS for event:', err));
 
     if (wallet.paid_balance < 500) {
-      dispatchNotificationEvent(
+      await dispatchNotificationEvent(
         {
           eventType: 'WALLET_LOW_BALANCE',
           organizationId,
@@ -3910,7 +3984,7 @@ export async function createTopupOrder(
       env
     );
 
-    dispatchNotificationEvent(
+    await dispatchNotificationEvent(
       {
         eventType: 'PAYMENT_PENDING',
         organizationId,
@@ -3955,7 +4029,7 @@ export async function createTopupOrder(
     env
   );
 
-  dispatchNotificationEvent(
+  await dispatchNotificationEvent(
     {
       eventType: 'PAYMENT_PENDING',
       organizationId,
@@ -4272,6 +4346,28 @@ export async function processTopupOrderStatus(
         );
       }
 
+      if (newStatus === 'FAILED' && !data.is_idempotent_replay) {
+        await dispatchNotificationEvent(
+          {
+            eventType: 'PAYMENT_FAILED',
+            organizationId: order.organization_id,
+            recipientUserId: order.user_id,
+            referenceId: order.id,
+            orderId: order.id,
+            amount: order.top_up_amount,
+            currency: order.currency || 'MYR',
+            subject: `Top-up Order ${order.id.slice(0, 8).toUpperCase()}`,
+            reason: reason || 'Payment transaction failed',
+            metadata: {
+              order_id: order.id,
+              reason,
+              payment_reference: paymentReference || order.payment_reference,
+            },
+          },
+          env
+        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch PAYMENT_FAILED for top-up:', err));
+      }
+
       return {
         order: data.order,
         alreadyProcessed: Boolean(data.is_idempotent_replay),
@@ -4457,7 +4553,7 @@ export async function processTopupOrderStatus(
 
       const walletSummary = await getWalletBalance(order.organization_id, env);
 
-      dispatchNotificationEvent(
+      await dispatchNotificationEvent(
         {
           eventType: 'PAYMENT_SUCCESS',
           organizationId: order.organization_id,
@@ -4498,6 +4594,26 @@ export async function processTopupOrderStatus(
 
       localTopupOrdersCache.set(order.id, order);
       saveLocalStores();
+
+      await dispatchNotificationEvent(
+        {
+          eventType: 'PAYMENT_FAILED',
+          organizationId: order.organization_id,
+          recipientUserId: order.user_id,
+          referenceId: order.id,
+          orderId: order.id,
+          amount: order.top_up_amount,
+          currency: order.currency || 'MYR',
+          subject: `Top-up Order ${order.id.slice(0, 8).toUpperCase()}`,
+          reason: reason || 'Payment transaction failed',
+          metadata: {
+            order_id: order.id,
+            reason,
+            payment_reference: paymentReference,
+          },
+        },
+        env
+      ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch PAYMENT_FAILED for top-up:', err));
 
       return {
         order,

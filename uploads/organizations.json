@@ -7878,5 +7878,55 @@
     "country_code": null,
     "created_at": "2026-09-15T12:55:05.449Z",
     "updated_at": "2026-09-15T12:55:05.449Z"
+  },
+  {
+    "id": "83f57555-777e-4db5-b110-7c29ff32f8b2",
+    "name": "Cron Org",
+    "slug": "cron-org-937427",
+    "owner_id": "54a721e8-799b-4ec0-bbdd-d9c566322cb0",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-15T14:51:50.469Z",
+    "updated_at": "2026-09-15T14:51:50.469Z"
+  },
+  {
+    "id": "af54f4cb-c4e7-4778-b28e-ee04f42df67e",
+    "name": "Singapore Tech Events",
+    "slug": "singapore-tech-events-69bb1e",
+    "owner_id": "b12aeea5-8c5d-4fa5-a2db-a601c11a537b",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-15T14:51:50.808Z",
+    "updated_at": "2026-09-15T14:51:50.841Z"
+  },
+  {
+    "id": "7f10c020-f1f4-420e-8e76-62002537eacf",
+    "name": "Cron Org",
+    "slug": "cron-org-de4e98",
+    "owner_id": "88f295f1-7e7a-4450-acd5-9702d447eba6",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-15T14:52:58.053Z",
+    "updated_at": "2026-09-15T14:52:58.053Z"
+  },
+  {
+    "id": "82faa845-dcb4-4a2b-832f-7ea7af4665e8",
+    "name": "Singapore Tech Events",
+    "slug": "singapore-tech-events-bada37",
+    "owner_id": "95dd7870-d195-4ede-8494-5a0947b09b44",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-15T14:53:18.571Z",
+    "updated_at": "2026-09-15T14:53:18.600Z"
+  },
+  {
+    "id": "363e1439-e361-4b92-b968-c579559d3260",
+    "name": "Cron Org",
+    "slug": "cron-org-082221",
+    "owner_id": "7455b407-1830-41b2-9e5a-0ff76e21fab0",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-15T14:53:32.829Z",
+    "updated_at": "2026-09-15T14:53:32.829Z"
   }
 ]

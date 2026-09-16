@@ -35,6 +35,28 @@ async function runErrorHandlingTests() {
     const typeErr = new TypeError('Cannot read properties of undefined');
     assert.strictEqual(isOperationalError(typeErr), false);
 
+    // Postgres / Supabase internal error leak prevention tests
+    const uniqueConstraintErr = new Error('duplicate key value violates unique constraint "events_pkey"');
+    assert.strictEqual(isOperationalError(uniqueConstraintErr), false, 'Must reject unique constraint violations');
+
+    const rlsErr = new Error('new row violates row-level security policy for table "events"');
+    assert.strictEqual(isOperationalError(rlsErr), false, 'Must reject RLS policy violations');
+
+    const permDeniedErr = new Error('permission denied for table events');
+    assert.strictEqual(isOperationalError(permDeniedErr), false, 'Must reject permission denied errors');
+
+    const sqlstateUniqueErr = { code: '23505', message: 'Key (slug)=(test) already exists.', status: 400 };
+    assert.strictEqual(isOperationalError(sqlstateUniqueErr), false, 'Must reject SQLSTATE 23505 even if status 400');
+
+    const sqlstateRlsErr = { code: '42501', message: 'insufficient_privilege' };
+    assert.strictEqual(isOperationalError(sqlstateRlsErr), false, 'Must reject SQLSTATE 42501');
+
+    const pgrstErr = { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' };
+    assert.strictEqual(isOperationalError(pgrstErr), false, 'Must reject PostgREST errors');
+
+    const driverMetaErr = { message: 'Unexpected query failure', routine: 'exec_simple_query', table: 'events' };
+    assert.strictEqual(isOperationalError(driverMetaErr), false, 'Must reject driver metadata errors');
+
     // Duck-typed operational error
     const duckErr = { statusCode: 404, message: 'User not found', isOperational: true };
     assert.strictEqual(isOperationalError(duckErr), true);
@@ -197,6 +219,35 @@ async function runErrorHandlingTests() {
     assert.strictEqual(workerBody.requestId, 'worker-corr-777');
     assert.strictEqual(workerRes.headers.get('x-correlation-id'), 'worker-corr-777');
     assert.strictEqual(workerRes.headers.get('Access-Control-Allow-Origin'), '*');
+
+    // Test specific Postgres errors mentioned by user in handleWorkerApiError
+    const uniqueWorkerErr = new Error('duplicate key value violates unique constraint "events_pkey"');
+    const uniqueRes = await handleWorkerApiError(uniqueWorkerErr, workerReq, { 'Access-Control-Allow-Origin': '*' });
+    assert.strictEqual(uniqueRes.status, 500);
+    const uniqueBody = await uniqueRes.json();
+    assert.strictEqual(uniqueBody.error, 'Internal server error', 'Must not leak unique constraint details');
+    assert.strictEqual(Object.values(uniqueBody).some(v => String(v).includes('events_pkey')), false);
+
+    const rlsWorkerErr = new Error('new row violates row-level security policy for table "events"');
+    const rlsRes = await handleWorkerApiError(rlsWorkerErr, workerReq, { 'Access-Control-Allow-Origin': '*' });
+    assert.strictEqual(rlsRes.status, 500);
+    const rlsBody = await rlsRes.json();
+    assert.strictEqual(rlsBody.error, 'Internal server error', 'Must not leak RLS policy details');
+
+    const permWorkerErr = new Error('permission denied for table events');
+    const permRes = await handleWorkerApiError(permWorkerErr, workerReq, { 'Access-Control-Allow-Origin': '*' });
+    assert.strictEqual(permRes.status, 500);
+    const permBody = await permRes.json();
+    assert.strictEqual(permBody.error, 'Internal server error', 'Must not leak table permission errors');
+
+    // Test that safe operational errors still pass through cleanly
+    const safeOperationalErr = new AppError('Event slug already taken', 400, 'SLUG_IN_USE');
+    const safeRes = await handleWorkerApiError(safeOperationalErr, workerReq, { 'Access-Control-Allow-Origin': '*' });
+    assert.strictEqual(safeRes.status, 400);
+    const safeBody = await safeRes.json();
+    assert.strictEqual(safeBody.error, 'Event slug already taken');
+    assert.strictEqual(safeBody.code, 'SLUG_IN_USE');
+
     console.log('   ✓ Worker handleWorkerApiError passed');
   }
 

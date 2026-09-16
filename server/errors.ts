@@ -331,34 +331,90 @@ export function detectErrorService(err: any, endpoint?: string): string {
  * Checks whether an error is an expected business/operational error that can be safely presented to users.
  */
 export function isOperationalError(err: any): boolean {
-  const msg = (err?.message || '').toLowerCase();
+  if (!err) return false;
 
-  // Strict sanitization: reject any error containing internal database, SQL, or infrastructure leaks
+  const msg = (err?.message || (typeof err === 'string' ? err : '')).toLowerCase();
+  const code = String(err?.code || '');
+
+  // 1. Strict sanitization: reject any error matching internal database error codes (SQLSTATE, PGRST, etc.)
   if (
-    msg.includes('relation "') ||
+    code.startsWith('23') || // PostgreSQL Class 23: Integrity Constraint Violation (23505 unique, 23503 foreign key, 23502 not null, 23514 check)
+    code.startsWith('42') || // PostgreSQL Class 42: Syntax Error or Access Rule Violation (42501 insufficient privilege, 42P01 undefined table, 42703 undefined column)
+    code.startsWith('08') || // PostgreSQL Class 08: Connection Exception
+    code.startsWith('P0') || // PostgreSQL Class P0: PL/pgSQL Error
+    code.startsWith('XX') || // PostgreSQL Class XX: Internal Error
+    code.startsWith('53') || // PostgreSQL Class 53: Insufficient Resources
+    code.startsWith('54') || // PostgreSQL Class 54: Program Limit Exceeded
+    code.startsWith('57') || // PostgreSQL Class 57: Operator Intervention (57014 statement timeout)
+    code.startsWith('58') || // PostgreSQL Class 58: System Error
+    code.startsWith('PGRST') || // PostgREST errors (PGRST116, PGRST301, etc.)
+    code.startsWith('auth-') ||
+    code.startsWith('auth/')
+  ) {
+    return false;
+  }
+
+  // 2. Reject if error contains Postgres/Supabase driver internal metadata
+  if (
+    typeof err?.routine === 'string' ||
+    typeof err?.schema === 'string' ||
+    typeof err?.table === 'string' ||
+    typeof err?.column === 'string' ||
+    typeof err?.constraint === 'string' ||
+    typeof err?.internalQuery === 'string' ||
+    typeof err?.internalPosition === 'string' ||
+    typeof err?.where === 'string'
+  ) {
+    return false;
+  }
+
+  // 3. Strict sanitization: reject any error message containing internal database, SQL, or infrastructure leaks
+  if (
+    msg.includes('relation ') ||
     msg.includes('syntax error') ||
     msg.includes('column ') ||
     msg.includes('schema ') ||
     msg.includes('table ') ||
     msg.includes('violates') ||
     msg.includes('constraint') ||
-    msg.includes('permission denied') ||
+    msg.includes('permission denied for') ||
+    (msg.includes('permission denied') && (msg.includes('table') || msg.includes('relation') || msg.includes('schema') || msg.includes('sequence') || msg.includes('database'))) ||
     msg.includes('row-level security') ||
     msg.includes('postgresql') ||
+    msg.includes('postgres') ||
     msg.includes('supabase') ||
     msg.includes('pgrst') ||
     msg.includes('postgrest') ||
     msg.includes('duplicate key') ||
     msg.includes('foreign key') ||
     msg.includes('unique constraint') ||
-    msg.includes('null value in column') ||
+    msg.includes('check constraint') ||
+    msg.includes('not-null constraint') ||
+    msg.includes('null value in') ||
+    msg.includes('already exists') ||
     msg.includes('database error') ||
     msg.includes('cannot read properties') ||
+    msg.includes('undefined is not') ||
+    msg.includes('is not a function') ||
     msg.includes('failed to fetch') ||
     msg.includes('networkerror') ||
     msg.includes('econnrefused') ||
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('statement timeout') ||
+    msg.includes('deadlock') ||
+    msg.includes('terminating connection') ||
+    msg.includes('could not connect') ||
+    msg.includes('connection refused') ||
     msg.includes('jwt') ||
-    msg.includes('secret')
+    msg.includes('secret') ||
+    msg.includes('token') ||
+    msg.includes('apikey') ||
+    msg.includes('service_role') ||
+    msg.includes('internal server error') ||
+    msg.includes('sql') ||
+    msg.includes('plpgsql') ||
+    msg.includes('query execution')
   ) {
     return false;
   }
@@ -374,7 +430,6 @@ export function isOperationalError(err: any): boolean {
   }
 
   // Known application-level business error codes that are safe to expose
-  const code = String(err?.code || '');
   if (
     code.endsWith('_NOT_FOUND') ||
     code === 'INVALID_STATUS_TRANSITION' ||

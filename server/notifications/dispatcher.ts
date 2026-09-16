@@ -146,20 +146,88 @@ export interface SecuritySettingsChangedEvent extends BaseBusinessEvent {
   changeDescription?: string;
 }
 
+export interface PaymentFailedEvent extends BaseBusinessEvent {
+  eventType: 'PAYMENT_FAILED';
+  recipientUserId?: string | null;
+  referenceId: string;
+  amount: number | string;
+  currency?: string;
+  subject: string;
+  reason?: string;
+  eventId?: string | null;
+  orderId?: string;
+}
+
+export interface EventPaymentFailedEvent extends BaseBusinessEvent {
+  eventType: 'EVENT_PAYMENT_FAILED';
+  recipientUserId?: string | null;
+  eventId: string;
+  eventName: string;
+  amount?: number | string;
+  currency?: string;
+  reason?: string;
+}
+
+export interface EventApproachingEvent extends BaseBusinessEvent {
+  eventType: 'EVENT_APPROACHING';
+  recipientUserId?: string | null;
+  eventId: string;
+  eventName: string;
+  startDate: string;
+  setupDate?: string;
+}
+
+export interface InsufficientBalanceEvent extends BaseBusinessEvent {
+  eventType: 'INSUFFICIENT_BALANCE';
+  recipientUserId?: string | null;
+  currentBalance: number | string;
+  requiredAmount: number | string;
+  currency?: string;
+  eventId?: string | null;
+  eventName?: string | null;
+  context?: string;
+}
+
+export interface OrgInvitationEvent extends BaseBusinessEvent {
+  eventType: 'ORG_INVITATION';
+  recipientUserId?: string | null;
+  inviteeEmail: string;
+  orgName: string;
+  role: string;
+  invitationId?: string;
+  inviteUrl?: string;
+  actionUrl?: string;
+}
+
+export interface MemberJoinedEvent extends BaseBusinessEvent {
+  eventType: 'MEMBER_JOINED';
+  recipientUserId?: string | null;
+  memberUserId: string;
+  memberName: string;
+  orgName: string;
+  role?: string;
+}
+
 export type BusinessNotificationEvent =
   | WelcomeCreditAddedEvent
   | PaymentSuccessEvent
   | PaymentPendingEvent
+  | PaymentFailedEvent
   | EventCreatedEvent
+  | EventApproachingEvent
   | EventLiveEvent
   | EventExpiringEvent
   | EventExpiredEvent
+  | EventPaymentFailedEvent
   | WalletLowBalanceEvent
+  | InsufficientBalanceEvent
   | ThemeReadyEvent
   | ShowcaseDraftCreatedEvent
   | ShowcasePublishedEvent
   | ShowcaseUnpublishedEvent
   | ShowcaseUpdatedEvent
+  | OrgInvitationEvent
+  | MemberJoinedEvent
   | SecuritySettingsChangedEvent;
 
 /**
@@ -361,6 +429,19 @@ export class NotificationDispatcher {
       return [event.recipientUserId];
     }
 
+    // For organization invitations, if the invitee already has a user account, resolve directly to that user
+    if (event.eventType === 'ORG_INVITATION' && (event as OrgInvitationEvent).inviteeEmail) {
+      try {
+        const { getUserByEmail } = await import('../db/users.js');
+        const existingInvitedUser = await getUserByEmail((event as OrgInvitationEvent).inviteeEmail, env);
+        if (existingInvitedUser) {
+          return [existingInvitedUser.id];
+        }
+      } catch (err) {
+        console.warn('[DISPATCHER] Could not check existing user for invitation:', err);
+      }
+    }
+
     if (event.organizationId) {
       try {
         const members = await getOrgMembers(event.organizationId, env);
@@ -373,9 +454,18 @@ export class NotificationDispatcher {
         }
 
         // Target owners and admins for organizational events
-        const managers = members.filter(
+        let managers = members.filter(
           (m) => m.role === 'owner' || m.role === 'admin'
         );
+
+        // When a new member joins, notify existing managers (exclude the new member themselves)
+        if (event.eventType === 'MEMBER_JOINED' && (event as MemberJoinedEvent).memberUserId) {
+          const otherManagers = managers.filter((m) => m.user_id !== (event as MemberJoinedEvent).memberUserId);
+          if (otherManagers.length > 0) {
+            return otherManagers.map((m) => m.user_id);
+          }
+        }
+
         if (managers.length > 0) {
           return managers.map((m) => m.user_id);
         }
@@ -629,6 +719,123 @@ export class NotificationDispatcher {
             ...event.metadata,
           },
           deduplicationKey: `security_${event.organizationId}_${event.action}_${Math.floor(Date.now() / 60000)}`,
+        };
+      }
+
+      case 'PAYMENT_FAILED': {
+        const amountStr = typeof event.amount === 'number' ? `RM${event.amount.toLocaleString()}` : String(event.amount);
+        return {
+          type: 'payment_failed',
+          actionUrl: event.eventId ? `/events` : '/wallet',
+          entityType: event.eventId ? 'event' : (event.orderId ? 'topup_order' : 'payment'),
+          entityId: event.orderId || event.eventId || event.referenceId,
+          metadata: {
+            amount: amountStr,
+            subject: event.subject,
+            reference_id: event.referenceId,
+            reason: event.reason,
+            order_id: event.orderId,
+            event_id: event.eventId,
+            currency: event.currency || 'MYR',
+            ...event.metadata,
+          },
+          deduplicationKey: `payment_failed_${event.referenceId}`,
+        };
+      }
+
+      case 'EVENT_PAYMENT_FAILED': {
+        const amountStr = event.amount !== undefined
+          ? (typeof event.amount === 'number' ? `RM${event.amount.toLocaleString()}` : String(event.amount))
+          : undefined;
+        const minuteEpoch = Math.floor(Date.now() / 60000);
+        return {
+          type: 'event_payment_failed',
+          actionUrl: '/events',
+          entityType: 'event',
+          entityId: event.eventId,
+          metadata: {
+            event_id: event.eventId,
+            event_name: event.eventName,
+            amount: amountStr,
+            reason: event.reason,
+            currency: event.currency || 'MYR',
+            ...event.metadata,
+          },
+          deduplicationKey: `event_payment_failed_${event.eventId}_${minuteEpoch}`,
+        };
+      }
+
+      case 'EVENT_APPROACHING': {
+        return {
+          type: 'event_approaching',
+          actionUrl: '/events',
+          entityType: 'event',
+          entityId: event.eventId,
+          metadata: {
+            event_id: event.eventId,
+            event_name: event.eventName,
+            start_date: event.startDate,
+            setup_date: event.setupDate,
+            ...event.metadata,
+          },
+          deduplicationKey: `event_approaching_${event.eventId}_${event.startDate}`,
+        };
+      }
+
+      case 'INSUFFICIENT_BALANCE': {
+        const currentBalStr = typeof event.currentBalance === 'number' ? `RM${event.currentBalance.toLocaleString()}` : String(event.currentBalance);
+        const reqAmountStr = typeof event.requiredAmount === 'number' ? `RM${event.requiredAmount.toLocaleString()}` : String(event.requiredAmount);
+        const minuteEpoch = Math.floor(Date.now() / 60000);
+        return {
+          type: 'insufficient_balance',
+          actionUrl: '/wallet/top-up',
+          entityType: 'wallet',
+          entityId: event.organizationId || undefined,
+          metadata: {
+            current_balance: currentBalStr,
+            required_amount: reqAmountStr,
+            currency: event.currency || 'MYR',
+            event_id: event.eventId,
+            event_name: event.eventName,
+            context: event.context,
+            ...event.metadata,
+          },
+          deduplicationKey: `insufficient_balance_${event.organizationId || event.recipientUserId}_${minuteEpoch}`,
+        };
+      }
+
+      case 'ORG_INVITATION': {
+        return {
+          type: 'org_invitation',
+          actionUrl: event.actionUrl || event.inviteUrl || '/team',
+          entityType: 'invitation',
+          entityId: event.invitationId,
+          metadata: {
+            org_name: event.orgName,
+            role: event.role,
+            invitee_email: event.inviteeEmail,
+            invitation_id: event.invitationId,
+            invite_url: event.inviteUrl,
+            ...event.metadata,
+          },
+          deduplicationKey: `org_invitation_${event.organizationId}_${event.inviteeEmail.toLowerCase()}`,
+        };
+      }
+
+      case 'MEMBER_JOINED': {
+        return {
+          type: 'member_joined',
+          actionUrl: '/team',
+          entityType: 'organization_member',
+          entityId: event.memberUserId,
+          metadata: {
+            member_name: event.memberName,
+            org_name: event.orgName,
+            role: event.role,
+            member_user_id: event.memberUserId,
+            ...event.metadata,
+          },
+          deduplicationKey: `member_joined_${event.organizationId}_${event.memberUserId}`,
         };
       }
     }
