@@ -269,99 +269,133 @@ export async function listNotifications(
 ): Promise<{ notifications: NotificationRecord[]; total: number; unread_count: number }> {
   const {
     userId,
-    organizationId,
+    organizationId: rawOrganizationId,
     unreadOnly = false,
     category,
     limit = 20,
     offset = 0,
   } = params;
 
+  if (!userId || typeof userId !== 'string' || !userId.trim()) {
+    return { notifications: [], total: 0, unread_count: 0 };
+  }
+
+  // Sanitize organizationId against string literals like 'undefined' or 'null'
+  const organizationId =
+    rawOrganizationId &&
+    rawOrganizationId !== 'undefined' &&
+    rawOrganizationId !== 'null' &&
+    rawOrganizationId.trim() !== ''
+      ? rawOrganizationId.trim()
+      : undefined;
+
+  const isValidUUID = (val?: string | null): boolean =>
+    typeof val === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
   const supabase = getSupabaseServerClient(env);
   if (isSupabaseConfigured(env)) {
-    try {
-      // 1. Get total unread count for badge
-      let unreadQuery = supabase
-        .from('notifications')
-        .select('id', { count: 'exact', head: true })
-        .eq('recipient_user_id', userId)
-        .eq('is_read', false);
+    // Only query Supabase when userId is a valid UUID because recipient_user_id is type UUID in Postgres
+    if (isValidUUID(userId)) {
+      try {
+        // 1. Get total unread count for badge
+        let unreadCount = 0;
+        try {
+          let unreadQuery = supabase
+            .from('notifications')
+            .select('id', { count: 'exact', head: true })
+            .eq('recipient_user_id', userId)
+            .eq('is_read', false);
 
-      if (organizationId) {
-        unreadQuery = unreadQuery.or(`organization_id.eq.${organizationId},organization_id.is.null`);
+          if (organizationId && isValidUUID(organizationId)) {
+            unreadQuery = unreadQuery.or(`organization_id.eq.${organizationId},organization_id.is.null`);
+          }
+
+          const { count: uCount, error: unreadErr } = await unreadQuery;
+          if (!unreadErr && typeof uCount === 'number') {
+            unreadCount = uCount;
+          }
+        } catch (uErr) {
+          console.warn('[Notifications] Notice fetching unread count from Supabase:', uErr);
+        }
+
+        // 2. Query notifications list
+        let query = supabase
+          .from('notifications')
+          .select('*', { count: 'exact' })
+          .eq('recipient_user_id', userId);
+
+        if (organizationId && isValidUUID(organizationId)) {
+          query = query.or(`organization_id.eq.${organizationId},organization_id.is.null`);
+        }
+
+        if (unreadOnly) {
+          query = query.eq('is_read', false);
+        }
+
+        if (category) {
+          query = query.eq('category', category);
+        }
+
+        query = query
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1);
+
+        const { data, count, error } = await query;
+
+        if (!error && data) {
+          return {
+            notifications: data as NotificationRecord[],
+            total: count ?? data.length,
+            unread_count: unreadCount,
+          };
+        }
+
+        if (error) {
+          console.warn('[Notifications] Notice fetching notifications from Supabase:', error.message);
+        }
+      } catch (err: any) {
+        console.warn('[Notifications] Supabase listNotifications exception:', err?.message || err);
       }
-
-      const { count: unreadCount } = await unreadQuery;
-
-      // 2. Query notifications list
-      let query = supabase
-        .from('notifications')
-        .select('*', { count: 'exact' })
-        .eq('recipient_user_id', userId);
-
-      if (organizationId) {
-        query = query.or(`organization_id.eq.${organizationId},organization_id.is.null`);
-      }
-
-      if (unreadOnly) {
-        query = query.eq('is_read', false);
-      }
-
-      if (category) {
-        query = query.eq('category', category);
-      }
-
-      query = query
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      const { data, count, error } = await query;
-
-      if (!error && data) {
-        return {
-          notifications: data as NotificationRecord[],
-          total: count ?? data.length,
-          unread_count: unreadCount ?? 0,
-        };
-      }
-
-      if (error && !isLocalFallbackAllowed(env)) {
-        console.error('Error fetching notifications from Supabase:', error);
-        throw new Error(`Failed to list notifications: ${error.message}`);
-      }
-    } catch (err: any) {
-      console.error('Supabase listNotifications exception:', err);
-      if (!isLocalFallbackAllowed(env)) throw err;
     }
   }
 
   // Local fallback
   if (isLocalFallbackAllowed(env)) {
-    let locals = readLocalNotifications(env).filter((n) => n.recipient_user_id === userId);
+    try {
+      let locals = readLocalNotifications(env).filter((n) => n.recipient_user_id === userId);
 
-    if (organizationId) {
-      locals = locals.filter((n) => !n.organization_id || n.organization_id === organizationId);
+      if (organizationId) {
+        locals = locals.filter((n) => !n.organization_id || n.organization_id === organizationId);
+      }
+
+      const unreadCount = locals.filter((n) => !n.is_read).length;
+
+      if (unreadOnly) {
+        locals = locals.filter((n) => !n.is_read);
+      }
+
+      if (category) {
+        locals = locals.filter((n) => n.category === category);
+      }
+
+      locals.sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      const total = locals.length;
+      const paginated = locals.slice(offset, offset + limit);
+
+      return {
+        notifications: paginated,
+        total,
+        unread_count: unreadCount,
+      };
+    } catch (localErr) {
+      console.warn('[Notifications] Error in local notifications fallback:', localErr);
     }
-
-    const unreadCount = locals.filter((n) => !n.is_read).length;
-
-    if (unreadOnly) {
-      locals = locals.filter((n) => !n.is_read);
-    }
-
-    if (category) {
-      locals = locals.filter((n) => n.category === category);
-    }
-
-    locals.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    const total = locals.length;
-    const paginated = locals.slice(offset, offset + limit);
-
-    return {
-      notifications: paginated,
-      total,
-      unread_count: unreadCount,
-    };
   }
 
   return { notifications: [], total: 0, unread_count: 0 };
@@ -372,39 +406,61 @@ export async function listNotifications(
  */
 export async function getUnreadNotificationCount(
   userId: string,
-  organizationId?: string | null,
+  rawOrganizationId?: string | null,
   env?: Record<string, any>
 ): Promise<number> {
+  if (!userId || typeof userId !== 'string' || !userId.trim()) {
+    return 0;
+  }
+
+  const organizationId =
+    rawOrganizationId &&
+    rawOrganizationId !== 'undefined' &&
+    rawOrganizationId !== 'null' &&
+    rawOrganizationId.trim() !== ''
+      ? rawOrganizationId.trim()
+      : undefined;
+
+  const isValidUUID = (val?: string | null): boolean =>
+    typeof val === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
   const supabase = getSupabaseServerClient(env);
   if (isSupabaseConfigured(env)) {
-    try {
-      let query = supabase
-        .from('notifications')
-        .select('id', { count: 'exact', head: true })
-        .eq('recipient_user_id', userId)
-        .eq('is_read', false);
+    if (isValidUUID(userId)) {
+      try {
+        let query = supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('recipient_user_id', userId)
+          .eq('is_read', false);
 
-      if (organizationId) {
-        query = query.or(`organization_id.eq.${organizationId},organization_id.is.null`);
-      }
+        if (organizationId && isValidUUID(organizationId)) {
+          query = query.or(`organization_id.eq.${organizationId},organization_id.is.null`);
+        }
 
-      const { count, error } = await query;
-      if (!error && typeof count === 'number') {
-        return count;
+        const { count, error } = await query;
+        if (!error && typeof count === 'number') {
+          return count;
+        }
+      } catch (err) {
+        console.warn('[Notifications] Error counting unread notifications in DB:', err);
       }
-    } catch (err) {
-      console.error('Error counting unread notifications in DB:', err);
     }
   }
 
   if (isLocalFallbackAllowed(env)) {
-    const locals = readLocalNotifications(env).filter(
-      (n) =>
-        n.recipient_user_id === userId &&
-        !n.is_read &&
-        (!organizationId || !n.organization_id || n.organization_id === organizationId)
-    );
-    return locals.length;
+    try {
+      const locals = readLocalNotifications(env).filter(
+        (n) =>
+          n.recipient_user_id === userId &&
+          !n.is_read &&
+          (!organizationId || !n.organization_id || n.organization_id === organizationId)
+      );
+      return locals.length;
+    } catch (localErr) {
+      console.warn('[Notifications] Error in local unread count fallback:', localErr);
+    }
   }
 
   return 0;
@@ -418,37 +474,45 @@ export async function markNotificationAsRead(
   userId: string,
   env?: Record<string, any>
 ): Promise<NotificationRecord | null> {
+  if (!notificationId || !userId) return null;
+
+  const isValidUUID = (val?: string | null): boolean =>
+    typeof val === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
   const now = new Date().toISOString();
   const supabase = getSupabaseServerClient(env);
 
   if (isSupabaseConfigured(env)) {
-    try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .update({
-          is_read: true,
-          read_at: now,
-        })
-        .eq('id', notificationId)
-        .eq('recipient_user_id', userId)
-        .select('*')
-        .maybeSingle();
+    if (isValidUUID(notificationId) && isValidUUID(userId)) {
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .update({
+            is_read: true,
+            read_at: now,
+          })
+          .eq('id', notificationId)
+          .eq('recipient_user_id', userId)
+          .select('*')
+          .maybeSingle();
 
-      if (!error && data) {
-        // Also update local fallback if present
-        if (isLocalFallbackAllowed(env)) {
-          const locals = readLocalNotifications(env);
-          const idx = locals.findIndex((n) => n.id === notificationId && n.recipient_user_id === userId);
-          if (idx !== -1) {
-            locals[idx].is_read = true;
-            locals[idx].read_at = now;
-            writeLocalNotifications(locals, env);
+        if (!error && data) {
+          // Also update local fallback if present
+          if (isLocalFallbackAllowed(env)) {
+            const locals = readLocalNotifications(env);
+            const idx = locals.findIndex((n) => n.id === notificationId && n.recipient_user_id === userId);
+            if (idx !== -1) {
+              locals[idx].is_read = true;
+              locals[idx].read_at = now;
+              writeLocalNotifications(locals, env);
+            }
           }
+          return data as NotificationRecord;
         }
-        return data as NotificationRecord;
+      } catch (err) {
+        console.warn('[Notifications] Error marking notification as read in DB:', err);
       }
-    } catch (err) {
-      console.error('Error marking notification as read in DB:', err);
     }
   }
 
@@ -471,50 +535,66 @@ export async function markNotificationAsRead(
  */
 export async function markAllNotificationsAsRead(
   userId: string,
-  organizationId?: string | null,
+  rawOrganizationId?: string | null,
   env?: Record<string, any>
 ): Promise<{ marked_count: number }> {
+  if (!userId) return { marked_count: 0 };
+
+  const organizationId =
+    rawOrganizationId &&
+    rawOrganizationId !== 'undefined' &&
+    rawOrganizationId !== 'null' &&
+    rawOrganizationId.trim() !== ''
+      ? rawOrganizationId.trim()
+      : undefined;
+
+  const isValidUUID = (val?: string | null): boolean =>
+    typeof val === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
   const now = new Date().toISOString();
   const supabase = getSupabaseServerClient(env);
 
   if (isSupabaseConfigured(env)) {
-    try {
-      let query = supabase
-        .from('notifications')
-        .update({
-          is_read: true,
-          read_at: now,
-        })
-        .eq('recipient_user_id', userId)
-        .eq('is_read', false);
+    if (isValidUUID(userId)) {
+      try {
+        let query = supabase
+          .from('notifications')
+          .update({
+            is_read: true,
+            read_at: now,
+          })
+          .eq('recipient_user_id', userId)
+          .eq('is_read', false);
 
-      if (organizationId) {
-        query = query.or(`organization_id.eq.${organizationId},organization_id.is.null`);
-      }
-
-      const { data, error } = await query.select('id');
-
-      if (!error && data) {
-        if (isLocalFallbackAllowed(env)) {
-          const locals = readLocalNotifications(env);
-          let count = 0;
-          locals.forEach((n) => {
-            if (
-              n.recipient_user_id === userId &&
-              !n.is_read &&
-              (!organizationId || !n.organization_id || n.organization_id === organizationId)
-            ) {
-              n.is_read = true;
-              n.read_at = now;
-              count++;
-            }
-          });
-          writeLocalNotifications(locals, env);
+        if (organizationId && isValidUUID(organizationId)) {
+          query = query.or(`organization_id.eq.${organizationId},organization_id.is.null`);
         }
-        return { marked_count: data.length };
+
+        const { data, error } = await query.select('id');
+
+        if (!error && data) {
+          if (isLocalFallbackAllowed(env)) {
+            const locals = readLocalNotifications(env);
+            let count = 0;
+            locals.forEach((n) => {
+              if (
+                n.recipient_user_id === userId &&
+                !n.is_read &&
+                (!organizationId || !n.organization_id || n.organization_id === organizationId)
+              ) {
+                n.is_read = true;
+                n.read_at = now;
+                count++;
+              }
+            });
+            writeLocalNotifications(locals, env);
+          }
+          return { marked_count: data.length };
+        }
+      } catch (err) {
+        console.warn('[Notifications] Error marking all notifications as read in DB:', err);
       }
-    } catch (err) {
-      console.error('Error marking all notifications as read in DB:', err);
     }
   }
 
@@ -547,27 +627,35 @@ export async function deleteNotification(
   userId: string,
   env?: Record<string, any>
 ): Promise<boolean> {
+  if (!notificationId || !userId) return false;
+
+  const isValidUUID = (val?: string | null): boolean =>
+    typeof val === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
   const supabase = getSupabaseServerClient(env);
 
   if (isSupabaseConfigured(env)) {
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', notificationId)
-        .eq('recipient_user_id', userId);
+    if (isValidUUID(notificationId) && isValidUUID(userId)) {
+      try {
+        const { error } = await supabase
+          .from('notifications')
+          .delete()
+          .eq('id', notificationId)
+          .eq('recipient_user_id', userId);
 
-      if (!error) {
-        if (isLocalFallbackAllowed(env)) {
-          const locals = readLocalNotifications(env).filter(
-            (n) => !(n.id === notificationId && n.recipient_user_id === userId)
-          );
-          writeLocalNotifications(locals, env);
+        if (!error) {
+          if (isLocalFallbackAllowed(env)) {
+            const locals = readLocalNotifications(env).filter(
+              (n) => !(n.id === notificationId && n.recipient_user_id === userId)
+            );
+            writeLocalNotifications(locals, env);
+          }
+          return true;
         }
-        return true;
+      } catch (err) {
+        console.warn('[Notifications] Error deleting notification from DB:', err);
       }
-    } catch (err) {
-      console.error('Error deleting notification from DB:', err);
     }
   }
 

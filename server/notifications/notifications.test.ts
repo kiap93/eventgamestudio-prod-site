@@ -551,6 +551,80 @@ async function runTestSuite() {
   }
 
   // -----------------------------------------------------------------
+  // Test Group 8: Production Resilience & Graceful Error Handling
+  // -----------------------------------------------------------------
+  console.log('\n--- Test Group 8: Production Resilience & Error Handling ---');
+  {
+    const prodEnvBrokenSupabase = {
+      NODE_ENV: 'production',
+      SUPABASE_URL: 'https://test-error-resilience.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-key-xyz-123',
+    };
+
+    // 1. listNotifications with broken DB in production does not throw 500 error
+    let prodResult: any;
+    let prodError: any;
+    try {
+      prodResult = await listNotifications(
+        {
+          userId: '00000000-0000-0000-0000-000000000001',
+          limit: 40,
+          offset: 0,
+        },
+        prodEnvBrokenSupabase
+      );
+    } catch (err) {
+      prodError = err;
+    }
+
+    assert(!prodError, 'listNotifications in production does not throw error on DB issue');
+    assert(Array.isArray(prodResult?.notifications), 'returns notifications array');
+    assert(typeof prodResult?.total === 'number', 'returns numeric total');
+    assert(typeof prodResult?.unread_count === 'number', 'returns numeric unread_count');
+
+    // 2. listNotifications handles empty / invalid userId gracefully
+    const invalidUserResult = await listNotifications(
+      {
+        userId: '',
+        limit: 40,
+        offset: 0,
+      },
+      prodEnvBrokenSupabase
+    );
+    assert(
+      invalidUserResult.notifications.length === 0 && invalidUserResult.total === 0,
+      'empty userId returns empty list'
+    );
+
+    // 3. listNotifications handles string "undefined" or "null" organizationId
+    const sanitizedOrgResult = await listNotifications(
+      {
+        userId: '00000000-0000-0000-0000-000000000001',
+        organizationId: 'undefined' as any,
+        limit: 40,
+        offset: 0,
+      },
+      prodEnvBrokenSupabase
+    );
+    assert(Array.isArray(sanitizedOrgResult.notifications), 'sanitized "undefined" orgId handled');
+
+    // 4. getUnreadNotificationCount in production with broken DB does not throw
+    let countResult: number | undefined;
+    let countError: any;
+    try {
+      countResult = await getUnreadNotificationCount(
+        '00000000-0000-0000-0000-000000000001',
+        'null',
+        prodEnvBrokenSupabase
+      );
+    } catch (err) {
+      countError = err;
+    }
+    assert(!countError, 'getUnreadNotificationCount in production does not throw');
+    assert(typeof countResult === 'number', 'getUnreadNotificationCount returns 0 safely');
+  }
+
+  // -----------------------------------------------------------------
   // Summary
   // -----------------------------------------------------------------
   console.log('\n======================================================');

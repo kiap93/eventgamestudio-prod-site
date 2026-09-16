@@ -322,8 +322,31 @@ export async function ensureDefaultGames(
 }
 
 export async function ensureDefaultGame(organizationId: string, _orgName?: string, env?: Record<string, any>): Promise<GameRecord> {
-  const games = await getAvailableGamesForStudio(organizationId, env);
-  return games[0];
+  try {
+    const games = await getAvailableGamesForStudio(organizationId, env);
+    if (games && games.length > 0 && games[0]) {
+      return games[0];
+    }
+  } catch (err) {
+    console.warn('Warning in ensureDefaultGame, falling back to catalog default:', err);
+  }
+
+  const now = new Date().toISOString();
+  return {
+    id: CATALOG_GAMES[0].slug,
+    organization_id: null,
+    is_system: true,
+    ownership_type: 'system',
+    name: CATALOG_GAMES[0].name,
+    slug: CATALOG_GAMES[0].slug,
+    game_type: CATALOG_GAMES[0].game_type,
+    description: CATALOG_GAMES[0].description,
+    icon_name: CATALOG_GAMES[0].icon_name,
+    status: 'active',
+    background_url: '/assets/themes/carnival/background.png',
+    created_at: now,
+    updated_at: now,
+  } as GameRecord;
 }
 
 export async function updateGameCustomization(

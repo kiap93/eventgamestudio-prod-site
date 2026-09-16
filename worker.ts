@@ -1060,7 +1060,16 @@ export default {
           env
         );
 
-        const defaultGame = await ensureDefaultGame(organization.id, organization.name, env);
+        let gameId = 'catch-brand';
+        try {
+          const defaultGame = await ensureDefaultGame(organization.id, organization.name, env);
+          if (defaultGame?.id) {
+            gameId = defaultGame.id;
+          }
+        } catch (gameErr) {
+          console.warn('[worker][POST /api/organizations] Non-blocking warning ensuring default game:', gameErr);
+        }
+
         const token = await signAppToken(user.id, organization.id, 'owner', undefined, env);
 
         return jsonResponse(
@@ -1074,7 +1083,7 @@ export default {
               country_code: organization.country_code || null,
             },
             token,
-            gameId: defaultGame.id,
+            gameId,
           },
           200,
           cors
@@ -6620,7 +6629,10 @@ export default {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const organizationId = url.searchParams.get('organizationId') || undefined;
+        const rawOrgId = url.searchParams.get('organizationId') || url.searchParams.get('organization_id') || undefined;
+        const organizationId = rawOrgId && rawOrgId !== 'undefined' && rawOrgId !== 'null' && rawOrgId.trim() !== ''
+          ? rawOrgId.trim()
+          : undefined;
         const unreadOnly = url.searchParams.get('unreadOnly') === 'true';
         const category = (url.searchParams.get('category') as any) || undefined;
         const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20', 10) || 20, 1), 100);
@@ -6650,7 +6662,10 @@ export default {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
 
-        const organizationId = url.searchParams.get('organizationId') || undefined;
+        const rawOrgId = url.searchParams.get('organizationId') || url.searchParams.get('organization_id') || undefined;
+        const organizationId = rawOrgId && rawOrgId !== 'undefined' && rawOrgId !== 'null' && rawOrgId.trim() !== ''
+          ? rawOrgId.trim()
+          : undefined;
 
         try {
           const count = await getUnreadNotificationCount(auth.user.id, organizationId, env);

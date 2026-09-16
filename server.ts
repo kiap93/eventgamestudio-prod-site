@@ -662,10 +662,18 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
       country_code: country_code ? country_code.trim().toUpperCase() : null,
     });
 
-    // 2. Create default game for this organization
-    const defaultGame = await ensureDefaultGame(organization.id, organization.name);
+    // 2. Safely resolve or create default game (non-blocking)
+    let gameId = 'catch-brand';
+    try {
+      const defaultGame = await ensureDefaultGame(organization.id, organization.name);
+      if (defaultGame?.id) {
+        gameId = defaultGame.id;
+      }
+    } catch (gameErr) {
+      console.warn('[POST /api/organizations] Non-blocking warning ensuring default game:', gameErr);
+    }
 
-    const token = signAppToken(user.id, organization.id, 'owner');
+    const token = await signAppToken(user.id, organization.id, 'owner');
 
     res.json({
       organization: {
@@ -677,9 +685,16 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
         country_code: organization.country_code || null,
       },
       token,
-      gameId: defaultGame.id,
+      gameId,
     });
   } catch (err: any) {
+    console.error('[POST /api/organizations] Organization creation failed:', {
+      message: err?.message,
+      code: err?.code,
+      stack: err?.stack,
+      body: req.body,
+      userId: req.user?.id,
+    });
     handleApiError(err, req, res);
   }
 });
@@ -6468,10 +6483,17 @@ app.post('/api/email/test', authenticateDeveloperAdmin, async (req: Authenticate
  */
 app.get('/api/notifications', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
-    const user = req.user!;
-    const organizationId = typeof req.query.organizationId === 'string'
+    const user = req.user;
+    if (!user?.id) {
+      res.status(401).json({ error: 'Unauthorized: Authentication required' });
+      return;
+    }
+    const rawOrgId = typeof req.query.organizationId === 'string'
       ? req.query.organizationId
       : (typeof req.query.organization_id === 'string' ? req.query.organization_id : undefined);
+    const organizationId = rawOrgId && rawOrgId !== 'undefined' && rawOrgId !== 'null' && rawOrgId.trim() !== ''
+      ? rawOrgId.trim()
+      : undefined;
     const unreadOnly = req.query.unreadOnly === 'true' || req.query.unread_only === 'true';
     const category = typeof req.query.category === 'string' ? (req.query.category as any) : undefined;
     const limit = Math.min(Math.max(parseInt(String(req.query.limit || '20'), 10) || 20, 1), 100);
@@ -6498,10 +6520,17 @@ app.get('/api/notifications', authenticateJWT, async (req: AuthenticatedRequest,
  */
 app.get('/api/notifications/unread-count', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
-    const user = req.user!;
-    const organizationId = typeof req.query.organizationId === 'string'
+    const user = req.user;
+    if (!user?.id) {
+      res.status(401).json({ error: 'Unauthorized: Authentication required' });
+      return;
+    }
+    const rawOrgId = typeof req.query.organizationId === 'string'
       ? req.query.organizationId
       : (typeof req.query.organization_id === 'string' ? req.query.organization_id : undefined);
+    const organizationId = rawOrgId && rawOrgId !== 'undefined' && rawOrgId !== 'null' && rawOrgId.trim() !== ''
+      ? rawOrgId.trim()
+      : undefined;
 
     const count = await getUnreadNotificationCount(user.id, organizationId);
     res.json({ unread_count: count });

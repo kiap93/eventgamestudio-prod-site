@@ -9028,5 +9028,75 @@
     "country_code": "SG",
     "created_at": "2026-09-16T08:23:33.439Z",
     "updated_at": "2026-09-16T08:23:33.439Z"
+  },
+  {
+    "id": "c4290617-061c-4358-b733-f827f54e0e61",
+    "name": "wegg",
+    "slug": "wegg-6ed846",
+    "owner_id": "00000000-0000-0000-0000-000000000001",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-16T11:51:44.484Z",
+    "updated_at": "2026-09-16T11:51:44.484Z"
+  },
+  {
+    "id": "179dd6cb-5435-4727-a85b-2ea52e1802e4",
+    "name": "Launch Studio Org",
+    "slug": "launch-studio-org-f365e3",
+    "owner_id": "9f613d06-d171-4c55-a887-1dd7ab1bfd16",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-16T11:57:46.641Z",
+    "updated_at": "2026-09-16T11:57:46.641Z"
+  },
+  {
+    "id": "6c4e674e-8081-4ace-abdb-c5f2001e9362",
+    "name": "wegg",
+    "slug": "wegg-0c60aa",
+    "owner_id": "0cbe6273-6de3-46b1-acfd-ee65662dad2c",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-16T12:01:00.970Z",
+    "updated_at": "2026-09-16T12:01:00.970Z"
+  },
+  {
+    "id": "a33a2b0b-4038-4dd3-b2ff-832017f916b2",
+    "name": "Launch Studio Org",
+    "slug": "launch-studio-org-f81e57",
+    "owner_id": "5612f563-6638-449a-b698-834fedea429e",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-16T12:05:53.291Z",
+    "updated_at": "2026-09-16T12:05:53.291Z"
+  },
+  {
+    "id": "b50d2474-f0ef-4c37-a148-8cc2631b2e3f",
+    "name": "wegg",
+    "slug": "wegg-abd4fb",
+    "owner_id": "e74fdf34-6820-4c3d-a2bd-7e2fcb0bd260",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-16T12:06:16.289Z",
+    "updated_at": "2026-09-16T12:06:16.289Z"
+  },
+  {
+    "id": "70951123-9464-4645-ab1b-2c96dc7b0288",
+    "name": "Singapore Tech Events",
+    "slug": "singapore-tech-events-1ac89a",
+    "owner_id": "6d8af4d6-fabf-4743-85d3-ca2554fc9f2d",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-16T12:07:35.295Z",
+    "updated_at": "2026-09-16T12:07:35.818Z"
+  },
+  {
+    "id": "c7950153-8c12-48e3-9bdb-9013e2add52c",
+    "name": "Payment Notify Corp 1789560455359",
+    "slug": "payment-notify-corp-1789560455359-2a4b3a",
+    "owner_id": "82b3e7b1-dc8a-4bf8-84f1-0df065ddd7b9",
+    "logo_url": null,
+    "country_code": null,
+    "created_at": "2026-09-16T12:07:35.359Z",
+    "updated_at": "2026-09-16T12:07:35.359Z"
   }
 ]

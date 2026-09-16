@@ -12,7 +12,7 @@ import {
   EventWithDetails,
 } from './types.js';
 import { initializeEmptyWallet, getWalletBalance, getWalletTransactions } from './wallet.js';
-import { getUserById } from './users.js';
+import { getUserById, localUsersCache } from './users.js';
 import { getOrgMembers, addMember, OrgMemberWithUserDetails } from './members.js';
 import { getEventsByOrgId } from './events.js';
 import crypto from 'node:crypto';
@@ -278,9 +278,33 @@ export async function createOrganization(
 
   const supabase = getSupabaseServerClient(env);
 
+  // Helper to ensure owner user is present in public.users to prevent foreign key issues
+  const ensureOwnerInDatabase = async (userId: string) => {
+    try {
+      const localUser = localUsersCache.get(userId);
+      if (localUser) {
+        await supabase.from('users').upsert(
+          {
+            id: localUser.id,
+            google_id: localUser.google_id || null,
+            email: localUser.email,
+            name: localUser.name,
+            avatar_url: localUser.avatar_url || null,
+            is_developer: localUser.is_developer === true,
+            created_at: localUser.created_at || now,
+            updated_at: now,
+          },
+          { onConflict: 'id' }
+        );
+      }
+    } catch (uErr) {
+      console.warn('Warning syncing owner user before organization creation:', uErr);
+    }
+  };
+
   // 1. Attempt fully atomic creation via PostgreSQL RPC
   try {
-    const { data: rpcData, error: rpcError } = await supabase.rpc('create_organization_atomic', {
+    let { data: rpcData, error: rpcError } = await supabase.rpc('create_organization_atomic', {
       p_name: params.name.trim(),
       p_owner_id: params.owner_id,
       p_logo_url: params.logo_url || null,
@@ -289,30 +313,74 @@ export async function createOrganization(
       p_slug: slug,
     });
 
+    // If RPC failed with USER_NOT_FOUND, ensure owner user exists in database and retry RPC once
+    if (!rpcError && rpcData && !rpcData.success && rpcData.code === 'USER_NOT_FOUND') {
+      await ensureOwnerInDatabase(params.owner_id);
+      const retryResult = await supabase.rpc('create_organization_atomic', {
+        p_name: params.name.trim(),
+        p_owner_id: params.owner_id,
+        p_logo_url: params.logo_url || null,
+        p_country_code: countryCode,
+        p_org_id: id,
+        p_slug: slug,
+      });
+      rpcData = retryResult.data;
+      rpcError = retryResult.error;
+    }
+
+    // If RPC failed with SLUG_TAKEN, generate a fresh randomized slug and retry RPC once
+    if (!rpcError && rpcData && !rpcData.success && rpcData.code === 'SLUG_TAKEN') {
+      const retrySuffix = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+      const retrySlug = `${baseSlug || 'org'}-${retrySuffix}`;
+      const retryResult = await supabase.rpc('create_organization_atomic', {
+        p_name: params.name.trim(),
+        p_owner_id: params.owner_id,
+        p_logo_url: params.logo_url || null,
+        p_country_code: countryCode,
+        p_org_id: id,
+        p_slug: retrySlug,
+      });
+      rpcData = retryResult.data;
+      rpcError = retryResult.error;
+    }
+
     if (!rpcError && rpcData && rpcData.success && rpcData.organization) {
       const organization = rpcData.organization as OrganizationRecord;
       localOrgsCache.set(organization.id, organization);
       return organization;
     }
 
-    if (rpcError && rpcError.code !== 'PGRST202' && !rpcError.message?.includes('create_organization_atomic') && !rpcError.message?.includes('Could not find the function')) {
-      console.error('Error from create_organization_atomic RPC:', rpcError);
-      throw new Error(`Failed to create organization atomically: ${rpcError.message || 'Unknown database error'}`);
+    if (rpcError) {
+      console.warn('create_organization_atomic RPC encountered error, falling back to sequential flow:', rpcError.message || rpcError);
+    } else if (rpcData && !rpcData.success) {
+      console.warn('create_organization_atomic RPC returned unsuccessful response:', rpcData);
+      if (rpcData.code === 'VALIDATION_ERROR') {
+        const valErr: any = new Error(rpcData.error || rpcData.message || 'Validation error');
+        valErr.statusCode = 422;
+        valErr.code = 'VALIDATION_ERROR';
+        throw valErr;
+      }
     }
   } catch (rpcCatchErr: any) {
-    if (rpcCatchErr.message?.startsWith('Failed to create organization atomically:')) {
+    if (rpcCatchErr.statusCode === 422) {
       throw rpcCatchErr;
     }
     console.warn('create_organization_atomic RPC unavailable or failed, falling back to sequential flow:', rpcCatchErr?.message || rpcCatchErr);
   }
 
   // 2. Sequential Fallback
-  const { data, error } = await supabase
+  // Ensure owner user exists in database to prevent foreign key constraint violations
+  await ensureOwnerInDatabase(params.owner_id);
+
+  let currentSlug = slug;
+  let insertResult = await supabase
     .from('organizations')
     .insert({
       id,
       name: params.name.trim(),
-      slug,
+      slug: currentSlug,
       owner_id: params.owner_id,
       logo_url: params.logo_url || null,
       country_code: countryCode,
@@ -322,12 +390,39 @@ export async function createOrganization(
     .select()
     .single();
 
-  if (error) {
-    console.error('Fatal error in createOrganization:', error);
-    throw new Error(`Failed to create organization in database: ${error.message}`);
+  // If slug collision, retry with a freshly randomized slug
+  if (
+    insertResult.error &&
+    (insertResult.error.code === '23505' ||
+      insertResult.error.message?.includes('duplicate key') ||
+      insertResult.error.message?.includes('slug'))
+  ) {
+    const retrySuffix = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    currentSlug = `${baseSlug || 'org'}-${retrySuffix}`;
+    insertResult = await supabase
+      .from('organizations')
+      .insert({
+        id,
+        name: params.name.trim(),
+        slug: currentSlug,
+        owner_id: params.owner_id,
+        logo_url: params.logo_url || null,
+        country_code: countryCode,
+        created_at: now,
+        updated_at: now,
+      })
+      .select()
+      .single();
   }
 
-  const organization = data as OrganizationRecord;
+  if (insertResult.error) {
+    console.error('Fatal error in createOrganization sequential fallback:', insertResult.error);
+    throw new Error(`Failed to create organization in database: ${insertResult.error.message}`);
+  }
+
+  const organization = insertResult.data as OrganizationRecord;
   localOrgsCache.set(organization.id, organization);
   
   // Single, authoritative owner membership creation
@@ -351,10 +446,7 @@ export async function createOrganization(
   try {
     await initializeEmptyWallet(organization.id, env);
   } catch (walletErr) {
-    console.error('Failed to initialize empty wallet during sequential fallback:', walletErr);
-    if (!isLocalFallbackAllowed(env)) {
-      throw walletErr;
-    }
+    console.warn('Warning initializing empty wallet during sequential fallback:', walletErr);
   }
 
   return organization;
