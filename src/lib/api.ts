@@ -4,23 +4,28 @@
  */
 
 export const getApiBaseUrl = (): string => {
+  // If in the browser and running in local dev or container preview, use relative URL to route to server.ts
+  if (typeof window !== 'undefined' && window.location) {
+    const hostname = window.location.hostname || '';
+    const port = window.location.port || '';
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      port === '3000' ||
+      hostname.includes('aistudio') ||
+      hostname.includes('googleusercontent.com') ||
+      hostname.includes('usercontent.goog') ||
+      hostname.includes('cloudworkstations.dev') ||
+      hostname.includes('run.app') ||
+      hostname.includes('preview')
+    ) {
+      return '';
+    }
+  }
+
   let url = import.meta.env.VITE_API_BASE_URL;
   if (!url || typeof url !== 'string' || url.trim() === '') {
-    // If in the browser and running in local dev or container preview, use relative URL to route to server.ts
-    if (typeof window !== 'undefined' && window.location?.origin) {
-      const hostname = window.location.hostname;
-      if (
-        hostname === 'localhost' ||
-        hostname === '127.0.0.1' ||
-        hostname === '0.0.0.0' ||
-        window.location.port === '3000' ||
-        hostname.includes('aistudio') ||
-        hostname.includes('googleusercontent.com') ||
-        hostname.includes('run.app')
-      ) {
-        return '';
-      }
-    }
     url = 'https://eventgamestudio-api.kiap93-kmj.workers.dev';
   } else {
     url = url.trim();

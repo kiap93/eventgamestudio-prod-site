@@ -129,7 +129,11 @@ export function isOriginAllowed(
         hostname.endsWith('.localhost') ||
         hostname.endsWith('.workers.dev') ||
         hostname.endsWith('.pages.dev') ||
-        hostname.endsWith('.run.app')
+        hostname.endsWith('.run.app') ||
+        hostname.endsWith('.aistudio.google.com') ||
+        hostname.endsWith('.googleusercontent.com') ||
+        hostname.endsWith('.usercontent.goog') ||
+        hostname.endsWith('.cloudworkstations.dev')
       ) {
         return true;
       }

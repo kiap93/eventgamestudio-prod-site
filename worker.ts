@@ -319,7 +319,11 @@ export function isAllowedOrigin(origin: string | null | undefined, requestUrl: s
         hostname.endsWith('.localhost') ||
         hostname.endsWith('.workers.dev') ||
         hostname.endsWith('.pages.dev') ||
-        hostname.endsWith('.run.app')
+        hostname.endsWith('.run.app') ||
+        hostname.endsWith('.aistudio.google.com') ||
+        hostname.endsWith('.googleusercontent.com') ||
+        hostname.endsWith('.usercontent.goog') ||
+        hostname.endsWith('.cloudworkstations.dev')
       ) {
         return true;
       }
@@ -2420,10 +2424,14 @@ export default {
         if (!auth.authenticated) return auth.errorResponse!;
 
         const user = auth.user!;
-        const organizationId = orgEventsRoute?.organizationId || orgEventsRoute?.orgId || auth.jwtPayload?.organizationId;
+        const rawOrgId = orgEventsRoute?.organizationId || orgEventsRoute?.orgId || auth.jwtPayload?.organizationId;
+        const organizationId =
+          rawOrgId && rawOrgId !== 'undefined' && rawOrgId !== 'null' && rawOrgId.trim() !== ''
+            ? rawOrgId.trim()
+            : undefined;
 
-        if (!organizationId) {
-          return errorResponse('No active organization selected', 422, cors);
+        if (!organizationId || !isUUID(organizationId)) {
+          return jsonResponse({ events: [] }, 200, cors);
         }
 
         const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'event.view', env);
@@ -2431,8 +2439,12 @@ export default {
           return errorResponse('Forbidden: You do not have permission to view events', 403, cors);
         }
 
-        const events = await getEventsByOrgId(organizationId, env);
-        return jsonResponse({ events }, 200, cors);
+        try {
+          const events = await getEventsByOrgId(organizationId, env);
+          return jsonResponse({ events }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
       }
 
       const getEventPreviewParams = parseRoute('/api/events/:eventId/preview', pathname);

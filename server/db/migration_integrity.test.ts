@@ -102,6 +102,8 @@ async function runMigrationIntegrityTests() {
     '20260914000000_user_level_reward_security_and_reconciliation.sql',
     '20260914010000_disable_automatic_welcome_credit.sql',
     '20260914020000_lock_topup_payment_constraints_and_idempotency.sql',
+    '20260915000000_create_api_error_logs.sql',
+    '20260916000000_owner_only_user_level_promotions.sql',
   ];
 
   // Checksum manifest for known production migrations (tamper-evident audit)
@@ -131,7 +133,9 @@ async function runMigrationIntegrityTests() {
     '20260913000000_add_event_timezone_to_events.sql': 'ecd203d15c38a2398bd2b1b370a4fe8cd44e8982f6eef33f46c760b93c63b7db',
     '20260914000000_user_level_reward_security_and_reconciliation.sql': '7b6e656f7a3dc482054263c70283af5df8cc803678f8495149e22bf7451a14c4',
     '20260914010000_disable_automatic_welcome_credit.sql': '64e552c961898488bdab894ba988326e67259bcc0f08f1622b9d9a8fe82f2be0',
-    '20260914020000_lock_topup_payment_constraints_and_idempotency.sql': 'dfd58d99674d74dc8633f90f1ae53d18349924602472dbdcd9a8d8c08ef61b66',
+    '20260914020000_lock_topup_payment_constraints_and_idempotency.sql': '1c509c22eb33025b82a726bba7dd9599b5517575618f17bfbd886ca77f8d3f3f',
+    '20260915000000_create_api_error_logs.sql': '39feabb4d847c82c270668d87791f34e8ba89e37f3b4ac79e30181b70c171f3d',
+    '20260916000000_owner_only_user_level_promotions.sql': '3893c79d60031e57f7b1394d1a77435c7dbb5e582956981682630003b9f22cad',
   };
 
   // 1. Verify required canonical migrations exist without hardcoding an exact upper ceiling

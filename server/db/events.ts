@@ -1208,53 +1208,67 @@ export async function getEventsByOrgId(
   organizationId: string,
   env?: Record<string, any>
 ): Promise<EventWithDetails[]> {
+  if (!organizationId || organizationId === 'undefined' || organizationId === 'null' || !isUUID(organizationId)) {
+    return [];
+  }
+
   const supabase = getSupabaseServerClient(env);
-
   let events: EventRecord[] = [];
-  const { data: eventsData, error: eventsError } = await supabase
-    .from('events')
-    .select('*')
-    .eq('organization_id', organizationId)
-    .order('starts_at', { ascending: false });
 
-  if (eventsError) {
-    if (eventsError.message?.includes('Placeholder') || eventsError.code === 'PGRST000') {
-      events = Array.from(localEventsCache.values()).filter((e) => e.organization_id === organizationId);
-    } else {
-      console.error('Error in getEventsByOrgId:', eventsError);
-      throw new Error(`Failed to list events: ${eventsError.message}`);
-    }
-  } else {
-    events = ((eventsData || []) as EventRecord[]).map((ev) => {
-      const cached = isLocalFallbackAllowed(env) ? localEventsCache.get(ev.id) : undefined;
-      const merged: EventRecord = {
-        ...ev,
-        ...(cached || {}),
-        game_id: cached?.game_id || ev.game_id,
-        status: cached?.status || ev.status,
-        event_status: cached?.event_status || ev.event_status,
-        payment_status: cached?.payment_status || ev.payment_status,
-        payment_mode: cached?.payment_mode || ev.payment_mode,
-        paid_amount: cached?.paid_amount !== undefined && cached.paid_amount !== null ? cached.paid_amount : ev.paid_amount,
-        event_price: cached?.event_price !== undefined && cached.event_price !== null ? cached.event_price : ev.event_price,
-        event_currency: cached?.event_currency || ev.event_currency || 'MYR',
-        cancel_reason: cached?.cancel_reason !== undefined ? cached.cancel_reason : ev.cancel_reason,
-      };
-      if (isLocalFallbackAllowed(env)) {
-        localEventsCache.set(merged.id, merged);
+  try {
+    const { data: eventsData, error: eventsError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: false });
+
+    if (eventsError) {
+      if (eventsError.message?.includes('Placeholder') || eventsError.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+        events = Array.from(localEventsCache.values()).filter((e) => e.organization_id === organizationId);
+      } else {
+        console.error('Error in getEventsByOrgId:', eventsError);
+        throw new Error(`Failed to list events: ${eventsError.message}`);
       }
-      return merged;
-    });
-    if (isLocalFallbackAllowed(env)) {
-      const seenIds = new Set(events.map((e) => e.id));
-      for (const cached of localEventsCache.values()) {
-        if (cached.organization_id === organizationId && !seenIds.has(cached.id)) {
-          events.push(cached);
-          seenIds.add(cached.id);
+    } else {
+      events = ((eventsData || []) as EventRecord[]).map((ev) => {
+        const cached = isLocalFallbackAllowed(env) ? localEventsCache.get(ev.id) : undefined;
+        const merged: EventRecord = {
+          ...ev,
+          ...(cached || {}),
+          game_id: cached?.game_id || ev.game_id,
+          status: cached?.status || ev.status,
+          event_status: cached?.event_status || ev.event_status,
+          payment_status: cached?.payment_status || ev.payment_status,
+          payment_mode: cached?.payment_mode || ev.payment_mode,
+          paid_amount: cached?.paid_amount !== undefined && cached.paid_amount !== null ? cached.paid_amount : ev.paid_amount,
+          event_price: cached?.event_price !== undefined && cached.event_price !== null ? cached.event_price : ev.event_price,
+          event_currency: cached?.event_currency || ev.event_currency || 'MYR',
+          cancel_reason: cached?.cancel_reason !== undefined ? cached.cancel_reason : ev.cancel_reason,
+        };
+        if (isLocalFallbackAllowed(env)) {
+          localEventsCache.set(merged.id, merged);
+        }
+        return merged;
+      });
+      if (isLocalFallbackAllowed(env)) {
+        const seenIds = new Set(events.map((e) => e.id));
+        for (const cached of localEventsCache.values()) {
+          if (cached.organization_id === organizationId && !seenIds.has(cached.id)) {
+            events.push(cached);
+            seenIds.add(cached.id);
+          }
         }
       }
     }
+  } catch (err: any) {
+    if (isLocalFallbackAllowed(env)) {
+      console.warn('getEventsByOrgId encountered error, falling back to local cache:', err?.message || err);
+      events = Array.from(localEventsCache.values()).filter((e) => e.organization_id === organizationId);
+    } else {
+      throw err;
+    }
   }
+
   if (events.length === 0) return [];
 
   // Fetch related game themes to enrich event list
@@ -1373,7 +1387,7 @@ export async function getEventById(
       .maybeSingle();
 
     if (error) {
-      if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+      if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
         eventRecord = localEventsCache.get(eventId) || null;
       } else {
         console.error('Error in getEventById:', error);
@@ -3480,7 +3494,7 @@ export async function getAllAdminEvents(
     .order('created_at', { ascending: false });
 
   if (eventsError) {
-    if (eventsError.message?.includes('Placeholder') || eventsError.code === 'PGRST000') {
+    if (eventsError.message?.includes('Placeholder') || eventsError.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
       events = Array.from(localEventsCache.values());
     } else {
       console.error('Error in getAllAdminEvents:', eventsError);

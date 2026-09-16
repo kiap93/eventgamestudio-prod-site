@@ -2126,10 +2126,14 @@ app.put('/api/games/:gameId/customization', authenticateJWT, async (req: Authent
 app.get(['/api/events', '/api/organizations/:organizationId/events', '/api/organizations/:orgId/events'], authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
-    const organizationId = req.params.organizationId || req.params.orgId || req.jwtPayload?.organizationId;
+    const rawOrgId = req.params.organizationId || req.params.orgId || req.jwtPayload?.organizationId;
+    const organizationId =
+      rawOrgId && rawOrgId !== 'undefined' && rawOrgId !== 'null' && rawOrgId.trim() !== ''
+        ? rawOrgId.trim()
+        : undefined;
 
-    if (!organizationId) {
-      res.status(422).json({ error: 'No active organization selected' });
+    if (!organizationId || !isUUID(organizationId)) {
+      res.json({ events: [] });
       return;
     }
 

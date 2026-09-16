@@ -42,7 +42,9 @@ export const EventsPage: React.FC = () => {
   const [cancellingEvent, setCancellingEvent] = useState<any | null>(null);
 
   const fetchEvents = async () => {
-    if (!currentOrganization) return;
+    if (!currentOrganization || !currentOrganization.id || currentOrganization.id === 'undefined' || currentOrganization.id === 'null') {
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
