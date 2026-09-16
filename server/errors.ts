@@ -533,7 +533,42 @@ export function handleApiError(
 
   let statusCode = Number(err?.statusCode || err?.status);
   if (!statusCode || statusCode < 400 || statusCode > 599) {
-    statusCode = isOperational ? 400 : 500;
+    if (isOperational) {
+      const code = String(err?.code || '');
+      if (code.endsWith('_NOT_FOUND')) {
+        statusCode = 404;
+      } else if (
+        code === 'GAME_CONFLICT' ||
+        code === 'GAME_IN_USE' ||
+        code === 'GAME_TYPE_ALREADY_REGISTERED' ||
+        code === 'GAME_SLUG_ALREADY_REGISTERED' ||
+        code === 'DUPLICATE_ORDER'
+      ) {
+        statusCode = 409;
+      } else if (code === 'INSUFFICIENT_BALANCE') {
+        statusCode = 402;
+      } else if (code === 'DIRECT_UPLOAD_SIZE_EXCEEDED' || code === 'FILE_TOO_LARGE') {
+        statusCode = 413;
+      } else if (
+        code === 'REJECTION_REASON_REQUIRED' ||
+        code === 'PENDING_EVENT_LIMIT_REACHED' ||
+        code === 'THEME_GAME_MISMATCH' ||
+        code === 'GAME_INACTIVE' ||
+        code === 'UNSUPPORTED_FILE_TYPE' ||
+        code === 'INVALID_FILE_TYPE' ||
+        code === 'MALICIOUS_SVG_DETECTED' ||
+        code === 'INVALID_AMOUNT' ||
+        code === 'INVALID_CURRENCY' ||
+        code === 'INVALID_PAYMENT_METHOD' ||
+        code === 'INVALID_PAYMENT_MODE'
+      ) {
+        statusCode = 422;
+      } else {
+        statusCode = 400;
+      }
+    } else {
+      statusCode = 500;
+    }
   }
 
   const userId = options?.userId || (req as any).user?.id || (req as any).userId || null;
@@ -546,6 +581,12 @@ export function handleApiError(
     res.status(statusCode).json({
       error: err.message || 'Bad Request',
       code: errorCode,
+      ...(err.code === 'INSUFFICIENT_BALANCE' ? {
+        ...(err.required !== undefined ? { required: err.required } : {}),
+        ...(err.available !== undefined ? { available: err.available } : {}),
+        ...(err.shortfall !== undefined ? { shortfall: err.shortfall } : {}),
+      } : {}),
+      ...(err.eligibility ? { eligibility: err.eligibility } : {}),
       ...(err.metadata ? { metadata: sanitizeData(err.metadata) } : {}),
     });
     return;
@@ -594,7 +635,7 @@ export function handleApiError(
 
   // Client response: strictly generic internal server error + requestId
   res.status(500).json({
-    error: 'Internal server error',
+    error: 'Something went wrong. Please try again.',
     requestId,
   });
 }
@@ -700,6 +741,12 @@ export async function handleWorkerApiError(
       JSON.stringify({
         error: err.message || 'Bad Request',
         code: errorCode,
+        ...(err.code === 'INSUFFICIENT_BALANCE' ? {
+          ...(err.required !== undefined ? { required: err.required } : {}),
+          ...(err.available !== undefined ? { available: err.available } : {}),
+          ...(err.shortfall !== undefined ? { shortfall: err.shortfall } : {}),
+        } : {}),
+        ...(err.eligibility ? { eligibility: err.eligibility } : {}),
         ...(err.metadata ? { metadata: sanitizeData(err.metadata) } : {}),
       }),
       {
@@ -760,7 +807,7 @@ export async function handleWorkerApiError(
 
   return new globalThis.Response(
     JSON.stringify({
-      error: 'Internal server error',
+      error: 'Something went wrong. Please try again.',
       requestId,
     }),
     {

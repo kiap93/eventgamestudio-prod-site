@@ -1317,7 +1317,7 @@ export default {
         } catch (emailErr: any) {
           console.error(`[Invitations] Failed to send invitation email to ${invitation.email} via Gmail API:`, emailErr);
           emailStatus = 'failed';
-          emailError = emailErr.message || 'Failed to deliver invitation email via Gmail API';
+          emailError = isOperationalError(emailErr) ? (emailErr.message || 'Failed to deliver invitation email') : 'Failed to deliver invitation email via Gmail API';
           await updateInvitationEmailStatus(invitation.id, 'failed', emailError, env);
         }
 
@@ -1426,7 +1426,7 @@ export default {
         } catch (emailErr: any) {
           console.error(`[Invitations] Failed to resend invitation email to ${invitation.email}:`, emailErr);
           emailStatus = 'failed';
-          emailError = emailErr.message || 'Failed to deliver invitation email via Gmail API';
+          emailError = isOperationalError(emailErr) ? (emailErr.message || 'Failed to deliver invitation email') : 'Failed to deliver invitation email via Gmail API';
         }
 
         const updatedInvitation = await renewInvitation(
@@ -4193,7 +4193,11 @@ export default {
 
           if (uploadErr) {
             console.warn(`Supabase ${SHOWCASE_BUCKET} storage upload error:`, uploadErr);
-            return errorResponse(uploadErr.message || 'Storage upload failed', 500, cors);
+            return handleWorkerApiError(uploadErr, request, cors, env, {
+              endpoint: pathname,
+              method,
+              metadata: { originalName, fileSize, isImage, storagePath },
+            });
           }
 
           const { data: publicData } = supabase.storage

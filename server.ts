@@ -509,8 +509,7 @@ app.get('/api/auth/me', authenticateJWT, async (req: AuthenticatedRequest, res) 
         : null,
     });
   } catch (err: any) {
-    console.error(`[Auth /me error][${correlationId}]`, err);
-    res.status(500).json({ error: 'Failed to retrieve authentication details' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -555,8 +554,7 @@ app.post('/api/auth/switch-org', authRateLimiter, authenticateJWT, async (req: A
       organizations: memberships,
     });
   } catch (err: any) {
-    console.error('Switch org error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -605,8 +603,7 @@ const handleUpdateProfile = async (req: AuthenticatedRequest, res: express.Respo
       },
     });
   } catch (err: any) {
-    console.error('Update profile error:', err);
-    res.status(400).json({ error: err.message || 'Failed to update profile' });
+    handleApiError(err, req, res);
   }
 };
 
@@ -629,8 +626,7 @@ app.get('/api/organizations', authenticateJWT, async (req: AuthenticatedRequest,
     const organizations = await getUserOrganizations(user.id);
     res.json({ organizations });
   } catch (err: any) {
-    console.error('List organizations error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -684,8 +680,7 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
       gameId: defaultGame.id,
     });
   } catch (err: any) {
-    console.error('Create organization error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -728,8 +723,7 @@ app.get('/api/organizations/:organizationId', authenticateJWT, async (req: Authe
       },
     });
   } catch (err: any) {
-    console.error('Get organization error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -795,8 +789,7 @@ app.patch('/api/organizations/:organizationId', authenticateJWT, async (req: Aut
     const updated = await updateOrganization(organizationId, updates);
     res.json({ organization: updated });
   } catch (err: any) {
-    console.error('Update organization error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -825,8 +818,7 @@ app.get('/api/organizations/:organizationId/members', authenticateJWT, async (re
 
     res.json({ members, invitations, userRole: member.role });
   } catch (err: any) {
-    console.error('List members error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -932,7 +924,7 @@ app.post('/api/organizations/:organizationId/invitations', invitationRateLimiter
     } catch (emailErr: any) {
       console.error(`[Invitations] Failed to send invitation email to ${invitation.email} via Gmail API:`, emailErr);
       emailStatus = 'failed';
-      emailError = emailErr.message || 'Failed to deliver invitation email via Gmail API';
+      emailError = isOperationalError(emailErr) ? (emailErr.message || 'Failed to deliver invitation email') : 'Failed to deliver invitation email via Gmail API';
       await updateInvitationEmailStatus(invitation.id, 'failed', emailError);
     }
 
@@ -959,8 +951,7 @@ app.post('/api/organizations/:organizationId/invitations', invitationRateLimiter
           : `Invitation created, but failed to deliver email: ${emailError}. You can share the link manually.`,
     });
   } catch (err: any) {
-    console.error('Create invitation error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1040,7 +1031,7 @@ app.post('/api/organizations/:organizationId/invitations/:invitationId/resend', 
     } catch (emailErr: any) {
       console.error(`[Invitations] Failed to resend invitation email to ${invitation.email}:`, emailErr);
       emailStatus = 'failed';
-      emailError = emailErr.message || 'Failed to deliver invitation email via Gmail API';
+      emailError = isOperationalError(emailErr) ? (emailErr.message || 'Failed to deliver invitation email') : 'Failed to deliver invitation email via Gmail API';
     }
 
     const updatedInvitation = await renewInvitation(invitation.id, {
@@ -1074,8 +1065,7 @@ app.post('/api/organizations/:organizationId/invitations/:invitationId/resend', 
           : `Invitation renewed, but failed to deliver email: ${emailError}. You can share the link manually.`,
     });
   } catch (err: any) {
-    console.error('Resend invitation error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1108,8 +1098,7 @@ app.delete('/api/organizations/:organizationId/invitations/:invitationId', authe
     await deleteInvitation(invitationId);
     res.json({ success: true, message: 'Invitation revoked successfully' });
   } catch (err: any) {
-    console.error('Delete invitation error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1152,8 +1141,7 @@ app.delete('/api/organizations/:organizationId/members/:memberId', authenticateJ
     await removeMember(memberId);
     res.json({ success: true });
   } catch (err: any) {
-    console.error('Remove member error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1216,8 +1204,7 @@ app.patch('/api/organizations/:organizationId/members/:memberId', authenticateJW
     const updated = await updateMemberRole(organizationId, target.user_id, newRole);
     res.json({ member: updated, message: 'Member role updated successfully' });
   } catch (err: any) {
-    console.error('Update member role error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1263,8 +1250,7 @@ app.get('/api/invitations/verify', async (req, res) => {
       organizationId: invite.organization_id,
     });
   } catch (err: any) {
-    console.error('Verify invitation error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1368,13 +1354,7 @@ app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
       },
     });
   } catch (err: any) {
-    const correlationId =
-      (req.headers['x-correlation-id'] as string) ||
-      (req.headers['x-request-id'] as string) ||
-      crypto.randomUUID();
-    console.error(`[Accept invitation error][${correlationId}]`, err);
-    res.setHeader('x-correlation-id', correlationId);
-    res.status(500).json({ error: 'Failed to accept invitation' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1523,8 +1503,7 @@ app.post('/api/upload', uploadRateLimiter, authenticateJWT, upload.single('file'
       res.json({ url: fileUrl, path: `organizations/${safeOrgId}/${safeCategory}/${filename}` });
     }
   } catch (err: any) {
-    console.error('Upload error:', err);
-    res.status(500).json({ error: err.message || 'File upload failed' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1557,8 +1536,7 @@ app.get('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) =
 
     res.json({ themes });
   } catch (err: any) {
-    console.error('Get themes error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1589,8 +1567,7 @@ app.get('/api/themes/system', authenticateJWT, async (req: AuthenticatedRequest,
 
     res.json({ themes, theme: primaryDefaultTheme });
   } catch (err: any) {
-    console.error('Get system themes error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1624,8 +1601,7 @@ app.post('/api/themes/clone-system/:systemThemeId', authenticateJWT, async (req:
     const cloned = await cloneSystemThemeToOrg(systemThemeId, organizationId, game_id, name);
     res.status(201).json({ theme: cloned });
   } catch (err: any) {
-    console.error('Clone system theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1658,8 +1634,7 @@ app.post('/api/themes/clone-all-system', authenticateJWT, async (req: Authentica
     const cloned = await cloneAllSystemThemesToOrg(organizationId, game_id);
     res.status(201).json({ themes: cloned });
   } catch (err: any) {
-    console.error('Clone all system themes error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1727,8 +1702,7 @@ app.get('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
     console.log(`[Theme API] Successfully resolved theme "${theme.name}" (id: ${theme.id}, is_system: ${isSystemTheme})`);
     res.json({ theme });
   } catch (err: any) {
-    console.error('Get theme details error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1801,8 +1775,7 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
 
     res.status(201).json({ ...theme, theme });
   } catch (err: any) {
-    console.error('Create theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1890,8 +1863,7 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
 
     res.json({ ...updatedTheme, theme: updatedTheme });
   } catch (err: any) {
-    console.error('Update theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1925,8 +1897,7 @@ app.post('/api/themes/:themeId/duplicate', authenticateJWT, async (req: Authenti
     const duplicated = await duplicateTheme(themeId, name);
     res.status(201).json({ theme: duplicated });
   } catch (err: any) {
-    console.error('Duplicate theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1964,8 +1935,7 @@ app.delete('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReq
     await deleteTheme(themeId);
     res.json({ success: true });
   } catch (err: any) {
-    console.error('Delete theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -1997,8 +1967,7 @@ app.get('/api/games', authenticateJWT, async (req: AuthenticatedRequest, res) =>
 
     res.json({ games });
   } catch (err: any) {
-    console.error('Get games error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2025,8 +1994,7 @@ app.get('/api/games/:gameId', authenticateJWT, async (req: AuthenticatedRequest,
 
     res.json({ game });
   } catch (err: any) {
-    console.error('Get game details error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2054,8 +2022,7 @@ app.get('/api/games/:gameId/themes', authenticateJWT, async (req: AuthenticatedR
     const themes = await getThemesByOrgId(game.organization_id, gameId);
     res.json({ themes });
   } catch (err: any) {
-    console.error('Get game themes error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2129,8 +2096,7 @@ app.put('/api/games/:gameId/customization', authenticateJWT, async (req: Authent
 
     res.json({ ...updatedGame, game: updatedGame });
   } catch (err: any) {
-    console.error('Update game customization error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2161,8 +2127,7 @@ app.get(['/api/events', '/api/organizations/:organizationId/events', '/api/organ
     const events = await getEventsByOrgId(organizationId);
     res.json({ events });
   } catch (err: any) {
-    console.error('Get events error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2189,8 +2154,7 @@ app.get('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
 
     res.json({ event });
   } catch (err: any) {
-    console.error('Get event details error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2261,12 +2225,7 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
         durationDays = pricing.durationDays;
         ruleLabel = pricing.ruleLabel;
       } catch (e: any) {
-        console.error('Authoritative pricing calculation failed in quote:', e);
-        const status = e?.status === 503 || e?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
-        res.status(status).json({
-          error: 'Pricing service temporarily unavailable',
-          message: e?.message || 'Pricing service temporarily unavailable',
-        });
+        handleApiError(e, req, res);
         return;
       }
     }
@@ -2371,8 +2330,7 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
       reasons: selectedCalculation.reasons,
     });
   } catch (err: any) {
-    console.error('Event quote error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2716,8 +2674,7 @@ app.get('/api/events/:eventId/cancellation-eligibility', authenticateJWT, async 
     const refund = determineEventRefund(event);
     res.json({ eligibility, refund });
   } catch (err: any) {
-    console.error('Cancellation eligibility error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2766,12 +2723,7 @@ app.post('/api/events/:eventId/cancel', eventRateLimiter, authenticateJWT, async
       refundResult: cancelled.refundResult,
     });
   } catch (err: any) {
-    console.error('Cancel event error:', err);
-    res.status(err.status || 422).json({
-      error: err.message,
-      code: err.code || 'CANCELLATION_FAILED',
-      eligibility: err.eligibility,
-    });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2829,8 +2781,7 @@ app.get('/api/events/:eventId/preview', authenticateJWT, async (req: Authenticat
       },
     });
   } catch (err: any) {
-    console.error('Get event preview error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2923,8 +2874,7 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
     const publicEvent = toPublicEventDTO(rawEvent);
     res.json({ event: publicEvent });
   } catch (err: any) {
-    console.error('Public event resolution error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -2986,8 +2936,7 @@ app.get('/api/public/events/:publicToken/high-scores', publicHighScoreReadRateLi
       ...result,
     });
   } catch (err: any) {
-    console.error('Get public event high scores error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3052,8 +3001,7 @@ app.post('/api/public/events/:publicToken/high-scores', highScoreRateLimiter, as
       ...result,
     });
   } catch (err: any) {
-    console.error('Submit public event high score error:', err);
-    res.status(err.status || 422).json({ error: err.message, code: err.code });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3098,8 +3046,7 @@ app.get('/api/events/:eventId/admin/high-scores', authenticateJWT, async (req: A
       is_before_start_date: isBeforeStart,
     });
   } catch (err: any) {
-    console.error('Admin get high scores error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3156,8 +3103,7 @@ app.post('/api/events/:eventId/admin/high-scores', authenticateJWT, highScoreRat
       ...result,
     });
   } catch (err: any) {
-    console.error('Submit organizer high score error:', err);
-    res.status(err.status || 422).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3185,8 +3131,7 @@ app.delete(['/api/events/:eventId/admin/high-scores/:scoreId', '/api/events/:eve
     await deleteEventScore(eventId, scoreId);
     res.json({ success: true, message: 'Score deleted successfully' });
   } catch (err: any) {
-    console.error('Delete score error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3233,9 +3178,8 @@ app.post(
         deleted_count: result.deleted_count,
       });
     } catch (err: any) {
-      console.error('Manual clear test scores error:', err);
-      res.status(err.status || 500).json({ error: err.message, code: err.code });
-    }
+      handleApiError(err, req, res);
+  }
   }
 );
 
@@ -3263,8 +3207,7 @@ app.post(['/api/events/:eventId/admin/high-scores/clear', '/api/events/:eventId/
     await clearEventHighScores(eventId);
     res.json({ success: true, message: 'Event leaderboard reset successfully' });
   } catch (err: any) {
-    console.error('Clear high scores error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3319,8 +3262,7 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
 
     res.status(404).json({ error: 'Showcase is not published' });
   } catch (err: any) {
-    console.error('Get showcase error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3339,7 +3281,7 @@ app.get('/api/user/showcase-reward-status', authenticateJWT, async (req: Authent
     const status = await getOwnerShowcaseRewardStatus(userId);
     res.json(status);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3357,7 +3299,7 @@ app.get('/api/showcases/user-reward-status', authenticateJWT, async (req: Authen
     const status = await getOwnerShowcaseRewardStatus(userId);
     res.json(status);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3420,8 +3362,7 @@ app.get('/api/showcases/:id', generalApiRateLimiter, authenticateOptionalJWT, as
       isPreview: isOrgMember && showcase.status !== 'PUBLISHED',
     });
   } catch (err: any) {
-    console.error('Get public showcase error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3465,8 +3406,7 @@ app.get('/api/showcases/:id/media', generalApiRateLimiter, authenticateOptionalJ
     const media = await getShowcaseMedia(showcase.id, event.organization_id);
     res.json({ media });
   } catch (err: any) {
-    console.error('Get showcase media error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3529,8 +3469,7 @@ app.post('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT, 
 
     res.status(201).json({ showcase });
   } catch (err: any) {
-    console.error('Create showcase error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3614,8 +3553,7 @@ app.patch('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT,
 
     res.json({ showcase });
   } catch (err: any) {
-    console.error('Update showcase error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3672,8 +3610,7 @@ app.post('/api/events/:eventId/showcase/publish', showcaseRateLimiter, authentic
     evaluateShowcaseRewardEligibility(eventId).catch((err) => console.warn('Reward evaluation notice on publish:', err));
     res.json({ showcase });
   } catch (err: any) {
-    console.error('Publish showcase error:', err);
-    res.status(err.status || 500).json({ error: err.message, code: err.code });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3707,8 +3644,7 @@ app.post('/api/events/:eventId/showcase/unpublish', showcaseRateLimiter, authent
     const showcase = await unpublishShowcase(eventId);
     res.json({ showcase });
   } catch (err: any) {
-    console.error('Unpublish showcase error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3736,8 +3672,7 @@ app.delete('/api/events/:eventId/showcase', showcaseRateLimiter, authenticateJWT
     await deleteShowcase(eventId);
     res.json({ success: true, message: 'Showcase deleted successfully' });
   } catch (err: any) {
-    console.error('Delete showcase error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3780,8 +3715,7 @@ app.get('/api/events/:eventId/showcase/media', authenticateOptionalJWT, async (r
     const media = await getShowcaseMedia(showcase.id, event.organization_id);
     res.json({ media });
   } catch (err: any) {
-    console.error('Get showcase media error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3916,8 +3850,7 @@ app.post('/api/events/:eventId/showcase/media/upload-url', uploadRateLimiter, au
       },
     });
   } catch (err: any) {
-    console.error('Create showcase upload URL error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -3941,7 +3874,7 @@ app.post(
           });
           return;
         }
-        res.status(400).json({ error: err.message || 'File upload error', code: 'UPLOAD_ERROR' });
+        handleApiError(err, req, res);
         return;
       }
       next();
@@ -4118,9 +4051,8 @@ app.post(
         fileSize,
       });
     } catch (err: any) {
-      console.error('Direct media upload error:', err);
-      res.status(500).json({ error: err.message || 'Direct upload failed' });
-    }
+      handleApiError(err, req, res);
+  }
   }
 );
 
@@ -4211,8 +4143,7 @@ app.post('/api/events/:eventId/showcase/media', showcaseRateLimiter, authenticat
 
     res.status(201).json({ media });
   } catch (err: any) {
-    console.error('Create showcase media record error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4258,8 +4189,7 @@ app.patch('/api/events/:eventId/showcase/media/reorder', showcaseRateLimiter, au
     const updatedMedia = await reorderShowcaseMedia(showcase.id, media_ids, event.organization_id);
     res.json({ success: true, media: updatedMedia });
   } catch (err: any) {
-    console.error('Reorder showcase media error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4316,8 +4246,7 @@ app.delete('/api/events/:eventId/showcase/media/:mediaId', showcaseRateLimiter, 
     await deleteShowcaseMedia(mediaId, showcase.id, event.organization_id);
     res.json({ success: true });
   } catch (err: any) {
-    console.error('Delete showcase media error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4329,7 +4258,7 @@ app.delete('/api/events/:eventId/showcase/media/:mediaId', showcaseRateLimiter, 
  * GET /api/developer/stats
  * Overview dashboard metrics for developer platform admin
  */
-app.get('/api/developer/stats', authenticateDeveloperAdmin, async (_req, res) => {
+app.get('/api/developer/stats', authenticateDeveloperAdmin, async (req, res) => {
   try {
     const games = await getAllPlatformGames();
     const themes = await getAllSystemThemes();
@@ -4342,8 +4271,7 @@ app.get('/api/developer/stats', authenticateDeveloperAdmin, async (_req, res) =>
       },
     });
   } catch (err: any) {
-    console.error('Developer stats error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4351,13 +4279,12 @@ app.get('/api/developer/stats', authenticateDeveloperAdmin, async (_req, res) =>
  * GET /api/developer/games
  * List all platform games with their system theme counts
  */
-app.get('/api/developer/games', authenticateDeveloperAdmin, async (_req, res) => {
+app.get('/api/developer/games', authenticateDeveloperAdmin, async (req, res) => {
   try {
     const games = await getAllPlatformGames();
     res.json({ games });
   } catch (err: any) {
-    console.error('Developer get games error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4405,12 +4332,7 @@ app.post('/api/developer/games', authenticateDeveloperAdmin, async (req: Authent
 
     res.status(201).json({ game });
   } catch (err: any) {
-    console.error('Developer create game error:', err);
-    if (err.code === 'GAME_TYPE_ALREADY_REGISTERED' || err.code === 'GAME_SLUG_ALREADY_REGISTERED' || err.name === 'GameConflictError') {
-      res.status(409).json({ success: false, error: err.code || 'GAME_CONFLICT', message: err.message });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4430,8 +4352,7 @@ app.get('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (req: 
     const themes = await getSystemThemesByGameId(gameId, { status: 'all' });
     res.json({ game, themes });
   } catch (err: any) {
-    console.error('Developer get game error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4448,12 +4369,7 @@ const handleUpdatePlatformGame = async (req: AuthenticatedRequest, res: any) => 
     const game = await updatePlatformGame(gameId, updates);
     res.json({ game });
   } catch (err: any) {
-    console.error('Developer update game error:', err);
-    if (err.code === 'GAME_TYPE_ALREADY_REGISTERED' || err.code === 'GAME_SLUG_ALREADY_REGISTERED' || err.name === 'GameConflictError') {
-      res.status(409).json({ success: false, error: err.code || 'GAME_CONFLICT', message: err.message });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -4470,16 +4386,11 @@ app.delete('/api/developer/games/:gameId', authenticateDeveloperAdmin, async (re
     await deletePlatformGame(gameId);
     res.json({ success: true, message: 'Game deleted successfully' });
   } catch (err: any) {
-    console.error('Developer delete game error:', err);
     if (err.code === 'GAME_IN_USE' || err.code === '23503' || err.status === 409) {
-      res.status(409).json({
-        success: false,
-        code: 'GAME_IN_USE',
-        error: err.message || 'Cannot delete game because it is used by existing events. Deactivate the game instead.',
-      });
+      handleApiError(new AppError('Cannot delete game because it is used by existing events. Deactivate the game instead.', 409, 'GAME_IN_USE'), req, res);
       return;
     }
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4493,8 +4404,7 @@ app.get('/api/developer/games/:gameId/themes', authenticateDeveloperAdmin, async
     const themes = await getSystemThemesByGameId(gameId, { status: 'all' });
     res.json({ themes });
   } catch (err: any) {
-    console.error('Developer get game themes error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4555,8 +4465,7 @@ app.post('/api/developer/games/:gameId/themes', authenticateDeveloperAdmin, asyn
 
     res.status(201).json({ theme });
   } catch (err: any) {
-    console.error('Developer create theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4578,8 +4487,7 @@ app.get('/api/developer/themes/:themeId', authenticateDeveloperAdmin, async (req
     }
     res.json({ theme });
   } catch (err: any) {
-    console.error('Developer get theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4599,8 +4507,7 @@ app.put('/api/developer/themes/:themeId', authenticateDeveloperAdmin, async (req
     const theme = await updateSystemTheme(themeId, updates);
     res.json({ theme });
   } catch (err: any) {
-    console.error('Developer update theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4618,8 +4525,7 @@ app.delete('/api/developer/themes/:themeId', authenticateDeveloperAdmin, async (
     await deleteSystemTheme(themeId);
     res.json({ success: true });
   } catch (err: any) {
-    console.error('Developer delete theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4639,8 +4545,7 @@ app.post('/api/developer/themes/:themeId/duplicate', authenticateDeveloperAdmin,
     const duplicated = await duplicateSystemTheme(themeId, name);
     res.status(201).json({ theme: duplicated });
   } catch (err: any) {
-    console.error('Developer duplicate theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4658,8 +4563,7 @@ app.post('/api/developer/themes/:themeId/set-default', authenticateDeveloperAdmi
     const updatedTheme = await setPrimaryDefaultSystemTheme(themeId);
     res.json({ success: true, theme: updatedTheme });
   } catch (err: any) {
-    console.error('Developer set default theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4677,8 +4581,7 @@ app.post('/api/developer/themes/:themeId/unset-default', authenticateDeveloperAd
     const updatedTheme = await unsetPrimaryDefaultSystemTheme(themeId);
     res.json({ success: true, theme: updatedTheme });
   } catch (err: any) {
-    console.error('Developer unset default theme error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4690,13 +4593,12 @@ app.post('/api/developer/themes/:themeId/unset-default', authenticateDeveloperAd
  * GET /api/developer/showcases (or /api/admin/showcases)
  * List all showcases with event, organization, media stats, and review status
  */
-const handleGetAdminShowcases = async (_req: AuthenticatedRequest, res: any) => {
+const handleGetAdminShowcases = async (req: AuthenticatedRequest, res: any) => {
   try {
     const showcases = await getAllShowcasesForAdmin();
     res.json({ showcases });
   } catch (err: any) {
-    console.error('Admin get showcases error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -4723,16 +4625,7 @@ const handleApproveShowcase = async (req: AuthenticatedRequest, res: any) => {
         : 'Showcase approved successfully and RM300 credit granted to organization',
     });
   } catch (err: any) {
-    console.error('Approve showcase error:', err);
-    if (err.code === 'SHOWCASE_NOT_FOUND') {
-      res.status(404).json({ error: err.message });
-      return;
-    }
-    if (err.code === 'INVALID_STATUS_TRANSITION') {
-      res.status(400).json({ error: err.message });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -4764,16 +4657,7 @@ const handleRejectShowcase = async (req: AuthenticatedRequest, res: any) => {
       message: 'Showcase rejected with feedback for the organization',
     });
   } catch (err: any) {
-    console.error('Reject showcase error:', err);
-    if (err.code === 'SHOWCASE_NOT_FOUND') {
-      res.status(404).json({ error: err.message });
-      return;
-    }
-    if (err.code === 'REJECTION_REASON_REQUIRED') {
-      res.status(422).json({ error: err.message });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -4808,8 +4692,7 @@ const handleApproveEventReview = async (req: AuthenticatedRequest, res: any) => 
       message: 'Event review approved successfully',
     });
   } catch (err: any) {
-    console.error('Approve event review error:', err);
-    res.status(err.code === 'SHOWCASE_NOT_FOUND' ? 404 : 500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -4835,8 +4718,7 @@ const handleRejectEventReview = async (req: AuthenticatedRequest, res: any) => {
       message: 'Event review rejected with feedback',
     });
   } catch (err: any) {
-    console.error('Reject event review error:', err);
-    res.status(err.code === 'SHOWCASE_NOT_FOUND' ? 404 : 500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -4860,7 +4742,7 @@ app.get('/api/developer/showcases/owner-status/:ownerUserId', authenticateDevelo
     const status = await getOwnerShowcaseRewardStatus(ownerUserId);
     res.json(status);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4886,12 +4768,7 @@ const handleBlockShowcase = async (req: AuthenticatedRequest, res: any) => {
       message: 'Showcase has been blocked and removed from public access.',
     });
   } catch (err: any) {
-    console.error('Block showcase error:', err);
-    if (err.code === 'SHOWCASE_NOT_FOUND') {
-      res.status(404).json({ error: err.message });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -4917,12 +4794,7 @@ const handleUnblockShowcase = async (req: AuthenticatedRequest, res: any) => {
       message: 'Showcase has been unblocked and restored to public view.',
     });
   } catch (err: any) {
-    console.error('Unblock showcase error:', err);
-    if (err.code === 'SHOWCASE_NOT_FOUND') {
-      res.status(404).json({ error: err.message });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -4953,12 +4825,7 @@ const handleAdminDeleteShowcase = async (req: AuthenticatedRequest, res: any) =>
       message: 'Showcase deleted administratively.',
     });
   } catch (err: any) {
-    console.error('Admin delete showcase error:', err);
-    if (err.code === 'SHOWCASE_NOT_FOUND') {
-      res.status(404).json({ error: err.message });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -4975,17 +4842,12 @@ app.delete('/api/admin/showcases/:showcaseId', authenticateDeveloperAdmin, handl
  * GET /api/platform/pricing
  * Retrieve current platform default event pricing configuration (RM1,400 default)
  */
-app.get('/api/platform/pricing', async (_req, res) => {
+app.get('/api/platform/pricing', async (req, res) => {
   try {
     const settings = await getPlatformPricingSettings();
     res.json(settings);
   } catch (err: any) {
-    console.error('Get platform pricing error:', err);
-    const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
-    res.status(status).json({
-      error: 'Pricing service temporarily unavailable',
-      message: err?.message || 'Pricing service temporarily unavailable',
-    });
+    handleApiError(err, req, res);
   }
 });
 
@@ -4993,17 +4855,12 @@ app.get('/api/platform/pricing', async (_req, res) => {
  * GET /api/developer/pricing/settings (and /api/admin/pricing/settings)
  * Developer Admin: get platform pricing configuration
  */
-const handleGetAdminPricingSettings = async (_req: AuthenticatedRequest, res: any) => {
+const handleGetAdminPricingSettings = async (req: AuthenticatedRequest, res: any) => {
   try {
     const settings = await getPlatformPricingSettings();
     res.json({ success: true, settings });
   } catch (err: any) {
-    console.error('Admin get pricing settings error:', err);
-    const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
-    res.status(status).json({
-      error: 'Pricing service temporarily unavailable',
-      message: err?.message || 'Pricing service temporarily unavailable',
-    });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5042,8 +4899,7 @@ const handleUpdateAdminPricingSettings = async (req: AuthenticatedRequest, res: 
       message: `Platform pricing settings updated successfully`,
     });
   } catch (err: any) {
-    console.error('Admin update pricing settings error:', err);
-    res.status(422).json({ error: err.message || 'Failed to update pricing settings' });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5055,13 +4911,12 @@ app.post('/api/developer/pricing/settings', authenticateDeveloperAdmin, handleUp
  * GET /api/developer/events (and /api/admin/events)
  * Developer Admin: list all events across the platform with pricing and payment details
  */
-const handleGetAllAdminEvents = async (_req: AuthenticatedRequest, res: any) => {
+const handleGetAllAdminEvents = async (req: AuthenticatedRequest, res: any) => {
   try {
     const events = await getAllAdminEvents();
     res.json({ success: true, events });
   } catch (err: any) {
-    console.error('Admin get all events error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5098,12 +4953,7 @@ const handleUpdateEventPricing = async (req: AuthenticatedRequest, res: any) => 
       message: `Event price updated to ${updatedEvent.event_currency || 'MYR'} ${(updatedEvent.event_price || priceNum).toFixed(2)}`,
     });
   } catch (err: any) {
-    console.error('Admin update event price error:', err);
-    if (err.code === 'EVENT_NOT_FOUND' || err.message?.includes('not found')) {
-      res.status(404).json({ error: err.message });
-      return;
-    }
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5132,8 +4982,7 @@ const handleReactivateAdminEvent = async (req: AuthenticatedRequest, res: any) =
       message: `Event "${event.name}" successfully reactivated to ${event.event_status} status.`,
     });
   } catch (err: any) {
-    console.error('Admin reactivate event error:', err);
-    res.status(err.status || 500).json({ error: err.message || 'Failed to reactivate event' });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5144,7 +4993,7 @@ app.post('/api/admin/events/:eventId/reactivate', authenticateDeveloperAdmin, ha
  * POST /api/developer/events/maintenance (and /api/admin/events/maintenance)
  * Developer Admin: Manually trigger event lifecycle maintenance worker
  */
-const handleRunEventMaintenance = async (_req: AuthenticatedRequest, res: any) => {
+const handleRunEventMaintenance = async (req: AuthenticatedRequest, res: any) => {
   try {
     const result = await runEventLifecycleMaintenance();
     res.json({
@@ -5153,8 +5002,7 @@ const handleRunEventMaintenance = async (_req: AuthenticatedRequest, res: any) =
       message: `Maintenance complete: ${result.expiredCount} unpaid expired events marked expired, ${result.completedCount} expired paid events marked completed.`,
     });
   } catch (err: any) {
-    console.error('Run event maintenance error:', err);
-    res.status(500).json({ error: err.message || 'Failed to run event lifecycle maintenance' });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5169,13 +5017,12 @@ app.post('/api/admin/events/maintenance', authenticateDeveloperAdmin, handleRunE
  * GET /api/developer/organizations
  * Retrieve all organizations with aggregated info (member count, event count, wallet balances)
  */
-app.get('/api/developer/organizations', authenticateDeveloperAdmin, async (_req: AuthenticatedRequest, res: any) => {
+app.get('/api/developer/organizations', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
   try {
     const organizations = await getAllOrganizationsForDeveloper();
     res.json({ success: true, organizations });
   } catch (err: any) {
-    console.error('Developer get organizations error:', err);
-    res.status(500).json({ error: err.message || 'Failed to fetch developer organizations' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -5196,8 +5043,7 @@ app.get('/api/developer/organizations/:orgId', authenticateDeveloperAdmin, async
       ...detail,
     });
   } catch (err: any) {
-    console.error('Developer get organization detail error:', err);
-    res.status(500).json({ error: err.message || 'Failed to fetch organization details' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -5215,8 +5061,7 @@ app.post('/api/developer/organizations/:orgId/wallet/recalculate', authenticateD
       wallet: summary,
     });
   } catch (err: any) {
-    console.error('Developer recalculate wallet error:', err);
-    res.status(500).json({ error: err.message || 'Failed to recalculate wallet balances' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -5256,8 +5101,7 @@ app.get('/api/organizations/:orgId/wallet', authenticateJWT, async (req: Authent
       standard_event_price: standardEventPrice,
     });
   } catch (err: any) {
-    console.error('Get wallet error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -5302,8 +5146,7 @@ app.get('/api/organizations/:orgId/wallet/transactions', authenticateJWT, async 
 
     res.json(result);
   } catch (err: any) {
-    console.error('Get wallet transactions error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -5333,8 +5176,7 @@ app.get('/api/organizations/:orgId/wallet/audit-trail', authenticateJWT, async (
     const result = await getWalletAuditTrail(orgId, { limit, offset, eventType });
     res.json(result);
   } catch (err: any) {
-    console.error('Get wallet audit trail error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -5381,8 +5223,7 @@ app.get('/api/organizations/:orgId/wallet/topup/quote', authenticateJWT, async (
 
     res.json(quote);
   } catch (err: any) {
-    console.error('Get top-up quote error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -5444,8 +5285,7 @@ const handleCreateTopupOrder = async (req: AuthenticatedRequest, res: express.Re
       message: 'Top-up order created successfully in PENDING status. No wallet balance credited.',
     });
   } catch (err: any) {
-    console.error('Create top-up order error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5518,8 +5358,7 @@ const handleGetTopupOrder = async (req: AuthenticatedRequest, res: express.Respo
 
     res.json({ order });
   } catch (err: any) {
-    console.error('Get top-up order error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5549,8 +5388,7 @@ const handleListTopupOrders = async (req: AuthenticatedRequest, res: express.Res
     const orders = await listTopupOrdersByOrganization(orgId);
     res.json({ orders });
   } catch (err: any) {
-    console.error('List top-up orders error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5633,8 +5471,7 @@ const handleProcessTopupStatus = async (req: AuthenticatedRequest, res: express.
 
     res.json(result);
   } catch (err: any) {
-    console.error('Process top-up order status error:', err);
-    res.status(err.status || 500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5692,8 +5529,7 @@ const handleCreateCheckoutSession = async (req: AuthenticatedRequest, res: expre
       sessionId: session.sessionId,
     });
   } catch (err: any) {
-    console.error('Create payment checkout session error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5757,12 +5593,7 @@ const handlePaymentWebhook = async (req: express.Request, res: express.Response)
       message: result.message,
     });
   } catch (err: any) {
-    console.error('Payment webhook processing error:', err.message);
-    const statusCode = err.status || (err.code === 'INVALID_SIGNATURE' ? 400 : 422);
-    res.status(statusCode).json({
-      error: err.message || 'Payment webhook verification failed',
-      code: err.code || 'WEBHOOK_VERIFICATION_FAILED',
-    });
+    handleApiError(err, req, res);
   }
 };
 
@@ -5833,8 +5664,7 @@ app.post('/api/developer/wallet/test-webhook', authenticateDeveloperAdmin, async
       result,
     });
   } catch (err: any) {
-    console.error('Test webhook error:', err);
-    res.status(err.status || 500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -5885,8 +5715,7 @@ app.post('/api/developer/wallet/topups/:id/reconcile', authenticateJWT, authenti
       ...result,
     });
   } catch (err: any) {
-    console.error('Developer top-up reconciliation error:', err);
-    res.status(err.status || 400).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -5927,8 +5756,7 @@ app.post('/api/organizations/:orgId/wallet/topup/prepare-order', walletRateLimit
 
     res.status(201).json(result);
   } catch (err: any) {
-    console.error('Prepare top-up order error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -5959,8 +5787,7 @@ app.get('/api/organizations/:orgId/wallet/topup/orders/:orderId', authenticateJW
 
     res.json({ order });
   } catch (err: any) {
-    console.error('Get top-up order error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6007,8 +5834,7 @@ app.post('/api/organizations/:orgId/wallet/grant-welcome', walletRateLimiter, au
       message: result.message,
     });
   } catch (err: any) {
-    console.error('Grant welcome credit error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6051,8 +5877,7 @@ app.get('/api/organizations/:orgId/rewards/eligibility', authenticateJWT, async 
       showcase_reward: showcaseEligibility,
     });
   } catch (err: any) {
-    console.error('Check promotion eligibility error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6079,8 +5904,7 @@ app.get('/api/organizations/:orgId/wallet/can-use-welcome', authenticateJWT, asy
     const eligibility = await canUseWelcomeCredit(orgId, eventId);
     res.json(eligibility);
   } catch (err: any) {
-    console.error('Can use welcome credit error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6120,8 +5944,7 @@ app.post('/api/organizations/:orgId/wallet/consume-welcome', walletRateLimiter, 
 
     res.json(result);
   } catch (err: any) {
-    console.error('Consume welcome credit error:', err);
-    res.status(400).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6165,8 +5988,7 @@ app.post('/api/organizations/:orgId/wallet/grant-showcase', walletRateLimiter, a
       already_granted: result.alreadyGranted,
     });
   } catch (err: any) {
-    console.error('Grant showcase credit error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6193,8 +6015,7 @@ app.get('/api/organizations/:orgId/wallet/can-use-showcase', authenticateJWT, as
     const eligibility = await canUseShowcaseCredit(orgId, eventId);
     res.json(eligibility);
   } catch (err: any) {
-    console.error('Can use showcase credit error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6234,8 +6055,7 @@ app.post('/api/organizations/:orgId/wallet/consume-showcase', walletRateLimiter,
 
     res.json(result);
   } catch (err: any) {
-    console.error('Consume showcase credit error:', err);
-    res.status(400).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6265,12 +6085,7 @@ app.post('/api/organizations/:orgId/wallet/calculate-event-payment', walletRateL
         const settings = await getPlatformPricingSettings();
         price = settings.default_price;
       } catch (err: any) {
-        console.error('Failed to resolve authoritative price for calculate-event-payment:', err);
-        const status = err?.status === 503 || err?.message?.includes('Pricing service temporarily unavailable') ? 503 : 500;
-        res.status(status).json({
-          error: 'Pricing service temporarily unavailable',
-          message: err?.message || 'Pricing service temporarily unavailable',
-        });
+        handleApiError(err, req, res);
         return;
       }
     }
@@ -6300,8 +6115,7 @@ app.post('/api/organizations/:orgId/wallet/calculate-event-payment', walletRateL
       reasons: calculation.reasons,
     });
   } catch (err: any) {
-    console.error('Calculate event payment error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6335,8 +6149,7 @@ app.post('/api/organizations/:orgId/wallet/quote-payment', walletRateLimiter, au
 
     res.json({ quote });
   } catch (err: any) {
-    console.error('Quote payment error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6395,8 +6208,7 @@ app.post('/api/organizations/:orgId/wallet/pay-event', walletRateLimiter, authen
       quote: result.quote,
     });
   } catch (err: any) {
-    console.error('Process event payment error:', err);
-    res.status(400).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6410,8 +6222,7 @@ app.post('/api/developer/organizations/:orgId/wallet/recalculate', authenticateD
     const wallet = await recalculateWalletBalances(orgId);
     res.json({ success: true, wallet });
   } catch (err: any) {
-    console.error('Recalculate wallet error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6439,8 +6250,7 @@ app.post('/api/developer/wallet/reverse', authenticateDeveloperAdmin, async (req
       wallet: result.wallet,
     });
   } catch (err: any) {
-    console.error('Reverse transaction error:', err);
-    res.status(500).json({ error: err.message });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6482,8 +6292,7 @@ app.get('/api/email/google/connect', authenticateDeveloperAdmin, async (req: Aut
       redirectUri: callbackRedirectUri,
     });
   } catch (err: any) {
-    console.error('Error generating Google connect URL:', err);
-    res.status(500).json({ error: err.message || 'Failed to initiate Google OAuth connect' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6548,7 +6357,8 @@ app.get('/api/email/google/callback', async (req: express.Request, res: express.
     res.redirect(302, redirectSuccess);
   } catch (err: any) {
     console.error('[Gmail OAuth] Failed to complete token exchange or save settings:', err);
-    res.redirect(302, `${redirectErrorBase}&reason=exchange_failed&detail=${encodeURIComponent(err.message || '')}`);
+    const safeDetail = isOperationalError(err) ? (err.message || '') : 'Token exchange failed';
+    res.redirect(302, `${redirectErrorBase}&reason=exchange_failed&detail=${encodeURIComponent(safeDetail)}`);
   }
 });
 
@@ -6582,8 +6392,7 @@ app.get('/api/email/google/status', authenticateDeveloperAdmin, async (req: Auth
       hasClientSecret: Boolean(config.clientSecret),
     });
   } catch (err: any) {
-    console.error('Error fetching Google Mail status:', err);
-    res.status(500).json({ error: err.message || 'Failed to fetch Google Mail status' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6600,8 +6409,7 @@ app.post('/api/email/google/disconnect', authenticateDeveloperAdmin, async (req:
       message: 'Gmail sending integration successfully disconnected.',
     });
   } catch (err: any) {
-    console.error('Error disconnecting Google Mail:', err);
-    res.status(500).json({ error: err.message || 'Failed to disconnect Google Mail' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6646,10 +6454,7 @@ app.post('/api/email/test', authenticateDeveloperAdmin, async (req: Authenticate
       recipientEmail: targetEmail,
     });
   } catch (err: any) {
-    console.error('Test email sending error:', err);
-    res.status(500).json({
-      error: err.message || 'Failed to dispatch test email via Gmail API',
-    });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6683,8 +6488,7 @@ app.get('/api/notifications', authenticateJWT, async (req: AuthenticatedRequest,
 
     res.json(result);
   } catch (err: any) {
-    console.error('List notifications error:', err);
-    res.status(500).json({ error: err.message || 'Failed to list notifications' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6702,8 +6506,7 @@ app.get('/api/notifications/unread-count', authenticateJWT, async (req: Authenti
     const count = await getUnreadNotificationCount(user.id, organizationId);
     res.json({ unread_count: count });
   } catch (err: any) {
-    console.error('Get unread notification count error:', err);
-    res.status(500).json({ error: err.message || 'Failed to get unread count' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6724,8 +6527,7 @@ const handleMarkNotificationRead = async (req: AuthenticatedRequest, res: expres
 
     res.json({ notification });
   } catch (err: any) {
-    console.error('Mark notification read error:', err);
-    res.status(500).json({ error: err.message || 'Failed to mark notification as read' });
+    handleApiError(err, req, res);
   }
 };
 app.patch('/api/notifications/:id/read', authenticateJWT, handleMarkNotificationRead);
@@ -6745,8 +6547,7 @@ app.post('/api/notifications/mark-all-read', authenticateJWT, async (req: Authen
     const resObj = await markAllNotificationsAsRead(user.id, organizationId);
     res.json({ success: true, count: resObj.marked_count, marked_count: resObj.marked_count });
   } catch (err: any) {
-    console.error('Mark all notifications read error:', err);
-    res.status(500).json({ error: err.message || 'Failed to mark all notifications as read' });
+    handleApiError(err, req, res);
   }
 });
 
@@ -6762,8 +6563,7 @@ app.delete('/api/notifications/:id', authenticateJWT, async (req: AuthenticatedR
     await deleteNotification(id, user.id);
     res.json({ success: true });
   } catch (err: any) {
-    console.error('Delete notification error:', err);
-    res.status(500).json({ error: err.message || 'Failed to delete notification' });
+    handleApiError(err, req, res);
   }
 });
 
