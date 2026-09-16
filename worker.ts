@@ -163,6 +163,9 @@ import {
   deleteNotification,
   listApiErrorLogs,
   getApiErrorLogById,
+  evaluatePromotionEligibility,
+  hasUserClaimedReward,
+  isUserOrganizationOwner,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import { handleWorkerApiError, AppError, resolveCorrelationId, isOperationalError } from './server/errors.js';
@@ -6171,10 +6174,55 @@ export default {
           );
           return jsonResponse(
             {
-              success: true,
+              success: !result.alreadyGranted && !result.notEligible,
               transaction: result.transaction,
               wallet: result.wallet,
               already_granted: result.alreadyGranted,
+              not_eligible: Boolean(result.notEligible),
+              message: result.message,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/organizations/:orgId/rewards/eligibility
+      const orgRewardsEligibilityMatch = pathname.match(/^\/api\/organizations\/([^\/]+)\/rewards\/eligibility$/);
+      if (orgRewardsEligibilityMatch && method === 'GET') {
+        const orgId = orgRewardsEligibilityMatch[1];
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const userId = auth.user.id;
+        const { isMember } = await verifyOrgMembershipAndPermission(userId, orgId, undefined, env);
+        const isDev = isUserDeveloperAdmin(auth.user, env);
+        if (!isMember && !isDev) {
+          return errorResponse('Forbidden: Must be a member of the organization.', 403, cors);
+        }
+
+        try {
+          const welcomeEligibility = await evaluatePromotionEligibility({
+            userId,
+            organizationId: orgId,
+            rewardType: 'WELCOME_CREDIT',
+            env,
+          });
+
+          const showcaseEligibility = await evaluatePromotionEligibility({
+            userId,
+            organizationId: orgId,
+            rewardType: 'SHOWCASE_REWARD',
+            env,
+          });
+
+          return jsonResponse(
+            {
+              is_owner: welcomeEligibility.isOwner,
+              welcome_credit: welcomeEligibility,
+              showcase_reward: showcaseEligibility,
             },
             200,
             cors

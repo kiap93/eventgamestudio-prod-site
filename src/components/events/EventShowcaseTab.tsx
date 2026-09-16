@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../lib/api';
-import { EventShowcase, RewardReviewStatus, ShowcaseStatus } from '../../types/showcase';
+import { EventShowcase, ShowcaseStatus } from '../../types/showcase';
 import { isEventEligibleForShowcase } from '../../lib/dateUtils';
 import { ShowcaseMediaManager } from './showcase/ShowcaseMediaManager';
 import {
@@ -19,7 +19,6 @@ import {
   CheckCircle2,
   Film,
   Layers,
-  Gift,
   XCircle,
   Lock,
   Trash2,
@@ -31,25 +30,15 @@ interface EventShowcaseTabProps {
   event: any;
   userRole?: string;
   onShowcaseChanged?: (showcase: EventShowcase | null) => void;
-  initialLifetimeRewardStatus?: {
-    hasReceivedReward: boolean;
-    eligible: boolean;
-    reward?: any;
-  } | null;
+  initialLifetimeRewardStatus?: any;
 }
 
 export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
   event,
   userRole,
   onShowcaseChanged,
-  initialLifetimeRewardStatus,
 }) => {
   const [showcase, setShowcase] = useState<EventShowcase | null>(null);
-  const [lifetimeRewardStatus, setLifetimeRewardStatus] = useState<{
-    hasReceivedReward: boolean;
-    eligible: boolean;
-    reward?: any;
-  } | null>(initialLifetimeRewardStatus || null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -113,9 +102,6 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
       const data = await res.json();
       const sc: EventShowcase | null = data.showcase;
       setShowcase(sc);
-      if (data.lifetimeRewardStatus) {
-        setLifetimeRewardStatus(data.lifetimeRewardStatus);
-      }
 
       if (sc) {
         setTitle(sc.title || '');
@@ -134,22 +120,9 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
     }
   };
 
-  const fetchLifetimeRewardStatus = async () => {
-    try {
-      const res = await apiFetch('/api/user/showcase-reward-status');
-      if (res.ok) {
-        const data = await res.json();
-        setLifetimeRewardStatus(data);
-      }
-    } catch (err) {
-      console.error('Error fetching lifetime showcase reward status:', err);
-    }
-  };
-
   useEffect(() => {
     if (event?.id) {
       fetchShowcase();
-      fetchLifetimeRewardStatus();
     }
   }, [event?.id]);
 
@@ -371,67 +344,6 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
     }
   };
 
-  const getRewardBadge = (rewardStatus?: RewardReviewStatus) => {
-    switch (rewardStatus) {
-      case 'REWARDED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-            <Gift className="w-3.5 h-3.5 text-emerald-400" />
-            RM300 REWARDED
-          </span>
-        );
-      case 'AWAITING_APPROVAL':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            REWARD ELIGIBLE
-          </span>
-        );
-      case 'REJECTED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/15 border border-rose-500/30 text-rose-300">
-            <XCircle className="w-3.5 h-3.5 text-rose-400" />
-            REWARD NOT APPROVED
-          </span>
-        );
-      case 'NOT_ELIGIBLE':
-      default:
-        if (lifetimeRewardStatus?.hasReceivedReward) {
-          return (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-900 border border-slate-800 text-slate-400">
-              <Check className="w-3.5 h-3.5 text-slate-500" />
-              LIFETIME REWARD CLAIMED
-            </span>
-          );
-        }
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-900 border border-slate-800 text-slate-400">
-            <Clock className="w-3.5 h-3.5 text-slate-500" />
-            PENDING REQUIREMENTS
-          </span>
-        );
-    }
-  };
-
-  // User/Owner lifetime reward check:
-  // Must NOT have received lifetime reward across their entire account
-  const hasReceivedLifetimeReward = lifetimeRewardStatus?.hasReceivedReward === true;
-
-  // Showcase-level eligibility for promotional banner:
-  // Event must be capable of qualifying (not cancelled/expired without payment),
-  // and current showcase must not be already rewarded, rejected, or blocked.
-  const isShowcaseEligibleForPromo = 
-    !showcase || (
-      showcase.reward_review_status !== 'REWARDED' &&
-      showcase.reward_review_status !== 'REJECTED' &&
-      showcase.status !== 'BLOCKED'
-    );
-
-  // The first-event promotional banner appears ONLY when:
-  // 1. Authenticated owner has NOT previously received the lifetime Showcase Reward
-  // 2. AND the current event/showcase is otherwise capable of qualifying
-  const showFirstEventPromoBanner = !hasReceivedLifetimeReward && isShowcaseEligibleForPromo;
-
   return (
     <div className="space-y-6">
       {/* Notifications */}
@@ -462,79 +374,6 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
         </div>
       )}
 
-      {/* Reward Status Banner */}
-      {showcase && showcase.reward_review_status === 'REWARDED' && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-start gap-3">
-          <Gift className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <div className="text-xs font-bold text-emerald-300 flex items-center gap-2">
-              <span>Showcase RM300 Reward Granted!</span>
-              {showcase.reward_granted_at && (
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-medium">
-                  {new Date(showcase.reward_granted_at).toLocaleDateString()}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-emerald-200/80 leading-relaxed">
-              This showcase earned an RM300 credit reward, which has been deposited into your organization wallet.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* First Event Promotional Reward Notice */}
-      {showFirstEventPromoBanner && (
-        <div id="first-event-showcase-promo-banner" className="p-4 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl flex items-start gap-3">
-          <div className="p-2 bg-amber-500/20 border border-amber-500/30 rounded-xl text-amber-400 shrink-0 mt-0.5">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div className="space-y-1">
-            <div className="text-sm font-black text-amber-300 flex items-center gap-2">
-              <span>Account Owner First-Event Showcase Reward (RM300)</span>
-            </div>
-            <p className="text-xs text-amber-100/90 font-medium leading-relaxed">
-              As an organization owner, your first live event showcase earns a one-time <strong className="text-amber-300">RM300 Showcase Credit</strong> for your wallet upon review approval. This is an owner-level reward (limit 1 lifetime reward per account owner).
-            </p>
-            <div className="pt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-amber-300/80">
-              <span className="flex items-center gap-1">• Paid &amp; started event</span>
-              <span className="flex items-center gap-1">• Min 3 photos or 1 video</span>
-              <span className="flex items-center gap-1">• Min 50 characters recap</span>
-              <span className="flex items-center gap-1">• 1 lifetime reward per account owner</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Account Owner Lifetime Reward Already Claimed Notice */}
-      {hasReceivedLifetimeReward && showcase?.reward_review_status !== 'REWARDED' && (
-        <div id="showcase-lifetime-reward-claimed-notice" className="p-4 bg-slate-900/60 border border-slate-800 rounded-2xl flex items-start gap-3">
-          <div className="p-2 bg-slate-800/80 border border-slate-700/50 rounded-xl text-slate-400 shrink-0 mt-0.5">
-            <Gift className="w-5 h-5 text-slate-400" />
-          </div>
-          <div className="space-y-1">
-            <div className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-              <span>Account Lifetime Showcase Reward Already Claimed</span>
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              You have already received the one-time RM300 Showcase Credit reward for your account owner profile. You can continue publishing and sharing showcases freely for all your events!
-            </p>
-          </div>
-        </div>
-      )}
-
-      {showcase && showcase.reward_review_status === 'AWAITING_APPROVAL' && !hasReceivedLifetimeReward && (
-        <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3">
-          <Sparkles className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <div className="text-xs font-bold text-amber-300 flex items-center gap-2">
-              <span>Eligible for RM300 Showcase Reward!</span>
-            </div>
-            <p className="text-xs text-amber-200/80 leading-relaxed">
-              Your showcase has met all eligibility criteria (paid event, completed, at least 3 photos or 1 video, at least 50 chars description) and is in queue for developer reward distribution.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* If Showcase does not exist yet */}
       {!showcase ? (
@@ -668,11 +507,6 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Visibility:</span>
                 {getVisibilityBadge(showcase.status)}
-              </div>
-              <div className="h-4 w-px bg-slate-800" />
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Reward:</span>
-                {getRewardBadge(showcase.reward_review_status)}
               </div>
             </div>
 

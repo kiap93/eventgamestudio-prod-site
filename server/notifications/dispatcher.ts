@@ -109,6 +109,7 @@ export interface ShowcaseDraftCreatedEvent extends BaseBusinessEvent {
   eventName: string;
   showcaseId?: string;
   showcaseTitle?: string;
+  publicUrl?: string;
 }
 
 export interface ShowcasePublishedEvent extends BaseBusinessEvent {
@@ -118,6 +119,7 @@ export interface ShowcasePublishedEvent extends BaseBusinessEvent {
   eventName: string;
   showcaseId?: string;
   showcaseTitle?: string;
+  publicUrl?: string;
 }
 
 export interface ShowcaseUnpublishedEvent extends BaseBusinessEvent {
@@ -127,6 +129,7 @@ export interface ShowcaseUnpublishedEvent extends BaseBusinessEvent {
   eventName: string;
   showcaseId?: string;
   showcaseTitle?: string;
+  publicUrl?: string;
 }
 
 export interface ShowcaseUpdatedEvent extends BaseBusinessEvent {
@@ -136,6 +139,7 @@ export interface ShowcaseUpdatedEvent extends BaseBusinessEvent {
   eventName: string;
   showcaseId?: string;
   showcaseTitle?: string;
+  publicUrl?: string;
 }
 
 export interface SecuritySettingsChangedEvent extends BaseBusinessEvent {
@@ -529,18 +533,19 @@ export class NotificationDispatcher {
 
       case 'PAYMENT_PENDING': {
         const amountStr = typeof event.amount === 'number' ? `RM${event.amount.toLocaleString()}` : String(event.amount);
+        const orderId = event.orderId || event.referenceId || (event.metadata?.order_id as string);
         return {
           type: 'payment_pending',
           actionUrl: event.checkoutUrl || '/wallet',
           entityType: 'topup_order',
-          entityId: event.orderId,
+          entityId: orderId,
           metadata: {
             amount: amountStr,
             subject: event.subject,
-            order_id: event.orderId,
+            order_id: orderId,
             ...event.metadata,
           },
-          deduplicationKey: `payment_pending_${event.orderId}`,
+          deduplicationKey: orderId ? `payment_pending_${orderId}` : undefined,
         };
       }
 
@@ -562,15 +567,16 @@ export class NotificationDispatcher {
       }
 
       case 'EVENT_LIVE': {
+        const effectiveUrl = event.publicUrl || event.liveUrl || '/events';
         return {
           type: 'event_live',
-          actionUrl: event.liveUrl || '/events',
+          actionUrl: effectiveUrl,
           entityType: 'event',
           entityId: event.eventId,
           metadata: {
             event_id: event.eventId,
             event_name: event.eventName,
-            live_url: event.liveUrl,
+            live_url: event.publicUrl || event.liveUrl,
             ...event.metadata,
           },
           deduplicationKey: `event_live_${event.eventId}`,
@@ -630,7 +636,7 @@ export class NotificationDispatcher {
       case 'THEME_READY': {
         return {
           type: 'theme_ready',
-          actionUrl: '/games',
+          actionUrl: event.previewUrl || '/games',
           entityType: 'theme',
           entityId: event.themeId,
           metadata: {
@@ -646,7 +652,7 @@ export class NotificationDispatcher {
       case 'SHOWCASE_DRAFT_CREATED': {
         return {
           type: 'showcase_draft_created',
-          actionUrl: '/events',
+          actionUrl: event.publicUrl || (event.metadata?.publicUrl as string) || '/events',
           entityType: 'showcase',
           entityId: event.showcaseId || event.eventId,
           metadata: {
@@ -662,7 +668,7 @@ export class NotificationDispatcher {
       case 'SHOWCASE_PUBLISHED': {
         return {
           type: 'showcase_published',
-          actionUrl: '/events',
+          actionUrl: event.publicUrl || (event.metadata?.publicUrl as string) || '/events',
           entityType: 'showcase',
           entityId: event.showcaseId || event.eventId,
           metadata: {
@@ -694,7 +700,7 @@ export class NotificationDispatcher {
       case 'SHOWCASE_UPDATED': {
         return {
           type: 'showcase_updated',
-          actionUrl: '/events',
+          actionUrl: event.publicUrl || (event.metadata?.publicUrl as string) || '/events',
           entityType: 'showcase',
           entityId: event.showcaseId || event.eventId,
           metadata: {
@@ -724,11 +730,31 @@ export class NotificationDispatcher {
 
       case 'PAYMENT_FAILED': {
         const amountStr = typeof event.amount === 'number' ? `RM${event.amount.toLocaleString()}` : String(event.amount);
+        const refId = event.referenceId || event.orderId || event.eventId;
+        const status = event.metadata?.status || event.metadata?.new_status;
+        const isCancelled = status === 'CANCELLED' || (event.reason && event.reason.toLowerCase().includes('cancel'));
+        const isExpired = status === 'EXPIRED' || (event.reason && event.reason.toLowerCase().includes('expire'));
+
+        let customTitle: string | undefined;
+        let customMessage: string | undefined;
+
+        if (isCancelled) {
+          customTitle = 'Payment Cancelled';
+          customMessage = `Payment of ${amountStr} for ${event.subject} was cancelled. You can restart checkout anytime.`;
+        } else if (isExpired) {
+          customTitle = 'Payment Session Expired';
+          customMessage = `Payment session of ${amountStr} for ${event.subject} has expired. Please initiate a new order to proceed.`;
+        } else if (event.reason) {
+          customMessage = `Payment of ${amountStr} for ${event.subject} could not be completed (${event.reason}). Please retry with a valid payment method.`;
+        }
+
         return {
           type: 'payment_failed',
           actionUrl: event.eventId ? `/events` : '/wallet',
           entityType: event.eventId ? 'event' : (event.orderId ? 'topup_order' : 'payment'),
           entityId: event.orderId || event.eventId || event.referenceId,
+          customTitle,
+          customMessage,
           metadata: {
             amount: amountStr,
             subject: event.subject,
@@ -739,7 +765,7 @@ export class NotificationDispatcher {
             currency: event.currency || 'MYR',
             ...event.metadata,
           },
-          deduplicationKey: `payment_failed_${event.referenceId}`,
+          deduplicationKey: `payment_failed_${refId}`,
         };
       }
 
@@ -748,11 +774,16 @@ export class NotificationDispatcher {
           ? (typeof event.amount === 'number' ? `RM${event.amount.toLocaleString()}` : String(event.amount))
           : undefined;
         const minuteEpoch = Math.floor(Date.now() / 60000);
+        const customMessage = event.reason
+          ? `Payment for event "${event.eventName}" could not be completed (${event.reason}). Please review your billing details to activate the event.`
+          : undefined;
+
         return {
           type: 'event_payment_failed',
           actionUrl: '/events',
           entityType: 'event',
           entityId: event.eventId,
+          customMessage,
           metadata: {
             event_id: event.eventId,
             event_name: event.eventName,
@@ -853,4 +884,219 @@ export async function dispatchNotificationEvent(
   env?: Record<string, any>
 ): Promise<NotificationRecord[]> {
   return notificationDispatcher.dispatch(event, env);
+}
+
+/**
+ * Centralized backend dispatcher for PAYMENT_FAILED notifications.
+ * Explicitly covers terminal failure states: FAILED, EXPIRED, and CANCELLED.
+ */
+export async function dispatchPaymentFailed(
+  params: {
+    organizationId: string;
+    recipientUserId?: string | null;
+    referenceId: string;
+    amount: number | string;
+    currency?: string;
+    subject: string;
+    reason?: string;
+    eventId?: string | null;
+    orderId?: string;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<NotificationRecord[]> {
+  return dispatchNotificationEvent(
+    {
+      eventType: 'PAYMENT_FAILED',
+      ...params,
+    },
+    env
+  );
+}
+
+/**
+ * Centralized backend dispatcher for EVENT_PAYMENT_FAILED notifications.
+ * Explicitly notifies organizers and team members when event activation payment fails.
+ */
+export async function dispatchEventPaymentFailed(
+  params: {
+    organizationId: string;
+    recipientUserId?: string | null;
+    eventId: string;
+    eventName: string;
+    amount?: number | string;
+    currency?: string;
+    reason?: string;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<NotificationRecord[]> {
+  return dispatchNotificationEvent(
+    {
+      eventType: 'EVENT_PAYMENT_FAILED',
+      ...params,
+    },
+    env
+  );
+}
+
+/**
+ * Centralized backend dispatcher for PAYMENT_SUCCESS notifications.
+ */
+export async function dispatchPaymentSuccess(
+  params: {
+    organizationId: string;
+    recipientUserId?: string | null;
+    referenceId: string;
+    amount: number | string;
+    currency?: string;
+    subject: string;
+    eventId?: string | null;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<NotificationRecord[]> {
+  return dispatchNotificationEvent(
+    {
+      eventType: 'PAYMENT_SUCCESS',
+      ...params,
+    },
+    env
+  );
+}
+
+/**
+ * Centralized backend dispatcher for PAYMENT_PENDING notifications.
+ */
+export async function dispatchPaymentPending(
+  params: {
+    organizationId: string;
+    recipientUserId?: string | null;
+    referenceId: string;
+    amount: number | string;
+    currency?: string;
+    subject: string;
+    orderId?: string;
+    checkoutUrl?: string;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<NotificationRecord[]> {
+  return dispatchNotificationEvent(
+    {
+      eventType: 'PAYMENT_PENDING',
+      ...params,
+    },
+    env
+  );
+}
+
+/**
+ * Centralized backend dispatcher for payment state transitions:
+ * Explicitly covers:
+ * PENDING -> SUCCESS (PAID)
+ * PENDING -> FAILED / EXPIRED / CANCELLED
+ */
+export async function dispatchPaymentLifecycleTransition(
+  params: {
+    previousStatus?: string;
+    newStatus: 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+    organizationId: string;
+    recipientUserId?: string | null;
+    referenceId: string;
+    orderId?: string;
+    amount: number | string;
+    currency?: string;
+    subject?: string;
+    reason?: string;
+    eventId?: string | null;
+    eventName?: string | null;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<NotificationRecord[]> {
+  const {
+    newStatus,
+    organizationId,
+    recipientUserId,
+    referenceId,
+    orderId,
+    amount,
+    currency = 'MYR',
+    subject = orderId ? `Top-up Order ${orderId.slice(0, 8).toUpperCase()}` : 'Payment Transaction',
+    reason,
+    eventId,
+    eventName,
+    metadata = {},
+  } = params;
+
+  if (newStatus === 'PAID') {
+    return dispatchPaymentSuccess(
+      {
+        organizationId,
+        recipientUserId,
+        referenceId,
+        amount,
+        currency,
+        subject,
+        eventId,
+        metadata: {
+          ...metadata,
+          order_id: orderId,
+          new_status: newStatus,
+        },
+      },
+      env
+    );
+  }
+
+  const effectiveReason =
+    reason ||
+    (newStatus === 'CANCELLED'
+      ? 'Payment cancelled by user'
+      : newStatus === 'EXPIRED'
+      ? 'Payment session expired'
+      : 'Payment transaction failed');
+
+  // If this was an event payment activation
+  if (eventId && eventName) {
+    return dispatchEventPaymentFailed(
+      {
+        organizationId,
+        recipientUserId,
+        eventId,
+        eventName,
+        amount,
+        currency,
+        reason: effectiveReason,
+        metadata: {
+          ...metadata,
+          status: newStatus,
+          reference_id: referenceId,
+          order_id: orderId,
+        },
+      },
+      env
+    );
+  }
+
+  // Top-up or general payment failure/expiry/cancellation
+  return dispatchPaymentFailed(
+    {
+      organizationId,
+      recipientUserId,
+      referenceId: referenceId || orderId || `payment_${Date.now()}`,
+      orderId,
+      amount,
+      currency,
+      subject,
+      reason: effectiveReason,
+      eventId,
+      metadata: {
+        ...metadata,
+        status: newStatus,
+      },
+    },
+    env
+  );
 }

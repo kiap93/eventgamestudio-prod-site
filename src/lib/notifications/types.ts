@@ -69,9 +69,32 @@ export interface NotificationCatalogItem {
 }
 
 /**
- * Authoritative Notification Catalog defining all 12 platform notification types,
+ * Authoritative Notification Catalog defining all 20 platform notification types,
  * default templates, priority levels, categories, and delivery behavior.
  */
+export const NOTIFICATION_TYPES: readonly NotificationType[] = [
+  'welcome_credit_added',
+  'payment_success',
+  'payment_pending',
+  'payment_failed',
+  'event_created',
+  'event_approaching',
+  'event_live',
+  'event_expiring',
+  'event_expired',
+  'event_payment_failed',
+  'wallet_low_balance',
+  'insufficient_balance',
+  'theme_ready',
+  'showcase_draft_created',
+  'showcase_published',
+  'showcase_unpublished',
+  'showcase_updated',
+  'org_invitation',
+  'member_joined',
+  'security_settings_changed',
+] as const;
+
 export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogItem> = {
   welcome_credit_added: {
     type: 'welcome_credit_added',
@@ -114,7 +137,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     priority: 'normal',
     defaultActionUrl: '/events',
     mandatory: false,
-    duplicatesAllowed: true,
+    duplicatesAllowed: false,
     retentionDays: 90,
   },
   event_live: {
@@ -169,7 +192,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     priority: 'low',
     defaultActionUrl: '/games',
     mandatory: false,
-    duplicatesAllowed: true,
+    duplicatesAllowed: false,
     retentionDays: 45,
   },
   showcase_draft_created: {

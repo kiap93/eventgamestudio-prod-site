@@ -26,11 +26,17 @@ import {
   OwnerShowcaseRewardRecord,
   UserRewardRecord,
 } from './types.js';
+import { isUserOrganizationOwner, hasUserClaimedReward } from './rewards.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
+import {
+  dispatchNotificationEvent,
+  dispatchPaymentFailed,
+  dispatchEventPaymentFailed,
+  dispatchPaymentLifecycleTransition,
+} from '../notifications/dispatcher.js';
 
 // Business Constants
 export const STANDARD_EVENT_PRICE = 1400.00;
@@ -1219,6 +1225,7 @@ export async function grantWelcomeCredit(
   transaction: WalletTransactionRecord | null;
   wallet: WalletBalanceSummary;
   alreadyGranted: boolean;
+  notEligible?: boolean;
   message?: string;
 }> {
   const { organizationId, createdBy, referenceId, metadata } = params;
@@ -1234,14 +1241,41 @@ export async function grantWelcomeCredit(
       transaction: null,
       wallet: currentWallet,
       alreadyGranted: true,
+      notEligible: true,
       message: 'Automatic Welcome Credit upon organization creation is discontinued.',
     };
   }
 
-  // 1. Resolve target user ID (the account owner who receives the reward)
+  // 1. Authoritative Owner-Only Constraint
+  // Welcome Credit is strictly an owner-only, user-level promotion.
   let targetUserId = params.userId;
-  if (!targetUserId) {
+  if (targetUserId) {
+    const isOwner = await isUserOrganizationOwner(targetUserId, organizationId, env);
+    if (!isOwner) {
+      const currentWallet = await getWalletBalance(organizationId, env);
+      return {
+        transaction: null,
+        wallet: currentWallet,
+        alreadyGranted: false,
+        notEligible: true,
+        message: 'Only the organization owner is eligible for Welcome Credit. Organization members cannot receive this promotion.',
+      };
+    }
+  } else {
     targetUserId = (await resolveOrgOwnerId(organizationId, env)) || createdBy;
+    if (targetUserId) {
+      const isOwner = await isUserOrganizationOwner(targetUserId, organizationId, env);
+      if (!isOwner) {
+        const currentWallet = await getWalletBalance(organizationId, env);
+        return {
+          transaction: null,
+          wallet: currentWallet,
+          alreadyGranted: false,
+          notEligible: true,
+          message: 'Only the organization owner is eligible for Welcome Credit. Organization members cannot receive this promotion.',
+        };
+      }
+    }
   }
 
   if (!targetUserId) {
@@ -1249,8 +1283,9 @@ export async function grantWelcomeCredit(
     return {
       transaction: null,
       wallet: currentWallet,
-      alreadyGranted: true,
-      message: 'Valid user ID is required to evaluate and grant Welcome Credit (Welcome Credit is strictly a user-level lifetime reward).',
+      alreadyGranted: false,
+      notEligible: true,
+      message: 'Valid organization owner user ID is required to evaluate and grant Welcome Credit (Welcome Credit is strictly an owner-level lifetime reward).',
     };
   }
 
@@ -1262,6 +1297,11 @@ export async function grantWelcomeCredit(
       let existingTxn: WalletTransactionRecord | undefined = undefined;
 
       // 2. Check if user already received Welcome Credit in user_rewards or wallet_transactions
+      const alreadyClaimedLifetime = await hasUserClaimedReward(targetUserId, 'WELCOME_CREDIT', env);
+      if (alreadyClaimedLifetime) {
+        alreadyGranted = true;
+      }
+
       if (isSupabaseConfigured(env)) {
         const supabase = getSupabaseServerClient(env);
         
@@ -1428,7 +1468,8 @@ export async function grantWelcomeCredit(
           transaction: existingTxn || null,
           wallet: currentWallet,
           alreadyGranted: true,
-          message: 'Welcome Credit has already been granted to this user in their account lifetime (one-time lifetime limit).',
+          notEligible: true,
+          message: 'Welcome Credit has already been claimed by this user in their account lifetime (one-time lifetime limit).',
         };
       }
 
@@ -1463,7 +1504,8 @@ export async function grantWelcomeCredit(
                 transaction: existingTxn || null,
                 wallet: currentWallet,
                 alreadyGranted: true,
-                message: 'Welcome Credit has already been granted to this user in their account lifetime (one-time lifetime limit).',
+                notEligible: true,
+                message: 'Welcome Credit has already been claimed by this user in their account lifetime (one-time lifetime limit).',
               };
             }
             if (!isLocalFallbackAllowed(env)) {
@@ -1485,7 +1527,8 @@ export async function grantWelcomeCredit(
             transaction: existingTxn || null,
             wallet: currentWallet,
             alreadyGranted: true,
-            message: 'Welcome Credit has already been granted to this user in their account lifetime (one-time lifetime limit).',
+            notEligible: true,
+            message: 'Welcome Credit has already been claimed by this user in their account lifetime (one-time lifetime limit).',
           };
         }
         userRewardRecord = {
@@ -1573,12 +1616,15 @@ export async function grantWelcomeCredit(
         if (isSupabaseConfigured(env)) {
           try {
             const supabase = getSupabaseServerClient(env);
-            await supabase
+            const { error: rewardUpdateErr } = await supabase
               .from('user_rewards')
               .update({ transaction_id: transaction.id })
               .eq('id', userRewardRecord.id);
-          } catch {
-            // Non-blocking
+            if (rewardUpdateErr) {
+              console.warn('Notice updating user_rewards transaction_id:', rewardUpdateErr.message);
+            }
+          } catch (err: any) {
+            console.warn('Error updating user_rewards transaction_id:', err?.message || err);
           }
         } else {
           saveLocalStores();
@@ -1729,7 +1775,7 @@ export async function hasUserReceivedShowcaseCredit(
       .from('user_rewards')
       .select('id')
       .eq('user_id', userId)
-      .eq('reward_type', 'SHOWCASE_CREDIT')
+      .in('reward_type', ['SHOWCASE_CREDIT', 'SHOWCASE_REWARD'])
       .maybeSingle();
 
     if (userRewardErr && !isLocalFallbackAllowed(env)) {
@@ -1795,7 +1841,7 @@ export async function hasUserReceivedShowcaseCredit(
   }
 
   // Local fallback
-  if (localUserRewardsCache.has(`${userId}:SHOWCASE_CREDIT`)) {
+  if (localUserRewardsCache.has(`${userId}:SHOWCASE_CREDIT`) || localUserRewardsCache.has(`${userId}:SHOWCASE_REWARD`)) {
     return true;
   }
 
@@ -2062,9 +2108,10 @@ export async function grantShowcaseCredit(
   },
   env?: Record<string, any>
 ): Promise<{
-  transaction: WalletTransactionRecord;
+  transaction: WalletTransactionRecord | null;
   wallet: WalletBalanceSummary;
   alreadyGranted: boolean;
+  notEligible?: boolean;
   message?: string;
 }> {
   const { organizationId, ownerUserId, eventId, createdBy, referenceId, metadata } = params;
@@ -2073,7 +2120,7 @@ export async function grantShowcaseCredit(
     throw new Error('Organization ID is required');
   }
 
-  // 1. Resolve target owner user ID (Showcase Credit is strictly an owner-level lifetime reward)
+  // 1. Resolve target owner user ID (Showcase Reward is strictly an owner-level lifetime reward)
   let targetOwnerId = ownerUserId;
   if (!targetOwnerId) {
     targetOwnerId = (await resolveOrgOwnerId(organizationId, env)) || createdBy;
@@ -2084,8 +2131,22 @@ export async function grantShowcaseCredit(
     return {
       transaction: null as any,
       wallet: currentWallet,
-      alreadyGranted: true,
+      alreadyGranted: false,
+      notEligible: true,
       message: 'Valid owner user ID is required to evaluate and grant Showcase Credit (Showcase Credit is strictly an owner-level lifetime reward).',
+    };
+  }
+
+  // Enforce Authoritative Organization Owner Check
+  const isOwner = await isUserOrganizationOwner(targetOwnerId, organizationId, env);
+  if (!isOwner) {
+    const currentWallet = await getWalletBalance(organizationId, env);
+    return {
+      transaction: null as any,
+      wallet: currentWallet,
+      alreadyGranted: false,
+      notEligible: true,
+      message: 'Only the organization owner is eligible for Showcase Reward. Organization members cannot receive promotional credits.',
     };
   }
 
@@ -2093,7 +2154,7 @@ export async function grantShowcaseCredit(
   return await withUserRewardLock(targetOwnerId, async () => {
     return await withOrganizationLock(organizationId, async () => {
       // 3. Check owner-level lifetime eligibility first
-      const alreadyRewarded = await hasUserReceivedShowcaseCredit(targetOwnerId!, env);
+      const alreadyRewarded = await hasUserReceivedShowcaseCredit(targetOwnerId!, env) || await hasUserClaimedReward(targetOwnerId!, 'SHOWCASE_REWARD', env);
       if (alreadyRewarded) {
         let existingTxn: WalletTransactionRecord | null = null;
         if (isSupabaseConfigured(env)) {
@@ -2240,12 +2301,15 @@ export async function grantShowcaseCredit(
         // 6. Update user_rewards with the transaction_id
         if (userRewardRecord?.id) {
           try {
-            await supabase
+            const { error: rewardUpdateErr } = await supabase
               .from('user_rewards')
               .update({ transaction_id: transaction.id })
               .eq('id', userRewardRecord.id);
-          } catch {
-            // non-fatal
+            if (rewardUpdateErr) {
+              console.warn('Notice updating user_rewards transaction_id:', rewardUpdateErr.message);
+            }
+          } catch (err: any) {
+            console.warn('Error updating user_rewards transaction_id:', err?.message || err);
           }
         }
 
@@ -2289,6 +2353,7 @@ export async function grantShowcaseCredit(
           created_at: now,
         };
         localUserRewardsCache.set(`${targetOwnerId}:SHOWCASE_CREDIT`, userRewardRecord);
+        localUserRewardsCache.set(`${targetOwnerId}:SHOWCASE_REWARD`, userRewardRecord);
 
         // Append to immutable ledger
         const transaction = await appendLedgerTransaction(
@@ -2984,10 +3049,36 @@ export async function processEventPayment(
         }
       }
       console.error('Fatal: Supabase atomic payment transaction failed:', error);
+      await dispatchEventPaymentFailed(
+        {
+          organizationId,
+          recipientUserId: createdBy || null,
+          eventId,
+          eventName: resolvedEventName || `Event #${eventId.slice(0, 8)}`,
+          amount: eventPrice,
+          currency: 'MYR',
+          reason: `Financial ledger transaction failed: ${error.message}`,
+        },
+        env
+      ).catch((notifErr) => console.error('[NOTIFICATION] Failed to dispatch EVENT_PAYMENT_FAILED on fatal error:', notifErr));
+
       throw new Error(`Financial ledger transaction failed: ${error.message}`);
     }
 
     if (!data) {
+      await dispatchEventPaymentFailed(
+        {
+          organizationId,
+          recipientUserId: createdBy || null,
+          eventId,
+          eventName: resolvedEventName || `Event #${eventId.slice(0, 8)}`,
+          amount: eventPrice,
+          currency: 'MYR',
+          reason: 'No response received from atomic payment procedure',
+        },
+        env
+      ).catch((notifErr) => console.error('[NOTIFICATION] Failed to dispatch EVENT_PAYMENT_FAILED on empty data:', notifErr));
+
       throw new Error('Financial ledger transaction failed: No data returned from atomic payment procedure');
     }
 
@@ -3010,9 +3101,8 @@ export async function processEventPayment(
         ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch INSUFFICIENT_BALANCE:', err));
       }
 
-      await dispatchNotificationEvent(
+      await dispatchEventPaymentFailed(
         {
-          eventType: 'EVENT_PAYMENT_FAILED',
           organizationId,
           recipientUserId: createdBy || null,
           eventId,
@@ -3174,9 +3264,8 @@ export async function processEventPayment(
         ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch INSUFFICIENT_BALANCE:', err));
       }
 
-      await dispatchNotificationEvent(
+      await dispatchEventPaymentFailed(
         {
-          eventType: 'EVENT_PAYMENT_FAILED',
           organizationId,
           recipientUserId: createdBy || null,
           eventId,
@@ -3335,7 +3424,7 @@ export async function processEventPayment(
 
     try {
       const supabase = getSupabaseServerClient(env);
-      await supabase
+      const { error: eventUpdateError } = await supabase
         .from('events')
         .update({
           status: 'scheduled',
@@ -3348,9 +3437,23 @@ export async function processEventPayment(
           updated_at: new Date().toISOString(),
         })
         .eq('id', eventId);
-    } catch (dbErr) {
-      // Non-fatal if Supabase events table is in test mock mode
-      console.warn('Notice updating event table:', (dbErr as any)?.message);
+
+      if (eventUpdateError) {
+        if (!isLocalFallbackAllowed(env) || (!eventUpdateError.message?.includes('Placeholder') && eventUpdateError.code !== 'PGRST000')) {
+          console.error('[processEventPayment] Fatal: Database update failure on events table:', eventUpdateError);
+          throw new Error(`Database error updating event payment status: ${eventUpdateError.message}`);
+        } else {
+          console.warn('[processEventPayment] Notice updating event table in local mock fallback:', eventUpdateError.message);
+        }
+      }
+    } catch (dbErr: any) {
+      if (dbErr?.message && dbErr.message.includes('Database error updating event payment status')) {
+        throw dbErr;
+      }
+      if (!isLocalFallbackAllowed(env)) {
+        throw dbErr;
+      }
+      console.warn('Notice updating event table:', dbErr?.message || dbErr);
     }
 
     const quote = await calculateEventPaymentQuote({ organizationId, eventId, creditChoice: mode }, env);
@@ -4346,10 +4449,11 @@ export async function processTopupOrderStatus(
         );
       }
 
-      if (newStatus === 'FAILED' && !data.is_idempotent_replay) {
-        await dispatchNotificationEvent(
+      if (['FAILED', 'EXPIRED', 'CANCELLED'].includes(newStatus) && !data.is_idempotent_replay) {
+        await dispatchPaymentLifecycleTransition(
           {
-            eventType: 'PAYMENT_FAILED',
+            previousStatus: order.status,
+            newStatus: newStatus as 'FAILED' | 'EXPIRED' | 'CANCELLED',
             organizationId: order.organization_id,
             recipientUserId: order.user_id,
             referenceId: order.id,
@@ -4357,7 +4461,13 @@ export async function processTopupOrderStatus(
             amount: order.top_up_amount,
             currency: order.currency || 'MYR',
             subject: `Top-up Order ${order.id.slice(0, 8).toUpperCase()}`,
-            reason: reason || 'Payment transaction failed',
+            reason: reason || (
+              newStatus === 'CANCELLED'
+                ? 'Checkout was cancelled by user'
+                : newStatus === 'EXPIRED'
+                ? 'Top-up payment session expired'
+                : 'Payment transaction failed'
+            ),
             metadata: {
               order_id: order.id,
               reason,
@@ -4365,7 +4475,7 @@ export async function processTopupOrderStatus(
             },
           },
           env
-        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch PAYMENT_FAILED for top-up:', err));
+        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch payment transition for top-up:', err));
       }
 
       return {
@@ -4595,9 +4705,10 @@ export async function processTopupOrderStatus(
       localTopupOrdersCache.set(order.id, order);
       saveLocalStores();
 
-      await dispatchNotificationEvent(
+      await dispatchPaymentLifecycleTransition(
         {
-          eventType: 'PAYMENT_FAILED',
+          previousStatus: order.status,
+          newStatus: 'FAILED',
           organizationId: order.organization_id,
           recipientUserId: order.user_id,
           referenceId: order.id,
@@ -4613,7 +4724,7 @@ export async function processTopupOrderStatus(
           },
         },
         env
-      ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch PAYMENT_FAILED for top-up:', err));
+      ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch PAYMENT_FAILED for top-up in local fallback:', err));
 
       return {
         order,
@@ -4631,6 +4742,27 @@ export async function processTopupOrderStatus(
       localTopupOrdersCache.set(order.id, order);
       saveLocalStores();
 
+      await dispatchPaymentLifecycleTransition(
+        {
+          previousStatus: 'PENDING',
+          newStatus: 'CANCELLED',
+          organizationId: order.organization_id,
+          recipientUserId: order.user_id,
+          referenceId: order.id,
+          orderId: order.id,
+          amount: order.top_up_amount,
+          currency: order.currency || 'MYR',
+          subject: `Top-up Order ${order.id.slice(0, 8).toUpperCase()}`,
+          reason: reason || 'Top-up checkout was cancelled by user',
+          metadata: {
+            order_id: order.id,
+            reason,
+            payment_reference: paymentReference,
+          },
+        },
+        env
+      ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch CANCELLED notification for top-up in local fallback:', err));
+
       return {
         order,
         alreadyProcessed: false,
@@ -4646,6 +4778,27 @@ export async function processTopupOrderStatus(
 
       localTopupOrdersCache.set(order.id, order);
       saveLocalStores();
+
+      await dispatchPaymentLifecycleTransition(
+        {
+          previousStatus: 'PENDING',
+          newStatus: 'EXPIRED',
+          organizationId: order.organization_id,
+          recipientUserId: order.user_id,
+          referenceId: order.id,
+          orderId: order.id,
+          amount: order.top_up_amount,
+          currency: order.currency || 'MYR',
+          subject: `Top-up Order ${order.id.slice(0, 8).toUpperCase()}`,
+          reason: reason || 'Top-up payment session expired',
+          metadata: {
+            order_id: order.id,
+            reason,
+            payment_reference: paymentReference,
+          },
+        },
+        env
+      ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EXPIRED notification for top-up in local fallback:', err));
 
       return {
         order,
@@ -5370,7 +5523,7 @@ export async function releaseCheckoutSessionClaim(
     if (existing) {
       const meta = existing.metadata || {};
       if (!claimId || meta.checkout_claim_id === claimId) {
-        await supabase
+        const { error: releaseErr } = await supabase
           .from('wallet_topup_orders')
           .update({
             metadata: {
@@ -5381,6 +5534,9 @@ export async function releaseCheckoutSessionClaim(
             updated_at: nowIso,
           })
           .eq('id', orderId);
+        if (releaseErr) {
+          console.warn('Notice releasing checkout claim on order:', releaseErr.message);
+        }
       }
     }
     return true;

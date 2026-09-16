@@ -39,7 +39,7 @@ import {
   isEventTestScoresCleared,
   ensureTestScoresClearedForLiveEvent,
 } from './highScores.js';
-import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
+import { dispatchNotificationEvent, dispatchEventPaymentFailed } from '../notifications/dispatcher.js';
 import { cleanupExpiredNotifications } from './notifications.js';
 import { getOrganizationById } from './organizations.js';
 import { getDefaultTimezoneForCountry, isValidTimezone, resolveEventTimezone } from '../../src/lib/countryUtils.js';
@@ -2736,6 +2736,37 @@ export async function createEventWithAtomicPayment(
     );
 
     if (!calculation.isPayable) {
+      if (calculation.reasons.some((r) => r.toLowerCase().includes('insufficient'))) {
+        await dispatchNotificationEvent(
+          {
+            eventType: 'INSUFFICIENT_BALANCE',
+            organizationId: organization_id,
+            recipientUserId: created_by || null,
+            currentBalance: calculation.availableBalances.paid_balance,
+            requiredAmount: calculation.paidAmount,
+            currency: eventCurrency,
+            eventName: name.trim(),
+            metadata: {
+              reasons: calculation.reasons,
+            },
+          },
+          env
+        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch INSUFFICIENT_BALANCE:', err));
+      }
+
+      await dispatchEventPaymentFailed(
+        {
+          organizationId: organization_id,
+          recipientUserId: created_by || null,
+          eventId: 'pending_creation',
+          eventName: name.trim(),
+          amount: eventPrice,
+          currency: eventCurrency,
+          reason: calculation.reasons.join('; ') || 'Insufficient balance for event creation',
+        },
+        env
+      ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_PAYMENT_FAILED:', err));
+
       const error: any = new Error('Insufficient balance. Please top up your wallet to continue.');
       error.code = 'INSUFFICIENT_BALANCE';
       error.status = 402;
@@ -3390,7 +3421,6 @@ export async function runEventLifecycleMaintenance(
               eventId: ev.id,
               eventName: ev.name,
               startDate,
-              setupDate: ev.setup_date,
             },
             env
           ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch EVENT_APPROACHING:', err));

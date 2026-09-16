@@ -45,24 +45,30 @@ All business domains (wallet, events, themes, leaderboards, showcases, team secu
 
 ## 2. Notification Catalog & Business Event Types
 
-Every notification dispatched on the platform must be registered in the authoritative **Notification Catalog** (`src/lib/notifications/types.ts` & `server/notifications/types.ts`).
+Every notification dispatched on the platform must be registered in the authoritative **Notification Catalog** (`src/lib/notifications/types.ts` & `server/notifications/types.ts`). The catalog defines all 20 platform notification types:
 
-| Notification Type | Category | Priority | Default Retention | Duplicate Allowed | Recipient Target |
+| Notification Type | Category | Priority | Default Retention | Deduplication Policy | Recipient Target |
 |---|---|---|---|---|---|
-| `welcome_credit_added` | `wallet` | `normal` | 90 days | No | Org Members / Owner |
-| `payment_success` | `billing` | `high` | 180 days | Yes (per ref) | Billing Actor / Owner |
-| `payment_pending` | `billing` | `normal` | 30 days | No | Order Creator |
-| `event_created` | `event` | `normal` | 90 days | No | Org Admins & Owner |
-| `event_live` | `event` | `high` | 60 days | No | Org Admins & Owner |
-| `event_expiring` | `event` | `high` | 30 days | Daily dedup | Org Admins & Owner |
-| `event_expired` | `event` | `normal` | 60 days | No | Org Admins & Owner |
-| `wallet_low_balance` | `wallet` | `high` | 30 days | Daily dedup | Org Admins & Owner |
-| `theme_ready` | `theme` | `low` | 45 days | No | Theme Creator / Org |
-| `showcase_draft_created` | `showcase` | `normal` | 60 days | No | **Showcase Owner Only** |
-| `showcase_published` | `showcase` | `normal` | 90 days | No | **Showcase Owner Only** |
-| `showcase_unpublished` | `showcase` | `normal` | 60 days | No | **Showcase Owner Only** |
-| `showcase_updated` | `showcase` | `low` | 45 days | 1-min window | **Showcase Owner Only** |
-| `security_settings_changed` | `security` | `urgent` | 180 days | No | Targeted User / Admins |
+| `welcome_credit_added` | `wallet` | `normal` | 90 days | Deduplicated by user/org | Org Members / Owner |
+| `payment_success` | `billing` | `high` | 180 days | Deduplicated by reference ID | Billing Actor / Owner |
+| `payment_pending` | `billing` | `normal` | 30 days | Deduplicated by order ID | Order Creator |
+| `payment_failed` | `billing` | `urgent` | 90 days | Deduplicated by reference/order ID | Billing Actor / Owner |
+| `event_created` | `event` | `normal` | 90 days | Deduplicated by event ID | Org Admins & Owner |
+| `event_approaching` | `event` | `normal` | 30 days | Deduplicated by event ID + start date | Org Admins & Owner |
+| `event_live` | `event` | `high` | 60 days | Deduplicated by event ID | Org Admins & Owner |
+| `event_expiring` | `event` | `high` | 30 days | Daily window deduplication | Org Admins & Owner |
+| `event_expired` | `event` | `normal` | 60 days | Deduplicated by event ID | Org Admins & Owner |
+| `event_payment_failed` | `billing` | `urgent` | 90 days | 1-minute window deduplication | Org Admins & Owner |
+| `wallet_low_balance` | `wallet` | `high` | 30 days | Daily window deduplication | Org Admins & Owner |
+| `insufficient_balance` | `wallet` | `high` | 45 days | 1-minute window deduplication | Billing Actor / Owner |
+| `theme_ready` | `theme` | `low` | 45 days | Deduplicated by theme ID | Theme Creator / Org |
+| `showcase_draft_created` | `showcase` | `normal` | 60 days | Deduplicated by showcase ID | **Showcase Owner Only** |
+| `showcase_published` | `showcase` | `normal` | 90 days | Deduplicated by showcase ID | **Showcase Owner Only** |
+| `showcase_unpublished` | `showcase` | `normal` | 60 days | Deduplicated by showcase ID | **Showcase Owner Only** |
+| `showcase_updated` | `showcase` | `low` | 45 days | 1-minute window deduplication | **Showcase Owner Only** |
+| `org_invitation` | `security` | `normal` | 60 days | Deduplicated by org ID + invitee email | Invitee User |
+| `member_joined` | `security` | `normal` | 45 days | Deduplicated by org ID + member user ID | Org Admins & Owner |
+| `security_settings_changed` | `security` | `urgent` | 180 days | 1-minute window deduplication | Targeted User / Admins |
 
 ---
 
@@ -122,7 +128,7 @@ Supported across both Node.js Express (`server.ts`) and Cloudflare Workers (`wor
 - `POST /api/notifications/:id/read` — Mark single notification as read.
 - `POST /api/notifications/mark-all-read` — Mark all notifications as read for current user/org.
 - `DELETE /api/notifications/:id` — Delete a notification.
-- `POST /api/developer/notifications/test-dispatch` — Privileged developer endpoint for testing dispatches across all 12 types.
+- `POST /api/developer/notifications/test-dispatch` — Privileged developer endpoint for testing dispatches across all 20 types.
 
 ---
 

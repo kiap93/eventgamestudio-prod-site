@@ -6,6 +6,7 @@
 
 import {
   NOTIFICATION_CATALOG,
+  NOTIFICATION_TYPES,
   interpolateNotificationTemplate,
   renderNotificationContent,
   NotificationType,
@@ -48,30 +49,10 @@ async function runTestSuite() {
   // 1. Catalog Verification
   // -----------------------------------------------------------------
   console.log('--- Test Group 1: Notification Catalog Structure ---');
-  const expectedTypes: NotificationType[] = [
-    'welcome_credit_added',
-    'payment_success',
-    'payment_pending',
-    'payment_failed',
-    'event_created',
-    'event_approaching',
-    'event_live',
-    'event_expiring',
-    'event_expired',
-    'event_payment_failed',
-    'wallet_low_balance',
-    'insufficient_balance',
-    'theme_ready',
-    'showcase_draft_created',
-    'showcase_published',
-    'showcase_unpublished',
-    'showcase_updated',
-    'org_invitation',
-    'member_joined',
-    'security_settings_changed',
-  ];
+  assert(NOTIFICATION_TYPES.length === 20, 'NOTIFICATION_TYPES array defines exactly 20 types');
+  assert(Object.keys(NOTIFICATION_CATALOG).length === 20, 'NOTIFICATION_CATALOG contains exactly 20 items');
 
-  for (const type of expectedTypes) {
+  for (const type of NOTIFICATION_TYPES) {
     const item = NOTIFICATION_CATALOG[type];
     assert(!!item, `Catalog item for "${type}" exists`);
     if (item) {
@@ -395,6 +376,178 @@ async function runTestSuite() {
     assert(memberJoined.length === 1 && memberJoined[0]?.type === 'member_joined', 'MEMBER_JOINED handled correctly');
     assert(memberJoined[0]?.title === 'New Team Member Joined', 'MEMBER_JOINED title matches catalog');
     assert(memberJoined[0]?.message.includes('Sarah Connor') && memberJoined[0]?.message.includes('Acme Studio'), 'MEMBER_JOINED message includes member name and org');
+
+    // Payment Success
+    const paySuccess = await dispatchNotificationEvent({
+      eventType: 'PAYMENT_SUCCESS',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      referenceId: `ref_succ_${Date.now()}`,
+      amount: 1400,
+      subject: 'Annual License',
+      eventId: 'ev_succ_1',
+    });
+    assert(paySuccess.length === 1 && paySuccess[0]?.type === 'payment_success', 'PAYMENT_SUCCESS handled correctly');
+    assert(paySuccess[0]?.priority === 'high', 'PAYMENT_SUCCESS priority is high');
+    assert(paySuccess[0]?.action_url === '/events', 'PAYMENT_SUCCESS with eventId directs to /events');
+    assert(paySuccess[0]?.message.includes('RM1,400') && paySuccess[0]?.message.includes('Annual License'), 'PAYMENT_SUCCESS message includes amount and subject');
+
+    // Payment Pending
+    const payPending = await dispatchNotificationEvent({
+      eventType: 'PAYMENT_PENDING',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      orderId: `ord_pend_${Date.now()}`,
+      amount: 500,
+      subject: 'Top-up 500',
+      checkoutUrl: '/wallet/top-up?orderId=123',
+    });
+    assert(payPending.length === 1 && payPending[0]?.type === 'payment_pending', 'PAYMENT_PENDING handled correctly');
+    assert(payPending[0]?.priority === 'normal', 'PAYMENT_PENDING priority is normal');
+    assert(payPending[0]?.action_url === '/wallet/top-up?orderId=123', 'PAYMENT_PENDING preserves checkoutUrl');
+
+    // Event Live (with publicUrl)
+    const evLive = await dispatchNotificationEvent({
+      eventType: 'EVENT_LIVE',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      eventId: 'ev_live_100',
+      eventName: 'Live Arena 2026',
+      publicUrl: '/play/tok-live-100',
+    });
+    assert(evLive.length === 1 && evLive[0]?.type === 'event_live', 'EVENT_LIVE handled correctly');
+    assert(evLive[0]?.priority === 'high', 'EVENT_LIVE priority is high');
+    assert(evLive[0]?.action_url === '/play/tok-live-100', 'EVENT_LIVE adopts publicUrl as actionUrl');
+    assert(evLive[0]?.message.includes('Live Arena 2026'), 'EVENT_LIVE message includes event name');
+
+    // Event Expired
+    const evExpired = await dispatchNotificationEvent({
+      eventType: 'EVENT_EXPIRED',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      eventId: 'ev_exp_100',
+      eventName: 'Concluded Carnival',
+    });
+    assert(evExpired.length === 1 && evExpired[0]?.type === 'event_expired', 'EVENT_EXPIRED handled correctly');
+    assert(evExpired[0]?.title === 'Event Concluded', 'EVENT_EXPIRED title matches catalog');
+    assert(evExpired[0]?.message.includes('Concluded Carnival'), 'EVENT_EXPIRED message includes event name');
+
+    // Wallet Low Balance
+    const lowBal = await dispatchNotificationEvent({
+      eventType: 'WALLET_LOW_BALANCE',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      currentBalance: 150,
+      threshold: 500,
+    });
+    assert(lowBal.length === 1 && lowBal[0]?.type === 'wallet_low_balance', 'WALLET_LOW_BALANCE handled correctly');
+    assert(lowBal[0]?.priority === 'high', 'WALLET_LOW_BALANCE priority is high');
+    assert(lowBal[0]?.message.includes('RM150'), 'WALLET_LOW_BALANCE formatted balance');
+
+    // Showcase Draft Created
+    const scDraft = await dispatchNotificationEvent({
+      eventType: 'SHOWCASE_DRAFT_CREATED',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      eventId: 'ev_sc_1',
+      eventName: 'Showcase Expo',
+      showcaseId: 'sc_draft_1',
+    });
+    assert(scDraft.length === 1 && scDraft[0]?.type === 'showcase_draft_created', 'SHOWCASE_DRAFT_CREATED handled correctly');
+    assert(scDraft[0]?.category === 'showcase', 'SHOWCASE_DRAFT_CREATED category is showcase');
+
+    // Showcase Published (with publicUrl)
+    const scPub = await dispatchNotificationEvent({
+      eventType: 'SHOWCASE_PUBLISHED',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      eventId: 'ev_sc_1',
+      eventName: 'Showcase Expo',
+      showcaseId: 'sc_pub_1',
+      publicUrl: '/showcase/sc_pub_1',
+    });
+    assert(scPub.length === 1 && scPub[0]?.type === 'showcase_published', 'SHOWCASE_PUBLISHED handled correctly');
+    assert(scPub[0]?.action_url === '/showcase/sc_pub_1', 'SHOWCASE_PUBLISHED uses custom publicUrl');
+
+    // Showcase Unpublished
+    const scUnpub = await dispatchNotificationEvent({
+      eventType: 'SHOWCASE_UNPUBLISHED',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      eventId: 'ev_sc_1',
+      eventName: 'Showcase Expo',
+      showcaseId: 'sc_pub_1',
+    });
+    assert(scUnpub.length === 1 && scUnpub[0]?.type === 'showcase_unpublished', 'SHOWCASE_UNPUBLISHED handled correctly');
+    assert(scUnpub[0]?.title === 'Showcase Unpublished', 'SHOWCASE_UNPUBLISHED title matches catalog');
+
+    // Showcase Updated
+    const scUpd = await dispatchNotificationEvent({
+      eventType: 'SHOWCASE_UPDATED',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      eventId: 'ev_sc_1',
+      eventName: 'Showcase Expo',
+      showcaseId: 'sc_pub_1',
+    });
+    assert(scUpd.length === 1 && scUpd[0]?.type === 'showcase_updated', 'SHOWCASE_UPDATED handled correctly');
+    assert(scUpd[0]?.priority === 'low', 'SHOWCASE_UPDATED priority is low');
+
+    // Theme Ready (with previewUrl)
+    const themeWithPreview = await dispatchNotificationEvent({
+      eventType: 'THEME_READY',
+      recipientUserId: testUser,
+      organizationId: testOrg,
+      themeId: 'theme_cyber_neon',
+      themeName: 'Cyber Neon V2',
+      gameName: 'Catch Brand',
+      previewUrl: '/preview/catch-brand?themeId=theme_cyber_neon',
+    });
+    assert(themeWithPreview[0]?.action_url === '/preview/catch-brand?themeId=theme_cyber_neon', 'THEME_READY adopts previewUrl');
+  }
+
+  // -----------------------------------------------------------------
+  // 7. Full Template Placeholders Resolution Check
+  // -----------------------------------------------------------------
+  console.log('\n--- Test Group 7: Exhaustive Catalog Template Placeholders Audit ---');
+  {
+    const sampleMetadata: Record<NotificationType, Record<string, any>> = {
+      welcome_credit_added: { amount: 'RM200' },
+      payment_success: { amount: 'RM1,400', subject: 'Corporate Gala' },
+      payment_pending: { amount: 'RM500', subject: 'Top-Up Order' },
+      payment_failed: { amount: 'RM1,400', subject: 'Gala Night' },
+      event_created: { event_name: 'Carnival 2026', start_date: '2026-10-01', end_date: '2026-10-02' },
+      event_approaching: { event_name: 'Carnival 2026', start_date: '2026-10-01' },
+      event_live: { event_name: 'Carnival 2026' },
+      event_expiring: { event_name: 'Carnival 2026', time_remaining: '4 hours' },
+      event_expired: { event_name: 'Carnival 2026' },
+      event_payment_failed: { event_name: 'Carnival 2026' },
+      wallet_low_balance: { current_balance: 'RM120' },
+      insufficient_balance: { current_balance: 'RM200', required_amount: 'RM1,400' },
+      theme_ready: { theme_name: 'Cyberpunk', game_name: 'Reaction Tap' },
+      showcase_draft_created: { event_name: 'Carnival 2026' },
+      showcase_published: { event_name: 'Carnival 2026' },
+      showcase_unpublished: { event_name: 'Carnival 2026' },
+      showcase_updated: { event_name: 'Carnival 2026' },
+      org_invitation: { org_name: 'Acme Org', role: 'admin' },
+      member_joined: { member_name: 'Alex Tan', org_name: 'Acme Org' },
+      security_settings_changed: { details: 'Two-factor authentication requirement enabled' },
+    };
+
+    for (const type of NOTIFICATION_TYPES) {
+      const meta = sampleMetadata[type];
+      const rendered = renderNotificationContent(type, meta);
+      const remainingPlaceholdersTitle = rendered.title.match(/\{([a-zA-Z0-9_]+)\}/g);
+      const remainingPlaceholdersMsg = rendered.message.match(/\{([a-zA-Z0-9_]+)\}/g);
+      assert(
+        !remainingPlaceholdersTitle,
+        `"${type}" title has no unresolved placeholders: "${rendered.title}"`
+      );
+      assert(
+        !remainingPlaceholdersMsg,
+        `"${type}" message has no unresolved placeholders: "${rendered.message}"`
+      );
+    }
   }
 
   // -----------------------------------------------------------------

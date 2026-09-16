@@ -4,6 +4,34 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-09-15] - Notification System Contract Alignment Audit & Inconsistency Repair
+
+### Summary
+Conducted a full-system Contract Alignment Audit of the Centralized Notification System. Repaired catalog discrepancies, dispatcher mappings, action URL fallbacks, deduplication keys, and documentation, ensuring absolute contract alignment across all 20 platform notification types without altering core architectural foundations.
+
+### Key Changes Implemented
+1. **Catalog Alignment & Export (`src/lib/notifications/types.ts`)**:
+   - Replaced stale documentation comments referring to "12 platform notification types" with the authoritative 20 notification types.
+   - Exported `NOTIFICATION_TYPES` readonly array encompassing all 20 types for test suites and runtime validations.
+   - Reconciled `duplicatesAllowed` flags (`event_created` and `theme_ready` set to `false` matching strict entity-level deduplication keys).
+2. **Dispatcher Contract Alignment (`server/notifications/dispatcher.ts`)**:
+   - Fixed `THEME_READY` mapping to respect `event.previewUrl || '/games'` instead of hardcoded `/games`.
+   - Fixed `EVENT_LIVE` mapping to correctly adopt `event.publicUrl || event.liveUrl || '/events'` (resolving parameter divergence from `server/db/events.ts`).
+   - Fixed `PAYMENT_PENDING` mapping to gracefully fall back from `event.orderId` to `event.referenceId` or metadata, preventing `payment_pending_undefined` deduplication keys.
+   - Fixed `PAYMENT_FAILED` deduplication key to fall back to `orderId` or `eventId` if `referenceId` is omitted.
+   - Aligned `SHOWCASE_DRAFT_CREATED`, `SHOWCASE_PUBLISHED`, and `SHOWCASE_UPDATED` to support `event.publicUrl` while preserving `/events` fallback.
+   - Updated TypeScript interfaces (`ShowcaseDraftCreatedEvent`, `ShowcasePublishedEvent`, `ShowcaseUnpublishedEvent`, `ShowcaseUpdatedEvent`) to include optional `publicUrl`.
+3. **Comprehensive Contract Verification Suite (`server/notifications/notifications.test.ts`)**:
+   - Verified all 20 catalog types exist with valid priorities, categories, and retention days.
+   - Expanded Test Group 6 to assert dispatch handling, priority, action URLs, and interpolated messages across all 20 business domain event types.
+   - Added Test Group 7: Exhaustive Catalog Template Placeholders Audit, confirming that all 20 templates have 100% of their `{placeholder}` parameters resolved without dangling syntax.
+   - All 237 test assertions in `server/notifications/notifications.test.ts` pass cleanly.
+4. **Documentation Alignment (`docs/ai/systems/notifications.md`)**:
+   - Updated Section 2 to include a complete 20-row Alignment Matrix covering Category, Priority, Default Retention, Deduplication Policy, and Recipient Target.
+   - Corrected developer test endpoint description from 12 types to 20 types.
+
+---
+
 ## [2026-09-11] - Owner-Level First-Event Showcase Reward & Decoupled Workflows Refactor
 
 ### Summary

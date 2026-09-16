@@ -258,45 +258,6 @@ export const EventsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Owner First-Event Onboarding Banner */}
-      {loading ? (
-        currentOrganization?.role === 'owner' && (
-          <div className="bg-slate-900/40 border border-slate-800/60 rounded-3xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-pulse">
-            <div className="flex items-start gap-3 w-full max-w-xl">
-              <div className="w-10 h-10 bg-slate-800 rounded-2xl shrink-0" />
-              <div className="space-y-2 flex-1">
-                <div className="h-4 w-48 bg-slate-800 rounded" />
-                <div className="h-3 w-full max-w-md bg-slate-800/60 rounded" />
-              </div>
-            </div>
-            <div className="h-9 w-36 bg-slate-800 rounded-xl shrink-0" />
-          </div>
-        )
-      ) : !error && currentOrganization?.role === 'owner' && events.length === 0 ? (
-        <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-slate-900/40 border border-amber-500/30 rounded-3xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="p-2.5 bg-amber-500/20 border border-amber-500/30 rounded-2xl text-amber-400 shrink-0">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm font-black text-amber-300 flex items-center gap-2">
-                <span>Account Owner First-Event Showcase Reward</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">RM300 Lifetime Bonus</span>
-              </div>
-              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                As an organization owner, your first live event activation is eligible for an <strong>RM300 Showcase Credit</strong>. After your event runs, simply upload event photos/videos to the Showcase tab. Upon review, RM300 is deposited into your wallet. (Limit one first-event reward per account owner).
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Deploy First Event</span>
-          </button>
-        </div>
-      ) : null}
 
       {/* Main Content Area: Error State | View Mode (List or Calendar) */}
       {error ? (

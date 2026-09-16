@@ -15,6 +15,7 @@ import {
   hasUserReceivedShowcaseCredit,
   localOwnerShowcaseRewardsCache,
 } from './wallet.js';
+import { isUserOrganizationOwner, hasUserClaimedReward } from './rewards.js';
 import { getShowcaseMedia } from './showcaseMedia.js';
 import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase } from './events.js';
 import { getOrganizationById } from './organizations.js';
@@ -834,6 +835,20 @@ export async function evaluateShowcaseRewardEligibility(
 
   // 1. OWNER-LEVEL lifetime eligibility check: One reward per owner_user_id
   if (ownerUserId) {
+    const isOwner = await isUserOrganizationOwner(ownerUserId, showcase.organization_id, env);
+    if (!isOwner) {
+      return await updateShowcase(
+        eventId,
+        {
+          reward_review_status: 'NOT_ELIGIBLE',
+          reward_status: 'NOT_ELIGIBLE',
+          owner_user_id: ownerUserId,
+        },
+        env,
+        true
+      );
+    }
+
     // Check local fallback cache first
     const localOwnerReward = localOwnerShowcaseRewardsCache.get(ownerUserId);
     if (localOwnerReward) {
@@ -939,7 +954,7 @@ export async function evaluateShowcaseRewardEligibility(
     }
 
     // Strict check across all user rewards and transactions
-    const userAlreadyRewarded = await hasUserReceivedShowcaseCredit(ownerUserId, env);
+    const userAlreadyRewarded = await hasUserReceivedShowcaseCredit(ownerUserId, env) || await hasUserClaimedReward(ownerUserId, 'SHOWCASE_REWARD', env);
     if (userAlreadyRewarded) {
       return await updateShowcase(
         eventId,
@@ -1432,7 +1447,7 @@ export async function getOwnerShowcaseRewardStatus(
   }
 
   // 3. Comprehensive check across user_rewards, wallet_transactions, and organization ledgers
-  const hasReceived = await hasUserReceivedShowcaseCredit(ownerUserId, env);
+  const hasReceived = (await hasUserReceivedShowcaseCredit(ownerUserId, env)) || (await hasUserClaimedReward(ownerUserId, 'SHOWCASE_REWARD', env));
   if (hasReceived) {
     return {
       hasReceivedReward: true,

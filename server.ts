@@ -165,6 +165,9 @@ import {
   deleteNotification,
   listApiErrorLogs,
   getApiErrorLogById,
+  evaluatePromotionEligibility,
+  hasUserClaimedReward,
+  isUserOrganizationOwner,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import {
@@ -5977,13 +5980,59 @@ app.post('/api/organizations/:orgId/wallet/grant-welcome', walletRateLimiter, au
     });
 
     res.json({
-      success: true,
+      success: !result.alreadyGranted && !result.notEligible,
       transaction: result.transaction,
       wallet: result.wallet,
       already_granted: result.alreadyGranted,
+      not_eligible: Boolean(result.notEligible),
+      message: result.message,
     });
   } catch (err: any) {
     console.error('Grant welcome credit error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/organizations/:orgId/rewards/eligibility
+ * Check promotion eligibility (Welcome Credit & Showcase Reward) for the authenticated user.
+ * Strictly enforces owner-only eligibility with one-time account lifetime limits.
+ */
+app.get('/api/organizations/:orgId/rewards/eligibility', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { orgId } = req.params;
+    if (!isUUID(orgId)) {
+      res.status(400).json({ error: `Invalid organization ID format: ${orgId}` });
+      return;
+    }
+
+    const userId = req.user!.id;
+    const { isMember } = await verifyOrgMembershipAndPermission(userId, orgId);
+    const isDev = isUserDeveloperAdmin(req.user);
+    if (!isMember && !isDev) {
+      res.status(403).json({ error: 'Access denied: Must be a member of the organization.' });
+      return;
+    }
+
+    const welcomeEligibility = await evaluatePromotionEligibility({
+      userId,
+      organizationId: orgId,
+      rewardType: 'WELCOME_CREDIT',
+    });
+
+    const showcaseEligibility = await evaluatePromotionEligibility({
+      userId,
+      organizationId: orgId,
+      rewardType: 'SHOWCASE_REWARD',
+    });
+
+    res.json({
+      is_owner: welcomeEligibility.isOwner,
+      welcome_credit: welcomeEligibility,
+      showcase_reward: showcaseEligibility,
+    });
+  } catch (err: any) {
+    console.error('Check promotion eligibility error:', err);
     res.status(500).json({ error: err.message });
   }
 });

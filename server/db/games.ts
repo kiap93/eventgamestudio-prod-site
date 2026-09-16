@@ -403,8 +403,10 @@ export async function cleanupDuplicateSystemGames(env?: Record<string, any>): Pr
       for (const og of orgGames) {
         const canonicalSystemId = systemMap.get(og.game_type || '') || systemMap.get(og.slug || '');
         if (canonicalSystemId) {
-          await supabase.from('game_themes').update({ game_id: canonicalSystemId }).eq('game_id', og.id);
-          await supabase.from('events').update({ game_id: canonicalSystemId }).eq('game_id', og.id);
+          const { error: themeErr } = await supabase.from('game_themes').update({ game_id: canonicalSystemId }).eq('game_id', og.id);
+          if (themeErr) console.warn('[cleanupDuplicateSystemGames] Warning updating game_themes:', themeErr.message);
+          const { error: eventErr } = await supabase.from('events').update({ game_id: canonicalSystemId }).eq('game_id', og.id);
+          if (eventErr) console.warn('[cleanupDuplicateSystemGames] Warning updating events:', eventErr.message);
         }
         await supabase.from('games').delete().eq('id', og.id);
       }
@@ -455,9 +457,11 @@ export async function cleanupDuplicateSystemGames(env?: Record<string, any>): Pr
         for (const dup of duplicates) {
           console.warn(`[System Games] Merging duplicate game ${dup.name} (${dup.id}) into canonical game ${canonical.name} (${canonical.id})`);
           // Reassign themes from duplicate to canonical game
-          await supabase.from('game_themes').update({ game_id: canonical.id }).eq('game_id', dup.id);
+          const { error: themeErr } = await supabase.from('game_themes').update({ game_id: canonical.id }).eq('game_id', dup.id);
+          if (themeErr) console.warn('[cleanupDuplicateSystemGames] Warning updating game_themes:', themeErr.message);
           // Reassign events from duplicate to canonical game
-          await supabase.from('events').update({ game_id: canonical.id }).eq('game_id', dup.id);
+          const { error: eventErr } = await supabase.from('events').update({ game_id: canonical.id }).eq('game_id', dup.id);
+          if (eventErr) console.warn('[cleanupDuplicateSystemGames] Warning updating events:', eventErr.message);
           // Delete duplicate game record
           await supabase.from('games').delete().eq('id', dup.id);
         }
