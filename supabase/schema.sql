@@ -4592,6 +4592,9 @@ DECLARE
   v_base_slug TEXT;
   v_suffix TEXT;
   v_country VARCHAR(2);
+  v_grant_res JSONB;
+  v_welcome_granted BOOLEAN := false;
+  v_welcome_amount NUMERIC(12, 2) := 0.00;
 BEGIN
   -- 1. Input validations
   IF p_name IS NULL OR trim(p_name) = '' THEN
@@ -4680,7 +4683,7 @@ BEGIN
   ON CONFLICT (organization_id, user_id) 
   DO UPDATE SET role = 'owner';
 
-  -- 4. Create Initial Wallet with 0.00 balances (Automatic Welcome Credit is DISABLED)
+  -- 4. Initialize Organization Wallet (ensures wallet row exists)
   INSERT INTO public.organization_wallets (
     id,
     organization_id,
@@ -4709,17 +4712,49 @@ BEGIN
     v_now
   )
   ON CONFLICT (organization_id)
-  DO UPDATE SET
-    updated_at = v_now
+  DO UPDATE SET updated_at = v_now
   RETURNING * INTO v_wallet;
 
-  -- Note: Automatic Welcome Credit is completely removed. No user_rewards or wallet_transactions created here.
+  -- 5. Evaluate and Grant First-Organization Welcome Credit
+  -- Reuses the authoritative owner-only, user-level grant function: grant_welcome_credit_atomic.
+  -- grant_welcome_credit_atomic authoritatively checks:
+  --   a) organization exists and p_owner_id is the actual owner (v_org.owner_id = p_user_id)
+  --   b) user has not claimed WELCOME_CREDIT in public.user_rewards or past completed transactions
+  --   c) atomically inserts into public.user_rewards (ON CONFLICT DO NOTHING)
+  --   d) inserts into public.wallet_transactions and credits organization_wallets
+  v_grant_res := public.grant_welcome_credit_atomic(
+    v_org_id,
+    p_owner_id,
+    p_owner_id,
+    'welcome_' || v_org_id::text,
+    jsonb_build_object(
+      'source', 'AUTO_ORGANIZATION_CREATION',
+      'organization_name', trim(p_name),
+      'owner_user_id', p_owner_id,
+      'program', 'ORGANIZATION_ONBOARDING_WELCOME'
+    )
+  );
+
+  IF (COALESCE((v_grant_res->>'success')::boolean, false) = true) AND
+     (COALESCE((v_grant_res->>'already_granted')::boolean, true) = false) THEN
+    v_welcome_granted := true;
+    v_welcome_amount := 800.00;
+  ELSE
+    v_welcome_granted := false;
+    v_welcome_amount := 0.00;
+  END IF;
+
+  -- Re-read latest wallet state
+  SELECT * INTO v_wallet
+  FROM public.organization_wallets
+  WHERE organization_id = v_org_id;
 
   RETURN jsonb_build_object(
     'success', true,
     'organization', row_to_json(v_org),
     'wallet', row_to_json(v_wallet),
-    'welcome_credit_granted', false
+    'welcome_credit_granted', v_welcome_granted,
+    'welcome_credit_amount', v_welcome_amount
   );
 
 EXCEPTION

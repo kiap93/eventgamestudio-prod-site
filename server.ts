@@ -686,6 +686,8 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
       },
       token,
       gameId,
+      welcome_credit_granted: Boolean(organization.welcome_credit_granted),
+      welcome_credit_amount: organization.welcome_credit_amount || 0,
     });
   } catch (err: any) {
     console.error('[POST /api/organizations] Organization creation failed:', {

@@ -34,7 +34,7 @@
 
 import crypto from 'node:crypto';
 import { getSupabaseServerClient } from '../supabase.js';
-import { createOrganization } from './organizations.js';
+import { createOrganization, localOrgsCache } from './organizations.js';
 import {
   grantWelcomeCredit,
   canUseWelcomeCredit,
@@ -65,12 +65,20 @@ async function createTestUser(): Promise<string> {
 }
 
 async function ensureTestOrg(orgId: string, ownerId?: string): Promise<string> {
-  const supabase = getSupabaseServerClient();
   let validOwnerId = ownerId;
+  if (!validOwnerId) {
+    validOwnerId = await createTestUser();
+  }
+  localOrgsCache.set(orgId, {
+    id: orgId,
+    name: `Test Org ${orgId.slice(0, 8)}`,
+    slug: `test-org-${orgId.slice(0, 8)}`,
+    owner_id: validOwnerId,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  } as any);
   try {
-    if (!validOwnerId) {
-      validOwnerId = await createTestUser();
-    }
+    const supabase = getSupabaseServerClient();
     await supabase.from('organizations').upsert({
       id: orgId,
       name: `Test Org ${orgId.slice(0, 8)}`,
@@ -82,7 +90,7 @@ async function ensureTestOrg(orgId: string, ownerId?: string): Promise<string> {
     return validOwnerId;
   } catch {
     // Ignore in local mode
-    return validOwnerId || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+    return validOwnerId;
   }
 }
 
@@ -158,36 +166,36 @@ async function runTests() {
   assertEqual(grant1Duplicate.wallet.welcome_credit, 800.00, 'Wallet welcome_credit remains exactly RM800.00 (not doubled)');
 
   // ----------------------------------------------------
-  // TEST GROUP 1B: NO AUTOMATIC WELCOME CREDIT ON createOrganization
+  // TEST GROUP 1B: AUTOMATIC WELCOME CREDIT ON FIRST ORG createOrganization
   // ----------------------------------------------------
-  console.log('\n--- Test Group 1B: No Automatic Welcome Credit on createOrganization ---');
+  console.log('\n--- Test Group 1B: Automatic Welcome Credit on First Org createOrganization ---');
   const autoUser = await createTestUser();
   const autoOrg = await createOrganization({
-    name: 'No Auto Welcome Org Test',
+    name: 'Auto Welcome First Org Test',
     owner_id: autoUser,
   });
 
   const autoOrgWallet = await getWalletBalance(autoOrg.id);
-  assertEqual(autoOrgWallet.welcome_credit, 0.00, 'createOrganization does NOT automatically grant Welcome Credit (RM0)');
-  assertEqual(autoOrgWallet.total_balance, 0.00, 'Total available balance is RM0 immediately');
-  assertEqual(autoOrgWallet.welcome_credit_granted, false, 'welcome_credit_granted flag is false');
+  assertEqual(autoOrgWallet.welcome_credit, 800.00, 'createOrganization automatically grants Welcome Credit (RM800) to first org owner');
+  assertEqual(autoOrgWallet.total_balance, 800.00, 'Total available balance is RM800 immediately');
+  assertEqual(autoOrgWallet.welcome_credit_granted, true, 'welcome_credit_granted flag is true');
 
-  // Same user creating a second organization also gets zero welcome credit
+  // Same user creating a second organization gets zero welcome credit (owner lifetime limit)
   const secondOrg = await createOrganization({
     name: 'Second Org Same User',
     owner_id: autoUser,
   });
   const secondOrgWallet = await getWalletBalance(secondOrg.id);
-  assertEqual(secondOrgWallet.welcome_credit, 0.00, 'Second org created by same user also has RM0 Welcome Credit');
+  assertEqual(secondOrgWallet.welcome_credit, 0.00, 'Second org created by same user has RM0 Welcome Credit');
   assertEqual(secondOrgWallet.welcome_credit_granted, false, 'Second org welcome_credit_granted is false');
 
-  // Explicit admin grant works on the first org
+  // Subsequent manual grant attempt on first org returns alreadyGranted: true
   const manualGrant = await grantWelcomeCredit({
     organizationId: autoOrg.id,
     createdBy: testAdminId,
   });
-  assertEqual(manualGrant.alreadyGranted, false, 'Manual developer grant succeeds for first org');
-  assertEqual(manualGrant.wallet.welcome_credit, 800.00, 'Manual developer grant adds RM800.00');
+  assertEqual(manualGrant.alreadyGranted, true, 'Manual grant on first org returns alreadyGranted because granted on creation');
+  assertEqual(manualGrant.wallet.welcome_credit, 800.00, 'Wallet welcome credit remains RM800.00');
 
   // Attempting manual grant on the second org belonging to the same owner is rejected by owner-level unique constraint
   const secondOrgManualGrant = await grantWelcomeCredit({

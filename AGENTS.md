@@ -96,7 +96,7 @@ Core platform entities (**Organizations**, **Users/Members**, **Events**, **Game
 
 Keep distinct balance ledgers logically separated:
 1. **Cash / Purchased Wallet Balance**: Real funds topped up via payment gateways.
-2. **Welcome Credits**: One-time promotional bonus manually granted by developer admins (strictly one-time per user lifetime across all organizations; automatic grant on organization registration is discontinued).
+2. **Welcome Credits**: One-time promotional bonus (RM800.00) automatically granted to a new user upon creating their FIRST organization as OWNER (strictly one-time per user lifetime across all organizations; subsequent organizations receive RM0.00, and organization members are never eligible).
 3. **Top-Up Reward Credits**: Bonus credits awarded on qualifying top-up tiers (subject to event payment application caps, e.g., max 20% of event price).
 4. **Showcase Reward Credits**: Credits awarded for approved event showcases. This is strictly an **Owner-Level Reward** (`owner_user_id`) with a lifetime limit of one reward per account owner. Showcase publishing, editorial event review, and reward approval are three completely decoupled workflows.
 5. **Event Credits**: Specific promotional credits tied to event creation.
@@ -112,7 +112,11 @@ Promotion eligibility =
     authenticated user has never claimed this promotion before
 ```
 
-**Architectural Standards**:
+**Key Execution Rules**:
+- **Automatic First-Organization Welcome Credit**: When a new user creates their FIRST organization as OWNER, the platform automatically grants RM800.00 Welcome Credit via `create_organization_atomic()` calling `grant_welcome_credit_atomic()`.
+- **Subsequent Organizations Receive RM0**: If the same user creates a second, third, or subsequent organization, those organizations initialize with RM0.00 Welcome Credit.
+- **Organization Members Receive RM0**: Users invited to an organization as members (`admin`, `designer`, `viewer`) never receive Welcome Credit. If an invited member later creates their own first organization as OWNER, they receive RM800.00.
+- **Spending / Deletion Independence**: Spending Welcome Credit down to RM0 or deleting past organizations NEVER resets or restores lifetime eligibility.
 - **Unified Eligibility Architecture**: Welcome Credit (`WELCOME_CREDIT`) and Showcase Reward (`SHOWCASE_REWARD`) follow the identical owner-only, user-level, lifetime eligibility model.
 - **Server-Authoritative Ownership**: Ownership is verified server-side against `organizations.owner_id`. Client-supplied role claims or URL parameters are never trusted.
 - **Lifetime Uniqueness via `public.user_rewards`**: The `user_rewards` table with constraint `UNIQUE(user_id, reward_type)` is the primary lifetime source of truth.
@@ -120,7 +124,7 @@ Promotion eligibility =
 - **Member Exclusion**: Organization members (`admin`, `designer`, `viewer`) are strictly excluded from receiving one-time promotions. Membership changes (inviting, joining, leaving, role updates) never grant or consume promotional eligibility.
 - **Promotion Independence**: Welcome Credit and Showcase Reward are tracked separately. Claiming Welcome Credit never consumes Showcase Reward, and vice versa.
 - **Wallet Balance Independence**: Current wallet balance is never used to evaluate eligibility; spending promotional credits down to RM0 does not make an owner eligible again.
-- **Atomic Operations**: All reward evaluations and disbursements run under atomic functions (`grant_welcome_credit_atomic`, `approve_first_event_showcase_reward_atomic`) with `FOR UPDATE` row locks to prevent race conditions.
+- **Atomic Operations**: All reward evaluations and disbursements run under atomic functions (`create_organization_atomic`, `grant_welcome_credit_atomic`, `approve_first_event_showcase_reward_atomic`) with `FOR UPDATE` row locks and database unique constraints to prevent race conditions under concurrent creation.
 - **Rules**:
   - Prevent duplicate awards of one-time credits.
   - Promotional credits are non-withdrawable and can only be applied toward event activations within the platform rules.

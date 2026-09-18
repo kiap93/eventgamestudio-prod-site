@@ -23,6 +23,7 @@ import {
   getWalletBalance,
   recalculateWalletBalances,
   localWalletsCache,
+  localTransactionsCache,
   localUserRewardsCache,
   localOwnerShowcaseRewardsCache,
 } from './wallet.js';
@@ -171,16 +172,18 @@ async function runUnifiedRewardsTests() {
       owner_id: owner.id,
     });
 
+    const org1Wallet = await getWalletBalance(org1.id);
+    assert.strictEqual(Number(org1Wallet.welcome_credit), 800, 'Org 1 automatically receives RM800 welcome credit upon creation');
+    assert.strictEqual(await hasUserReceivedWelcomeCredit(owner.id), true, 'Owner should have lifetime credit recorded');
+    assert.strictEqual(await hasUserClaimedReward(owner.id, 'WELCOME_CREDIT'), true, 'User reward should be recorded');
+
+    // Subsequent grant attempt in Org 1 returns alreadyGranted
     const result1 = await grantWelcomeCredit({
       organizationId: org1.id,
       userId: owner.id,
       createdBy: owner.id,
     });
-
-    assert.strictEqual(result1.alreadyGranted, false, 'First grant should succeed');
-    assert.ok(result1.transaction, 'Transaction should be generated for first grant');
-    assert.strictEqual(await hasUserReceivedWelcomeCredit(owner.id), true, 'Owner should have lifetime credit recorded');
-    assert.strictEqual(await hasUserClaimedReward(owner.id, 'WELCOME_CREDIT'), true, 'User reward should be recorded');
+    assert.strictEqual(result1.alreadyGranted, true, 'Subsequent grant in Org 1 returns alreadyGranted');
 
     // Attempt grant in Org 2 for same owner
     const result2 = await grantWelcomeCredit({
@@ -253,14 +256,17 @@ async function runUnifiedRewardsTests() {
       owner_id: owner.id,
     });
 
-    // 1. Owner receives Welcome Credit
+    // 1. Owner receives Welcome Credit automatically upon first org creation
+    assert.strictEqual(await hasUserClaimedReward(owner.id, 'WELCOME_CREDIT'), true);
+    const orgWallet = await getWalletBalance(org.id);
+    assert.strictEqual(Number(orgWallet.welcome_credit), 800);
+
     const welcomeResult = await grantWelcomeCredit({
       organizationId: org.id,
       userId: owner.id,
       createdBy: owner.id,
     });
-    assert.strictEqual(welcomeResult.alreadyGranted, false);
-    assert.strictEqual(await hasUserClaimedReward(owner.id, 'WELCOME_CREDIT'), true);
+    assert.strictEqual(welcomeResult.alreadyGranted, true);
 
     // 2. Owner is STILL eligible for Showcase Reward!
     assert.strictEqual(await hasUserClaimedReward(owner.id, 'SHOWCASE_REWARD'), false, 'Claiming welcome credit does NOT consume showcase reward');
@@ -314,32 +320,25 @@ async function runUnifiedRewardsTests() {
     assert.strictEqual(memberWelcome.eligible, false, 'Member must NOT be eligible');
     assert.strictEqual(memberWelcome.isOwner, false, 'Member is not owner');
 
-    // Owner initial evaluation
+    // Owner evaluation for welcome credit (already automatically claimed upon org creation)
     const ownerWelcomeInitial = await evaluatePromotionEligibility({
       userId: owner.id,
       organizationId: org.id,
       rewardType: 'WELCOME_CREDIT',
     });
-    assert.strictEqual(ownerWelcomeInitial.eligible, true, 'New owner must be eligible');
+    assert.strictEqual(ownerWelcomeInitial.eligible, false, 'Owner already claimed welcome credit on creation');
     assert.strictEqual(ownerWelcomeInitial.isOwner, true, 'Owner verified');
-    assert.strictEqual(ownerWelcomeInitial.alreadyClaimed, false, 'Not claimed yet');
+    assert.strictEqual(ownerWelcomeInitial.alreadyClaimed, true, 'Already claimed on creation');
 
-    // Owner claims Welcome Credit
-    await grantWelcomeCredit({
-      organizationId: org.id,
-      userId: owner.id,
-      createdBy: owner.id,
-    });
-
-    // Owner post-claim evaluation
-    const ownerWelcomePost = await evaluatePromotionEligibility({
+    // Owner evaluation for showcase reward (not claimed yet)
+    const ownerShowcaseInitial = await evaluatePromotionEligibility({
       userId: owner.id,
       organizationId: org.id,
-      rewardType: 'WELCOME_CREDIT',
+      rewardType: 'SHOWCASE_REWARD',
     });
-    assert.strictEqual(ownerWelcomePost.eligible, false, 'Claimed owner must no longer be eligible');
-    assert.strictEqual(ownerWelcomePost.isOwner, true);
-    assert.strictEqual(ownerWelcomePost.alreadyClaimed, true);
+    assert.strictEqual(ownerShowcaseInitial.eligible, true, 'Showcase reward not claimed yet');
+    assert.strictEqual(ownerShowcaseInitial.isOwner, true);
+    assert.strictEqual(ownerShowcaseInitial.alreadyClaimed, false);
     console.log('  ✓ PASSED: evaluatePromotionEligibility produces correct status across all roles and states.');
   }
 
@@ -413,9 +412,9 @@ async function runUnifiedRewardsTests() {
     assert.strictEqual(Number(walletBefore.welcome_credit), 800);
 
     // Simulate spending/consuming the welcome credit completely down to RM0 via ledger usage
-    const supabase = getSupabaseServerClient();
-    await supabase.from('wallet_transactions').insert({
-      id: crypto.randomUUID(),
+    const spendId = crypto.randomUUID();
+    localTransactionsCache.set(spendId, {
+      id: spendId,
       organization_id: org.id,
       owner_user_id: owner.id,
       transaction_type: 'CREDIT_USAGE',
@@ -423,6 +422,9 @@ async function runUnifiedRewardsTests() {
       amount: -800,
       currency: 'MYR',
       status: 'COMPLETED',
+      reference_id: 'spend_welcome_credit',
+      event_id: null,
+      metadata: {},
       created_by: owner.id,
       description: 'Spend welcome credit',
       created_at: new Date().toISOString(),
@@ -467,7 +469,7 @@ async function runUnifiedRewardsTests() {
       createOrganization({ name: 'Concurrent Org C', owner_id: owner.id }),
     ]);
 
-    // Attempt 3 simultaneous grants across orgs for same owner
+    // Attempt 3 simultaneous grants across orgs for same owner (org creation already granted to exactly 1)
     const [resA, resB, resC] = await Promise.all([
       grantWelcomeCredit({ organizationId: orgA.id, userId: owner.id, createdBy: owner.id }),
       grantWelcomeCredit({ organizationId: orgB.id, userId: owner.id, createdBy: owner.id }),
@@ -478,8 +480,8 @@ async function runUnifiedRewardsTests() {
     const successes = results.filter((r) => !r.alreadyGranted);
     const rejected = results.filter((r) => r.alreadyGranted);
 
-    assert.strictEqual(successes.length, 1, `Exactly 1 concurrent grant must succeed (got ${successes.length})`);
-    assert.strictEqual(rejected.length, 2, `Exactly 2 concurrent grants must be rejected (got ${rejected.length})`);
+    assert.strictEqual(successes.length, 0, `0 manual grants succeed because already claimed on org creation (got ${successes.length})`);
+    assert.strictEqual(rejected.length, 3, `All 3 manual grants must be rejected as already granted (got ${rejected.length})`);
 
     const [wA, wB, wC] = await Promise.all([
       getWalletBalance(orgA.id),
@@ -537,27 +539,31 @@ async function runUnifiedRewardsTests() {
     await removeMember(member.id);
     assert.strictEqual(await hasUserClaimedReward(candidate.id, 'WELCOME_CREDIT'), false);
 
-    // 5. Candidate creates their OWN organization later -> eligible as OWNER!
+    // 5. Candidate creates their OWN organization later -> automatically receives RM800 as OWNER!
     const candidateOrg = await createOrganization({
       name: "Candidate's Own Org",
       owner_id: candidate.id,
     });
+
+    const candidateWallet = await getWalletBalance(candidateOrg.id);
+    assert.strictEqual(Number(candidateWallet.welcome_credit), 800, 'Candidate automatically receives RM800 welcome credit on their first org');
+    assert.strictEqual(await hasUserClaimedReward(candidate.id, 'WELCOME_CREDIT'), true);
 
     const candidateEval = await evaluatePromotionEligibility({
       userId: candidate.id,
       organizationId: candidateOrg.id,
       rewardType: 'WELCOME_CREDIT',
     });
-    assert.strictEqual(candidateEval.eligible, true, 'User is fully eligible when they become an OWNER of their own org');
+    assert.strictEqual(candidateEval.eligible, false, 'Candidate already claimed upon creating first org');
     assert.strictEqual(candidateEval.isOwner, true);
-    assert.strictEqual(candidateEval.alreadyClaimed, false);
+    assert.strictEqual(candidateEval.alreadyClaimed, true);
 
     const candidateGrant = await grantWelcomeCredit({
       organizationId: candidateOrg.id,
       userId: candidate.id,
       createdBy: candidate.id,
     });
-    assert.strictEqual(candidateGrant.alreadyGranted, false, 'Candidate receives Welcome Credit as owner of their own org');
+    assert.strictEqual(candidateGrant.alreadyGranted, true, 'Subsequent manual grant rejected as already granted');
     console.log('  ✓ PASSED: Member lifecycle operations never grant or consume promotional eligibility.');
   }
 

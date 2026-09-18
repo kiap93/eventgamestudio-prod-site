@@ -31,8 +31,8 @@ async function runWelcomeCreditScenarioTests() {
   console.log('EVENTGAMESTUDIO WELCOME CREDIT SPECIFICATION TEST SUITE (20 SCENARIOS)');
   console.log('================================================================\n');
 
-  // Scenario 1: First organization creation by User A initializes with RM0; manual grant awards RM800
-  console.log('Scenario 1: First organization creation by User A initializes with RM0; manual grant awards RM800...');
+  // Scenario 1: First organization creation by User A automatically receives RM800 Welcome Credit
+  console.log('Scenario 1: First organization creation by User A automatically receives RM800 Welcome Credit...');
   const userA = await createUser({
     email: `usera-${crypto.randomUUID().slice(0, 8)}@example.com`,
     name: 'User Alpha',
@@ -47,27 +47,27 @@ async function runWelcomeCreditScenarioTests() {
   const initialWalletA1 = await getWalletBalance(orgA1.id);
   assert.strictEqual(
     Number(initialWalletA1.welcome_credit),
-    0,
-    'New organization must receive RM0.00 initial Welcome Credit'
+    WELCOME_CREDIT_AMOUNT,
+    'New organization must receive RM800.00 initial Welcome Credit'
   );
-  assert.strictEqual(initialWalletA1.welcome_credit_granted, false);
+  assert.strictEqual(initialWalletA1.welcome_credit_granted, true);
 
   const initialHasReceivedA1 = await hasUserReceivedWelcomeCredit(userA.id);
-  assert.strictEqual(initialHasReceivedA1, false, 'hasUserReceivedWelcomeCredit must return false upon creation');
+  assert.strictEqual(initialHasReceivedA1, true, 'hasUserReceivedWelcomeCredit must return true upon creation');
 
-  // Manual developer grant
+  // Manual developer grant attempt after already received returns alreadyGranted = true
   const grantA1 = await grantWelcomeCredit({
     organizationId: orgA1.id,
     userId: userA.id,
     createdBy: userA.id,
   });
-  assert.strictEqual(grantA1.alreadyGranted, false, 'First manual developer grant must succeed');
+  assert.strictEqual(grantA1.alreadyGranted, true, 'Duplicate developer grant must be rejected');
 
   const walletA1 = await getWalletBalance(orgA1.id);
   assert.strictEqual(
     Number(walletA1.welcome_credit),
     WELCOME_CREDIT_AMOUNT,
-    'First organization must receive RM800 Welcome Credit after manual grant'
+    'First organization must retain RM800 Welcome Credit'
   );
   assert.strictEqual(walletA1.welcome_credit_granted, true);
 
@@ -224,8 +224,8 @@ async function runWelcomeCreditScenarioTests() {
   assert.strictEqual(await hasUserReceivedWelcomeCredit(userB.id), false, 'User B still has not received Welcome Credit');
   console.log('  ✓ PASSED: Member removal left Welcome Credit state unaltered.');
 
-  // Scenario 10: Invited member later creates their own first organization and receives Welcome Credit via manual grant
-  console.log('\nScenario 10: User B creates their OWN first organization (RM0 initial) and receives manual Welcome Credit...');
+  // Scenario 10: Invited member later creates their own first organization and receives Welcome Credit automatically
+  console.log('\nScenario 10: User B creates their OWN first organization and receives Welcome Credit automatically...');
   const orgB1 = await createOrganization({
     name: 'Beta Org 1',
     owner_id: userB.id,
@@ -233,23 +233,24 @@ async function runWelcomeCreditScenarioTests() {
   });
 
   const initialWalletB1 = await getWalletBalance(orgB1.id);
-  assert.strictEqual(Number(initialWalletB1.welcome_credit), 0, 'User B org created with RM0 initial Welcome Credit');
+  assert.strictEqual(Number(initialWalletB1.welcome_credit), WELCOME_CREDIT_AMOUNT, 'User B org created with RM800 initial Welcome Credit');
+  assert.strictEqual(initialWalletB1.welcome_credit_granted, true);
 
   const grantB1 = await grantWelcomeCredit({
     organizationId: orgB1.id,
     userId: userB.id,
     createdBy: userB.id,
   });
-  assert.strictEqual(grantB1.alreadyGranted, false, 'Manual grant to User B succeeds');
+  assert.strictEqual(grantB1.alreadyGranted, true, 'Subsequent manual grant to User B indicates already granted');
 
   const walletB1 = await getWalletBalance(orgB1.id);
   assert.strictEqual(
     Number(walletB1.welcome_credit),
     WELCOME_CREDIT_AMOUNT,
-    'User B must receive RM800 Welcome Credit after manual grant'
+    'User B must retain RM800 Welcome Credit'
   );
   assert.strictEqual(await hasUserReceivedWelcomeCredit(userB.id), true);
-  console.log('  ✓ PASSED: User B successfully received Welcome Credit on their first created organization via manual grant.');
+  console.log('  ✓ PASSED: User B successfully received Welcome Credit on their first created organization.');
 
   // Scenario 11: User B subsequently creates a second organization and receives NO Welcome Credit
   console.log('\nScenario 11: User B creates a second organization and receives NO Welcome Credit...');
@@ -294,7 +295,7 @@ async function runWelcomeCreditScenarioTests() {
 
   const oauthWallet1Initial = await getWalletBalance(oauthOrg1.id);
   const oauthWallet2Initial = await getWalletBalance(oauthOrg2.id);
-  assert.strictEqual(Number(oauthWallet1Initial.welcome_credit), 0);
+  assert.strictEqual(Number(oauthWallet1Initial.welcome_credit), WELCOME_CREDIT_AMOUNT);
   assert.strictEqual(Number(oauthWallet2Initial.welcome_credit), 0);
 
   const oauthGrant1 = await grantWelcomeCredit({
@@ -308,7 +309,7 @@ async function runWelcomeCreditScenarioTests() {
     createdBy: oauthUser.id,
   });
 
-  assert.strictEqual(oauthGrant1.alreadyGranted, false);
+  assert.strictEqual(oauthGrant1.alreadyGranted, true);
   assert.strictEqual(oauthGrant2.alreadyGranted, true);
   assert.strictEqual(Number((await getWalletBalance(oauthOrg1.id)).welcome_credit), WELCOME_CREDIT_AMOUNT);
   assert.strictEqual(Number((await getWalletBalance(oauthOrg2.id)).welcome_credit), 0);
@@ -341,14 +342,6 @@ async function runWelcomeCreditScenarioTests() {
     owner_id: isolatedUser.id,
     country_code: 'MY',
   });
-  assert.strictEqual(Number((await getWalletBalance(singleOrg.id)).welcome_credit), 0);
-
-  const isolatedGrant1 = await grantWelcomeCredit({
-    organizationId: singleOrg.id,
-    userId: isolatedUser.id,
-    createdBy: isolatedUser.id,
-  });
-  assert.strictEqual(isolatedGrant1.alreadyGranted, false);
   assert.strictEqual(Number((await getWalletBalance(singleOrg.id)).welcome_credit), WELCOME_CREDIT_AMOUNT);
 
   // Delete the only organization
@@ -424,7 +417,7 @@ async function runWelcomeCreditScenarioTests() {
   console.log('  ✓ PASSED: Rollback mechanisms preserve consistency.');
 
   // Scenario 19: Concurrent organization creation creates RM0; concurrent manual grants award at most once
-  console.log('\nScenario 19: Concurrent organization creation creates RM0; concurrent manual grants award at most once...');
+  console.log('\nScenario 19: Concurrent organization creation awards Welcome Credit exactly once...');
   const concurrentUser = await createUser({
     email: `concurrent-${crypto.randomUUID().slice(0, 8)}@example.com`,
     name: 'Concurrent User',
@@ -447,7 +440,10 @@ async function runWelcomeCreditScenarioTests() {
     Number(cWallet2.welcome_credit),
     Number(cWallet3.welcome_credit),
   ];
-  assert.ok(initialAmounts.every((amt) => amt === 0), 'All 3 concurrent org creations have RM0 welcome credit initially');
+  const orgsWithCredit = initialAmounts.filter((amt) => amt === WELCOME_CREDIT_AMOUNT);
+  const orgsWithoutCredit = initialAmounts.filter((amt) => amt === 0);
+  assert.strictEqual(orgsWithCredit.length, 1, 'Exactly ONE concurrent org creation gets RM800 welcome credit');
+  assert.strictEqual(orgsWithoutCredit.length, 2, 'Exactly TWO concurrent org creations get RM0 welcome credit');
 
   const [g1, g2, g3] = await Promise.all([
     grantWelcomeCredit({ organizationId: cOrg1.id, userId: concurrentUser.id, createdBy: concurrentUser.id }),
@@ -456,8 +452,7 @@ async function runWelcomeCreditScenarioTests() {
   ]);
 
   const grantResults = [g1, g2, g3];
-  assert.strictEqual(grantResults.filter((r) => !r.alreadyGranted).length, 1, 'Exactly ONE manual grant must succeed');
-  assert.strictEqual(grantResults.filter((r) => r.alreadyGranted).length, 2, 'Exactly TWO manual grants must be rejected');
+  assert.ok(grantResults.every((r) => r.alreadyGranted), 'All subsequent manual grants indicate already granted');
 
   const updatedWallets = await Promise.all([
     getWalletBalance(cOrg1.id),
@@ -465,12 +460,9 @@ async function runWelcomeCreditScenarioTests() {
     getWalletBalance(cOrg3.id),
   ]);
   const creditAmounts = updatedWallets.map((w) => Number(w.welcome_credit));
-  const orgsWithCredit = creditAmounts.filter((amt) => amt === WELCOME_CREDIT_AMOUNT);
-  const orgsWithoutCredit = creditAmounts.filter((amt) => amt === 0);
-
-  assert.strictEqual(orgsWithCredit.length, 1, 'Exactly ONE organization must have RM800 Welcome Credit');
-  assert.strictEqual(orgsWithoutCredit.length, 2, 'Exactly TWO organizations must receive RM0.00');
-  console.log('  ✓ PASSED: Concurrent organization creation RM0 and concurrent manual grants granted exactly once.');
+  assert.strictEqual(creditAmounts.filter((amt) => amt === WELCOME_CREDIT_AMOUNT).length, 1);
+  assert.strictEqual(creditAmounts.filter((amt) => amt === 0).length, 2);
+  console.log('  ✓ PASSED: Concurrent organization creation awarded exactly once and duplicate manual grants rejected.');
 
   // Scenario 20: Audit of all membership operations (addMember, updateMemberRole, removeMember)
   console.log('\nScenario 20: Comprehensive audit verifies membership operations never trigger Welcome Credit...');

@@ -11,7 +11,7 @@ import {
   WalletTransactionRecord,
   EventWithDetails,
 } from './types.js';
-import { initializeEmptyWallet, getWalletBalance, getWalletTransactions } from './wallet.js';
+import { initializeEmptyWallet, getWalletBalance, getWalletTransactions, grantWelcomeCredit } from './wallet.js';
 import { getUserById, localUsersCache } from './users.js';
 import { getOrgMembers, addMember, OrgMemberWithUserDetails } from './members.js';
 import { getEventsByOrgId } from './events.js';
@@ -209,6 +209,11 @@ export async function getUserOrganizations(userId: string, env?: Record<string, 
   }));
 }
 
+export interface CreateOrganizationResult extends OrganizationRecord {
+  welcome_credit_granted?: boolean;
+  welcome_credit_amount?: number;
+}
+
 export async function createOrganization(
   params: {
     id?: string;
@@ -218,7 +223,7 @@ export async function createOrganization(
     country_code?: string | null;
   },
   env?: Record<string, any>
-): Promise<OrganizationRecord> {
+): Promise<CreateOrganizationResult> {
   if (!params.name || !params.name.trim()) {
     throw new Error('Organization name is required and cannot be empty.');
   }
@@ -272,8 +277,38 @@ export async function createOrganization(
     } catch (walletErr) {
       console.error('Failed to initialize empty wallet for organization in local cache:', walletErr);
     }
+
+    // Evaluate and grant Welcome Credit for owner on their first organization creation
+    let welcomeCreditGranted = false;
+    let welcomeCreditAmount = 0;
+    try {
+      const grantResult = await grantWelcomeCredit(
+        {
+          organizationId: orgRecord.id,
+          userId: params.owner_id,
+          createdBy: params.owner_id,
+          metadata: {
+            source: 'AUTO_ORGANIZATION_CREATION',
+            organization_name: orgRecord.name,
+            owner_user_id: params.owner_id,
+          },
+        },
+        env
+      );
+      if (grantResult && !grantResult.alreadyGranted && !grantResult.notEligible && grantResult.wallet?.welcome_credit_granted) {
+        welcomeCreditGranted = true;
+        welcomeCreditAmount = 800;
+      }
+    } catch (grantErr) {
+      console.warn('Warning evaluating first-organization welcome credit in local fallback:', grantErr);
+    }
+
     saveLocalOrgs();
-    return orgRecord;
+    return {
+      ...orgRecord,
+      welcome_credit_granted: welcomeCreditGranted,
+      welcome_credit_amount: welcomeCreditAmount,
+    };
   }
 
   const supabase = getSupabaseServerClient(env);
@@ -347,7 +382,11 @@ export async function createOrganization(
     }
 
     if (!rpcError && rpcData && rpcData.success && rpcData.organization) {
-      const organization = rpcData.organization as OrganizationRecord;
+      const organization: CreateOrganizationResult = {
+        ...(rpcData.organization as OrganizationRecord),
+        welcome_credit_granted: Boolean(rpcData.welcome_credit_granted),
+        welcome_credit_amount: Number(rpcData.welcome_credit_amount || 0),
+      };
       localOrgsCache.set(organization.id, organization);
       return organization;
     }
@@ -442,14 +481,43 @@ export async function createOrganization(
     }
   }
 
-  // Initialize wallet with 0 balances (Automatic Welcome Credit is disabled)
+  // Initialize wallet with 0 balances
   try {
     await initializeEmptyWallet(organization.id, env);
   } catch (walletErr) {
     console.warn('Warning initializing empty wallet during sequential fallback:', walletErr);
   }
 
-  return organization;
+  // Attempt Welcome Credit grant for first organization owner
+  let welcomeCreditGranted = false;
+  let welcomeCreditAmount = 0;
+  try {
+    const grantResult = await grantWelcomeCredit(
+      {
+        organizationId: organization.id,
+        userId: params.owner_id,
+        createdBy: params.owner_id,
+        metadata: {
+          source: 'AUTO_ORGANIZATION_CREATION',
+          organization_name: organization.name,
+          owner_user_id: params.owner_id,
+        },
+      },
+      env
+    );
+    if (grantResult && !grantResult.alreadyGranted && !grantResult.notEligible && grantResult.wallet?.welcome_credit_granted) {
+      welcomeCreditGranted = true;
+      welcomeCreditAmount = 800;
+    }
+  } catch (grantErr) {
+    console.warn('Warning granting first-org welcome credit during sequential fallback:', grantErr);
+  }
+
+  return {
+    ...organization,
+    welcome_credit_granted: welcomeCreditGranted,
+    welcome_credit_amount: welcomeCreditAmount,
+  };
 }
 
 export async function updateOrganization(

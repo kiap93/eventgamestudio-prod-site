@@ -1234,18 +1234,6 @@ export async function grantWelcomeCredit(
     throw new Error('Organization ID is required');
   }
 
-  // Reject automatic organization onboarding grants
-  if (metadata?.source === 'AUTO_ORGANIZATION_CREATION') {
-    const currentWallet = await getWalletBalance(organizationId, env);
-    return {
-      transaction: null,
-      wallet: currentWallet,
-      alreadyGranted: true,
-      notEligible: true,
-      message: 'Automatic Welcome Credit upon organization creation is discontinued.',
-    };
-  }
-
   // 1. Authoritative Owner-Only Constraint
   // Welcome Credit is strictly an owner-only, user-level promotion.
   let targetUserId = params.userId;

@@ -1088,6 +1088,8 @@ export default {
             },
             token,
             gameId,
+            welcome_credit_granted: Boolean(organization.welcome_credit_granted),
+            welcome_credit_amount: organization.welcome_credit_amount || 0,
           },
           200,
           cors

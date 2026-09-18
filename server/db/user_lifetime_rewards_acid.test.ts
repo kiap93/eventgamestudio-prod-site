@@ -39,8 +39,8 @@ async function runLifetimeRewardsTestSuite() {
 
   // ---------------------------------------------------------
   // TEST 1: User creates Organization A
-  // Automatic Welcome Credit is discontinued (RM0 initial).
-  // Manual developer grant awards RM800 one-time lifetime credit.
+  // Automatic Welcome Credit is awarded on first org creation (RM800).
+  // Subsequent manual grant indicates already granted.
   // ---------------------------------------------------------
   console.log('Test 1: User creates Organization A (first org)...');
   const orgA = await createOrganization({
@@ -51,21 +51,21 @@ async function runLifetimeRewardsTestSuite() {
 
   assertTrue(Boolean(orgA?.id), 'Organization A created successfully');
   const initialWelcome = await hasUserReceivedWelcomeCredit(testUserId);
-  assertTrue(!initialWelcome, 'hasUserReceivedWelcomeCredit returns false upon org creation (no automatic grant)');
+  assertTrue(initialWelcome, 'hasUserReceivedWelcomeCredit returns true upon first org creation (automatic grant)');
 
   const initialWalletA = await getWalletBalance(orgA.id);
-  assertTrue(initialWalletA.welcome_credit === 0, 'Org A wallet initialized with RM0 Welcome Credit');
-  assertTrue(initialWalletA.welcome_credit_granted === false, 'Org A wallet welcome_credit_granted is false initially');
+  assertTrue(initialWalletA.welcome_credit === 800, 'Org A wallet initialized with RM800 Welcome Credit');
+  assertTrue(initialWalletA.welcome_credit_granted === true, 'Org A wallet welcome_credit_granted is true initially');
 
-  // Manual developer grant succeeds for first org
+  // Manual developer grant indicates already granted
   const grantA = await grantWelcomeCredit({
     organizationId: orgA.id,
     userId: testUserId,
     createdBy: testUserId,
   });
-  assertTrue(grantA.alreadyGranted === false, 'Manual grant on Org A succeeds');
-  assertTrue(grantA.wallet.welcome_credit === 800, 'Org A wallet received RM800 Welcome Credit after manual grant');
-  assertTrue(grantA.wallet.welcome_credit_granted === true, 'Org A wallet welcome_credit_granted is true');
+  assertTrue(grantA.alreadyGranted === true, 'Subsequent manual grant on Org A returns alreadyGranted: true');
+  assertTrue(grantA.wallet.welcome_credit === 800, 'Org A wallet retains RM800 Welcome Credit');
+  assertTrue(grantA.wallet.welcome_credit_granted === true, 'Org A wallet welcome_credit_granted remains true');
 
   const hasReceivedWelcome = await hasUserReceivedWelcomeCredit(testUserId);
   assertTrue(hasReceivedWelcome, 'hasUserReceivedWelcomeCredit returns true for user after manual grant');
@@ -202,11 +202,11 @@ async function runLifetimeRewardsTestSuite() {
 
   const initialCredits = raceWallet1.welcome_credit + raceWallet2.welcome_credit + raceWallet3.welcome_credit;
   assertTrue(
-    initialCredits === 0,
-    `All concurrent org creations have RM0 welcome credit initially (got RM${initialCredits})`
+    initialCredits === 800,
+    `Exactly one concurrent org creation receives RM800 welcome credit automatically (got RM${initialCredits})`
   );
 
-  // Now test concurrent manual developer grants for the same user across the 3 orgs
+  // Now test concurrent manual developer grants for the same user across the 3 orgs (all should be rejected as already granted)
   console.log('Testing concurrent manual developer grants across 3 orgs for the same user...');
   const [grantRes1, grantRes2, grantRes3] = await Promise.all([
     grantWelcomeCredit({ organizationId: raceOrg1.id, userId: concurrentUser, createdBy: concurrentUser }),
@@ -218,8 +218,8 @@ async function runLifetimeRewardsTestSuite() {
   const successfulGrants = grantResults.filter((r) => !r.alreadyGranted);
   const rejectedGrants = grantResults.filter((r) => r.alreadyGranted);
 
-  assertTrue(successfulGrants.length === 1, `Exactly 1 manual grant succeeded concurrently (got ${successfulGrants.length})`);
-  assertTrue(rejectedGrants.length === 2, `Exactly 2 manual grants rejected concurrently (got ${rejectedGrants.length})`);
+  assertTrue(successfulGrants.length === 0, `0 manual grants succeeded concurrently because already granted (got ${successfulGrants.length})`);
+  assertTrue(rejectedGrants.length === 3, `All 3 manual grants rejected concurrently as already granted (got ${rejectedGrants.length})`);
 
   const updatedWallets = await Promise.all([
     getWalletBalance(raceOrg1.id),
