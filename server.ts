@@ -1818,6 +1818,8 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
       name,
       slug,
       game_id,
+      game_slug,
+      game_type,
       description,
       status,
       styling,
@@ -1840,6 +1842,8 @@ app.post('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) 
     const theme = await createTheme({
       organization_id: organizationId,
       game_id,
+      game_slug,
+      game_type,
       name,
       slug,
       description,

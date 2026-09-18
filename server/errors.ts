@@ -336,6 +336,19 @@ export function isOperationalError(err: any): boolean {
   const msg = (err?.message || (typeof err === 'string' ? err : '')).toLowerCase();
   const code = String(err?.code || '');
 
+  const isAuthMessage =
+    msg.includes('bearer token') ||
+    msg.includes('missing token') ||
+    msg.includes('invalid token') ||
+    msg.includes('token expired') ||
+    msg.includes('expired token') ||
+    msg.includes('token required') ||
+    msg.includes('csrf token') ||
+    msg.includes('session token') ||
+    msg.includes('refresh token') ||
+    msg.includes('jwt expired') ||
+    msg.includes('invalid jwt');
+
   // 1. Strict sanitization: reject any error matching internal database error codes (SQLSTATE, PGRST, etc.)
   if (
     code.startsWith('23') || // PostgreSQL Class 23: Integrity Constraint Violation (23505 unique, 23503 foreign key, 23502 not null, 23514 check)
@@ -370,11 +383,11 @@ export function isOperationalError(err: any): boolean {
 
   // 3. Strict sanitization: reject any error message containing internal database, SQL, or infrastructure leaks
   if (
-    msg.includes('relation ') ||
+    (/\brelation\b/i.test(msg) && !msg.includes('correlation')) ||
     msg.includes('syntax error') ||
-    msg.includes('column ') ||
-    msg.includes('schema ') ||
-    msg.includes('table ') ||
+    /\bcolumn\b/i.test(msg) ||
+    /\bschema\b/i.test(msg) ||
+    (/\btable\b/i.test(msg) && !msg.includes('immutable')) ||
     msg.includes('violates') ||
     msg.includes('constraint') ||
     msg.includes('permission denied for') ||
@@ -406,9 +419,9 @@ export function isOperationalError(err: any): boolean {
     msg.includes('terminating connection') ||
     msg.includes('could not connect') ||
     msg.includes('connection refused') ||
-    msg.includes('jwt') ||
+    (msg.includes('jwt') && !isAuthMessage) ||
     msg.includes('secret') ||
-    msg.includes('token') ||
+    (msg.includes('token') && !isAuthMessage) ||
     msg.includes('apikey') ||
     msg.includes('service_role') ||
     msg.includes('internal server error') ||

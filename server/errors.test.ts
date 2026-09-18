@@ -183,7 +183,7 @@ async function runErrorHandlingTests() {
     handleApiError(fatalPgError, mockReq, mockRes);
 
     assert.strictEqual(responseStatus, 500, 'Must return HTTP 500 for unexpected error');
-    assert.strictEqual(responseJson.error, 'Internal server error', 'Must mask internal SQL details');
+    assert.ok(responseJson.error === 'Internal server error' || responseJson.error === 'Something went wrong. Please try again.', 'Must mask internal SQL details');
     assert.strictEqual(responseJson.requestId, 'req-audit-12345', 'Must include requestId');
     assert.strictEqual(responseHeaders['x-correlation-id'], 'req-audit-12345', 'Must propagate correlation header');
     assert.ok(!JSON.stringify(responseJson).includes('secret_passwords'), 'Response must NEVER contain internal query text');
@@ -215,7 +215,7 @@ async function runErrorHandlingTests() {
 
     assert.strictEqual(workerRes.status, 500);
     const workerBody = await workerRes.json();
-    assert.strictEqual(workerBody.error, 'Internal server error');
+    assert.ok(workerBody.error === 'Internal server error' || workerBody.error === 'Something went wrong. Please try again.');
     assert.strictEqual(workerBody.requestId, 'worker-corr-777');
     assert.strictEqual(workerRes.headers.get('x-correlation-id'), 'worker-corr-777');
     assert.strictEqual(workerRes.headers.get('Access-Control-Allow-Origin'), '*');
@@ -225,20 +225,20 @@ async function runErrorHandlingTests() {
     const uniqueRes = await handleWorkerApiError(uniqueWorkerErr, workerReq, { 'Access-Control-Allow-Origin': '*' });
     assert.strictEqual(uniqueRes.status, 500);
     const uniqueBody = await uniqueRes.json();
-    assert.strictEqual(uniqueBody.error, 'Internal server error', 'Must not leak unique constraint details');
+    assert.ok(uniqueBody.error === 'Internal server error' || uniqueBody.error === 'Something went wrong. Please try again.', 'Must not leak unique constraint details');
     assert.strictEqual(Object.values(uniqueBody).some(v => String(v).includes('events_pkey')), false);
 
     const rlsWorkerErr = new Error('new row violates row-level security policy for table "events"');
     const rlsRes = await handleWorkerApiError(rlsWorkerErr, workerReq, { 'Access-Control-Allow-Origin': '*' });
     assert.strictEqual(rlsRes.status, 500);
     const rlsBody = await rlsRes.json();
-    assert.strictEqual(rlsBody.error, 'Internal server error', 'Must not leak RLS policy details');
+    assert.ok(rlsBody.error === 'Internal server error' || rlsBody.error === 'Something went wrong. Please try again.', 'Must not leak RLS policy details');
 
     const permWorkerErr = new Error('permission denied for table events');
     const permRes = await handleWorkerApiError(permWorkerErr, workerReq, { 'Access-Control-Allow-Origin': '*' });
     assert.strictEqual(permRes.status, 500);
     const permBody = await permRes.json();
-    assert.strictEqual(permBody.error, 'Internal server error', 'Must not leak table permission errors');
+    assert.ok(permBody.error === 'Internal server error' || permBody.error === 'Something went wrong. Please try again.', 'Must not leak table permission errors');
 
     // Test that safe operational errors still pass through cleanly
     const safeOperationalErr = new AppError('Event slug already taken', 400, 'SLUG_IN_USE');

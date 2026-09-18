@@ -2123,6 +2123,8 @@ export default {
 
         const {
           game_id,
+          game_slug,
+          game_type,
           name,
           slug,
           description,
@@ -2148,6 +2150,8 @@ export default {
             {
               organization_id: organizationId,
               game_id,
+              game_slug,
+              game_type,
               name,
               slug,
               description,

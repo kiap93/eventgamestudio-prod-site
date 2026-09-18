@@ -1,5 +1,262 @@
 [
   {
+    "id": "3767fa1b-ca44-4eb0-894c-abcf709093fa",
+    "request_id": "test-log-1789721514831",
+    "created_at": "2026-09-18T08:51:54.831Z",
+    "user_id": "test-user-uuid",
+    "method": "POST",
+    "endpoint": "/api/test/failure",
+    "status_code": 500,
+    "error_type": "TestError",
+    "error_code": "TEST_FAILURE",
+    "error_message": "Simulated failure for audit verification",
+    "stack_trace": "Error: Simulated failure\n    at runErrorHandlingTests (server/errors.test.ts:100:20)",
+    "service": "postgres",
+    "metadata": {
+      "key": "value"
+    }
+  },
+  {
+    "id": "86e4da5e-7ed8-4dd8-9ee2-abd536874647",
+    "request_id": "worker-corr-777",
+    "created_at": "2026-09-18T08:51:54.830Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/wallets/topup",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "error_message": "permission denied for table events",
+    "stack_trace": "Error: permission denied for table events\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:237:31)",
+    "service": "unknown",
+    "metadata": {
+      "headers": {
+        "x-correlation-id": "worker-corr-777"
+      },
+      "query": {}
+    }
+  },
+  {
+    "id": "329e4be3-2219-4693-925e-38d90d813720",
+    "request_id": "worker-corr-777",
+    "created_at": "2026-09-18T08:51:54.829Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/wallets/topup",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "error_message": "new row violates row-level security policy for table \"events\"",
+    "stack_trace": "Error: new row violates row-level security policy for table \"events\"\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:231:30)",
+    "service": "postgres",
+    "metadata": {
+      "headers": {
+        "x-correlation-id": "worker-corr-777"
+      },
+      "query": {}
+    }
+  },
+  {
+    "id": "aceb92e2-68f2-4107-87bd-0faa2edac9be",
+    "request_id": "worker-corr-777",
+    "created_at": "2026-09-18T08:51:54.828Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/wallets/topup",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "error_message": "duplicate key value violates unique constraint \"events_pkey\"",
+    "stack_trace": "Error: duplicate key value violates unique constraint \"events_pkey\"\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:224:33)",
+    "service": "postgres",
+    "metadata": {
+      "headers": {
+        "x-correlation-id": "worker-corr-777"
+      },
+      "query": {}
+    }
+  },
+  {
+    "id": "bd450d74-96b5-46d7-861a-8a6828d58eff",
+    "request_id": "worker-corr-777",
+    "created_at": "2026-09-18T08:51:54.827Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/wallets/topup",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "error_message": "Supabase RPC failure: constraint uq_wallet_orders violated",
+    "stack_trace": "Error: Supabase RPC failure: constraint uq_wallet_orders violated\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:213:32)\n    at /app/applet/server/errors.test.ts:298",
+    "service": "supabase",
+    "metadata": {
+      "headers": {
+        "x-correlation-id": "worker-corr-777"
+      },
+      "query": {}
+    }
+  },
+  {
+    "id": "afc047bd-d65e-40ab-9804-aceb86f41cc4",
+    "request_id": "req-audit-12345",
+    "created_at": "2026-09-18T08:51:54.825Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/events/checkout",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "42601",
+    "error_message": "syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords",
+    "stack_trace": "Error: syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:180:30)\n    at /app/applet/server/errors.test.ts:298",
+    "service": "postgres",
+    "metadata": {
+      "headers": {},
+      "body": {
+        "password": "[REDACTED]",
+        "amount": 1400
+      }
+    }
+  },
+  {
+    "id": "adbcea5a-7d88-4d20-ae4e-9c8e539f40a3",
+    "request_id": "test-log-1789721201725",
+    "created_at": "2026-09-18T08:46:41.725Z",
+    "user_id": "test-user-uuid",
+    "method": "POST",
+    "endpoint": "/api/test/failure",
+    "status_code": 500,
+    "error_type": "TestError",
+    "error_code": "TEST_FAILURE",
+    "error_message": "Simulated failure for audit verification",
+    "stack_trace": "Error: Simulated failure\n    at runErrorHandlingTests (server/errors.test.ts:100:20)",
+    "service": "postgres",
+    "metadata": {
+      "key": "value"
+    }
+  },
+  {
+    "id": "a101265b-85d6-405b-9729-ca368be14cd8",
+    "request_id": "worker-corr-777",
+    "created_at": "2026-09-18T08:46:41.724Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/wallets/topup",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "error_message": "permission denied for table events",
+    "stack_trace": "Error: permission denied for table events\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:237:27)",
+    "service": "unknown",
+    "metadata": {
+      "headers": {
+        "x-correlation-id": "worker-corr-777"
+      },
+      "query": {}
+    }
+  },
+  {
+    "id": "b83a3c9a-f46e-4584-bc49-decdffe60629",
+    "request_id": "worker-corr-777",
+    "created_at": "2026-09-18T08:46:41.723Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/wallets/topup",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "error_message": "new row violates row-level security policy for table \"events\"",
+    "stack_trace": "Error: new row violates row-level security policy for table \"events\"\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:231:26)",
+    "service": "postgres",
+    "metadata": {
+      "headers": {
+        "x-correlation-id": "worker-corr-777"
+      },
+      "query": {}
+    }
+  },
+  {
+    "id": "f0910227-6b6c-49e8-8d2b-52946ed6ddeb",
+    "request_id": "worker-corr-777",
+    "created_at": "2026-09-18T08:46:41.722Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/wallets/topup",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "error_message": "duplicate key value violates unique constraint \"events_pkey\"",
+    "stack_trace": "Error: duplicate key value violates unique constraint \"events_pkey\"\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:224:29)",
+    "service": "postgres",
+    "metadata": {
+      "headers": {
+        "x-correlation-id": "worker-corr-777"
+      },
+      "query": {}
+    }
+  },
+  {
+    "id": "e0aa0150-b048-4ff7-82c3-37cbb4590c45",
+    "request_id": "worker-corr-777",
+    "created_at": "2026-09-18T08:46:41.714Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/wallets/topup",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "INTERNAL_SERVER_ERROR",
+    "error_message": "Supabase RPC failure: constraint uq_wallet_orders violated",
+    "stack_trace": "Error: Supabase RPC failure: constraint uq_wallet_orders violated\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:213:28)\n    at <anonymous> (/app/applet/server/errors.test.ts:298:1)\n    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)",
+    "service": "supabase",
+    "metadata": {
+      "headers": {
+        "x-correlation-id": "worker-corr-777"
+      },
+      "query": {}
+    }
+  },
+  {
+    "id": "b22dd618-25b5-421f-8734-788f8ecafdda",
+    "request_id": "req-audit-12345",
+    "created_at": "2026-09-18T08:46:41.653Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/events/checkout",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "42601",
+    "error_message": "syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords",
+    "stack_trace": "Error: syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:180:26)\n    at <anonymous> (/app/applet/server/errors.test.ts:298:1)\n    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)",
+    "service": "postgres",
+    "metadata": {
+      "headers": {},
+      "body": {
+        "password": "[REDACTED]",
+        "amount": 1400
+      }
+    }
+  },
+  {
+    "id": "3e5e7763-1769-4417-afb2-6e1bce4b55e6",
+    "request_id": "req-audit-12345",
+    "created_at": "2026-09-18T08:45:10.042Z",
+    "user_id": null,
+    "method": "POST",
+    "endpoint": "/api/events/checkout",
+    "status_code": 500,
+    "error_type": "Error",
+    "error_code": "42601",
+    "error_message": "syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords",
+    "stack_trace": "Error: syntax error at or near \"SELECT\" in query: SELECT * FROM secret_passwords\n    at runErrorHandlingTests (/app/applet/server/errors.test.ts:180:26)\n    at <anonymous> (/app/applet/server/errors.test.ts:298:1)\n    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)",
+    "service": "postgres",
+    "metadata": {
+      "headers": {},
+      "body": {
+        "password": "[REDACTED]",
+        "amount": 1400
+      }
+    }
+  },
+  {
     "id": "693fbaa2-835a-4921-9981-e7a798ff2f38",
     "request_id": "req-audit-12345",
     "created_at": "2026-09-18T06:31:42.081Z",

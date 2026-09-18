@@ -531,6 +531,61 @@ async function runGamesThemesBackendWriteOnlyTests() {
     assert.strictEqual(fetched, null, 'Deleted theme must no longer exist');
   });
 
+  await test('3e. Legitimate POST /api/themes creates Memory Match theme with user exact payload', async () => {
+    const req = new Request('http://localhost/api/themes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        name: 'ewf',
+        slug: 'ewf',
+        game_id: memoryMatchGame.id,
+        game_slug: 'memory-match',
+        game_type: 'memory-match',
+        background_url: null,
+        basket_config: null,
+        items_config: [],
+        branding: {
+          gameTitle: 'EWF',
+          subtitle: 'Flip and match pairs in ewf!',
+          logoUrl: null,
+          clientLogoUrl: null,
+        },
+        layout: {
+          clientLogo: { visible: true, x: 4, y: 4, width: 14 },
+          scoreHud: { visible: true, x: 4, y: 15, width: 18 },
+        },
+        physics_config: {
+          gameDurationSeconds: 45,
+          baseFallSpeed: 0,
+          fallSpeedMultiplier: 1,
+          spawnIntervalMin: 0,
+        },
+        sounds_config: {
+          soundVolume: 0.8,
+          soundEnabled: true,
+          bgmEnabled: true,
+        },
+        visuals_config: {
+          cardBackUrl: null,
+          cardFrontBg: '#0f172a',
+          cardFrontBgOpacity: 0.95,
+          particleGood: 'particle_gold',
+        },
+        description: 'Custom Memory Match theme: ewf',
+      }),
+    });
+
+    const res = await worker.fetch(req, workerEnv, {} as any);
+    assert.strictEqual(res.status, 201, `Expected 201, got ${res.status}`);
+    const json = (await res.json()) as any;
+    assert.strictEqual(json.name, 'ewf');
+    assert.strictEqual(json.game_type, 'memory-match');
+    assert.strictEqual(json.organization_id, org.id);
+  });
+
   console.log('\n===============================================================');
   console.log(`Results: ${passed} passed, ${failed} failed`);
   console.log('===============================================================');
@@ -538,6 +593,7 @@ async function runGamesThemesBackendWriteOnlyTests() {
   if (failed > 0) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 runGamesThemesBackendWriteOnlyTests().catch((err) => {

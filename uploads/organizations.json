@@ -10772,5 +10772,125 @@
     "country_code": "MY",
     "created_at": "2026-09-18T02:18:44.846Z",
     "updated_at": "2026-09-18T02:18:44.846Z"
+  },
+  {
+    "id": "9c378996-6d1a-4b34-bfd3-4528b004882d",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-41874a",
+    "owner_id": "a13bc58c-2254-47f7-8dca-8c5c35cf86d5",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:44:03.607Z",
+    "updated_at": "2026-09-18T08:44:03.607Z"
+  },
+  {
+    "id": "b71c3079-4fcf-4248-955a-33bf16149e25",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-1cc954",
+    "owner_id": "06c3e7af-4fcc-4d35-99c6-280cf5c0aa53",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:44:03.763Z",
+    "updated_at": "2026-09-18T08:44:03.763Z"
+  },
+  {
+    "id": "639ec4b5-4e77-42f5-9d28-80cee409ec53",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-a61f2a",
+    "owner_id": "676a8c52-900e-48a9-a13e-19a2c89182f4",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:44:17.518Z",
+    "updated_at": "2026-09-18T08:44:17.518Z"
+  },
+  {
+    "id": "346bcc07-be78-4b48-9f78-0d01134b4b3a",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-c9a24c",
+    "owner_id": "a5333896-042e-4b74-a4ad-d04d9f0531c3",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:44:17.780Z",
+    "updated_at": "2026-09-18T08:44:17.780Z"
+  },
+  {
+    "id": "8b4525b1-7fe3-4ee1-949d-89d8bedd1a1b",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-b2f5ad",
+    "owner_id": "a18d395a-8674-488d-9d2e-7806db78e260",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:46:46.805Z",
+    "updated_at": "2026-09-18T08:46:46.805Z"
+  },
+  {
+    "id": "f4e125b0-063d-4817-9a88-ece731000b2f",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-3845a9",
+    "owner_id": "9f93d6a3-2502-4425-9a51-6588e913ea80",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:46:46.996Z",
+    "updated_at": "2026-09-18T08:46:46.996Z"
+  },
+  {
+    "id": "bdcde5d5-5dcb-4db4-9581-7941830d47b8",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-576e16",
+    "owner_id": "e41d0c94-da22-4e43-9195-d2b10841907c",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:50:37.444Z",
+    "updated_at": "2026-09-18T08:50:37.444Z"
+  },
+  {
+    "id": "08d3c151-fff2-4129-81b5-d2e6c81f4551",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-5937dc",
+    "owner_id": "6d23a5e1-08e4-46cb-ba46-ba8439f838c9",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:50:37.636Z",
+    "updated_at": "2026-09-18T08:50:37.636Z"
+  },
+  {
+    "id": "fad196be-58c9-4663-bca8-73ac3377bb92",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-477530",
+    "owner_id": "2bd8542e-c853-4e4d-89d4-7cabca0ae262",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:51:25.149Z",
+    "updated_at": "2026-09-18T08:51:25.149Z"
+  },
+  {
+    "id": "47168001-205f-4e04-afcd-f74ca1abe7a1",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-80ba93",
+    "owner_id": "4c15cf49-524d-42ad-815f-219d8a2a4a2b",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:51:25.291Z",
+    "updated_at": "2026-09-18T08:51:25.291Z"
+  },
+  {
+    "id": "893e6316-5c99-494a-9aec-aa37149cc402",
+    "name": "Alpha Interactive Org",
+    "slug": "alpha-interactive-org-e3ff5a",
+    "owner_id": "a2b6cad6-bef3-49e5-aafc-816e76ed69e8",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:51:37.914Z",
+    "updated_at": "2026-09-18T08:51:37.914Z"
+  },
+  {
+    "id": "6d48ac02-dffc-443e-baa7-6135d99a423e",
+    "name": "Beta Foreign Org",
+    "slug": "beta-foreign-org-bbcc4d",
+    "owner_id": "b3b2e1dc-1363-4c37-942e-0399f8b61ffd",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T08:51:38.046Z",
+    "updated_at": "2026-09-18T08:51:38.046Z"
   }
 ]

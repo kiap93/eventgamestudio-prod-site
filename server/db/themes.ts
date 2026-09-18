@@ -300,7 +300,7 @@ export const DEFAULT_MEMORY_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
     clientLogoUrl: null,
   },
   background_url: null,
-  basket_config: null,
+  basket_config: {} as any,
   items_config: [
     {
       id: 'pair_diamond',
@@ -1154,6 +1154,39 @@ async function safeInsertTheme(
   initialPayload: Record<string, any>
 ): Promise<{ data: any; error: any }> {
   let payload = { ...initialPayload };
+
+  // 'styling' is not a database column in game_themes (stored under visuals_config)
+  delete payload.styling;
+
+  // Defensively enforce JSONB non-nullable constraints matching database schema
+  if (payload.basket_config === null || payload.basket_config === undefined) {
+    payload.basket_config = {};
+  }
+  if (payload.items_config === null || payload.items_config === undefined) {
+    payload.items_config = [];
+  }
+  if (payload.branding === null || payload.branding === undefined) {
+    payload.branding = {};
+  }
+  if (payload.physics_config === null || payload.physics_config === undefined) {
+    payload.physics_config = {};
+  }
+  if (payload.visuals_config === null || payload.visuals_config === undefined) {
+    payload.visuals_config = {};
+  }
+  if (payload.sounds_config === null || payload.sounds_config === undefined) {
+    payload.sounds_config = {};
+  }
+  if (payload.layout === null || payload.layout === undefined) {
+    payload.layout = {};
+  }
+  if (payload.game_config === null || payload.game_config === undefined) {
+    payload.game_config = {};
+  }
+  if (payload.game_id && !isUUID(payload.game_id)) {
+    payload.game_id = null;
+  }
+
   for (let attempt = 0; attempt < 8; attempt++) {
     const { data, error } = await supabase
       .from('game_themes')
@@ -1162,15 +1195,49 @@ async function safeInsertTheme(
       .single();
 
     if (!error) {
-      return { data: { ...initialPayload, ...data }, error: null };
+      const merged = { ...initialPayload, ...data };
+      if (!merged.game_id && initialPayload.game_id) {
+        merged.game_id = initialPayload.game_id;
+      }
+      return { data: merged, error: null };
     }
 
-    const missingColMatch = error.message?.match(/Could not find the '([^']+)' column of 'game_themes'/i);
-    if (missingColMatch && missingColMatch[1] && payload[missingColMatch[1]] !== undefined) {
-      const missingCol = missingColMatch[1];
+    // 1. Missing column in game_themes table (PostgREST schema cache or Postgres error)
+    const missingColMatch = error.message?.match(/(?:Could not find the '([^']+)' column of 'game_themes'|column ["']?([^"'\s]+)["']? of relation "game_themes" does not exist|column ["']?([^"'\s]+)["']? does not exist)/i);
+    const missingCol = missingColMatch ? (missingColMatch[1] || missingColMatch[2] || missingColMatch[3]) : null;
+    if (missingCol && payload[missingCol] !== undefined) {
       console.warn(`[Supabase Schema Fallback] Column '${missingCol}' not found in 'game_themes' table. Retrying insert without this column...`);
       delete payload[missingCol];
       continue;
+    }
+
+    // 2. Not-null constraint violation on a column (e.g. basket_config, branding, items_config)
+    const notNullMatch = error.message?.match(/null value in column "([^"]+)" of relation "game_themes" violates not-null constraint/i);
+    if (notNullMatch && notNullMatch[1]) {
+      const col = notNullMatch[1];
+      console.warn(`[Supabase Schema Fallback] Column '${col}' cannot be null in 'game_themes'. Setting fallback...`);
+      payload[col] = col === 'items_config' ? [] : {};
+      continue;
+    }
+
+    // 3. Foreign key violation on game_id
+    if (error.code === '23503' && payload.game_id) {
+      console.warn(`[Supabase Schema Fallback] Foreign key constraint violated on game_id '${payload.game_id}'. Retrying with game_id = null...`);
+      payload.game_id = null;
+      continue;
+    }
+
+    // 4. PostgREST relationship embed failure on .select('*, games(...)')
+    if (error.message?.includes('relationship') || (error.message?.includes('schema cache') && error.message?.includes('games'))) {
+      console.warn(`[Supabase Schema Fallback] Relationship 'games' not found in schema cache. Retrying insert with simple select('*')...`);
+      const { data: simpleData, error: simpleError } = await supabase
+        .from('game_themes')
+        .insert(payload)
+        .select('*')
+        .single();
+      if (!simpleError) {
+        return { data: { ...initialPayload, ...simpleData }, error: null };
+      }
     }
 
     return { data: null, error };
@@ -1191,6 +1258,19 @@ async function safeUpdateTheme(
     return { data: null, error: new Error(`Invalid UUID format for theme update: ${themeId}`) };
   }
   let payload = { ...initialPayload };
+
+  delete payload.styling;
+
+  if (payload.basket_config === null) payload.basket_config = {};
+  if (payload.items_config === null) payload.items_config = [];
+  if (payload.branding === null) payload.branding = {};
+  if (payload.physics_config === null) payload.physics_config = {};
+  if (payload.visuals_config === null) payload.visuals_config = {};
+  if (payload.sounds_config === null) payload.sounds_config = {};
+  if (payload.layout === null) payload.layout = {};
+  if (payload.game_config === null) payload.game_config = {};
+  if (payload.game_id && !isUUID(payload.game_id)) payload.game_id = null;
+
   for (let attempt = 0; attempt < 8; attempt++) {
     const { data, error } = await supabase
       .from('game_themes')
@@ -1203,12 +1283,39 @@ async function safeUpdateTheme(
       return { data: { ...initialPayload, ...data }, error: null };
     }
 
-    const missingColMatch = error.message?.match(/Could not find the '([^']+)' column of 'game_themes'/i);
-    if (missingColMatch && missingColMatch[1] && payload[missingColMatch[1]] !== undefined) {
-      const missingCol = missingColMatch[1];
+    const missingColMatch = error.message?.match(/(?:Could not find the '([^']+)' column of 'game_themes'|column ["']?([^"'\s]+)["']? of relation "game_themes" does not exist|column ["']?([^"'\s]+)["']? does not exist)/i);
+    const missingCol = missingColMatch ? (missingColMatch[1] || missingColMatch[2] || missingColMatch[3]) : null;
+    if (missingCol && payload[missingCol] !== undefined) {
       console.warn(`[Supabase Schema Fallback] Column '${missingCol}' not found in 'game_themes' table. Retrying update without this column...`);
       delete payload[missingCol];
       continue;
+    }
+
+    const notNullMatch = error.message?.match(/null value in column "([^"]+)" of relation "game_themes" violates not-null constraint/i);
+    if (notNullMatch && notNullMatch[1]) {
+      const col = notNullMatch[1];
+      console.warn(`[Supabase Schema Fallback] Column '${col}' cannot be null in 'game_themes'. Setting fallback...`);
+      payload[col] = col === 'items_config' ? [] : {};
+      continue;
+    }
+
+    if (error.code === '23503' && payload.game_id) {
+      console.warn(`[Supabase Schema Fallback] Foreign key constraint violated on game_id '${payload.game_id}'. Retrying update with game_id = null...`);
+      payload.game_id = null;
+      continue;
+    }
+
+    if (error.message?.includes('relationship') || (error.message?.includes('schema cache') && error.message?.includes('games'))) {
+      console.warn(`[Supabase Schema Fallback] Relationship 'games' not found in schema cache. Retrying update with simple select('*')...`);
+      const { data: simpleData, error: simpleError } = await supabase
+        .from('game_themes')
+        .update(payload)
+        .eq('id', themeId)
+        .select('*')
+        .single();
+      if (!simpleError) {
+        return { data: { ...initialPayload, ...simpleData }, error: null };
+      }
     }
 
     return { data: null, error };
@@ -1252,25 +1359,54 @@ export async function createTheme(
 
   if (resolvedGameId) {
     try {
-      const localGame = await getGameById(resolvedGameId, env);
-      if (localGame) {
-        resolvedGameType = params.game_type || localGame.game_type || (localGame.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
-        resolvedGameName = localGame.name;
-        resolvedGameSlug = params.game_slug || localGame.slug;
+      if (isUUID(resolvedGameId)) {
+        const localGame = await getGameById(resolvedGameId, env);
+        if (localGame) {
+          resolvedGameType = params.game_type || localGame.game_type || (localGame.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+          resolvedGameName = localGame.name;
+          resolvedGameSlug = params.game_slug || localGame.slug;
+        } else {
+          const { data: g } = await supabase
+            .from('games')
+            .select('id, name, slug, game_type')
+            .eq('id', resolvedGameId)
+            .maybeSingle();
+          if (g) {
+            resolvedGameType = params.game_type || g.game_type || (g.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+            resolvedGameName = g.name;
+            resolvedGameSlug = params.game_slug || g.slug;
+          } else if (resolvedGameId === 'c782cc78-d2f6-4e70-ac90-bbf9824c62f9') {
+            resolvedGameType = 'memory-match';
+            resolvedGameName = 'Brand Memory Match';
+            resolvedGameSlug = 'memory-match';
+          } else {
+            const targetSlug = params.game_slug || (params.game_type === 'memory-match' ? 'memory-match' : null);
+            if (targetSlug) {
+              const { data: gBySlug } = await supabase
+                .from('games')
+                .select('id, name, slug, game_type')
+                .eq('slug', targetSlug)
+                .maybeSingle();
+              if (gBySlug) {
+                resolvedGameId = gBySlug.id;
+                resolvedGameType = params.game_type || gBySlug.game_type || (gBySlug.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+                resolvedGameName = gBySlug.name;
+                resolvedGameSlug = params.game_slug || gBySlug.slug;
+              }
+            }
+          }
+        }
       } else {
-        const { data: g } = await supabase
+        const { data: gBySlug } = await supabase
           .from('games')
           .select('id, name, slug, game_type')
-          .eq('id', resolvedGameId)
+          .or(`slug.eq.${resolvedGameId},game_type.eq.${resolvedGameId}`)
           .maybeSingle();
-        if (g) {
-          resolvedGameType = params.game_type || g.game_type || (g.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
-          resolvedGameName = g.name;
-          resolvedGameSlug = params.game_slug || g.slug;
-        } else if (resolvedGameId === 'c782cc78-d2f6-4e70-ac90-bbf9824c62f9' || resolvedGameId === 'memory-match') {
-          resolvedGameType = 'memory-match';
-          resolvedGameName = 'Brand Memory Match';
-          resolvedGameSlug = 'memory-match';
+        if (gBySlug) {
+          resolvedGameId = gBySlug.id;
+          resolvedGameType = params.game_type || gBySlug.game_type || (gBySlug.slug === 'memory-match' ? 'memory-match' : 'catch-brand');
+          resolvedGameName = gBySlug.name;
+          resolvedGameSlug = params.game_slug || gBySlug.slug;
         }
       }
     } catch {
@@ -1307,7 +1443,7 @@ export async function createTheme(
     resolvedGameSlug = 'memory-match';
   }
 
-  const isMemory = resolvedGameType === 'memory-match';
+  const isMemory = resolvedGameType === 'memory-match' || params.game_type === 'memory-match' || params.game_slug === 'memory-match' || resolvedGameSlug === 'memory-match';
   const defaultTemplate = isMemory ? DEFAULT_MEMORY_THEME : DEFAULT_CARNIVAL_THEME;
 
   const defaultBranding: ThemeBrandingConfig = {
@@ -1330,7 +1466,7 @@ export async function createTheme(
     status: params.status || 'active',
     branding: params.branding ?? (defaultTemplate.branding || defaultBranding),
     background_url: params.background_url ?? defaultTemplate.background_url,
-    basket_config: isMemory ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
+    basket_config: isMemory ? (params.basket_config ?? {}) : (params.basket_config ?? defaultTemplate.basket_config),
     items_config: params.items_config ?? defaultTemplate.items_config,
     physics_config: params.physics_config ?? defaultTemplate.physics_config,
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
@@ -1363,13 +1499,12 @@ export async function createTheme(
     status: params.status || 'active',
     branding: params.branding ?? (defaultTemplate.branding || defaultBranding),
     background_url: params.background_url ?? defaultTemplate.background_url,
-    basket_config: isMemory ? (params.basket_config ?? null) : (params.basket_config ?? defaultTemplate.basket_config),
-    items_config: params.items_config ?? defaultTemplate.items_config,
-    physics_config: params.physics_config ?? defaultTemplate.physics_config,
-    visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,
-    styling: (params as any).styling ?? params.visuals_config ?? defaultTemplate.visuals_config,
-    sounds_config: params.sounds_config ?? defaultTemplate.sounds_config,
-    layout: params.layout ?? defaultTemplate.layout,
+    basket_config: (params.basket_config || (isMemory ? {} : defaultTemplate.basket_config)) ?? {},
+    items_config: params.items_config ?? defaultTemplate.items_config ?? [],
+    physics_config: params.physics_config ?? defaultTemplate.physics_config ?? {},
+    visuals_config: params.visuals_config ?? defaultTemplate.visuals_config ?? {},
+    sounds_config: params.sounds_config ?? defaultTemplate.sounds_config ?? {},
+    layout: params.layout ?? defaultTemplate.layout ?? {},
     game_config: params.game_config ?? {},
     created_at: now,
     updated_at: now,
