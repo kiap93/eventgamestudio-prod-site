@@ -153,12 +153,102 @@
     "created_at": "2026-09-18T01:50:48.819Z"
   },
   {
-    "id": "c4e060ce-fe0a-4686-92e6-e50658481f48",
-    "user_id": "11a319ac-2355-49f8-917c-db13398eb8fa",
+    "id": "87aded27-9b3d-4363-a929-8787b474b4e4",
+    "user_id": "35d7b7ac-6090-4c65-9392-1297b66a9aa7",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "bc903fdc-93ad-44c2-afd6-a2b9ab9410ce",
+    "transaction_id": "bb58db81-f210-4582-bf6c-350ef4f69fde",
+    "amount": 800,
+    "created_at": "2026-09-18T02:17:07.403Z"
+  },
+  {
+    "id": "d6fd7396-3fd5-4917-ae78-70d183ad0b20",
+    "user_id": "35d7b7ac-6090-4c65-9392-1297b66a9aa7",
     "reward_type": "SHOWCASE_CREDIT",
-    "organization_id": "e6d2dd1c-a47e-4068-afa9-ffd3ad6a0d3d",
-    "transaction_id": "ef952b68-72c7-4569-95f0-4920e929269f",
+    "organization_id": "bc903fdc-93ad-44c2-afd6-a2b9ab9410ce",
+    "transaction_id": "db1e518c-5c35-47e0-a1b8-5c7becbad1de",
     "amount": 300,
-    "created_at": "2026-09-18T01:50:48.819Z"
+    "created_at": "2026-09-18T02:17:07.606Z"
+  },
+  {
+    "id": "d97a083f-c0cb-45b8-85cc-efb74670ff88",
+    "user_id": "42046aa1-027f-4b8a-983e-961965a6e6e5",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "ff0e0abf-b51c-4214-904d-9f8fa76f105f",
+    "transaction_id": "32db368a-5bca-4fc5-89f4-3a65b8e91588",
+    "amount": 800,
+    "created_at": "2026-09-18T02:17:07.894Z"
+  },
+  {
+    "id": "6e439345-9a97-45c4-b626-d5a901fc3db6",
+    "user_id": "226cd853-828d-4583-af10-ec0015c7683a",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "0c048a0a-2353-4c9a-bce5-fa52994978ad",
+    "transaction_id": "174e14a8-a132-46d0-b654-ed90a96a296f",
+    "amount": 800,
+    "created_at": "2026-09-18T02:17:08.051Z"
+  },
+  {
+    "id": "dfa3fa76-8760-4167-b026-9f20acfe4ad3",
+    "user_id": "226cd853-828d-4583-af10-ec0015c7683a",
+    "reward_type": "SHOWCASE_CREDIT",
+    "organization_id": "0c048a0a-2353-4c9a-bce5-fa52994978ad",
+    "transaction_id": "2f48192a-2916-4bac-a271-753be6ad82b9",
+    "amount": 300,
+    "created_at": "2026-09-18T02:17:08.263Z"
+  },
+  {
+    "id": "88160b61-b9d5-49bc-80ab-54a0c64eee62",
+    "user_id": "f70d4be6-3339-4b29-9a5f-07d71a0c69ca",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "4d73243d-a792-4a68-a555-59e28bb80002",
+    "transaction_id": "e34d3ba2-e32f-4d06-a74c-6848efc41ffc",
+    "amount": 800,
+    "created_at": "2026-09-18T02:17:08.410Z"
+  },
+  {
+    "id": "3cb8c1fc-60e9-4be9-ad83-20aec39421e3",
+    "user_id": "f70d4be6-3339-4b29-9a5f-07d71a0c69ca",
+    "reward_type": "SHOWCASE_CREDIT",
+    "organization_id": "4d73243d-a792-4a68-a555-59e28bb80002",
+    "transaction_id": "1d032a16-9eab-4062-be7c-11ce2e7a5ef9",
+    "amount": 300,
+    "created_at": "2026-09-18T02:17:08.555Z"
+  },
+  {
+    "id": "dac1ba42-35e5-49fd-9531-aa837b7d80da",
+    "user_id": "71c85b48-41d9-4c1d-9002-18ebcbe2271a",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "3f38cdf9-1e82-479d-a1ca-52939d1e5c91",
+    "transaction_id": "b1a24823-776c-44fd-8fbe-fce3d9f26e62",
+    "amount": 800,
+    "created_at": "2026-09-18T02:18:44.561Z"
+  },
+  {
+    "id": "fefb8f78-88ac-45b2-8a37-9553a32d08a8",
+    "user_id": "0d191c53-1022-457c-8469-0ce697f800fd",
+    "reward_type": "WELCOME_CREDIT",
+    "organization_id": "1ccbf495-1683-4f37-80f9-e6bcc4e194de",
+    "transaction_id": "bd13036c-3431-4e1b-8f4e-dfd913969114",
+    "amount": 800,
+    "created_at": "2026-09-18T02:18:44.733Z"
+  },
+  {
+    "id": "f40304d8-b0a6-4bc7-ba27-24fef74ba1aa",
+    "user_id": "a5f454a7-4e1f-4235-897c-558278d3e064",
+    "reward_type": "SHOWCASE_CREDIT",
+    "organization_id": "dd02d89f-8859-4b66-94ff-ec89a9b8ccc7",
+    "transaction_id": "af71731f-d704-4df7-b761-29c6101494e6",
+    "amount": 300,
+    "created_at": "2026-09-18T02:18:45.393Z"
+  },
+  {
+    "id": "f40304d8-b0a6-4bc7-ba27-24fef74ba1aa",
+    "user_id": "a5f454a7-4e1f-4235-897c-558278d3e064",
+    "reward_type": "SHOWCASE_CREDIT",
+    "organization_id": "dd02d89f-8859-4b66-94ff-ec89a9b8ccc7",
+    "transaction_id": "af71731f-d704-4df7-b761-29c6101494e6",
+    "amount": 300,
+    "created_at": "2026-09-18T02:18:45.393Z"
   }
 ]

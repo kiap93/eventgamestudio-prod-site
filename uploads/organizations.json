@@ -10654,5 +10654,123 @@
     "country_code": "MY",
     "created_at": "2026-09-18T01:50:48.530Z",
     "updated_at": "2026-09-18T01:50:48.530Z"
+  },
+  {
+    "id": "bc903fdc-93ad-44c2-afd6-a2b9ab9410ce",
+    "name": "User A Org Alpha",
+    "slug": "user-a-org-alpha-44e8e1",
+    "owner_id": "35d7b7ac-6090-4c65-9392-1297b66a9aa7",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T02:17:07.367Z",
+    "updated_at": "2026-09-18T02:17:07.367Z"
+  },
+  {
+    "id": "617c65d1-3e7e-46a9-bdf0-40390bd792b1",
+    "name": "User A Org Beta",
+    "slug": "user-a-org-beta-2ce961",
+    "owner_id": "35d7b7ac-6090-4c65-9392-1297b66a9aa7",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T02:17:07.716Z",
+    "updated_at": "2026-09-18T02:17:07.716Z"
+  },
+  {
+    "id": "ff0e0abf-b51c-4214-904d-9f8fa76f105f",
+    "name": "User C Org New",
+    "slug": "user-c-org-new-c45ab9",
+    "owner_id": "42046aa1-027f-4b8a-983e-961965a6e6e5",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T02:17:07.870Z",
+    "updated_at": "2026-09-18T02:17:07.870Z"
+  },
+  {
+    "id": "0c048a0a-2353-4c9a-bce5-fa52994978ad",
+    "name": "User D Org 1",
+    "slug": "user-d-org-1-03ea7f",
+    "owner_id": "226cd853-828d-4583-af10-ec0015c7683a",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T02:17:08.003Z",
+    "updated_at": "2026-09-18T02:17:08.003Z"
+  },
+  {
+    "id": "69376c18-4a56-4ee1-bd3b-8ec2554cd5b0",
+    "name": "User D Org 2",
+    "slug": "user-d-org-2-4085a7",
+    "owner_id": "226cd853-828d-4583-af10-ec0015c7683a",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T02:17:08.003Z",
+    "updated_at": "2026-09-18T02:17:08.003Z"
+  },
+  {
+    "id": "e39d3956-be73-4079-9924-0aa7a2805a25",
+    "name": "User E Org 2",
+    "slug": "user-e-org-2-022aed",
+    "owner_id": "f70d4be6-3339-4b29-9a5f-07d71a0c69ca",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T02:17:08.625Z",
+    "updated_at": "2026-09-18T02:17:08.625Z"
+  },
+  {
+    "id": "32b5a87e-d590-4e72-a4b1-a37c5c32b45c",
+    "name": "User A Org F1",
+    "slug": "user-a-org-f1-7ad738",
+    "owner_id": "35d7b7ac-6090-4c65-9392-1297b66a9aa7",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T02:17:08.709Z",
+    "updated_at": "2026-09-18T02:17:08.709Z"
+  },
+  {
+    "id": "cb8c5560-85e2-4c53-9a9b-1b9847b6fbcd",
+    "name": "User A Org F2",
+    "slug": "user-a-org-f2-c80d98",
+    "owner_id": "35d7b7ac-6090-4c65-9392-1297b66a9aa7",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T02:17:08.709Z",
+    "updated_at": "2026-09-18T02:17:08.709Z"
+  },
+  {
+    "id": "5c62be9e-7d41-46f6-9a31-0d7f9e7c9410",
+    "name": "User A Org F3",
+    "slug": "user-a-org-f3-b4e451",
+    "owner_id": "35d7b7ac-6090-4c65-9392-1297b66a9aa7",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T02:17:08.709Z",
+    "updated_at": "2026-09-18T02:17:08.709Z"
+  },
+  {
+    "id": "3f38cdf9-1e82-479d-a1ca-52939d1e5c91",
+    "name": "Test Org 3f38cdf9",
+    "slug": "test-org-3f38cdf9",
+    "owner_id": "71c85b48-41d9-4c1d-9002-18ebcbe2271a",
+    "created_at": "2026-09-18T02:18:44.555Z",
+    "updated_at": "2026-09-18T02:18:44.555Z"
+  },
+  {
+    "id": "1ccbf495-1683-4f37-80f9-e6bcc4e194de",
+    "name": "Auto Welcome First Org Test",
+    "slug": "auto-welcome-first-org-test-df346e",
+    "owner_id": "0d191c53-1022-457c-8469-0ce697f800fd",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T02:18:44.711Z",
+    "updated_at": "2026-09-18T02:18:44.711Z"
+  },
+  {
+    "id": "f95a0bda-d38c-460b-a763-595d03cea46c",
+    "name": "Second Org Same User",
+    "slug": "second-org-same-user-322ed8",
+    "owner_id": "0d191c53-1022-457c-8469-0ce697f800fd",
+    "logo_url": null,
+    "country_code": "MY",
+    "created_at": "2026-09-18T02:18:44.846Z",
+    "updated_at": "2026-09-18T02:18:44.846Z"
   }
 ]

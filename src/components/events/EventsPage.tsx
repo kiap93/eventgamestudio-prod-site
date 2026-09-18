@@ -20,12 +20,57 @@ import {
   Trophy,
 } from 'lucide-react';
 
-export const EventsPage: React.FC = () => {
-  const { currentOrganization, organizations, switchOrganization } = useAuth();
+export interface ShowcaseRewardStatus {
+  hasReceivedReward: boolean;
+  eligible: boolean;
+  reward?: any | null;
+}
+
+export interface EventsPageProps {
+  initialLifetimeRewardStatus?: ShowcaseRewardStatus | null;
+}
+
+export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardStatus }) => {
+  const { currentOrganization, organizations, switchOrganization, currentUser } = useAuth();
 
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Account Owner First-Event Showcase Reward Status (User-Lifetime Scope)
+  const [lifetimeRewardStatus, setLifetimeRewardStatus] = useState<ShowcaseRewardStatus | null>(
+    initialLifetimeRewardStatus !== undefined ? initialLifetimeRewardStatus : null
+  );
+  const [loadingRewardStatus, setLoadingRewardStatus] = useState<boolean>(
+    initialLifetimeRewardStatus === undefined
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUserRewardStatus = async () => {
+      try {
+        const res = await apiFetch('/api/user/showcase-reward-status');
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            setLifetimeRewardStatus(data);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching showcase reward status:', err);
+      } finally {
+        if (isMounted) {
+          setLoadingRewardStatus(false);
+        }
+      }
+    };
+
+    fetchUserRewardStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id]);
 
   // Filter & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -134,6 +179,9 @@ export const EventsPage: React.FC = () => {
   const expiredCount = events.filter((e) => calculateEventStatus(e) === 'expired').length;
 
   const isViewer = currentOrganization?.role === 'viewer';
+  const isOwner = currentOrganization?.role === 'owner';
+  const hasClaimedLifetimeReward = lifetimeRewardStatus?.hasReceivedReward === true;
+  const shouldShowRewardBanner = isOwner && !hasClaimedLifetimeReward && !loadingRewardStatus;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans">
@@ -260,6 +308,46 @@ export const EventsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Account Owner First-Event Showcase Reward Banner */}
+      {shouldShowRewardBanner && (
+        <div
+          id="account-owner-showcase-reward-banner"
+          className="relative overflow-hidden bg-slate-900 border border-amber-500/30 rounded-3xl p-6 shadow-xl"
+        >
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+            <div className="flex items-start gap-4 sm:gap-5">
+              <div className="p-3 sm:p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-400 shrink-0 mt-0.5">
+                <Trophy className="w-6 h-6 sm:w-7 sm:h-7" />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h2 className="text-base sm:text-lg font-black text-slate-100 tracking-tight">
+                    Account Owner First-Event Showcase Reward
+                  </h2>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span>RM300 Lifetime Bonus</span>
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-3xl">
+                  As an organization owner, your first live event activation is eligible for an RM300 Showcase Credit. After your event runs, simply upload event photos/videos to the Showcase tab. Upon review, RM300 is deposited into your wallet. (Limit one first-event reward per account owner).
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center shrink-0 pl-0 lg:pl-4">
+              <button
+                id="deploy-first-event-reward-cta"
+                onClick={() => setIsCreateOpen(true)}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-2xl text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Deploy First Event</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area: Error State | View Mode (List or Calendar) */}
       {error ? (

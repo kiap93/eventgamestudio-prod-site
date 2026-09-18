@@ -164,6 +164,16 @@ Managed via `server/db/showcaseMedia.ts` and Supabase Storage bucket `showcase-m
 - **Access**: Restricted to verified developer admins (`user.is_developer === true`).
 - **Features**: Filter by reward status (`AWAITING_APPROVAL`, `REWARDED`, `REJECTED`), media inspector, one-click reward approval/rejection with feedback. Provides direct links to the public showcase view.
 
+### Account Owner First-Event Showcase Reward Banner
+- **Component**: `src/components/events/EventsPage.tsx`
+- **Route**: `/events` (Event Deployments / Events Page)
+- **Position**: Placed immediately below the Metrics Summary Cards and directly above Search/Filters & Event List.
+- **Lifetime Scoping**: Evaluates the authenticated user's lifetime reward status from `/api/user/showcase-reward-status` (`getOwnerShowcaseRewardStatus(user.id)`). Never scoped by organization ID or wallet balance.
+- **Owner Scope**: Visible strictly to organization owners (`currentOrganization?.role === 'owner'`). Hidden for non-owner members (`admin`, `designer`, `viewer`).
+- **Event Count Independence**: Displays regardless of event count (e.g. `events.length === 0`, initial empty state, or active events before reward claim).
+- **CTA Action**: "Deploy First Event" invokes the canonical `CreateEventDialog` flow (`setIsCreateOpen(true)`).
+- **Zero Side-Effects**: Purely read-only onboarding presentation; rendering or dismissing never writes records, credits wallets, or mutates review states.
+
 ---
 
 ## 8. Database Tables & Defense-in-Depth Security
