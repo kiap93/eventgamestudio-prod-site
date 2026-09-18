@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState, useLayoutEffect, useEffect } from 'react';
 import {
   ResultScreenElement,
   ResultCardElement,
@@ -12,6 +12,13 @@ import { resolveScreenBackground } from '../../themes/screenBackground';
 import { GameTheme, GameLayoutConfig, getThemeGameType } from '../../themes/types';
 import { ResultElementContent } from './ResultElementContent';
 import { EventLeaderboardEntry } from '../../types';
+
+export const RESULT_LOGICAL_CANVAS_WIDTH = 1024;
+export const RESULT_LOGICAL_CANVAS_HEIGHT = 576;
+export const RESULT_CANVAS_WIDTH = 1024;
+export const RESULT_CANVAS_HEIGHT = 576;
+const LOGICAL_CANVAS_WIDTH = 1024;
+const LOGICAL_CANVAS_HEIGHT = 576;
 
 export type LayoutAlignmentPosition = 'left' | 'center' | 'right';
 export type LayoutVerticalAlignment = 'top' | 'center' | 'bottom';
@@ -144,6 +151,7 @@ export interface ResultScreenRendererProps {
   isEventTest?: boolean;
   targetDimensions?: { width: number; height: number };
   isPortrait?: boolean;
+  onScaleChange?: (scale: number, availableWidth: number, availableHeight: number) => void;
 }
 
 export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
@@ -169,10 +177,124 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
   isEventTest = false,
   targetDimensions,
   isPortrait,
+  onScaleChange,
 }) => {
   const bg = resolveScreenBackground(resultConfig, theme);
-  const canvasWidth = targetDimensions?.width || resultConfig?.canvas?.width || 1000;
-  const canvasHeight = targetDimensions?.height || resultConfig?.canvas?.height || 1000;
+
+  // Logical design coordinates: fixed 1024 × 576 pixels (standard 16:9 design resolution)
+  const canvasWidth = targetDimensions?.width || LOGICAL_CANVAS_WIDTH;
+  const canvasHeight = targetDimensions?.height || LOGICAL_CANVAS_HEIGHT;
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerDimensions, setContainerDimensions] = useState<{
+    width: number;
+    height: number;
+  }>({
+    width: 0,
+    height: 0,
+  });
+
+  // Dynamically observe container dimensions with ResizeObserver
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      let w = el.clientWidth || rect.width;
+      let h = el.clientHeight || rect.height;
+
+      // Fall back to parent container if the absolute inner container has 0 dimensions
+      if ((w <= 0 || h <= 0) && el.parentElement) {
+        const parentRect = el.parentElement.getBoundingClientRect();
+        w = el.parentElement.clientWidth || parentRect.width;
+        h = el.parentElement.clientHeight || parentRect.height;
+      }
+
+      // If width is available but height is pending (common with CSS aspect-ratio), calculate from 16:9 ratio
+      if (w > 0 && h <= 0) {
+        h = (w * canvasHeight) / canvasWidth;
+      } else if (h > 0 && w <= 0) {
+        w = (h * canvasWidth) / canvasHeight;
+      }
+
+      if (w > 0 && h > 0) {
+        setContainerDimensions((prev) => {
+          if (Math.abs(prev.width - w) < 0.5 && Math.abs(prev.height - h) < 0.5) {
+            return prev;
+          }
+          return { width: w, height: h };
+        });
+      }
+    };
+
+    measure();
+
+    const rafId = requestAnimationFrame(measure);
+    const timer1 = setTimeout(measure, 50);
+    const timer2 = setTimeout(measure, 150);
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => {
+        measure();
+      });
+      ro.observe(el);
+      if (el.parentElement) {
+        ro.observe(el.parentElement);
+      }
+    }
+
+    window.addEventListener('resize', measure);
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [canvasWidth, canvasHeight]);
+
+  // Determine physical available dimensions from state or live DOM
+  let containerW = containerDimensions.width;
+  let containerH = containerDimensions.height;
+
+  if (containerW <= 0 || containerH <= 0) {
+    const el = containerRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      containerW = el.clientWidth || rect.width;
+      containerH = el.clientHeight || rect.height;
+      if ((containerW <= 0 || containerH <= 0) && el.parentElement) {
+        const pRect = el.parentElement.getBoundingClientRect();
+        containerW = el.parentElement.clientWidth || pRect.width;
+        containerH = el.parentElement.clientHeight || pRect.height;
+      }
+      if (containerW > 0 && containerH <= 0) {
+        containerH = (containerW * canvasHeight) / canvasWidth;
+      } else if (containerH > 0 && containerW <= 0) {
+        containerW = (containerH * canvasWidth) / canvasHeight;
+      }
+    }
+  }
+
+  const effectiveContainerW = containerW > 0 ? containerW : canvasWidth;
+  const effectiveContainerH = containerH > 0 ? containerH : canvasHeight;
+
+  // Strict uniform scaling preserving 16:9 aspect ratio:
+  // scale = Math.min(availableWidth / canvasWidth, availableHeight / canvasHeight)
+  const scale = Math.min(
+    effectiveContainerW / canvasWidth,
+    effectiveContainerH / canvasHeight
+  );
+  const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+
+  useEffect(() => {
+    onScaleChange?.(safeScale, effectiveContainerW, effectiveContainerH);
+  }, [safeScale, effectiveContainerW, effectiveContainerH, onScaleChange]);
+
+  const scaledWidth = canvasWidth * safeScale;
+  const scaledHeight = canvasHeight * safeScale;
 
   const effectiveLayout = layout || theme?.layout;
   const alignment = resolveResultScreenLayout(effectiveLayout);
@@ -306,43 +428,61 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
 
   return (
     <div
-      className={`result-screen-root absolute inset-0 w-full h-full flex ${alignment.itemsClass} ${alignment.justifyClass} overflow-hidden select-none z-[100] ${className}`}
+      ref={containerRef}
+      className={`result-screen-root absolute inset-0 w-full h-full flex items-center justify-center overflow-hidden select-none z-[100] ${className}`}
       style={{
         ...bg.containerStyle,
-        justifyContent: alignment.justifyContent,
-        alignItems: alignment.alignItems,
         zIndex: 100,
       }}
     >
-      {/* Background Overlay */}
+      {/* Viewport Background Overlay */}
       <div className="absolute inset-0 pointer-events-none" style={bg.overlayStyle} />
 
-      {/* Logical Canvas scaled responsively to fill container */}
+      {/* Layer B: Canvas Frame - preserves 16:9 aspect ratio and scaled layout dimensions */}
       <div
-        className={`result-screen-canvas relative w-full h-full max-w-full max-h-full flex ${alignment.itemsClass} ${alignment.justifyClass}`}
+        className="result-screen-frame shrink-0 relative shadow-2xl rounded-2xl overflow-hidden"
         style={{
-          aspectRatio: `${canvasWidth} / ${canvasHeight}`,
-          justifyContent: alignment.justifyContent,
-          alignItems: alignment.alignItems,
-          containerType: 'inline-size',
+          width: `${scaledWidth}px`,
+          height: `${scaledHeight}px`,
+          maxWidth: '100%',
+          maxHeight: '100%',
         }}
       >
-        {elements.map((el) => renderElement(el, canvasWidth, canvasHeight, true))}
+        {/* Layer C: Canvas Content - renders at fixed 1024x576 logical coordinates, scaled uniformly */}
+        <div
+          className="result-screen-canvas shrink-0 select-none relative"
+          style={{
+            width: `${canvasWidth}px`,
+            height: `${canvasHeight}px`,
+            minWidth: `${canvasWidth}px`,
+            minHeight: `${canvasHeight}px`,
+            transform: `scale(${safeScale})`,
+            transformOrigin: 'top left',
+            ...bg.containerStyle,
+            containerType: 'inline-size',
+          }}
+        >
+          {/* Inner Canvas Background Overlay */}
+          <div className="absolute inset-0 pointer-events-none" style={bg.overlayStyle} />
 
-        {/* Canvas-level Leaderboard Slot (if provided by live game) */}
-        {leaderboardSlot && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '5%',
-              left: '10%',
-              width: '80%',
-              zIndex: 30,
-            }}
-          >
-            {leaderboardSlot}
-          </div>
-        )}
+          {/* All Elements at logical coordinates */}
+          {elements.map((el) => renderElement(el, canvasWidth, canvasHeight, true))}
+
+          {/* Canvas-level Leaderboard Slot (if provided by live game) */}
+          {leaderboardSlot && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '5%',
+                left: '10%',
+                width: '80%',
+                zIndex: 30,
+              }}
+            >
+              {leaderboardSlot}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

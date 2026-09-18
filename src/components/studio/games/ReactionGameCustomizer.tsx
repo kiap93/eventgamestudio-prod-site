@@ -328,6 +328,8 @@ export const ReactionScreensCustomizer: React.FC<{
   const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
   const [isStartEditorModalOpen, setIsStartEditorModalOpen] = useState(false);
   const [isResultEditorModalOpen, setIsResultEditorModalOpen] = useState(false);
+  const [resultViewportPreset, setResultViewportPreset] = useState<'fit' | '1024x576' | '800x450' | '600x400' | '400x300'>('fit');
+  const [resultScaleInfo, setResultScaleInfo] = useState<{ scale: number; width: number; height: number }>({ scale: 1, width: 0, height: 0 });
 
   const reactionConfig: ReactionGameConfig = {
     ...DEFAULT_REACTION_CONFIG,
@@ -512,30 +514,101 @@ export const ReactionScreensCustomizer: React.FC<{
             </div>
 
             {/* Live Scaled Preview Frame */}
-            <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
-              <div className="w-full max-w-[500px] aspect-[16/9] rounded-xl overflow-hidden border border-slate-700/60 shadow-2xl relative">
-                <ResultScreenRenderer
-                  resultConfig={resultConfig as any}
-                  theme={theme}
-                  layout={theme.layout}
-                  stats={{
-                    score: 234,
-                    reactionTimeMs: 234,
-                    bestReactionMs: 198,
-                    worstReactionMs: 270,
-                    roundsCompleted: reactionConfig.roundsCount || 5,
-                    totalRounds: reactionConfig.roundsCount || 5,
-                    roundTimes: [220, 245, 198, 270, 237],
-                    rating: 'PRO',
-                    isVictory: true,
-                    gameType: 'reaction-tap',
-                  }}
-                  isSimulation={true}
-                />
+            <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800/80 gap-3">
+              {/* Viewport Dimension Presets for Verification */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 p-1 bg-slate-900/90 rounded-lg border border-slate-800 text-[11px] font-mono">
+                <span className="text-slate-400 px-2 font-medium">Viewport:</span>
+                {(
+                  [
+                    { id: 'fit', label: 'Fit (Auto)' },
+                    { id: '1024x576', label: '1024 × 576 (1.0x)' },
+                    { id: '800x450', label: '800 × 450 (0.781x)' },
+                    { id: '600x400', label: '600 × 400 (0.586x)' },
+                    { id: '400x300', label: '400 × 300 (0.391x)' },
+                  ] as const
+                ).map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => setResultViewportPreset(preset.id)}
+                    className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                      resultViewportPreset === preset.id
+                        ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
               </div>
-              <span className="text-[11px] text-slate-500 mt-2 font-mono">
-                Interactive Scaled Canvas Preview (1024 × 576)
-              </span>
+
+              {/* Viewport Frame with overflow handling and dynamic dimensions */}
+              <div
+                className="w-full flex items-center justify-center overflow-auto p-2"
+                style={{ maxHeight: '600px' }}
+              >
+                <div
+                  className="rounded-xl overflow-hidden border border-slate-700/60 shadow-2xl relative transition-all duration-200"
+                  style={{
+                    width:
+                      resultViewportPreset === '1024x576'
+                        ? '1024px'
+                        : resultViewportPreset === '800x450'
+                        ? '800px'
+                        : resultViewportPreset === '600x400'
+                        ? '600px'
+                        : resultViewportPreset === '400x300'
+                        ? '400px'
+                        : '100%',
+                    maxWidth: '100%',
+                    height:
+                      resultViewportPreset === '1024x576'
+                        ? '576px'
+                        : resultViewportPreset === '800x450'
+                        ? '450px'
+                        : resultViewportPreset === '600x400'
+                        ? '400px'
+                        : resultViewportPreset === '400x300'
+                        ? '300px'
+                        : undefined,
+                    aspectRatio: resultViewportPreset === 'fit' ? '16 / 9' : undefined,
+                  }}
+                >
+                  <ResultScreenRenderer
+                    resultConfig={resultConfig as any}
+                    theme={theme}
+                    layout={theme.layout}
+                    stats={{
+                      score: 234,
+                      reactionTimeMs: 234,
+                      bestReactionMs: 198,
+                      worstReactionMs: 270,
+                      roundsCompleted: reactionConfig.roundsCount || 5,
+                      totalRounds: reactionConfig.roundsCount || 5,
+                      roundTimes: [220, 245, 198, 270, 237],
+                      rating: 'PRO',
+                      isVictory: true,
+                      gameType: 'reaction-tap',
+                    }}
+                    isSimulation={true}
+                    onScaleChange={(scale, w, h) => {
+                      setResultScaleInfo({ scale, width: Math.round(w), height: Math.round(h) });
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-500 font-mono">
+                <span>Interactive Scaled Canvas Preview (1024 × 576)</span>
+                <span className="text-slate-600">•</span>
+                <span className="text-amber-400 font-semibold">
+                  Scale: {resultScaleInfo.scale.toFixed(3)}
+                </span>
+                <span className="text-slate-600">•</span>
+                <span className="text-slate-400">
+                  Viewport: {resultScaleInfo.width} × {resultScaleInfo.height}
+                </span>
+              </div>
             </div>
           </div>
 

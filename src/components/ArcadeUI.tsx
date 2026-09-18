@@ -230,8 +230,10 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   }, [showLeaderboardModal, eventId, publicToken, isEventPreview]);
 
   // Handle high score submission
-  const handleSubmitScore = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const handleSubmitScore = async (nameOrEvent?: React.FormEvent | string) => {
+    if (nameOrEvent && typeof nameOrEvent === 'object' && 'preventDefault' in nameOrEvent) {
+      nameOrEvent.preventDefault();
+    }
     if (isSubmittingScore || scoreSubmitted) return;
 
     // Strict separation: Studio preview runs without test context NEVER submit official scores
@@ -239,7 +241,8 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
       return;
     }
 
-    const trimmedName = playerName.trim() || 'Player';
+    const trimmedName = (typeof nameOrEvent === 'string' && nameOrEvent.trim() ? nameOrEvent.trim() : playerName.trim()) || 'Player';
+    setPlayerName(trimmedName);
     localStorage.setItem('event_player_name', trimmedName);
     setIsSubmittingScore(true);
     setLeaderboardError(null);
@@ -1341,42 +1344,8 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             scoreSubmitted={scoreSubmitted}
             submittedRank={submittedRank}
             isSubmittingScore={isSubmittingScore}
-            submissionError={submissionError}
-            onSubmitScore={async (name: string) => {
-              const trimmedName = name.trim() || 'Player';
-              setPlayerName(trimmedName);
-              localStorage.setItem('event_player_name', trimmedName);
-              setIsSubmittingScore(true);
-              setSubmissionError(null);
-              try {
-                const response = await submitEventLeaderboardScore(
-                  eventId,
-                  trimmedName,
-                  stats.score,
-                  publicToken,
-                  undefined,
-                  isEventTest
-                );
-                if (response && response.success) {
-                  setScoreSubmitted(true);
-                  if (response.rank) {
-                    setSubmittedRank(response.rank);
-                  }
-                  await fetchEventLeaderboard();
-                  return { success: true, rank: response.rank };
-                } else {
-                  const errMsg = response?.error || 'Failed to submit score';
-                  setSubmissionError(errMsg);
-                  return { success: false, error: errMsg };
-                }
-              } catch (err: any) {
-                const errMsg = err?.message || 'Failed to submit score';
-                setSubmissionError(errMsg);
-                return { success: false, error: errMsg };
-              } finally {
-                setIsSubmittingScore(false);
-              }
-            }}
+            submissionError={leaderboardError}
+            onSubmitScore={handleSubmitScore}
             isEventPreview={isEventPreview}
             isEventTest={isEventTest}
           />
