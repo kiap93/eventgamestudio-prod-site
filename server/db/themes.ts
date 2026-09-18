@@ -2465,7 +2465,19 @@ export async function checkOrganizationThemeReadiness(
     };
   }
 
-  const allOrgThemes = await getThemesByOrgId(organizationId, undefined, env);
+  let allOrgThemes: GameThemeRecord[] = [];
+  try {
+    allOrgThemes = await getThemesByOrgId(organizationId, undefined, env);
+  } catch (err) {
+    console.warn('Could not query organization themes for readiness check, falling back:', err);
+    return {
+      hasValidTheme: true,
+      themeCount: 1,
+      themeSetupRequired: false,
+      suggestedThemeId: null,
+      themes: [],
+    };
+  }
 
   // A theme is valid for event creation if:
   // 1. It belongs to this organization

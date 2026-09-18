@@ -264,7 +264,7 @@ export const LandingEventShowcase: React.FC = () => {
           <div className="flex flex-wrap items-center justify-center gap-4 pt-1">
             <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-amber-200 text-xs text-amber-900 font-medium shadow-xs">
               <Coins className="w-4 h-4 text-amber-600" />
-              <span>Earn RM 50 platform credits on approved showcase review</span>
+              <span>Earn RM 300 platform credits on approved showcase review</span>
             </div>
           </div>
 

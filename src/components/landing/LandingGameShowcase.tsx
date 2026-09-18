@@ -42,10 +42,25 @@ const gameArtGradients: Record<string, { bg: string; accent: string; tag: string
     accent: 'border-emerald-200 text-emerald-700',
     tag: 'Brand Memory Grid',
   },
+  'speed-quiz': {
+    bg: 'from-blue-500/10 via-cyan-50 to-white',
+    accent: 'border-blue-200 text-blue-700',
+    tag: 'Live Audience Trivia',
+  },
   'quiz-rush': {
     bg: 'from-blue-500/10 via-cyan-50 to-white',
     accent: 'border-blue-200 text-blue-700',
     tag: 'Live Audience Trivia',
+  },
+  'reaction-tap': {
+    bg: 'from-rose-500/10 via-purple-50 to-white',
+    accent: 'border-rose-200 text-rose-700',
+    tag: 'Lightning Reflex',
+  },
+  'reaction-time': {
+    bg: 'from-rose-500/10 via-purple-50 to-white',
+    accent: 'border-rose-200 text-rose-700',
+    tag: 'Lightning Reflex',
   },
   'tap-reaction': {
     bg: 'from-rose-500/10 via-purple-50 to-white',
@@ -54,12 +69,46 @@ const gameArtGradients: Record<string, { bg: string; accent: string; tag: string
   },
 };
 
+/**
+ * Resolves a game's canonical identifier for robust deduplication.
+ * Different games (with distinct canonical IDs) are never conflated.
+ * Aliased entries (e.g. 'reaction-time' and 'reaction-tap') map to the same canonical ID.
+ */
+function getCanonicalGameId(id: string): string {
+  const norm = id.trim().toLowerCase().replace(/_/g, '-');
+  if (norm === 'reaction-tap' || norm === 'reaction-time' || norm === 'reaction-tap-f1-reflex' || norm === 'tap-reaction') {
+    return 'reaction-tap';
+  }
+  if (norm === 'memory-match' || norm === 'brand-memory-match') {
+    return 'memory-match';
+  }
+  if (norm === 'speed-quiz' || norm === 'quiz-rush' || norm === 'event-trivia-speed-quiz') {
+    return 'speed-quiz';
+  }
+  return norm;
+}
+
 export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
   onTryDemo,
   onExploreAll,
 }) => {
   const { isAuthenticated } = useAuth();
   const gamesList = Object.values(GAME_REGISTRY);
+
+  // Deduplicate pipeline games by stable canonical game ID
+  const upcomingGames = React.useMemo(() => {
+    const seen = new Set<string>();
+    const list: typeof gamesList = [];
+    for (const game of gamesList) {
+      if (game.id === 'catch-brand') continue;
+      const canonicalId = getCanonicalGameId(game.id);
+      if (!seen.has(canonicalId)) {
+        seen.add(canonicalId);
+        list.push(game);
+      }
+    }
+    return list;
+  }, [gamesList]);
 
   const handleCreateEvent = () => {
     if (isAuthenticated) {
@@ -236,14 +285,13 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
 
         {/* Secondary Pipeline Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {gamesList
-            .filter((g) => g.id !== 'catch-brand')
-            .map((game, idx) => {
-              const theme = gameArtGradients[game.id] || {
-                bg: 'from-slate-100 to-white',
-                accent: 'border-slate-200 text-slate-700',
-                tag: 'Upcoming Game',
-              };
+          {upcomingGames.map((game, idx) => {
+            const canonicalId = getCanonicalGameId(game.id);
+            const theme = gameArtGradients[canonicalId] || gameArtGradients[game.id] || {
+              bg: 'from-slate-100 to-white',
+              accent: 'border-slate-200 text-slate-700',
+              tag: 'Upcoming Game',
+            };
 
               return (
                 <motion.div

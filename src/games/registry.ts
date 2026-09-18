@@ -7,7 +7,7 @@ import { DEFAULT_REACTION_CONFIG, ReactionGameConfig } from './reaction-time/typ
 
 export { DEFAULT_GAME_TYPE };
 
-export const GAME_REGISTRY: Record<string, GameDefinition<any>> = {
+const CANONICAL_GAME_REGISTRY: Record<string, GameDefinition<any>> = {
   'catch-brand': {
     id: 'catch-brand',
     name: 'Catch the Brand',
@@ -34,22 +34,6 @@ export const GAME_REGISTRY: Record<string, GameDefinition<any>> = {
   },
   'reaction-tap': {
     id: 'reaction-tap',
-    name: 'Formula Reaction Lights',
-    shortName: 'Reaction',
-    description: 'Measure reaction speed in an F1-style starting light sequence. When the lights go out, react as fast as you can!',
-    iconName: 'Zap',
-    category: 'reaction',
-    minPlayers: 1,
-    maxPlayers: 1,
-    defaultDurationSeconds: 15,
-    supportedInputTypes: ['keyboard', 'touch', 'mouse'],
-    defaultConfig: DEFAULT_REACTION_CONFIG as ReactionGameConfig,
-    component: ReactionGame,
-    isAvailable: true,
-    comingSoon: false,
-  },
-  'reaction-time': {
-    id: 'reaction-time',
     name: 'Formula Reaction Lights',
     shortName: 'Reaction',
     description: 'Measure reaction speed in an F1-style starting light sequence. When the lights go out, react as fast as you can!',
@@ -112,6 +96,37 @@ export const GAME_REGISTRY: Record<string, GameDefinition<any>> = {
     comingSoon: true,
   },
 };
+
+/**
+ * Authoritative game registry.
+ * Proxied so that alias lookups (e.g. 'reaction-time') seamlessly resolve to the canonical definition,
+ * while Object.keys(), Object.values(), and Object.entries() strictly iterate only over unique canonical games.
+ */
+export const GAME_REGISTRY: Record<string, GameDefinition<any>> = new Proxy(CANONICAL_GAME_REGISTRY, {
+  get(target, prop: string | symbol) {
+    if (typeof prop === 'string') {
+      if (prop in target) {
+        return target[prop];
+      }
+      if (prop === 'reaction-time' || prop === 'reaction-tap-f1-reflex') {
+        return target['reaction-tap'];
+      }
+    }
+    return Reflect.get(target, prop);
+  },
+  has(target, prop: string | symbol) {
+    if (typeof prop === 'string' && (prop === 'reaction-time' || prop === 'reaction-tap-f1-reflex')) {
+      return true;
+    }
+    return Reflect.has(target, prop);
+  },
+  ownKeys(target) {
+    return Reflect.ownKeys(target);
+  },
+  getOwnPropertyDescriptor(target, prop) {
+    return Reflect.getOwnPropertyDescriptor(target, prop);
+  },
+});
 
 /**
  * Safely resolves a game definition by game type or ID.
