@@ -25,6 +25,8 @@ export const GamesPage: React.FC = () => {
   // URL parsing helper
   const parseGamesRoute = () => {
     const pathname = window.location.pathname;
+    const searchParams = new URLSearchParams(window.location.search);
+    const queryThemeId = searchParams.get('editTheme');
 
     // Pattern 1: /games/:gameId/themes/:themeId/edit
     const matchNestedEdit = pathname.match(/^\/games\/([^/]+)\/themes\/([^/]+)\/edit$/);
@@ -38,7 +40,12 @@ export const GamesPage: React.FC = () => {
       return { gameId: null, themeId: matchLegacyEdit[1] };
     }
 
-    // Pattern 3: /games/:gameId
+    // Pattern 3: query param ?editTheme=...
+    if (queryThemeId) {
+      return { gameId: null, themeId: queryThemeId };
+    }
+
+    // Pattern 4: /games/:gameId
     const matchGameDetail = pathname.match(/^\/games\/([^/]+)$/);
     if (matchGameDetail && matchGameDetail[1] !== 'themes') {
       return { gameId: matchGameDetail[1], themeId: null };
@@ -50,6 +57,9 @@ export const GamesPage: React.FC = () => {
   const initialRoute = parseGamesRoute();
   const [selectedGameId, setSelectedGameId] = useState<string | null>(initialRoute.gameId);
   const [editingThemeId, setEditingThemeId] = useState<string | null>(initialRoute.themeId);
+
+  // Check if current flow is onboarding
+  const isOnboarding = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('onboarding') === 'true';
 
   // Quick Demo Play Modal
   const [demoPlayingGame, setDemoPlayingGame] = useState<GameRecord | null>(null);
@@ -200,6 +210,7 @@ export const GamesPage: React.FC = () => {
       <ThemeEditor
         themeId={editingThemeId}
         onBack={handleBackFromThemeEditor}
+        isOnboarding={isOnboarding}
       />
     );
   }

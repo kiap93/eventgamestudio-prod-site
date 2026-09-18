@@ -11,6 +11,7 @@ import { LayoutTab } from './LayoutTab';
 import { ScreensTab } from './ScreensTab';
 import { GameShell } from '../shell/GameShell';
 import { LayoutElementKey, GameLayoutConfig, getDefaultUILayout } from '../../themes/layout';
+import { navigateTo } from '../../hooks/useRouteContext';
 import {
   ArrowLeft,
   Palette,
@@ -35,9 +36,10 @@ import {
 interface ThemeEditorProps {
   themeId: string;
   onBack: () => void;
+  isOnboarding?: boolean;
 }
 
-export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => {
+export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnboarding = false }) => {
   const {
     themes,
     updateTheme,
@@ -49,6 +51,10 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
 
   const role = currentOrganization?.role || 'viewer';
   const isViewer = role === 'viewer';
+
+  // Check if opened within mandatory theme setup flow
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const isFlowOnboarding = isOnboarding || searchParams.get('onboarding') === 'true';
 
   const [activeTab, setActiveTab] = useState<'visuals' | 'items' | 'gameplay' | 'audio' | 'branding' | 'layout' | 'screens'>('visuals');
   const [selectedLayoutElement, setSelectedLayoutElement] = useState<LayoutElementKey>('clientLogo');
@@ -191,6 +197,14 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
       setDraftTheme(cloned);
       setSavedThemeSnapshot(cloned);
       setSaveSuccess(true);
+      await fetchThemes();
+
+      // If user is in the mandatory onboarding theme setup flow, seamlessly guide them to create their first event
+      if (isFlowOnboarding) {
+        setTimeout(() => {
+          navigateTo('/events?create=true');
+        }, 1200);
+      }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to save theme');
     } finally {
@@ -420,27 +434,71 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack }) => 
           </button>
 
           {/* PRIMARY ACTION: SAVE THEME */}
-          <button
-            type="button"
-            onClick={handleSaveTheme}
-            disabled={saving || isViewer || !hasUnsavedChanges}
-            className={`px-5 py-2.5 rounded-xl font-black text-xs shadow-xl transition-all flex items-center gap-2 ${
-              hasUnsavedChanges
-                ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 active:scale-95 ring-2 ring-amber-400/30'
-                : 'bg-slate-800 text-slate-400 border border-slate-700 cursor-default'
-            }`}
-          >
-            {saving ? (
-              <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-            ) : saveSuccess ? (
-              <Check className="w-4 h-4 text-emerald-400" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            <span>{saving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save Theme'}</span>
-          </button>
+          {(() => {
+            const canSave =
+              hasUnsavedChanges ||
+              isFlowOnboarding ||
+              draftTheme?.game_config?.is_onboarding_draft === true ||
+              draftTheme?.status === 'draft';
+            return (
+              <button
+                type="button"
+                onClick={handleSaveTheme}
+                disabled={saving || isViewer || !canSave}
+                className={`px-5 py-2.5 rounded-xl font-black text-xs shadow-xl transition-all flex items-center gap-2 ${
+                  canSave
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 active:scale-95 ring-2 ring-amber-400/30 cursor-pointer'
+                    : 'bg-slate-800 text-slate-400 border border-slate-700 cursor-default'
+                }`}
+              >
+                {saving ? (
+                  <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                ) : saveSuccess ? (
+                  <Check className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                <span>
+                  {saving
+                    ? 'Saving...'
+                    : saveSuccess
+                    ? isFlowOnboarding
+                      ? 'Saved! Unlocking Event...'
+                      : 'Saved!'
+                    : isFlowOnboarding
+                    ? 'Save & Continue'
+                    : 'Save Theme'}
+                </span>
+              </button>
+            );
+          })()}
         </div>
       </header>
+
+      {/* Mandatory Onboarding Banner */}
+      {isFlowOnboarding && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 px-5 py-3.5 rounded-2xl text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+            <div>
+              <span className="font-bold text-amber-300">Mandatory Theme Setup (Step 1 of 3):</span>{' '}
+              <span className="text-slate-300">
+                Customize your brand theme, then click &apos;Save &amp; Continue&apos; to unlock event creation.
+              </span>
+            </div>
+          </div>
+          {saveSuccess ? (
+            <span className="font-bold text-emerald-400 shrink-0 flex items-center gap-1.5 animate-pulse">
+              <Check className="w-4 h-4 text-emerald-400" />
+              Theme setup complete! Redirecting to create event...
+            </span>
+          ) : (
+            <span className="text-[11px] text-amber-300/80 shrink-0 bg-amber-500/20 px-2.5 py-1 rounded-full font-semibold">
+              Event creation unlocks on save
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Error / Success Notifications */}
       {saveSuccess && (

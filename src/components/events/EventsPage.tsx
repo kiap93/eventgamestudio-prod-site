@@ -7,6 +7,7 @@ import { EditEventDialog } from './EditEventDialog';
 import { CancelEventModal } from './CancelEventModal';
 import { EventCalendarView } from './EventCalendarView';
 import { isEventExplicitlyCancelled, calculateEventStatus } from '../../lib/dateUtils';
+import { navigateTo } from '../../hooks/useRouteContext';
 import {
   Plus,
   Calendar as CalendarIcon,
@@ -18,6 +19,9 @@ import {
   Clock,
   CheckCircle2,
   Trophy,
+  Palette,
+  ArrowRight,
+  ShieldAlert,
 } from 'lucide-react';
 
 export interface ShowcaseRewardStatus {
@@ -45,6 +49,15 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
     initialLifetimeRewardStatus === undefined
   );
 
+  // Organization Theme Readiness State
+  const [themeReadiness, setThemeReadiness] = useState<{
+    hasValidTheme: boolean;
+    themeCount: number;
+    themeSetupRequired: boolean;
+    suggestedThemeId: string | null;
+  } | null>(null);
+  const [loadingThemeReadiness, setLoadingThemeReadiness] = useState(true);
+
   useEffect(() => {
     let isMounted = true;
     const fetchUserRewardStatus = async () => {
@@ -71,6 +84,47 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
       isMounted = false;
     };
   }, [currentUser?.id]);
+
+  // Fetch Theme Readiness for Organization
+  useEffect(() => {
+    let isMounted = true;
+    const fetchReadiness = async () => {
+      if (!currentOrganization?.id) return;
+      try {
+        setLoadingThemeReadiness(true);
+        const res = await apiFetch('/api/theme-readiness');
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            setThemeReadiness(data);
+          }
+        }
+      } catch (err) {
+        console.error('Error checking theme readiness:', err);
+      } finally {
+        if (isMounted) setLoadingThemeReadiness(false);
+      }
+    };
+
+    fetchReadiness();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentOrganization?.id]);
+
+  // Automatically handle ?create=true URL query param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === 'true') {
+      if (themeReadiness) {
+        if (themeReadiness.hasValidTheme) {
+          setIsCreateOpen(true);
+        } else {
+          navigateTo('/theme-setup');
+        }
+      }
+    }
+  }, [themeReadiness]);
 
   // Filter & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -240,7 +294,13 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
 
           {!isViewer && (
             <button
-              onClick={() => setIsCreateOpen(true)}
+              onClick={() => {
+                if (themeReadiness && !themeReadiness.hasValidTheme) {
+                  navigateTo('/theme-setup');
+                  return;
+                }
+                setIsCreateOpen(true);
+              }}
               className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -249,6 +309,40 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
           )}
         </div>
       </div>
+
+      {/* Mandatory Theme Setup Required Notice */}
+      {!loadingThemeReadiness && themeReadiness && !themeReadiness.hasValidTheme && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-slate-900 border border-amber-500/30 rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/30 shrink-0">
+              <Palette className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-500">
+                  Required Onboarding Step
+                </span>
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                  Theme Setup Required
+                </span>
+              </div>
+              <h2 className="text-base font-extrabold text-white mt-1">
+                Customize your brand theme before creating events
+              </h2>
+              <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                Before creating your first event, customize your theme to match your brand. Event creation remains locked until your theme is saved.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigateTo('/theme-setup')}
+            className="w-full sm:w-auto px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+          >
+            <span>Set Up Theme</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Metrics Summary Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
@@ -518,11 +612,17 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
                 </button>
               ) : !isViewer ? (
                 <button
-                  onClick={() => setIsCreateOpen(true)}
+                  onClick={() => {
+                    if (themeReadiness && !themeReadiness.hasValidTheme) {
+                      navigateTo('/theme-setup');
+                      return;
+                    }
+                    setIsCreateOpen(true);
+                  }}
                   className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-2xl text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Create Event</span>
+                  <span>{themeReadiness && !themeReadiness.hasValidTheme ? 'Set Up Theme First' : 'Create Event'}</span>
                 </button>
               ) : null}
             </div>

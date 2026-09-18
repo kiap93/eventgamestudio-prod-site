@@ -2438,3 +2438,171 @@ export async function ensureDefaultThemes(
 
   return created;
 }
+
+export interface OrganizationThemeReadiness {
+  hasValidTheme: boolean;
+  themeCount: number;
+  themeSetupRequired: boolean;
+  suggestedThemeId: string | null;
+  themes: GameThemeRecord[];
+}
+
+/**
+ * Checks whether an organization has at least one valid, active, saved theme.
+ * System themes and uncompleted onboarding drafts do NOT satisfy this check.
+ */
+export async function checkOrganizationThemeReadiness(
+  organizationId: string,
+  env?: Record<string, any>
+): Promise<OrganizationThemeReadiness> {
+  if (!organizationId) {
+    return {
+      hasValidTheme: false,
+      themeCount: 0,
+      themeSetupRequired: true,
+      suggestedThemeId: null,
+      themes: [],
+    };
+  }
+
+  const allOrgThemes = await getThemesByOrgId(organizationId, undefined, env);
+
+  // A theme is valid for event creation if:
+  // 1. It belongs to this organization
+  // 2. It is not a system theme (is_system !== true && ownership_type !== 'system')
+  // 3. Its status is 'active' (not 'draft' or 'archived')
+  // 4. It is not an uncompleted onboarding draft (game_config?.is_onboarding_draft !== true)
+  const validThemes = allOrgThemes.filter((t) => {
+    if (!t || !t.id) return false;
+    if (t.organization_id !== organizationId) return false;
+    if (t.is_system === true || t.ownership_type === 'system') return false;
+    if (t.status !== 'active') return false;
+    if (t.game_config?.is_onboarding_draft === true) return false;
+    return true;
+  });
+
+  return {
+    hasValidTheme: validThemes.length > 0,
+    themeCount: validThemes.length,
+    themeSetupRequired: validThemes.length === 0,
+    suggestedThemeId: validThemes[0]?.id || null,
+    themes: validThemes,
+  };
+}
+
+/**
+ * Resolves or initializes the onboarding theme for a newly registered or theme-less organization.
+ * Reuses existing themes if available without creating duplicate themes.
+ */
+export async function getOrCreateOnboardingTheme(
+  organizationId: string,
+  env?: Record<string, any>
+): Promise<{
+  theme: GameThemeRecord;
+  isNew: boolean;
+  isReady: boolean;
+}> {
+  if (!organizationId) {
+    throw new Error('Organization ID is required');
+  }
+
+  // 1. Check existing themes for this organization
+  const existingThemes = await getThemesByOrgId(organizationId, undefined, env);
+
+  // If there's already an active customized theme, return it immediately
+  const activeTheme = existingThemes.find((t) => {
+    return (
+      t.organization_id === organizationId &&
+      t.is_system !== true &&
+      t.ownership_type !== 'system' &&
+      t.status === 'active' &&
+      t.game_config?.is_onboarding_draft !== true
+    );
+  });
+
+  if (activeTheme) {
+    return {
+      theme: activeTheme,
+      isNew: false,
+      isReady: true,
+    };
+  }
+
+  // If there's an existing onboarding draft theme, return it without creating a duplicate
+  const draftTheme = existingThemes.find((t) => {
+    return (
+      t.organization_id === organizationId &&
+      t.is_system !== true &&
+      t.ownership_type !== 'system' &&
+      t.game_config?.is_onboarding_draft === true
+    );
+  });
+
+  if (draftTheme) {
+    return {
+      theme: draftTheme,
+      isNew: false,
+      isReady: false,
+    };
+  }
+
+  // 2. Otherwise, find a system template theme to clone
+  let systemThemes = await getAllSystemThemes(env);
+  if (!systemThemes || systemThemes.length === 0) {
+    // Ensure default system themes exist
+    await ensureDefaultThemes(organizationId, 'Organization', env);
+    systemThemes = await getAllSystemThemes(env);
+  }
+
+  // Prefer catch-the-brand system theme as default onboarding starter
+  const baseSystemTheme =
+    systemThemes.find(
+      (t) =>
+        (t.game_slug === 'catch-the-brand' || (t.slug || '').includes('carnival') || (t.slug || '').includes('catch')) &&
+        (t.is_system === true || t.ownership_type === 'system')
+    ) || systemThemes[0];
+
+  if (!baseSystemTheme) {
+    throw new Error('No template theme available to initialize onboarding theme');
+  }
+
+  // Fetch organization name to personalize theme
+  const supabase = getSupabaseServerClient(env);
+  const { data: orgData } = await supabase
+    .from('organizations')
+    .select('name')
+    .eq('id', organizationId)
+    .maybeSingle();
+
+  const orgName = orgData?.name || 'Brand';
+  const customName = `${orgName} Theme`;
+
+  // Clone template theme to organization
+  const cloned = await cloneSystemThemeToOrg(
+    baseSystemTheme.id,
+    organizationId,
+    undefined,
+    customName,
+    env
+  );
+
+  // Mark cloned theme as onboarding draft (status: draft, is_onboarding_draft: true)
+  // until user customizes and saves it
+  const updatedDraft = await updateTheme(
+    cloned.id,
+    {
+      status: 'draft',
+      game_config: {
+        ...(cloned.game_config || {}),
+        is_onboarding_draft: true,
+      },
+    },
+    env
+  );
+
+  return {
+    theme: updatedDraft,
+    isNew: true,
+    isReady: false,
+  };
+}

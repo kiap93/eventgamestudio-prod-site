@@ -27,6 +27,8 @@ import {
   updateGameCustomization,
   getThemesByOrgId,
   getThemeById,
+  checkOrganizationThemeReadiness,
+  getOrCreateOnboardingTheme,
   isUUID,
   createTheme,
   updateTheme,
@@ -1909,6 +1911,56 @@ export default {
         return jsonResponse({ themes }, 200, cors);
       }
 
+      if (pathname === '/api/theme-readiness' && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const organizationId =
+          request.headers.get('x-organization-id') ||
+          auth.jwtPayload?.organizationId ||
+          url.searchParams.get('orgId') ||
+          url.searchParams.get('organization_id') ||
+          user?.organization_id;
+
+        if (!organizationId) {
+          return errorResponse('No active organization selected', 422, cors);
+        }
+
+        const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.view', env);
+        if (!isMember) {
+          return errorResponse('Forbidden: You are not a member of this organization', 403, cors);
+        }
+
+        const readiness = await checkOrganizationThemeReadiness(organizationId, env);
+        return jsonResponse(readiness, 200, cors);
+      }
+
+      if (pathname === '/api/themes/onboarding-theme' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const organizationId =
+          request.headers.get('x-organization-id') ||
+          auth.jwtPayload?.organizationId ||
+          url.searchParams.get('orgId') ||
+          url.searchParams.get('organization_id') ||
+          user?.organization_id;
+
+        if (!organizationId) {
+          return errorResponse('No active organization selected', 422, cors);
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit', env);
+        if (!isMember || role === 'viewer') {
+          return errorResponse('Forbidden: Insufficient permissions to set up themes', 403, cors);
+        }
+
+        const result = await getOrCreateOnboardingTheme(organizationId, env);
+        return jsonResponse(result, 200, cors);
+      }
+
       if (pathname === '/api/themes/system' && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
@@ -2179,6 +2231,16 @@ export default {
           game_config,
         } = body;
 
+        const mergedGameConfig = {
+          ...(theme.game_config || {}),
+          ...(game_config || {}),
+          is_onboarding_draft: false,
+          theme_setup_completed: true,
+          theme_setup_completed_at: new Date().toISOString(),
+        };
+
+        const resolvedStatus = status && status !== 'draft' ? status : 'active';
+
         try {
           const updatedTheme = await updateTheme(
             themeId,
@@ -2186,7 +2248,7 @@ export default {
               name,
               slug,
               description,
-              status,
+              status: resolvedStatus,
               styling: styling !== undefined ? styling : visuals_config,
               branding,
               background_url,
@@ -2196,7 +2258,7 @@ export default {
               visuals_config,
               sounds_config,
               layout,
-              game_config,
+              game_config: mergedGameConfig,
             },
             env
           );

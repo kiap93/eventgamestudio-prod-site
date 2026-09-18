@@ -37,6 +37,8 @@ import {
   uploadGameAsset,
   getThemesByOrgId,
   getThemeById,
+  checkOrganizationThemeReadiness,
+  getOrCreateOnboardingTheme,
   isUUID,
   createTheme,
   updateTheme,
@@ -1567,6 +1569,61 @@ app.get('/api/themes', authenticateJWT, async (req: AuthenticatedRequest, res) =
 });
 
 /**
+ * GET /api/theme-readiness
+ * Evaluates whether the active organization has at least one valid, saved theme.
+ * Used for route guards, UI banners, and event creation validation.
+ */
+app.get('/api/theme-readiness', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const organizationId = req.jwtPayload?.organizationId;
+
+    if (!organizationId) {
+      res.status(422).json({ error: 'No active organization selected' });
+      return;
+    }
+
+    const { isMember } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.view');
+    if (!isMember) {
+      res.status(403).json({ error: 'Forbidden: You are not a member of this organization' });
+      return;
+    }
+
+    const readiness = await checkOrganizationThemeReadiness(organizationId);
+    res.json(readiness);
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/themes/onboarding-theme
+ * Resolves or initializes the onboarding theme for first-time mandatory theme setup.
+ */
+app.post('/api/themes/onboarding-theme', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const organizationId = req.jwtPayload?.organizationId;
+
+    if (!organizationId) {
+      res.status(422).json({ error: 'No active organization selected' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, organizationId, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Forbidden: Insufficient permissions to set up themes' });
+      return;
+    }
+
+    const result = await getOrCreateOnboardingTheme(organizationId);
+    res.json(result);
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
  * GET /api/themes/system
  * List system default theme templates available for any organization to clone
  * or resolve primary default system theme for a game.
@@ -1870,11 +1927,21 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       game_config,
     } = req.body;
 
+    const mergedGameConfig = {
+      ...(theme.game_config || {}),
+      ...(game_config || {}),
+      is_onboarding_draft: false,
+      theme_setup_completed: true,
+      theme_setup_completed_at: new Date().toISOString(),
+    };
+
+    const resolvedStatus = status && status !== 'draft' ? status : 'active';
+
     const updatedTheme = await updateTheme(themeId, {
       name,
       slug,
       description,
-      status,
+      status: resolvedStatus,
       styling: styling !== undefined ? styling : visuals_config,
       branding,
       background_url,
@@ -1884,7 +1951,7 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       visuals_config,
       sounds_config,
       layout,
-      game_config,
+      game_config: mergedGameConfig,
     });
 
     res.json({ ...updatedTheme, theme: updatedTheme });

@@ -17,7 +17,7 @@ import {
   CancellationErrorCode,
   PublicEventDTO,
 } from './types.js';
-import { getThemeById, isUUID, enrichThemesWithGameData, DEFAULT_CARNIVAL_THEME } from './themes.js';
+import { getThemeById, isUUID, enrichThemesWithGameData, DEFAULT_CARNIVAL_THEME, checkOrganizationThemeReadiness } from './themes.js';
 import { calculateCatchBrandSanityLimits, CatchBrandPhysicsSanityConfig } from '../games/catchBrandScoring.js';
 import { getGameById } from './games.js';
 import { getShowcaseByEventId, getShowcasesByOrgId } from './showcases.js';
@@ -2135,6 +2135,16 @@ export async function createEvent(
   return withOrganizationLock(params.organization_id, async () => {
     const supabase = getSupabaseServerClient(env);
 
+    // Mandatory Theme Setup Check: Organization must have a valid saved theme before creating events
+    const themeReadiness = await checkOrganizationThemeReadiness(params.organization_id, env);
+    if (!themeReadiness.hasValidTheme) {
+      const err: any = new Error('Theme setup is required before creating an event. Please customize and save your organization theme first.');
+      err.status = 422;
+      err.code = 'THEME_SETUP_REQUIRED';
+      err.theme_setup_required = true;
+      throw err;
+    }
+
   // 1. Verify organization isolation & system theme restriction: The theme must exist, belong to this organization, and not be a system theme!
   const theme = await getThemeById(params.game_theme_id, env);
   if (!theme) {
@@ -2160,11 +2170,12 @@ export async function createEvent(
     throw err;
   }
 
-  // Theme must be active
-  if (theme.status && theme.status !== 'active') {
-    const err: any = new Error('The selected theme is not active.');
+  // Theme must be active and cannot be an uncompleted onboarding draft
+  if ((theme.status && theme.status !== 'active') || theme.game_config?.is_onboarding_draft === true) {
+    const err: any = new Error('Theme setup is required before creating an event. Please customize and save your organization theme first.');
     err.status = 422;
-    err.code = 'THEME_INACTIVE';
+    err.code = 'THEME_SETUP_REQUIRED';
+    err.theme_setup_required = true;
     throw err;
   }
 
@@ -2633,6 +2644,16 @@ export async function createEventWithAtomicPayment(
   };
 }> {
   return withOrganizationLock(params.organization_id, async () => {
+    // Mandatory Theme Setup Check: Organization must have a valid saved theme before creating events
+    const themeReadiness = await checkOrganizationThemeReadiness(params.organization_id, env);
+    if (!themeReadiness.hasValidTheme) {
+      const err: any = new Error('Theme setup is required before creating an event. Please customize and save your organization theme first.');
+      err.status = 422;
+      err.code = 'THEME_SETUP_REQUIRED';
+      err.theme_setup_required = true;
+      throw err;
+    }
+
     const {
       organization_id,
       game_id,

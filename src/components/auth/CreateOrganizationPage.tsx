@@ -56,13 +56,13 @@ export const CreateOrganizationPage: React.FC = () => {
       console.log('[CreateOrganizationPage] Organization created successfully with id:', orgId);
       setStatusMessage('Launching Studio...');
 
-      // Explicitly navigate to /events (Requirement 3 & 5)
+      // Mandatory Onboarding Flow: Redirect immediately to /theme-setup after organization creation
       try {
-        navigateTo('/events');
+        navigateTo('/theme-setup');
       } catch (navErr) {
-        console.error('[CreateOrganizationPage] Navigation failure while navigating to /events:', navErr);
+        console.error('[CreateOrganizationPage] Navigation failure while navigating to /theme-setup:', navErr);
         // Direct browser fallback
-        window.location.href = '/events';
+        window.location.href = '/theme-setup';
       }
     } catch (err: any) {
       console.error('[CreateOrganizationPage] Organization creation failed:', err);

@@ -550,6 +550,7 @@ export function handleApiError(
       } else if (code === 'DIRECT_UPLOAD_SIZE_EXCEEDED' || code === 'FILE_TOO_LARGE') {
         statusCode = 413;
       } else if (
+        code === 'THEME_SETUP_REQUIRED' ||
         code === 'REJECTION_REASON_REQUIRED' ||
         code === 'PENDING_EVENT_LIMIT_REACHED' ||
         code === 'THEME_GAME_MISMATCH' ||
@@ -581,6 +582,7 @@ export function handleApiError(
     res.status(statusCode).json({
       error: err.message || 'Bad Request',
       code: errorCode,
+      ...(err.code === 'THEME_SETUP_REQUIRED' || err.theme_setup_required ? { theme_setup_required: true } : {}),
       ...(err.code === 'INSUFFICIENT_BALANCE' ? {
         ...(err.required !== undefined ? { required: err.required } : {}),
         ...(err.available !== undefined ? { available: err.available } : {}),
@@ -706,6 +708,7 @@ export async function handleWorkerApiError(
       } else if (code === 'DIRECT_UPLOAD_SIZE_EXCEEDED' || code === 'FILE_TOO_LARGE') {
         statusCode = 413;
       } else if (
+        code === 'THEME_SETUP_REQUIRED' ||
         code === 'REJECTION_REASON_REQUIRED' ||
         code === 'PENDING_EVENT_LIMIT_REACHED' ||
         code === 'THEME_GAME_MISMATCH' ||
@@ -741,6 +744,7 @@ export async function handleWorkerApiError(
       JSON.stringify({
         error: err.message || 'Bad Request',
         code: errorCode,
+        ...(err.code === 'THEME_SETUP_REQUIRED' || err.theme_setup_required ? { theme_setup_required: true } : {}),
         ...(err.code === 'INSUFFICIENT_BALANCE' ? {
           ...(err.required !== undefined ? { required: err.required } : {}),
           ...(err.available !== undefined ? { available: err.available } : {}),

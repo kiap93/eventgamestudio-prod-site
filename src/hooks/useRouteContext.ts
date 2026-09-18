@@ -13,6 +13,7 @@ export type PresentationMode =
   | 'login'
   | 'accept_invite'
   | 'create_org'
+  | 'theme_setup'
   | 'developer_admin';
 
 export interface RouteContext {
@@ -52,6 +53,7 @@ const RESERVED_PREFIXES = new Set([
   'contact',
   'accept-invite',
   'create-organization',
+  'theme-setup',
   'api',
   'assets',
   'play',
@@ -253,6 +255,20 @@ export function parseRoute(pathname: string): RouteContext {
       isPublicEventRoute: false,
       isEventPreviewRoute: false,
       isStudioRoute: false,
+      isPreviewRoute: false,
+      isDeveloperAdminRoute: false,
+      pathname: cleanPath,
+    };
+  }
+
+  // 4.2. Check for Theme Setup Onboarding Page: /theme-setup
+  if (cleanPath === '/theme-setup' || cleanPath.startsWith('/theme-setup/')) {
+    return {
+      mode: 'theme_setup',
+      isPublicGameRoute: false,
+      isPublicEventRoute: false,
+      isEventPreviewRoute: false,
+      isStudioRoute: true,
       isPreviewRoute: false,
       isDeveloperAdminRoute: false,
       pathname: cleanPath,

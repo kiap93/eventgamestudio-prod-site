@@ -18,6 +18,7 @@ import {
 import { SUPPORTED_TIMEZONES, getDefaultTimezoneForCountry, resolveEventTimezone } from '../../lib/countryUtils';
 import { PaymentCheckoutModal } from '../wallet/PaymentCheckoutModal';
 import { getGameTypeIcon } from '../../games';
+import { navigateTo } from '../../hooks/useRouteContext';
 import {
   X,
   Calendar,
@@ -38,6 +39,7 @@ import {
   ShieldCheck,
   ChevronDown,
   Globe,
+  Palette,
 } from 'lucide-react';
 
 interface GameThemeOption {
@@ -366,6 +368,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
+        if (errData.code === 'THEME_SETUP_REQUIRED' || (errData.error && errData.error.toLowerCase().includes('theme setup required'))) {
+          throw new Error('THEME_SETUP_REQUIRED: ' + (errData.error || 'Theme setup is required before creating an event. Please customize and save your theme first.'));
+        }
         if (errData.code === 'PENDING_EVENT_LIMIT_REACHED' || res.status === 422) {
           throw new Error(errData.error || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
         }
@@ -575,9 +580,23 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
             {/* Form Body */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
               {creationError && (
-                <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3 text-xs text-rose-400">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{creationError}</span>
+                <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-rose-400">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{creationError.replace(/^THEME_SETUP_REQUIRED:\s*/, '')}</span>
+                  </div>
+                  {creationError.includes('Theme setup') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleClose();
+                        navigateTo('/theme-setup');
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shrink-0 transition-colors cursor-pointer"
+                    >
+                      Set Up Theme
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -703,9 +722,22 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                       </div>
 
                       {selectedGameId && themes.filter((t) => t.game_id === selectedGameId).length === 0 && (
-                        <p className="text-[11px] text-amber-400/90">
-                          No active themes found. Customize a theme in the Games tab.
-                        </p>
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 text-amber-300">
+                            <Palette className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>Theme setup required before creating an event.</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleClose();
+                              navigateTo('/theme-setup');
+                            }}
+                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg shrink-0 cursor-pointer"
+                          >
+                            Set Up Theme
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -842,7 +874,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={!name.trim() || isCreatingEvent}
+                disabled={!name.trim() || isCreatingEvent || !selectedThemeId || themes.length === 0}
                 className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
               >
                 {isCreatingEvent ? (
