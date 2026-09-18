@@ -14,9 +14,9 @@ export async function createInvitation(
     organization_id: string;
     email: string;
     role: OrgRole;
-    token_hash: string;
+    token_hash?: string;
     invited_by: string;
-    expires_at: string;
+    expires_at?: string;
     email_status?: 'pending' | 'sent' | 'failed';
     email_sent_at?: string | null;
     email_error?: string | null;
@@ -25,15 +25,17 @@ export async function createInvitation(
 ): Promise<OrgInvitationRecord> {
   const id = params.id || crypto.randomUUID();
   const now = new Date().toISOString();
+  const tokenHash = params.token_hash || crypto.randomUUID();
+  const expiresAt = params.expires_at || new Date(Date.now() + 7 * 86400000).toISOString();
 
   const record: OrgInvitationRecord = {
     id,
     organization_id: params.organization_id,
     email: params.email.trim().toLowerCase(),
     role: params.role,
-    token_hash: params.token_hash,
+    token_hash: tokenHash,
     invited_by: params.invited_by,
-    expires_at: params.expires_at,
+    expires_at: expiresAt,
     created_at: now,
     accepted_at: null,
     email_status: params.email_status || 'pending',
@@ -53,9 +55,9 @@ export async function createInvitation(
     organization_id: params.organization_id,
     email: params.email.trim().toLowerCase(),
     role: params.role,
-    token_hash: params.token_hash,
+    token_hash: tokenHash,
     invited_by: params.invited_by,
-    expires_at: params.expires_at,
+    expires_at: expiresAt,
     created_at: now,
     email_status: params.email_status || 'pending',
     email_sent_at: params.email_sent_at || null,
@@ -76,9 +78,9 @@ export async function createInvitation(
         organization_id: params.organization_id,
         email: params.email.trim().toLowerCase(),
         role: params.role,
-        token_hash: params.token_hash,
+        token_hash: tokenHash,
         invited_by: params.invited_by,
-        expires_at: params.expires_at,
+        expires_at: expiresAt,
         created_at: now,
       };
       const retryResult = await supabase

@@ -239,7 +239,7 @@ export async function createOrganization(
     .join('');
   const slug = `${baseSlug || 'org'}-${randomSuffix}`;
 
-  const countryCode = params.country_code ? params.country_code.trim().toUpperCase() : null;
+  const countryCode = params.country_code && params.country_code.trim() ? params.country_code.trim().toUpperCase() : 'MY';
 
   const orgRecord: OrganizationRecord = {
     id,

@@ -179,6 +179,124 @@ CREATE TABLE IF NOT EXISTS public.events (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+-- Ensure all canonical columns exist on public.events even if table already existed prior
+DO $$
+BEGIN
+  -- 1. If legacy or mismatched column 'theme_id' exists on events, but 'game_theme_id' does not, rename it
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'theme_id'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'game_theme_id'
+  ) THEN
+    ALTER TABLE public.events RENAME COLUMN theme_id TO game_theme_id;
+  END IF;
+
+  -- 2. Ensure game_id can be UUID if it was previously created as TEXT or VARCHAR
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'game_id' AND data_type IN ('text', 'character varying', 'character')
+  ) THEN
+    BEGIN
+      -- First resolve any text game slugs to game UUIDs if possible
+      UPDATE public.events e
+      SET game_id = g.id::text
+      FROM public.games g
+      WHERE e.game_id = g.slug
+        AND e.game_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+
+      -- Now alter column to UUID using regex check (subqueries are forbidden in USING clause)
+      ALTER TABLE public.events ALTER COLUMN game_id TYPE UUID USING (
+        CASE 
+          WHEN game_id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN game_id::text::uuid
+          ELSE NULL
+        END
+      );
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END IF;
+
+  -- 3. If start_date, end_date, or event_date was created as date or timestamp, safely alter to TEXT
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'start_date' AND data_type = 'date'
+  ) THEN
+    ALTER TABLE public.events ALTER COLUMN start_date TYPE TEXT USING to_char(start_date, 'YYYY-MM-DD');
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'end_date' AND data_type = 'date'
+  ) THEN
+    ALTER TABLE public.events ALTER COLUMN end_date TYPE TEXT USING to_char(end_date, 'YYYY-MM-DD');
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'event_date' AND data_type = 'date'
+  ) THEN
+    ALTER TABLE public.events ALTER COLUMN event_date TYPE TEXT USING to_char(event_date, 'YYYY-MM-DD');
+  END IF;
+END $$;
+
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS game_theme_id UUID REFERENCES public.game_themes (id) ON DELETE RESTRICT;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS game_id UUID REFERENCES public.games (id) ON DELETE RESTRICT;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS event_date TEXT;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS start_date TEXT;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS end_date TEXT;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'draft' NOT NULL;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS event_status TEXT DEFAULT 'DRAFT' NOT NULL;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'UNPAID' NOT NULL;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS cancel_reason TEXT;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS payment_mode TEXT;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS event_price NUMERIC(10, 2) DEFAULT 1400.00 NOT NULL;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS event_currency TEXT DEFAULT 'MYR' NOT NULL;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(10, 2) DEFAULT 0.00;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10, 2) DEFAULT 0.00;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS public_token TEXT;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS test_scores_cleared_at TIMESTAMPTZ;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.users (id) ON DELETE SET NULL;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS event_timezone TEXT DEFAULT 'Asia/Singapore';
+
+-- Backfill public_token if missing on any existing rows
+UPDATE public.events 
+SET public_token = encode(gen_random_bytes(16), 'hex') 
+WHERE public_token IS NULL;
+
+-- Backfill starts_at and expires_at if missing
+UPDATE public.events 
+SET starts_at = COALESCE(created_at, timezone('utc'::text, now())) 
+WHERE starts_at IS NULL;
+
+UPDATE public.events 
+SET expires_at = COALESCE(starts_at + interval '1 day', timezone('utc'::text, now()) + interval '1 day') 
+WHERE expires_at IS NULL;
+
+-- Backfill game_theme_id if missing on existing rows
+UPDATE public.events e
+SET game_theme_id = (
+  SELECT id FROM public.game_themes gt 
+  WHERE gt.game_id::text = e.game_id::text 
+     OR gt.game_id IN (SELECT g.id FROM public.games g WHERE g.slug = e.game_id::text)
+     OR gt.is_system = true 
+  ORDER BY gt.is_default DESC, gt.created_at ASC 
+  LIMIT 1
+)
+WHERE e.game_theme_id IS NULL;
+
+UPDATE public.events e
+SET game_theme_id = (
+  SELECT id FROM public.game_themes 
+  ORDER BY created_at ASC 
+  LIMIT 1
+)
+WHERE e.game_theme_id IS NULL;
+
 CREATE INDEX IF NOT EXISTS idx_events_org_id ON public.events (organization_id);
 CREATE INDEX IF NOT EXISTS idx_events_game_id ON public.events (game_id);
 CREATE INDEX IF NOT EXISTS idx_events_game_theme_id ON public.events (game_theme_id);
@@ -1099,6 +1217,7 @@ CREATE TABLE IF NOT EXISTS public.organization_wallets (
   welcome_credit NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (welcome_credit >= 0.00),
   showcase_credit NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (showcase_credit >= 0.00),
   topup_credit NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (topup_credit >= 0.00),
+  outstanding_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (outstanding_balance >= 0.00),
   currency TEXT NOT NULL DEFAULT 'MYR',
   welcome_credit_granted BOOLEAN NOT NULL DEFAULT false,
   showcase_credit_granted BOOLEAN NOT NULL DEFAULT false,
@@ -1106,12 +1225,16 @@ CREATE TABLE IF NOT EXISTS public.organization_wallets (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.organization_wallets
+  ADD COLUMN IF NOT EXISTS outstanding_balance NUMERIC(12, 2) DEFAULT 0.00 NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_org_wallets_org_id ON public.organization_wallets (organization_id);
 
 CREATE TABLE IF NOT EXISTS public.wallet_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   event_id UUID REFERENCES public.events(id) ON DELETE SET NULL,
+  owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
   transaction_type TEXT NOT NULL CHECK (
     transaction_type IN (
       'TOPUP',
@@ -1147,7 +1270,11 @@ CREATE TABLE IF NOT EXISTS public.wallet_transactions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.wallet_transactions
+  ADD COLUMN IF NOT EXISTS owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS idx_wallet_txns_org_id ON public.wallet_transactions (organization_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_txns_owner_user_id ON public.wallet_transactions (owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_wallet_txns_event_id ON public.wallet_transactions (event_id);
 CREATE INDEX IF NOT EXISTS idx_wallet_txns_type ON public.wallet_transactions (transaction_type);
 CREATE INDEX IF NOT EXISTS idx_wallet_txns_balance_type ON public.wallet_transactions (balance_type);
@@ -1226,6 +1353,31 @@ CREATE TABLE IF NOT EXISTS public.event_showcases (
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Ensure all event_showcases columns exist defensively
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS client_name TEXT;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS client_logo_url TEXT;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'DRAFT' NOT NULL;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS review_status TEXT DEFAULT 'DRAFT' NOT NULL;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS publication_status TEXT DEFAULT 'UNPUBLISHED' NOT NULL;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS reviewed_by UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS reward_transaction_id UUID REFERENCES public.wallet_transactions(id) ON DELETE SET NULL;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS reward_granted_at TIMESTAMPTZ;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS reward_status TEXT DEFAULT 'PENDING';
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS reward_review_status TEXT DEFAULT 'NOT_ELIGIBLE';
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS reward_reviewed_by UUID REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS reward_reviewed_at TIMESTAMPTZ;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS reward_rejection_reason TEXT;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS moderated_by UUID REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS moderated_at TIMESTAMPTZ;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS moderation_reason TEXT;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS public.showcase_moderation_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2006,10 +2158,13 @@ CREATE TABLE IF NOT EXISTS public.wallet_topup_orders (
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   currency TEXT NOT NULL DEFAULT 'MYR',
-  top_up_amount NUMERIC(12, 2) NOT NULL CHECK (top_up_amount > 0),
+  top_up_amount NUMERIC(12, 2) NOT NULL CHECK (top_up_amount >= 0),
   expected_credit_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (expected_credit_amount >= 0),
   bonus_percentage NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
   total_wallet_value NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+  included_outstanding_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+  payable_amount NUMERIC(10, 2),
+  total_due NUMERIC(10, 2),
   status TEXT NOT NULL DEFAULT 'PENDING' CHECK (
     status IN ('PENDING', 'PAID', 'FAILED', 'EXPIRED', 'CANCELLED')
   ),
@@ -2024,6 +2179,18 @@ CREATE TABLE IF NOT EXISTS public.wallet_topup_orders (
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+ALTER TABLE public.wallet_topup_orders
+  DROP CONSTRAINT IF EXISTS wallet_topup_orders_top_up_amount_check;
+ALTER TABLE public.wallet_topup_orders
+  ADD CONSTRAINT wallet_topup_orders_top_up_amount_check CHECK (top_up_amount >= 0.00);
+
+ALTER TABLE public.wallet_topup_orders
+  ADD COLUMN IF NOT EXISTS included_outstanding_amount NUMERIC(10, 2) DEFAULT 0.00 NOT NULL;
+ALTER TABLE public.wallet_topup_orders
+  ADD COLUMN IF NOT EXISTS payable_amount NUMERIC(10, 2);
+ALTER TABLE public.wallet_topup_orders
+  ADD COLUMN IF NOT EXISTS total_due NUMERIC(10, 2);
 
 CREATE INDEX IF NOT EXISTS idx_wallet_topup_orders_org_id ON public.wallet_topup_orders (organization_id);
 CREATE INDEX IF NOT EXISTS idx_wallet_topup_orders_user_id ON public.wallet_topup_orders (user_id);
@@ -2545,17 +2712,17 @@ CREATE POLICY "Anyone can view high scores of published events"
             AND e.cancel_reason IS NULL
             AND (NOW() AT TIME ZONE 'Asia/Singapore')::date >= (
               COALESCE(
-                CASE WHEN e.start_date ~ '^\d{4}-\d{2}-\d{2}$' THEN e.start_date::date ELSE NULL END,
-                CASE WHEN e.event_date ~ '^\d{4}-\d{2}-\d{2}$' THEN e.event_date::date ELSE NULL END,
+                CASE WHEN e.start_date::text ~ '^\d{4}-\d{2}-\d{2}$' THEN e.start_date::text::date ELSE NULL END,
+                CASE WHEN e.event_date::text ~ '^\d{4}-\d{2}-\d{2}$' THEN e.event_date::text::date ELSE NULL END,
                 (e.starts_at AT TIME ZONE 'Asia/Singapore')::date
               ) - 1
             )
             AND (NOW() AT TIME ZONE 'Asia/Singapore')::date <= (
               COALESCE(
-                CASE WHEN e.end_date ~ '^\d{4}-\d{2}-\d{2}$' THEN e.end_date::date ELSE NULL END,
+                CASE WHEN e.end_date::text ~ '^\d{4}-\d{2}-\d{2}$' THEN e.end_date::text::date ELSE NULL END,
                 (e.expires_at AT TIME ZONE 'Asia/Singapore')::date,
-                CASE WHEN e.start_date ~ '^\d{4}-\d{2}-\d{2}$' THEN e.start_date::date ELSE NULL END,
-                CASE WHEN e.event_date ~ '^\d{4}-\d{2}-\d{2}$' THEN e.event_date::date ELSE NULL END,
+                CASE WHEN e.start_date::text ~ '^\d{4}-\d{2}-\d{2}$' THEN e.start_date::text::date ELSE NULL END,
+                CASE WHEN e.event_date::text ~ '^\d{4}-\d{2}-\d{2}$' THEN e.event_date::text::date ELSE NULL END,
                 (e.starts_at AT TIME ZONE 'Asia/Singapore')::date
               )
             )
@@ -2671,8 +2838,8 @@ DECLARE
   v_cleared INTEGER;
 BEGIN
   -- Derive Singapore calendar date (Asia/Singapore, UTC+8) if not explicitly provided
-  IF p_current_date IS NOT NULL AND p_current_date ~ '^\d{4}-\d{2}-\d{2}$' THEN
-    v_cur_date := p_current_date;
+  IF p_current_date IS NOT NULL AND p_current_date::text ~ '^\d{4}-\d{2}-\d{2}$' THEN
+    v_cur_date := p_current_date::text;
   ELSE
     v_cur_date := TO_CHAR((NOW() AT TIME ZONE 'Asia/Singapore'), 'YYYY-MM-DD');
   END IF;
@@ -2682,7 +2849,7 @@ BEGIN
     FROM public.events e
     WHERE e.test_scores_cleared_at IS NULL
       AND (
-        (e.event_date IS NOT NULL AND e.event_date <= v_cur_date)
+        (e.event_date IS NOT NULL AND e.event_date::text <= v_cur_date)
         OR (e.event_date IS NULL AND TO_CHAR((e.starts_at AT TIME ZONE 'Asia/Singapore'), 'YYYY-MM-DD') <= v_cur_date)
         OR e.starts_at <= NOW()
         OR e.event_status = 'LIVE'
@@ -2724,7 +2891,7 @@ BEGIN
 
   v_cur_date := TO_CHAR((NOW() AT TIME ZONE 'Asia/Singapore'), 'YYYY-MM-DD');
   v_start_date := COALESCE(
-    CASE WHEN NEW.event_date ~ '^\d{4}-\d{2}-\d{2}$' THEN NEW.event_date ELSE NULL END,
+    CASE WHEN NEW.event_date::text ~ '^\d{4}-\d{2}-\d{2}$' THEN NEW.event_date::text ELSE NULL END,
     TO_CHAR((NEW.starts_at AT TIME ZONE 'Asia/Singapore'), 'YYYY-MM-DD')
   );
 
@@ -2788,7 +2955,7 @@ BEGIN
 
     v_cur_date := TO_CHAR((NOW() AT TIME ZONE 'Asia/Singapore'), 'YYYY-MM-DD');
     v_start_date := COALESCE(
-      CASE WHEN v_event.event_date ~ '^\d{4}-\d{2}-\d{2}$' THEN v_event.event_date ELSE NULL END,
+      CASE WHEN v_event.event_date::text ~ '^\d{4}-\d{2}-\d{2}$' THEN v_event.event_date::text ELSE NULL END,
       TO_CHAR((v_event.starts_at AT TIME ZONE 'Asia/Singapore'), 'YYYY-MM-DD')
     );
 
@@ -3321,6 +3488,290 @@ $$;
 GRANT EXECUTE ON FUNCTION public.grant_showcase_credit_atomic(UUID, UUID, UUID, TEXT, JSONB) TO service_role;
 GRANT EXECUTE ON FUNCTION public.grant_showcase_credit_atomic(UUID, UUID, UUID, TEXT, JSONB) TO postgres;
 REVOKE EXECUTE ON FUNCTION public.grant_showcase_credit_atomic(UUID, UUID, UUID, TEXT, JSONB) FROM authenticated, anon, public;
+
+-- ==============================================================================
+-- ATOMIC WELCOME CREDIT GRANT (OWNER-ONLY, USER-LEVEL, ONE-TIME LIFETIME LIMIT)
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.grant_welcome_credit_atomic(
+  p_org_id UUID,
+  p_user_id UUID,
+  p_reviewer_id UUID DEFAULT NULL,
+  p_reference_id TEXT DEFAULT NULL,
+  p_metadata JSONB DEFAULT '{}'::jsonb
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_now TIMESTAMPTZ := timezone('utc'::text, now());
+  v_org public.organizations%ROWTYPE;
+  v_wallet public.organization_wallets%ROWTYPE;
+  v_welcome_amount NUMERIC(12, 2) := 800.00;
+  v_user_reward public.user_rewards%ROWTYPE;
+  v_new_txn public.wallet_transactions%ROWTYPE;
+  v_ref_id TEXT;
+BEGIN
+  -- 1. Input Validation
+  IF p_org_id IS NULL THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'VALIDATION_ERROR',
+      'error', 'Organization ID is required',
+      'message', 'Organization ID is required'
+    );
+  END IF;
+
+  IF p_user_id IS NULL THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'VALIDATION_ERROR',
+      'error', 'User ID is required',
+      'message', 'User ID is required'
+    );
+  END IF;
+
+  -- 2. Verify Organization Exists & Check Authoritative Ownership
+  SELECT * INTO v_org
+  FROM public.organizations
+  WHERE id = p_org_id;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'ORGANIZATION_NOT_FOUND',
+      'error', 'Organization not found',
+      'message', 'Organization not found'
+    );
+  END IF;
+
+  -- Strictly verify that the user is the OWNER of this organization
+  IF v_org.owner_id IS DISTINCT FROM p_user_id THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'NOT_AN_OWNER',
+      'not_eligible', true,
+      'already_granted', false,
+      'error', 'Welcome Credit can only be granted to the organization OWNER. Organization members are not eligible.',
+      'message', 'Welcome Credit can only be granted to the organization OWNER. Organization members are not eligible.'
+    );
+  END IF;
+
+  -- 3. Lock Organization Wallet to guarantee serial execution
+  SELECT * INTO v_wallet
+  FROM public.organization_wallets
+  WHERE organization_id = p_org_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    INSERT INTO public.organization_wallets (
+      id,
+      organization_id,
+      balance,
+      welcome_credit,
+      welcome_credit_granted,
+      topup_bonus_credit,
+      showcase_credit,
+      created_at,
+      updated_at
+    ) VALUES (
+      gen_random_uuid(),
+      p_org_id,
+      0.00,
+      0.00,
+      false,
+      0.00,
+      0.00,
+      v_now,
+      v_now
+    )
+    RETURNING * INTO v_wallet;
+  END IF;
+
+  -- 4. Check if User Has EVER Claimed Welcome Credit in Account Lifetime
+  -- Check user_rewards table first
+  SELECT * INTO v_user_reward
+  FROM public.user_rewards
+  WHERE user_id = p_user_id
+    AND reward_type = 'WELCOME_CREDIT'
+  LIMIT 1;
+
+  IF FOUND THEN
+    RETURN jsonb_build_object(
+      'success', true,
+      'already_granted', true,
+      'wallet', row_to_json(v_wallet),
+      'message', 'Welcome Credit has already been granted to this user in their account lifetime (one-time lifetime limit).'
+    );
+  END IF;
+
+  -- Check wallet_transactions ledger fallback for this owner_user_id
+  SELECT * INTO v_new_txn
+  FROM public.wallet_transactions
+  WHERE owner_user_id = p_user_id
+    AND transaction_type = 'WELCOME_CREDIT'
+    AND status = 'COMPLETED'
+  LIMIT 1;
+
+  IF FOUND THEN
+    -- Backfill user_rewards so future checks are fast
+    INSERT INTO public.user_rewards (
+      id,
+      user_id,
+      reward_type,
+      organization_id,
+      transaction_id,
+      amount,
+      created_at
+    ) VALUES (
+      gen_random_uuid(),
+      p_user_id,
+      'WELCOME_CREDIT',
+      p_org_id,
+      v_new_txn.id,
+      v_welcome_amount,
+      v_now
+    )
+    ON CONFLICT (user_id, reward_type) DO NOTHING;
+
+    RETURN jsonb_build_object(
+      'success', true,
+      'already_granted', true,
+      'wallet', row_to_json(v_wallet),
+      'message', 'Welcome Credit has already been granted to this user in their account lifetime (one-time lifetime limit).'
+    );
+  END IF;
+
+  -- Check any existing organization owned by this user that has welcome_credit_granted
+  IF EXISTS (
+    SELECT 1 FROM public.organizations o
+    JOIN public.organization_wallets w ON w.organization_id = o.id
+    WHERE o.owner_id = p_user_id
+      AND (w.welcome_credit_granted = true OR w.welcome_credit > 0)
+  ) THEN
+    -- Backfill user_rewards record
+    INSERT INTO public.user_rewards (
+      id,
+      user_id,
+      reward_type,
+      organization_id,
+      transaction_id,
+      amount,
+      created_at
+    ) VALUES (
+      gen_random_uuid(),
+      p_user_id,
+      'WELCOME_CREDIT',
+      p_org_id,
+      NULL,
+      v_welcome_amount,
+      v_now
+    )
+    ON CONFLICT (user_id, reward_type) DO NOTHING;
+
+    RETURN jsonb_build_object(
+      'success', true,
+      'already_granted', true,
+      'wallet', row_to_json(v_wallet),
+      'message', 'Welcome Credit has already been granted to this user in their account lifetime (one-time lifetime limit).'
+    );
+  END IF;
+
+  -- 5. Atomic Insert into user_rewards (Strict Unique Constraint Lock)
+  BEGIN
+    INSERT INTO public.user_rewards (
+      id,
+      user_id,
+      reward_type,
+      organization_id,
+      transaction_id,
+      amount,
+      created_at
+    ) VALUES (
+      gen_random_uuid(),
+      p_user_id,
+      'WELCOME_CREDIT',
+      p_org_id,
+      NULL,
+      v_welcome_amount,
+      v_now
+    )
+    RETURNING * INTO v_user_reward;
+  EXCEPTION WHEN unique_violation THEN
+    -- Race condition caught: another concurrent process just inserted this reward
+    RETURN jsonb_build_object(
+      'success', true,
+      'already_granted', true,
+      'wallet', row_to_json(v_wallet),
+      'message', 'Welcome Credit has already been granted to this user in their account lifetime (one-time lifetime limit).'
+    );
+  END IF;
+
+  -- 6. Insert into Immutable Wallet Transactions Ledger
+  v_ref_id := COALESCE(p_reference_id, 'welcome_' || p_org_id::text);
+
+  INSERT INTO public.wallet_transactions (
+    id,
+    organization_id,
+    owner_user_id,
+    event_id,
+    transaction_type,
+    balance_type,
+    amount,
+    status,
+    reference_id,
+    created_by,
+    metadata,
+    created_at,
+    updated_at
+  ) VALUES (
+    gen_random_uuid(),
+    p_org_id,
+    p_user_id,
+    NULL,
+    'WELCOME_CREDIT',
+    'WELCOME_CREDIT',
+    v_welcome_amount,
+    'COMPLETED',
+    v_ref_id,
+    COALESCE(p_reviewer_id, p_user_id),
+    p_metadata || jsonb_build_object(
+      'owner_user_id', p_user_id,
+      'program', 'ORGANIZATION_ONBOARDING_WELCOME',
+      'credited_at', v_now
+    ),
+    v_now,
+    v_now
+  )
+  RETURNING * INTO v_new_txn;
+
+  -- Link transaction_id in user_rewards
+  UPDATE public.user_rewards
+  SET transaction_id = v_new_txn.id
+  WHERE id = v_user_reward.id;
+
+  -- 7. Credit Organization Wallet
+  UPDATE public.organization_wallets
+  SET
+    welcome_credit = COALESCE(welcome_credit, 0.00) + v_welcome_amount,
+    welcome_credit_granted = true,
+    updated_at = v_now
+  WHERE organization_id = p_org_id
+  RETURNING * INTO v_wallet;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'already_granted', false,
+    'transaction', row_to_json(v_new_txn),
+    'wallet', row_to_json(v_wallet),
+    'user_reward', row_to_json(v_user_reward)
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.grant_welcome_credit_atomic(UUID, UUID, UUID, TEXT, JSONB) TO service_role, postgres;
+REVOKE EXECUTE ON FUNCTION public.grant_welcome_credit_atomic(UUID, UUID, UUID, TEXT, JSONB) FROM authenticated, anon, public;
 
 -- ==============================================================================
 -- ATOMIC FIRST-EVENT SHOWCASE REWARD APPROVAL (OWNER-LEVEL ONE-TIME REWARD)

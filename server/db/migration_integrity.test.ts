@@ -104,6 +104,7 @@ async function runMigrationIntegrityTests() {
     '20260914020000_lock_topup_payment_constraints_and_idempotency.sql',
     '20260915000000_create_api_error_logs.sql',
     '20260916000000_owner_only_user_level_promotions.sql',
+    '20260916010000_repair_events_game_theme_id_and_columns.sql',
   ];
 
   // Checksum manifest for known production migrations (tamper-evident audit)
@@ -136,6 +137,7 @@ async function runMigrationIntegrityTests() {
     '20260914020000_lock_topup_payment_constraints_and_idempotency.sql': '1c509c22eb33025b82a726bba7dd9599b5517575618f17bfbd886ca77f8d3f3f',
     '20260915000000_create_api_error_logs.sql': '39feabb4d847c82c270668d87791f34e8ba89e37f3b4ac79e30181b70c171f3d',
     '20260916000000_owner_only_user_level_promotions.sql': '3893c79d60031e57f7b1394d1a77435c7dbb5e582956981682630003b9f22cad',
+    '20260916010000_repair_events_game_theme_id_and_columns.sql': '4d81e6b1e2bb27241ff0748b9f52d05c41c481e87e8d2f197ce13a121cbb36db',
   };
 
   // 1. Verify required canonical migrations exist without hardcoding an exact upper ceiling

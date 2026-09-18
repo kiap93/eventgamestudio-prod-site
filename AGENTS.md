@@ -101,9 +101,29 @@ Keep distinct balance ledgers logically separated:
 4. **Showcase Reward Credits**: Credits awarded for approved event showcases. This is strictly an **Owner-Level Reward** (`owner_user_id`) with a lifetime limit of one reward per account owner. Showcase publishing, editorial event review, and reward approval are three completely decoupled workflows.
 5. **Event Credits**: Specific promotional credits tied to event creation.
 
-**Rules**:
-- Prevent duplicate awards of one-time credits.
-- Promotional credits are non-withdrawable and can only be applied toward event activations within the platform rules.
+### Permanent Business Rule: Owner-Only, User-Level, One-Time Promotions (Welcome Credit & Showcase Reward)
+
+> **One-time promotions are granted only to an organization OWNER, and eligibility belongs to the OWNER'S USER ACCOUNT, not to the organization. Each promotion can be received only once per user lifetime, regardless of how many organizations the user creates or belongs to. Organization MEMBERS can never receive these promotions merely because they are members.**
+
+```text
+Promotion eligibility =
+    authenticated user is the organization OWNER
+    AND
+    authenticated user has never claimed this promotion before
+```
+
+**Architectural Standards**:
+- **Unified Eligibility Architecture**: Welcome Credit (`WELCOME_CREDIT`) and Showcase Reward (`SHOWCASE_REWARD`) follow the identical owner-only, user-level, lifetime eligibility model.
+- **Server-Authoritative Ownership**: Ownership is verified server-side against `organizations.owner_id`. Client-supplied role claims or URL parameters are never trusted.
+- **Lifetime Uniqueness via `public.user_rewards`**: The `user_rewards` table with constraint `UNIQUE(user_id, reward_type)` is the primary lifetime source of truth.
+- **Organization Independence**: Deleting past organizations or creating new organizations NEVER resets a user's promotional claim history.
+- **Member Exclusion**: Organization members (`admin`, `designer`, `viewer`) are strictly excluded from receiving one-time promotions. Membership changes (inviting, joining, leaving, role updates) never grant or consume promotional eligibility.
+- **Promotion Independence**: Welcome Credit and Showcase Reward are tracked separately. Claiming Welcome Credit never consumes Showcase Reward, and vice versa.
+- **Wallet Balance Independence**: Current wallet balance is never used to evaluate eligibility; spending promotional credits down to RM0 does not make an owner eligible again.
+- **Atomic Operations**: All reward evaluations and disbursements run under atomic functions (`grant_welcome_credit_atomic`, `approve_first_event_showcase_reward_atomic`) with `FOR UPDATE` row locks to prevent race conditions.
+- **Rules**:
+  - Prevent duplicate awards of one-time credits.
+  - Promotional credits are non-withdrawable and can only be applied toward event activations within the platform rules.
 
 ---
 

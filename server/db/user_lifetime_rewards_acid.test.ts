@@ -12,6 +12,7 @@ import {
   localOrgsCache,
 } from './organizations.js';
 import { evaluateShowcaseRewardEligibility } from './showcases.js';
+import { createUser } from './users.js';
 import crypto from 'node:crypto';
 
 function assertTrue(cond: boolean, msg: string) {
@@ -29,8 +30,12 @@ async function runLifetimeRewardsTestSuite() {
   console.log('Strict One-Time Per User Lifetime Across All Orgs');
   console.log('======================================================\n');
 
-  const testUserId = `test-user-${crypto.randomUUID()}`;
-  const testUserEmail = `user-${Date.now()}@example.com`;
+  const testUser = await createUser({
+    email: `acid-user-${crypto.randomUUID().slice(0, 8)}@example.com`,
+    name: 'Acid Test User',
+  });
+  const testUserId = testUser.id;
+  const testUserEmail = testUser.email;
 
   // ---------------------------------------------------------
   // TEST 1: User creates Organization A
@@ -179,7 +184,11 @@ async function runLifetimeRewardsTestSuite() {
   // Concurrent manual grant attempts must grant to at most ONE org.
   // ---------------------------------------------------------
   console.log('\nTest 7: Concurrent creation of 3 orgs by a brand new user...');
-  const concurrentUser = `test-concurrent-${crypto.randomUUID()}`;
+  const concurrentUserObj = await createUser({
+    email: `concurrent-${crypto.randomUUID().slice(0, 8)}@example.com`,
+    name: 'Concurrent Test User',
+  });
+  const concurrentUser = concurrentUserObj.id;
 
   const [raceOrg1, raceOrg2, raceOrg3] = await Promise.all([
     createOrganization({ name: 'Race Org 1', owner_id: concurrentUser }),
@@ -229,6 +238,7 @@ async function runLifetimeRewardsTestSuite() {
   console.log('\n======================================================');
   console.log('ALL LIFETIME REWARD AUDIT TESTS PASSED SUCCESSFULLY! ✓');
   console.log('======================================================\n');
+  process.exit(0);
 }
 
 runLifetimeRewardsTestSuite().catch((err) => {
