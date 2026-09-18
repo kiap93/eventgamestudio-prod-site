@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   Tv,
   Zap,
-  Play,
 } from 'lucide-react';
 
 interface LandingHeroProps {
@@ -47,17 +46,17 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
   };
 
   return (
-    <section className="relative w-full pt-10 pb-20 md:pt-16 md:pb-28 overflow-hidden bg-slate-950">
-      {/* Premium Cinematic Lighting */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1100px] h-[550px] bg-gradient-to-b from-amber-500/15 via-emerald-500/5 to-transparent blur-3xl pointer-events-none rounded-full" />
-      <div className="absolute top-1/4 -left-48 w-[450px] h-[450px] bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/3 -right-48 w-[450px] h-[450px] bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+    <section className="relative w-full pt-12 pb-20 md:pt-20 md:pb-28 overflow-hidden bg-white">
+      {/* Light Ambient Atmosphere */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1100px] h-[500px] bg-gradient-to-b from-amber-500/10 via-emerald-500/5 to-transparent blur-3xl pointer-events-none rounded-full" />
+      <div className="absolute top-1/4 -left-48 w-[450px] h-[450px] bg-amber-200/30 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/3 -right-48 w-[450px] h-[450px] bg-emerald-200/30 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Subtle Studio Floor Grid */}
+      {/* Subtle Light Grid */}
       <div
-        className="absolute inset-0 opacity-[0.035] pointer-events-none"
+        className="absolute inset-0 opacity-60 pointer-events-none"
         style={{
-          backgroundImage: `linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)`,
+          backgroundImage: `linear-gradient(to right, #f1f5f9 1px, transparent 1px), linear-gradient(to bottom, #f1f5f9 1px, transparent 1px)`,
           backgroundSize: '40px 40px',
         }}
       />
@@ -70,13 +69,13 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-slate-900/90 border border-amber-500/30 shadow-lg shadow-amber-500/10 backdrop-blur-md"
+            className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200/80 shadow-xs backdrop-blur-md"
           >
             <span className="flex h-2 w-2 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
             </span>
-            <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-amber-400">
+            <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-amber-800">
               Interactive Games for Events
             </span>
           </motion.div>
@@ -86,10 +85,10 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.08 }}
-            className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight text-white leading-[1.05]"
+            className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight text-slate-900 leading-[1.05]"
           >
             Make Your Events{' '}
-            <span className="bg-gradient-to-r from-amber-400 via-amber-300 to-emerald-400 bg-clip-text text-transparent drop-shadow-sm">
+            <span className="bg-gradient-to-r from-amber-500 via-amber-600 to-emerald-600 bg-clip-text text-transparent drop-shadow-xs">
               Playable.
             </span>
           </motion.h1>
@@ -99,9 +98,9 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.16 }}
-            className="text-base sm:text-xl md:text-2xl text-slate-300 leading-relaxed max-w-3xl mx-auto font-normal"
+            className="text-base sm:text-xl md:text-2xl text-slate-600 leading-relaxed max-w-3xl mx-auto font-normal"
           >
-            Create branded interactive games for corporate events, launches, roadshows, exhibitions, and activations.
+            Create branded interactive arcade games for corporate events, product launches, roadshows, exhibitions, and brand activations.
           </motion.p>
 
           {/* CTA Buttons Hierarchy */}
@@ -114,7 +113,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
             {/* Primary CTA */}
             <button
               onClick={handleCreateEvent}
-              className="w-full sm:w-auto min-h-[48px] px-8 py-4 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-sm uppercase tracking-wider rounded-2xl shadow-xl shadow-amber-500/25 hover:shadow-amber-500/40 transition-all transform hover:-translate-y-1 active:translate-y-0 flex items-center justify-center gap-3 group cursor-pointer"
+              className="w-full sm:w-auto min-h-[48px] px-8 py-4 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-sm uppercase tracking-wider rounded-2xl shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-3 group cursor-pointer"
             >
               <Gamepad2 className="w-5 h-5" />
               <span>Create Your First Event</span>
@@ -124,9 +123,9 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
             {/* Secondary CTA */}
             <button
               onClick={onExploreGames}
-              className="w-full sm:w-auto min-h-[48px] px-8 py-4 bg-slate-900/90 hover:bg-slate-850 border border-slate-750 hover:border-amber-500/50 text-slate-200 hover:text-white font-bold text-sm rounded-2xl shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2.5 cursor-pointer"
+              className="w-full sm:w-auto min-h-[48px] px-8 py-4 bg-white hover:bg-slate-50 border border-slate-300 hover:border-amber-400 text-slate-700 hover:text-slate-900 font-bold text-sm rounded-2xl shadow-xs transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2.5 cursor-pointer"
             >
-              <Sparkles className="w-4 h-4 text-amber-400" />
+              <Sparkles className="w-4 h-4 text-amber-500" />
               <span>Explore Games</span>
             </button>
           </motion.div>
@@ -137,22 +136,22 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.32 }}
             id="hero-features"
-            className="pt-3 flex flex-wrap items-center justify-center gap-y-2.5 gap-x-6 text-xs text-slate-400 font-medium"
+            className="pt-3 flex flex-wrap items-center justify-center gap-y-2.5 gap-x-6 text-xs text-slate-600 font-medium"
           >
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
               Zero App Downloads
             </span>
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-amber-500 shrink-0" />
               Instant Brand Customization
             </span>
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
               Mainstage 4K & Mobile QR Ready
             </span>
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-amber-500 shrink-0" />
               Real-time Live Leaderboards
             </span>
           </motion.div>
@@ -165,11 +164,11 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
           transition={{ duration: 0.8, delay: 0.35 }}
           className="mt-12 md:mt-16 max-w-5xl mx-auto"
         >
-          <div className="relative rounded-3xl p-1 bg-gradient-to-b from-slate-700/60 via-slate-800/40 to-amber-500/25 shadow-2xl shadow-slate-950">
+          <div className="relative rounded-3xl p-1.5 bg-gradient-to-b from-slate-200 via-slate-100 to-amber-100/50 shadow-2xl shadow-slate-300/50">
             {/* Outer Frame */}
-            <div className="bg-slate-950 rounded-[22px] border border-slate-800/80 overflow-hidden">
+            <div className="bg-slate-950 rounded-[22px] border border-slate-200 overflow-hidden shadow-inner">
               {/* Event Showcase Top Bar */}
-              <div className="bg-slate-900/90 px-4 sm:px-6 py-3.5 border-b border-slate-800 flex items-center justify-between gap-4">
+              <div className="bg-slate-900 px-4 sm:px-6 py-3.5 border-b border-slate-800 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
@@ -306,16 +305,16 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
               </div>
 
               {/* Stage Sub-bar */}
-              <div className="bg-slate-900 px-6 py-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
                 <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="font-semibold text-slate-200">
+                  <Zap className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="font-semibold text-slate-800">
                     Turn your booth or venue into an interactive gaming experience in minutes.
                   </span>
                 </div>
                 <button
                   onClick={handleCreateEvent}
-                  className="font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors self-end sm:self-auto cursor-pointer"
+                  className="font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 transition-colors self-end sm:self-auto cursor-pointer"
                 >
                   <span>Launch Event Now</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -328,4 +327,3 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
     </section>
   );
 };
-

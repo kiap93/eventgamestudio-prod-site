@@ -446,3 +446,14 @@ export interface EventScoreStats {
 
 export * from './lib/notifications/types';
 
+export interface PlatformContactSettings {
+  whatsapp_number: string;
+  whatsapp_display: string;
+  whatsapp_prefill_message: string;
+  enquiry_email: string;
+  support_hours: string;
+  office_location: string;
+  updated_at?: string;
+  updated_by?: string | null;
+}
+

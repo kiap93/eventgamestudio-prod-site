@@ -11,6 +11,7 @@ import { PublicShowcaseView } from './components/events/PublicShowcaseView';
 import { EventPreviewGameView } from './components/events/EventPreviewGameView';
 import { DeveloperAdminPage } from './components/developer/DeveloperAdminPage';
 import { LandingPage } from './components/landing/LandingPage';
+import { ContactPage } from './components/contact/ContactPage';
 import { NotificationProvider } from './context/NotificationContext';
 import { NotificationCenterModal } from './components/notifications/NotificationCenterModal';
 import { ShieldAlert } from 'lucide-react';
@@ -23,7 +24,8 @@ const AppContent: React.FC = () => {
     routeContext.mode === 'public_event' ||
     routeContext.mode === 'public_showcase' ||
     routeContext.mode === 'accept_invite' ||
-    routeContext.mode === 'landing';
+    routeContext.mode === 'landing' ||
+    routeContext.mode === 'contact';
 
   const isLoginRoute = routeContext.mode === 'login';
   const isProtectedRoute = !isPublicRoute && !isLoginRoute;
@@ -76,6 +78,11 @@ const AppContent: React.FC = () => {
   // 3. PUBLIC MARKETING LANDING PAGE: / (Accessible with or without authentication)
   if (routeContext.mode === 'landing') {
     return <LandingPage />;
+  }
+
+  // 3.5. PUBLIC CONTACT PAGE: /contact (Accessible with or without authentication)
+  if (routeContext.mode === 'contact') {
+    return <ContactPage />;
   }
 
   // 4. AUTH & SESSION INITIALIZATION LOADING STATE

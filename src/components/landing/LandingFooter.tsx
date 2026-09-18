@@ -1,74 +1,109 @@
 import React from 'react';
-import { Gamepad2, ArrowUpRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { Gamepad2, ArrowUpRight, ShieldCheck, Sparkles, MessageSquare, Phone } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
+import { usePlatformContactSettings } from '../../hooks/usePlatformContactSettings';
 import { APP_VERSION } from '../../types';
 
 export const LandingFooter: React.FC = () => {
   const { isAuthenticated, currentUser } = useAuth();
+  const { whatsappDisplay, whatsappUrl, officeLocation } = usePlatformContactSettings();
 
   return (
-    <footer className="w-full bg-slate-950 border-t border-slate-900 text-slate-400 text-xs py-12 md:py-16">
+    <footer className="w-full bg-slate-50 border-t border-slate-200 text-slate-600 text-xs py-12 md:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-8 border-b border-slate-900">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-8 border-b border-slate-200">
           {/* Brand Info */}
-          <div className="md:col-span-2 space-y-4">
+          <div className="md:col-span-1 space-y-4">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+              <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-600">
                 <Gamepad2 className="w-5 h-5" />
               </div>
-              <span className="text-base font-black text-slate-100 tracking-tight">
+              <span className="text-base font-black text-slate-900 tracking-tight">
                 EventGameStudio
               </span>
             </div>
-            <p className="text-slate-400 text-xs leading-relaxed max-w-md">
+            <p className="text-slate-600 text-xs leading-relaxed max-w-sm">
               The premier interactive event gaming platform. Create branded arcade games, custom themes, and live stage leaderboards for corporate summits, product launches, exhibitions, and brand activations.
             </p>
             <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>Interactive Games for Events</span>
             </div>
           </div>
 
           {/* Quick Platform Links */}
           <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-200">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
               Platform
             </div>
             <ul className="space-y-2 text-xs">
               <li>
                 <button
                   onClick={() => navigateTo(isAuthenticated ? '/events' : '/login')}
-                  className="hover:text-amber-400 transition-colors flex items-center gap-1 text-left"
+                  className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
                 >
                   <span>Events Dashboard</span>
-                  <ArrowUpRight className="w-3 h-3 text-slate-600" />
+                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
                 </button>
               </li>
               <li>
                 <button
                   onClick={() => navigateTo(isAuthenticated ? '/game-themes' : '/login')}
-                  className="hover:text-amber-400 transition-colors flex items-center gap-1 text-left"
+                  className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
                 >
                   <span>Theme Customizer</span>
-                  <ArrowUpRight className="w-3 h-3 text-slate-600" />
+                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
                 </button>
               </li>
               <li>
                 <button
                   onClick={() => navigateTo(isAuthenticated ? '/team' : '/login')}
-                  className="hover:text-amber-400 transition-colors flex items-center gap-1 text-left"
+                  className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
                 >
                   <span>Team Workspaces</span>
-                  <ArrowUpRight className="w-3 h-3 text-slate-600" />
+                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
                 </button>
+              </li>
+            </ul>
+          </div>
+
+          {/* Contact & Support */}
+          <div className="space-y-3">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
+              Contact & Support
+            </div>
+            <ul className="space-y-2 text-xs">
+              <li>
+                <button
+                  onClick={() => navigateTo('/contact')}
+                  className="hover:text-amber-600 transition-colors flex items-center gap-1.5 text-left cursor-pointer font-medium text-slate-700"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Contact Us & Enquiries</span>
+                </button>
+              </li>
+              <li>
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-emerald-600 transition-colors flex items-center gap-1.5 text-left cursor-pointer font-medium text-slate-700"
+                >
+                  <Phone className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>WhatsApp: {whatsappDisplay}</span>
+                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
+                </a>
+              </li>
+              <li className="text-slate-500 text-[11px] pt-1">
+                {officeLocation}
               </li>
             </ul>
           </div>
 
           {/* Access & Developer */}
           <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-200">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
               Access
             </div>
             <ul className="space-y-2 text-xs">
@@ -77,7 +112,7 @@ export const LandingFooter: React.FC = () => {
                   <li>
                     <button
                       onClick={() => navigateTo('/events')}
-                      className="hover:text-amber-400 transition-colors text-left"
+                      className="hover:text-amber-600 transition-colors text-left cursor-pointer"
                     >
                       Studio App
                     </button>
@@ -86,7 +121,7 @@ export const LandingFooter: React.FC = () => {
                     <li>
                       <button
                         onClick={() => navigateTo('/developer')}
-                        className="hover:text-emerald-400 text-emerald-500/90 font-medium transition-colors text-left"
+                        className="hover:text-emerald-600 text-emerald-700 font-medium transition-colors text-left cursor-pointer"
                       >
                         Developer Admin
                       </button>
@@ -97,15 +132,15 @@ export const LandingFooter: React.FC = () => {
                 <li>
                   <button
                     onClick={() => navigateTo('/login')}
-                    className="hover:text-amber-400 transition-colors text-left"
+                    className="hover:text-amber-600 transition-colors text-left cursor-pointer"
                   >
                     Organizer Sign In
                   </button>
                 </li>
               )}
               <li className="pt-2">
-                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[10px] text-slate-400">
-                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[10px] text-slate-600 shadow-xs">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
                   <span>Enterprise Ready</span>
                 </div>
               </li>

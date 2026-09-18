@@ -48,7 +48,7 @@ export const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
       {/* Sticky Global Brand Header */}
       <LandingHeader onExploreGames={() => setCatalogModalOpen(true)} />
 
@@ -92,7 +92,7 @@ export const LandingPage: React.FC = () => {
             transition={{ duration: 0.2 }}
             onClick={scrollToHeader}
             aria-label="Back to top of landing page"
-            className="fixed bottom-6 right-6 z-40 p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-850 text-amber-400 hover:text-amber-300 border border-slate-750 hover:border-amber-500/50 shadow-xl shadow-slate-950/70 backdrop-blur-md cursor-pointer transition-all hover:shadow-[0_0_24px_rgba(245,158,11,0.25)] active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+            className="fixed bottom-6 right-6 z-40 p-3 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 hover:text-amber-600 border border-slate-200 hover:border-amber-400 shadow-xl shadow-slate-900/10 backdrop-blur-md cursor-pointer transition-all active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50"
           >
             <ArrowUp className="w-5 h-5 group-hover:-translate-y-0.5 transition-transform" />
           </motion.button>

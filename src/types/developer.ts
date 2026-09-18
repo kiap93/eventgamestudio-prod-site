@@ -48,6 +48,17 @@ export interface PlatformPricingSettings {
   updated_by?: string | null;
 }
 
+export interface PlatformContactSettings {
+  whatsapp_number: string;
+  whatsapp_display: string;
+  whatsapp_prefill_message: string;
+  enquiry_email: string;
+  support_hours: string;
+  office_location: string;
+  updated_at?: string;
+  updated_by?: string | null;
+}
+
 export interface AdminEventPricingItem {
   id: string;
   organization_id: string;

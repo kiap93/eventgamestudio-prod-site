@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { THEME_REGISTRY } from '../../themes/registry';
 import { GameTheme } from '../../themes/types';
 import {
@@ -8,11 +8,9 @@ import {
   Building2,
   Image,
   Type,
-  Layout,
   Sliders,
   CheckCircle2,
   ArrowRight,
-  Tv,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
@@ -39,7 +37,7 @@ const THEME_PRESETS: ThemePresetDisplay[] = [
     tagline: 'Catch Golden Tickets & Cosmic Stars, dodge Cursed Masks!',
     badge: 'Carnival Celebration',
     accentColor: '#f59e0b',
-    bgGradient: 'from-amber-950/60 via-slate-900 to-purple-950/40',
+    bgGradient: 'from-amber-950/70 via-slate-900 to-purple-950/50',
     goodItemLabel: 'Golden Carnival Ticket (+10 pts)',
     hazardItemLabel: 'Carnival Cursed Mask (-10 pts)',
     bonusItemLabel: 'Cosmic Carnival Star (+50 pts)',
@@ -52,7 +50,7 @@ const THEME_PRESETS: ThemePresetDisplay[] = [
     tagline: 'Catch lucky Red Packets (Angpow), avoid fireworks!',
     badge: 'Spring Festival',
     accentColor: '#ef4444',
-    bgGradient: 'from-red-950/60 via-slate-900 to-amber-950/40',
+    bgGradient: 'from-red-950/70 via-slate-900 to-amber-950/50',
     goodItemLabel: 'Lucky Red Packet (+10 pts)',
     hazardItemLabel: 'Exploding Firecracker (-10 pts)',
     bonusItemLabel: 'Golden Yuanbao Ingot (+50 pts)',
@@ -65,7 +63,7 @@ const THEME_PRESETS: ThemePresetDisplay[] = [
     tagline: 'Catch Holiday Presents, dodge Melting Snowballs!',
     badge: 'Winter Wonderland',
     accentColor: '#06b6d4',
-    bgGradient: 'from-cyan-950/60 via-slate-900 to-emerald-950/40',
+    bgGradient: 'from-cyan-950/70 via-slate-900 to-emerald-950/50',
     goodItemLabel: 'Wrapped Gift Box (+10 pts)',
     hazardItemLabel: 'Melting Snow Hazard (-10 pts)',
     bonusItemLabel: 'Golden Holiday Star (+50 pts)',
@@ -78,7 +76,7 @@ const THEME_PRESETS: ThemePresetDisplay[] = [
     tagline: 'Collect sweet Candy Corn, avoid Spooky Ghosts!',
     badge: 'Halloween Special',
     accentColor: '#a855f7',
-    bgGradient: 'from-purple-950/60 via-slate-900 to-orange-950/40',
+    bgGradient: 'from-purple-950/70 via-slate-900 to-orange-950/50',
     goodItemLabel: 'Treat Candy Corn (+10 pts)',
     hazardItemLabel: 'Haunted Skull Hazard (-10 pts)',
     bonusItemLabel: 'Glowing Jack-o-Lantern (+50 pts)',
@@ -91,7 +89,7 @@ const THEME_PRESETS: ThemePresetDisplay[] = [
     tagline: 'Catch sweet Honey Mangoes, avoid Tree Thorns!',
     badge: 'Summer Launch',
     accentColor: '#eab308',
-    bgGradient: 'from-yellow-950/60 via-slate-900 to-emerald-950/40',
+    bgGradient: 'from-yellow-950/70 via-slate-900 to-emerald-950/50',
     goodItemLabel: 'Ripe Honey Mango (+10 pts)',
     hazardItemLabel: 'Thorny Branch (-10 pts)',
     bonusItemLabel: 'Golden Mango Nectar (+50 pts)',
@@ -115,24 +113,24 @@ export const LandingBrandYourGame: React.FC = () => {
   };
 
   return (
-    <section id="brand-your-game" className="relative scroll-mt-16 sm:scroll-mt-20 py-20 md:py-32 bg-slate-950/90 border-t border-slate-900 overflow-hidden">
-      {/* Dynamic Background Glow matching selected theme */}
+    <section id="brand-your-game" className="relative scroll-mt-16 sm:scroll-mt-20 py-20 md:py-32 bg-slate-50 border-t border-b border-slate-200/80 overflow-hidden">
+      {/* Dynamic Background Glow */}
       <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] blur-3xl opacity-20 pointer-events-none transition-all duration-700 rounded-full"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] blur-3xl opacity-10 pointer-events-none transition-all duration-700 rounded-full"
         style={{ backgroundColor: currentPreset.accentColor }}
       />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs font-bold text-amber-400 uppercase tracking-widest">
-            <Palette className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold text-amber-800 uppercase tracking-widest shadow-xs">
+            <Palette className="w-3.5 h-3.5 text-amber-500" />
             <span>Theme & Branding Engine</span>
           </div>
-          <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight">
             Your Client's Brand. Their Game.
           </h2>
-          <p className="text-base sm:text-lg text-slate-400 leading-relaxed">
+          <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
             Every visual element is customizable. Turn any game into an exclusive, branded corporate experience in seconds without writing a line of code.
           </p>
         </div>
@@ -145,10 +143,10 @@ export const LandingBrandYourGame: React.FC = () => {
               <button
                 key={preset.id}
                 onClick={() => setSelectedPresetId(preset.id)}
-                className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2.5 ${
+                className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
                   isSelected
-                    ? 'bg-slate-800 text-white border border-amber-500/60 shadow-lg shadow-amber-500/10 scale-105'
-                    : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border border-slate-800 hover:bg-slate-850'
+                    ? 'bg-white text-slate-900 border-2 border-amber-500 shadow-md scale-105'
+                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-100 shadow-xs'
                 }`}
               >
                 <span
@@ -156,7 +154,7 @@ export const LandingBrandYourGame: React.FC = () => {
                   style={{ backgroundColor: preset.accentColor }}
                 />
                 <span>{preset.name}</span>
-                <span className="hidden md:inline text-[10px] uppercase font-semibold text-slate-400">
+                <span className="hidden md:inline text-[10px] uppercase font-semibold text-slate-500">
                   • {preset.badge}
                 </span>
               </button>
@@ -168,61 +166,61 @@ export const LandingBrandYourGame: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           {/* Left Column: Brand Customization Specs */}
           <div className="lg:col-span-5 space-y-4">
-            <div className="rounded-3xl bg-slate-900/90 border border-slate-800 p-6 sm:p-8 space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider">
-                  <Sliders className="w-4 h-4" />
+            <div className="rounded-3xl bg-white border border-slate-200 p-6 sm:p-8 space-y-6 shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-800 uppercase tracking-wider">
+                  <Sliders className="w-4 h-4 text-amber-500" />
                   <span>Customization Controls</span>
                 </div>
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300">
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
                   Live Preview
                 </span>
               </div>
 
-              {/* 5 Key Customization Points */}
+              {/* Key Customization Points */}
               <div className="space-y-4 text-xs">
                 {/* 1. Client Logo & Branding */}
-                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-start gap-3">
-                  <Building2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+                  <Building2 className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <span className="font-bold text-slate-200 block text-xs">Client Logo & Event Title</span>
-                    <span className="text-slate-400 text-[11px] block mt-0.5">
-                      Current client header: <strong className="text-amber-300">{currentPreset.clientMock}</strong>
+                    <span className="font-bold text-slate-900 block text-xs">Client Logo & Event Title</span>
+                    <span className="text-slate-600 text-[11px] block mt-0.5">
+                      Current client header: <strong className="text-amber-800 font-bold">{currentPreset.clientMock}</strong>
                     </span>
                   </div>
                 </div>
 
                 {/* 2. Custom Game Theme & Rules */}
-                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-start gap-3">
-                  <Type className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+                  <Type className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <span className="font-bold text-slate-200 block text-xs">Custom Gameplay Rules</span>
-                    <span className="text-slate-400 text-[11px] block mt-0.5">
+                    <span className="font-bold text-slate-900 block text-xs">Custom Gameplay Rules</span>
+                    <span className="text-slate-600 text-[11px] block mt-0.5">
                       {registeredTheme.branding.subtitle || currentPreset.tagline}
                     </span>
                   </div>
                 </div>
 
                 {/* 3. Branded Collectibles & Items */}
-                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-start gap-3">
-                  <Sparkles className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+                  <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <span className="font-bold text-slate-200 block text-xs">Custom Brand Collectibles</span>
+                    <span className="font-bold text-slate-900 block text-xs">Custom Brand Collectibles</span>
                     <div className="mt-1.5 space-y-1 text-[11px]">
-                      <div className="text-emerald-400 font-mono">✓ {currentPreset.goodItemLabel}</div>
-                      <div className="text-rose-400 font-mono">✕ {currentPreset.hazardItemLabel}</div>
-                      <div className="text-amber-400 font-mono">★ {currentPreset.bonusItemLabel}</div>
+                      <div className="text-emerald-700 font-mono font-medium">✓ {currentPreset.goodItemLabel}</div>
+                      <div className="text-rose-700 font-mono font-medium">✕ {currentPreset.hazardItemLabel}</div>
+                      <div className="text-amber-700 font-mono font-medium">★ {currentPreset.bonusItemLabel}</div>
                     </div>
                   </div>
                 </div>
 
                 {/* 4. Custom Catcher & Background Artwork */}
-                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-start gap-3">
-                  <Image className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+                  <Image className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <span className="font-bold text-slate-200 block text-xs">Catcher & Background Artwork</span>
-                    <span className="text-slate-400 text-[11px] block mt-0.5">
-                      Catcher asset: <strong className="text-slate-200">{currentPreset.catcherLabel}</strong>
+                    <span className="font-bold text-slate-900 block text-xs">Catcher & Background Artwork</span>
+                    <span className="text-slate-600 text-[11px] block mt-0.5">
+                      Catcher asset: <strong className="text-slate-800">{currentPreset.catcherLabel}</strong>
                     </span>
                   </div>
                 </div>
@@ -231,7 +229,7 @@ export const LandingBrandYourGame: React.FC = () => {
               <div className="pt-2">
                 <button
                   onClick={handleCustomizeClick}
-                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Palette className="w-4 h-4" />
                   <span>Customize Themes in Studio</span>
@@ -243,10 +241,10 @@ export const LandingBrandYourGame: React.FC = () => {
 
           {/* Right Column: Visual Mockup of Branded Game Display */}
           <div className="lg:col-span-7">
-            <div className="relative rounded-3xl p-1 bg-gradient-to-b from-slate-700 via-slate-800 to-amber-500/30 shadow-2xl">
-              <div className="rounded-[22px] bg-slate-950 border border-slate-800 overflow-hidden">
+            <div className="relative rounded-3xl p-1.5 bg-gradient-to-b from-slate-200 via-slate-100 to-amber-100/50 shadow-xl shadow-slate-200/60">
+              <div className="rounded-[22px] bg-slate-950 border border-slate-200 overflow-hidden">
                 {/* Event Stage Display Header */}
-                <div className="bg-slate-900/90 px-6 py-3.5 border-b border-slate-800 flex items-center justify-between">
+                <div className="bg-slate-900 px-6 py-3.5 border-b border-slate-800 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                     <span className="text-xs font-bold text-slate-200">
@@ -341,12 +339,12 @@ export const LandingBrandYourGame: React.FC = () => {
                 </div>
 
                 {/* Bottom Frame Spec Bar */}
-                <div className="bg-slate-900/90 px-6 py-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
                   <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Real-time CSS & Asset Swapping</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="font-semibold text-slate-800">Real-time Asset Swapping</span>
                   </span>
-                  <span className="font-semibold text-slate-300">
+                  <span className="text-slate-500">
                     Zero game engine reload required
                   </span>
                 </div>

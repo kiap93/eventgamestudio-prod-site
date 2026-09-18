@@ -95,6 +95,9 @@ import {
   STANDARD_EVENT_PRICE,
   getPlatformPricingSettings,
   updatePlatformPricingSettings,
+  getPlatformContactSettings,
+  updatePlatformContactSettings,
+  DEFAULT_CONTACT_SETTINGS,
   calculateEventCalendarDays,
   calculateEventAuthoritativePrice,
   getAllAdminEvents,
@@ -5148,6 +5151,103 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Admin update pricing settings error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // ----------------------------------------------------
+      // PLATFORM CONTACT SETTINGS (WHATSAPP, ENQUIRY EMAIL)
+      // ----------------------------------------------------
+
+      // GET /api/platform/contact-settings (public)
+      if (pathname === '/api/platform/contact-settings' && method === 'GET') {
+        try {
+          const settings = await getPlatformContactSettings(env);
+          return jsonResponse({ success: true, settings }, 200, cors);
+        } catch (err: any) {
+          console.error('Get platform contact settings error in worker:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/contact-settings & /api/admin/contact-settings
+      if ((pathname === '/api/developer/contact-settings' || pathname === '/api/admin/contact-settings') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const settings = await getPlatformContactSettings(env);
+          return jsonResponse({ success: true, settings }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get contact settings error in worker:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // PUT/POST /api/developer/contact-settings & /api/admin/contact-settings
+      if ((pathname === '/api/developer/contact-settings' || pathname === '/api/admin/contact-settings') && (method === 'PUT' || method === 'POST')) {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const {
+          whatsapp_number,
+          whatsapp_display,
+          whatsapp_prefill_message,
+          enquiry_email,
+          support_hours,
+          office_location,
+        } = body;
+
+        try {
+          const updatedSettings = await updatePlatformContactSettings(
+            {
+              whatsapp_number,
+              whatsapp_display,
+              whatsapp_prefill_message,
+              enquiry_email,
+              support_hours,
+              office_location,
+            },
+            auth.user?.id,
+            env
+          );
+
+          return jsonResponse({
+            success: true,
+            settings: updatedSettings,
+            message: 'Platform contact settings updated successfully',
+          }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin update contact settings error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // POST /api/contact (public contact enquiry)
+      if (pathname === '/api/contact' && method === 'POST') {
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          const { fullName, email, message, category } = body;
+          if (!fullName || !email || !message) {
+            return errorResponse('Please provide your full name, email, and message.', 400, cors);
+          }
+
+          const ticketId = `EGS-${Math.floor(100000 + Math.random() * 900000)}`;
+          console.log(`[Worker Contact Enquiry] Ticket: ${ticketId} from ${fullName} <${email}>, category: ${category}`);
+
+          return jsonResponse({
+            success: true,
+            ticketId,
+            message: 'Thank you! Your enquiry has been received. Our team will contact you shortly.',
+          }, 200, cors);
+        } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
         }
       }

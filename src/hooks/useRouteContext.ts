@@ -3,6 +3,7 @@ import { DEFAULT_GAME_TYPE } from '../games/types';
 
 export type PresentationMode =
   | 'landing'
+  | 'contact'
   | 'public_game'
   | 'public_event'
   | 'public_showcase'
@@ -34,7 +35,7 @@ export interface RouteContext {
   developerGameId?: string;
   developerThemeId?: string;
   developerOrgId?: string;
-  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing' | 'organizations' | 'email' | 'errors';
+  developerSection?: 'games' | 'showcases' | 'themes' | 'pricing' | 'organizations' | 'email' | 'errors' | 'contact';
   developerAction?: 'new-theme' | 'edit-theme' | 'new-game' | 'edit-game' | 'test-play';
   pathname: string;
 }
@@ -48,6 +49,7 @@ const RESERVED_PREFIXES = new Set([
   'team',
   'preview',
   'login',
+  'contact',
   'accept-invite',
   'create-organization',
   'api',
@@ -111,6 +113,8 @@ export function parseRoute(pathname: string): RouteContext {
       developerSection = 'errors';
     } else if (parts[1] === 'email' || parts[1] === 'mail') {
       developerSection = 'email';
+    } else if (parts[1] === 'contact' || parts[1] === 'contacts' || parts[1] === 'contact-settings') {
+      developerSection = 'contact';
     } else if (parts[1] === 'showcases') {
       developerSection = 'showcases';
     } else if (parts[1] === 'pricing' || parts[1] === 'events') {
@@ -245,6 +249,20 @@ export function parseRoute(pathname: string): RouteContext {
   if (cleanPath === '/login') {
     return {
       mode: 'login',
+      isPublicGameRoute: false,
+      isPublicEventRoute: false,
+      isEventPreviewRoute: false,
+      isStudioRoute: false,
+      isPreviewRoute: false,
+      isDeveloperAdminRoute: false,
+      pathname: cleanPath,
+    };
+  }
+
+  // 4.5. Check for Public Contact Page: /contact
+  if (cleanPath === '/contact' || cleanPath.startsWith('/contact/')) {
+    return {
+      mode: 'contact',
       isPublicGameRoute: false,
       isPublicEventRoute: false,
       isEventPreviewRoute: false,

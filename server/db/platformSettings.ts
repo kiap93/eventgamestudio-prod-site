@@ -1,11 +1,20 @@
 import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed, assertProductionPricingSafe } from '../supabase.js';
-import { PlatformPricingSettings, EventPricingRule } from './types.js';
+import { PlatformPricingSettings, EventPricingRule, PlatformContactSettings } from './types.js';
 import { normalizeEventDateBoundaries } from './events.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
 export const DEFAULT_EVENT_PRICE = 1400.00;
 export const DEFAULT_EVENT_CURRENCY = 'MYR';
+
+export const DEFAULT_CONTACT_SETTINGS: PlatformContactSettings = {
+  whatsapp_number: '60162128913',
+  whatsapp_display: '+60 16-212 8913',
+  whatsapp_prefill_message: "Hello Event Game Studio! I'm interested in interactive game activations for an upcoming event. Could you share more details?",
+  enquiry_email: 'contact@eventgamestudio.com',
+  support_hours: 'Mon – Sat, 9:00 AM – 7:00 PM (UTC+8) | <15 min reply during live events',
+  office_location: 'Kuala Lumpur, Malaysia (UTC+8)',
+};
 
 export const DEFAULT_PRICING_RULES: EventPricingRule[] = [
   { id: 'rule_1d', min_days: 1, max_days: 1, price: 1400.00, currency: 'MYR', active: true },
@@ -29,6 +38,10 @@ let localSettingsCache: Record<string, any> = {
     default_price: DEFAULT_EVENT_PRICE,
     default_currency: DEFAULT_EVENT_CURRENCY,
     pricing_rules: DEFAULT_PRICING_RULES,
+    updated_at: new Date().toISOString(),
+  },
+  contact_settings: {
+    ...DEFAULT_CONTACT_SETTINGS,
     updated_at: new Date().toISOString(),
   },
 };
@@ -509,4 +522,175 @@ export async function updatePlatformPricingSettings(
     updated_by: updatedBy || null,
   };
 }
+
+/**
+ * Retrieve current platform WhatsApp contact, enquiry email, support hours, and office location.
+ * Accessible publicly for landing/contact pages and by admin panels.
+ */
+export async function getPlatformContactSettings(env?: Record<string, any>): Promise<PlatformContactSettings> {
+  const buildContactFromData = (val: any, updatedAt?: string, updatedBy?: string | null): PlatformContactSettings => {
+    if (!val || typeof val !== 'object') {
+      return { ...DEFAULT_CONTACT_SETTINGS, updated_at: new Date().toISOString() };
+    }
+
+    const whatsappNumber = typeof val.whatsapp_number === 'string' && val.whatsapp_number.trim()
+      ? val.whatsapp_number.trim().replace(/\D/g, '')
+      : DEFAULT_CONTACT_SETTINGS.whatsapp_number;
+
+    const whatsappDisplay = typeof val.whatsapp_display === 'string' && val.whatsapp_display.trim()
+      ? val.whatsapp_display.trim()
+      : (whatsappNumber ? `+${whatsappNumber}` : DEFAULT_CONTACT_SETTINGS.whatsapp_display);
+
+    const whatsappPrefill = typeof val.whatsapp_prefill_message === 'string'
+      ? val.whatsapp_prefill_message
+      : DEFAULT_CONTACT_SETTINGS.whatsapp_prefill_message;
+
+    const enquiryEmail = typeof val.enquiry_email === 'string' && val.enquiry_email.trim()
+      ? val.enquiry_email.trim()
+      : DEFAULT_CONTACT_SETTINGS.enquiry_email;
+
+    const supportHours = typeof val.support_hours === 'string' && val.support_hours.trim()
+      ? val.support_hours.trim()
+      : DEFAULT_CONTACT_SETTINGS.support_hours;
+
+    const officeLocation = typeof val.office_location === 'string' && val.office_location.trim()
+      ? val.office_location.trim()
+      : DEFAULT_CONTACT_SETTINGS.office_location;
+
+    return {
+      whatsapp_number: whatsappNumber || DEFAULT_CONTACT_SETTINGS.whatsapp_number,
+      whatsapp_display: whatsappDisplay || DEFAULT_CONTACT_SETTINGS.whatsapp_display,
+      whatsapp_prefill_message: whatsappPrefill,
+      enquiry_email: enquiryEmail,
+      support_hours: supportHours,
+      office_location: officeLocation,
+      updated_at: updatedAt || val.updated_at || new Date().toISOString(),
+      updated_by: updatedBy || val.updated_by || null,
+    };
+  };
+
+  // If Supabase is configured, fetch from platform_settings table
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('*')
+        .eq('key', 'contact_settings')
+        .maybeSingle();
+
+      if (!error && data && data.value) {
+        const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+        return buildContactFromData(val, data.updated_at, data.updated_by);
+      }
+    } catch (err) {
+      console.warn('Notice: Error fetching contact_settings from database, using cached/default:', err);
+    }
+  }
+
+  // Dev fallback / default cache
+  const cached = localSettingsCache.contact_settings || {};
+  return buildContactFromData(cached, cached.updated_at, cached.updated_by);
+}
+
+/**
+ * Update platform WhatsApp contact, enquiry email, support hours, and office location.
+ * Requires Developer Admin authorization.
+ */
+export async function updatePlatformContactSettings(
+  updates: Partial<PlatformContactSettings>,
+  updatedBy?: string,
+  env?: Record<string, any>
+): Promise<PlatformContactSettings> {
+  const current = await getPlatformContactSettings(env);
+
+  let cleanedWhatsappNumber = current.whatsapp_number;
+  if (updates.whatsapp_number !== undefined) {
+    const rawNumber = String(updates.whatsapp_number).trim();
+    const digitsOnly = rawNumber.replace(/\D/g, '');
+    if (digitsOnly.length < 5) {
+      throw new Error('WhatsApp contact number must include a valid country code and at least 5 digits');
+    }
+    cleanedWhatsappNumber = digitsOnly;
+  }
+
+  let cleanedWhatsappDisplay = current.whatsapp_display;
+  if (updates.whatsapp_display !== undefined) {
+    cleanedWhatsappDisplay = String(updates.whatsapp_display).trim();
+    if (!cleanedWhatsappDisplay) {
+      cleanedWhatsappDisplay = `+${cleanedWhatsappNumber}`;
+    }
+  }
+
+  let cleanedWhatsappPrefill = current.whatsapp_prefill_message;
+  if (updates.whatsapp_prefill_message !== undefined) {
+    cleanedWhatsappPrefill = String(updates.whatsapp_prefill_message).trim();
+    if (cleanedWhatsappPrefill.length > 500) {
+      throw new Error('WhatsApp prefilled message cannot exceed 500 characters');
+    }
+  }
+
+  let cleanedEnquiryEmail = current.enquiry_email;
+  if (updates.enquiry_email !== undefined) {
+    const emailStr = String(updates.enquiry_email).trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailStr)) {
+      throw new Error('Please enter a valid enquiry email address');
+    }
+    cleanedEnquiryEmail = emailStr;
+  }
+
+  const cleanedSupportHours = updates.support_hours !== undefined
+    ? String(updates.support_hours).trim()
+    : current.support_hours;
+
+  const cleanedOfficeLocation = updates.office_location !== undefined
+    ? String(updates.office_location).trim()
+    : current.office_location;
+
+  const now = new Date().toISOString();
+  const valuePayload: PlatformContactSettings = {
+    whatsapp_number: cleanedWhatsappNumber,
+    whatsapp_display: cleanedWhatsappDisplay,
+    whatsapp_prefill_message: cleanedWhatsappPrefill,
+    enquiry_email: cleanedEnquiryEmail,
+    support_hours: cleanedSupportHours,
+    office_location: cleanedOfficeLocation,
+    updated_at: now,
+    updated_by: updatedBy || null,
+  };
+
+  // 1. If Supabase configured, update database
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { error } = await supabase
+        .from('platform_settings')
+        .upsert({
+          key: 'contact_settings',
+          value: valuePayload,
+          description: 'Platform WhatsApp contact, enquiry email, support hours, and office location',
+          updated_by: updatedBy || null,
+          updated_at: now,
+        });
+
+      if (error) {
+        console.error('Error saving contact_settings to database:', error);
+        throw new Error(`Database error updating contact settings: ${error.message}`);
+      }
+    } catch (err: any) {
+      console.error('Exception updating contact_settings in database:', err);
+      if (!isLocalFallbackAllowed(env)) {
+        throw err;
+      }
+    }
+  }
+
+  // 2. Update local fallback cache
+  localSettingsCache.contact_settings = valuePayload;
+  saveLocalSettings(env);
+
+  return valuePayload;
+}
+
 

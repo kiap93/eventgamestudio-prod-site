@@ -12,6 +12,7 @@ import { DeveloperOrganizationsList } from './DeveloperOrganizationsList';
 import { DeveloperOrganizationDetail } from './DeveloperOrganizationDetail';
 import { DeveloperEmailSettings } from './DeveloperEmailSettings';
 import { DeveloperErrorLogs } from './DeveloperErrorLogs';
+import { DeveloperContactSettings } from './DeveloperContactSettings';
 import { ShieldAlert } from 'lucide-react';
 
 export const DeveloperAdminPage: React.FC = () => {
@@ -104,6 +105,15 @@ export const DeveloperAdminPage: React.FC = () => {
     return (
       <DeveloperAdminLayout activeSection="errors">
         <DeveloperErrorLogs />
+      </DeveloperAdminLayout>
+    );
+  }
+
+  // 1e. If viewing Platform Contact & Enquiry Settings: /developer/contact
+  if (route.developerSection === 'contact') {
+    return (
+      <DeveloperAdminLayout activeSection="contact">
+        <DeveloperContactSettings />
       </DeveloperAdminLayout>
     );
   }

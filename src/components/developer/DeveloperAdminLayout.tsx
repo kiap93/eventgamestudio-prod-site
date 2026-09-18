@@ -20,12 +20,13 @@ import {
   Building2,
   Mail,
   AlertOctagon,
+  MessageSquare,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 
 interface DeveloperAdminLayoutProps {
   children: React.ReactNode;
-  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing' | 'organizations' | 'email' | 'errors';
+  activeSection?: 'games' | 'stats' | 'themes' | 'showcases' | 'pricing' | 'organizations' | 'email' | 'errors' | 'contact';
 }
 
 export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
@@ -158,6 +159,18 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
               >
                 <AlertOctagon className="w-4 h-4 text-rose-400" />
                 <span>API Error Logs</span>
+              </button>
+
+              <button
+                onClick={() => navigateTo('/developer/contact')}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  activeSection === 'contact'
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <MessageSquare className="w-4 h-4 text-emerald-400" />
+                <span>Contact Settings</span>
               </button>
             </nav>
           </div>
@@ -296,6 +309,21 @@ export const DeveloperAdminLayout: React.FC<DeveloperAdminLayoutProps> = ({
             >
               <AlertOctagon className="w-4 h-4 text-rose-400" />
               <span>API Error Logs</span>
+            </button>
+
+            <button
+              onClick={() => {
+                navigateTo('/developer/contact');
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold ${
+                activeSection === 'contact'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 text-emerald-400" />
+              <span>Contact Settings</span>
             </button>
 
             <button

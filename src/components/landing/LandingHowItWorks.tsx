@@ -5,7 +5,6 @@ import {
   Palette,
   CalendarDays,
   QrCode,
-  ArrowRight,
   Sparkles,
   CheckCircle,
 } from 'lucide-react';
@@ -19,9 +18,9 @@ const steps = [
     badge: 'Step 01',
     highlight: 'Instant Selection',
     visualDetails: ['High-throughput arcade mechanics', 'Touch, mouse, motion & keyboard', 'Optimized for event time limits'],
-    accentColor: 'from-amber-500/20 to-amber-500/5',
-    borderColor: 'border-amber-500/30',
-    iconColor: 'text-amber-400',
+    iconBg: 'bg-amber-50',
+    borderColor: 'border-amber-200',
+    iconColor: 'text-amber-600',
   },
   {
     number: '02',
@@ -31,9 +30,9 @@ const steps = [
     badge: 'Step 02',
     highlight: 'Full Brand Control',
     visualDetails: ['Custom logos & banner artwork', 'Catchable brand products', 'Branded start & game-over UI'],
-    accentColor: 'from-emerald-500/20 to-emerald-500/5',
-    borderColor: 'border-emerald-500/30',
-    iconColor: 'text-emerald-400',
+    iconBg: 'bg-emerald-50',
+    borderColor: 'border-emerald-200',
+    iconColor: 'text-emerald-600',
   },
   {
     number: '03',
@@ -43,9 +42,9 @@ const steps = [
     badge: 'Step 03',
     highlight: 'Dedicated URL & QR',
     visualDetails: ['Unique event security token', 'Custom event dates & duration', 'Live spectator leaderboard'],
-    accentColor: 'from-blue-500/20 to-blue-500/5',
-    borderColor: 'border-blue-500/30',
-    iconColor: 'text-blue-400',
+    iconBg: 'bg-blue-50',
+    borderColor: 'border-blue-200',
+    iconColor: 'text-blue-600',
   },
   {
     number: '04',
@@ -55,29 +54,29 @@ const steps = [
     badge: 'Step 04',
     highlight: 'Zero App Downloads',
     visualDetails: ['Scan QR on mobile or play on kiosks', 'Real-time high score competition', 'Instant crowd engagement'],
-    accentColor: 'from-purple-500/20 to-purple-500/5',
-    borderColor: 'border-purple-500/30',
-    iconColor: 'text-purple-400',
+    iconBg: 'bg-purple-50',
+    borderColor: 'border-purple-200',
+    iconColor: 'text-purple-600',
   },
 ];
 
 export const LandingHowItWorks: React.FC = () => {
   return (
-    <section id="how-it-works" className="relative scroll-mt-16 sm:scroll-mt-20 py-20 md:py-32 bg-slate-950/80 border-t border-slate-900 overflow-hidden">
-      {/* Background Accent Mesh */}
+    <section id="how-it-works" className="relative scroll-mt-16 sm:scroll-mt-20 py-20 md:py-32 bg-slate-50 border-t border-b border-slate-200/80 overflow-hidden">
+      {/* Background Accent */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-gradient-to-r from-amber-500/5 via-emerald-500/5 to-transparent blur-3xl pointer-events-none rounded-full" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto space-y-4 mb-16 md:mb-20">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs font-bold text-amber-400 uppercase tracking-widest">
-            <Sparkles className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold text-amber-800 uppercase tracking-widest shadow-xs">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
             <span>Simple 4-Step Process</span>
           </div>
-          <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight">
             From Idea to Interactive Event
           </h2>
-          <p className="text-base sm:text-lg text-slate-400 leading-relaxed">
+          <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
             Transform brand activations and corporate gatherings into engaging digital competitions in minutes.
           </p>
         </div>
@@ -93,40 +92,37 @@ export const LandingHowItWorks: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: idx * 0.1 }}
-                className={`group relative rounded-3xl bg-gradient-to-b ${step.accentColor} p-px transition-all hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-900`}
+                className="group relative rounded-3xl bg-white border border-slate-200 hover:border-amber-400 p-6 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col justify-between space-y-6"
               >
-                {/* Step Card Container */}
-                <div className="h-full rounded-[23px] bg-slate-900/90 border border-slate-800/80 p-6 flex flex-col justify-between space-y-6 group-hover:border-slate-700 transition-colors">
-                  {/* Top Row: Step Number & Icon */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-2xl font-black text-slate-600 group-hover:text-amber-400/80 transition-colors font-mono">
-                        {step.number}
-                      </span>
-                      <div className={`p-3 rounded-2xl bg-slate-950 border ${step.borderColor} ${step.iconColor} shadow-inner`}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-100 group-hover:text-amber-300 transition-colors tracking-tight">
-                        {step.title}
-                      </h3>
-                      <p className="mt-2 text-sm text-slate-400 leading-relaxed font-normal">
-                        {step.description}
-                      </p>
+                {/* Top Row: Step Number & Icon */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl font-black text-slate-400 group-hover:text-amber-600 transition-colors font-mono">
+                      {step.number}
+                    </span>
+                    <div className={`p-3 rounded-2xl ${step.iconBg} border ${step.borderColor} ${step.iconColor} shadow-xs`}>
+                      <Icon className="w-5 h-5" />
                     </div>
                   </div>
 
-                  {/* Bullet points for event managers */}
-                  <div className="pt-4 border-t border-slate-800/80 space-y-2">
-                    {step.visualDetails.map((detail, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs text-slate-400">
-                        <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span>{detail}</span>
-                      </div>
-                    ))}
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900 group-hover:text-amber-700 transition-colors tracking-tight">
+                      {step.title}
+                    </h3>
+                    <p className="mt-2 text-sm text-slate-600 leading-relaxed font-normal">
+                      {step.description}
+                    </p>
                   </div>
+                </div>
+
+                {/* Bullet points for event managers */}
+                <div className="pt-4 border-t border-slate-100 space-y-2">
+                  {step.visualDetails.map((detail, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>{detail}</span>
+                    </div>
+                  ))}
                 </div>
               </motion.div>
             );

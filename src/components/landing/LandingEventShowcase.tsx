@@ -4,17 +4,11 @@ import {
   Tv,
   QrCode,
   Smartphone,
-  Trophy,
-  Sparkles,
   Camera,
   Layers,
   ArrowRight,
-  Upload,
   Coins,
   Radio,
-  Users,
-  Play,
-  Monitor,
   Zap,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
@@ -32,27 +26,27 @@ export const LandingEventShowcase: React.FC = () => {
   };
 
   return (
-    <section id="event-showcase" className="relative scroll-mt-16 sm:scroll-mt-20 py-20 md:py-32 bg-slate-950 border-t border-slate-900 overflow-hidden">
-      {/* Background Accent Mesh */}
+    <section id="event-showcase" className="relative scroll-mt-16 sm:scroll-mt-20 py-20 md:py-32 bg-white border-t border-slate-200/80 overflow-hidden">
+      {/* Background Ambience */}
       <div className="absolute top-1/3 right-1/4 w-[500px] h-[500px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 left-10 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 left-10 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto space-y-4 mb-16 md:mb-20">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs font-black text-amber-400 uppercase tracking-widest">
-            <Camera className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs font-black text-amber-800 uppercase tracking-widest shadow-xs">
+            <Camera className="w-3.5 h-3.5 text-amber-600" />
             <span>Event Production Formats</span>
           </div>
-          <h2 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-[1.1]">
+          <h2 className="text-3xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tight leading-[1.1]">
             See It In Action
           </h2>
-          <p className="text-base sm:text-lg text-slate-400 leading-relaxed font-normal">
+          <p className="text-base sm:text-lg text-slate-600 leading-relaxed font-normal">
             From 50-foot LED arena screens to compact booth touch totems and crowd smartphones, EventGameStudio powers live venue engagement at any scale.
           </p>
         </div>
 
-        {/* 3 Core Production Formats Visual Grid - Large Immersive Cards */}
+        {/* 3 Core Production Formats Visual Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-16 sm:mb-20">
           {/* Format 1: Giant Mainstage LED Screens */}
           <motion.div
@@ -60,32 +54,32 @@ export const LandingEventShowcase: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="rounded-3xl bg-slate-900/90 border border-slate-800/90 overflow-hidden flex flex-col justify-between hover:border-slate-700 transition-all group shadow-2xl"
+            className="rounded-3xl bg-white border border-slate-200 overflow-hidden flex flex-col justify-between hover:border-amber-400 hover:shadow-xl transition-all group shadow-xs"
           >
             {/* Visual Stage Simulation Header */}
             <div className="p-6 sm:p-8 space-y-4">
               <div className="flex items-center justify-between">
-                <div className="p-3.5 rounded-2xl bg-slate-950 border border-amber-500/30 text-amber-400 shadow-inner group-hover:scale-105 transition-transform">
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 shadow-xs group-hover:scale-105 transition-transform">
                   <Tv className="w-6 h-6" />
                 </div>
-                <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-slate-950 text-amber-400 border border-slate-800 flex items-center gap-1.5">
+                <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5">
                   <Radio className="w-3 h-3 animate-pulse text-rose-500" />
                   16:9 4K Mainstage
                 </span>
               </div>
 
-              <h3 className="text-2xl font-bold text-slate-100 group-hover:text-amber-300 transition-colors tracking-tight">
+              <h3 className="text-2xl font-bold text-slate-900 group-hover:text-amber-700 transition-colors tracking-tight">
                 Mainstage LED & Video Walls
               </h3>
 
-              <p className="text-sm text-slate-400 leading-relaxed font-normal">
+              <p className="text-sm text-slate-600 leading-relaxed font-normal">
                 Connect any AV laptop via HDMI to beam high-FPS arcade action directly onto convention center video walls and stage backdrops.
               </p>
             </div>
 
             {/* Immersive Visual Screen Representation */}
             <div className="px-6 pb-6">
-              <div className="rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden relative aspect-[16/9] shadow-inner group/screen">
+              <div className="rounded-2xl bg-slate-950 border border-slate-200 overflow-hidden relative aspect-[16/9] shadow-inner group/screen">
                 {/* Stage Background with Lighting Rig */}
                 <div
                   className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover/screen:scale-105"
@@ -132,31 +126,31 @@ export const LandingEventShowcase: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="rounded-3xl bg-slate-900/90 border border-slate-800/90 overflow-hidden flex flex-col justify-between hover:border-slate-700 transition-all group shadow-2xl"
+            className="rounded-3xl bg-white border border-slate-200 overflow-hidden flex flex-col justify-between hover:border-emerald-400 hover:shadow-xl transition-all group shadow-xs"
           >
             {/* Visual Header */}
             <div className="p-6 sm:p-8 space-y-4">
               <div className="flex items-center justify-between">
-                <div className="p-3.5 rounded-2xl bg-slate-950 border border-emerald-500/30 text-emerald-400 shadow-inner group-hover:scale-105 transition-transform">
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 shadow-xs group-hover:scale-105 transition-transform">
                   <Layers className="w-6 h-6" />
                 </div>
-                <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-slate-950 text-emerald-400 border border-slate-800">
+                <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                   Touch Kiosks & iPads
                 </span>
               </div>
 
-              <h3 className="text-2xl font-bold text-slate-100 group-hover:text-emerald-300 transition-colors tracking-tight">
+              <h3 className="text-2xl font-bold text-slate-900 group-hover:text-emerald-700 transition-colors tracking-tight">
                 Exhibition Booth Kiosks
               </h3>
 
-              <p className="text-sm text-slate-400 leading-relaxed font-normal">
+              <p className="text-sm text-slate-600 leading-relaxed font-normal">
                 Deploy 20-second fast-throughput games on vertical touch totems or iPads to stop aisle traffic and gather qualified brand leads.
               </p>
             </div>
 
             {/* Immersive Visual Screen Representation */}
             <div className="px-6 pb-6">
-              <div className="rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden relative aspect-[16/9] shadow-inner group/screen">
+              <div className="rounded-2xl bg-slate-950 border border-slate-200 overflow-hidden relative aspect-[16/9] shadow-inner group/screen">
                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/40 via-slate-950 to-slate-950" />
 
                 {/* Vertical Kiosk Totem Mock Inside Card */}
@@ -190,43 +184,43 @@ export const LandingEventShowcase: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="rounded-3xl bg-slate-900/90 border border-slate-800/90 overflow-hidden flex flex-col justify-between hover:border-slate-700 transition-all group shadow-2xl"
+            className="rounded-3xl bg-white border border-slate-200 overflow-hidden flex flex-col justify-between hover:border-blue-400 hover:shadow-xl transition-all group shadow-xs"
           >
             {/* Visual Header */}
             <div className="p-6 sm:p-8 space-y-4">
               <div className="flex items-center justify-between">
-                <div className="p-3.5 rounded-2xl bg-slate-950 border border-cyan-500/30 text-cyan-400 shadow-inner group-hover:scale-105 transition-transform">
+                <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 shadow-xs group-hover:scale-105 transition-transform">
                   <QrCode className="w-6 h-6" />
                 </div>
-                <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-slate-950 text-cyan-400 border border-slate-800">
+                <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                   Instant Smartphone QR
                 </span>
               </div>
 
-              <h3 className="text-2xl font-bold text-slate-100 group-hover:text-cyan-300 transition-colors tracking-tight">
+              <h3 className="text-2xl font-bold text-slate-900 group-hover:text-blue-700 transition-colors tracking-tight">
                 Crowd QR Code Play
               </h3>
 
-              <p className="text-sm text-slate-400 leading-relaxed font-normal">
+              <p className="text-sm text-slate-600 leading-relaxed font-normal">
                 Print QR codes on badges, flyers, or stage screens. Attendees scan with their camera to play in Safari or Chrome without installing apps.
               </p>
             </div>
 
             {/* Immersive Visual Screen Representation */}
             <div className="px-6 pb-6">
-              <div className="rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden relative aspect-[16/9] shadow-inner group/screen">
-                <div className="absolute inset-0 bg-gradient-to-br from-cyan-950/40 via-slate-950 to-slate-950" />
+              <div className="rounded-2xl bg-slate-950 border border-slate-200 overflow-hidden relative aspect-[16/9] shadow-inner group/screen">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-950/40 via-slate-950 to-slate-950" />
 
                 {/* Smartphone Mock */}
                 <div className="absolute inset-0 flex items-center justify-center p-3">
                   <div className="w-48 h-full bg-slate-900 rounded-2xl border border-slate-700 p-2.5 flex flex-col justify-between shadow-2xl">
                     <div className="flex items-center justify-between text-[8px] text-slate-400 border-b border-slate-800 pb-1">
-                      <span className="font-bold text-cyan-400">MOBILE BROWSER</span>
+                      <span className="font-bold text-blue-400">MOBILE BROWSER</span>
                       <span className="text-emerald-400">ONLINE</span>
                     </div>
 
                     <div className="flex items-center justify-center gap-3 my-auto">
-                      <div className="p-2 bg-white rounded-lg shadow">
+                      <div className="p-2 bg-white rounded-lg shadow-xs">
                         <QrCode className="w-9 h-9 text-slate-950" />
                       </div>
                       <div className="text-left">
@@ -252,24 +246,24 @@ export const LandingEventShowcase: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-8 sm:p-12 text-center max-w-4xl mx-auto space-y-6 shadow-2xl"
+          className="rounded-3xl bg-slate-50 border border-slate-200 p-8 sm:p-12 text-center max-w-4xl mx-auto space-y-6 shadow-xs"
         >
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mx-auto shadow-inner">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 mx-auto shadow-xs">
             <Camera className="w-7 h-7" />
           </div>
 
           <div className="space-y-2 max-w-lg mx-auto">
-            <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
               Community Event Showcase
             </h3>
-            <p className="text-sm text-slate-400 leading-relaxed font-normal">
+            <p className="text-sm text-slate-600 leading-relaxed font-normal">
               Have you run an event with EventGameStudio? Share photos or video of your stage setup and booth activation to get featured on the platform.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 pt-1">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-amber-300 font-medium shadow-inner">
-              <Coins className="w-4 h-4 text-amber-400" />
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-amber-200 text-xs text-amber-900 font-medium shadow-xs">
+              <Coins className="w-4 h-4 text-amber-600" />
               <span>Earn RM 50 platform credits on approved showcase review</span>
             </div>
           </div>
@@ -277,7 +271,7 @@ export const LandingEventShowcase: React.FC = () => {
           <div className="pt-2">
             <button
               onClick={handleLaunchEvent}
-              className="min-h-[44px] px-8 py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 transition-all inline-flex items-center gap-2 cursor-pointer hover:-translate-y-0.5"
+              className="min-h-[44px] px-8 py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-amber-500/20 transition-all inline-flex items-center gap-2 cursor-pointer hover:-translate-y-0.5"
             >
               <span>Create Event & Submit Showcase</span>
               <ArrowRight className="w-4 h-4" />
@@ -288,4 +282,3 @@ export const LandingEventShowcase: React.FC = () => {
     </section>
   );
 };
-

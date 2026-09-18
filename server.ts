@@ -145,6 +145,9 @@ import {
   STANDARD_EVENT_PRICE,
   getPlatformPricingSettings,
   updatePlatformPricingSettings,
+  getPlatformContactSettings,
+  updatePlatformContactSettings,
+  DEFAULT_CONTACT_SETTINGS,
   calculateEventCalendarDays,
   calculateEventAuthoritativePrice,
   getAllAdminEvents,
@@ -4928,6 +4931,116 @@ app.put('/api/developer/pricing/settings', authenticateDeveloperAdmin, handleUpd
 app.put('/api/admin/pricing/settings', authenticateDeveloperAdmin, handleUpdateAdminPricingSettings);
 app.post('/api/developer/pricing/settings', authenticateDeveloperAdmin, handleUpdateAdminPricingSettings);
 
+// ----------------------------------------------------
+// PLATFORM CONTACT SETTINGS (WHATSAPP, ENQUIRY EMAIL)
+// ----------------------------------------------------
+
+/**
+ * GET /api/platform/contact-settings
+ * Public endpoint: Retrieve current platform WhatsApp, enquiry email, support hours, and office location
+ */
+app.get('/api/platform/contact-settings', async (req, res) => {
+  try {
+    const settings = await getPlatformContactSettings();
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/contact-settings (and /api/admin/contact-settings)
+ * Developer Admin: retrieve platform contact settings
+ */
+const handleGetAdminContactSettings = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const settings = await getPlatformContactSettings();
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/contact-settings', authenticateDeveloperAdmin, handleGetAdminContactSettings);
+app.get('/api/admin/contact-settings', authenticateDeveloperAdmin, handleGetAdminContactSettings);
+
+/**
+ * PUT /api/developer/contact-settings (and /api/admin/contact-settings)
+ * Developer Admin: update platform WhatsApp number, display, prefill message, enquiry email, support hours, office location
+ */
+const handleUpdateAdminContactSettings = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const {
+      whatsapp_number,
+      whatsapp_display,
+      whatsapp_prefill_message,
+      enquiry_email,
+      support_hours,
+      office_location,
+    } = req.body;
+
+    const updatedSettings = await updatePlatformContactSettings(
+      {
+        whatsapp_number,
+        whatsapp_display,
+        whatsapp_prefill_message,
+        enquiry_email,
+        support_hours,
+        office_location,
+      },
+      req.user?.id
+    );
+
+    res.json({
+      success: true,
+      settings: updatedSettings,
+      message: 'Platform contact settings updated successfully',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.put('/api/developer/contact-settings', authenticateDeveloperAdmin, handleUpdateAdminContactSettings);
+app.put('/api/admin/contact-settings', authenticateDeveloperAdmin, handleUpdateAdminContactSettings);
+app.post('/api/developer/contact-settings', authenticateDeveloperAdmin, handleUpdateAdminContactSettings);
+
+/**
+ * POST /api/contact
+ * Public endpoint: Submit an event enquiry or agency contact message
+ */
+app.post('/api/contact', async (req, res) => {
+  try {
+    const {
+      fullName,
+      email,
+      phone,
+      company,
+      category,
+      eventDate,
+      expectedAttendees,
+      message,
+    } = req.body;
+
+    if (!fullName || !email || !message) {
+      res.status(400).json({ error: 'Please provide your full name, email, and message.' });
+      return;
+    }
+
+    const ticketId = `EGS-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    console.log(`[Contact Enquiry Received] Ticket: ${ticketId} from ${fullName} <${email}>, category: ${category}`);
+
+    res.json({
+      success: true,
+      ticketId,
+      message: 'Thank you! Your enquiry has been received. Our team will contact you shortly.',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
 /**
  * GET /api/developer/events (and /api/admin/events)
  * Developer Admin: list all events across the platform with pricing and payment details
@@ -6703,11 +6816,16 @@ app.get('/api/developer/error-logs/:id', authenticateDeveloperAdmin, handleGetAp
 app.get('/api/admin/error-logs/:id', authenticateDeveloperAdmin, handleGetApiErrorLogDetail);
 
 // ----------------------------------------------------
-// GLOBAL CENTRALIZED API ERROR MIDDLEWARE
+// GLOBAL CENTRALIZED API ERROR & 404 MIDDLEWARE
 // ----------------------------------------------------
 
 app.use('/api', (err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   handleApiError(err, req, res);
+});
+
+// Explicit 404 for any unmatched /api routes so they never fall through to HTML or Vite SPA
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.path}` });
 });
 
 // ----------------------------------------------------
