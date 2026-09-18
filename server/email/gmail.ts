@@ -475,6 +475,7 @@ export function buildMimeEmail(params: {
   subject: string;
   html: string;
   text?: string;
+  replyTo?: string;
 }): string {
   const fromHeader = params.fromName
     ? `${encodeMimeHeader(params.fromName)} <${sanitizeHeader(params.from)}>`
@@ -489,6 +490,13 @@ export function buildMimeEmail(params: {
   const lines = [
     `From: ${fromHeader}`,
     `To: ${toHeader}`,
+  ];
+
+  if (params.replyTo && params.replyTo.trim()) {
+    lines.push(`Reply-To: ${sanitizeHeader(params.replyTo)}`);
+  }
+
+  lines.push(
     `Subject: ${subjectHeader}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
@@ -507,7 +515,7 @@ export function buildMimeEmail(params: {
     '',
     `--${boundary}--`,
     '',
-  ];
+  );
 
   return lines.join('\r\n');
 }
@@ -522,6 +530,7 @@ export async function sendEmailViaGmail(
     html: string;
     text?: string;
     fromName?: string;
+    replyTo?: string;
   },
   env?: Record<string, any>
 ): Promise<{
@@ -535,6 +544,15 @@ export async function sendEmailViaGmail(
     throw new Error(`Invalid recipient email address: ${params.to}`);
   }
 
+  // Validate and sanitize replyTo if provided
+  let validatedReplyTo: string | undefined = undefined;
+  if (params.replyTo && params.replyTo.trim()) {
+    const cleanReply = params.replyTo.trim().toLowerCase();
+    if (/^[^\s@\r\n]+@[^\s@\r\n]+\.[^\s@\r\n]+$/.test(cleanReply)) {
+      validatedReplyTo = sanitizeHeader(cleanReply);
+    }
+  }
+
   // Obtain fresh access token and verified sender address
   const { accessToken, senderEmail } = await getFreshAccessToken(env);
 
@@ -545,6 +563,7 @@ export async function sendEmailViaGmail(
     subject: params.subject,
     html: params.html,
     text: params.text,
+    replyTo: validatedReplyTo,
   });
 
   const rawBase64Url = toBase64Url(rawMime);
@@ -765,6 +784,193 @@ Sent At: ${timestamp}
 Provider: Google Gmail API (gmail.googleapis.com)
 
 Your Gmail sending connection is working properly.
+`.trim();
+
+  return {
+    subject,
+    html,
+    text,
+  };
+}
+
+/**
+ * Escapes HTML characters in user-supplied strings to prevent XSS or HTML injection in emails.
+ */
+export function escapeHtml(str?: string | null): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+export interface ContactEnquiryNotificationEmailParams {
+  ticketId: string;
+  fullName: string;
+  email: string;
+  phone?: string | null;
+  company?: string | null;
+  category?: string | null;
+  eventDate?: string | null;
+  expectedAttendees?: string | null;
+  message: string;
+  timestamp?: string | null;
+}
+
+/**
+ * Creates professional HTML & Plaintext email template for Event Game Studio contact & event enquiries.
+ */
+export function generateContactEnquiryEmailTemplate(params: ContactEnquiryNotificationEmailParams): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const cleanTicket = params.ticketId.trim();
+  const cleanName = params.fullName.trim();
+  const cleanEmail = params.email.trim();
+  const cleanCategory = params.category?.trim() || 'General enquiry';
+  const cleanPhone = params.phone?.trim() || 'Not provided';
+  const cleanCompany = params.company?.trim() || 'Not provided';
+  const cleanEventDate = params.eventDate?.trim() || 'Not specified';
+  const cleanAttendees = params.expectedAttendees?.trim() || 'Not specified';
+  const cleanMessage = params.message.trim();
+  const timestamp = params.timestamp || new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }) + ' (UTC+8)';
+
+  const subject = `[Event Game Studio] New Event Enquiry: ${cleanTicket} - ${cleanName} (${cleanCategory})`;
+
+  const safeTicket = escapeHtml(cleanTicket);
+  const safeName = escapeHtml(cleanName);
+  const safeEmail = escapeHtml(cleanEmail);
+  const safeCategory = escapeHtml(cleanCategory);
+  const safePhone = escapeHtml(cleanPhone);
+  const safeCompany = escapeHtml(cleanCompany);
+  const safeEventDate = escapeHtml(cleanEventDate);
+  const safeAttendees = escapeHtml(cleanAttendees);
+  const safeTimestamp = escapeHtml(timestamp);
+  const safeMessageHtml = escapeHtml(cleanMessage).replace(/\n/g, '<br/>');
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(subject)}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #090d16; color: #f8fafc; margin: 0; padding: 0; }
+    .container { max-width: 620px; margin: 0 auto; padding: 32px 16px; }
+    .card { background-color: #0f172a; border: 1px solid #1e293b; border-radius: 16px; padding: 32px; box-shadow: 0 12px 30px rgba(0,0,0,0.5); }
+    .header-bar { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1e293b; padding-bottom: 20px; margin-bottom: 24px; }
+    .brand-title { font-size: 16px; font-weight: 800; color: #f59e0b; letter-spacing: 0.5px; }
+    .ticket-badge { background-color: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; font-size: 13px; font-weight: 700; padding: 4px 12px; border-radius: 9999px; font-family: monospace; }
+    h1 { font-size: 20px; font-weight: 800; color: #ffffff; margin: 0 0 8px 0; }
+    .subtext { font-size: 13px; color: #94a3b8; margin: 0 0 24px 0; }
+    .info-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
+    .info-table td { padding: 10px 12px; border-bottom: 1px solid #1e293b; vertical-align: top; }
+    .info-label { width: 34%; color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+    .info-value { width: 66%; color: #f1f5f9; font-weight: 500; word-break: break-word; }
+    .message-box { background-color: #1e293b; border-left: 4px solid #f59e0b; padding: 18px; border-radius: 8px; margin-bottom: 24px; }
+    .message-label { font-size: 11px; text-transform: uppercase; color: #f59e0b; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .message-content { font-size: 14px; line-height: 1.6; color: #e2e8f0; word-break: break-word; }
+    .reply-tip { background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #93c5fd; margin-bottom: 24px; line-height: 1.5; }
+    .footer { text-align: center; font-size: 11px; color: #475569; padding-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header-bar">
+        <span class="brand-title">🎮 EVENT GAME STUDIO</span>
+        <span class="ticket-badge">Ref: ${safeTicket}</span>
+      </div>
+
+      <h1>New Event Activation Enquiry</h1>
+      <p class="subtext">A prospective customer submitted an enquiry via the website contact form.</p>
+
+      <table class="info-table">
+        <tr>
+          <td class="info-label">Reference ID</td>
+          <td class="info-value"><strong>${safeTicket}</strong></td>
+        </tr>
+        <tr>
+          <td class="info-label">Customer Name</td>
+          <td class="info-value"><strong>${safeName}</strong></td>
+        </tr>
+        <tr>
+          <td class="info-label">Customer Email</td>
+          <td class="info-value"><a href="mailto:${safeEmail}" style="color: #38bdf8; text-decoration: none;">${safeEmail}</a></td>
+        </tr>
+        <tr>
+          <td class="info-label">Phone / WhatsApp</td>
+          <td class="info-value">${safePhone}</td>
+        </tr>
+        <tr>
+          <td class="info-label">Company / Agency</td>
+          <td class="info-value">${safeCompany}</td>
+        </tr>
+        <tr>
+          <td class="info-label">Category</td>
+          <td class="info-value">${safeCategory}</td>
+        </tr>
+        <tr>
+          <td class="info-label">Event Date</td>
+          <td class="info-value">${safeEventDate}</td>
+        </tr>
+        <tr>
+          <td class="info-label">Expected Attendees</td>
+          <td class="info-value">${safeAttendees}</td>
+        </tr>
+        <tr>
+          <td class="info-label">Submission Time</td>
+          <td class="info-value">${safeTimestamp}</td>
+        </tr>
+      </table>
+
+      <div class="message-box">
+        <div class="message-label">Enquiry Message:</div>
+        <div class="message-content">${safeMessageHtml}</div>
+      </div>
+
+      <div class="reply-tip">
+        <strong>Direct Response:</strong> Reply directly to this email to respond to <strong>${safeName}</strong> at <code>${safeEmail}</code>.
+      </div>
+
+      <div class="footer">
+        Automated notification sent to eventgamestudio@gmail.com by Event Game Studio Platform.<br>
+        Business Timezone: Asia/Singapore (UTC+8)
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+`.trim();
+
+  const text = `
+==================================================
+EVENT GAME STUDIO - NEW CONTACT ENQUIRY
+==================================================
+
+Reference ID:      ${cleanTicket}
+Customer Name:     ${cleanName}
+Customer Email:    ${cleanEmail}
+Phone / WhatsApp:  ${cleanPhone}
+Company / Agency:  ${cleanCompany}
+Category:          ${cleanCategory}
+Event Date:        ${cleanEventDate}
+Audience Size:     ${cleanAttendees}
+Submitted At:      ${timestamp}
+
+--------------------------------------------------
+MESSAGE:
+--------------------------------------------------
+${cleanMessage}
+
+--------------------------------------------------
+DIRECT REPLY:
+Simply click 'Reply' in your email client to respond directly to ${cleanName} (${cleanEmail}).
+==================================================
 `.trim();
 
   return {

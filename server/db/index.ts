@@ -16,3 +16,4 @@ export * from './highScores.js';
 export * from './notifications.js';
 export * from './errorLogs.js';
 export * from './rewards.js';
+export * from './contactEnquiries.js';

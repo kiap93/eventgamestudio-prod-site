@@ -821,4 +821,57 @@ export const MAX_DIRECT_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB direct in-memory
 // ----------------------------------------------------
 export * from '../notifications/types.js';
 
+// ----------------------------------------------------
+// CONTACT ENQUIRY SYSTEM TYPES
+// ----------------------------------------------------
+
+export type ContactEnquiryStatus = 'new' | 'in_review' | 'contacted' | 'resolved' | 'archived';
+export type ContactEmailStatus = 'pending' | 'sent' | 'failed' | 'not_configured';
+
+export interface ContactEnquiryRecord {
+  id: string;
+  ticket_id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  company: string | null;
+  category: string;
+  event_date: string | null;
+  expected_attendees: string | null;
+  message: string;
+  status: ContactEnquiryStatus;
+  email_status: ContactEmailStatus;
+  email_sent_at: string | null;
+  email_error: string | null;
+  email_message_id: string | null;
+  recipient_email: string;
+  idempotency_key: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateContactEnquiryParams {
+  id?: string;
+  ticket_id?: string;
+  full_name: string;
+  email: string;
+  phone?: string | null;
+  company?: string | null;
+  category?: string;
+  event_date?: string | null;
+  expected_attendees?: string | null;
+  message: string;
+  status?: ContactEnquiryStatus;
+  email_status?: ContactEmailStatus;
+  email_sent_at?: string | null;
+  email_error?: string | null;
+  email_message_id?: string | null;
+  recipient_email?: string;
+  idempotency_key?: string | null;
+  ip_address?: string | null;
+  user_agent?: string | null;
+}
+
 

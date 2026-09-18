@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import {
   MessageCircle,
@@ -88,6 +88,9 @@ export const ContactPage: React.FC = () => {
 
   // FAQ open states
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const idempotencyKeyRef = useRef<string>(
+    typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `egs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  );
 
   const validate = (): boolean => {
     const errs: FormErrors = {};
@@ -124,28 +127,39 @@ export const ContactPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Attempt backend API submission via apiFetch
+      // Post to backend API
       const res = await apiFetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          idempotencyKey: idempotencyKeyRef.current,
+        }),
       });
 
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setTicketId(data.ticketId || `EGS-${Math.floor(100000 + Math.random() * 900000)}`);
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data?.success && data?.ticketId) {
+        setTicketId(data.ticketId);
         setIsSuccess(true);
+        setSubmitError(null);
       } else {
-        // Even if server returns non-200 in certain proxy setups, create client reference
-        const generatedCode = `EGS-${Math.floor(100000 + Math.random() * 900000)}`;
-        setTicketId(generatedCode);
-        setIsSuccess(true);
+        const errorMessage =
+          data?.error ||
+          data?.message ||
+          (res.status === 429
+            ? 'Too many enquiry submissions from this connection. Please wait a few minutes before submitting again.'
+            : 'Unable to submit your enquiry at this time. Please try again or reach out to us directly via WhatsApp.');
+        setSubmitError(errorMessage);
+        setIsSuccess(false);
+        setTicketId('');
       }
-    } catch {
-      // Fallback graceful success confirmation
-      const generatedCode = `EGS-${Math.floor(100000 + Math.random() * 900000)}`;
-      setTicketId(generatedCode);
-      setIsSuccess(true);
+    } catch (networkErr: any) {
+      setSubmitError(
+        'Network connection error. We could not reach the server. Please check your internet connection or contact us via WhatsApp.'
+      );
+      setIsSuccess(false);
+      setTicketId('');
     } finally {
       setIsSubmitting(false);
     }
@@ -157,6 +171,8 @@ export const ContactPage: React.FC = () => {
     setIsSuccess(false);
     setTicketId('');
     setSubmitError(null);
+    idempotencyKeyRef.current =
+      typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `egs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   };
 
   return (

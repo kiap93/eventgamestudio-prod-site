@@ -475,6 +475,25 @@ export const publicHighScoreReadRateLimiter = createRateLimiter({
 });
 
 /**
+ * 12. Public Contact & Event Enquiry Rate Limiter:
+ * Protects POST /api/contact from spam and volumetric abuse.
+ * 10 submissions per 15 minutes per IP.
+ */
+export const contactRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyPrefix: 'contact',
+  message: 'Too many enquiry submissions from this connection. Please wait a few minutes before submitting again.',
+});
+
+export const WORKER_CONTACT_RATE_LIMIT: RateLimitOptions = {
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyPrefix: 'contact',
+  message: 'Too many enquiry submissions from this connection. Please wait a few minutes before submitting again.',
+};
+
+/**
  * Worker / Edge Rate Limiter Helper (Synchronous In-Memory First Layer)
  */
 export function resetRateLimitStores(): void {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../../lib/api';
-import { PlatformContactSettings } from '../../types/developer';
+import { PlatformContactSettings, ContactEnquiry } from '../../types/developer';
 import {
   MessageCircle,
   Phone,
@@ -19,6 +19,12 @@ import {
   RotateCcw,
   Send,
   HelpCircle,
+  Inbox,
+  Search,
+  ChevronDown,
+  Building,
+  Calendar,
+  Users,
 } from 'lucide-react';
 
 const DEFAULT_SETTINGS: PlatformContactSettings = {
@@ -45,6 +51,30 @@ export const DeveloperContactSettings: React.FC = () => {
   const [enquiryEmail, setEnquiryEmail] = useState<string>('');
   const [supportHours, setSupportHours] = useState<string>('');
   const [officeLocation, setOfficeLocation] = useState<string>('');
+
+  // Sub-tabs: 'settings' | 'enquiries'
+  const [activeTab, setActiveTab] = useState<'settings' | 'enquiries'>('settings');
+  const [enquiries, setEnquiries] = useState<ContactEnquiry[]>([]);
+  const [enquiriesCount, setEnquiriesCount] = useState<number>(0);
+  const [enquiriesLoading, setEnquiriesLoading] = useState<boolean>(false);
+  const [enquiriesSearch, setEnquiriesSearch] = useState<string>('');
+  const [expandedEnquiryId, setExpandedEnquiryId] = useState<string | null>(null);
+
+  const fetchEnquiries = useCallback(async () => {
+    setEnquiriesLoading(true);
+    try {
+      const res = await apiFetch('/api/developer/contact-enquiries');
+      if (res.ok) {
+        const data = await res.json();
+        setEnquiries(data.enquiries || []);
+        setEnquiriesCount(data.total || (data.enquiries ? data.enquiries.length : 0));
+      }
+    } catch (err) {
+      console.error('Failed to load contact enquiries:', err);
+    } finally {
+      setEnquiriesLoading(false);
+    }
+  }, []);
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
@@ -76,7 +106,8 @@ export const DeveloperContactSettings: React.FC = () => {
 
   useEffect(() => {
     fetchSettings();
-  }, [fetchSettings]);
+    fetchEnquiries();
+  }, [fetchSettings, fetchEnquiries]);
 
   const isDirty =
     whatsappNumber !== (initialSettings.whatsapp_number || '') ||
@@ -251,6 +282,236 @@ export const DeveloperContactSettings: React.FC = () => {
         </div>
       )}
 
+      {/* Navigation Sub-Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('settings')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'settings'
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60 border border-transparent'
+          }`}
+        >
+          <Sliders className="w-3.5 h-3.5" />
+          <span>Channel Configuration</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('enquiries');
+            fetchEnquiries();
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'enquiries'
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60 border border-transparent'
+          }`}
+        >
+          <Inbox className="w-3.5 h-3.5" />
+          <span>Received Enquiries</span>
+          {enquiriesCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500 text-slate-950">
+              {enquiriesCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === 'enquiries' ? (
+        /* Enquiries Inbox View */
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 rounded-3xl p-6">
+            <div>
+              <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <Inbox className="w-5 h-5 text-emerald-400" />
+                <span>Client Enquiries & Form Submissions</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Submissions are securely persisted to the database and delivered directly to{' '}
+                <span className="text-emerald-400 font-mono">eventgamestudio@gmail.com</span> via Gmail API.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="relative min-w-[240px]">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search ticket, name, email..."
+                  value={enquiriesSearch}
+                  onChange={(e) => setEnquiriesSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => fetchEnquiries()}
+                disabled={enquiriesLoading}
+                className="px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${enquiriesLoading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          {enquiriesLoading && enquiries.length === 0 ? (
+            <div className="py-16 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-3">
+              <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
+              <span>Loading received enquiries...</span>
+            </div>
+          ) : enquiries.length === 0 ? (
+            <div className="p-12 text-center rounded-3xl bg-slate-900/50 border border-slate-800/80 space-y-3">
+              <Inbox className="w-10 h-10 text-slate-600 mx-auto" />
+              <h3 className="text-sm font-bold text-slate-300">No Enquiries Received Yet</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                When visitors or event agencies submit the Contact Us form, their enquiry details and ticket numbers will appear here immediately.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {enquiries
+                .filter((e) => {
+                  if (!enquiriesSearch) return true;
+                  const q = enquiriesSearch.toLowerCase();
+                  return (
+                    e.ticket_id.toLowerCase().includes(q) ||
+                    e.full_name.toLowerCase().includes(q) ||
+                    e.email.toLowerCase().includes(q) ||
+                    (e.company && e.company.toLowerCase().includes(q)) ||
+                    e.category.toLowerCase().includes(q) ||
+                    e.message.toLowerCase().includes(q)
+                  );
+                })
+                .map((enq) => {
+                  const isExpanded = expandedEnquiryId === enq.id;
+                  return (
+                    <div
+                      key={enq.id}
+                      className="bg-slate-900 border border-slate-800 hover:border-slate-700/80 rounded-2xl overflow-hidden transition-all shadow-md"
+                    >
+                      <div
+                        onClick={() => setExpandedEnquiryId(isExpanded ? null : enq.id)}
+                        className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 cursor-pointer select-none"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                            <Mail className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <span className="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+                                {enq.ticket_id}
+                              </span>
+                              <span className="text-xs font-bold text-white">{enq.full_name}</span>
+                              {enq.company && (
+                                <span className="text-xs text-slate-400 flex items-center gap-1">
+                                  <Building className="w-3 h-3 text-slate-500" />
+                                  {enq.company}
+                                </span>
+                              )}
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-medium">
+                                {enq.category}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
+                              <span>{enq.email}</span>
+                              {enq.phone && <span>{enq.phone}</span>}
+                              {enq.event_date && (
+                                <span className="flex items-center gap-1 text-slate-300">
+                                  <Calendar className="w-3 h-3 text-emerald-400" />
+                                  Target: {enq.event_date}
+                                </span>
+                              )}
+                              {enq.expected_attendees && (
+                                <span className="flex items-center gap-1 text-slate-300">
+                                  <Users className="w-3 h-3 text-emerald-400" />
+                                  {enq.expected_attendees} pax
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0 self-end lg:self-center">
+                          {/* Email delivery badge */}
+                          {enq.email_status === 'sent' ? (
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                              Delivered to Gmail
+                            </span>
+                          ) : enq.email_status === 'not_configured' ? (
+                            <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-bold flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3 text-amber-400" />
+                              Gmail Inactive
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[10px] font-bold flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3 text-rose-400" />
+                              Email {enq.email_status}
+                            </span>
+                          )}
+
+                          <span className="text-[11px] text-slate-500">
+                            {new Date(enq.created_at).toLocaleString('en-SG', {
+                              timeZone: 'Asia/Singapore',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+
+                          <ChevronDown
+                            className={`w-4 h-4 text-slate-500 transition-transform ${isExpanded ? 'rotate-180 text-emerald-400' : ''}`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Expanded Details */}
+                      {isExpanded && (
+                        <div className="border-t border-slate-800/80 bg-slate-950/60 p-5 space-y-4">
+                          <div>
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                              Enquiry Message
+                            </div>
+                            <div className="text-xs text-slate-200 bg-slate-900 border border-slate-800/80 rounded-xl p-4 whitespace-pre-wrap leading-relaxed">
+                              {enq.message}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-[11px] text-slate-400">
+                            <div className="flex items-center gap-2">
+                              <span>Delivered To:</span>
+                              <span className="font-mono text-emerald-400 font-semibold">eventgamestudio@gmail.com</span>
+                              {enq.email_message_id && (
+                                <span className="text-slate-500 font-mono text-[10px]">
+                                  (ID: {enq.email_message_id})
+                                </span>
+                              )}
+                            </div>
+
+                            <a
+                              href={`mailto:${enq.email}?subject=${encodeURIComponent(`Re: [${enq.ticket_id}] Event Game Studio Enquiry`)}`}
+                              className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Reply to {enq.full_name}</span>
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      ) : (
       <form onSubmit={handleSave} className="space-y-8">
         {/* Section 1: WhatsApp Configuration */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
@@ -547,6 +808,7 @@ export const DeveloperContactSettings: React.FC = () => {
           </button>
         </div>
       </form>
+      )}
     </div>
   );
 };

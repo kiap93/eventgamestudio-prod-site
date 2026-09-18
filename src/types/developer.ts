@@ -59,6 +59,24 @@ export interface PlatformContactSettings {
   updated_by?: string | null;
 }
 
+export interface ContactEnquiry {
+  id: string;
+  ticket_id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  company: string | null;
+  category: string;
+  event_date: string | null;
+  expected_attendees: string | null;
+  message: string;
+  status: 'new' | 'read' | 'replied' | 'archived';
+  email_status: 'pending' | 'sent' | 'failed' | 'not_configured';
+  email_message_id: string | null;
+  email_error: string | null;
+  created_at: string;
+}
+
 export interface AdminEventPricingItem {
   id: string;
   organization_id: string;

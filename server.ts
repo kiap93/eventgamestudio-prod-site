@@ -171,6 +171,10 @@ import {
   evaluatePromotionEligibility,
   hasUserClaimedReward,
   isUserOrganizationOwner,
+  createContactEnquiry,
+  updateContactEnquiryEmailStatus,
+  getContactNotificationRecipientEmail,
+  listContactEnquiries,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import {
@@ -219,6 +223,7 @@ import {
   generalApiRateLimiter,
   publicEventRateLimiter,
   publicHighScoreReadRateLimiter,
+  contactRateLimiter,
 } from './server/rateLimiter.js';
 
 import {
@@ -254,6 +259,7 @@ import {
   sendEmailViaGmail,
   generateTestEmailTemplate,
   generateInvitationEmailTemplate,
+  generateContactEnquiryEmailTemplate,
 } from './server/email/index.js';
 
 
@@ -5007,35 +5013,167 @@ app.post('/api/developer/contact-settings', authenticateDeveloperAdmin, handleUp
 
 /**
  * POST /api/contact
- * Public endpoint: Submit an event enquiry or agency contact message
+ * Public endpoint: Submit an event enquiry or agency contact message.
+ * Enforces server-side persistence first, followed by transactional Gmail delivery to eventgamestudio@gmail.com.
  */
-app.post('/api/contact', async (req, res) => {
+app.post('/api/contact', contactRateLimiter, async (req, res) => {
   try {
-    const {
-      fullName,
-      email,
-      phone,
-      company,
-      category,
-      eventDate,
-      expectedAttendees,
-      message,
-    } = req.body;
+    const body = req.body || {};
 
-    if (!fullName || !email || !message) {
-      res.status(400).json({ error: 'Please provide your full name, email, and message.' });
+    // 0. Anti-bot honeypot check: If hidden honeypot fields are filled, reject silently
+    if (body.website || body.bot_field || body.hp_check) {
+      console.warn('[Contact Form] Bot honeypot triggered from IP:', req.ip);
+      res.json({
+        success: true,
+        ticketId: 'EGS-BOTPREVENTED',
+        emailDelivered: false,
+        message: 'Thank you! Your enquiry has been received.',
+      });
       return;
     }
 
-    const ticketId = `EGS-${Math.floor(100000 + Math.random() * 900000)}`;
+    // 1. Input sanitization & validation
+    const rawFullName = typeof body.fullName === 'string' ? body.fullName.trim() : '';
+    const rawEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const rawPhone = typeof body.phone === 'string' ? body.phone.trim() : '';
+    const rawCompany = typeof body.company === 'string' ? body.company.trim() : '';
+    const rawCategory = typeof body.category === 'string' ? body.category.trim() : 'General enquiry';
+    const rawEventDate = typeof body.eventDate === 'string' ? body.eventDate.trim() : '';
+    const rawExpectedAttendees = typeof body.expectedAttendees === 'string' ? body.expectedAttendees.trim() : '';
+    const rawMessage = typeof body.message === 'string' ? body.message.trim() : '';
+    const idempotencyKey = typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : undefined;
 
-    console.log(`[Contact Enquiry Received] Ticket: ${ticketId} from ${fullName} <${email}>, category: ${category}`);
+    if (!rawFullName || rawFullName.length < 2 || rawFullName.length > 100) {
+      res.status(400).json({ error: 'Please enter a valid full name (2 to 100 characters).' });
+      return;
+    }
 
+    const emailRegex = /^[^\s@\r\n]+@[^\s@\r\n]+\.[^\s@\r\n]+$/;
+    if (!rawEmail || !emailRegex.test(rawEmail) || rawEmail.length > 254 || rawEmail.includes('\r') || rawEmail.includes('\n')) {
+      res.status(400).json({ error: 'Please enter a valid email address.' });
+      return;
+    }
+
+    if (!rawMessage || rawMessage.length < 10 || rawMessage.length > 3000) {
+      res.status(400).json({ error: 'Please enter a message between 10 and 3,000 characters.' });
+      return;
+    }
+
+    // 2. Step 1: Database persistence FIRST
+    let enquiry;
+    try {
+      enquiry = await createContactEnquiry({
+        full_name: rawFullName,
+        email: rawEmail,
+        phone: rawPhone || null,
+        company: rawCompany || null,
+        category: rawCategory,
+        event_date: rawEventDate || null,
+        expected_attendees: rawExpectedAttendees || null,
+        message: rawMessage,
+        idempotency_key: idempotencyKey,
+        ip_address: req.ip || (req.headers['x-forwarded-for'] as string) || null,
+        user_agent: (req.headers['user-agent'] as string) || null,
+      });
+    } catch (persistErr: any) {
+      console.error('[Contact Enquiry] Database persistence error:', persistErr);
+      res.status(500).json({
+        error: 'Unable to save your enquiry at this time. Please try again or reach out directly on WhatsApp.',
+      });
+      return;
+    }
+
+    // If an existing enquiry with this idempotency key was already delivered, return immediately
+    if (enquiry.email_status === 'sent') {
+      res.json({
+        success: true,
+        enquiryId: enquiry.id,
+        ticketId: enquiry.ticket_id,
+        emailDelivered: true,
+        message: 'Thank you! Your enquiry has been received. Our team will contact you shortly.',
+      });
+      return;
+    }
+
+    // 3. Step 2: Attempt Gmail delivery to the authoritative recipient (eventgamestudio@gmail.com)
+    const recipientEmail = getContactNotificationRecipientEmail();
+    let emailDelivered = false;
+
+    try {
+      const gmailSettings = await getGoogleMailSettings();
+
+      if (!gmailSettings || !gmailSettings.email_address || gmailSettings.status !== 'connected' || !gmailSettings.enabled) {
+        console.warn(`[Contact Enquiry ${enquiry.ticket_id}] Gmail integration not connected or active (status: ${gmailSettings?.status || 'none'}). Skipping email send.`);
+        await updateContactEnquiryEmailStatus(enquiry.id, 'not_configured', {
+          emailError: 'Gmail integration not connected or inactive',
+        });
+      } else {
+        const template = generateContactEnquiryEmailTemplate({
+          ticketId: enquiry.ticket_id,
+          fullName: enquiry.full_name,
+          email: enquiry.email,
+          phone: enquiry.phone,
+          company: enquiry.company,
+          category: enquiry.category,
+          eventDate: enquiry.event_date,
+          expectedAttendees: enquiry.expected_attendees,
+          message: enquiry.message,
+          timestamp: new Date(enquiry.created_at).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }) + ' (UTC+8)',
+        });
+
+        console.log(`[Contact Enquiry ${enquiry.ticket_id}] Sending notification to ${recipientEmail} with reply-to ${enquiry.email}...`);
+
+        const sendResult = await sendEmailViaGmail({
+          to: recipientEmail,
+          replyTo: enquiry.email,
+          fromName: 'Event Game Studio',
+          subject: template.subject,
+          html: template.html,
+          text: template.text,
+        });
+
+        await updateContactEnquiryEmailStatus(enquiry.id, 'sent', {
+          emailMessageId: sendResult.messageId,
+          emailSentAt: new Date().toISOString(),
+        });
+        emailDelivered = true;
+        console.log(`[Contact Enquiry ${enquiry.ticket_id}] Email delivered successfully. Message ID: ${sendResult.messageId}`);
+      }
+    } catch (emailErr: any) {
+      console.error(`[Contact Enquiry ${enquiry.ticket_id}] Failed to send email via Gmail API:`, emailErr);
+      await updateContactEnquiryEmailStatus(enquiry.id, 'failed', {
+        emailError: emailErr.message || 'Unknown Gmail API error',
+      });
+      emailDelivered = false;
+    }
+
+    // 4. Return success with server-confirmed ticket ID
     res.json({
       success: true,
-      ticketId,
+      enquiryId: enquiry.id,
+      ticketId: enquiry.ticket_id,
+      emailDelivered,
       message: 'Thank you! Your enquiry has been received. Our team will contact you shortly.',
     });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/developer/contact-enquiries
+ * Developer Admin: List all persisted contact enquiries with pagination and status
+ */
+app.get(['/api/developer/contact-enquiries', '/api/admin/contact-enquiries'], authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const pageSize = parseInt(req.query.pageSize as string, 10) || 20;
+    const search = req.query.search as string;
+    const status = req.query.status as any;
+    const emailStatus = req.query.emailStatus as any;
+
+    const result = await listContactEnquiries({ page, pageSize, search, status, emailStatus });
+    res.json(result);
   } catch (err: any) {
     handleApiError(err, req, res);
   }

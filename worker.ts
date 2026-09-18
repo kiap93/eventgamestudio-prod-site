@@ -169,6 +169,10 @@ import {
   evaluatePromotionEligibility,
   hasUserClaimedReward,
   isUserOrganizationOwner,
+  createContactEnquiry,
+  updateContactEnquiryEmailStatus,
+  getContactNotificationRecipientEmail,
+  listContactEnquiries,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import { handleWorkerApiError, AppError, resolveCorrelationId, isOperationalError } from './server/errors.js';
@@ -181,6 +185,7 @@ import {
   sendEmailViaGmail,
   generateInvitationEmailTemplate,
   generateTestEmailTemplate,
+  generateContactEnquiryEmailTemplate,
   generateOAuthStateToken,
   verifyOAuthStateToken,
   encryptRefreshToken,
@@ -209,7 +214,7 @@ import {
 } from './server/auth.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
-import { checkWorkerRateLimit, checkWorkerRateLimitWithCloudflare, isVenueRequest } from './server/rateLimiter.js';
+import { checkWorkerRateLimit, checkWorkerRateLimitWithCloudflare, isVenueRequest, WORKER_CONTACT_RATE_LIMIT } from './server/rateLimiter.js';
 import { validateUploadedFile } from './server/fileValidation.js';
 
 export interface Env {
@@ -5230,24 +5235,175 @@ export default {
         }
       }
 
-      // POST /api/contact (public contact enquiry)
+      // POST /api/contact (public contact enquiry with persistence first and Gmail delivery)
       if (pathname === '/api/contact' && method === 'POST') {
+        // Rate limit check
+        const rateLimitResult = await checkWorkerRateLimitWithCloudflare(request, WORKER_CONTACT_RATE_LIMIT, env);
+        if (!rateLimitResult.allowed) {
+          return new Response(JSON.stringify(rateLimitResult.errorResponse), {
+            status: 429,
+            headers: { 'Content-Type': 'application/json', ...cors, ...rateLimitResult.headers },
+          });
+        }
+
         try {
           const body = (await request.json().catch(() => ({}))) as any;
-          const { fullName, email, message, category } = body;
-          if (!fullName || !email || !message) {
-            return errorResponse('Please provide your full name, email, and message.', 400, cors);
+
+          // Anti-bot honeypot check
+          if (body.website || body.bot_field || body.hp_check) {
+            console.warn('[Worker Contact Form] Honeypot triggered');
+            return jsonResponse({
+              success: true,
+              ticketId: 'EGS-BOTPREVENTED',
+              emailDelivered: false,
+              message: 'Thank you! Your enquiry has been received.',
+            }, 200, cors);
           }
 
-          const ticketId = `EGS-${Math.floor(100000 + Math.random() * 900000)}`;
-          console.log(`[Worker Contact Enquiry] Ticket: ${ticketId} from ${fullName} <${email}>, category: ${category}`);
+          // Input validation & sanitization
+          const rawFullName = typeof body.fullName === 'string' ? body.fullName.trim() : '';
+          const rawEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+          const rawPhone = typeof body.phone === 'string' ? body.phone.trim() : '';
+          const rawCompany = typeof body.company === 'string' ? body.company.trim() : '';
+          const rawCategory = typeof body.category === 'string' ? body.category.trim() : 'General enquiry';
+          const rawEventDate = typeof body.eventDate === 'string' ? body.eventDate.trim() : '';
+          const rawExpectedAttendees = typeof body.expectedAttendees === 'string' ? body.expectedAttendees.trim() : '';
+          const rawMessage = typeof body.message === 'string' ? body.message.trim() : '';
+          const idempotencyKey = typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : undefined;
 
+          if (!rawFullName || rawFullName.length < 2 || rawFullName.length > 100) {
+            return errorResponse('Please enter a valid full name (2 to 100 characters).', 400, cors);
+          }
+
+          const emailRegex = /^[^\s@\r\n]+@[^\s@\r\n]+\.[^\s@\r\n]+$/;
+          if (!rawEmail || !emailRegex.test(rawEmail) || rawEmail.length > 254 || rawEmail.includes('\r') || rawEmail.includes('\n')) {
+            return errorResponse('Please enter a valid email address.', 400, cors);
+          }
+
+          if (!rawMessage || rawMessage.length < 10 || rawMessage.length > 3000) {
+            return errorResponse('Please enter a message between 10 and 3,000 characters.', 400, cors);
+          }
+
+          // Step 1: Database persistence FIRST
+          let enquiry;
+          try {
+            const clientIp = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || null;
+            const userAgent = request.headers.get('user-agent') || null;
+
+            enquiry = await createContactEnquiry({
+              full_name: rawFullName,
+              email: rawEmail,
+              phone: rawPhone || null,
+              company: rawCompany || null,
+              category: rawCategory,
+              event_date: rawEventDate || null,
+              expected_attendees: rawExpectedAttendees || null,
+              message: rawMessage,
+              idempotency_key: idempotencyKey,
+              ip_address: clientIp,
+              user_agent: userAgent,
+            }, env);
+          } catch (persistErr: any) {
+            console.error('[Worker Contact Enquiry] Database persistence error:', persistErr);
+            return errorResponse('Unable to save your enquiry at this time. Please try again or reach out directly on WhatsApp.', 500, cors);
+          }
+
+          // If this idempotency key was already delivered, return immediately
+          if (enquiry.email_status === 'sent') {
+            return jsonResponse({
+              success: true,
+              enquiryId: enquiry.id,
+              ticketId: enquiry.ticket_id,
+              emailDelivered: true,
+              message: 'Thank you! Your enquiry has been received. Our team will contact you shortly.',
+            }, 200, cors);
+          }
+
+          // Step 2: Attempt Gmail delivery to the authoritative recipient (eventgamestudio@gmail.com)
+          const recipientEmail = getContactNotificationRecipientEmail(env);
+          let emailDelivered = false;
+
+          try {
+            const gmailSettings = await getGoogleMailSettings(env);
+
+            if (!gmailSettings || !gmailSettings.email_address || gmailSettings.status !== 'connected' || !gmailSettings.enabled) {
+              console.warn(`[Worker Contact Enquiry ${enquiry.ticket_id}] Gmail integration not connected or active. Skipping email send.`);
+              await updateContactEnquiryEmailStatus(enquiry.id, 'not_configured', {
+                emailError: 'Gmail integration not connected or inactive',
+              }, env);
+            } else {
+              const template = generateContactEnquiryEmailTemplate({
+                ticketId: enquiry.ticket_id,
+                fullName: enquiry.full_name,
+                email: enquiry.email,
+                phone: enquiry.phone,
+                company: enquiry.company,
+                category: enquiry.category,
+                eventDate: enquiry.event_date,
+                expectedAttendees: enquiry.expected_attendees,
+                message: enquiry.message,
+                timestamp: new Date(enquiry.created_at).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }) + ' (UTC+8)',
+              });
+
+              console.log(`[Worker Contact Enquiry ${enquiry.ticket_id}] Sending notification to ${recipientEmail} with reply-to ${enquiry.email}...`);
+
+              const sendResult = await sendEmailViaGmail({
+                to: recipientEmail,
+                replyTo: enquiry.email,
+                fromName: 'Event Game Studio',
+                subject: template.subject,
+                html: template.html,
+                text: template.text,
+              }, env);
+
+              await updateContactEnquiryEmailStatus(enquiry.id, 'sent', {
+                emailMessageId: sendResult.messageId,
+                emailSentAt: new Date().toISOString(),
+              }, env);
+              emailDelivered = true;
+              console.log(`[Worker Contact Enquiry ${enquiry.ticket_id}] Email delivered successfully. Message ID: ${sendResult.messageId}`);
+            }
+          } catch (emailErr: any) {
+            console.error(`[Worker Contact Enquiry ${enquiry.ticket_id}] Failed to send email via Gmail API:`, emailErr);
+            await updateContactEnquiryEmailStatus(enquiry.id, 'failed', {
+              emailError: emailErr.message || 'Unknown Gmail API error',
+            }, env);
+            emailDelivered = false;
+          }
+
+          // Step 3: Return success with server-confirmed ticket ID
           return jsonResponse({
             success: true,
-            ticketId,
+            enquiryId: enquiry.id,
+            ticketId: enquiry.ticket_id,
+            emailDelivered,
             message: 'Thank you! Your enquiry has been received. Our team will contact you shortly.',
           }, 200, cors);
         } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/contact-enquiries & /api/admin/contact-enquiries
+      if ((pathname === '/api/developer/contact-enquiries' || pathname === '/api/admin/contact-enquiries') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const url = new URL(request.url);
+          const page = parseInt(url.searchParams.get('page') || '1', 10) || 1;
+          const pageSize = parseInt(url.searchParams.get('pageSize') || '20', 10) || 20;
+          const search = url.searchParams.get('search') || undefined;
+          const status = (url.searchParams.get('status') || undefined) as any;
+          const emailStatus = (url.searchParams.get('emailStatus') || undefined) as any;
+
+          const result = await listContactEnquiries({ page, pageSize, search, status, emailStatus }, env);
+          return jsonResponse(result, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get contact enquiries error:', err);
           return handleWorkerApiError(err, request, cors, env);
         }
       }
