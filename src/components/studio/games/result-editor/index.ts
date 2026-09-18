@@ -13,3 +13,4 @@ export * from './PropertyInspectorPanel';
 export * from './EditorTopBar';
 export * from './resultElementRegistry';
 export * from './ResultScreenVisualEditorModal';
+export * from './ResultScreenBasicEditor';

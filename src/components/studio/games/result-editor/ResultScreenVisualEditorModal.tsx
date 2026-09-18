@@ -36,6 +36,11 @@ import { PresetLibraryModal } from './PresetLibraryModal';
 import { SaveTemplateModal } from './SaveTemplateModal';
 import { useResultScreenHistory, filterValidSelectedIds, ResultScreenHistoryController } from './history';
 import { Layers, Sliders, Layout } from 'lucide-react';
+import {
+  generateDefaultResultScreenElements,
+  generateDefaultCatchBrandResultScreenElements,
+  generateDefaultReactionResultScreenElements,
+} from '../../../../games/shared/resultScreenTypes';
 
 export interface ResultScreenVisualEditorModalProps {
   resultConfig: MemoryMatchResultScreenConfig;
@@ -58,7 +63,28 @@ export const ResultScreenVisualEditorModal: React.FC<ResultScreenVisualEditorMod
   onClose,
   historyController,
 }) => {
-  const elements = resultConfig.elements || [];
+  const isReaction = gameType === 'reaction-tap' || gameType === 'reaction-time';
+  const isCatch = gameType === 'catch-brand';
+
+  const elements = useMemo(() => {
+    if (Array.isArray(resultConfig.elements) && resultConfig.elements.length > 0) {
+      return resultConfig.elements;
+    }
+    if (isReaction) {
+      return generateDefaultReactionResultScreenElements(resultConfig);
+    }
+    if (isCatch) {
+      return generateDefaultCatchBrandResultScreenElements(resultConfig);
+    }
+    return generateDefaultResultScreenElements(resultConfig);
+  }, [resultConfig.elements, isReaction, isCatch]);
+
+  useEffect(() => {
+    if (isOpen && (!resultConfig.elements || resultConfig.elements.length === 0)) {
+      onChange({ elements });
+    }
+  }, [isOpen]);
+
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);

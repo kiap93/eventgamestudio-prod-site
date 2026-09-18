@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { GameTheme, ThemeDropItem, ThemeDifficultyStage } from '../../../themes/types';
-import { ResultScreenVisualEditor } from './ResultScreenVisualEditor';
+import { ResultScreenVisualEditorModal, ResultScreenBasicEditor } from './result-editor';
+import { ResultScreenRenderer } from '../../../games/shared/ResultScreenRenderer';
 import { StartScreenVisualEditorModal } from './start-editor/StartScreenVisualEditorModal';
 import { StartScreenRenderer } from '../../../games/shared/StartScreenRenderer';
 import { getStartScreenConfig, saveStartScreenConfig } from '../../../games/shared/startScreenResolver';
@@ -723,6 +724,7 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
   const [isStartEditorModalOpen, setIsStartEditorModalOpen] = useState(false);
+  const [isResultEditorModalOpen, setIsResultEditorModalOpen] = useState(false);
 
   const gameConfig = (theme.game_config || {}) as Record<string, any>;
   const catchGameMeta = useMemo(() => ({
@@ -870,14 +872,75 @@ export const CatchBrandScreensCustomizer: React.FC<CatchBrandScreensCustomizerPr
           />
         </div>
       ) : (
-        <ResultScreenVisualEditor
-          resultConfig={resultConfig as any}
-          theme={theme}
-          gameType="catch-brand"
-          onChange={handleUpdateResultConfig}
-          onUploadAsset={onUploadAsset}
-        />
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* 1. BASIC EDITOR */}
+          <ResultScreenBasicEditor
+            resultConfig={resultConfig as any}
+            theme={theme}
+            gameType="catch-brand"
+            onChange={handleUpdateResultConfig}
+            onUploadAsset={onUploadAsset as any}
+            uploadingAsset={uploadingAsset}
+          />
+
+          {/* 2. ADVANCED VISUAL CANVAS EDITOR */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-amber-400" />
+                  <span>Result Screen Visual Canvas Editor</span>
+                </h4>
+                <p className="text-xs text-slate-400 mt-1">
+                  Design result cards, typography, stats badges, leaderboard layout, and buttons directly on the canvas.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsResultEditorModalOpen(true)}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
+              >
+                <Maximize2 className="w-4 h-4" />
+                <span>Open Result Screen Editor</span>
+              </button>
+            </div>
+
+            {/* Live Scaled Preview Frame */}
+            <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
+              <div className="w-full max-w-[500px] aspect-[16/9] rounded-xl overflow-hidden border border-slate-700/60 shadow-2xl relative">
+                <ResultScreenRenderer
+                  resultConfig={resultConfig as any}
+                  theme={theme}
+                  layout={theme.layout}
+                  stats={{
+                    score: 350,
+                    highScore: 500,
+                    timeElapsedSeconds: gameConfig.gameplay?.duration || 20,
+                    accuracyPercent: 92,
+                    isVictory: true,
+                    gameType: 'catch-brand',
+                  }}
+                  isSimulation={true}
+                />
+              </div>
+              <span className="text-[11px] text-slate-500 mt-2 font-mono">
+                Interactive Scaled Canvas Preview (1024 × 576)
+              </span>
+            </div>
+          </div>
+
+          <ResultScreenVisualEditorModal
+            isOpen={isResultEditorModalOpen}
+            onClose={() => setIsResultEditorModalOpen(false)}
+            resultConfig={resultConfig as any}
+            theme={theme}
+            gameType="catch-brand"
+            onChange={handleUpdateResultConfig}
+            onUploadAsset={onUploadAsset as any}
+          />
+        </div>
       )}
+
     </div>
   );
 };

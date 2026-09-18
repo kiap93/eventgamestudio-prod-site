@@ -5,6 +5,7 @@ import {
   ResultGroupElement,
   MemoryMatchResultScreenConfig,
   generateDefaultResultScreenElements,
+  generateDefaultCatchBrandResultScreenElements,
   generateDefaultReactionResultScreenElements,
 } from './resultScreenTypes';
 import { resolveScreenBackground } from '../../themes/screenBackground';
@@ -179,13 +180,19 @@ export const ResultScreenRenderer: React.FC<ResultScreenRendererProps> = ({
   const isReactionGame =
     stats.gameType === 'reaction-time' ||
     stats.gameType === 'reaction-tap' ||
-    (theme && getThemeGameType(theme) === 'reaction-time');
+    (theme && (getThemeGameType(theme) === 'reaction-time' || getThemeGameType(theme) === 'reaction-tap'));
+
+  const isCatchBrandGame =
+    stats.gameType === 'catch-brand' ||
+    (!isReactionGame && theme && getThemeGameType(theme) === 'catch-brand');
 
   const elements: ResultScreenElement[] =
     Array.isArray(resultConfig?.elements) && resultConfig.elements.length > 0
       ? resultConfig.elements
       : isReactionGame
       ? generateDefaultReactionResultScreenElements()
+      : isCatchBrandGame
+      ? generateDefaultCatchBrandResultScreenElements(resultConfig || undefined)
       : generateDefaultResultScreenElements(resultConfig || undefined);
 
   // Recursive element renderer

@@ -769,6 +769,282 @@ export function generateDefaultReactionResultScreenElements(
   ];
 }
 
+/**
+ * Generates default Result Screen elements tailored for Catch The Brand.
+ */
+export function generateDefaultCatchBrandResultScreenElements(
+  _legacy?: Partial<ResultScreenConfig>
+): ResultScreenElement[] {
+  const cardChildren: ResultScreenElement[] = [
+    // 1. Result Title
+    {
+      id: 'title-catch',
+      type: 'text',
+      x: 40,
+      y: 30,
+      width: 640,
+      height: 48,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      text: 'GAME OVER!',
+      style: {
+        fontSize: 34,
+        fontWeight: '900',
+        color: '#ffffff',
+        textAlign: 'center',
+        letterSpacing: 1,
+      },
+    },
+    // 2. Final Score Big Metric
+    {
+      id: 'stat-score',
+      type: 'score',
+      x: 40,
+      y: 88,
+      width: 640,
+      height: 108,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'FINAL SCORE',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#10b981',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 18,
+        fontSize: 40,
+        textAlign: 'center',
+      },
+    },
+    // 3. Time Elapsed
+    {
+      id: 'stat-time',
+      type: 'time',
+      x: 40,
+      y: 208,
+      width: 310,
+      height: 80,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'TIME ELAPSED',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#38bdf8',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        fontSize: 24,
+        textAlign: 'center',
+      },
+    },
+    // 4. Catch Accuracy
+    {
+      id: 'stat-accuracy',
+      type: 'accuracy',
+      x: 370,
+      y: 208,
+      width: 310,
+      height: 80,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'CATCH ACCURACY',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#fbbf24',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        fontSize: 24,
+        textAlign: 'center',
+      },
+    },
+    // 5. Leaderboard Component
+    {
+      id: 'leaderboard-catch',
+      type: 'leaderboard',
+      x: 40,
+      y: 300,
+      width: 640,
+      height: 350,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      headerText: 'EVENT LEADERBOARD',
+      style: {
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        showHeader: true,
+        headerText: 'EVENT LEADERBOARD',
+        fontSize: 14,
+        textColor: '#e2e8f0',
+        rankColor: '#fbbf24',
+        scoreColor: '#10b981',
+      },
+    },
+    // 6. Play Again Action Button
+    {
+      id: 'btn-play-again',
+      type: 'button',
+      x: 110,
+      y: 665,
+      width: 500,
+      height: 60,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      text: 'PLAY AGAIN',
+      action: 'playAgain',
+      style: {
+        backgroundColor: '#f59e0b',
+        textColor: '#020617',
+        fontSize: 18,
+        fontWeight: '900',
+        borderRadius: 18,
+        shadow: true,
+      },
+    },
+  ];
+
+  return [
+    {
+      id: 'card-result-main',
+      type: 'card',
+      x: 140,
+      y: 115,
+      width: 720,
+      height: 750,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 1,
+      style: {
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        borderWidth: 1,
+        borderColor: '#334155',
+        borderRadius: 28,
+        shadow: true,
+      },
+      children: cardChildren,
+    },
+  ];
+}
+
+/**
+ * Recursively queries element visibility in a ResultScreenElement tree.
+ * Matches by exact ID or element type.
+ */
+export function findResultScreenElementVisibility(
+  elements: ResultScreenElement[],
+  idOrType: string
+): boolean | undefined {
+  for (const el of elements) {
+    if (el.id === idOrType || el.type === idOrType) return el.visible !== false;
+    if (Array.isArray((el as any).children)) {
+      const found = findResultScreenElementVisibility((el as any).children, idOrType);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Recursively updates element visibility in a ResultScreenElement tree.
+ * Matches by exact ID or element type.
+ */
+export function updateResultScreenElementVisibility(
+  elements: ResultScreenElement[],
+  idOrType: string,
+  visible: boolean
+): ResultScreenElement[] {
+  return elements.map((el) => {
+    let nextVis = el.visible;
+    if (el.id === idOrType || el.type === idOrType) {
+      nextVis = visible;
+    }
+    const children = Array.isArray((el as any).children)
+      ? updateResultScreenElementVisibility((el as any).children, idOrType, visible)
+      : undefined;
+    return {
+      ...el,
+      visible: nextVis,
+      ...(children ? { children } : {}),
+    };
+  });
+}
+
+/**
+ * Recursively finds text content for a text element by ID or type.
+ */
+export function findResultScreenElementText(
+  elements: ResultScreenElement[],
+  idOrType: string
+): string | undefined {
+  for (const el of elements) {
+    if ((el.id === idOrType || el.type === idOrType) && el.type === 'text') {
+      return (el as ResultTextElement).text;
+    }
+    if (Array.isArray((el as any).children)) {
+      const found = findResultScreenElementText((el as any).children, idOrType);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Recursively updates text content for a text element by ID or type.
+ */
+export function updateResultScreenElementText(
+  elements: ResultScreenElement[],
+  idOrType: string,
+  newText: string
+): ResultScreenElement[] {
+  return elements.map((el) => {
+    let nextEl = { ...el };
+    if ((el.id === idOrType || el.type === idOrType) && el.type === 'text') {
+      (nextEl as ResultTextElement).text = newText;
+    }
+    if (Array.isArray((el as any).children)) {
+      (nextEl as any).children = updateResultScreenElementText((el as any).children, idOrType, newText);
+    }
+    return nextEl;
+  });
+}
+
+/**
+ * Recursively updates button label text by ID or action.
+ */
+export function updateResultScreenButtonText(
+  elements: ResultScreenElement[],
+  idOrAction: string,
+  newText: string
+): ResultScreenElement[] {
+  return elements.map((el) => {
+    let nextEl = { ...el };
+    if (el.type === 'button') {
+      const btn = el as ResultButtonElement;
+      if (btn.id === idOrAction || btn.action === idOrAction) {
+        btn.text = newText;
+      }
+    }
+    if (Array.isArray((el as any).children)) {
+      (nextEl as any).children = updateResultScreenButtonText((el as any).children, idOrAction, newText);
+    }
+    return nextEl;
+  });
+}
+
 export const DEFAULT_RESULT_SCREEN_CONFIG: ResultScreenConfig = {
   backgroundType: 'theme',
   backgroundColor: '#0f172a',

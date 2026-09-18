@@ -31,7 +31,7 @@ import {
   MAX_TOTAL_CARDS,
 } from '../../../games/memory-match/types';
 import { ResultScreenRenderer } from '../../../games/memory-match/ResultScreenRenderer';
-import { ResultScreenVisualEditor } from './ResultScreenVisualEditor';
+import { ResultScreenVisualEditorModal, ResultScreenBasicEditor } from './result-editor';
 import { StartScreenVisualEditorModal } from './start-editor/StartScreenVisualEditorModal';
 import { StartScreenRenderer } from '../../../games/shared/StartScreenRenderer';
 import { getStartScreenConfig, saveStartScreenConfig } from '../../../games/shared/startScreenResolver';
@@ -2229,15 +2229,12 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
   uploadingAsset,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'start' | 'result'>('start');
-  const [isResultEditorFullscreen, setIsResultEditorFullscreen] = useState(false);
+  const [isResultEditorModalOpen, setIsResultEditorModalOpen] = useState(false);
   const [isStartEditorModalOpen, setIsStartEditorModalOpen] = useState(false);
   const [startDragActive, setStartDragActive] = useState(false);
-  const [resultDragActive, setResultDragActive] = useState(false);
   const [startUploadError, setStartUploadError] = useState<string | null>(null);
-  const [resultUploadError, setResultUploadError] = useState<string | null>(null);
 
   const startFileInputRef = useRef<HTMLInputElement | null>(null);
-  const resultFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const memoryConfig = getMemoryMatchConfig(theme);
   const screens = memoryConfig.screens || DEFAULT_SCREENS_CONFIG;
@@ -2283,12 +2280,13 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
       overlayOpacity: nextResult.backgroundOverlayOpacity ?? 0.3,
     };
     if (
-      updates.showScore !== undefined ||
-      updates.showMoves !== undefined ||
-      updates.showPairs !== undefined ||
-      updates.showAccuracy !== undefined ||
-      !nextResult.elements ||
-      nextResult.elements.length === 0
+      updates.elements === undefined &&
+      (updates.showScore !== undefined ||
+        updates.showMoves !== undefined ||
+        updates.showPairs !== undefined ||
+        updates.showAccuracy !== undefined ||
+        !nextResult.elements ||
+        nextResult.elements.length === 0)
     ) {
       nextResult.elements = generateDefaultResultScreenElements(nextResult);
     }
@@ -2303,6 +2301,10 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
     onChange({
       ...theme,
       game_config: nextMemoryConfig,
+      screens: {
+        ...(theme.screens || {}),
+        result: nextResult as any,
+      },
     });
   };
 
@@ -2327,32 +2329,6 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
       setStartUploadError(err.message || 'Failed to upload start screen background');
     }
   };
-
-  const handleUploadResultBg = async (file: File) => {
-    setResultUploadError(null);
-    if (!onUploadAsset) return;
-
-    const extension = '.' + (file.name.split('.').pop() || '').toLowerCase();
-    const isValid =
-      ALLOWED_MIME_TYPES.includes(file.type.toLowerCase()) ||
-      ALLOWED_EXTENSIONS.includes(extension);
-
-    if (!isValid) {
-      setResultUploadError(`Unsupported format "${file.name}". Please upload a PNG, JPG, or WebP.`);
-      return;
-    }
-
-    try {
-      const url = await onUploadAsset(file, 'memory_result_screen_bg');
-      handleUpdateResultScreen({ backgroundType: 'image', backgroundImageUrl: url });
-    } catch (err: any) {
-      setResultUploadError(err.message || 'Failed to upload result screen background');
-    }
-  };
-
-  // Resolve styles for live previews
-  const startBgStyles = resolveScreenBackground(startConfig, theme);
-  const resultBgStyles = resolveScreenBackground(resultConfig, theme);
 
   return (
     <div className="space-y-6">
@@ -2476,423 +2452,45 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
        * ========================================================================= */}
       {activeSubTab === 'result' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          {/* A. Background Selection */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-5 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
-                  <Palette className="w-4 h-4" />
-                </span>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-100">Result Screen Background</h4>
-                  <p className="text-xs text-slate-400">Choose between theme background, solid color, or custom image</p>
-                </div>
-              </div>
-
-              {/* Reset to Theme Default */}
-              <button
-                type="button"
-                onClick={() =>
-                  handleUpdateResultScreen({
-                    backgroundType: 'theme',
-                    backgroundColor: '#0f172a',
-                    backgroundImageUrl: null,
-                    backgroundOverlayOpacity: 0.3,
-                  })
-                }
-                className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-200 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors flex items-center gap-1"
-                title="Reset Result Screen background to Theme defaults"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Reset</span>
-              </button>
-            </div>
-
-            {/* Background Type Mode Selector */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <button
-                type="button"
-                onClick={() => handleUpdateResultScreen({ backgroundType: 'theme' })}
-                className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
-                  resultConfig.backgroundType === 'theme'
-                    ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 shadow-md shadow-amber-500/10 font-bold'
-                    : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
-                }`}
-              >
-                <Layers className="w-4 h-4 text-amber-400 shrink-0" />
-                <div className="min-w-0">
-                  <span className="text-xs block">Active Theme BG</span>
-                  <span className="text-[10px] text-slate-500 block truncate">Uses theme wallpaper</span>
-                </div>
-                {resultConfig.backgroundType === 'theme' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleUpdateResultScreen({ backgroundType: 'color' })}
-                className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
-                  resultConfig.backgroundType === 'color'
-                    ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 shadow-md shadow-amber-500/10 font-bold'
-                    : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
-                }`}
-              >
-                <Palette className="w-4 h-4 text-amber-400 shrink-0" />
-                <div className="min-w-0">
-                  <span className="text-xs block">Solid Color</span>
-                  <span className="text-[10px] text-slate-500 block truncate">Custom backdrop color</span>
-                </div>
-                {resultConfig.backgroundType === 'color' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleUpdateResultScreen({ backgroundType: 'image' })}
-                className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
-                  resultConfig.backgroundType === 'image'
-                    ? 'bg-amber-500/15 border-amber-500/60 text-amber-300 shadow-md shadow-amber-500/10 font-bold'
-                    : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-400 font-medium'
-                }`}
-              >
-                <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
-                <div className="min-w-0">
-                  <span className="text-xs block">Custom Image</span>
-                  <span className="text-[10px] text-slate-500 block truncate">Independent artwork upload</span>
-                </div>
-                {resultConfig.backgroundType === 'image' && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto" />}
-              </button>
-            </div>
-
-            {/* Sub-Panel: Solid Color Picker */}
-            {resultConfig.backgroundType === 'color' && (
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={resultConfig.backgroundColor || '#0f172a'}
-                      onChange={(e) => handleUpdateResultScreen({ backgroundColor: e.target.value })}
-                      className="w-9 h-9 rounded-xl cursor-pointer bg-transparent border-0"
-                    />
-                    <div>
-                      <label className="text-xs font-semibold text-slate-300 block">Custom Color</label>
-                      <input
-                        type="text"
-                        value={resultConfig.backgroundColor || '#0f172a'}
-                        onChange={(e) => handleUpdateResultScreen({ backgroundColor: e.target.value })}
-                        className="font-mono text-xs text-amber-400 font-bold bg-slate-900 border border-slate-700 rounded px-2 py-0.5 mt-0.5 uppercase"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Swatches */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {BG_COLOR_PRESETS.map((preset) => (
-                      <button
-                        key={preset.hex}
-                        type="button"
-                        onClick={() => handleUpdateResultScreen({ backgroundColor: preset.hex })}
-                        className={`w-6 h-6 rounded-lg border transition-all ${
-                          resultConfig.backgroundColor?.toLowerCase() === preset.hex.toLowerCase()
-                            ? 'ring-2 ring-amber-400 scale-110 border-white'
-                            : 'border-white/20 hover:scale-105'
-                        }`}
-                        style={{ backgroundColor: preset.hex }}
-                        title={preset.name}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Sub-Panel: Custom Image Upload */}
-            {resultConfig.backgroundType === 'image' && (
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-4">
-                <input
-                  ref={resultFileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleUploadResultBg(f);
-                  }}
-                />
-
-                {resultConfig.backgroundImageUrl ? (
-                  <div className="flex flex-col sm:flex-row items-center gap-4">
-                    <div className="relative w-full sm:w-48 aspect-video rounded-xl overflow-hidden border border-slate-700 bg-slate-900 shrink-0">
-                      <img
-                        src={resultConfig.backgroundImageUrl}
-                        alt="Result Screen Background"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-
-                    <div className="space-y-2 flex-1 w-full text-center sm:text-left">
-                      <p className="text-xs font-semibold text-slate-200">Custom Result Screen Background Loaded</p>
-                      <p className="text-[11px] text-slate-400">16:9 recommended aspect ratio (1024×576px or higher)</p>
-
-                      <div className="flex items-center justify-center sm:justify-start gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => resultFileInputRef.current?.click()}
-                          disabled={uploadingAsset === 'memory_result_screen_bg'}
-                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-all flex items-center gap-1.5"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Replace Image</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateResultScreen({ backgroundImageUrl: null, backgroundType: 'theme' })}
-                          className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-bold rounded-xl border border-rose-500/30 transition-all flex items-center gap-1.5"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Remove</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setResultDragActive(true);
-                    }}
-                    onDragLeave={() => setResultDragActive(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setResultDragActive(false);
-                      const f = e.dataTransfer.files?.[0];
-                      if (f) handleUploadResultBg(f);
-                    }}
-                    onClick={() => resultFileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
-                      resultDragActive
-                        ? 'border-amber-400 bg-amber-500/10'
-                        : 'border-slate-800 hover:border-amber-500/50 bg-slate-900/50 hover:bg-slate-900'
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto mb-2">
-                      <Upload className="w-5 h-5" />
-                    </div>
-                    <p className="text-xs font-bold text-slate-200">Drag & Drop Result Screen Image here or click to browse</p>
-                    <p className="text-[11px] text-slate-400 mt-1">Supports PNG, JPG, WebP (Max 10MB)</p>
-                  </div>
-                )}
-
-                {resultUploadError && (
-                  <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 px-3 py-2 rounded-xl text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{resultUploadError}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Dark Overlay Opacity Slider */}
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-semibold text-slate-300 block">Dark Backdrop Overlay</span>
-                  <span className="text-[10px] text-slate-500">Provides contrast for final score and statistics cards</span>
-                </div>
-                <span className="text-amber-400 font-bold font-mono text-xs">
-                  {Math.round((resultConfig.backgroundOverlayOpacity ?? 0.3) * 100)}%
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={resultConfig.backgroundOverlayOpacity ?? 0.3}
-                  onChange={(e) => handleUpdateResultScreen({ backgroundOverlayOpacity: parseFloat(e.target.value) })}
-                  className="w-full accent-amber-500 cursor-pointer"
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                <button type="button" onClick={() => handleUpdateResultScreen({ backgroundOverlayOpacity: 0 })} className="hover:text-amber-400">0% (Clear)</button>
-                <button type="button" onClick={() => handleUpdateResultScreen({ backgroundOverlayOpacity: 0.3 })} className="hover:text-amber-400">30% (Default)</button>
-                <button type="button" onClick={() => handleUpdateResultScreen({ backgroundOverlayOpacity: 0.5 })} className="hover:text-amber-400">50%</button>
-                <button type="button" onClick={() => handleUpdateResultScreen({ backgroundOverlayOpacity: 0.75 })} className="hover:text-amber-400">75%</button>
-                <button type="button" onClick={() => handleUpdateResultScreen({ backgroundOverlayOpacity: 0.9 })} className="hover:text-amber-400">90%</button>
-              </div>
-            </div>
-          </div>
-
-          {/* B. Result Screen Statistics Visibility Toggles */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
-                  <Award className="w-4 h-4" />
-                </span>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-100">Result Statistics Visibility</h4>
-                  <p className="text-xs text-slate-400">
-                    Control which statistics are shown on Game Over. Layout automatically reflows to fill available space!
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              {/* Show Score */}
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400">
-                    <Trophy className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-200 block">Final Score</span>
-                    <span className="text-[10px] text-slate-400">Total match score and combo points</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={resultConfig.showScore !== false}
-                  onClick={() => handleUpdateResultScreen({ showScore: resultConfig.showScore === false })}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                    resultConfig.showScore !== false ? 'bg-emerald-500' : 'bg-slate-800'
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                      resultConfig.showScore !== false ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Show Moves */}
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-cyan-400">
-                    <RotateCw className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-200 block">Moves Count</span>
-                    <span className="text-[10px] text-slate-400">Total card pair flip attempts</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={resultConfig.showMoves !== false}
-                  onClick={() => handleUpdateResultScreen({ showMoves: resultConfig.showMoves === false })}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                    resultConfig.showMoves !== false ? 'bg-emerald-500' : 'bg-slate-800'
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                      resultConfig.showMoves !== false ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Show Pairs */}
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400">
-                    <Layers className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-200 block">Pairs Matched</span>
-                    <span className="text-[10px] text-slate-400">Number of completed matches</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={resultConfig.showPairs !== false}
-                  onClick={() => handleUpdateResultScreen({ showPairs: resultConfig.showPairs === false })}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                    resultConfig.showPairs !== false ? 'bg-emerald-500' : 'bg-slate-800'
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                      resultConfig.showPairs !== false ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Show Accuracy */}
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-violet-400">
-                    <Zap className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-200 block">Accuracy Rate</span>
-                    <span className="text-[10px] text-slate-400">Percentage accuracy calculation</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={resultConfig.showAccuracy !== false}
-                  onClick={() => handleUpdateResultScreen({ showAccuracy: resultConfig.showAccuracy === false })}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                    resultConfig.showAccuracy !== false ? 'bg-emerald-500' : 'bg-slate-800'
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                      resultConfig.showAccuracy !== false ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3.5 flex items-center gap-2.5 text-xs text-slate-400">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>
-                <strong>Dynamic Reflow Guarantee:</strong> If any statistic is disabled, remaining statistics automatically reflow into a clean balanced grid without leaving empty gaps.
-              </span>
-            </div>
-          </div>
-
-          {/* C. Interactive Visual Layout Canvas Editor */}
-          <ResultScreenVisualEditor
-            resultConfig={resultConfig}
+          {/* 1. BASIC EDITOR */}
+          <ResultScreenBasicEditor
+            resultConfig={resultConfig as any}
             theme={theme}
             gameType="memory-match"
-            onChange={(updates) => handleUpdateResultScreen(updates)}
-            onUploadAsset={onUploadAsset}
-            onFullscreenChange={setIsResultEditorFullscreen}
+            onChange={handleUpdateResultScreen}
+            onUploadAsset={onUploadAsset as any}
+            uploadingAsset={uploadingAsset}
           />
 
-          {/* D. Live Miniature Result Screen Preview Card */}
-          {!isResultEditorFullscreen && (
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-3 shadow-lg">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                  <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Result Screen Live Simulation (Dynamic Reflow)</span>
+          {/* 2. ADVANCED VISUAL CANVAS EDITOR */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-amber-400" />
+                  <span>Result Screen Visual Canvas Editor</span>
                 </h4>
-                <span className="text-[11px] text-slate-500 font-mono">16:9 Scale Preview</span>
+                <p className="text-xs text-slate-400 mt-1">
+                  Design layout, badges, buttons, cards, and graphics using the 1024×576 visual canvas editor.
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsResultEditorModalOpen(true)}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
+              >
+                <Maximize2 className="w-4 h-4" />
+                <span>Open Result Screen Editor</span>
+              </button>
+            </div>
 
-              <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col items-center justify-center select-none">
+            {/* Live Scaled Preview Frame */}
+            <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
+              <div className="w-full max-w-[500px] aspect-[16/9] rounded-xl overflow-hidden border border-slate-700/60 shadow-2xl relative">
                 <ResultScreenRenderer
-                  resultConfig={resultConfig}
+                  resultConfig={resultConfig as any}
+                  theme={theme}
+                  layout={theme.layout}
                   stats={{
                     score: 1250,
                     moves: 14,
@@ -2901,13 +2499,26 @@ export const MemoryMatchScreensCustomizer: React.FC<MemoryMatchScreensCustomizer
                     accuracyPercent: 88,
                     timeElapsedSeconds: 24,
                     isVictory: true,
+                    gameType: 'memory-match',
                   }}
-                  theme={theme}
                   isSimulation={true}
                 />
               </div>
+              <span className="text-[11px] text-slate-500 mt-2 font-mono">
+                Interactive Scaled Canvas Preview (1024 × 576)
+              </span>
             </div>
-          )}
+          </div>
+
+          <ResultScreenVisualEditorModal
+            isOpen={isResultEditorModalOpen}
+            onClose={() => setIsResultEditorModalOpen(false)}
+            resultConfig={resultConfig as any}
+            theme={theme}
+            gameType="memory-match"
+            onChange={handleUpdateResultScreen}
+            onUploadAsset={onUploadAsset as any}
+          />
         </div>
       )}
     </div>

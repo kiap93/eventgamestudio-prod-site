@@ -34,6 +34,7 @@ import { normalizeGameLayout, GameLayoutConfig } from '../themes/layout';
 import { useResponsiveLayout, getEffectiveGameLayout, ResponsiveLayoutState } from '../themes/responsive';
 import { apiFetch } from '../lib/api';
 import { StartScreenRenderer } from '../games/shared/StartScreenRenderer';
+import { ResultScreenRenderer } from '../games/shared/ResultScreenRenderer';
 import { resolveScreenBackground } from '../themes/screenBackground';
 import { getStartScreenConfig } from '../games/shared/startScreenResolver';
 import { GameControlBar } from './studio/GameControlBar';
@@ -616,8 +617,8 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
           </div>
         )}
 
-        {/* ================= GAME OVER OVERLAY ================= */}
-        {gameState === 'GAME_OVER' && (
+        {/* ================= GAME OVER OVERLAY (DEPRECATED: RENDERED VIA ROOT RESULT SCREEN OVERLAY) ================= */}
+        {false && gameState === 'GAME_OVER' && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm pointer-events-auto flex flex-col items-center justify-center p-2 sm:p-4 text-center z-40 overflow-hidden">
             <div className="game-over-container max-w-md w-full bg-slate-900 border-2 border-amber-500/80 rounded-2xl p-4 sm:p-5 shadow-2xl relative my-auto flex flex-col max-h-[92%] overflow-hidden">
               <div className="flex items-center justify-between mb-2">
@@ -1294,6 +1295,90 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             leaderboardData={leaderboardScores}
             loadingLeaderboard={loadingLeaderboard}
             leaderboardError={leaderboardError}
+          />
+        </div>
+      )}
+
+      {/* ================= RESULT SCREEN OVERLAY (AUTHORITATIVE UNIFORM 1024x576 SCALING) ================= */}
+      {gameState === 'GAME_OVER' && (
+        <div className="absolute inset-0 pointer-events-auto z-40 overflow-hidden">
+          <ResultScreenRenderer
+            resultConfig={
+              activeTheme?.screens?.result ||
+              (activeTheme?.game_config as any)?.screens?.result ||
+              null
+            }
+            theme={activeTheme}
+            layout={activeTheme?.layout}
+            targetDimensions={{ width: designWidth, height: designHeight }}
+            isPortrait={responsive.isPortrait}
+            stats={{
+              score: stats.score,
+              highScore: stats.highScore,
+              timeElapsedSeconds: settings.gameDurationSeconds ?? 20,
+              accuracyPercent:
+                (stats.greenCaught + stats.orangeCaught + stats.goldenCaught + stats.duriansMissed) > 0
+                  ? Math.round(
+                      ((stats.greenCaught + stats.orangeCaught + stats.goldenCaught) /
+                        (stats.greenCaught + stats.orangeCaught + stats.goldenCaught + stats.duriansMissed)) *
+                        100
+                    )
+                  : 100,
+              isVictory: true,
+              gameType: 'catch-brand',
+            }}
+            onAction={(action) => {
+              if (action === 'playAgain') {
+                onRestartGame();
+              } else if (action === 'exit') {
+                onStopGame();
+              }
+            }}
+            leaderboardData={leaderboardScores}
+            loadingLeaderboard={loadingLeaderboard}
+            leaderboardError={leaderboardError}
+            currentPlayerName={playerName}
+            scoreSubmitted={scoreSubmitted}
+            submittedRank={submittedRank}
+            isSubmittingScore={isSubmittingScore}
+            submissionError={submissionError}
+            onSubmitScore={async (name: string) => {
+              const trimmedName = name.trim() || 'Player';
+              setPlayerName(trimmedName);
+              localStorage.setItem('event_player_name', trimmedName);
+              setIsSubmittingScore(true);
+              setSubmissionError(null);
+              try {
+                const response = await submitEventLeaderboardScore(
+                  eventId,
+                  trimmedName,
+                  stats.score,
+                  publicToken,
+                  undefined,
+                  isEventTest
+                );
+                if (response && response.success) {
+                  setScoreSubmitted(true);
+                  if (response.rank) {
+                    setSubmittedRank(response.rank);
+                  }
+                  await fetchEventLeaderboard();
+                  return { success: true, rank: response.rank };
+                } else {
+                  const errMsg = response?.error || 'Failed to submit score';
+                  setSubmissionError(errMsg);
+                  return { success: false, error: errMsg };
+                }
+              } catch (err: any) {
+                const errMsg = err?.message || 'Failed to submit score';
+                setSubmissionError(errMsg);
+                return { success: false, error: errMsg };
+              } finally {
+                setIsSubmittingScore(false);
+              }
+            }}
+            isEventPreview={isEventPreview}
+            isEventTest={isEventTest}
           />
         </div>
       )}
