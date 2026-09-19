@@ -1,4 +1,4 @@
-import { getSupabaseServerClient, isLocalFallbackAllowed, assertProductionMaintenanceSafe } from '../supabase.js';
+import { getSupabaseServerClient, isLocalFallbackAllowed, isSupabaseConfigured, assertProductionMaintenanceSafe } from '../supabase.js';
 import {
   EventRecord,
   EventStatus,
@@ -2313,15 +2313,47 @@ export async function createEvent(
 
     if (!rpcError && rpcData) {
       if (rpcData.success === false) {
-        if (rpcData.code === 'PENDING_EVENT_LIMIT_REACHED') {
+        if (
+          rpcData.code === 'PENDING_EVENT_LIMIT_REACHED' ||
+          String(rpcData.error || '').includes('PENDING_EVENT_LIMIT_REACHED') ||
+          String(rpcData.message || '').includes('Maximum 2 pending payment events reached') ||
+          String(rpcData.error || '').includes('23514')
+        ) {
           const err: any = new Error(rpcData.message || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
           err.code = 'PENDING_EVENT_LIMIT_REACHED';
           err.status = 422;
+          err.stage = 'rpc_create_event_atomic';
+          err.rpcName = 'create_event_atomic';
+          err.operation = 'create_event';
+          err.fallbackAttempted = false;
+          err.eventCreated = false;
           throw err;
         }
+
+        const isOperational =
+          rpcData.code === 'ORGANIZATION_NOT_FOUND' ||
+          rpcData.code === 'THEME_NOT_FOUND' ||
+          rpcData.code === 'THEME_FORBIDDEN' ||
+          rpcData.code === 'SYSTEM_THEME_NOT_ALLOWED' ||
+          rpcData.code === 'THEME_INACTIVE' ||
+          rpcData.code === 'GAME_INACTIVE' ||
+          rpcData.code === 'GAME_NOT_FOUND' ||
+          rpcData.code === 'THEME_GAME_MISMATCH' ||
+          rpcData.code === 'VALIDATION_ERROR';
+
         const err: any = new Error(rpcData.error || rpcData.message || 'Failed to create event');
         err.code = rpcData.code || 'EVENT_CREATION_FAILED';
-        err.status = rpcData.code === 'ORGANIZATION_NOT_FOUND' || rpcData.code === 'THEME_NOT_FOUND' ? 404 : 422;
+        err.status = isOperational
+          ? (rpcData.code === 'ORGANIZATION_NOT_FOUND' || rpcData.code === 'THEME_NOT_FOUND' || rpcData.code === 'GAME_NOT_FOUND' ? 404 :
+             rpcData.code === 'THEME_FORBIDDEN' ? 403 : 422)
+          : 500;
+        err.stage = 'rpc_create_event_atomic';
+        err.rpcName = 'create_event_atomic';
+        err.operation = 'create_event';
+        err.fallbackAttempted = false;
+        err.eventCreated = false;
+        err.postgresCode = rpcData.code || null;
+        err.details = rpcData.error || null;
         throw err;
       }
 
@@ -2397,6 +2429,25 @@ export async function createEvent(
         const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
         err.code = 'PENDING_EVENT_LIMIT_REACHED';
         err.status = 422;
+        err.stage = 'rpc_create_event_atomic';
+        err.rpcName = 'create_event_atomic';
+        err.operation = 'create_event';
+        err.fallbackAttempted = false;
+        err.eventCreated = false;
+        throw err;
+      }
+
+      if (!isLocalFallbackAllowed(env) && isSupabaseConfigured(env)) {
+        const err: any = new Error(`Event creation failed during atomic RPC: ${rpcError.message || 'Unknown database error'}`);
+        err.code = rpcError.code || 'RPC_EXECUTION_FAILED';
+        err.status = 500;
+        err.stage = 'rpc_create_event_atomic';
+        err.rpcName = 'create_event_atomic';
+        err.operation = 'create_event';
+        err.fallbackAttempted = false;
+        err.eventCreated = false;
+        err.postgresCode = rpcError.code || null;
+        err.details = rpcError.details || null;
         throw err;
       }
       // If RPC is missing in local/mock environment, fall through to local fallback
@@ -2412,7 +2463,8 @@ export async function createEvent(
       err?.code === 'GAME_INACTIVE' ||
       err?.code === 'GAME_NOT_FOUND' ||
       err?.code === 'THEME_GAME_MISMATCH' ||
-      err?.code === 'VALIDATION_ERROR'
+      err?.code === 'VALIDATION_ERROR' ||
+      (!isLocalFallbackAllowed(env) && isSupabaseConfigured(env))
     ) {
       throw err;
     }
@@ -2613,11 +2665,23 @@ export async function createEvent(
         const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
         err.code = 'PENDING_EVENT_LIMIT_REACHED';
         err.status = 422;
+        err.stage = 'fallback_insert';
+        err.rpcName = 'create_event_atomic';
+        err.operation = 'create_event';
+        err.fallbackAttempted = true;
+        err.eventCreated = false;
         throw err;
       }
       const err: any = new Error(error.message || 'Failed to create event');
       err.code = error.code || 'EVENT_CREATION_FAILED';
-      err.status = 422;
+      err.status = 500;
+      err.stage = 'fallback_insert';
+      err.rpcName = 'create_event_atomic';
+      err.operation = 'create_event';
+      err.fallbackAttempted = true;
+      err.eventCreated = false;
+      err.postgresCode = error.code || null;
+      err.details = error.details || null;
       throw err;
     }
   }

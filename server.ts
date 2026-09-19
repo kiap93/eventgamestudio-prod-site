@@ -2536,21 +2536,55 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
     });
   } catch (err: any) {
     console.error('Create event error:', err);
-    if (err.code === 'PENDING_EVENT_LIMIT_REACHED' || err.status === 422) {
+    if (
+      err.code === 'PENDING_EVENT_LIMIT_REACHED' ||
+      String(err.message || '').includes('PENDING_EVENT_LIMIT_REACHED') ||
+      String(err.message || '').includes('Maximum 2 pending payment events reached')
+    ) {
       res.status(422).json({
-        code: err.code || 'VALIDATION_ERROR',
-        error: err.message || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.',
+        code: 'PENDING_EVENT_LIMIT_REACHED',
+        error: 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.',
       });
       return;
     }
-    if (err.code === 'GAME_INACTIVE' || err.code === 'THEME_GAME_MISMATCH' || err.code === 'GAME_NOT_FOUND') {
-      res.status(422).json({
+    if (
+      err.code === 'GAME_INACTIVE' ||
+      err.code === 'THEME_GAME_MISMATCH' ||
+      err.code === 'GAME_NOT_FOUND' ||
+      err.code === 'THEME_NOT_FOUND' ||
+      err.code === 'THEME_FORBIDDEN' ||
+      err.code === 'SYSTEM_THEME_NOT_ALLOWED' ||
+      err.code === 'THEME_INACTIVE' ||
+      err.code === 'GAME_NOT_SPECIFIED' ||
+      err.code === 'THEME_SETUP_REQUIRED' ||
+      err.code === 'ORGANIZATION_NOT_FOUND' ||
+      err.code === 'VALIDATION_ERROR'
+    ) {
+      const status =
+        err.status ||
+        (err.code === 'THEME_NOT_FOUND' || err.code === 'GAME_NOT_FOUND' || err.code === 'ORGANIZATION_NOT_FOUND' ? 404 :
+         err.code === 'THEME_FORBIDDEN' ? 403 : 422);
+      res.status(status).json({
         code: err.code,
-        error: err.message,
+        error: err.message || 'Validation error',
+        ...(err.theme_setup_required ? { theme_setup_required: true } : {}),
       });
       return;
     }
-    handleApiError(err, req, res);
+    handleApiError(err, req, res, {
+      endpoint: '/api/events',
+      method: 'POST',
+      userId: req.user?.id,
+      metadata: {
+        stage: err?.stage || 'event_creation',
+        rpcName: err?.rpcName || 'create_event_atomic',
+        operation: 'create_event',
+        fallbackAttempted: Boolean(err?.fallbackAttempted),
+        eventCreated: Boolean(err?.eventCreated),
+        postgresCode: err?.postgresCode || err?.code || null,
+        details: err?.details || null,
+      },
+    });
   }
 });
 

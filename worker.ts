@@ -2884,16 +2884,39 @@ export default {
             err.code === 'THEME_GAME_MISMATCH' ||
             err.code === 'GAME_NOT_FOUND' ||
             err.code === 'THEME_NOT_FOUND' ||
+            err.code === 'THEME_FORBIDDEN' ||
+            err.code === 'SYSTEM_THEME_NOT_ALLOWED' ||
+            err.code === 'THEME_INACTIVE' ||
+            err.code === 'GAME_NOT_SPECIFIED' ||
             err.code === 'THEME_SETUP_REQUIRED' ||
-            (err.status >= 400 && err.status < 500)
+            err.code === 'ORGANIZATION_NOT_FOUND' ||
+            err.code === 'VALIDATION_ERROR'
           ) {
+            const status =
+              err.status ||
+              (err.code === 'THEME_NOT_FOUND' || err.code === 'GAME_NOT_FOUND' || err.code === 'ORGANIZATION_NOT_FOUND' ? 404 :
+               err.code === 'THEME_FORBIDDEN' ? 403 : 422);
             return jsonResponse({
               error: err.message || 'Validation error',
-              code: err.code || 'VALIDATION_ERROR',
+              code: err.code,
               ...(err.theme_setup_required ? { theme_setup_required: true } : {}),
-            }, err.status || 422, cors);
+            }, status, cors);
           }
-          return handleWorkerApiError(err, request, cors, env);
+          return handleWorkerApiError(err, request, cors, env, {
+            endpoint: '/api/events',
+            method: 'POST',
+            userId: user?.id,
+            parsedBody: body,
+            metadata: {
+              stage: err?.stage || 'event_creation',
+              rpcName: err?.rpcName || 'create_event_atomic',
+              operation: 'create_event',
+              fallbackAttempted: Boolean(err?.fallbackAttempted),
+              eventCreated: Boolean(err?.eventCreated),
+              postgresCode: err?.postgresCode || err?.code || null,
+              details: err?.details || null,
+            },
+          });
         }
       }
 

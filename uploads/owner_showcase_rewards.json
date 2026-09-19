@@ -68,5 +68,15 @@
     "amount": 300,
     "rewarded_at": "2026-09-18T02:18:45.393Z",
     "created_at": "2026-09-18T02:18:45.393Z"
+  },
+  {
+    "owner_user_id": "c226bd38-f8b1-47e5-8895-b9cc6c66160c",
+    "organization_id": "c745c943-8360-482b-b91b-21fc6e5d8402",
+    "event_id": "",
+    "showcase_id": "",
+    "transaction_id": "ec82907e-487a-4b3e-900c-bd565b418a7d",
+    "amount": 300,
+    "rewarded_at": "2026-09-19T02:24:49.409Z",
+    "created_at": "2026-09-19T02:24:49.409Z"
   }
 ]

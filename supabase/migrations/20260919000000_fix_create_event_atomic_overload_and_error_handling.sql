@@ -294,6 +294,17 @@ BEGIN
   );
 
 EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM LIKE '%PENDING_EVENT_LIMIT_REACHED%' OR SQLSTATE = '23514' THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'PENDING_EVENT_LIMIT_REACHED',
+      'error', 'Maximum ' || v_max_limit || ' pending payment events reached. Please pay for or delete an existing pending event.',
+      'message', 'Maximum ' || v_max_limit || ' pending payment events reached. Please pay for or delete an existing pending event.',
+      'pending_count', v_pending_count,
+      'max_limit', v_max_limit
+    );
+  END IF;
+
   RETURN jsonb_build_object(
     'success', false,
     'code', 'EVENT_CREATION_FAILED',

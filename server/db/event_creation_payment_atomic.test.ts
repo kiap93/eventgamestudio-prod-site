@@ -107,8 +107,10 @@ async function runTests() {
     organization_id: orgFullPaid,
     game_theme_id: themeFullPaid,
     name: 'Mega Tech Launch 2026',
-    starts_at: new Date(Date.now() + 3600000).toISOString(),
-    expires_at: new Date(Date.now() + 86400000).toISOString(),
+    start_date: '2026-09-20',
+    end_date: '2026-09-20',
+    starts_at: '2026-09-20T00:00:00.000Z',
+    expires_at: '2026-09-20T23:59:59.999Z',
     payment_mode: 'FULL_PAID',
   });
 
@@ -143,8 +145,10 @@ async function runTests() {
     organization_id: orgWelcome,
     game_theme_id: themeWelcome,
     name: 'Agency Roadshow Kickoff',
-    starts_at: new Date(Date.now() + 3600000).toISOString(),
-    expires_at: new Date(Date.now() + 86400000).toISOString(),
+    start_date: '2026-09-20',
+    end_date: '2026-09-20',
+    starts_at: '2026-09-20T00:00:00.000Z',
+    expires_at: '2026-09-20T23:59:59.999Z',
     payment_mode: 'WELCOME_CREDIT',
   });
 
@@ -183,8 +187,10 @@ async function runTests() {
     organization_id: orgShowcase,
     game_theme_id: themeShowcase,
     name: 'Showcase Rewarded Event',
-    starts_at: new Date(Date.now() + 3600000).toISOString(),
-    expires_at: new Date(Date.now() + 86400000).toISOString(),
+    start_date: '2026-09-20',
+    end_date: '2026-09-20',
+    starts_at: '2026-09-20T00:00:00.000Z',
+    expires_at: '2026-09-20T23:59:59.999Z',
     payment_mode: 'SHOWCASE_CREDIT',
   });
 

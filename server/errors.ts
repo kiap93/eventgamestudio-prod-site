@@ -630,7 +630,8 @@ export function handleApiError(
 
   // 2. Unexpected / Infrastructure Error (HTTP 500 or unhandled failure)
   // Format structured log for server observability
-  const structuredLog = {
+  const meta = options?.metadata || {};
+  const diagnosticLog = {
     level: 'error',
     requestId,
     service: detectedService,
@@ -641,8 +642,15 @@ export function handleApiError(
     errorCode: err?.code || 'INTERNAL_ERROR',
     message: err?.message || 'Unknown internal error',
     userId,
+    stage: meta.stage || err?.stage || 'unknown',
+    rpcName: meta.rpcName || err?.rpcName || null,
+    operation: meta.operation || err?.operation || null,
+    postgresCode: meta.postgresCode || err?.postgresCode || err?.code || null,
+    fallbackAttempted: Boolean(meta.fallbackAttempted ?? err?.fallbackAttempted),
+    eventCreated: Boolean(meta.eventCreated ?? err?.eventCreated),
+    details: sanitizeData(meta.details || err?.details || null),
   };
-  console.error(`[API Error][${requestId}]:`, JSON.stringify(structuredLog));
+  console.error(`[API Error][${requestId}]:`, JSON.stringify(diagnosticLog));
   if (err?.stack) {
     console.error(`[API Error Stack][${requestId}]:`, err.stack);
   }
@@ -807,7 +815,8 @@ export async function handleWorkerApiError(
   }
 
   // 2. Unexpected Infrastructure Error
-  console.error(`[Worker API Error][${requestId}]:`, JSON.stringify({
+  const workerMeta = options?.metadata || {};
+  const workerDiagnosticLog = {
     level: 'error',
     requestId,
     service: detectedService,
@@ -818,7 +827,15 @@ export async function handleWorkerApiError(
     errorCode: err?.code || 'INTERNAL_ERROR',
     message: err?.message || 'Unknown internal error',
     userId,
-  }));
+    stage: workerMeta.stage || err?.stage || 'unknown',
+    rpcName: workerMeta.rpcName || err?.rpcName || null,
+    operation: workerMeta.operation || err?.operation || null,
+    postgresCode: workerMeta.postgresCode || err?.postgresCode || err?.code || null,
+    fallbackAttempted: Boolean(workerMeta.fallbackAttempted ?? err?.fallbackAttempted),
+    eventCreated: Boolean(workerMeta.eventCreated ?? err?.eventCreated),
+    details: sanitizeData(workerMeta.details || err?.details || null),
+  };
+  console.error(`[Worker API Error][${requestId}]:`, JSON.stringify(workerDiagnosticLog));
   if (err?.stack) {
     console.error(`[Worker API Error Stack][${requestId}]:`, err.stack);
   }
