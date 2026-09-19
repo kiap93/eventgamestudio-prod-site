@@ -119,6 +119,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [activeCalculation, setActiveCalculation] = useState<EventPaymentCalculation | null>(null);
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<PaymentMode>('FULL_PAID');
+  const [useWelcomeCredit, setUseWelcomeCredit] = useState(true);
+  const [useEventCredit, setUseEventCredit] = useState(true);
 
   // Payment Execution & Success State
   const [submittingPayment, setSubmittingPayment] = useState(false);
@@ -242,9 +244,24 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   };
 
   // Fetch Wallet & Calculate Quote
-  const fetchWalletAndQuote = async (targetThemeId?: string, modeToUse?: PaymentMode) => {
+  const fetchWalletAndQuote = async (
+    targetThemeId?: string,
+    modeToUse?: PaymentMode,
+    creditOptions?: { useWelcome?: boolean; useEvent?: boolean }
+  ) => {
     if (!isOpen || !currentOrganization) return;
     const themeId = targetThemeId || selectedThemeId;
+
+    const useWelcome = creditOptions?.useWelcome !== undefined ? creditOptions.useWelcome : useWelcomeCredit;
+    const useEvent = creditOptions?.useEvent !== undefined ? creditOptions.useEvent : useEventCredit;
+
+    let mode = modeToUse;
+    if (!mode) {
+      if (useWelcome && useEvent) mode = 'COMBINED_CREDIT';
+      else if (useWelcome) mode = 'WELCOME_CREDIT';
+      else if (useEvent) mode = 'TOPUP_CREDIT';
+      else mode = 'FULL_PAID';
+    }
 
     try {
       setLoadingQuote(true);
@@ -258,13 +275,16 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       }
 
       // 2. Fetch authoritative quote for selected mode
-      const mode = modeToUse || selectedPaymentMode;
       const quoteRes = await apiFetch('/api/events/quote', {
         method: 'POST',
         body: JSON.stringify({
           event_id: createdEvent?.id || undefined,
           game_theme_id: themeId || undefined,
           payment_mode: mode,
+          use_welcome_credit: useWelcome,
+          use_event_credit: useEvent,
+          useWelcomeCredit: useWelcome,
+          useEventCredit: useEvent,
           event_price: createdEvent?.event_price || undefined,
           start_date: createdEvent?.start_date || startDate || undefined,
           end_date: createdEvent?.end_date || endDate || undefined,
@@ -306,6 +326,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     setActivatedEvent(null);
     setWallet(null);
     setActiveCalculation(null);
+    setUseWelcomeCredit(true);
+    setUseEventCredit(true);
     onClose();
   };
 
@@ -396,13 +418,22 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   // Proceed from Created state to Payment state
   const handleProceedToPayment = () => {
     setStep('payment');
-    fetchWalletAndQuote(createdEvent?.game_theme_id || selectedThemeId, selectedPaymentMode);
+    fetchWalletAndQuote(createdEvent?.game_theme_id || selectedThemeId, undefined, {
+      useWelcome: useWelcomeCredit,
+      useEvent: useEventCredit,
+    });
   };
 
   // STEP 2: CONFIRM PAYMENT & ACTIVATE EVENT (SERVER AUTHORITATIVE)
   const handleConfirmPaymentAndActivate = async () => {
     if (!createdEvent) return;
     setPaymentError(null);
+
+    let resolvedMode: PaymentMode = 'FULL_PAID';
+    if (useWelcomeCredit && useEventCredit) resolvedMode = 'COMBINED_CREDIT';
+    else if (useWelcomeCredit) resolvedMode = 'WELCOME_CREDIT';
+    else if (useEventCredit) resolvedMode = 'TOPUP_CREDIT';
+    else resolvedMode = 'FULL_PAID';
 
     try {
       setSubmittingPayment(true);
@@ -411,8 +442,12 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          payment_mode: selectedPaymentMode,
-          topup_credit_requested: activeCalculation?.topupCreditUsed,
+          payment_mode: resolvedMode,
+          use_welcome_credit: useWelcomeCredit,
+          use_event_credit: useEventCredit,
+          useWelcomeCredit: useWelcomeCredit,
+          useEventCredit: useEventCredit,
+          topup_credit_requested: eventCreditUsed,
         }),
       });
 
@@ -420,7 +455,10 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         const errData = await res.json().catch(() => ({}));
         if (res.status === 402 || errData.code === 'INSUFFICIENT_BALANCE') {
           setPaymentError(errData.error || 'Insufficient balance to activate event.');
-          fetchWalletAndQuote(createdEvent.game_theme_id, selectedPaymentMode);
+          fetchWalletAndQuote(createdEvent.game_theme_id, resolvedMode, {
+            useWelcome: useWelcomeCredit,
+            useEvent: useEventCredit,
+          });
           return;
         }
         throw new Error(errData.error || 'Payment failed. Please try again.');
@@ -497,7 +535,10 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     setCheckoutSession(null);
     setPaymentError(null);
 
-    await fetchWalletAndQuote(createdEvent?.game_theme_id || selectedThemeId, selectedPaymentMode);
+    await fetchWalletAndQuote(createdEvent?.game_theme_id || selectedThemeId, undefined, {
+      useWelcome: useWelcomeCredit,
+      useEvent: useEventCredit,
+    });
 
     setTopUpSuccessNotice(
       `Successfully added ${formatCurrency(settledOrder.top_up_amount)} to your wallet! Balance updated.`
@@ -507,16 +548,27 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
   // Selected Theme Details
   const selectedTheme = themes.find((t) => t.id === selectedThemeId) || themes[0];
-  const standardPrice = activeCalculation?.eventPrice ?? createdEvent?.event_price ?? null;
-  const paidAmount = activeCalculation?.paidAmount ?? (standardPrice !== null ? standardPrice : null);
-  const totalDiscount = activeCalculation?.totalDiscount ?? (standardPrice !== null && paidAmount !== null ? standardPrice - paidAmount : 0);
-  const availableBalance = Number(
-    activeCalculation?.availableBalances?.paid_balance ?? wallet?.paid_balance ?? 0
-  );
+  const eventPrice = activeCalculation?.eventPrice ?? createdEvent?.event_price ?? 1400;
+  const standardPrice = eventPrice;
+  const availableWelcomeCredit = Number(activeCalculation?.availableBalances?.welcome_credit ?? wallet?.welcome_credit ?? 0);
+  const availableEventCredit = Number(activeCalculation?.availableBalances?.topup_credit ?? wallet?.topup_credit ?? 0);
+  const availablePaidBalance = Number(activeCalculation?.availableBalances?.paid_balance ?? wallet?.paid_balance ?? 0);
+  const availableBalance = availablePaidBalance;
 
-  const isServerPayable = activeCalculation ? activeCalculation.isPayable : (paidAmount !== null && availableBalance >= paidAmount);
-  const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && activeCalculation !== null && (!isServerPayable || (paidAmount !== null && availableBalance < paidAmount));
-  const needAmount = paidAmount !== null ? Math.max(0, paidAmount - availableBalance) : 0;
+  const maxEventCredit = Math.min(availableEventCredit, Math.round(eventPrice * 0.2));
+  const eligibleWelcomeCredit = Math.min(availableWelcomeCredit, eventPrice);
+  const eligibleEventCredit = Math.min(availableEventCredit, maxEventCredit);
+
+  const welcomeCreditUsed = useWelcomeCredit && availableWelcomeCredit > 0 ? eligibleWelcomeCredit : 0;
+  const remainingPriceAfterWelcome = Math.max(0, eventPrice - welcomeCreditUsed);
+  const eventCreditUsed = useEventCredit && availableEventCredit > 0 ? Math.min(eligibleEventCredit, remainingPriceAfterWelcome) : 0;
+
+  const totalDiscount = welcomeCreditUsed + eventCreditUsed;
+  const amountRequired = Math.max(0, eventPrice - totalDiscount);
+  const shortfall = Math.max(0, amountRequired - availablePaidBalance);
+  const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && shortfall > 0;
+  const needAmount = shortfall;
+  const paidAmount = amountRequired;
 
   const publicUrl = activatedEvent || (createdEvent && (createdEvent.event_status === 'LIVE' || createdEvent.payment_status === 'PAID'))
     ? `${window.location.origin}/play/${activatedEvent?.public_token || createdEvent?.public_token}`
@@ -1114,128 +1166,171 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Payment Mode Selector */}
+                  {/* Apply Credits Section */}
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-300">Payment Option</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedPaymentMode('FULL_PAID');
-                          fetchWalletAndQuote(createdEvent?.game_theme_id, 'FULL_PAID');
-                        }}
-                        className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
-                          selectedPaymentMode === 'FULL_PAID'
-                            ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
-                            : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                        }`}
-                      >
-                        <div className="font-bold text-slate-200">Paid Balance</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          {standardPrice !== null ? formatCurrency(standardPrice) : loadingQuote ? 'Calculating...' : 'Pending Quote'}
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-300">Apply Credits</label>
+                      <span className="text-[11px] text-slate-400">Select the credits you want to use for this event.</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {/* Welcome Credit Checkbox */}
+                      {availableWelcomeCredit > 0 ? (
+                        <div
+                          onClick={() => {
+                            const next = !useWelcomeCredit;
+                            setUseWelcomeCredit(next);
+                            fetchWalletAndQuote(createdEvent?.game_theme_id || selectedThemeId, undefined, {
+                              useWelcome: next,
+                              useEvent: useEventCredit,
+                            });
+                          }}
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 select-none ${
+                            useWelcomeCredit
+                              ? 'border-emerald-500/50 bg-emerald-500/10 ring-1 ring-emerald-500/20'
+                              : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={useWelcomeCredit}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const next = e.target.checked;
+                                setUseWelcomeCredit(next);
+                                fetchWalletAndQuote(createdEvent?.game_theme_id || selectedThemeId, undefined, {
+                                  useWelcome: next,
+                                  useEvent: useEventCredit,
+                                });
+                              }}
+                              className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-950 bg-slate-900 cursor-pointer"
+                            />
+                            <div>
+                              <div className="font-bold text-xs text-slate-200 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Welcome Credit</span>
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                Available: <span className="font-mono text-slate-300">{formatCurrency(availableWelcomeCredit)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs font-mono font-bold text-emerald-400">
+                              {useWelcomeCredit ? `-${formatCurrency(eligibleWelcomeCredit)}` : 'Deselected'}
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              {useWelcomeCredit ? 'Applied to price' : 'Click to apply'}
+                            </div>
+                          </div>
                         </div>
-                      </button>
-
-                      {wallet && wallet.welcome_credit > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedPaymentMode('WELCOME_CREDIT');
-                            fetchWalletAndQuote(createdEvent?.game_theme_id, 'WELCOME_CREDIT');
-                          }}
-                          className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
-                            selectedPaymentMode === 'WELCOME_CREDIT'
-                              ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
-                              : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                          }`}
-                        >
-                          <div className="font-bold text-emerald-400 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" />
-                            <span>Welcome Credit</span>
-                          </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">
-                            {standardPrice !== null
-                              ? `Save ${formatCurrency(Math.min(wallet.welcome_credit, standardPrice))} (Pay ${formatCurrency(Math.max(0, standardPrice - wallet.welcome_credit))})`
-                              : `Apply ${formatCurrency(wallet.welcome_credit)} welcome credit`}
-                          </div>
-                        </button>
+                      ) : (
+                        <div className="p-3 rounded-xl border border-slate-800/60 bg-slate-950/30 flex items-center justify-between text-xs text-slate-400">
+                          <span className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-slate-400" />
+                            Welcome Credit
+                          </span>
+                          <span className="text-[11px]">RM0.00 Available</span>
+                        </div>
                       )}
 
-                      {wallet && wallet.showcase_credit > 0 && (
-                        <button
-                          type="button"
+                      {/* Event Credit Checkbox */}
+                      {availableEventCredit > 0 ? (
+                        <div
                           onClick={() => {
-                            setSelectedPaymentMode('SHOWCASE_CREDIT');
-                            fetchWalletAndQuote(createdEvent?.game_theme_id, 'SHOWCASE_CREDIT');
+                            const next = !useEventCredit;
+                            setUseEventCredit(next);
+                            fetchWalletAndQuote(createdEvent?.game_theme_id || selectedThemeId, undefined, {
+                              useWelcome: useWelcomeCredit,
+                              useEvent: next,
+                            });
                           }}
-                          className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
-                            selectedPaymentMode === 'SHOWCASE_CREDIT'
-                              ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
-                              : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 select-none ${
+                            useEventCredit
+                              ? 'border-blue-500/50 bg-blue-500/10 ring-1 ring-blue-500/20'
+                              : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'
                           }`}
                         >
-                          <div className="font-bold text-amber-400 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" />
-                            <span>Showcase Credit</span>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={useEventCredit}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const next = e.target.checked;
+                                setUseEventCredit(next);
+                                fetchWalletAndQuote(createdEvent?.game_theme_id || selectedThemeId, undefined, {
+                                  useWelcome: useWelcomeCredit,
+                                  useEvent: next,
+                                });
+                              }}
+                              className="w-4 h-4 rounded border-slate-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-950 bg-slate-900 cursor-pointer"
+                            />
+                            <div>
+                              <div className="font-bold text-xs text-slate-200 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                                <span>Event Credit</span>
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                Available: <span className="font-mono text-slate-300">{formatCurrency(availableEventCredit)}</span> (max 20%: {formatCurrency(maxEventCredit)})
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">
-                            {standardPrice !== null
-                              ? `Save ${formatCurrency(Math.min(wallet.showcase_credit, standardPrice))} (Pay ${formatCurrency(Math.max(0, standardPrice - wallet.showcase_credit))})`
-                              : `Apply ${formatCurrency(wallet.showcase_credit)} showcase credit`}
+                          <div className="text-right">
+                            <div className="text-xs font-mono font-bold text-blue-400">
+                              {useEventCredit ? `-${formatCurrency(eligibleEventCredit)}` : 'Deselected'}
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              {useEventCredit ? 'Applied to price' : 'Click to apply'}
+                            </div>
                           </div>
-                        </button>
-                      )}
-
-                      {wallet && wallet.topup_credit > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedPaymentMode('TOPUP_CREDIT');
-                            fetchWalletAndQuote(createdEvent?.game_theme_id, 'TOPUP_CREDIT');
-                          }}
-                          className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
-                            selectedPaymentMode === 'TOPUP_CREDIT'
-                              ? 'border-amber-500 bg-amber-500/10 text-slate-100 ring-1 ring-amber-500/30'
-                              : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                          }`}
-                        >
-                          <div className="font-bold text-blue-400 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" />
-                            <span>Top-up Credit</span>
-                          </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">
-                            {standardPrice !== null
-                              ? `Save up to 20% (${formatCurrency(Math.min(wallet.topup_credit, Math.round(standardPrice * 0.2)))})`
-                              : `Save up to 20% with promotional credit`}
-                          </div>
-                        </button>
+                        </div>
+                      ) : (
+                        <div className="p-3 rounded-xl border border-slate-800/60 bg-slate-950/30 flex items-center justify-between text-xs text-slate-400">
+                          <span className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-slate-400" />
+                            Event Credit
+                          </span>
+                          <span className="text-[11px]">RM0.00 Available</span>
+                        </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Financial Breakdown */}
+                  {/* Itemized Payment Summary */}
                   <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
                     <div className="flex items-center justify-between text-slate-300">
                       <span>Event Price</span>
                       <span className="font-mono font-bold">
-                        {standardPrice !== null ? formatCurrency(standardPrice) : loadingQuote ? 'Calculating...' : 'Pending Quote'}
+                        {formatCurrency(eventPrice)}
                       </span>
                     </div>
 
-                    {totalDiscount > 0 && (
+                    {welcomeCreditUsed > 0 && (
                       <div className="flex items-center justify-between text-emerald-400">
                         <span className="flex items-center gap-1">
                           <Sparkles className="w-3.5 h-3.5" />
-                          Credit Applied
+                          Welcome Credit Applied
                         </span>
-                        <span className="font-mono font-bold">-{formatCurrency(totalDiscount)}</span>
+                        <span className="font-mono font-bold">-{formatCurrency(welcomeCreditUsed)}</span>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-800 font-semibold text-slate-100">
+                    {eventCreditUsed > 0 && (
+                      <div className="flex items-center justify-between text-blue-400">
+                        <span className="flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Event Credit Applied
+                        </span>
+                        <span className="font-mono font-bold">-{formatCurrency(eventCreditUsed)}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-800 font-semibold text-slate-100">
                       <span>Amount Required</span>
                       <span className="font-mono font-bold text-amber-400 text-sm">
-                        {paidAmount !== null ? formatCurrency(paidAmount) : loadingQuote ? 'Calculating...' : 'Pending Quote'}
+                        {formatCurrency(amountRequired)}
                       </span>
                     </div>
 
@@ -1245,9 +1340,18 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                         Available Paid Balance
                       </span>
                       <span className="font-mono font-bold text-slate-200">
-                        {formatCurrency(availableBalance)}
+                        {formatCurrency(availablePaidBalance)}
                       </span>
                     </div>
+
+                    {shortfall > 0 && (
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-amber-300 font-medium">
+                        <span>Additional Payment Required</span>
+                        <span className="font-mono font-bold text-amber-400">
+                          {formatCurrency(shortfall)}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Insufficient balance top-up box */}
@@ -1258,14 +1362,14 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                         <span>Insufficient Balance</span>
                       </div>
                       <p className="text-xs text-slate-300">
-                        You need <span className="font-mono font-bold text-amber-300">{formatCurrency(needAmount)}</span> more to activate this event.
+                        You need <span className="font-mono font-bold text-amber-300">{formatCurrency(shortfall)}</span> more to activate this event.
                       </p>
                       <button
                         type="button"
-                        disabled={isSubmittingTopUp || needAmount <= 0}
+                        disabled={isSubmittingTopUp || shortfall <= 0}
                         onClick={() => {
-                          if (needAmount > 0) {
-                            handleStartTopUpFlow(needAmount);
+                          if (shortfall > 0) {
+                            handleStartTopUpFlow(shortfall);
                           }
                         }}
                         className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
@@ -1278,7 +1382,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                         ) : (
                           <>
                             <PlusCircle className="w-3.5 h-3.5" />
-                            <span>Top Up {formatCurrency(needAmount)}</span>
+                            <span>Top Up {formatCurrency(shortfall)}</span>
                           </>
                         )}
                       </button>
@@ -1300,7 +1404,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
               <button
                 type="button"
-                disabled={submittingPayment || isInsufficientBalance || loadingQuote || paidAmount === null || !!quoteError}
+                disabled={submittingPayment || isInsufficientBalance || loadingQuote || !!quoteError}
                 onClick={handleConfirmPaymentAndActivate}
                 className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
               >
@@ -1312,7 +1416,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 ) : (
                   <>
                     <span>
-                      {paidAmount !== null ? `Pay ${formatCurrency(paidAmount)} & Activate` : 'Activate Event'}
+                      {amountRequired === 0 ? 'Activate Event (RM0.00)' : `Pay ${formatCurrency(amountRequired)} & Activate`}
                     </span>
                     <ArrowRight className="w-4 h-4" />
                   </>

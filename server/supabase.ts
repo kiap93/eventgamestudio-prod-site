@@ -13,17 +13,17 @@ const clientCache = new Map<string, SupabaseClient>();
 export function getSupabaseServerClient(env?: Record<string, any>): SupabaseClient {
   const procEnv = typeof process !== 'undefined' ? process.env : {};
   const supabaseUrl =
-    env?.SUPABASE_URL ||
-    env?.VITE_SUPABASE_URL ||
-    procEnv.SUPABASE_URL ||
-    procEnv.VITE_SUPABASE_URL ||
+    (env && typeof env.SUPABASE_URL === 'string' ? env.SUPABASE_URL : undefined) ??
+    (env && typeof env.VITE_SUPABASE_URL === 'string' ? env.VITE_SUPABASE_URL : undefined) ??
+    procEnv.SUPABASE_URL ??
+    procEnv.VITE_SUPABASE_URL ??
     'https://placeholder-project.supabase.co';
 
   const serviceRoleKey =
-    env?.SUPABASE_SERVICE_ROLE_KEY ||
-    env?.SUPABASE_KEY ||
-    procEnv.SUPABASE_SERVICE_ROLE_KEY ||
-    procEnv.SUPABASE_KEY ||
+    (env && typeof env.SUPABASE_SERVICE_ROLE_KEY === 'string' ? env.SUPABASE_SERVICE_ROLE_KEY : undefined) ??
+    (env && typeof env.SUPABASE_KEY === 'string' ? env.SUPABASE_KEY : undefined) ??
+    procEnv.SUPABASE_SERVICE_ROLE_KEY ??
+    procEnv.SUPABASE_KEY ??
     'placeholder-service-key';
 
   const cacheKey = `${supabaseUrl}:${serviceRoleKey}`;
@@ -82,16 +82,16 @@ export function getSupabaseServerClient(env?: Record<string, any>): SupabaseClie
 export function isSupabaseConfigured(env?: Record<string, any>): boolean {
   const procEnv = typeof process !== 'undefined' ? process.env : {};
   const supabaseUrl =
-    env?.SUPABASE_URL ||
-    env?.VITE_SUPABASE_URL ||
-    procEnv.SUPABASE_URL ||
-    procEnv.VITE_SUPABASE_URL ||
+    (env && typeof env.SUPABASE_URL === 'string' ? env.SUPABASE_URL : undefined) ??
+    (env && typeof env.VITE_SUPABASE_URL === 'string' ? env.VITE_SUPABASE_URL : undefined) ??
+    procEnv.SUPABASE_URL ??
+    procEnv.VITE_SUPABASE_URL ??
     '';
   const serviceRoleKey =
-    env?.SUPABASE_SERVICE_ROLE_KEY ||
-    env?.SUPABASE_KEY ||
-    procEnv.SUPABASE_SERVICE_ROLE_KEY ||
-    procEnv.SUPABASE_KEY ||
+    (env && typeof env.SUPABASE_SERVICE_ROLE_KEY === 'string' ? env.SUPABASE_SERVICE_ROLE_KEY : undefined) ??
+    (env && typeof env.SUPABASE_KEY === 'string' ? env.SUPABASE_KEY : undefined) ??
+    procEnv.SUPABASE_SERVICE_ROLE_KEY ??
+    procEnv.SUPABASE_KEY ??
     '';
 
   if (!supabaseUrl || !serviceRoleKey) return false;
@@ -115,8 +115,16 @@ export function isCloudflareWorkerRuntime(): boolean {
  */
 export function isProductionEnvironment(env?: Record<string, any>): boolean {
   const procEnv = typeof process !== 'undefined' ? process.env : {};
-  const nodeEnv = env?.NODE_ENV || procEnv.NODE_ENV || '';
-  const appEnv = env?.ENVIRONMENT || env?.APP_ENV || procEnv.ENVIRONMENT || procEnv.APP_ENV || '';
+  const nodeEnv =
+    (env && typeof env.NODE_ENV === 'string' ? env.NODE_ENV : undefined) ??
+    procEnv.NODE_ENV ??
+    '';
+  const appEnv =
+    (env && typeof env.ENVIRONMENT === 'string' ? env.ENVIRONMENT : undefined) ??
+    (env && typeof env.APP_ENV === 'string' ? env.APP_ENV : undefined) ??
+    procEnv.ENVIRONMENT ??
+    procEnv.APP_ENV ??
+    '';
   return nodeEnv === 'production' || appEnv === 'production' || isCloudflareWorkerRuntime();
 }
 

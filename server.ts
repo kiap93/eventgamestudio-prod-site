@@ -2344,7 +2344,13 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
     }
 
     const walletSummary = await getWalletBalance(organizationId);
-    const selectedMode = (payment_mode as PaymentMode) || 'FULL_PAID';
+    let selectedMode = (payment_mode as PaymentMode) || 'FULL_PAID';
+    if (use_welcome_credit !== undefined || use_event_credit !== undefined) {
+      if (use_welcome_credit && use_event_credit) selectedMode = 'COMBINED_CREDIT';
+      else if (use_welcome_credit) selectedMode = 'WELCOME_CREDIT';
+      else if (use_event_credit) selectedMode = 'TOPUP_CREDIT';
+      else selectedMode = 'FULL_PAID';
+    }
 
     // Calculate quote for selected payment mode
     const selectedCalculation = await calculateEventPayment(

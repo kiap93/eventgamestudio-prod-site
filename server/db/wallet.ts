@@ -2640,8 +2640,12 @@ export async function calculateEventPayment(
     (options && (options.useWelcomeCredit !== undefined || options.useEventCredit !== undefined || options.useTopupCredit !== undefined));
 
   if (isExplicitCombined) {
-    const useWelcome = options?.useWelcomeCredit === true || paymentMode === 'WELCOME_CREDIT';
-    const useEvent = options?.useEventCredit ?? options?.useTopupCredit ?? (paymentMode === 'TOPUP_CREDIT' || paymentMode === 'COMBINED_CREDIT');
+    const useWelcome = options?.useWelcomeCredit !== undefined
+      ? options.useWelcomeCredit === true
+      : (paymentMode === 'WELCOME_CREDIT' || paymentMode === 'COMBINED_CREDIT');
+    const useEvent = (options?.useEventCredit !== undefined || options?.useTopupCredit !== undefined)
+      ? (options.useEventCredit === true || options.useTopupCredit === true)
+      : (paymentMode === 'TOPUP_CREDIT' || paymentMode === 'COMBINED_CREDIT');
 
     if (useWelcome && wallet.welcome_credit > 0) {
       welcomeCreditUsed = Math.min(wallet.welcome_credit, normalizedPrice);
@@ -2794,6 +2798,12 @@ export async function calculateEventPaymentQuote(
     organizationId: string;
     eventId?: string;
     creditChoice?: EventCreditOption;
+    paymentMode?: PaymentMode;
+    useWelcomeCredit?: boolean;
+    useEventCredit?: boolean;
+    useTopupCredit?: boolean;
+    welcomeCreditRequested?: number;
+    topupCreditRequested?: number;
     topupCreditAmountToUse?: number;
     eventPrice?: number;
   },
@@ -2801,9 +2811,19 @@ export async function calculateEventPaymentQuote(
 ): Promise<EventPaymentQuote> {
   const { organizationId, eventId, creditChoice = 'NONE' } = params;
   let mode: PaymentMode = 'FULL_PAID';
-  if (creditChoice === 'WELCOME_CREDIT') mode = 'WELCOME_CREDIT';
+  if (params.useWelcomeCredit !== undefined || params.useEventCredit !== undefined || params.useTopupCredit !== undefined) {
+    const useWelcome = params.useWelcomeCredit === true;
+    const useEvent = params.useEventCredit === true || params.useTopupCredit === true;
+    if (useWelcome && useEvent) mode = 'COMBINED_CREDIT';
+    else if (useWelcome) mode = 'WELCOME_CREDIT';
+    else if (useEvent) mode = 'TOPUP_CREDIT';
+    else mode = 'FULL_PAID';
+  } else if (params.paymentMode) {
+    mode = params.paymentMode;
+  } else if (creditChoice === 'WELCOME_CREDIT') mode = 'WELCOME_CREDIT';
   else if (creditChoice === 'SHOWCASE_CREDIT') mode = 'SHOWCASE_CREDIT';
   else if (creditChoice === 'TOPUP_CREDIT') mode = 'TOPUP_CREDIT';
+  else if (creditChoice === 'COMBINED_CREDIT') mode = 'COMBINED_CREDIT';
   else mode = 'FULL_PAID';
 
   let eventPrice = params.eventPrice;
@@ -2835,7 +2855,12 @@ export async function calculateEventPaymentQuote(
     eventPrice,
     mode,
     organizationId,
-    { topupCreditRequested: params.topupCreditAmountToUse },
+    {
+      topupCreditRequested: params.topupCreditRequested ?? params.topupCreditAmountToUse,
+      useWelcomeCredit: params.useWelcomeCredit,
+      useEventCredit: params.useEventCredit ?? params.useTopupCredit,
+      welcomeCreditRequested: params.welcomeCreditRequested,
+    },
     env
   );
 
@@ -2919,9 +2944,21 @@ export async function processEventPayment(
 }> {
   const { organizationId, eventId, referenceId, createdBy } = params;
 
-  // Resolve paymentMode from paymentMode or legacy creditChoice
+  // Resolve paymentMode from explicit credit options, paymentMode, or legacy creditChoice
   let mode: PaymentMode = 'FULL_PAID';
-  if (params.paymentMode) {
+  if (params.useWelcomeCredit !== undefined || params.useEventCredit !== undefined || params.useTopupCredit !== undefined) {
+    const useWelcome = params.useWelcomeCredit === true;
+    const useEvent = params.useEventCredit === true || params.useTopupCredit === true;
+    if (useWelcome && useEvent) {
+      mode = 'COMBINED_CREDIT';
+    } else if (useWelcome) {
+      mode = 'WELCOME_CREDIT';
+    } else if (useEvent) {
+      mode = 'TOPUP_CREDIT';
+    } else {
+      mode = 'FULL_PAID';
+    }
+  } else if (params.paymentMode) {
     mode = params.paymentMode;
   } else if (params.creditChoice === 'WELCOME_CREDIT') {
     mode = 'WELCOME_CREDIT';

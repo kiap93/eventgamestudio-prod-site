@@ -52,11 +52,30 @@ async function ensureTestOrg(orgId: string, ownerId?: string) {
   const supabase = getSupabaseServerClient();
   const validOwnerId = ownerId || crypto.randomUUID();
   try {
+    await supabase.from('users').upsert({
+      id: validOwnerId,
+      email: `test-owner-${validOwnerId.slice(0, 8)}@example.com`,
+      name: `Test Owner ${validOwnerId.slice(0, 8)}`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
     await supabase.from('organizations').upsert({
       id: orgId,
       name: `Test Org ${orgId.slice(0, 8)}`,
       slug: `test-org-${orgId.slice(0, 8)}`,
       owner_id: validOwnerId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    await supabase.from('organization_wallets').upsert({
+      organization_id: orgId,
+      paid_balance: 0,
+      topup_credit: 0,
+      welcome_credit: 0,
+      showcase_credit: 0,
+      showcase_credit_granted: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -66,7 +85,7 @@ async function ensureTestOrg(orgId: string, ownerId?: string) {
   return validOwnerId;
 }
 
-async function ensureTestEvent(eventId: string, orgId: string, isPaid: boolean = true, isCompleted: boolean = true) {
+async function ensureTestEvent(eventId: string, orgId: string, isPaid: boolean = true, isCompleted: boolean = true, createdBy?: string) {
   const supabase = getSupabaseServerClient();
   try {
     const themeId = '1a480be3-5313-49ba-a9c2-f5b2293576cf';
@@ -74,6 +93,15 @@ async function ensureTestEvent(eventId: string, orgId: string, isPaid: boolean =
     const startDate = isCompleted ? '2026-09-01' : '2026-09-30';
     const endDate = isCompleted ? '2026-09-02' : '2026-09-30';
     const token = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const userId = createdBy || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+
+    await supabase.from('users').upsert({
+      id: userId,
+      email: `test-creator-${userId.slice(0, 8)}@example.com`,
+      name: 'Test Creator',
+      created_at: now,
+      updated_at: now,
+    });
 
     localEventsCache.set(eventId, {
       id: eventId,
@@ -90,7 +118,7 @@ async function ensureTestEvent(eventId: string, orgId: string, isPaid: boolean =
       event_status: (isCompleted ? 'COMPLETED' : 'LIVE') as any,
       payment_status: (isPaid ? 'PAID' : 'PENDING') as any,
       public_token: token,
-      created_by: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
+      created_by: userId,
       created_at: now,
       updated_at: now,
     });
@@ -105,7 +133,7 @@ async function ensureTestEvent(eventId: string, orgId: string, isPaid: boolean =
       expires_at: `${endDate}T23:59:59.000Z`,
       status: isCompleted ? 'COMPLETED' : 'LIVE',
       public_token: token,
-      created_by: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
+      created_by: userId,
       created_at: now,
       updated_at: now,
     });
@@ -350,6 +378,7 @@ async function runTests() {
     title: 'Independent Showcase',
     description: 'Showcase that should be immediately published without admin review or reward dependency.',
     client_name: 'Gamma Innovations',
+    status: 'DRAFT',
   });
   assertEqual(scC.status, 'DRAFT', 'Initial status is DRAFT');
 
@@ -439,8 +468,8 @@ async function runTests() {
   const orgD = crypto.randomUUID();
   const eventD = crypto.randomUUID();
   await ensureTestOrg(orgD, ownerD);
-  // Uncompleted & unpaid event
-  await ensureTestEvent(eventD, orgD, false, false);
+  // Completed event without media/short description
+  await ensureTestEvent(eventD, orgD, true, true, ownerD);
 
   const scD = await createShowcase({
     event_id: eventD,

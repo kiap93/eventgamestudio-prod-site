@@ -368,10 +368,35 @@ export async function getPlatformPricingSettings(env?: Record<string, any>): Pro
       }
 
       if (!data || !data.value) {
-        console.error('Authoritative platform pricing settings record missing from database');
-        const err: any = new Error('Pricing service temporarily unavailable: Platform pricing settings not found in database');
-        err.status = 503;
-        throw err;
+        console.warn('Authoritative platform pricing settings record missing from database, auto-seeding defaults...');
+        const defaultValuePayload = {
+          default_price: DEFAULT_EVENT_PRICE,
+          default_currency: DEFAULT_EVENT_CURRENCY,
+          pricing_rules: DEFAULT_PRICING_RULES,
+          updated_at: new Date().toISOString(),
+          updated_by: null,
+        };
+
+        const { data: seeded, error: seedError } = await supabase
+          .from('platform_settings')
+          .upsert({
+            key: 'event_pricing',
+            value: defaultValuePayload,
+            description: 'Platform default event pricing configuration for new events',
+            updated_at: new Date().toISOString(),
+          })
+          .select('*')
+          .maybeSingle();
+
+        if (seedError || !seeded || !seeded.value) {
+          console.error('Failed to auto-seed platform pricing settings:', seedError);
+          const err: any = new Error('Pricing service temporarily unavailable: Platform pricing settings not found in database');
+          err.status = 503;
+          throw err;
+        }
+
+        const val = typeof seeded.value === 'string' ? JSON.parse(seeded.value) : seeded.value;
+        return buildSettingsFromData(val, seeded.updated_at, seeded.updated_by);
       }
 
       const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;

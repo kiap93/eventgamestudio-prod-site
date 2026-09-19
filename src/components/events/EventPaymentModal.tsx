@@ -21,6 +21,7 @@ import {
   Gamepad2,
   ArrowRight,
   Calendar,
+  Check,
 } from 'lucide-react';
 
 interface EventPaymentModalProps {
@@ -152,13 +153,14 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
   const eligibleWelcomeCredit = Math.min(availableWelcomeCredit, eventPrice);
   const eligibleEventCredit = Math.min(availableEventCredit, maxEventCredit);
 
-  const welcomeCreditUsed = useWelcomeCredit ? eligibleWelcomeCredit : 0;
+  const welcomeCreditUsed = useWelcomeCredit && availableWelcomeCredit > 0 ? eligibleWelcomeCredit : 0;
   const remainingPriceAfterWelcome = Math.max(0, eventPrice - welcomeCreditUsed);
-  const eventCreditUsed = useEventCredit ? Math.min(eligibleEventCredit, remainingPriceAfterWelcome) : 0;
+  const eventCreditUsed = useEventCredit && availableEventCredit > 0 ? Math.min(eligibleEventCredit, remainingPriceAfterWelcome) : 0;
 
-  const totalRequired = Math.max(0, eventPrice - welcomeCreditUsed - eventCreditUsed);
-  const remainingAmount = Math.max(0, totalRequired - availablePaidBalance);
-  const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && remainingAmount > 0;
+  const totalDiscount = welcomeCreditUsed + eventCreditUsed;
+  const amountRequired = Math.max(0, eventPrice - totalDiscount);
+  const shortfall = Math.max(0, amountRequired - availablePaidBalance);
+  const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && shortfall > 0;
 
   const handleConfirmPay = async () => {
     setPaymentError(null);
@@ -328,7 +330,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                 <div className="flex items-center justify-between text-slate-400">
                   <span>Total Paid:</span>
                   <span className="font-bold text-slate-200 font-mono">
-                    {formatCurrency(totalRequired)}
+                    {formatCurrency(amountRequired)}
                   </span>
                 </div>
               </div>
@@ -401,78 +403,176 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Financial Breakdown Card */}
-                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3.5 text-xs">
+                  {/* Apply Credits Section */}
+                  <div className="space-y-2.5">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-200">Apply Credits</h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Select the credits you want to use for this event.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {/* Welcome Credit Row */}
+                      <div
+                        role="checkbox"
+                        aria-checked={useWelcomeCredit}
+                        tabIndex={availableWelcomeCredit <= 0 ? -1 : 0}
+                        onClick={() => {
+                          if (availableWelcomeCredit > 0) {
+                            setUseWelcomeCredit(!useWelcomeCredit);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if ((e.key === ' ' || e.key === 'Enter') && availableWelcomeCredit > 0) {
+                            e.preventDefault();
+                            setUseWelcomeCredit(!useWelcomeCredit);
+                          }
+                        }}
+                        className={`w-full p-3.5 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${
+                          availableWelcomeCredit <= 0
+                            ? 'opacity-60 cursor-not-allowed border-slate-800 bg-slate-950/40'
+                            : useWelcomeCredit
+                            ? 'border-emerald-500/50 bg-emerald-500/10 text-slate-100 ring-1 ring-emerald-500/30'
+                            : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:bg-slate-900/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
+                              useWelcomeCredit && availableWelcomeCredit > 0
+                                ? 'bg-emerald-500 border-emerald-400 text-slate-950'
+                                : 'border-slate-700 bg-slate-900'
+                            }`}
+                          >
+                            {useWelcomeCredit && availableWelcomeCredit > 0 && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-200">
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              <span>Welcome Credit</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                              Available: <span className="font-mono text-slate-300 font-medium">{formatCurrency(availableWelcomeCredit)}</span>
+                              {availableWelcomeCredit <= 0 && <span className="text-slate-400 ml-1.5">(No balance)</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                            {useWelcomeCredit && welcomeCreditUsed > 0 ? 'Applied' : 'Deduction'}
+                          </div>
+                          <div className={`font-mono font-bold text-xs sm:text-sm ${useWelcomeCredit && welcomeCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            {useWelcomeCredit && welcomeCreditUsed > 0 ? `-${formatCurrency(welcomeCreditUsed)}` : 'RM0.00'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Event Credit Row */}
+                      <div
+                        role="checkbox"
+                        aria-checked={useEventCredit}
+                        tabIndex={availableEventCredit <= 0 ? -1 : 0}
+                        onClick={() => {
+                          if (availableEventCredit > 0) {
+                            setUseEventCredit(!useEventCredit);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if ((e.key === ' ' || e.key === 'Enter') && availableEventCredit > 0) {
+                            e.preventDefault();
+                            setUseEventCredit(!useEventCredit);
+                          }
+                        }}
+                        className={`w-full p-3.5 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${
+                          availableEventCredit <= 0
+                            ? 'opacity-60 cursor-not-allowed border-slate-800 bg-slate-950/40'
+                            : useEventCredit
+                            ? 'border-emerald-500/50 bg-emerald-500/10 text-slate-100 ring-1 ring-emerald-500/30'
+                            : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:bg-slate-900/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
+                              useEventCredit && availableEventCredit > 0
+                                ? 'bg-emerald-500 border-emerald-400 text-slate-950'
+                                : 'border-slate-700 bg-slate-900'
+                            }`}
+                          >
+                            {useEventCredit && availableEventCredit > 0 && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 font-bold text-xs text-slate-200">
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              <span>Event Credit</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                              Available: <span className="font-mono text-slate-300 font-medium">{formatCurrency(availableEventCredit)}</span>
+                              {availableEventCredit > 0 && (
+                                <span className="text-slate-400 ml-1.5">
+                                  (Max 20%: {formatCurrency(maxEventCredit)})
+                                </span>
+                              )}
+                              {availableEventCredit <= 0 && <span className="text-slate-400 ml-1.5">(No balance)</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                            {useEventCredit && eventCreditUsed > 0 ? 'Applied' : 'Deduction'}
+                          </div>
+                          <div className={`font-mono font-bold text-xs sm:text-sm ${useEventCredit && eventCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            {useEventCredit && eventCreditUsed > 0 ? `-${formatCurrency(eventCreditUsed)}` : 'RM0.00'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Itemized Financial Breakdown Summary */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
                     {/* Event Price */}
                     <div className="flex items-center justify-between text-slate-300">
-                      <span className="font-medium text-slate-300">Event Price</span>
+                      <span>Event Price</span>
                       <span className="font-mono font-bold text-slate-100 text-sm">{formatCurrency(eventPrice)}</span>
                     </div>
 
-                    {/* Welcome Credit Row (Only visible if promotional credit exists in wallet) */}
-                    {availableWelcomeCredit > 0 && (
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={useWelcomeCredit}
-                              onChange={(e) => setUseWelcomeCredit(e.target.checked)}
-                              className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500/30 focus:ring-offset-slate-950 accent-amber-500 cursor-pointer"
-                            />
-                            <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
-                              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>Welcome Credit</span>
-                            </span>
-                          </label>
-                          <span className={`font-mono font-bold ${useWelcomeCredit && welcomeCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                            {useWelcomeCredit && welcomeCreditUsed > 0 ? `-${formatCurrency(welcomeCreditUsed)}` : 'RM0'}
-                          </span>
-                        </div>
-                        <div className="pl-6.5 text-[11px] text-slate-400">
-                          Available: {formatCurrency(availableWelcomeCredit)}
-                        </div>
+                    {/* Welcome Credit Applied */}
+                    {useWelcomeCredit && welcomeCreditUsed > 0 && (
+                      <div className="flex items-center justify-between text-emerald-400">
+                        <span className="flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                          <span>Welcome Credit Applied</span>
+                        </span>
+                        <span className="font-mono font-bold">-{formatCurrency(welcomeCreditUsed)}</span>
                       </div>
                     )}
 
-                    {/* Event Credit Row */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={useEventCredit}
-                            onChange={(e) => setUseEventCredit(e.target.checked)}
-                            className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500/30 focus:ring-offset-slate-950 accent-amber-500 cursor-pointer"
-                          />
-                          <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Event Credit</span>
-                          </span>
-                        </label>
-                        <span className={`font-mono font-bold ${useEventCredit && eventCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                          {useEventCredit && eventCreditUsed > 0 ? `-${formatCurrency(eventCreditUsed)}` : 'RM0'}
+                    {/* Event Credit Applied */}
+                    {useEventCredit && eventCreditUsed > 0 && (
+                      <div className="flex items-center justify-between text-emerald-400">
+                        <span className="flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                          <span>Event Credit Applied</span>
                         </span>
+                        <span className="font-mono font-bold">-{formatCurrency(eventCreditUsed)}</span>
                       </div>
-                      <div className="pl-6.5 text-[11px] text-slate-400">
-                        Maximum: {formatCurrency(maxEventCredit)} (20%)
-                      </div>
-                    </div>
+                    )}
 
-                    {/* Divider */}
-                    <div className="border-t border-slate-800/80 my-1 pt-1.5" />
-
-                    {/* Total Required */}
-                    <div className="flex items-center justify-between text-slate-100 font-semibold">
-                      <span className="text-xs font-bold text-slate-200">Total Required</span>
+                    {/* Amount Required */}
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-800 font-semibold text-slate-100">
+                      <span>Amount Required</span>
                       <span className="font-mono font-bold text-amber-400 text-sm sm:text-base">
-                        {formatCurrency(totalRequired)}
+                        {formatCurrency(amountRequired)}
                       </span>
                     </div>
 
                     {/* Available Paid Balance */}
                     <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-slate-400">
-                      <span className="flex items-center gap-1.5 text-slate-400">
+                      <span className="flex items-center gap-1.5">
                         <Wallet className="w-3.5 h-3.5 text-slate-400" />
                         <span>Available Paid Balance</span>
                       </span>
@@ -480,6 +580,19 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                         {formatCurrency(availablePaidBalance)}
                       </span>
                     </div>
+
+                    {/* Additional Payment Required (Shortfall) */}
+                    {shortfall > 0 && (
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-rose-400 font-semibold">
+                        <span className="flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                          <span>Additional Payment Required</span>
+                        </span>
+                        <span className="font-mono font-bold text-rose-400">
+                          {formatCurrency(shortfall)}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Insufficient balance notification and top-up */}
@@ -490,12 +603,12 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                         <span>Insufficient Balance</span>
                       </div>
                       <p className="text-xs text-slate-300">
-                        You need <span className="font-mono font-bold text-amber-300">{formatCurrency(remainingAmount)}</span> more to activate this event.
+                        You need <span className="font-mono font-bold text-amber-300">{formatCurrency(shortfall)}</span> more to activate this event.
                       </p>
                       <button
                         type="button"
                         disabled={isSubmittingTopUp}
-                        onClick={() => handleStartTopUpFlow(remainingAmount)}
+                        onClick={() => handleStartTopUpFlow(shortfall)}
                         className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
                       >
                         {isSubmittingTopUp ? (
@@ -506,7 +619,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                         ) : (
                           <>
                             <PlusCircle className="w-3.5 h-3.5" />
-                            <span>Top Up {formatCurrency(remainingAmount)}</span>
+                            <span>Top Up {formatCurrency(shortfall)}</span>
                           </>
                         )}
                       </button>
@@ -542,7 +655,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                 </>
               ) : (
                 <>
-                  <span>{remainingAmount === 0 ? 'Activate Event' : `Pay ${formatCurrency(remainingAmount)} & Activate`}</span>
+                  <span>{amountRequired === 0 ? 'Activate Event (RM0.00)' : `Pay ${formatCurrency(amountRequired)} & Activate`}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
