@@ -4148,7 +4148,7 @@ CREATE OR REPLACE FUNCTION public.create_event_atomic(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_org public.organizations%ROWTYPE;

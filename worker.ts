@@ -2869,6 +2869,30 @@ export default {
           }, 201, cors);
         } catch (err: any) {
           console.error('Create event error in worker:', err);
+          if (
+            err.code === 'PENDING_EVENT_LIMIT_REACHED' ||
+            String(err.message || '').includes('PENDING_EVENT_LIMIT_REACHED') ||
+            String(err.message || '').includes('Maximum 2 pending payment events reached')
+          ) {
+            return jsonResponse({
+              error: 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.',
+              code: 'PENDING_EVENT_LIMIT_REACHED',
+            }, 422, cors);
+          }
+          if (
+            err.code === 'GAME_INACTIVE' ||
+            err.code === 'THEME_GAME_MISMATCH' ||
+            err.code === 'GAME_NOT_FOUND' ||
+            err.code === 'THEME_NOT_FOUND' ||
+            err.code === 'THEME_SETUP_REQUIRED' ||
+            (err.status >= 400 && err.status < 500)
+          ) {
+            return jsonResponse({
+              error: err.message || 'Validation error',
+              code: err.code || 'VALIDATION_ERROR',
+              ...(err.theme_setup_required ? { theme_setup_required: true } : {}),
+            }, err.status || 422, cors);
+          }
           return handleWorkerApiError(err, request, cors, env);
         }
       }

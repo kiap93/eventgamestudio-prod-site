@@ -2387,7 +2387,13 @@ export async function createEvent(
     }
 
     if (rpcError) {
-      if (rpcError.message?.includes('PENDING_EVENT_LIMIT_REACHED') || rpcError.code === '23514') {
+      console.warn('[createEvent] RPC create_event_atomic error:', rpcError);
+      if (
+        rpcError.message?.includes('PENDING_EVENT_LIMIT_REACHED') ||
+        rpcError.code === '23514' ||
+        rpcError.details?.includes('PENDING_EVENT_LIMIT_REACHED') ||
+        rpcError.message?.includes('pending payment events reached')
+      ) {
         const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
         err.code = 'PENDING_EVENT_LIMIT_REACHED';
         err.status = 422;
@@ -2396,7 +2402,18 @@ export async function createEvent(
       // If RPC is missing in local/mock environment, fall through to local fallback
     }
   } catch (err: any) {
-    if (err?.code === 'PENDING_EVENT_LIMIT_REACHED' || err?.code === 'ORGANIZATION_NOT_FOUND' || err?.code === 'THEME_NOT_FOUND' || err?.code === 'THEME_FORBIDDEN' || err?.code === 'SYSTEM_THEME_NOT_ALLOWED' || err?.code === 'GAME_INACTIVE') {
+    if (
+      (err?.status && err.status >= 400 && err.status < 500) ||
+      err?.code === 'PENDING_EVENT_LIMIT_REACHED' ||
+      err?.code === 'ORGANIZATION_NOT_FOUND' ||
+      err?.code === 'THEME_NOT_FOUND' ||
+      err?.code === 'THEME_FORBIDDEN' ||
+      err?.code === 'SYSTEM_THEME_NOT_ALLOWED' ||
+      err?.code === 'GAME_INACTIVE' ||
+      err?.code === 'GAME_NOT_FOUND' ||
+      err?.code === 'THEME_GAME_MISMATCH' ||
+      err?.code === 'VALIDATION_ERROR'
+    ) {
       throw err;
     }
     // Fallback if network or unmocked RPC
@@ -2444,12 +2461,46 @@ export async function createEvent(
     .single();
 
   if (error) {
-    // If schema cache lacks newly added columns (PGRST204) or check constraint (23514) on status:
+    // Check if error is pending event limit reached (from DB trigger or check constraint)
+    if (
+      error.code === '23514' ||
+      error.message?.includes('PENDING_EVENT_LIMIT_REACHED') ||
+      error.message?.includes('pending payment events reached')
+    ) {
+      const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
+      err.code = 'PENDING_EVENT_LIMIT_REACHED';
+      err.status = 422;
+      throw err;
+    }
+
+    if (error.code === '23503') {
+      const errorMsg = String(error.message || '').toLowerCase();
+      if (errorMsg.includes('game_theme') || errorMsg.includes('game_themes')) {
+        const err: any = new Error('Selected Game Theme not found');
+        err.code = 'THEME_NOT_FOUND';
+        err.status = 404;
+        throw err;
+      }
+      if (errorMsg.includes('games') || errorMsg.includes('game_id')) {
+        const err: any = new Error('The selected game was not found.');
+        err.code = 'GAME_NOT_FOUND';
+        err.status = 404;
+        throw err;
+      }
+      if (errorMsg.includes('organization') || errorMsg.includes('organizations')) {
+        const err: any = new Error('Organization not found');
+        err.code = 'ORGANIZATION_NOT_FOUND';
+        err.status = 404;
+        throw err;
+      }
+    }
+
+    // If schema cache lacks newly added columns (PGRST204) or undefined column (42703):
     if (
       error.code === 'PGRST204' ||
-      error.code === '23514' ||
+      error.code === '42703' ||
       error.message?.includes('schema cache') ||
-      error.message?.includes('violates check constraint')
+      error.message?.includes('column')
     ) {
       // Create a compatible payload with core columns
       const compatiblePayload: any = {
@@ -2479,6 +2530,16 @@ export async function createEvent(
         error = null;
       } else {
         error = retry.error;
+        if (
+          error.code === '23514' ||
+          error.message?.includes('PENDING_EVENT_LIMIT_REACHED') ||
+          error.message?.includes('pending payment events reached')
+        ) {
+          const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
+          err.code = 'PENDING_EVENT_LIMIT_REACHED';
+          err.status = 422;
+          throw err;
+        }
       }
     }
 
@@ -2544,7 +2605,20 @@ export async function createEvent(
         return fullRecord;
       }
       console.error('Error in createEvent:', error);
-      throw new Error(`Failed to create event: ${error.message}`);
+      if (
+        error.code === '23514' ||
+        error.message?.includes('PENDING_EVENT_LIMIT_REACHED') ||
+        error.message?.includes('pending payment events reached')
+      ) {
+        const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
+        err.code = 'PENDING_EVENT_LIMIT_REACHED';
+        err.status = 422;
+        throw err;
+      }
+      const err: any = new Error(error.message || 'Failed to create event');
+      err.code = error.code || 'EVENT_CREATION_FAILED';
+      err.status = 422;
+      throw err;
     }
   }
 

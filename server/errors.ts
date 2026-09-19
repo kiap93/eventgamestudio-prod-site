@@ -336,6 +336,15 @@ export function isOperationalError(err: any): boolean {
   const msg = (err?.message || (typeof err === 'string' ? err : '')).toLowerCase();
   const code = String(err?.code || '');
 
+  // 0. Explicit operational business errors (bypass internal DB and trigger sanitization filters)
+  if (
+    code === 'PENDING_EVENT_LIMIT_REACHED' ||
+    msg.includes('pending_event_limit_reached') ||
+    msg.includes('maximum 2 pending payment events reached')
+  ) {
+    return true;
+  }
+
   const isAuthMessage =
     msg.includes('bearer token') ||
     msg.includes('missing token') ||
@@ -544,9 +553,16 @@ export function handleApiError(
   const isOperational = isOperationalError(err);
   const detectedService = detectErrorService(err, req.originalUrl || req.url);
 
+  const isPendingLimit =
+    String(err?.code || '') === 'PENDING_EVENT_LIMIT_REACHED' ||
+    String(err?.message || '').toLowerCase().includes('pending_event_limit_reached') ||
+    String(err?.message || '').toLowerCase().includes('maximum 2 pending payment events reached');
+
   let statusCode = Number(err?.statusCode || err?.status);
   if (!statusCode || statusCode < 400 || statusCode > 599) {
-    if (isOperational) {
+    if (isPendingLimit) {
+      statusCode = 422;
+    } else if (isOperational) {
       const code = String(err?.code || '');
       if (code.endsWith('_NOT_FOUND')) {
         statusCode = 404;
@@ -591,9 +607,14 @@ export function handleApiError(
 
   // 1. Operational / Safe Business Error
   if (isOperational && statusCode < 500) {
-    const errorCode = err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : 'BAD_REQUEST');
+    const errorCode = isPendingLimit
+      ? 'PENDING_EVENT_LIMIT_REACHED'
+      : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : 'BAD_REQUEST'));
+    const errorMessage = isPendingLimit
+      ? 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.'
+      : (err.message || 'Bad Request');
     res.status(statusCode).json({
-      error: err.message || 'Bad Request',
+      error: errorMessage,
       code: errorCode,
       ...(err.code === 'THEME_SETUP_REQUIRED' || err.theme_setup_required ? { theme_setup_required: true } : {}),
       ...(err.code === 'INSUFFICIENT_BALANCE' ? {
@@ -702,9 +723,16 @@ export async function handleWorkerApiError(
   const method = options?.method || request.method;
   const detectedService = detectErrorService(err, endpoint);
 
+  const isPendingLimit =
+    String(err?.code || '') === 'PENDING_EVENT_LIMIT_REACHED' ||
+    String(err?.message || '').toLowerCase().includes('pending_event_limit_reached') ||
+    String(err?.message || '').toLowerCase().includes('maximum 2 pending payment events reached');
+
   let statusCode = Number(err?.statusCode || err?.status);
   if (!statusCode || statusCode < 400 || statusCode > 599) {
-    if (isOperational) {
+    if (isPendingLimit) {
+      statusCode = 422;
+    } else if (isOperational) {
       const code = String(err?.code || '');
       if (code.endsWith('_NOT_FOUND')) {
         statusCode = 404;
@@ -752,10 +780,15 @@ export async function handleWorkerApiError(
 
   // 1. Operational Error
   if (isOperational && statusCode < 500) {
-    const errorCode = err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : 'BAD_REQUEST');
+    const errorCode = isPendingLimit
+      ? 'PENDING_EVENT_LIMIT_REACHED'
+      : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : 'BAD_REQUEST'));
+    const errorMessage = isPendingLimit
+      ? 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.'
+      : (err.message || 'Bad Request');
     return new globalThis.Response(
       JSON.stringify({
-        error: err.message || 'Bad Request',
+        error: errorMessage,
         code: errorCode,
         ...(err.code === 'THEME_SETUP_REQUIRED' || err.theme_setup_required ? { theme_setup_required: true } : {}),
         ...(err.code === 'INSUFFICIENT_BALANCE' ? {
