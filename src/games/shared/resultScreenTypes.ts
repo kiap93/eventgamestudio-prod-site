@@ -695,14 +695,37 @@ export function generateDefaultReactionResultScreenElements(
         textAlign: 'center',
       },
     },
+    // 5.5. Reaction Rating
+    {
+      id: 'stat-reaction-rating',
+      type: 'rating',
+      x: 40,
+      y: 400,
+      width: 640,
+      height: 60,
+      rotation: 0,
+      visible: true,
+      opacity: 1,
+      zIndex: 2,
+      label: 'RATING',
+      style: {
+        labelColor: '#94a3b8',
+        valueColor: '#fbbf24',
+        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+        borderColor: '#334155',
+        borderRadius: 16,
+        fontSize: 24,
+        textAlign: 'center',
+      },
+    },
     // 6. Leaderboard Component
     {
       id: 'leaderboard-reaction',
       type: 'leaderboard',
       x: 40,
-      y: 402,
+      y: 470,
       width: 640,
-      height: 250,
+      height: 200,
       rotation: 0,
       visible: true,
       opacity: 1,
@@ -725,7 +748,7 @@ export function generateDefaultReactionResultScreenElements(
       id: 'btn-play-again',
       type: 'button',
       x: 110,
-      y: 672,
+      y: 685,
       width: 500,
       height: 60,
       rotation: 0,
@@ -942,16 +965,18 @@ export function generateDefaultCatchBrandResultScreenElements(
 
 /**
  * Recursively queries element visibility in a ResultScreenElement tree.
- * Matches by exact ID or element type.
+ * Matches by exact ID or element type (or array of matchers).
  */
 export function findResultScreenElementVisibility(
   elements: ResultScreenElement[],
-  idOrType: string
+  idOrType: string | string[]
 ): boolean | undefined {
+  if (!Array.isArray(elements) || elements.length === 0) return undefined;
+  const matchers = Array.isArray(idOrType) ? idOrType : [idOrType];
   for (const el of elements) {
-    if (el.id === idOrType || el.type === idOrType) return el.visible !== false;
+    if (matchers.includes(el.id) || matchers.includes(el.type)) return el.visible !== false;
     if (Array.isArray((el as any).children)) {
-      const found = findResultScreenElementVisibility((el as any).children, idOrType);
+      const found = findResultScreenElementVisibility((el as any).children, matchers);
       if (found !== undefined) return found;
     }
   }
@@ -960,20 +985,22 @@ export function findResultScreenElementVisibility(
 
 /**
  * Recursively updates element visibility in a ResultScreenElement tree.
- * Matches by exact ID or element type.
+ * Matches by exact ID or element type (or array of matchers).
  */
 export function updateResultScreenElementVisibility(
   elements: ResultScreenElement[],
-  idOrType: string,
+  idOrType: string | string[],
   visible: boolean
 ): ResultScreenElement[] {
+  if (!Array.isArray(elements)) return [];
+  const matchers = Array.isArray(idOrType) ? idOrType : [idOrType];
   return elements.map((el) => {
     let nextVis = el.visible;
-    if (el.id === idOrType || el.type === idOrType) {
+    if (matchers.includes(el.id) || matchers.includes(el.type)) {
       nextVis = visible;
     }
     const children = Array.isArray((el as any).children)
-      ? updateResultScreenElementVisibility((el as any).children, idOrType, visible)
+      ? updateResultScreenElementVisibility((el as any).children, matchers, visible)
       : undefined;
     return {
       ...el,
@@ -981,6 +1008,37 @@ export function updateResultScreenElementVisibility(
       ...(children ? { children } : {}),
     };
   });
+}
+
+/**
+ * Ensures element visibility in a ResultScreenElement tree.
+ * If element exists, updates visibility. If it doesn't exist and visible=true, creates and appends it.
+ */
+export function ensureResultScreenElementVisibility(
+  elements: ResultScreenElement[],
+  idOrType: string | string[],
+  visible: boolean,
+  fallbackCreate?: () => ResultScreenElement
+): ResultScreenElement[] {
+  const exists = findResultScreenElementVisibility(elements, idOrType);
+  if (exists === undefined && visible && fallbackCreate) {
+    const newEl = fallbackCreate();
+    let inserted = false;
+    const mapped = elements.map((el) => {
+      if (!inserted && (el.type === 'card' || el.id === 'card-result-main')) {
+        inserted = true;
+        const currentChildren = Array.isArray((el as any).children) ? (el as any).children : [];
+        return {
+          ...el,
+          children: [...currentChildren, newEl],
+        };
+      }
+      return el;
+    });
+    if (inserted) return mapped;
+    return [...elements, newEl];
+  }
+  return updateResultScreenElementVisibility(elements, idOrType, visible);
 }
 
 /**

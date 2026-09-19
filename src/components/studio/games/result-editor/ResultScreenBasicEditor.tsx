@@ -25,6 +25,7 @@ import {
   ResultScreenElement,
   findResultScreenElementVisibility,
   updateResultScreenElementVisibility,
+  ensureResultScreenElementVisibility,
   findResultScreenElementText,
   updateResultScreenElementText,
   updateResultScreenButtonText,
@@ -179,21 +180,203 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
   };
 
   // Visibility toggle handler
-  const handleToggleElementVisibility = (elementId: string, currentVisible: boolean) => {
+  const handleToggleElementVisibility = (
+    idOrType: string | string[],
+    currentVisible: boolean,
+    fallbackType?: string
+  ) => {
     const nextVisible = !currentVisible;
-    const nextElements = updateResultScreenElementVisibility(elements, elementId, nextVisible);
+    const nextElements = ensureResultScreenElementVisibility(
+      elements,
+      idOrType,
+      nextVisible,
+      fallbackType
+        ? () => {
+            const primaryId = Array.isArray(idOrType) ? idOrType[0] : idOrType;
+            if (fallbackType === 'rating') {
+              return {
+                id: primaryId || 'stat-reaction-rating',
+                type: 'rating',
+                x: 40,
+                y: 400,
+                width: 640,
+                height: 60,
+                rotation: 0,
+                visible: true,
+                opacity: 1,
+                zIndex: 2,
+                label: 'RATING',
+                style: {
+                  labelColor: '#94a3b8',
+                  valueColor: '#fbbf24',
+                  backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                  borderColor: '#334155',
+                  borderRadius: 16,
+                  fontSize: 24,
+                  textAlign: 'center',
+                },
+              } as any;
+            }
+            if (fallbackType === 'average-reaction') {
+              return {
+                id: primaryId || 'stat-average-reaction',
+                type: 'average-reaction',
+                x: 40,
+                y: 88,
+                width: 640,
+                height: 108,
+                rotation: 0,
+                visible: true,
+                opacity: 1,
+                zIndex: 2,
+                label: 'AVERAGE REACTION',
+                style: {
+                  labelColor: '#94a3b8',
+                  valueColor: '#38bdf8',
+                  backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                  borderColor: '#334155',
+                  borderRadius: 18,
+                  fontSize: 40,
+                  textAlign: 'center',
+                },
+              } as any;
+            }
+            if (fallbackType === 'best-reaction') {
+              return {
+                id: primaryId || 'stat-best-reaction',
+                type: 'best-reaction',
+                x: 40,
+                y: 208,
+                width: 310,
+                height: 80,
+                rotation: 0,
+                visible: true,
+                opacity: 1,
+                zIndex: 2,
+                label: 'BEST REACTION',
+                style: {
+                  labelColor: '#94a3b8',
+                  valueColor: '#34d399',
+                  backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                  borderColor: '#334155',
+                  borderRadius: 16,
+                  fontSize: 24,
+                  textAlign: 'center',
+                },
+              } as any;
+            }
+            if (fallbackType === 'worst-reaction') {
+              return {
+                id: primaryId || 'stat-worst-reaction',
+                type: 'worst-reaction',
+                x: 370,
+                y: 208,
+                width: 310,
+                height: 80,
+                rotation: 0,
+                visible: true,
+                opacity: 1,
+                zIndex: 2,
+                label: 'WORST REACTION',
+                style: {
+                  labelColor: '#94a3b8',
+                  valueColor: '#f87171',
+                  backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                  borderColor: '#334155',
+                  borderRadius: 16,
+                  fontSize: 24,
+                  textAlign: 'center',
+                },
+              } as any;
+            }
+            if (fallbackType === 'round-results') {
+              return {
+                id: primaryId || 'stat-round-results',
+                type: 'round-results',
+                x: 40,
+                y: 300,
+                width: 640,
+                height: 90,
+                rotation: 0,
+                visible: true,
+                opacity: 1,
+                zIndex: 2,
+                label: 'ROUND RESULTS',
+                style: {
+                  labelColor: '#94a3b8',
+                  valueColor: '#ffffff',
+                  backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                  borderColor: '#334155',
+                  borderRadius: 16,
+                  fontSize: 18,
+                  textAlign: 'center',
+                },
+              } as any;
+            }
+            if (fallbackType === 'leaderboard') {
+              return {
+                id: primaryId || 'leaderboard-reaction',
+                type: 'leaderboard',
+                x: 40,
+                y: 470,
+                width: 640,
+                height: 200,
+                rotation: 0,
+                visible: true,
+                opacity: 1,
+                zIndex: 2,
+                headerText: 'TOP REACTION TIMES',
+                style: {
+                  backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                  borderColor: '#334155',
+                  borderRadius: 16,
+                  showHeader: true,
+                  headerText: 'TOP REACTION TIMES',
+                  fontSize: 14,
+                  textColor: '#e2e8f0',
+                  rankColor: '#fbbf24',
+                  scoreColor: '#38bdf8',
+                },
+              } as any;
+            }
+            return {
+              id: primaryId || 'btn-play-again',
+              type: 'button',
+              x: 110,
+              y: 685,
+              width: 500,
+              height: 60,
+              rotation: 0,
+              visible: true,
+              opacity: 1,
+              zIndex: 2,
+              text: 'PLAY AGAIN',
+              action: 'playAgain',
+              style: {
+                backgroundColor: '#ef4444',
+                textColor: '#ffffff',
+                fontSize: 18,
+                fontWeight: '900',
+                borderRadius: 18,
+                shadow: true,
+              },
+            } as any;
+          }
+        : undefined
+    );
 
     const legacyUpdates: Partial<ResultScreenConfig> = {
       elements: nextElements,
     };
 
-    if (elementId === 'stat-score' || elementId === 'score') {
+    const matchers = Array.isArray(idOrType) ? idOrType : [idOrType];
+    if (matchers.some((m) => m.includes('score'))) {
       legacyUpdates.showScore = nextVisible;
-    } else if (elementId === 'stat-moves' || elementId === 'moves') {
+    } else if (matchers.some((m) => m.includes('moves'))) {
       legacyUpdates.showMoves = nextVisible;
-    } else if (elementId === 'stat-pairs' || elementId === 'pairs') {
+    } else if (matchers.some((m) => m.includes('pairs'))) {
       legacyUpdates.showPairs = nextVisible;
-    } else if (elementId === 'stat-accuracy' || elementId === 'accuracy') {
+    } else if (matchers.some((m) => m.includes('accuracy'))) {
       legacyUpdates.showAccuracy = nextVisible;
     }
 
@@ -930,9 +1113,23 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
             <>
               {/* Average Reaction Time */}
               {(() => {
-                const isVis = findResultScreenElementVisibility(elements, 'metric-avg-reaction') !== false;
+                const isVis =
+                  findResultScreenElementVisibility(elements, [
+                    'stat-average-reaction',
+                    'average-reaction',
+                    'metric-avg-reaction',
+                  ]) !== false;
+                const toggle = () =>
+                  handleToggleElementVisibility(
+                    ['stat-average-reaction', 'average-reaction', 'metric-avg-reaction'],
+                    isVis,
+                    'average-reaction'
+                  );
                 return (
-                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                  <div
+                    className="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-2xl p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                    onClick={toggle}
+                  >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400 shrink-0">
                         <Timer className="w-4 h-4" />
@@ -946,7 +1143,10 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                       type="button"
                       role="switch"
                       aria-checked={isVis}
-                      onClick={() => handleToggleElementVisibility('metric-avg-reaction', isVis)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle();
+                      }}
                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
                         isVis ? 'bg-emerald-500' : 'bg-slate-800'
                       }`}
@@ -963,9 +1163,23 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
 
               {/* Best Reaction Time */}
               {(() => {
-                const isVis = findResultScreenElementVisibility(elements, 'metric-best-reaction') !== false;
+                const isVis =
+                  findResultScreenElementVisibility(elements, [
+                    'stat-best-reaction',
+                    'best-reaction',
+                    'metric-best-reaction',
+                  ]) !== false;
+                const toggle = () =>
+                  handleToggleElementVisibility(
+                    ['stat-best-reaction', 'best-reaction', 'metric-best-reaction'],
+                    isVis,
+                    'best-reaction'
+                  );
                 return (
-                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                  <div
+                    className="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-2xl p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                    onClick={toggle}
+                  >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400 shrink-0">
                         <Zap className="w-4 h-4" />
@@ -979,7 +1193,10 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                       type="button"
                       role="switch"
                       aria-checked={isVis}
-                      onClick={() => handleToggleElementVisibility('metric-best-reaction', isVis)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle();
+                      }}
                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
                         isVis ? 'bg-emerald-500' : 'bg-slate-800'
                       }`}
@@ -996,9 +1213,23 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
 
               {/* Worst Reaction Time */}
               {(() => {
-                const isVis = findResultScreenElementVisibility(elements, 'metric-worst-reaction') !== false;
+                const isVis =
+                  findResultScreenElementVisibility(elements, [
+                    'stat-worst-reaction',
+                    'worst-reaction',
+                    'metric-worst-reaction',
+                  ]) !== false;
+                const toggle = () =>
+                  handleToggleElementVisibility(
+                    ['stat-worst-reaction', 'worst-reaction', 'metric-worst-reaction'],
+                    isVis,
+                    'worst-reaction'
+                  );
                 return (
-                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                  <div
+                    className="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-2xl p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                    onClick={toggle}
+                  >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-rose-400 shrink-0">
                         <Clock className="w-4 h-4" />
@@ -1012,7 +1243,10 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                       type="button"
                       role="switch"
                       aria-checked={isVis}
-                      onClick={() => handleToggleElementVisibility('metric-worst-reaction', isVis)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle();
+                      }}
                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
                         isVis ? 'bg-emerald-500' : 'bg-slate-800'
                       }`}
@@ -1029,9 +1263,23 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
 
               {/* Round Results Breakdown */}
               {(() => {
-                const isVis = findResultScreenElementVisibility(elements, 'round-results-breakdown') !== false;
+                const isVis =
+                  findResultScreenElementVisibility(elements, [
+                    'stat-round-results',
+                    'round-results',
+                    'round-results-breakdown',
+                  ]) !== false;
+                const toggle = () =>
+                  handleToggleElementVisibility(
+                    ['stat-round-results', 'round-results', 'round-results-breakdown'],
+                    isVis,
+                    'round-results'
+                  );
                 return (
-                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                  <div
+                    className="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-2xl p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                    onClick={toggle}
+                  >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-sky-400 shrink-0">
                         <Gauge className="w-4 h-4" />
@@ -1045,7 +1293,10 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                       type="button"
                       role="switch"
                       aria-checked={isVis}
-                      onClick={() => handleToggleElementVisibility('round-results-breakdown', isVis)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle();
+                      }}
                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
                         isVis ? 'bg-emerald-500' : 'bg-slate-800'
                       }`}
@@ -1062,9 +1313,24 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
 
               {/* Reaction Rating Tier */}
               {(() => {
-                const isVis = findResultScreenElementVisibility(elements, 'metric-rating') !== false;
+                const isVis =
+                  findResultScreenElementVisibility(elements, [
+                    'stat-reaction-rating',
+                    'stat-rating',
+                    'rating',
+                    'metric-rating',
+                  ]) !== false;
+                const toggle = () =>
+                  handleToggleElementVisibility(
+                    ['stat-reaction-rating', 'stat-rating', 'rating', 'metric-rating'],
+                    isVis,
+                    'rating'
+                  );
                 return (
-                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                  <div
+                    className="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-2xl p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                    onClick={toggle}
+                  >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-yellow-400 shrink-0">
                         <Trophy className="w-4 h-4" />
@@ -1078,7 +1344,10 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                       type="button"
                       role="switch"
                       aria-checked={isVis}
-                      onClick={() => handleToggleElementVisibility('metric-rating', isVis)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle();
+                      }}
                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
                         isVis ? 'bg-emerald-500' : 'bg-slate-800'
                       }`}
@@ -1095,9 +1364,23 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
 
               {/* Event Leaderboard */}
               {(() => {
-                const isVis = findResultScreenElementVisibility(elements, 'leaderboard-reaction') !== false;
+                const isVis =
+                  findResultScreenElementVisibility(elements, [
+                    'leaderboard-reaction',
+                    'leaderboard',
+                    'leaderboard-main',
+                  ]) !== false;
+                const toggle = () =>
+                  handleToggleElementVisibility(
+                    ['leaderboard-reaction', 'leaderboard', 'leaderboard-main'],
+                    isVis,
+                    'leaderboard'
+                  );
                 return (
-                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                  <div
+                    className="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-2xl p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                    onClick={toggle}
+                  >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-violet-400 shrink-0">
                         <Trophy className="w-4 h-4" />
@@ -1111,7 +1394,10 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                       type="button"
                       role="switch"
                       aria-checked={isVis}
-                      onClick={() => handleToggleElementVisibility('leaderboard-reaction', isVis)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle();
+                      }}
                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
                         isVis ? 'bg-emerald-500' : 'bg-slate-800'
                       }`}
@@ -1128,9 +1414,23 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
 
               {/* Play Again Button */}
               {(() => {
-                const isVis = findResultScreenElementVisibility(elements, 'btn-play-again') !== false;
+                const isVis =
+                  findResultScreenElementVisibility(elements, [
+                    'btn-play-again',
+                    'playAgain',
+                    'button',
+                  ]) !== false;
+                const toggle = () =>
+                  handleToggleElementVisibility(
+                    ['btn-play-again', 'playAgain', 'button'],
+                    isVis,
+                    'button'
+                  );
                 return (
-                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                  <div
+                    className="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-2xl p-3.5 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                    onClick={toggle}
+                  >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400 shrink-0">
                         <Play className="w-4 h-4" />
@@ -1144,7 +1444,10 @@ export const ResultScreenBasicEditor: React.FC<ResultScreenBasicEditorProps> = (
                       type="button"
                       role="switch"
                       aria-checked={isVis}
-                      onClick={() => handleToggleElementVisibility('btn-play-again', isVis)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle();
+                      }}
                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
                         isVis ? 'bg-emerald-500' : 'bg-slate-800'
                       }`}
