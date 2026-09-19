@@ -12,11 +12,26 @@ import {
   STANDARD_EVENT_PRICE,
 } from './wallet.js';
 
-async function ensureTestOrg(orgId: string) {
+async function createTestUser(): Promise<string> {
   const supabase = getSupabaseServerClient();
+  const id = crypto.randomUUID();
   try {
-    const { data: users } = await supabase.from('users').select('id').limit(1);
-    const validOwnerId = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+    await supabase.from('users').insert({
+      id,
+      email: `test-${id.slice(0, 8)}@example.com`,
+      name: `Test User ${id.slice(0, 6)}`,
+    });
+  } catch {}
+  return id;
+}
+
+async function ensureTestOrg(orgId: string, ownerId?: string): Promise<string> {
+  const supabase = getSupabaseServerClient();
+  let validOwnerId = ownerId;
+  if (!validOwnerId) {
+    validOwnerId = await createTestUser();
+  }
+  try {
     await supabase.from('organizations').upsert({
       id: orgId,
       name: `Test Org ${orgId.slice(0, 8)}`,
@@ -28,9 +43,10 @@ async function ensureTestOrg(orgId: string) {
   } catch {
     // Ignore in local mode
   }
+  return validOwnerId;
 }
 
-async function ensureTestEvent(eventId: string, orgId: string) {
+async function ensureTestEvent(eventId: string, orgId: string, ownerId?: string) {
   const supabase = getSupabaseServerClient();
   try {
     const { data: themes } = await supabase.from('game_themes').select('id').limit(1);
@@ -47,7 +63,7 @@ async function ensureTestEvent(eventId: string, orgId: string) {
       expires_at: new Date(Date.now() + 86400000).toISOString(),
       status: 'scheduled',
       public_token: token,
-      created_by: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
+      created_by: ownerId || undefined,
       created_at: now,
       updated_at: now,
     });

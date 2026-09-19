@@ -484,14 +484,5 @@
     "transaction_id": "ec82907e-487a-4b3e-900c-bd565b418a7d",
     "amount": 300,
     "created_at": "2026-09-19T02:24:49.409Z"
-  },
-  {
-    "id": "c2b51bee-66fd-4e3b-99aa-b124710f3cbd",
-    "user_id": "c226bd38-f8b1-47e5-8895-b9cc6c66160c",
-    "reward_type": "SHOWCASE_CREDIT",
-    "organization_id": "c745c943-8360-482b-b91b-21fc6e5d8402",
-    "transaction_id": "ec82907e-487a-4b3e-900c-bd565b418a7d",
-    "amount": 300,
-    "created_at": "2026-09-19T02:24:49.409Z"
   }
 ]

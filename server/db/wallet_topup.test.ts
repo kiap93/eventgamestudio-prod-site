@@ -43,11 +43,31 @@ import {
 let passed = 0;
 let failed = 0;
 
-async function ensureTestOrg(orgId: string) {
+async function ensureTestUser(): Promise<string> {
   const supabase = getSupabaseServerClient();
   try {
     const { data: users } = await supabase.from('users').select('id').limit(1);
-    const validOwnerId = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+    if (users && users.length > 0 && users[0].id) {
+      return users[0].id;
+    }
+    const fallbackId = '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+    await supabase.from('users').upsert({
+      id: fallbackId,
+      email: 'test-wallet-topup@example.com',
+      name: 'Test Wallet User',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    return fallbackId;
+  } catch {
+    return '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+  }
+}
+
+async function ensureTestOrg(orgId: string) {
+  const supabase = getSupabaseServerClient();
+  try {
+    const validOwnerId = await ensureTestUser();
     await supabase.from('organizations').upsert({
       id: orgId,
       name: `Test Org ${orgId.slice(0, 8)}`,
@@ -235,7 +255,7 @@ async function runTests() {
 
   const testOrgPhase3 = crypto.randomUUID();
   await ensureTestOrg(testOrgPhase3);
-  const testUserId = '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+  const testUserId = await ensureTestUser();
 
   // 1. Create RM6,000 order (Qualifies for 5% = RM300 expected credit)
   const order6k = await createTopupOrder({
@@ -262,10 +282,11 @@ async function runTests() {
   // ----------------------------------------------------
   console.log('\n--- Test Group 7: Top-up Order Settlement (PENDING -> PAID) ---');
 
+  const payRef6k = `PAY_REF_6K_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
   const settle6kResult = await processTopupOrderStatus({
     orderId: order6k.id,
     newStatus: 'PAID',
-    paymentReference: 'PAY_REF_6K_001',
+    paymentReference: payRef6k,
     paymentMethod: 'card',
     reason: 'Payment gateway confirmation',
     isTrustedSettlement: true,

@@ -47,20 +47,33 @@ function assertEqual(actual: any, expected: any, description: string) {
   }
 }
 
-async function ensureTestOrg(orgId: string): Promise<void> {
+async function ensureTestOrgAndUser(orgId: string, userId: string): Promise<void> {
   const supabase = getSupabaseServerClient();
-  const { data: existing } = await supabase
-    .from('organizations')
-    .select('id')
-    .eq('id', orgId)
-    .maybeSingle();
-
-  if (!existing) {
-    await supabase.from('organizations').insert({
-      id: orgId,
-      name: `Test Org Late Webhook ${orgId.slice(0, 8)}`,
-      slug: `test-org-late-${orgId.slice(0, 8)}`,
+  try {
+    await supabase.from('users').upsert({
+      id: userId,
+      email: `test-late-webhook-${userId.slice(0, 8)}@example.com`,
+      name: 'Test Late Webhook User',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     });
+
+    const { data: existing } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('id', orgId)
+      .maybeSingle();
+
+    if (!existing) {
+      await supabase.from('organizations').insert({
+        id: orgId,
+        name: `Test Org Late Webhook ${orgId.slice(0, 8)}`,
+        slug: `test-org-late-${orgId.slice(0, 8)}`,
+        owner_id: userId,
+      });
+    }
+  } catch {
+    // Ignore in local mode
   }
 }
 
@@ -71,7 +84,7 @@ async function runLateWebhookTests() {
 
   const testOrgId = crypto.randomUUID();
   const testUserId = crypto.randomUUID();
-  await ensureTestOrg(testOrgId);
+  await ensureTestOrgAndUser(testOrgId, testUserId);
 
   // -------------------------------------------------------------------------
   // STEP 1: Customer creates top-up order for RM6,000

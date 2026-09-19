@@ -418,9 +418,10 @@ async function runSecurityTests() {
   assertEqual(missingReasonError, true, 'Reconciliation rejected when reason is insufficient');
 
   // Successful manual reconciliation
+  const reconPaymentRef = `BANK_TXN_MAYBANK_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
   const reconResult = await reconcileTopupOrder({
     orderId: reconOrder.id,
-    paymentReference: 'BANK_TXN_MAYBANK_888999',
+    paymentReference: reconPaymentRef,
     paymentMethod: 'bank_transfer',
     reconciledBy: devAdminUser,
     reason: 'Verified Maybank business account deposit slip receipt #MB888999',
@@ -436,7 +437,7 @@ async function runSecurityTests() {
   // Replay reconciliation on already PAID order
   const reconReplayResult = await reconcileTopupOrder({
     orderId: reconOrder.id,
-    paymentReference: 'BANK_TXN_MAYBANK_888999',
+    paymentReference: reconPaymentRef,
     reconciledBy: devAdminUser,
     reason: 'Duplicate check on Maybank receipt',
   });
