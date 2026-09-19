@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Volume2,
   VolumeX,
@@ -106,9 +106,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
 
   // High Score / Leaderboard State
-  const [playerName, setPlayerName] = useState<string>(() => {
-    return localStorage.getItem('event_player_name') || '';
-  });
+  const [playerName, setPlayerName] = useState<string>('');
   const [isSubmittingScore, setIsSubmittingScore] = useState(false);
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
   const [submittedRank, setSubmittedRank] = useState<number | null>(null);
@@ -118,6 +116,31 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [gameOverTab, setGameOverTab] = useState<'summary' | 'leaderboard'>('summary');
+
+  // Handlers to guarantee a clean slate for new game sessions
+  const handlePlayAgain = useCallback(() => {
+    setPlayerName('');
+    try {
+      localStorage.removeItem('event_player_name');
+    } catch {}
+    onRestartGame();
+  }, [onRestartGame]);
+
+  const handleStartGame = useCallback(() => {
+    setPlayerName('');
+    try {
+      localStorage.removeItem('event_player_name');
+    } catch {}
+    onStartGame();
+  }, [onStartGame]);
+
+  // Ensure fresh game session starts with empty player name on mount
+  useEffect(() => {
+    setPlayerName('');
+    try {
+      localStorage.removeItem('event_player_name');
+    } catch {}
+  }, []);
 
   const layout: GameLayoutConfig = useMemo(
     () => getEffectiveGameLayout(normalizeGameLayout(activeTheme?.layout, 'catch-brand'), isPortrait, 'catch-brand'),
@@ -215,9 +238,16 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     }
   }, [gameState, eventId, publicToken, isEventPreview]);
 
-  // When start screen is active, load the leaderboard so real event rankings are visible immediately
+  // When start screen is active, reset player name for new game and load leaderboard
   useEffect(() => {
     if (gameState === 'START') {
+      setPlayerName('');
+      setScoreSubmitted(false);
+      setSubmittedRank(null);
+      setSubmittedScoreId(null);
+      try {
+        localStorage.removeItem('event_player_name');
+      } catch {}
       fetchEventLeaderboard();
     }
   }, [gameState, eventId, publicToken, isEventPreview]);
@@ -243,7 +273,6 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
 
     const trimmedName = (typeof nameOrEvent === 'string' && nameOrEvent.trim() ? nameOrEvent.trim() : playerName.trim()) || 'Player';
     setPlayerName(trimmedName);
-    localStorage.setItem('event_player_name', trimmedName);
     setIsSubmittingScore(true);
     setLeaderboardError(null);
 
@@ -778,7 +807,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
 
                   <div className="flex items-center gap-2.5 pt-1">
                     <button
-                      onClick={onRestartGame}
+                      onClick={handlePlayAgain}
                       className="flex-1 py-2 sm:py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm sm:text-base rounded-xl border-2 border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5"
                     >
                       <RotateCcw className="w-4 h-4 stroke-[3]" /> PLAY AGAIN
@@ -875,7 +904,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                       ← Back
                     </button>
                     <button
-                      onClick={onRestartGame}
+                      onClick={handlePlayAgain}
                       className="flex-1 py-2 sm:py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl border-2 border-amber-300 shadow transition-all flex items-center justify-center gap-1.5"
                     >
                       <RotateCcw className="w-3.5 h-3.5 stroke-[3]" /> PLAY AGAIN
@@ -1289,7 +1318,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
               gameSubtitle,
               logoUrl: clientLogoUrl,
             }}
-            onStartGame={onStartGame}
+            onStartGame={handleStartGame}
             onShowLeaderboard={() => setShowLeaderboardModal(true)}
             onShowGuide={() => setShowGuideModal(true)}
             onOpenSettings={() => setShowSettingsModal(true)}
@@ -1332,7 +1361,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             }}
             onAction={(action) => {
               if (action === 'playAgain') {
-                onRestartGame();
+                handlePlayAgain();
               } else if (action === 'exit') {
                 onStopGame();
               }

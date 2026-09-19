@@ -221,9 +221,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   sessionIdRef.current = sessionId;
 
   // Leaderboard / Score Submission
-  const [playerName, setPlayerName] = useState<string>(() => {
-    return localStorage.getItem('event_player_name') || '';
-  });
+  const [playerName, setPlayerName] = useState<string>('');
   const [isSubmittingScore, setIsSubmittingScore] = useState(false);
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
   const [submittedRank, setSubmittedRank] = useState<number | null>(null);
@@ -424,6 +422,10 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     setIsVictory(false);
     setScoreSubmitted(false);
     setSubmittedRank(null);
+    setPlayerName('');
+    try {
+      localStorage.removeItem('event_player_name');
+    } catch {}
 
     const newSession = `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     setSessionId(newSession);
@@ -551,6 +553,10 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     setScoreSubmitted(false);
     setSubmittedRank(null);
     setCountdown(3);
+    setPlayerName('');
+    try {
+      localStorage.removeItem('event_player_name');
+    } catch {}
 
     // 4. Reset cards to clean, fresh face-down state
     const newDeck = createShuffledDeck(activeTheme).slice(0, totalCards);
@@ -1316,7 +1322,6 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     const rawName = typeof playerNameInput === 'string' ? playerNameInput : playerName;
     const trimmedName = rawName.trim() || 'Player';
     setPlayerName(trimmedName);
-    localStorage.setItem('event_player_name', trimmedName);
     setIsSubmittingScore(true);
 
     const metadataPayload = {
@@ -1428,6 +1433,25 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       updateGameState('PLAYING');
     }
   };
+
+  // Clear any cached player name on mount and when returning to START
+  useEffect(() => {
+    setPlayerName('');
+    try {
+      localStorage.removeItem('event_player_name');
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (gameState === 'START') {
+      setPlayerName('');
+      setScoreSubmitted(false);
+      setSubmittedRank(null);
+      try {
+        localStorage.removeItem('event_player_name');
+      } catch {}
+    }
+  }, [gameState]);
 
   const handleRestart = () => {
     memorySounds.playButtonClick();

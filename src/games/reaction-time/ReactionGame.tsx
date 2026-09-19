@@ -87,13 +87,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
   );
 
   // Leaderboard & Result Screen state
-  const [playerName, setPlayerName] = useState<string>(() => {
-    try {
-      return localStorage.getItem('event_player_name') || 'Racer';
-    } catch {
-      return 'Racer';
-    }
-  });
+  const [playerName, setPlayerName] = useState<string>('');
   const [scoreSubmitted, setScoreSubmitted] = useState<boolean>(false);
   const [submittedRank, setSubmittedRank] = useState<number | null>(null);
   const [isSubmittingScore, setIsSubmittingScore] = useState<boolean>(false);
@@ -275,6 +269,10 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
     setLastReactionTime(null);
     setScoreSubmitted(false);
     setSubmittedRank(null);
+    setPlayerName('');
+    try {
+      localStorage.removeItem('event_player_name');
+    } catch {}
     setSessionId(`rt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
     startRoundSequence();
   }, [clearAllTimers, startRoundSequence]);
@@ -419,6 +417,25 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
     };
   }, [handleUserTrigger]);
 
+  // Clear any cached player name on mount and when returning to IDLE
+  useEffect(() => {
+    setPlayerName('');
+    try {
+      localStorage.removeItem('event_player_name');
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (gameState === 'IDLE') {
+      setPlayerName('');
+      setScoreSubmitted(false);
+      setSubmittedRank(null);
+      try {
+        localStorage.removeItem('event_player_name');
+      } catch {}
+    }
+  }, [gameState]);
+
   // Score submission for leaderboard
   const handleSubmitScore = async (playerNameInput?: string | React.FormEvent) => {
     if (playerNameInput && typeof playerNameInput === 'object' && 'preventDefault' in playerNameInput) {
@@ -432,9 +449,6 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
     const rawName = typeof playerNameInput === 'string' ? playerNameInput : playerName;
     const trimmedName = rawName.trim() || 'Racer';
     setPlayerName(trimmedName);
-    try {
-      localStorage.setItem('event_player_name', trimmedName);
-    } catch {}
     setIsSubmittingScore(true);
 
     const scoreVal = stats.averageMs > 0 ? stats.averageMs : 250;
@@ -806,7 +820,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
               gameSubtitle: activeTheme?.branding?.subtitle || activeTheme?.subtitle || 'Test your lightning reflexes with Formula 1 starting lights!',
               logoUrl: activeTheme?.branding?.clientLogoUrl || activeTheme?.clientLogo || activeTheme?.logo || null,
             }}
-            onStartGame={startRoundSequence}
+            onStartGame={startNewGame}
             onShowLeaderboard={() => setShowLeaderboardModal(true)}
             isSimulation={isSimulation && !isInteractive}
             isEventPreview={isEventPreview}
@@ -856,6 +870,10 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
               if (action === 'playAgain') {
                 startNewGame();
               } else if (action === 'exit') {
+                setPlayerName('');
+                try {
+                  localStorage.removeItem('event_player_name');
+                } catch {}
                 setGameState('IDLE');
               }
             }}

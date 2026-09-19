@@ -245,11 +245,19 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
   const [localRank, setLocalRank] = useState<number | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
 
+  // Sync localName with currentPlayerName from parent game session
   useEffect(() => {
-    if (currentPlayerName && !localName) {
-      setLocalName(currentPlayerName);
-    }
+    setLocalName(currentPlayerName || '');
   }, [currentPlayerName]);
+
+  // Reset submission state when scoreSubmitted resets for a new game
+  useEffect(() => {
+    if (!scoreSubmitted) {
+      setLocalSubmitted(false);
+      setLocalRank(null);
+      setLocalError(null);
+    }
+  }, [scoreSubmitted]);
 
   // Synced submission statuses
   const isSubmitted = scoreSubmitted || localSubmitted;
