@@ -165,11 +165,11 @@ export async function getGamePricing(gameId: string, env?: any): Promise<GamePri
         return sorted;
       }
 
-      // If no pricing found in DB for this game, try to seed defaults
-      const seeded = await ensureDefaultGamePricing(gameId, undefined, env);
-      return seeded;
+      // If no pricing found in DB for this game, return empty array (do NOT auto-seed)
+      localGamePricingCache.set(gameId, []);
+      return [];
     } catch (err: any) {
-      if (err?.status === 503) throw err;
+      if (err?.status === 503 || err?.code === 'NO_PRICING_TIER') throw err;
       console.error('Supabase query exception in getGamePricing:', err);
       throw {
         status: 503,
@@ -182,8 +182,13 @@ export async function getGamePricing(gameId: string, env?: any): Promise<GamePri
   // Local/Test mode fallback
   if (isLocalFallbackAllowed()) {
     if (!localGamePricingCache.has(gameId)) {
-      const defaults = buildDefaultPricingTiers(gameId);
-      localGamePricingCache.set(gameId, defaults);
+      const canonicalGames = ['catch-brand', 'memory-match', 'reaction-tap'];
+      if (canonicalGames.includes(gameId)) {
+        const defaults = buildDefaultPricingTiers(gameId);
+        localGamePricingCache.set(gameId, defaults);
+      } else {
+        localGamePricingCache.set(gameId, []);
+      }
     }
     return localGamePricingCache.get(gameId) || [];
   }
@@ -206,6 +211,7 @@ export async function getActiveGamePricing(gameId: string, env?: any): Promise<G
 /**
  * Authoritatively resolves a game's price for a given duration in calendar days.
  * Never trusts any client-provided price!
+ * Fails closed if no active pricing tier covers the requested duration.
  */
 export async function resolveGamePrice(
   gameId: string,
@@ -225,34 +231,26 @@ export async function resolveGamePrice(
 
   if (!activeTiers || activeTiers.length === 0) {
     throw {
-      status: 503,
-      code: 'NO_ACTIVE_GAME_PRICING',
-      message: 'No active pricing tiers configured for the selected game.',
+      status: 422,
+      code: 'NO_PRICING_TIER',
+      message: 'No pricing is configured for this game. Please contact the administrator.',
     };
   }
 
-  // Find exact tier where min_days <= days <= max_days
-  let matchedTier = activeTiers.find((t) => {
+  // Find exact tier where min_days <= days and (max_days is null or max_days >= days)
+  const matchedTier = activeTiers.find((t) => {
     if (days < t.min_days) return false;
     if (t.max_days === null || t.max_days === undefined) return true;
     return days <= t.max_days;
   });
 
-  // If no tier found, check for open-ended top tier (max_days is null)
-  if (!matchedTier) {
-    matchedTier = activeTiers.find((t) => t.max_days === null && days >= t.min_days);
-  }
-
-  // If still no tier found, fallback to base tier or largest tier
-  if (!matchedTier) {
-    matchedTier = activeTiers.find((t) => t.is_base) || activeTiers[activeTiers.length - 1];
-  }
-
+  // Business Rule: If no tier matches or price is invalid, FAIL CLOSED.
+  // Never fall back to base tier, largest tier, or default price.
   if (!matchedTier || matchedTier.price <= 0) {
     throw {
-      status: 503,
-      code: 'INVALID_GAME_PRICING',
-      message: 'Unable to resolve a valid authoritative price for this duration.',
+      status: 422,
+      code: 'NO_PRICING_TIER',
+      message: `No pricing tier is configured for a ${days}-day event for this game.`,
     };
   }
 

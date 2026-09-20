@@ -461,6 +461,9 @@ export function isOperationalError(err: any): boolean {
     code === 'MAX_DURATION_EXCEEDED' ||
     code === 'INVALID_DATE_RANGE' ||
     code === 'EVENT_DATE_PASSED' ||
+    code === 'NO_PRICING_TIER' ||
+    code === 'PRICING_CONFIGURATION_ERROR' ||
+    code === 'INVALID_EVENT_PRICING' ||
     code === 'NO_ACTIVE_GAME_PRICING' ||
     code === 'INVALID_GAME_PRICING' ||
     code === 'UNSUPPORTED_DURATION' ||
@@ -594,10 +597,12 @@ export function handleApiError(
         statusCode = 403;
       } else if (
         code === 'NO_ACTIVE_GAME_PRICING' ||
-        code === 'INVALID_GAME_PRICING'
+        code === 'INVALID_GAME_PRICING' ||
+        code === 'PRICING_CONFIGURATION_ERROR'
       ) {
         statusCode = 503;
       } else if (
+        code === 'NO_PRICING_TIER' ||
         code === 'MAX_DURATION_EXCEEDED' ||
         code === 'INVALID_DATE_RANGE' ||
         code === 'EVENT_DATE_PASSED' ||
@@ -630,13 +635,13 @@ export function handleApiError(
   const method = options?.method || req.method || 'GET';
 
   // 1. Operational / Safe Business Error
-  if (isOperational && statusCode < 500) {
+  if (isOperational && (statusCode < 500 || statusCode === 503)) {
     const errorCode = isPendingLimit
       ? 'PENDING_EVENT_LIMIT_REACHED'
-      : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : 'BAD_REQUEST'));
+      : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : statusCode === 503 ? 'PRICING_CONFIGURATION_ERROR' : 'BAD_REQUEST'));
     const errorMessage = isPendingLimit
       ? 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.'
-      : (err.message || 'Bad Request');
+      : (err.message || (statusCode === 503 ? 'Pricing service temporarily unavailable' : 'Bad Request'));
     res.status(statusCode).json({
       error: errorMessage,
       code: errorCode,
@@ -787,10 +792,12 @@ export async function handleWorkerApiError(
         statusCode = 403;
       } else if (
         code === 'NO_ACTIVE_GAME_PRICING' ||
-        code === 'INVALID_GAME_PRICING'
+        code === 'INVALID_GAME_PRICING' ||
+        code === 'PRICING_CONFIGURATION_ERROR'
       ) {
         statusCode = 503;
       } else if (
+        code === 'NO_PRICING_TIER' ||
         code === 'MAX_DURATION_EXCEEDED' ||
         code === 'INVALID_DATE_RANGE' ||
         code === 'EVENT_DATE_PASSED' ||
@@ -826,13 +833,13 @@ export async function handleWorkerApiError(
   };
 
   // 1. Operational Error
-  if (isOperational && statusCode < 500) {
+  if (isOperational && (statusCode < 500 || statusCode === 503)) {
     const errorCode = isPendingLimit
       ? 'PENDING_EVENT_LIMIT_REACHED'
-      : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : 'BAD_REQUEST'));
+      : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : statusCode === 503 ? 'PRICING_CONFIGURATION_ERROR' : 'BAD_REQUEST'));
     const errorMessage = isPendingLimit
       ? 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.'
-      : (err.message || 'Bad Request');
+      : (err.message || (statusCode === 503 ? 'Pricing service temporarily unavailable' : 'Bad Request'));
     return new globalThis.Response(
       JSON.stringify({
         error: errorMessage,

@@ -1,21 +1,21 @@
 import assert from 'node:assert';
 import { formatEventErrorMessage } from './eventErrorUtils';
 
-// 1. 30-day maximum duration rule error from code
+// 1. No pricing tier error from code
 {
-  const msg = formatEventErrorMessage({ code: 'MAX_DURATION_EXCEEDED' }, 422);
+  const msg = formatEventErrorMessage({ code: 'NO_PRICING_TIER' }, 422);
   assert.strictEqual(
     msg,
-    'Maximum event duration is 30 days. Please select an end date within 30 days of the start date.'
+    "No pricing is configured for this duration for the selected game. Please select a duration supported by the game's pricing tiers or contact the administrator."
   );
 }
 
-// 2. 30-day maximum duration rule error from message string
+// 2. No pricing tier error from message string
 {
-  const msg = formatEventErrorMessage({ error: 'Selected event duration exceeds 30 days' }, 400);
+  const msg = formatEventErrorMessage({ error: 'No pricing tier configured for 45-day duration' }, 422);
   assert.strictEqual(
     msg,
-    'Maximum event duration is 30 days. Please select an end date within 30 days of the start date.'
+    'No pricing tier configured for 45-day duration'
   );
 }
 
@@ -42,7 +42,7 @@ import { formatEventErrorMessage } from './eventErrorUtils';
   const msg = formatEventErrorMessage({ code: 'UNSUPPORTED_DURATION' }, 422);
   assert.strictEqual(
     msg,
-    'The selected duration is not supported for this game. Please choose a duration within 30 days.'
+    "No pricing is configured for this duration for the selected game. Please select a duration supported by the game's pricing tiers or contact the administrator."
   );
 }
 

@@ -224,7 +224,7 @@ export function calculateEventPriceFromDuration(
   const rules = Array.isArray(settings?.pricing_rules) ? settings.pricing_rules : [];
 
   const matched = matchPricingRuleForDuration(durationDays, rules);
-  if (matched) {
+  if (matched && matched.price > 0) {
     return {
       price: matched.price,
       currency: matched.currency || settings.default_currency || DEFAULT_EVENT_CURRENCY,
@@ -233,20 +233,18 @@ export function calculateEventPriceFromDuration(
     };
   }
 
-  // Fallback: If no rule matches, use 1-day rule or default_price
-  const day1Rule = rules.find((r) => r.min_days <= 1 && (r.max_days === null || r.max_days >= 1) && r.active);
-  const basePrice = day1Rule ? day1Rule.price : settings.default_price;
-  if (!basePrice || isNaN(basePrice) || basePrice <= 0) {
+  // If settings corrupt or no valid price configured at all:
+  if (!settings || (!rules.length && (!settings.default_price || settings.default_price <= 0))) {
     const err: any = new Error('Pricing service temporarily unavailable: No valid duration rule or base price configured');
     err.status = 503;
     throw err;
   }
-  return {
-    price: basePrice,
-    currency: settings.default_currency || DEFAULT_EVENT_CURRENCY,
-    matchedRule: null,
-    ruleLabel: `${durationDays} day${durationDays > 1 ? 's' : ''} (Default Base)`,
-  };
+
+  // Business Rule: No pricing tier covers this duration -> fail closed with NO_PRICING_TIER
+  const err: any = new Error(`No pricing tier is configured for a ${durationDays}-day event.`);
+  err.code = 'NO_PRICING_TIER';
+  err.status = 422;
+  throw err;
 }
 
 /**

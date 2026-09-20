@@ -895,15 +895,6 @@ export function normalizeEventDateBoundaries(
     throw err;
   }
 
-  // 30-Day Maximum Duration Rule
-  const durationDays = calculateEventCalendarDays(startDate, endDate);
-  if (durationDays > 30) {
-    const err: any = new Error('Maximum event duration is 30 days. Please select an end date within 30 days of the start date.');
-    err.status = 422;
-    err.code = 'MAX_DURATION_EXCEEDED';
-    throw err;
-  }
-
   // Authoritative Business Rule: When creating an event:
   // IF event_end_date < current calendar date: BLOCK EVENT CREATION
   // Error: "This event date has already passed. Please select a current or future event date."
@@ -2282,6 +2273,13 @@ export async function createEvent(
     currency = durationPricing.currency;
     pricingId = durationPricing.tierId || null;
     durationDays = durationPricing.durationDays;
+
+    if (!price || price <= 0 || !pricingId) {
+      const err: any = new Error(`No pricing tier is configured for a ${durationDays}-day event for this game.`);
+      err.code = 'NO_PRICING_TIER';
+      err.status = 422;
+      throw err;
+    }
   }
 
   // 6. Generate collision-resistant unique token
@@ -2374,6 +2372,7 @@ export async function createEvent(
           rpcData.code === 'MAX_DURATION_EXCEEDED' ||
           rpcData.code === 'INVALID_DATE_RANGE' ||
           rpcData.code === 'EVENT_DATE_PASSED' ||
+          rpcData.code === 'NO_PRICING_TIER' ||
           rpcData.code === 'NO_ACTIVE_GAME_PRICING' ||
           rpcData.code === 'INVALID_GAME_PRICING' ||
           rpcData.code === 'UNSUPPORTED_DURATION' ||
@@ -2384,6 +2383,7 @@ export async function createEvent(
         err.status = isOperational
           ? (rpcData.code === 'ORGANIZATION_NOT_FOUND' || rpcData.code === 'THEME_NOT_FOUND' || rpcData.code === 'GAME_NOT_FOUND' ? 404 :
              rpcData.code === 'THEME_FORBIDDEN' ? 403 :
+             rpcData.code === 'NO_PRICING_TIER' ? 422 :
              rpcData.code === 'NO_ACTIVE_GAME_PRICING' || rpcData.code === 'INVALID_GAME_PRICING' ? 503 : 422)
           : 500;
         err.stage = 'rpc_create_event_atomic';
@@ -2504,6 +2504,10 @@ export async function createEvent(
       err?.code === 'GAME_INACTIVE' ||
       err?.code === 'GAME_NOT_FOUND' ||
       err?.code === 'THEME_GAME_MISMATCH' ||
+      err?.code === 'NO_PRICING_TIER' ||
+      err?.code === 'UNSUPPORTED_DURATION' ||
+      err?.code === 'NO_ACTIVE_GAME_PRICING' ||
+      err?.code === 'INVALID_GAME_PRICING' ||
       err?.code === 'VALIDATION_ERROR' ||
       (!isLocalFallbackAllowed(env) && isSupabaseConfigured(env))
     ) {

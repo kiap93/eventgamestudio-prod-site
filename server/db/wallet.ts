@@ -1808,40 +1808,32 @@ export async function canUseWelcomeCredit(
 
   let eventPrice: number | undefined = undefined;
   if (eventId) {
-    try {
-      const { getEventById } = await import('./events.js');
-      const ev = await getEventById(eventId, env);
-      if (ev) {
-        if (ev.event_price && Number(ev.event_price) > 0) {
-          eventPrice = Number(ev.event_price);
-        } else if (ev.start_date && ev.end_date) {
-          const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
-          const pricing = await calculateEventAuthoritativePrice({
-            game_id: ev.game_id,
-            startDate: ev.start_date,
-            endDate: ev.end_date,
-          }, env);
-          eventPrice = pricing.price;
-        }
-      }
-    } catch (e) {
-      // ignore and fallback
-    }
-  }
-  if (!eventPrice || eventPrice <= 0) {
-    if (eventPriceOverride && eventPriceOverride > 0) {
-      eventPrice = eventPriceOverride;
-    }
-  }
-  if (!eventPrice || eventPrice <= 0) {
-    const { getPlatformPricingSettings } = await import('./platformSettings.js');
-    const settings = await getPlatformPricingSettings(env);
-    eventPrice = settings.default_price;
-    if (!eventPrice || eventPrice <= 0) {
-      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
-      err.status = 503;
+    const { getEventById } = await import('./events.js');
+    const ev = await getEventById(eventId, env);
+    if (!ev) {
+      const err: any = new Error('Event not found.');
+      err.status = 404;
+      err.code = 'EVENT_NOT_FOUND';
       throw err;
     }
+    const snapPrice = Number(ev.event_price);
+    const snapCurrency = typeof ev.event_currency === 'string' ? ev.event_currency.trim().toUpperCase() : '';
+    if (!snapPrice || isNaN(snapPrice) || snapPrice <= 0 || !snapCurrency) {
+      const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
+      err.status = 503;
+      err.statusCode = 503;
+      err.code = 'PRICING_CONFIGURATION_ERROR';
+      throw err;
+    }
+    eventPrice = snapPrice;
+  } else if (eventPriceOverride && Number(eventPriceOverride) > 0) {
+    eventPrice = Number(eventPriceOverride);
+  } else {
+    const err: any = new Error('Pricing configuration error: Valid event price is required.');
+    err.status = 503;
+    err.statusCode = 503;
+    err.code = 'PRICING_CONFIGURATION_ERROR';
+    throw err;
   }
 
   const wallet = await getWalletBalance(organizationId, env);
@@ -1945,26 +1937,24 @@ export async function consumeWelcomeCredit(
     throw new Error('No Welcome Credit is available in this organization wallet to consume.');
   }
 
-  let resolvedEventPrice: number | undefined;
-  try {
-    const { getEventById } = await import('./events.js');
-    const ev = await getEventById(eventId, env);
-    if (ev && ev.event_price) {
-      resolvedEventPrice = ev.event_price;
-    }
-  } catch (e) {
-    // ignore
+  const { getEventById } = await import('./events.js');
+  const ev = await getEventById(eventId, env);
+  if (!ev) {
+    const err: any = new Error('Event not found.');
+    err.status = 404;
+    err.code = 'EVENT_NOT_FOUND';
+    throw err;
   }
-  if (!resolvedEventPrice || resolvedEventPrice <= 0) {
-    const { getPlatformPricingSettings } = await import('./platformSettings.js');
-    const settings = await getPlatformPricingSettings(env);
-    resolvedEventPrice = settings.default_price;
-    if (!resolvedEventPrice || resolvedEventPrice <= 0) {
-      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
-      err.status = 503;
-      throw err;
-    }
+  const snapPrice = Number(ev.event_price);
+  const snapCurrency = typeof ev.event_currency === 'string' ? ev.event_currency.trim().toUpperCase() : '';
+  if (!snapPrice || isNaN(snapPrice) || snapPrice <= 0 || !snapCurrency) {
+    const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
+    err.status = 503;
+    err.statusCode = 503;
+    err.code = 'PRICING_CONFIGURATION_ERROR';
+    throw err;
   }
+  const resolvedEventPrice = snapPrice;
 
   const result = await processEventPayment(
     {
@@ -2351,40 +2341,32 @@ export async function canUseShowcaseCredit(
 
   let eventPrice: number | undefined = undefined;
   if (eventId) {
-    try {
-      const { getEventById } = await import('./events.js');
-      const ev = await getEventById(eventId, env);
-      if (ev) {
-        if (ev.event_price && Number(ev.event_price) > 0) {
-          eventPrice = Number(ev.event_price);
-        } else if (ev.start_date && ev.end_date) {
-          const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
-          const pricing = await calculateEventAuthoritativePrice({
-            game_id: ev.game_id,
-            startDate: ev.start_date,
-            endDate: ev.end_date,
-          }, env);
-          eventPrice = pricing.price;
-        }
-      }
-    } catch (e) {
-      // ignore and fallback
-    }
-  }
-  if (!eventPrice || eventPrice <= 0) {
-    if (eventPriceOverride && eventPriceOverride > 0) {
-      eventPrice = eventPriceOverride;
-    }
-  }
-  if (!eventPrice || eventPrice <= 0) {
-    const { getPlatformPricingSettings } = await import('./platformSettings.js');
-    const settings = await getPlatformPricingSettings(env);
-    eventPrice = settings.default_price;
-    if (!eventPrice || eventPrice <= 0) {
-      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
-      err.status = 503;
+    const { getEventById } = await import('./events.js');
+    const ev = await getEventById(eventId, env);
+    if (!ev) {
+      const err: any = new Error('Event not found.');
+      err.status = 404;
+      err.code = 'EVENT_NOT_FOUND';
       throw err;
     }
+    const snapPrice = Number(ev.event_price);
+    const snapCurrency = typeof ev.event_currency === 'string' ? ev.event_currency.trim().toUpperCase() : '';
+    if (!snapPrice || isNaN(snapPrice) || snapPrice <= 0 || !snapCurrency) {
+      const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
+      err.status = 503;
+      err.statusCode = 503;
+      err.code = 'PRICING_CONFIGURATION_ERROR';
+      throw err;
+    }
+    eventPrice = snapPrice;
+  } else if (eventPriceOverride && Number(eventPriceOverride) > 0) {
+    eventPrice = Number(eventPriceOverride);
+  } else {
+    const err: any = new Error('Pricing configuration error: Valid event price is required.');
+    err.status = 503;
+    err.statusCode = 503;
+    err.code = 'PRICING_CONFIGURATION_ERROR';
+    throw err;
   }
 
   const wallet = await getWalletBalance(organizationId, env);
@@ -2459,26 +2441,24 @@ export async function consumeShowcaseCredit(
     throw new Error('Event ID is required');
   }
 
-  let resolvedEventPrice: number | undefined;
-  try {
-    const { getEventById } = await import('./events.js');
-    const ev = await getEventById(eventId, env);
-    if (ev && ev.event_price) {
-      resolvedEventPrice = ev.event_price;
-    }
-  } catch (e) {
-    // ignore
+  const { getEventById } = await import('./events.js');
+  const ev = await getEventById(eventId, env);
+  if (!ev) {
+    const err: any = new Error('Event not found.');
+    err.status = 404;
+    err.code = 'EVENT_NOT_FOUND';
+    throw err;
   }
-  if (!resolvedEventPrice || resolvedEventPrice <= 0) {
-    const { getPlatformPricingSettings } = await import('./platformSettings.js');
-    const settings = await getPlatformPricingSettings(env);
-    resolvedEventPrice = settings.default_price;
-    if (!resolvedEventPrice || resolvedEventPrice <= 0) {
-      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
-      err.status = 503;
-      throw err;
-    }
+  const snapPrice = Number(ev.event_price);
+  const snapCurrency = typeof ev.event_currency === 'string' ? ev.event_currency.trim().toUpperCase() : '';
+  if (!snapPrice || isNaN(snapPrice) || snapPrice <= 0 || !snapCurrency) {
+    const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
+    err.status = 503;
+    err.statusCode = 503;
+    err.code = 'PRICING_CONFIGURATION_ERROR';
+    throw err;
   }
+  const resolvedEventPrice = snapPrice;
 
   const result = await processEventPayment(
     {
@@ -2541,14 +2521,11 @@ export async function calculateEventPayment(
 ): Promise<EventPaymentCalculation> {
   let resolvedPrice = eventPrice !== undefined && eventPrice !== null ? Number(eventPrice) : 0;
   if (!resolvedPrice || isNaN(resolvedPrice) || resolvedPrice <= 0) {
-    const { getPlatformPricingSettings } = await import('./platformSettings.js');
-    const settings = await getPlatformPricingSettings(env);
-    resolvedPrice = settings.default_price;
-    if (!resolvedPrice || isNaN(resolvedPrice) || resolvedPrice <= 0) {
-      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
-      err.status = 503;
-      throw err;
-    }
+    const err: any = new Error('Pricing service temporarily unavailable: Event price is missing or invalid. Authoritative price required.');
+    err.status = 503;
+    err.statusCode = 503;
+    err.code = 'PRICING_CONFIGURATION_ERROR';
+    throw err;
   }
   const normalizedPrice = Math.max(0, fromCents(toCents(resolvedPrice)));
   const wallet = await getWalletBalance(organizationId, env);
@@ -2759,38 +2736,32 @@ export async function calculateEventPaymentQuote(
 
   let eventPrice: number | undefined = undefined;
   if (eventId) {
-    try {
-      const { getEventById } = await import('./events.js');
-      const ev = await getEventById(eventId, env);
-      if (ev) {
-        if (ev.event_price && Number(ev.event_price) > 0) {
-          eventPrice = Number(ev.event_price);
-        } else if (ev.start_date && ev.end_date) {
-          const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
-          const pricing = await calculateEventAuthoritativePrice({
-            game_id: ev.game_id,
-            startDate: ev.start_date,
-            endDate: ev.end_date,
-          }, env);
-          eventPrice = pricing.price;
-        }
-      }
-    } catch (e) {
-      // ignore
+    const { getEventById } = await import('./events.js');
+    const ev = await getEventById(eventId, env);
+    if (!ev) {
+      const err: any = new Error('Event not found.');
+      err.status = 404;
+      err.code = 'EVENT_NOT_FOUND';
+      throw err;
     }
-  }
-  if (!eventPrice || eventPrice <= 0) {
+    const snapPrice = Number(ev.event_price);
+    const snapCurrency = typeof ev.event_currency === 'string' ? ev.event_currency.trim().toUpperCase() : '';
+    if (!snapPrice || isNaN(snapPrice) || snapPrice <= 0 || !snapCurrency) {
+      const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
+      err.status = 503;
+      err.statusCode = 503;
+      err.code = 'PRICING_CONFIGURATION_ERROR';
+      throw err;
+    }
+    eventPrice = snapPrice;
+  } else {
     if (params.eventPrice && Number(params.eventPrice) > 0) {
       eventPrice = Number(params.eventPrice);
-    }
-  }
-  if (!eventPrice || eventPrice <= 0) {
-    const { getPlatformPricingSettings } = await import('./platformSettings.js');
-    const settings = await getPlatformPricingSettings(env);
-    eventPrice = settings.default_price;
-    if (!eventPrice || eventPrice <= 0) {
-      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
+    } else {
+      const err: any = new Error('Pricing configuration error: Valid event price is required to calculate payment.');
       err.status = 503;
+      err.statusCode = 503;
+      err.code = 'PRICING_CONFIGURATION_ERROR';
       throw err;
     }
   }
@@ -2923,38 +2894,37 @@ export async function processEventPayment(
     try {
       const { getEventById } = await import('./events.js');
       const ev = await getEventById(eventId, env);
-      if (ev) {
-        if (ev.event_price && Number(ev.event_price) > 0) {
-          eventPrice = Number(ev.event_price);
-        } else if (ev.start_date && ev.end_date) {
-          const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
-          const pricing = await calculateEventAuthoritativePrice({
-            game_id: ev.game_id,
-            startDate: ev.start_date,
-            endDate: ev.end_date,
-          }, env);
-          eventPrice = pricing.price;
-        }
-        if (!resolvedEventName) {
-          resolvedEventName = ev.name;
-        }
+      if (!ev) {
+        const err: any = new Error('Event not found.');
+        err.status = 404;
+        err.code = 'EVENT_NOT_FOUND';
+        throw err;
       }
-    } catch (e) {
-      // ignore
+      const snapPrice = Number(ev.event_price);
+      const snapCurrency = typeof ev.event_currency === 'string' ? ev.event_currency.trim().toUpperCase() : '';
+      if (!snapPrice || isNaN(snapPrice) || snapPrice <= 0 || !snapCurrency) {
+        const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
+        err.status = 503;
+        err.statusCode = 503;
+        err.code = 'PRICING_CONFIGURATION_ERROR';
+        throw err;
+      }
+      eventPrice = snapPrice;
+      if (!resolvedEventName) {
+        resolvedEventName = ev.name;
+      }
+    } catch (e: any) {
+      if (e?.status && e?.code) throw e;
+      throw e;
     }
-  }
-  if (!eventPrice || eventPrice <= 0) {
+  } else {
     if (params.eventPrice && Number(params.eventPrice) > 0) {
       eventPrice = Number(params.eventPrice);
-    }
-  }
-  if (!eventPrice || eventPrice <= 0) {
-    const { getPlatformPricingSettings } = await import('./platformSettings.js');
-    const settings = await getPlatformPricingSettings(env);
-    eventPrice = settings.default_price;
-    if (!eventPrice || eventPrice <= 0) {
-      const err: any = new Error('Pricing service temporarily unavailable: Platform default price is not configured');
+    } else {
+      const err: any = new Error('Pricing configuration error: Valid event price is required to execute payment.');
       err.status = 503;
+      err.statusCode = 503;
+      err.code = 'PRICING_CONFIGURATION_ERROR';
       throw err;
     }
   }

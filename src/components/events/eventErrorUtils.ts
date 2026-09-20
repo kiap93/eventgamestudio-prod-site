@@ -14,15 +14,15 @@ export function formatEventErrorMessage(errData: any, statusCode?: number): stri
   const rawMsg = String(errData?.error || errData?.message || '').trim();
   const lowerMsg = rawMsg.toLowerCase();
 
-  // 1. 30-Day Maximum Duration Rule
+  // 1. No Pricing Tier Configured for Duration
   if (
-    code === 'MAX_DURATION_EXCEEDED' ||
-    lowerMsg.includes('maximum event duration is 30 days') ||
-    lowerMsg.includes('exceeds 30 days') ||
-    lowerMsg.includes('within 30 days') ||
-    lowerMsg.includes('30 days')
+    code === 'NO_PRICING_TIER' ||
+    code === 'UNSUPPORTED_DURATION' ||
+    code === 'DURATION_NOT_SUPPORTED' ||
+    lowerMsg.includes('no pricing tier') ||
+    lowerMsg.includes('unsupported duration')
   ) {
-    return 'Maximum event duration is 30 days. Please select an end date within 30 days of the start date.';
+    return rawMsg || "No pricing is configured for this duration for the selected game. Please select a duration supported by the game's pricing tiers or contact the administrator.";
   }
 
   // 2. Invalid Date Range (End date earlier than start date)
@@ -57,16 +57,7 @@ export function formatEventErrorMessage(errData: any, statusCode?: number): stri
     return 'Pricing is not currently configured for this game. Please contact support or select another game.';
   }
 
-  // 5. Unsupported Duration for the Selected Game
-  if (
-    code === 'UNSUPPORTED_DURATION' ||
-    code === 'DURATION_NOT_SUPPORTED' ||
-    lowerMsg.includes('unsupported duration')
-  ) {
-    return 'The selected duration is not supported for this game. Please choose a duration within 30 days.';
-  }
-
-  // 6. Unavailable / Inactive Game
+  // 5. Unavailable / Inactive Game
   if (
     code === 'GAME_INACTIVE' ||
     code === 'GAME_NOT_ACTIVE' ||

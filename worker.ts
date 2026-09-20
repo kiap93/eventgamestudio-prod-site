@@ -2662,37 +2662,47 @@ export default {
           expires_at,
         } = body;
 
-        let price = typeof event_price === 'number' && event_price > 0 ? event_price : undefined;
+        let price: number | undefined = undefined;
         let currency = 'MYR';
         let durationDays = 1;
         let ruleLabel = '1 day';
         let targetGameId = body.game_id || body.gameId;
 
-        if (!price && event_id) {
+        if (event_id) {
+          // Existing event: event.event_price and event.event_currency MUST be authoritative
           const existing = await getEventById(event_id, env);
-          if (existing) {
-            if (existing.game_id && !targetGameId) {
-              targetGameId = existing.game_id;
-            }
-            if (existing.event_price) {
-              price = existing.event_price;
-              currency = existing.event_currency || 'MYR';
-              durationDays = calculateEventCalendarDays(existing.start_date || existing.event_date, existing.end_date || existing.start_date || existing.event_date);
-              ruleLabel = `${durationDays} day${durationDays > 1 ? 's' : ''}`;
-            }
+          if (!existing) {
+            return errorResponse('Event not found', 404, cors);
           }
-        }
+          const existingPrice = existing.event_price !== undefined && existing.event_price !== null ? Number(existing.event_price) : NaN;
+          const existingCurrency = typeof existing.event_currency === 'string' ? existing.event_currency.trim().toUpperCase() : '';
 
-        if (!targetGameId && game_theme_id) {
-          try {
-            const theme = await getThemeById(game_theme_id, env);
-            if (theme?.game_id) {
-              targetGameId = theme.game_id;
-            }
-          } catch (_) {}
-        }
+          if (isNaN(existingPrice) || existingPrice <= 0 || !existingCurrency) {
+            const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency.');
+            err.status = 503;
+            err.statusCode = 503;
+            err.code = 'PRICING_CONFIGURATION_ERROR';
+            return handleWorkerApiError(err, request, cors, env);
+          }
 
-        if (!price) {
+          price = existingPrice;
+          currency = existingCurrency;
+          durationDays = calculateEventCalendarDays(existing.start_date || existing.event_date, existing.end_date || existing.start_date || existing.event_date);
+          ruleLabel = `${durationDays} day${durationDays > 1 ? 's' : ''}`;
+          if (existing.game_id && !targetGameId) {
+            targetGameId = existing.game_id;
+          }
+        } else {
+          // New event quote (event does not exist yet): calculate dynamically from game pricing tiers
+          if (!targetGameId && game_theme_id) {
+            try {
+              const theme = await getThemeById(game_theme_id, env);
+              if (theme?.game_id) {
+                targetGameId = theme.game_id;
+              }
+            } catch (_) {}
+          }
+
           try {
             const pricing = await calculateEventAuthoritativePrice({
               game_id: targetGameId,
@@ -2881,13 +2891,6 @@ export default {
         }
 
         try {
-          const durationDays = calculateEventCalendarDays(resolvedStart, resolvedEnd);
-          if (durationDays > 30) {
-            return jsonResponse({
-              code: 'MAX_DURATION_EXCEEDED',
-              error: 'Maximum event duration is 30 days. Please select an end date within 30 days of the start date.',
-            }, 422, cors);
-          }
           if (resolvedEnd < resolvedStart) {
             return jsonResponse({
               code: 'INVALID_DATE_RANGE',
@@ -3013,16 +3016,18 @@ export default {
           reference_id,
         } = body;
 
-        // Load authoritative event price from the event record - ignore any client-supplied event_price entirely
-        let authoritativeEventPrice = event.event_price && Number(event.event_price) > 0 ? Number(event.event_price) : undefined;
-        if (!authoritativeEventPrice && event.start_date && event.end_date) {
-          const pricing = await calculateEventAuthoritativePrice({
-            game_id: event.game_id,
-            startDate: event.start_date,
-            endDate: event.end_date,
-          }, env);
-          authoritativeEventPrice = pricing.price;
+        // Load authoritative event price and currency from the event record - fail closed if missing or invalid
+        const numericPrice = event.event_price !== undefined && event.event_price !== null ? Number(event.event_price) : NaN;
+        const currency = typeof event.event_currency === 'string' ? event.event_currency.trim().toUpperCase() : '';
+
+        if (isNaN(numericPrice) || numericPrice <= 0 || !currency) {
+          const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
+          err.status = 503;
+          err.statusCode = 503;
+          err.code = 'PRICING_CONFIGURATION_ERROR';
+          return handleWorkerApiError(err, request, cors, env);
         }
+        const authoritativeEventPrice = numericPrice;
 
         try {
           const result = await processEventPayment(
@@ -7140,16 +7145,18 @@ export default {
           return errorResponse('Forbidden: Event does not belong to this organization', 403, cors);
         }
 
-        // Load authoritative event price from the event record - ignore any client-supplied event_price entirely
-        let authoritativeEventPrice = event.event_price && Number(event.event_price) > 0 ? Number(event.event_price) : undefined;
-        if (!authoritativeEventPrice && event.start_date && event.end_date) {
-          const pricing = await calculateEventAuthoritativePrice({
-            game_id: event.game_id,
-            startDate: event.start_date,
-            endDate: event.end_date,
-          }, env);
-          authoritativeEventPrice = pricing.price;
+        // Load authoritative event price and currency from the event record - fail closed if missing or invalid
+        const numericPrice = event.event_price !== undefined && event.event_price !== null ? Number(event.event_price) : NaN;
+        const currency = typeof event.event_currency === 'string' ? event.event_currency.trim().toUpperCase() : '';
+
+        if (isNaN(numericPrice) || numericPrice <= 0 || !currency) {
+          const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
+          err.status = 503;
+          err.statusCode = 503;
+          err.code = 'PRICING_CONFIGURATION_ERROR';
+          return handleWorkerApiError(err, request, cors, env);
         }
+        const authoritativeEventPrice = numericPrice;
 
         try {
           const result = await processEventPayment(

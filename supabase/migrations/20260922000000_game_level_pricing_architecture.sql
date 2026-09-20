@@ -243,6 +243,8 @@ DECLARE
   v_event_timezone TEXT;
   v_pricing_id UUID := p_pricing_id;
   v_duration_days INT := p_duration_days;
+  v_resolved_price NUMERIC(10,2) := p_event_price;
+  v_pricing_record RECORD;
 BEGIN
   -- 1. Lock organization row FOR UPDATE
   SELECT * INTO v_org
@@ -294,15 +296,6 @@ BEGIN
       'code', 'INVALID_DATE_RANGE',
       'error', 'The event end date cannot be earlier than the start date. Please select a valid date range.',
       'message', 'The event end date cannot be earlier than the start date. Please select a valid date range.'
-    );
-  END IF;
-
-  IF p_duration_days > 30 THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'code', 'MAX_DURATION_EXCEEDED',
-      'error', 'Maximum event duration is 30 days. Please select an end date within 30 days of the start date.',
-      'message', 'Maximum event duration is 30 days. Please select an end date within 30 days of the start date.'
     );
   END IF;
 
@@ -398,9 +391,9 @@ BEGIN
     END;
   END IF;
 
-  -- Resolve pricing_id if not provided
+  -- Authoritative Pricing Tier Validation & Resolution
   IF v_pricing_id IS NULL THEN
-    SELECT id INTO v_pricing_id
+    SELECT id, price, currency INTO v_pricing_record
     FROM public.game_pricing
     WHERE game_id = v_target_game_id
       AND is_active = true
@@ -408,6 +401,50 @@ BEGIN
       AND (max_days IS NULL OR max_days >= v_duration_days)
     ORDER BY min_days ASC
     LIMIT 1;
+
+    IF v_pricing_record.id IS NULL THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'NO_PRICING_TIER',
+        'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game.',
+        'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game.'
+      );
+    END IF;
+
+    v_pricing_id := v_pricing_record.id;
+    IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+      v_resolved_price := v_pricing_record.price;
+    END IF;
+  ELSE
+    SELECT id, price, currency INTO v_pricing_record
+    FROM public.game_pricing
+    WHERE id = v_pricing_id
+      AND game_id = v_target_game_id
+      AND is_active = true
+      AND min_days <= v_duration_days
+      AND (max_days IS NULL OR max_days >= v_duration_days);
+
+    IF v_pricing_record.id IS NULL THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'NO_PRICING_TIER',
+        'error', 'The specified pricing tier is invalid, inactive, or does not cover this duration.',
+        'message', 'The specified pricing tier is invalid, inactive, or does not cover this duration.'
+      );
+    END IF;
+
+    IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+      v_resolved_price := v_pricing_record.price;
+    END IF;
+  END IF;
+
+  IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'NO_PRICING_TIER',
+      'error', 'No valid price could be resolved for this duration.',
+      'message', 'No valid price could be resolved for this duration.'
+    );
   END IF;
 
   -- 6. Pending Payment Limit Enforcement (Max 2 Pending Events per Organization)
@@ -500,7 +537,7 @@ BEGIN
     COALESCE(p_event_status, 'DRAFT'),
     UPPER(COALESCE(p_payment_status, 'UNPAID')),
     p_cancel_reason,
-    COALESCE(p_event_price, 1400.00),
+    v_resolved_price,
     COALESCE(p_event_currency, 'MYR'),
     COALESCE(p_paid_amount, 0.00),
     COALESCE(p_discount_amount, 0.00),

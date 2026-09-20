@@ -108,8 +108,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const currentDurationDays = hasSelectedBothDates && !isEndDateBeforeStartDate
     ? calculateEventCalendarDays(startDate, endDate)
     : 0;
-  const isDurationExceeded = currentDurationDays > 30;
-  const isDateRangeInvalid = !hasSelectedBothDates || isEndDateBeforeStartDate || isDurationExceeded;
+  const isDateRangeInvalid = !hasSelectedBothDates || isEndDateBeforeStartDate;
 
   useEffect(() => {
     if (currentOrganization?.country_code) {
@@ -377,12 +376,6 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
     if (endDate < startDate) {
       setCreationError('The event end date cannot be earlier than the start date. Please select a valid date range.');
-      return;
-    }
-
-    const durationDays = calculateEventCalendarDays(startDate, endDate);
-    if (durationDays > 30) {
-      setCreationError('Maximum event duration is 30 days. Please select an end date within 30 days of the start date.');
       return;
     }
 
@@ -876,7 +869,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                       onChange={(e) => setEndDate(e.target.value)}
                       className={`w-full px-3 py-2.5 bg-slate-950 border ${
                         durationPreset === 'custom'
-                          ? isDurationExceeded || isEndDateBeforeStartDate
+                          ? isEndDateBeforeStartDate
                             ? 'border-rose-500/60 focus:border-rose-500 text-slate-100 cursor-pointer'
                             : 'border-slate-800 focus:border-amber-500 text-slate-100 cursor-pointer'
                           : 'border-slate-800/60 text-slate-400 opacity-80 cursor-not-allowed'
@@ -893,16 +886,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   </div>
                 )}
 
-                {isDurationExceeded && (
-                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-2 text-xs text-rose-400">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                    <span>Maximum event duration is 30 days. Please select an end date within 30 days of the start date.</span>
-                  </div>
-                )}
-
-                {startDate && endDate && !isEndDateBeforeStartDate && !isDurationExceeded && (
+                {startDate && endDate && !isEndDateBeforeStartDate && (
                   <p className="text-[11px] text-slate-400 font-medium">
-                    Active for whole calendar day{startDate === endDate ? '' : 's'}: <span className="text-amber-300 font-bold">{formatEventDateRange(startDate, endDate)}</span>
+                    Active for whole calendar day{startDate === endDate ? '' : 's'} ({currentDurationDays} day{currentDurationDays === 1 ? '' : 's'}): <span className="text-amber-300 font-bold">{formatEventDateRange(startDate, endDate)}</span>
                   </p>
                 )}
 
