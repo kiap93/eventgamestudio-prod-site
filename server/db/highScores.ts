@@ -20,6 +20,7 @@ import {
   deriveEventLifecycleStatus,
   getNormalizedEventDates,
   getNormalizedCurrentDate,
+  resolveEventTimezone,
   isEventBeforeStartDate,
   isEventExplicitlyCancelled,
   localEventsCache,
@@ -805,13 +806,21 @@ async function executeSubmitEventScore(
 
   const now = new Date();
   const { startDate, endDate } = getNormalizedEventDates(event);
-  const curDate = getNormalizedCurrentDate(now);
+  const eventTimezone = resolveEventTimezone(event);
+  const curDate = getNormalizedCurrentDate(now, eventTimezone);
   const derivedStatus = deriveEventLifecycleStatus(event, now);
 
   if (derivedStatus === 'COMPLETED' || (endDate && curDate > endDate)) {
     const err: any = new Error('Cannot submit scores to a completed event');
     err.status = 403;
     err.code = 'EVENT_COMPLETED';
+    throw err;
+  }
+
+  if (derivedStatus === 'EXPIRED') {
+    const err: any = new Error('Cannot submit scores to an expired event');
+    err.status = 403;
+    err.code = 'EVENT_EXPIRED';
     throw err;
   }
 

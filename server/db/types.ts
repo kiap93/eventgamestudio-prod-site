@@ -577,6 +577,7 @@ export interface EventPaymentCalculation {
 
 export interface EventPaymentQuote {
   event_id?: string;
+  event_price?: number;
   standard_price: number;
   currency: string;
   credit_choice: EventCreditOption;

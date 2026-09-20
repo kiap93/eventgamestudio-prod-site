@@ -187,7 +187,6 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
           use_event_credit: useEventCredit,
           welcome_credit_requested: welcomeCreditUsed,
           topup_credit_requested: eventCreditUsed,
-          event_price: eventPrice,
         }),
       });
 

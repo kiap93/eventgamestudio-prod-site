@@ -1500,7 +1500,10 @@ export async function getEventById(
 export async function getEventByPublicToken(
   publicToken: string,
   env?: Record<string, any>,
-  options?: { allowUnpaid?: boolean }
+  options?: {
+    allowUnpaid?: boolean;
+    allowInactive?: boolean;
+  }
 ): Promise<EventWithDetails | null> {
   if (!publicToken || typeof publicToken !== 'string' || publicToken === 'undefined' || publicToken === 'null' || !publicToken.trim()) {
     return null;
@@ -1531,14 +1534,15 @@ export async function getEventByPublicToken(
       eventRecord = {
         ...raw,
         ...(cached || {}),
-        status: cached?.status || raw.status,
-        event_status: cached?.event_status || raw.event_status,
-        payment_status: cached?.payment_status || raw.payment_status,
-        cancel_reason: cached?.cancel_reason !== undefined ? cached.cancel_reason : raw.cancel_reason,
-        payment_mode: cached?.payment_mode || raw.payment_mode,
-        paid_amount: cached?.paid_amount !== undefined && cached.paid_amount !== null ? cached.paid_amount : raw.paid_amount,
-        event_price: cached?.event_price !== undefined && cached.event_price !== null ? cached.event_price : raw.event_price,
-        event_currency: cached?.event_currency || raw.event_currency || 'MYR',
+        // Stale cached status must not override authoritative raw database records or lifecycle dates
+        status: raw.status || cached?.status,
+        event_status: raw.event_status || cached?.event_status,
+        payment_status: raw.payment_status || cached?.payment_status,
+        cancel_reason: raw.cancel_reason !== undefined && raw.cancel_reason !== null ? raw.cancel_reason : cached?.cancel_reason,
+        payment_mode: raw.payment_mode || cached?.payment_mode,
+        paid_amount: raw.paid_amount !== undefined && raw.paid_amount !== null ? raw.paid_amount : cached?.paid_amount,
+        event_price: raw.event_price !== undefined && raw.event_price !== null ? raw.event_price : cached?.event_price,
+        event_currency: raw.event_currency || cached?.event_currency || 'MYR',
       };
       if (isLocalFallbackAllowed(env)) {
         localEventsCache.set(raw.id, eventRecord);
@@ -1561,12 +1565,22 @@ export async function getEventByPublicToken(
   const isPaid = paymentStatus === 'PAID';
   const eventLifecycleStatus = derivedLifecycle;
   const allowUnpaid = Boolean(options?.allowUnpaid);
+  const allowInactive = Boolean(options?.allowInactive);
+
+  // Authoritative date & playable checks
+  const isPlayable = canAccessLiveEvent(eventRecord);
+  const isConcluded = derivedLifecycle === 'COMPLETED' || derivedLifecycle === 'EXPIRED';
 
   // Strict Public Guard:
-  // If allowUnpaid is NOT explicitly requested (e.g. playing/submitting scores):
-  // Event MUST be PAID, NOT CANCELLED, and PLAYABLE/VALID.
-  if (!allowUnpaid) {
-    if (isExplicitlyCancelled || !isPaid) {
+  // Public gameplay access is denied when any of the following conditions applies:
+  // - Event is explicitly cancelled.
+  // - Event is unpaid.
+  // - Event has not reached its permitted live opening date.
+  // - Event's end date has passed.
+  // - Event lifecycle is COMPLETED or EXPIRED.
+  // - Event is otherwise not eligible for public live gameplay.
+  if (!allowInactive && !allowUnpaid) {
+    if (isExplicitlyCancelled || !isPaid || !isPlayable || isConcluded) {
       return null;
     }
   }
@@ -1605,7 +1619,8 @@ export async function getEventByPublicToken(
 
   // Automatic date-based test score transition check on public event resolution
   const { startDate: pubStartDate } = getNormalizedEventDates(eventRecord);
-  const curPubDate = getNormalizedCurrentDate();
+  const evTimezone = resolveEventTimezone(eventRecord);
+  const curPubDate = getNormalizedCurrentDate(undefined, evTimezone);
   if (pubStartDate && curPubDate >= pubStartDate && !isEventTestScoresCleared(eventRecord.id, eventRecord)) {
     ensureTestScoresClearedForLiveEvent(eventRecord.id, eventRecord, env).catch((e) => {
       console.warn(`[getEventByPublicToken] Notice ensuring test scores cleared for ${eventRecord.id}:`, e?.message || e);

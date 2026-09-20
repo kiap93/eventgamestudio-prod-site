@@ -2951,22 +2951,33 @@ export default {
           use_welcome_credit,
           use_event_credit,
           welcome_credit_requested,
-          event_price,
           reference_id,
         } = body;
+
+        // Load authoritative event price from the event record - ignore any client-supplied event_price entirely
+        let authoritativeEventPrice = event.event_price && Number(event.event_price) > 0 ? Number(event.event_price) : undefined;
+        if (!authoritativeEventPrice && event.start_date && event.end_date) {
+          const pricing = await calculateEventAuthoritativePrice({
+            startDate: event.start_date,
+            endDate: event.end_date,
+          }, env);
+          authoritativeEventPrice = pricing.price;
+        }
 
         try {
           const result = await processEventPayment(
             {
               organizationId: event.organization_id,
               eventId: event.id,
+              eventName: event.name,
               paymentMode: payment_mode,
               useWelcomeCredit: use_welcome_credit,
               useEventCredit: use_event_credit,
               welcomeCreditRequested: welcome_credit_requested,
               topupCreditRequested: topup_credit_requested,
-              eventPrice: event_price || event.event_price,
+              eventPrice: authoritativeEventPrice,
               referenceId: reference_id,
+              createdBy: user.id,
             },
             env
           );
@@ -3220,11 +3231,12 @@ export default {
             });
           }
 
-          if (accessDetails.code === 'EVENT_EXPIRED') {
+          if (accessDetails.code === 'EVENT_COMPLETED' || accessDetails.code === 'EVENT_EXPIRED') {
             return jsonResponse({
               error: accessDetails.error || `This event concluded on ${endDate}.`,
-              code: 'EVENT_EXPIRED',
+              code: accessDetails.code,
               is_expired: true,
+              is_completed: accessDetails.code === 'EVENT_COMPLETED',
               start_date: startDate,
               end_date: endDate,
               event_id: rawEvent.id,
@@ -3275,6 +3287,24 @@ export default {
               'Expires': '0',
             });
           }
+
+          // Safe catch-all 403 for any other disallowed state
+          return jsonResponse({
+            error: accessDetails.error || accessDetails.reason || 'This event is not available for live play.',
+            code: accessDetails.code || 'EVENT_NOT_LIVE',
+            is_expired: Boolean(accessDetails.is_expired),
+            is_completed: Boolean(accessDetails.is_completed),
+            start_date: startDate,
+            end_date: endDate,
+            event_id: rawEvent.id,
+            event_name: rawEvent.name,
+            event_timezone: accessDetails.event_timezone || rawEvent.event_timezone,
+          }, 403, {
+            ...cors,
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          });
         }
 
         const publicEvent = toPublicEventDTO(rawEvent);
@@ -6921,15 +6951,33 @@ export default {
           return errorResponse('event_id is required', 400, cors);
         }
 
+        const event = await getEventById(body.event_id, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+        if (event.organization_id !== orgId) {
+          return errorResponse('Forbidden: Event does not belong to this organization', 403, cors);
+        }
+
+        // Load authoritative event price from the event record - ignore any client-supplied event_price entirely
+        let authoritativeEventPrice = event.event_price && Number(event.event_price) > 0 ? Number(event.event_price) : undefined;
+        if (!authoritativeEventPrice && event.start_date && event.end_date) {
+          const pricing = await calculateEventAuthoritativePrice({
+            startDate: event.start_date,
+            endDate: event.end_date,
+          }, env);
+          authoritativeEventPrice = pricing.price;
+        }
+
         try {
           const result = await processEventPayment(
             {
               organizationId: orgId,
-              eventId: body.event_id,
-              eventName: body.event_name,
+              eventId: event.id,
+              eventName: event.name || body.event_name,
               paymentMode: body.payment_mode || (body.credit_choice ? (body.credit_choice === 'NONE' ? 'FULL_PAID' : body.credit_choice) : undefined),
               creditChoice: body.credit_choice || 'NONE',
-              eventPrice: body.event_price ? Number(body.event_price) : undefined,
+              eventPrice: authoritativeEventPrice,
               topupCreditRequested: body.topup_credit_requested !== undefined ? Number(body.topup_credit_requested) : (body.topup_credit_amount ? Number(body.topup_credit_amount) : undefined),
               referenceId: body.reference_id,
               createdBy: auth.user.id,

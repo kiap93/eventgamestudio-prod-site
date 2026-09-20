@@ -41,7 +41,7 @@ const liveEvent = {
   status: 'live',
   payment_status: 'PAID',
   start_date: '2026-09-01',
-  end_date: '2026-09-10',
+  end_date: '2026-12-31',
 };
 assert.strictEqual(serverCanAccessPreview(liveEvent), true, 'Server: Live event should allow preview');
 assert.strictEqual(clientCanAccessPreview(liveEvent), true, 'Client: Live event should allow preview');

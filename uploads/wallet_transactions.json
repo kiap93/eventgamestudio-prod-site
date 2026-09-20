@@ -56048,5 +56048,521 @@
     "created_by": null,
     "created_at": "2026-09-19T03:07:14.335+00:00",
     "updated_at": "2026-09-19T03:07:14.399792+00:00"
+  },
+  {
+    "id": "ed37ab42-1978-41f5-a3c1-f5b6bacc99d3",
+    "organization_id": "82ae0b93-b5e2-408d-b483-26d21aefcb3c",
+    "owner_user_id": "ecbf382b-65d5-4e87-8736-87b21dac3145",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_82ae0b93-b5e2-408d-b483-26d21aefcb3c",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "organization_name": "Payment Notify Corp 1789866782781",
+      "owner_user_id": "ecbf382b-65d5-4e87-8736-87b21dac3145",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "ecbf382b-65d5-4e87-8736-87b21dac3145",
+    "created_at": "2026-09-20T01:13:02.810Z"
+  },
+  {
+    "id": "faa73e09-62d9-42a4-9819-45af46c24003",
+    "organization_id": "078cf1aa-9df1-4ffb-a654-f41c761ed455",
+    "owner_user_id": "19040c67-23fa-417d-a3de-29838614d102",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_078cf1aa-9df1-4ffb-a654-f41c761ed455",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "organization_name": "Cron Org",
+      "owner_user_id": "19040c67-23fa-417d-a3de-29838614d102",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "19040c67-23fa-417d-a3de-29838614d102",
+    "created_at": "2026-09-20T01:13:03.261Z"
+  },
+  {
+    "id": "4726757f-5ac3-4582-af1c-c5774b66dd04",
+    "organization_id": "dd5f97fb-1824-4fba-9e48-d22629128a39",
+    "owner_user_id": "ea9269f2-db32-4456-92f6-9566f2fb4f90",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_dd5f97fb-1824-4fba-9e48-d22629128a39",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "organization_name": "DTO Test Organization",
+      "owner_user_id": "ea9269f2-db32-4456-92f6-9566f2fb4f90",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "ea9269f2-db32-4456-92f6-9566f2fb4f90",
+    "created_at": "2026-09-20T01:15:27.597Z"
+  },
+  {
+    "id": "2f3cff40-311a-4a06-bc7e-8a9a6011f203",
+    "organization_id": "4b769084-41da-4c3c-a15b-49f33b4ef47f",
+    "owner_user_id": "d44a9607-7b1b-4d85-a1f6-57bdcc3689b8",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_4b769084-41da-4c3c-a15b-49f33b4ef47f",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "organization_name": "Tamper Test Org 1789869295127",
+      "owner_user_id": "d44a9607-7b1b-4d85-a1f6-57bdcc3689b8",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "d44a9607-7b1b-4d85-a1f6-57bdcc3689b8",
+    "created_at": "2026-09-20T01:54:55.170Z"
+  },
+  {
+    "id": "f13a7a53-917e-4a07-ad50-c67a30505a1b",
+    "organization_id": "4b769084-41da-4c3c-a15b-49f33b4ef47f",
+    "owner_user_id": null,
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 10000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "seed_wallet_1789869295236",
+    "description": "Seed wallet balance for test",
+    "metadata": {
+      "topup_amount": 10000
+    },
+    "created_by": null,
+    "created_at": "2026-09-20T01:54:55.237Z"
+  },
+  {
+    "id": "28714921-ba92-4268-9be4-4609bea26947",
+    "organization_id": "4b769084-41da-4c3c-a15b-49f33b4ef47f",
+    "owner_user_id": null,
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 700,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "seed_wallet_1789869295236_promo",
+    "description": "Promotional 7% Top-up Credit on RM10000.00 deposit",
+    "metadata": {
+      "parent_topup_id": "f13a7a53-917e-4a07-ad50-c67a30505a1b",
+      "qualifying_amount": 10000,
+      "reward_rate": "7%"
+    },
+    "created_by": null,
+    "created_at": "2026-09-20T01:54:55.245Z"
+  },
+  {
+    "id": "846e2748-19de-4ad7-aa44-2d1ec581ce6a",
+    "organization_id": "8ede33ac-8795-4d05-957b-5d2c93fed5f9",
+    "owner_user_id": "6973e1e1-3e53-4fdd-9830-582ec683ce87",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_8ede33ac-8795-4d05-957b-5d2c93fed5f9",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "organization_name": "Tamper Test Org 1789869327166",
+      "owner_user_id": "6973e1e1-3e53-4fdd-9830-582ec683ce87",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "6973e1e1-3e53-4fdd-9830-582ec683ce87",
+    "created_at": "2026-09-20T01:55:27.213Z"
+  },
+  {
+    "id": "19f7180a-30a1-4c31-a4bf-e5a52b2c5274",
+    "organization_id": "8ede33ac-8795-4d05-957b-5d2c93fed5f9",
+    "owner_user_id": null,
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 10000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "seed_wallet_1789869327284",
+    "description": "Seed wallet balance for test",
+    "metadata": {
+      "topup_amount": 10000
+    },
+    "created_by": null,
+    "created_at": "2026-09-20T01:55:27.285Z"
+  },
+  {
+    "id": "0b652a70-2bbb-4f0b-978a-33599411cbfa",
+    "organization_id": "8ede33ac-8795-4d05-957b-5d2c93fed5f9",
+    "owner_user_id": null,
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 700,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "seed_wallet_1789869327284_promo",
+    "description": "Promotional 7% Top-up Credit on RM10000.00 deposit",
+    "metadata": {
+      "parent_topup_id": "19f7180a-30a1-4c31-a4bf-e5a52b2c5274",
+      "qualifying_amount": 10000,
+      "reward_rate": "7%"
+    },
+    "created_by": null,
+    "created_at": "2026-09-20T01:55:27.293Z"
+  },
+  {
+    "id": "062cf3f8-9ac7-422c-81c6-8d7ac692b9da",
+    "organization_id": "8ede33ac-8795-4d05-957b-5d2c93fed5f9",
+    "owner_user_id": null,
+    "event_id": "b6e53e35-d0a6-4210-99e9-958ef31a9879",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1400,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_b6e53e35-d0a6-4210-99e9-958ef31a9879_paid",
+    "description": "Paid RM1400.00 from Paid Balance for \"Tamper Process Event\"",
+    "metadata": {
+      "event_id": "b6e53e35-d0a6-4210-99e9-958ef31a9879",
+      "payment_mode": "FULL_PAID",
+      "paid_amount": 1400,
+      "credit_applied": 0,
+      "total_event_cost": 1400
+    },
+    "created_by": "6973e1e1-3e53-4fdd-9830-582ec683ce87",
+    "created_at": "2026-09-20T01:55:27.448Z"
+  },
+  {
+    "id": "f8453f73-a07d-40b9-bf4e-48c017a69bbe",
+    "organization_id": "cf9a4035-a69a-43e3-91aa-bbfc3ba6326a",
+    "owner_user_id": "85270f07-b01c-4edc-b292-30f359e2cb09",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_cf9a4035-a69a-43e3-91aa-bbfc3ba6326a",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "organization_name": "Tamper Test Org 1789869344373",
+      "owner_user_id": "85270f07-b01c-4edc-b292-30f359e2cb09",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "85270f07-b01c-4edc-b292-30f359e2cb09",
+    "created_at": "2026-09-20T01:55:44.422Z"
+  },
+  {
+    "id": "d0262fb4-43a7-4527-a8d3-00326064973e",
+    "organization_id": "cf9a4035-a69a-43e3-91aa-bbfc3ba6326a",
+    "owner_user_id": null,
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 10000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "seed_wallet_1789869344492",
+    "description": "Seed wallet balance for test",
+    "metadata": {
+      "topup_amount": 10000
+    },
+    "created_by": null,
+    "created_at": "2026-09-20T01:55:44.494Z"
+  },
+  {
+    "id": "a879f823-3fe2-46ec-ba70-ea4edea98e08",
+    "organization_id": "cf9a4035-a69a-43e3-91aa-bbfc3ba6326a",
+    "owner_user_id": null,
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 700,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "seed_wallet_1789869344492_promo",
+    "description": "Promotional 7% Top-up Credit on RM10000.00 deposit",
+    "metadata": {
+      "parent_topup_id": "d0262fb4-43a7-4527-a8d3-00326064973e",
+      "qualifying_amount": 10000,
+      "reward_rate": "7%"
+    },
+    "created_by": null,
+    "created_at": "2026-09-20T01:55:44.504Z"
+  },
+  {
+    "id": "6c9997fc-89e5-4b87-bf13-d9276fecefab",
+    "organization_id": "cf9a4035-a69a-43e3-91aa-bbfc3ba6326a",
+    "owner_user_id": null,
+    "event_id": "a1b84db4-8e9d-44b4-8ada-971505c2773b",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1400,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_a1b84db4-8e9d-44b4-8ada-971505c2773b_paid",
+    "description": "Paid RM1400.00 from Paid Balance for \"Tamper Process Event\"",
+    "metadata": {
+      "event_id": "a1b84db4-8e9d-44b4-8ada-971505c2773b",
+      "payment_mode": "FULL_PAID",
+      "paid_amount": 1400,
+      "credit_applied": 0,
+      "total_event_cost": 1400
+    },
+    "created_by": "85270f07-b01c-4edc-b292-30f359e2cb09",
+    "created_at": "2026-09-20T01:55:44.639Z"
+  },
+  {
+    "id": "a6c86e06-02c5-45c7-bb6c-39295ce10a71",
+    "organization_id": "cf9a4035-a69a-43e3-91aa-bbfc3ba6326a",
+    "owner_user_id": null,
+    "event_id": "65aba5f9-e869-4c23-9309-a51acfda7d44",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1400,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_65aba5f9-e869-4c23-9309-a51acfda7d44_paid",
+    "description": "Paid RM1400.00 from Paid Balance for \"Tamper Direct Pay Route Event\"",
+    "metadata": {
+      "event_id": "65aba5f9-e869-4c23-9309-a51acfda7d44",
+      "payment_mode": "FULL_PAID",
+      "paid_amount": 1400,
+      "credit_applied": 0,
+      "total_event_cost": 1400
+    },
+    "created_by": "85270f07-b01c-4edc-b292-30f359e2cb09",
+    "created_at": "2026-09-20T01:55:44.847Z"
+  },
+  {
+    "id": "ea61a96c-76fd-4e16-b9da-69ad615a8dbc",
+    "organization_id": "cf9a4035-a69a-43e3-91aa-bbfc3ba6326a",
+    "owner_user_id": null,
+    "event_id": "bccacbc1-9daa-439b-b00f-550b0d9399bf",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1400,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_bccacbc1-9daa-439b-b00f-550b0d9399bf_paid",
+    "description": "Paid RM1400.00 from Paid Balance for \"Tamper Wallet Pay Route Event\"",
+    "metadata": {
+      "event_id": "bccacbc1-9daa-439b-b00f-550b0d9399bf",
+      "payment_mode": "FULL_PAID",
+      "paid_amount": 1400,
+      "credit_applied": 0,
+      "total_event_cost": 1400
+    },
+    "created_by": "85270f07-b01c-4edc-b292-30f359e2cb09",
+    "created_at": "2026-09-20T01:55:44.966Z"
+  },
+  {
+    "id": "9977f3cf-0d86-4964-9f54-a7f06795a4e8",
+    "organization_id": "ce8e1351-c5b4-4e0a-9a40-eb1c187adec0",
+    "owner_user_id": "6831e494-8e0b-45c3-83ba-1c5c77340ddd",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_ce8e1351-c5b4-4e0a-9a40-eb1c187adec0",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "organization_name": "Permissions Test Org",
+      "owner_user_id": "6831e494-8e0b-45c3-83ba-1c5c77340ddd",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "6831e494-8e0b-45c3-83ba-1c5c77340ddd",
+    "created_at": "2026-09-20T01:56:03.666Z"
+  },
+  {
+    "id": "006af2ca-0774-4974-bd3c-626e2be6a318",
+    "organization_id": "a036f938-98a0-4635-8bb3-12e5dd035cd8",
+    "owner_user_id": "d9ee40e7-5530-4a9c-9f58-799ae283e463",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_a036f938-98a0-4635-8bb3-12e5dd035cd8",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "organization_name": "Lock Test Org",
+      "owner_user_id": "d9ee40e7-5530-4a9c-9f58-799ae283e463",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "d9ee40e7-5530-4a9c-9f58-799ae283e463",
+    "created_at": "2026-09-20T01:56:03.885Z"
+  },
+  {
+    "id": "ecb3c1a9-463f-42ad-81b2-888735463195",
+    "organization_id": "f8224a3a-02d0-4eb4-b862-74e30acd2c99",
+    "owner_user_id": "bcee878f-0a37-4bdf-ad28-92f6f281ebc9",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_f8224a3a-02d0-4eb4-b862-74e30acd2c99",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "organization_name": "Secure Events Org",
+      "owner_user_id": "bcee878f-0a37-4bdf-ad28-92f6f281ebc9",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "bcee878f-0a37-4bdf-ad28-92f6f281ebc9",
+    "created_at": "2026-09-20T01:56:04.104Z"
+  },
+  {
+    "id": "38d6b9a5-ca65-450b-bd7c-4a03bb27a63b",
+    "organization_id": "fb4a19d2-ce2d-4c27-b97e-1043d60e00f0",
+    "owner_user_id": "ebad83b2-1db7-4e80-8ebf-f2813cfc8e97",
+    "event_id": null,
+    "transaction_type": "WELCOME_CREDIT",
+    "balance_type": "WELCOME_CREDIT",
+    "amount": 800,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "welcome_fb4a19d2-ce2d-4c27-b97e-1043d60e00f0",
+    "description": "One-time Welcome Credit grant of RM800.00",
+    "metadata": {
+      "source": "AUTO_ORGANIZATION_CREATION",
+      "organization_name": "Tamper Test Org 1789869460100",
+      "owner_user_id": "ebad83b2-1db7-4e80-8ebf-f2813cfc8e97",
+      "program": "ORGANIZATION_ONBOARDING_WELCOME"
+    },
+    "created_by": "ebad83b2-1db7-4e80-8ebf-f2813cfc8e97",
+    "created_at": "2026-09-20T01:57:40.148Z"
+  },
+  {
+    "id": "64903e96-542d-40ce-8949-be02d9a4dc2b",
+    "organization_id": "fb4a19d2-ce2d-4c27-b97e-1043d60e00f0",
+    "owner_user_id": null,
+    "event_id": null,
+    "transaction_type": "TOPUP",
+    "balance_type": "PAID_BALANCE",
+    "amount": 10000,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "seed_wallet_1789869460219",
+    "description": "Seed wallet balance for test",
+    "metadata": {
+      "topup_amount": 10000
+    },
+    "created_by": null,
+    "created_at": "2026-09-20T01:57:40.220Z"
+  },
+  {
+    "id": "04aa35cb-45ca-41d6-b59a-736ae314b24a",
+    "organization_id": "fb4a19d2-ce2d-4c27-b97e-1043d60e00f0",
+    "owner_user_id": null,
+    "event_id": null,
+    "transaction_type": "TOPUP_CREDIT",
+    "balance_type": "TOPUP_CREDIT",
+    "amount": 700,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "seed_wallet_1789869460219_promo",
+    "description": "Promotional 7% Top-up Credit on RM10000.00 deposit",
+    "metadata": {
+      "parent_topup_id": "64903e96-542d-40ce-8949-be02d9a4dc2b",
+      "qualifying_amount": 10000,
+      "reward_rate": "7%"
+    },
+    "created_by": null,
+    "created_at": "2026-09-20T01:57:40.230Z"
+  },
+  {
+    "id": "7f4ea32e-2e3a-4094-a252-dd11910d76d5",
+    "organization_id": "fb4a19d2-ce2d-4c27-b97e-1043d60e00f0",
+    "owner_user_id": null,
+    "event_id": "b3a22e68-6e3a-45f8-8d26-90c5702e1f59",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1400,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_b3a22e68-6e3a-45f8-8d26-90c5702e1f59_paid",
+    "description": "Paid RM1400.00 from Paid Balance for \"Tamper Process Event\"",
+    "metadata": {
+      "event_id": "b3a22e68-6e3a-45f8-8d26-90c5702e1f59",
+      "payment_mode": "FULL_PAID",
+      "paid_amount": 1400,
+      "credit_applied": 0,
+      "total_event_cost": 1400
+    },
+    "created_by": "ebad83b2-1db7-4e80-8ebf-f2813cfc8e97",
+    "created_at": "2026-09-20T01:57:40.366Z"
+  },
+  {
+    "id": "011e1f9f-af35-4ea9-998c-398629bdaea4",
+    "organization_id": "fb4a19d2-ce2d-4c27-b97e-1043d60e00f0",
+    "owner_user_id": null,
+    "event_id": "e6083c72-c949-4931-8a08-caa8f9137a23",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1400,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_e6083c72-c949-4931-8a08-caa8f9137a23_paid",
+    "description": "Paid RM1400.00 from Paid Balance for \"Tamper Direct Pay Route Event\"",
+    "metadata": {
+      "event_id": "e6083c72-c949-4931-8a08-caa8f9137a23",
+      "payment_mode": "FULL_PAID",
+      "paid_amount": 1400,
+      "credit_applied": 0,
+      "total_event_cost": 1400
+    },
+    "created_by": "ebad83b2-1db7-4e80-8ebf-f2813cfc8e97",
+    "created_at": "2026-09-20T01:57:40.580Z"
+  },
+  {
+    "id": "c3ab8b45-a794-4cd1-acf0-2999ad566ea7",
+    "organization_id": "fb4a19d2-ce2d-4c27-b97e-1043d60e00f0",
+    "owner_user_id": null,
+    "event_id": "c8549ab2-eb7d-4075-8533-a27f0b63e9d4",
+    "transaction_type": "EVENT_PAYMENT",
+    "balance_type": "PAID_BALANCE",
+    "amount": -1400,
+    "currency": "MYR",
+    "status": "COMPLETED",
+    "reference_id": "event_c8549ab2-eb7d-4075-8533-a27f0b63e9d4_paid",
+    "description": "Paid RM1400.00 from Paid Balance for \"Tamper Wallet Pay Route Event\"",
+    "metadata": {
+      "event_id": "c8549ab2-eb7d-4075-8533-a27f0b63e9d4",
+      "payment_mode": "FULL_PAID",
+      "paid_amount": 1400,
+      "credit_applied": 0,
+      "total_event_cost": 1400
+    },
+    "created_by": "ebad83b2-1db7-4e80-8ebf-f2813cfc8e97",
+    "created_at": "2026-09-20T01:57:40.703Z"
   }
 ]

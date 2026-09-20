@@ -137,17 +137,23 @@ export const PublicEventGameView: React.FC = () => {
             setEventData(null);
             return;
           }
-          if (data.code === 'EVENT_EXPIRED' || data.is_expired) {
+          if (
+            data.code === 'EVENT_EXPIRED' ||
+            data.code === 'EVENT_COMPLETED' ||
+            data.is_expired ||
+            data.is_completed
+          ) {
             setErrorDetails({
-              code: 'EVENT_EXPIRED',
+              code: data.code || (data.is_completed ? 'EVENT_COMPLETED' : 'EVENT_EXPIRED'),
               is_expired: true,
+              is_completed: data.code === 'EVENT_COMPLETED' || Boolean(data.is_completed),
               start_date: data.start_date,
               end_date: data.end_date,
               event_id: data.event_id,
               event_name: data.event_name,
               event_timezone: data.event_timezone,
             });
-            setError(data.error || 'This event has expired.');
+            setError(data.error || 'This event has concluded.');
             setEventData(null);
             return;
           }
@@ -199,6 +205,27 @@ export const PublicEventGameView: React.FC = () => {
 
     return () => clearInterval(pollTimer);
   }, [publicToken, errorDetails?.is_pending_payment, errorDetails?.code, eventData, fetchEvent]);
+
+  // Revalidate event status periodically (every 30s) and on window focus
+  // to ensure player cannot continue playing indefinitely if event concludes while page is open.
+  useEffect(() => {
+    if (!publicToken || !eventData) return;
+
+    const interval = setInterval(() => {
+      fetchEvent(false);
+    }, 30000);
+
+    const onFocus = () => {
+      fetchEvent(false);
+    };
+
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [publicToken, eventData, fetchEvent]);
 
   // Synchronize fullscreen state strictly with browser events
   const getIsFullscreen = (): boolean => {
@@ -310,7 +337,10 @@ export const PublicEventGameView: React.FC = () => {
   const isExpired =
     !isCancelled &&
     !eventData &&
-    (errorDetails?.code === 'EVENT_EXPIRED' || Boolean(errorDetails?.is_expired));
+    (errorDetails?.code === 'EVENT_EXPIRED' ||
+      errorDetails?.code === 'EVENT_COMPLETED' ||
+      Boolean(errorDetails?.is_expired) ||
+      Boolean(errorDetails?.is_completed));
 
   if (isExpired) {
     const endDate = errorDetails?.end_date || dates?.endDate || '';

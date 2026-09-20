@@ -2620,20 +2620,31 @@ app.post('/api/events/:eventId/pay', walletRateLimiter, authenticateJWT, async (
       use_welcome_credit,
       use_event_credit,
       welcome_credit_requested,
-      event_price,
       reference_id,
     } = req.body;
+
+    // Load authoritative event price from the event record - ignore any client-supplied event_price entirely
+    let authoritativeEventPrice = event.event_price && Number(event.event_price) > 0 ? Number(event.event_price) : undefined;
+    if (!authoritativeEventPrice && event.start_date && event.end_date) {
+      const pricing = await calculateEventAuthoritativePrice({
+        startDate: event.start_date,
+        endDate: event.end_date,
+      });
+      authoritativeEventPrice = pricing.price;
+    }
 
     const result = await processEventPayment({
       organizationId: event.organization_id,
       eventId: event.id,
+      eventName: event.name,
       paymentMode: payment_mode,
       useWelcomeCredit: use_welcome_credit,
       useEventCredit: use_event_credit,
       welcomeCreditRequested: welcome_credit_requested,
       topupCreditRequested: topup_credit_requested,
-      eventPrice: event_price || event.event_price,
+      eventPrice: authoritativeEventPrice,
       referenceId: reference_id,
+      createdBy: user.id,
     });
 
     const updatedEvent = await getEventById(event.id);
@@ -2967,11 +2978,12 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
         return;
       }
 
-      if (accessDetails.code === 'EVENT_EXPIRED') {
+      if (accessDetails.code === 'EVENT_COMPLETED' || accessDetails.code === 'EVENT_EXPIRED') {
         res.status(403).json({
           error: accessDetails.error || `This event concluded on ${endDate}.`,
-          code: 'EVENT_EXPIRED',
+          code: accessDetails.code,
           is_expired: true,
+          is_completed: accessDetails.code === 'EVENT_COMPLETED',
           start_date: startDate,
           end_date: endDate,
           event_id: rawEvent.id,
@@ -3010,6 +3022,20 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
         });
         return;
       }
+
+      // Safe catch-all 403 for any other disallowed state
+      res.status(403).json({
+        error: accessDetails.error || accessDetails.reason || 'This event is not available for live play.',
+        code: accessDetails.code || 'EVENT_NOT_LIVE',
+        is_expired: Boolean(accessDetails.is_expired),
+        is_completed: Boolean(accessDetails.is_completed),
+        start_date: startDate,
+        end_date: endDate,
+        event_id: rawEvent.id,
+        event_name: rawEvent.name,
+        event_timezone: accessDetails.event_timezone || rawEvent.event_timezone,
+      });
+      return;
     }
 
     const publicEvent = toPublicEventDTO(rawEvent);
@@ -6560,7 +6586,6 @@ app.post('/api/organizations/:orgId/wallet/pay-event', walletRateLimiter, authen
       event_name,
       payment_mode,
       credit_choice,
-      event_price,
       topup_credit_amount,
       topup_credit_requested,
       reference_id,
@@ -6571,13 +6596,33 @@ app.post('/api/organizations/:orgId/wallet/pay-event', walletRateLimiter, authen
       return;
     }
 
+    const event = await getEventById(event_id);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+    if (event.organization_id !== orgId) {
+      res.status(403).json({ error: 'Event does not belong to this organization' });
+      return;
+    }
+
+    // Load authoritative event price from the event record - ignore any client-supplied event_price entirely
+    let authoritativeEventPrice = event.event_price && Number(event.event_price) > 0 ? Number(event.event_price) : undefined;
+    if (!authoritativeEventPrice && event.start_date && event.end_date) {
+      const pricing = await calculateEventAuthoritativePrice({
+        startDate: event.start_date,
+        endDate: event.end_date,
+      });
+      authoritativeEventPrice = pricing.price;
+    }
+
     const result = await processEventPayment({
       organizationId: orgId,
-      eventId: event_id,
-      eventName: event_name,
+      eventId: event.id,
+      eventName: event.name || event_name,
       paymentMode: payment_mode || (credit_choice ? (credit_choice === 'NONE' ? 'FULL_PAID' : credit_choice) : undefined),
       creditChoice: credit_choice || 'NONE',
-      eventPrice: event_price ? Number(event_price) : undefined,
+      eventPrice: authoritativeEventPrice,
       topupCreditRequested: topup_credit_requested !== undefined ? Number(topup_credit_requested) : (topup_credit_amount ? Number(topup_credit_amount) : undefined),
       referenceId: reference_id,
       createdBy: req.user!.id,

@@ -1901,18 +1901,30 @@ export async function canUseWelcomeCredit(
     env = eventPriceOverrideOrEnv;
   }
 
-  let eventPrice = eventPriceOverride;
-  if (!eventPrice || eventPrice <= 0) {
-    if (eventId) {
-      try {
-        const { getEventById } = await import('./events.js');
-        const ev = await getEventById(eventId, env);
-        if (ev && ev.event_price) {
-          eventPrice = ev.event_price;
+  let eventPrice: number | undefined = undefined;
+  if (eventId) {
+    try {
+      const { getEventById } = await import('./events.js');
+      const ev = await getEventById(eventId, env);
+      if (ev) {
+        if (ev.event_price && Number(ev.event_price) > 0) {
+          eventPrice = Number(ev.event_price);
+        } else if (ev.start_date && ev.end_date) {
+          const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
+          const pricing = await calculateEventAuthoritativePrice({
+            startDate: ev.start_date,
+            endDate: ev.end_date,
+          }, env);
+          eventPrice = pricing.price;
         }
-      } catch (e) {
-        // ignore and fallback
       }
+    } catch (e) {
+      // ignore and fallback
+    }
+  }
+  if (!eventPrice || eventPrice <= 0) {
+    if (eventPriceOverride && eventPriceOverride > 0) {
+      eventPrice = eventPriceOverride;
     }
   }
   if (!eventPrice || eventPrice <= 0) {
@@ -2431,18 +2443,30 @@ export async function canUseShowcaseCredit(
     env = eventPriceOverrideOrEnv;
   }
 
-  let eventPrice = eventPriceOverride;
-  if (!eventPrice || eventPrice <= 0) {
-    if (eventId) {
-      try {
-        const { getEventById } = await import('./events.js');
-        const ev = await getEventById(eventId, env);
-        if (ev && ev.event_price) {
-          eventPrice = ev.event_price;
+  let eventPrice: number | undefined = undefined;
+  if (eventId) {
+    try {
+      const { getEventById } = await import('./events.js');
+      const ev = await getEventById(eventId, env);
+      if (ev) {
+        if (ev.event_price && Number(ev.event_price) > 0) {
+          eventPrice = Number(ev.event_price);
+        } else if (ev.start_date && ev.end_date) {
+          const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
+          const pricing = await calculateEventAuthoritativePrice({
+            startDate: ev.start_date,
+            endDate: ev.end_date,
+          }, env);
+          eventPrice = pricing.price;
         }
-      } catch (e) {
-        // ignore and fallback
       }
+    } catch (e) {
+      // ignore and fallback
+    }
+  }
+  if (!eventPrice || eventPrice <= 0) {
+    if (eventPriceOverride && eventPriceOverride > 0) {
+      eventPrice = eventPriceOverride;
     }
   }
   if (!eventPrice || eventPrice <= 0) {
@@ -2826,18 +2850,30 @@ export async function calculateEventPaymentQuote(
   else if (creditChoice === 'COMBINED_CREDIT') mode = 'COMBINED_CREDIT';
   else mode = 'FULL_PAID';
 
-  let eventPrice = params.eventPrice;
-  if (!eventPrice || eventPrice <= 0) {
-    if (eventId) {
-      try {
-        const { getEventById } = await import('./events.js');
-        const ev = await getEventById(eventId, env);
-        if (ev && ev.event_price) {
-          eventPrice = ev.event_price;
+  let eventPrice: number | undefined = undefined;
+  if (eventId) {
+    try {
+      const { getEventById } = await import('./events.js');
+      const ev = await getEventById(eventId, env);
+      if (ev) {
+        if (ev.event_price && Number(ev.event_price) > 0) {
+          eventPrice = Number(ev.event_price);
+        } else if (ev.start_date && ev.end_date) {
+          const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
+          const pricing = await calculateEventAuthoritativePrice({
+            startDate: ev.start_date,
+            endDate: ev.end_date,
+          }, env);
+          eventPrice = pricing.price;
         }
-      } catch (e) {
-        // ignore
       }
+    } catch (e) {
+      // ignore
+    }
+  }
+  if (!eventPrice || eventPrice <= 0) {
+    if (params.eventPrice && Number(params.eventPrice) > 0) {
+      eventPrice = Number(params.eventPrice);
     }
   }
   if (!eventPrice || eventPrice <= 0) {
@@ -2866,6 +2902,7 @@ export async function calculateEventPaymentQuote(
 
   return {
     event_id: eventId,
+    event_price: calc.eventPrice,
     standard_price: calc.eventPrice,
     currency: 'MYR',
     credit_choice: creditChoice,
@@ -2972,24 +3009,34 @@ export async function processEventPayment(
     mode = 'FULL_PAID';
   }
 
-  let eventPrice = params.eventPrice;
+  let eventPrice: number | undefined = undefined;
   let resolvedEventName = params.eventName;
-  if (!eventPrice || eventPrice <= 0 || !resolvedEventName) {
-    if (eventId) {
-      try {
-        const { getEventById } = await import('./events.js');
-        const ev = await getEventById(eventId, env);
-        if (ev) {
-          if (ev.event_price && (!eventPrice || eventPrice <= 0)) {
-            eventPrice = ev.event_price;
-          }
-          if (!resolvedEventName) {
-            resolvedEventName = ev.name;
-          }
+  if (eventId) {
+    try {
+      const { getEventById } = await import('./events.js');
+      const ev = await getEventById(eventId, env);
+      if (ev) {
+        if (ev.event_price && Number(ev.event_price) > 0) {
+          eventPrice = Number(ev.event_price);
+        } else if (ev.start_date && ev.end_date) {
+          const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
+          const pricing = await calculateEventAuthoritativePrice({
+            startDate: ev.start_date,
+            endDate: ev.end_date,
+          }, env);
+          eventPrice = pricing.price;
         }
-      } catch (e) {
-        // ignore
+        if (!resolvedEventName) {
+          resolvedEventName = ev.name;
+        }
       }
+    } catch (e) {
+      // ignore
+    }
+  }
+  if (!eventPrice || eventPrice <= 0) {
+    if (params.eventPrice && Number(params.eventPrice) > 0) {
+      eventPrice = Number(params.eventPrice);
     }
   }
   if (!eventPrice || eventPrice <= 0) {
