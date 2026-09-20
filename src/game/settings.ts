@@ -1,6 +1,7 @@
 import { GameSettings } from '../types';
 
-export const SETTINGS_CACHE_KEY = 'durian_catcher_settings_cache';
+export const SETTINGS_CACHE_KEY = 'catch_brand_settings_cache';
+export const LEGACY_SETTINGS_CACHE_KEY = 'durian_catcher_settings_cache';
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
   volume: 0.8,
@@ -82,7 +83,7 @@ export function getGameSettings(): GameSettings {
   }
 
   try {
-    const saved = localStorage.getItem(SETTINGS_CACHE_KEY);
+    const saved = localStorage.getItem(SETTINGS_CACHE_KEY) || localStorage.getItem(LEGACY_SETTINGS_CACHE_KEY);
     if (!saved) return { ...DEFAULT_GAME_SETTINGS };
     
     const parsed = JSON.parse(saved);

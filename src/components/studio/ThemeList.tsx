@@ -266,7 +266,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                 type="button"
                 onClick={() => setPlayingTheme(null)}
                 className="flex items-center gap-2 px-3 py-1.5 bg-slate-950 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition-all shadow-sm"
-                title="Back to Theme Studio"
+                title="Back to Themes"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Back to Themes</span>
@@ -293,7 +293,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                   type="button"
                   onClick={() => onEditTheme(playingTheme.id)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
-                  title="Edit theme in Theme Studio"
+                  title="Edit Theme"
                 >
                   <Edit3 className="w-3.5 h-3.5 text-amber-400" />
                   <span className="hidden sm:inline">Edit Theme</span>

@@ -458,6 +458,15 @@ export function isOperationalError(err: any): boolean {
     code === 'REJECTION_REASON_REQUIRED' ||
     code === 'INSUFFICIENT_BALANCE' ||
     code === 'PENDING_EVENT_LIMIT_REACHED' ||
+    code === 'MAX_DURATION_EXCEEDED' ||
+    code === 'INVALID_DATE_RANGE' ||
+    code === 'EVENT_DATE_PASSED' ||
+    code === 'NO_ACTIVE_GAME_PRICING' ||
+    code === 'INVALID_GAME_PRICING' ||
+    code === 'UNSUPPORTED_DURATION' ||
+    code === 'THEME_SETUP_REQUIRED' ||
+    code === 'THEME_FORBIDDEN' ||
+    code === 'SYSTEM_THEME_NOT_ALLOWED' ||
     code === 'THEME_GAME_MISMATCH' ||
     code === 'GAME_INACTIVE' ||
     code === 'GAME_CONFLICT' ||
@@ -579,6 +588,21 @@ export function handleApiError(
       } else if (code === 'DIRECT_UPLOAD_SIZE_EXCEEDED' || code === 'FILE_TOO_LARGE') {
         statusCode = 413;
       } else if (
+        code === 'THEME_FORBIDDEN' ||
+        code === 'PERMISSION_DENIED'
+      ) {
+        statusCode = 403;
+      } else if (
+        code === 'NO_ACTIVE_GAME_PRICING' ||
+        code === 'INVALID_GAME_PRICING'
+      ) {
+        statusCode = 503;
+      } else if (
+        code === 'MAX_DURATION_EXCEEDED' ||
+        code === 'INVALID_DATE_RANGE' ||
+        code === 'EVENT_DATE_PASSED' ||
+        code === 'UNSUPPORTED_DURATION' ||
+        code === 'SYSTEM_THEME_NOT_ALLOWED' ||
         code === 'THEME_SETUP_REQUIRED' ||
         code === 'REJECTION_REASON_REQUIRED' ||
         code === 'PENDING_EVENT_LIMIT_REACHED' ||
@@ -757,6 +781,21 @@ export async function handleWorkerApiError(
       } else if (code === 'DIRECT_UPLOAD_SIZE_EXCEEDED' || code === 'FILE_TOO_LARGE') {
         statusCode = 413;
       } else if (
+        code === 'THEME_FORBIDDEN' ||
+        code === 'PERMISSION_DENIED'
+      ) {
+        statusCode = 403;
+      } else if (
+        code === 'NO_ACTIVE_GAME_PRICING' ||
+        code === 'INVALID_GAME_PRICING'
+      ) {
+        statusCode = 503;
+      } else if (
+        code === 'MAX_DURATION_EXCEEDED' ||
+        code === 'INVALID_DATE_RANGE' ||
+        code === 'EVENT_DATE_PASSED' ||
+        code === 'UNSUPPORTED_DURATION' ||
+        code === 'SYSTEM_THEME_NOT_ALLOWED' ||
         code === 'THEME_SETUP_REQUIRED' ||
         code === 'REJECTION_REASON_REQUIRED' ||
         code === 'PENDING_EVENT_LIMIT_REACHED' ||

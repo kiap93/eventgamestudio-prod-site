@@ -648,8 +648,13 @@ export class GameScene extends Phaser.Scene {
   private loadHighScore() {
     try {
       const theme = getActiveTheme();
-      const key = `durian_catcher_high_score_${theme.slug || theme.id}`;
-      const saved = localStorage.getItem(key) || localStorage.getItem('durian_catcher_high_score');
+      const key = `catch_brand_high_score_${theme.slug || theme.id}`;
+      const legacyKey = `durian_catcher_high_score_${theme.slug || theme.id}`;
+      const saved =
+        localStorage.getItem(key) ||
+        localStorage.getItem(legacyKey) ||
+        localStorage.getItem('catch_brand_high_score') ||
+        localStorage.getItem('durian_catcher_high_score');
       if (saved) {
         this.highScore = parseInt(saved, 10) || 0;
       }
@@ -661,9 +666,9 @@ export class GameScene extends Phaser.Scene {
   private saveHighScore() {
     try {
       const theme = getActiveTheme();
-      const key = `durian_catcher_high_score_${theme.slug || theme.id}`;
+      const key = `catch_brand_high_score_${theme.slug || theme.id}`;
       localStorage.setItem(key, this.highScore.toString());
-      localStorage.setItem('durian_catcher_high_score', this.highScore.toString());
+      localStorage.setItem('catch_brand_high_score', this.highScore.toString());
     } catch {
       // Storage unavailable
     }

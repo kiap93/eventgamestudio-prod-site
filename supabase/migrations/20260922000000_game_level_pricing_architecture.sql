@@ -52,18 +52,10 @@ CREATE POLICY "Developer admins can manage game pricing"
   FOR ALL
   TO authenticated
   USING (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-        AND (users.is_developer = true OR users.role = 'developer')
-    )
+    public.is_developer_admin()
   )
   WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.users
-      WHERE users.id = auth.uid()
-        AND (users.is_developer = true OR users.role = 'developer')
-    )
+    public.is_developer_admin()
   );
 
 -- 3. ADD SNAPSHOT COLUMNS TO public.events
@@ -293,6 +285,24 @@ BEGIN
       'code', 'VALIDATION_ERROR',
       'error', 'Start date and End date are required',
       'message', 'Start date and End date are required'
+    );
+  END IF;
+
+  IF p_end_date < p_start_date THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'INVALID_DATE_RANGE',
+      'error', 'The event end date cannot be earlier than the start date. Please select a valid date range.',
+      'message', 'The event end date cannot be earlier than the start date. Please select a valid date range.'
+    );
+  END IF;
+
+  IF p_duration_days > 30 THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'MAX_DURATION_EXCEEDED',
+      'error', 'Maximum event duration is 30 days. Please select an end date within 30 days of the start date.',
+      'message', 'Maximum event duration is 30 days. Please select an end date within 30 days of the start date.'
     );
   END IF;
 

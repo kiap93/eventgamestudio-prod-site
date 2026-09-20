@@ -48,6 +48,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
     orangeCaught: 0,
     goldenCaught: 0,
     duriansMissed: 0,
+    itemsMissed: 0,
     timeRemaining: settings.gameDurationSeconds || 20,
   });
 

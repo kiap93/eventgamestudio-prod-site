@@ -2881,6 +2881,20 @@ export default {
         }
 
         try {
+          const durationDays = calculateEventCalendarDays(resolvedStart, resolvedEnd);
+          if (durationDays > 30) {
+            return jsonResponse({
+              code: 'MAX_DURATION_EXCEEDED',
+              error: 'Maximum event duration is 30 days. Please select an end date within 30 days of the start date.',
+            }, 422, cors);
+          }
+          if (resolvedEnd < resolvedStart) {
+            return jsonResponse({
+              code: 'INVALID_DATE_RANGE',
+              error: 'The event end date cannot be earlier than the start date. Please select a valid date range.',
+            }, 422, cors);
+          }
+
           // Create event with DRAFT event_status and UNPAID payment_status (no wallet balance deducted)
           const created = await createEvent(
             {
@@ -2934,12 +2948,19 @@ export default {
             err.code === 'GAME_NOT_SPECIFIED' ||
             err.code === 'THEME_SETUP_REQUIRED' ||
             err.code === 'ORGANIZATION_NOT_FOUND' ||
+            err.code === 'MAX_DURATION_EXCEEDED' ||
+            err.code === 'INVALID_DATE_RANGE' ||
+            err.code === 'EVENT_DATE_PASSED' ||
+            err.code === 'NO_ACTIVE_GAME_PRICING' ||
+            err.code === 'INVALID_GAME_PRICING' ||
+            err.code === 'UNSUPPORTED_DURATION' ||
             err.code === 'VALIDATION_ERROR'
           ) {
             const status =
               err.status ||
               (err.code === 'THEME_NOT_FOUND' || err.code === 'GAME_NOT_FOUND' || err.code === 'ORGANIZATION_NOT_FOUND' ? 404 :
-               err.code === 'THEME_FORBIDDEN' ? 403 : 422);
+               err.code === 'THEME_FORBIDDEN' ? 403 :
+               err.code === 'NO_ACTIVE_GAME_PRICING' || err.code === 'INVALID_GAME_PRICING' ? 503 : 422);
             return jsonResponse({
               error: err.message || 'Validation error',
               code: err.code,

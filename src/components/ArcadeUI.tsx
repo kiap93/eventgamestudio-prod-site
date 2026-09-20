@@ -288,6 +288,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             greenCaught: stats.greenCaught,
             orangeCaught: stats.orangeCaught,
             duriansMissed: stats.duriansMissed,
+            itemsMissed: stats.itemsMissed ?? stats.duriansMissed,
           },
           created_at: new Date().toISOString(),
           rank: 1,
@@ -354,6 +355,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             orangeCaught: stats.orangeCaught,
             goldenCaught: stats.goldenCaught,
             duriansMissed: stats.duriansMissed,
+            itemsMissed: stats.itemsMissed ?? stats.duriansMissed,
             itemsCaughtById: stats.itemsCaughtById,
             isEventTest: isOrganizerTest ? true : undefined,
             score_environment: isOrganizerTest ? 'test' : undefined,
@@ -1348,14 +1350,13 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
               score: stats.score,
               highScore: stats.highScore,
               timeElapsedSeconds: settings.gameDurationSeconds ?? 20,
-              accuracyPercent:
-                (stats.greenCaught + stats.orangeCaught + stats.goldenCaught + stats.duriansMissed) > 0
-                  ? Math.round(
-                      ((stats.greenCaught + stats.orangeCaught + stats.goldenCaught) /
-                        (stats.greenCaught + stats.orangeCaught + stats.goldenCaught + stats.duriansMissed)) *
-                        100
-                    )
-                  : 100,
+              accuracyPercent: (() => {
+                const missed = stats.itemsMissed ?? stats.duriansMissed ?? 0;
+                const totalAttempts = stats.greenCaught + stats.orangeCaught + stats.goldenCaught + missed;
+                return totalAttempts > 0
+                  ? Math.round(((stats.greenCaught + stats.orangeCaught + stats.goldenCaught) / totalAttempts) * 100)
+                  : 100;
+              })(),
               isVictory: true,
               gameType: 'catch-brand',
             }}

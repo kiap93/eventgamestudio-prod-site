@@ -8,7 +8,8 @@ export const GAME_HEIGHT = 576;
  */
 export const GAME_DURATION_SECONDS = 20;
 
-export const HIGH_SCORE_STORAGE_KEY = 'durian_catcher_high_score_v1';
+export const HIGH_SCORE_STORAGE_KEY = 'catch_brand_high_score_v1';
+export const LEGACY_HIGH_SCORE_STORAGE_KEY = 'durian_catcher_high_score_v1';
 
 export const SCORE_VALUES = {
   GREEN: 10,
@@ -83,6 +84,6 @@ export const DIFFICULTY_STAGES: DifficultyStage[] = [
     speedMax: 700,
     hazardRatio: 0.4,
     bonusRatio: 0.12,
-    stageName: 'Stage 3: Durian Storm!',
+    stageName: 'Stage 3: Bonus Storm!',
   },
 ];

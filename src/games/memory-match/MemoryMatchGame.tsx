@@ -342,7 +342,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       greenCaught: matchedPairsCount, // Matched pairs
       orangeCaught: moves, // Total moves
       goldenCaught: comboStreak, // Current streak
-      duriansMissed: Math.max(0, moves - matchedPairsCount), // Mismatches
+      duriansMissed: Math.max(0, moves - matchedPairsCount), // Legacy alias for mismatches
+      itemsMissed: Math.max(0, moves - matchedPairsCount), // Mismatches
       timeRemaining,
       itemsCaughtById: {
         pairs: matchedPairsCount,

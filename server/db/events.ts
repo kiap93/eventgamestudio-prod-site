@@ -889,9 +889,18 @@ export function normalizeEventDateBoundaries(
   }
 
   if (endDate < startDate) {
-    const err: any = new Error('End date cannot be earlier than start date.');
+    const err: any = new Error('The event end date cannot be earlier than the start date. Please select a valid date range.');
     err.status = 422;
     err.code = 'INVALID_DATE_RANGE';
+    throw err;
+  }
+
+  // 30-Day Maximum Duration Rule
+  const durationDays = calculateEventCalendarDays(startDate, endDate);
+  if (durationDays > 30) {
+    const err: any = new Error('Maximum event duration is 30 days. Please select an end date within 30 days of the start date.');
+    err.status = 422;
+    err.code = 'MAX_DURATION_EXCEEDED';
     throw err;
   }
 
@@ -2362,13 +2371,20 @@ export async function createEvent(
           rpcData.code === 'GAME_INACTIVE' ||
           rpcData.code === 'GAME_NOT_FOUND' ||
           rpcData.code === 'THEME_GAME_MISMATCH' ||
+          rpcData.code === 'MAX_DURATION_EXCEEDED' ||
+          rpcData.code === 'INVALID_DATE_RANGE' ||
+          rpcData.code === 'EVENT_DATE_PASSED' ||
+          rpcData.code === 'NO_ACTIVE_GAME_PRICING' ||
+          rpcData.code === 'INVALID_GAME_PRICING' ||
+          rpcData.code === 'UNSUPPORTED_DURATION' ||
           rpcData.code === 'VALIDATION_ERROR';
 
         const err: any = new Error(rpcData.error || rpcData.message || 'Failed to create event');
         err.code = rpcData.code || 'EVENT_CREATION_FAILED';
         err.status = isOperational
           ? (rpcData.code === 'ORGANIZATION_NOT_FOUND' || rpcData.code === 'THEME_NOT_FOUND' || rpcData.code === 'GAME_NOT_FOUND' ? 404 :
-             rpcData.code === 'THEME_FORBIDDEN' ? 403 : 422)
+             rpcData.code === 'THEME_FORBIDDEN' ? 403 :
+             rpcData.code === 'NO_ACTIVE_GAME_PRICING' || rpcData.code === 'INVALID_GAME_PRICING' ? 503 : 422)
           : 500;
         err.stage = 'rpc_create_event_atomic';
         err.rpcName = 'create_event_atomic';

@@ -1,9 +1,21 @@
+# Dependencies
 node_modules/
+
+# Production build artifacts
 build/
 dist/
+
+# Test coverage
 coverage/
+
+# OS and log files
 .DS_Store
 *.log
+
+# Environment variables
 .env*
 !.env.example
+
+# Local uploads and runtime test data
 uploads/
+

@@ -19,6 +19,7 @@ import { SUPPORTED_TIMEZONES, getDefaultTimezoneForCountry, resolveEventTimezone
 import { PaymentCheckoutModal } from '../wallet/PaymentCheckoutModal';
 import { getGameTypeIcon } from '../../games';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { formatEventErrorMessage } from './eventErrorUtils';
 import {
   X,
   Calendar,
@@ -100,6 +101,15 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   });
   const [startDate, setStartDate] = useState<string>(() => getTodayDateString(resolveEventTimezone(undefined, currentOrganization)));
   const [endDate, setEndDate] = useState<string>(() => getTodayDateString(resolveEventTimezone(undefined, currentOrganization)));
+
+  // Date and duration validation states
+  const hasSelectedBothDates = Boolean(startDate && endDate);
+  const isEndDateBeforeStartDate = Boolean(hasSelectedBothDates && endDate < startDate);
+  const currentDurationDays = hasSelectedBothDates && !isEndDateBeforeStartDate
+    ? calculateEventCalendarDays(startDate, endDate)
+    : 0;
+  const isDurationExceeded = currentDurationDays > 30;
+  const isDateRangeInvalid = !hasSelectedBothDates || isEndDateBeforeStartDate || isDurationExceeded;
 
   useEffect(() => {
     if (currentOrganization?.country_code) {
@@ -295,7 +305,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
       if (!quoteRes.ok) {
         const errData = await quoteRes.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to fetch event payment quote');
+        throw new Error(formatEventErrorMessage(errData, quoteRes.status));
       }
 
       const quoteData = await quoteRes.json();
@@ -366,12 +376,19 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     }
 
     if (endDate < startDate) {
-      setCreationError('End date must be on or after Start date');
+      setCreationError('The event end date cannot be earlier than the start date. Please select a valid date range.');
+      return;
+    }
+
+    const durationDays = calculateEventCalendarDays(startDate, endDate);
+    if (durationDays > 30) {
+      setCreationError('Maximum event duration is 30 days. Please select an end date within 30 days of the start date.');
       return;
     }
 
     try {
       setIsCreatingEvent(true);
+      setCreationError(null);
 
       const res = await apiFetch('/api/events', {
         method: 'POST',
@@ -390,13 +407,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        if (errData.code === 'THEME_SETUP_REQUIRED' || (errData.error && errData.error.toLowerCase().includes('theme setup required'))) {
-          throw new Error('THEME_SETUP_REQUIRED: ' + (errData.error || 'Theme setup is required before creating an event. Please customize and save your theme first.'));
-        }
-        if (errData.code === 'PENDING_EVENT_LIMIT_REACHED' || res.status === 422) {
-          throw new Error(errData.error || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
-        }
-        throw new Error(errData.error || 'Failed to create event. Please try again.');
+        const userFriendlyMessage = formatEventErrorMessage(errData, res.status);
+        throw new Error(userFriendlyMessage);
       }
 
       const data = await res.json();
@@ -409,7 +421,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       setStep('created');
     } catch (err: any) {
       console.error('Create event error:', err);
-      setCreationError(err.message || 'Failed to create event');
+      setCreationError(err.message || 'Failed to create event. Please check your inputs and try again.');
     } finally {
       setIsCreatingEvent(false);
     }
@@ -453,15 +465,16 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
+        const formattedErr = formatEventErrorMessage(errData, res.status);
         if (res.status === 402 || errData.code === 'INSUFFICIENT_BALANCE') {
-          setPaymentError(errData.error || 'Insufficient balance to activate event.');
+          setPaymentError(formattedErr);
           fetchWalletAndQuote(createdEvent.game_theme_id, resolvedMode, {
             useWelcome: useWelcomeCredit,
             useEvent: useEventCredit,
           });
           return;
         }
-        throw new Error(errData.error || 'Payment failed. Please try again.');
+        throw new Error(formattedErr);
       }
 
       const data = await res.json();
@@ -845,8 +858,6 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                         setStartDate(newStart);
                         if (durationPreset !== 'custom') {
                           handleDurationPresetChange(durationPreset, newStart);
-                        } else if (endDate < newStart) {
-                          setEndDate(newStart);
                         }
                       }}
                       className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-slate-100 text-xs focus:outline-none cursor-pointer"
@@ -860,18 +871,36 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                     <input
                       type="date"
                       required
-                      min={startDate}
                       disabled={durationPreset !== 'custom'}
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
                       className={`w-full px-3 py-2.5 bg-slate-950 border ${
-                        durationPreset === 'custom' ? 'border-slate-800 focus:border-amber-500 text-slate-100 cursor-pointer' : 'border-slate-800/60 text-slate-400 opacity-80 cursor-not-allowed'
+                        durationPreset === 'custom'
+                          ? isDurationExceeded || isEndDateBeforeStartDate
+                            ? 'border-rose-500/60 focus:border-rose-500 text-slate-100 cursor-pointer'
+                            : 'border-slate-800 focus:border-amber-500 text-slate-100 cursor-pointer'
+                          : 'border-slate-800/60 text-slate-400 opacity-80 cursor-not-allowed'
                       } rounded-xl text-xs focus:outline-none`}
                     />
                   </div>
                 </div>
 
-                {startDate && endDate && (
+                {/* Inline Date & Duration Validation Messages */}
+                {isEndDateBeforeStartDate && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-2 text-xs text-rose-400">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    <span>The event end date cannot be earlier than the start date. Please select a valid date range.</span>
+                  </div>
+                )}
+
+                {isDurationExceeded && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-2 text-xs text-rose-400">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    <span>Maximum event duration is 30 days. Please select an end date within 30 days of the start date.</span>
+                  </div>
+                )}
+
+                {startDate && endDate && !isEndDateBeforeStartDate && !isDurationExceeded && (
                   <p className="text-[11px] text-slate-400 font-medium">
                     Active for whole calendar day{startDate === endDate ? '' : 's'}: <span className="text-amber-300 font-bold">{formatEventDateRange(startDate, endDate)}</span>
                   </p>
@@ -926,7 +955,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={!name.trim() || isCreatingEvent || !selectedThemeId || themes.length === 0}
+                disabled={!name.trim() || isCreatingEvent || !selectedThemeId || themes.length === 0 || isDateRangeInvalid}
                 className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
               >
                 {isCreatingEvent ? (

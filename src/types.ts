@@ -22,7 +22,8 @@ export interface GameStats {
   greenCaught: number; // good items caught
   orangeCaught: number; // hazard items caught
   goldenCaught: number; // bonus items caught
-  duriansMissed: number; // missed items
+  duriansMissed: number; // legacy alias for missed items
+  itemsMissed?: number; // generalized missed items count
   timeRemaining: number;
   // Dynamic breakdown map by item ID
   itemsCaughtById?: Record<string, number>;
