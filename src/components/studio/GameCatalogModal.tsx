@@ -80,7 +80,7 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
           gameType: pg.game_type,
           description: pg.description || matchingDef?.description || 'Custom interactive brand game.',
           iconName: pg.icon_name || matchingDef?.iconName || (pg.game_type === 'reaction-tap' ? 'Zap' : pg.game_type === 'memory-match' ? 'Grid3X3' : pg.game_type === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'),
-          isAvailable: pg.status === 'active',
+          isAvailable: pg.status === 'active' && (matchingDef ? matchingDef.isAvailable : false),
           themeCount: pg.theme_count ?? 0,
           minPlayers: matchingDef?.minPlayers || 1,
           maxPlayers: matchingDef?.maxPlayers || 1,

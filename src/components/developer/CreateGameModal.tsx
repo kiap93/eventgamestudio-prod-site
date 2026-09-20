@@ -80,6 +80,9 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
 
   const handleGameTypeSelect = (selectedType: string) => {
     setGameType(selectedType);
+    if (GAME_REGISTRY[selectedType]?.isAvailable === false) {
+      setStatus('draft');
+    }
     if (!initialGame) {
       const def = GAME_REGISTRY[selectedType];
       if (def) {
@@ -101,6 +104,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
 
   const isSlugConflict = slug.trim() ? usedSlugs.has(slug.trim().toLowerCase()) : false;
   const isTypeConflict = (!initialGame || initialGame.game_type !== gameType) && registeredTypeKeys.has(gameType);
+  const isEngineAvailable = GAME_REGISTRY[gameType]?.isAvailable !== false;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +115,11 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
 
     if (isTypeConflict) {
       setError('This game type is already registered. Please manage the existing game instead of creating another one.');
+      return;
+    }
+
+    if (status === 'active' && !isEngineAvailable) {
+      setError(`Cannot set status to Active: The engine for "${gameType}" is currently under development. Games without an active engine must remain in "draft" status.`);
       return;
     }
 
@@ -295,7 +304,9 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
                 onChange={(e) => setStatus(e.target.value as any)}
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 disabled:opacity-50"
               >
-                <option value="active">Active (Available to Orgs)</option>
+                <option value="active" disabled={!isEngineAvailable}>
+                  {isEngineAvailable ? 'Active (Available to Orgs)' : 'Active (Blocked — Engine in Dev)'}
+                </option>
                 <option value="draft">Draft (Developer Only)</option>
                 <option value="archived">Archived</option>
               </select>

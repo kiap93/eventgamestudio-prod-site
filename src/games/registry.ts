@@ -4,6 +4,7 @@ import { MemoryMatchGame } from './memory-match/MemoryMatchGame';
 import { MemoryMatchConfig } from './memory-match/types';
 import { ReactionGame } from './reaction-time/ReactionGame';
 import { DEFAULT_REACTION_CONFIG, ReactionGameConfig } from './reaction-time/types';
+import { SpeedQuizUnavailablePlaceholder } from './speed-quiz/SpeedQuizUnavailablePlaceholder';
 
 export { DEFAULT_GAME_TYPE };
 
@@ -91,7 +92,7 @@ const CANONICAL_GAME_REGISTRY: Record<string, GameDefinition<any>> = {
       soundEnabled: true,
       bgmEnabled: true,
     },
-    component: CatchBrandGame, // Fallback until implemented
+    component: SpeedQuizUnavailablePlaceholder,
     isAvailable: false,
     comingSoon: true,
   },

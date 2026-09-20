@@ -3,6 +3,7 @@ import { PlatformGame, PlatformStats } from '../../types/developer';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { CreateGameModal } from './CreateGameModal';
 import { getGameTypeIcon } from '../../games';
+import { GAME_REGISTRY } from '../../games/registry';
 import {
   Gamepad2,
   Plus,
@@ -62,6 +63,12 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
 
   const handleToggleStatus = async (game: PlatformGame) => {
     setActionError(null);
+    const isEngineAvailable = GAME_REGISTRY[game.game_type]?.isAvailable !== false && GAME_REGISTRY[game.slug]?.isAvailable !== false;
+    if (game.status !== 'active' && !isEngineAvailable) {
+      setActionError(`Cannot activate "${game.name}": The game engine for "${game.game_type}" is currently under development and cannot be activated.`);
+      return;
+    }
+
     setTogglingId(game.id);
     try {
       const nextStatus = game.status === 'active' ? 'draft' : 'active';
@@ -289,18 +296,34 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                 {/* Bottom Actions */}
                 <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
                   <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => handleToggleStatus(game)}
-                      disabled={togglingId === game.id}
-                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-colors ${
-                        isActive
-                          ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
-                          : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
-                      }`}
-                      title={isActive ? 'Deactivate game' : 'Activate game'}
-                    >
-                      {isActive ? 'Deactivate' : 'Activate'}
-                    </button>
+                    {(() => {
+                      const isEngineAvail = GAME_REGISTRY[game.game_type]?.isAvailable !== false && GAME_REGISTRY[game.slug]?.isAvailable !== false;
+                      if (!isActive && !isEngineAvail) {
+                        return (
+                          <button
+                            disabled
+                            className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border bg-slate-800/60 text-slate-500 border-slate-700/60 cursor-not-allowed"
+                            title="Cannot activate: Game engine is under development"
+                          >
+                            Unavailable
+                          </button>
+                        );
+                      }
+                      return (
+                        <button
+                          onClick={() => handleToggleStatus(game)}
+                          disabled={togglingId === game.id}
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-colors ${
+                            isActive
+                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                              : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                          }`}
+                          title={isActive ? 'Deactivate game' : 'Activate game'}
+                        >
+                          {isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                      );
+                    })()}
                     <button
                       onClick={() => {
                         setEditingGame(game);

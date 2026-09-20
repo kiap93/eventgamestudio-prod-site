@@ -19,22 +19,25 @@ This document tracks verified architectural gaps, technical debt, and pending is
 
 ---
 
-## Issue 2: Speed Quiz Engine Placeholder Stub
+## Issue 2: Speed Quiz Engine Availability & Hardened Isolation
 
 - **Affected Files**:
-  - `src/games/registry.ts` (lines 93–114)
-  - `src/games/types.ts`
-- **Current Behavior**:
-  The `speed-quiz` game is registered in `GAME_REGISTRY` with `isAvailable: false` and `comingSoon: true`. However, its component reference is stubbed to the catcher game:
-  ```typescript
-  component: CatchBrandGame, // Fallback until implemented
-  ```
-- **Intended Behavior**:
-  A dedicated quiz engine component (`SpeedQuizGame.tsx`) with questions, countdown timers, multiple-choice options, and score validation should be built before making the game available.
-- **Risk / Impact**:
-  **Medium**. If an administrator marks `isAvailable: true` or manually assigns `game_type = 'speed-quiz'` to an event, players will see Catch the Brand instead of a quiz game.
-- **Status**: `OPEN`
-- **Workaround**: Keep `isAvailable: false` in `src/games/registry.ts`.
+  - `src/games/registry.ts`
+  - `src/games/speed-quiz/SpeedQuizUnavailablePlaceholder.tsx`
+  - `src/components/shell/GameShell.tsx`
+  - `server/db/games.ts`
+  - `server/db/events.ts`
+  - `server.ts` & `worker.ts`
+  - `supabase/migrations/20260920000000_enforce_game_engine_availability.sql`
+- **Initial Behavior**:
+  The `speed-quiz` game was registered in `GAME_REGISTRY` with `isAvailable: false` and `comingSoon: true`, but its component reference was stubbed to `CatchBrandGame`. If an administrator manually modified the database to mark `speed-quiz` active or assigned `game_type = 'speed-quiz'` to an event, the system could have silently rendered Catch the Brand.
+- **Resolution**:
+  Fully hardened across all application layers:
+  1. **Backend Database & Atomic Functions**: Database trigger `trg_check_game_engine_availability` blocks setting `speed-quiz` or any in-development engine to `status = 'active'`. The atomic event creation function `create_event_atomic` strictly verifies `game.status = 'active'` and validates against an authoritative engine whitelist.
+  2. **TypeScript Server Isolation**: `createPlatformGame` and `updatePlatformGame` reject activating unavailable engines; `createEvent` rejects creating events with unavailable engines (`GAME_UNAVAILABLE`); `getAvailableGamesForStudio` filters out unavailable engines; `GET /api/public/events/:token` blocks access with `403 GAME_UNAVAILABLE`.
+  3. **No Cross-Game Fallback**: Dedicated component `SpeedQuizUnavailablePlaceholder` replaces the `CatchBrandGame` fallback in `GAME_REGISTRY`. `resolveEventGameType` returns `'speed-quiz'` directly, and `GameShell` intercepts unavailable engines to render an informative development notice instead of running another game.
+  4. **Developer UI Guards**: Status toggles and game creation dialogs enforce `isEngineAvailable` checks, preventing developer/admin activation in the frontend.
+- **Status**: `RESOLVED` (Hardened engine isolation; dedicated quiz mechanics remain scheduled for future implementation)
 
 ---
 
