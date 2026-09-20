@@ -20,6 +20,7 @@ import {
   LayoutGrid,
   Activity,
   Sliders,
+  Coins,
 } from 'lucide-react';
 
 interface DeveloperGamesListProps {
@@ -343,13 +344,23 @@ export const DeveloperGamesList: React.FC<DeveloperGamesListProps> = ({
                     </button>
                   </div>
 
-                  <button
-                    onClick={() => navigateTo(`/developer/games/${game.id}`)}
-                    className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 hover:border-emerald-500 text-xs font-semibold rounded-xl transition-all"
-                  >
-                    <span>Manage Themes</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => navigateTo(`/developer/pricing`)}
+                      className="flex items-center space-x-1 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                      title="Manage Duration Pricing Tiers"
+                    >
+                      <Coins className="w-3.5 h-3.5" />
+                      <span>Pricing</span>
+                    </button>
+                    <button
+                      onClick={() => navigateTo(`/developer/games/${game.id}`)}
+                      className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 hover:border-emerald-500 text-xs font-semibold rounded-xl transition-all"
+                    >
+                      <span>Themes</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );

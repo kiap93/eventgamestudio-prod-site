@@ -177,6 +177,14 @@ import {
   updateContactEnquiryEmailStatus,
   getContactNotificationRecipientEmail,
   listContactEnquiries,
+  getGamePricing,
+  getActiveGamePricing,
+  resolveGamePrice,
+  createGamePricingTier,
+  updateGamePricingTier,
+  deleteGamePricingTier,
+  bulkUpsertGamePricing,
+  ensureDefaultGamePricing,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import {
@@ -2197,6 +2205,20 @@ app.put('/api/games/:gameId/customization', authenticateJWT, async (req: Authent
   }
 });
 
+/**
+ * GET /api/games/:gameId/pricing
+ * Retrieve active pricing tiers for a specific game
+ */
+app.get('/api/games/:gameId/pricing', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { gameId } = req.params;
+    const tiers = await getActiveGamePricing(gameId);
+    res.json({ success: true, tiers, game_id: gameId });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
 // ----------------------------------------------------
 // EVENTS & PUBLIC DEPLOYMENT ENDPOINTS
 // ----------------------------------------------------
@@ -2301,20 +2323,36 @@ app.post('/api/events/quote', eventRateLimiter, authenticateJWT, async (req: Aut
     let currency = 'MYR';
     let durationDays = 1;
     let ruleLabel = '1 day';
+    let targetGameId = req.body.game_id || req.body.gameId;
 
     if (!price && event_id) {
       const existing = await getEventById(event_id);
-      if (existing && existing.event_price) {
-        price = existing.event_price;
-        currency = existing.event_currency || 'MYR';
-        durationDays = calculateEventCalendarDays(existing.start_date || existing.event_date, existing.end_date || existing.start_date || existing.event_date);
-        ruleLabel = `${durationDays} day${durationDays > 1 ? 's' : ''}`;
+      if (existing) {
+        if (existing.game_id && !targetGameId) {
+          targetGameId = existing.game_id;
+        }
+        if (existing.event_price) {
+          price = existing.event_price;
+          currency = existing.event_currency || 'MYR';
+          durationDays = calculateEventCalendarDays(existing.start_date || existing.event_date, existing.end_date || existing.start_date || existing.event_date);
+          ruleLabel = `${durationDays} day${durationDays > 1 ? 's' : ''}`;
+        }
       }
+    }
+
+    if (!targetGameId && game_theme_id) {
+      try {
+        const theme = await getThemeById(game_theme_id);
+        if (theme?.game_id) {
+          targetGameId = theme.game_id;
+        }
+      } catch (_) {}
     }
 
     if (!price) {
       try {
         const pricing = await calculateEventAuthoritativePrice({
+          game_id: targetGameId,
           start_date: start_date || startDate,
           end_date: end_date || endDate,
           event_date,
@@ -2627,6 +2665,7 @@ app.post('/api/events/:eventId/pay', walletRateLimiter, authenticateJWT, async (
     let authoritativeEventPrice = event.event_price && Number(event.event_price) > 0 ? Number(event.event_price) : undefined;
     if (!authoritativeEventPrice && event.start_date && event.end_date) {
       const pricing = await calculateEventAuthoritativePrice({
+        game_id: event.game_id,
         startDate: event.start_date,
         endDate: event.end_date,
       });
@@ -4637,6 +4676,116 @@ app.post('/api/developer/games/:gameId/themes', authenticateDeveloperAdmin, asyn
 });
 
 /**
+ * GET /api/developer/games/:gameId/pricing
+ * Get all pricing tiers (active and inactive) for a specific game
+ */
+app.get('/api/developer/games/:gameId/pricing', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { gameId } = req.params;
+    const tiers = await getGamePricing(gameId);
+    res.json({ success: true, tiers, game_id: gameId });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * PUT /api/developer/games/:gameId/pricing
+ * Bulk upsert / replace pricing tiers for a game
+ */
+app.put('/api/developer/games/:gameId/pricing', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { gameId } = req.params;
+    const { tiers } = req.body;
+    if (!Array.isArray(tiers)) {
+      res.status(400).json({ error: 'Tiers must be an array of pricing tier configurations' });
+      return;
+    }
+    const updated = await bulkUpsertGamePricing(gameId, tiers);
+    res.json({ success: true, tiers: updated, message: 'Game pricing tiers updated successfully' });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/games/:gameId/pricing/tier
+ * Create a new pricing tier for a game
+ */
+app.post('/api/developer/games/:gameId/pricing/tier', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { gameId } = req.params;
+    const { min_days, max_days, price, currency, is_active, is_base } = req.body;
+    if (typeof min_days !== 'number' || typeof price !== 'number') {
+      res.status(400).json({ error: 'min_days and price are required numbers' });
+      return;
+    }
+    const tier = await createGamePricingTier(gameId, {
+      min_days,
+      max_days: max_days !== undefined ? max_days : null,
+      price,
+      currency,
+      is_active,
+      is_base,
+    });
+    res.status(201).json({ success: true, tier });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * PUT /api/developer/games/:gameId/pricing/tier/:tierId
+ * Update an existing pricing tier
+ */
+app.put('/api/developer/games/:gameId/pricing/tier/:tierId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { tierId } = req.params;
+    const { min_days, max_days, price, currency, is_active, is_base } = req.body;
+    const tier = await updateGamePricingTier(tierId, {
+      min_days,
+      max_days,
+      price,
+      currency,
+      is_active,
+      is_base,
+    });
+    res.json({ success: true, tier });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * DELETE /api/developer/games/:gameId/pricing/tier/:tierId
+ * Delete a pricing tier
+ */
+app.delete('/api/developer/games/:gameId/pricing/tier/:tierId', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { tierId } = req.params;
+    await deleteGamePricingTier(tierId);
+    res.json({ success: true, message: 'Pricing tier deleted successfully' });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/developer/games/:gameId/pricing/seed-defaults
+ * Seed default pricing tiers for a game
+ */
+app.post('/api/developer/games/:gameId/pricing/seed-defaults', authenticateDeveloperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { gameId } = req.params;
+    const game = await getGameById(gameId);
+    const tiers = await ensureDefaultGamePricing(gameId, game?.slug || game?.game_type);
+    res.json({ success: true, tiers, message: 'Default pricing tiers seeded successfully' });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
  * GET /api/developer/themes/:themeId
  * Get single system default theme
  */
@@ -6610,6 +6759,7 @@ app.post('/api/organizations/:orgId/wallet/pay-event', walletRateLimiter, authen
     let authoritativeEventPrice = event.event_price && Number(event.event_price) > 0 ? Number(event.event_price) : undefined;
     if (!authoritativeEventPrice && event.start_date && event.end_date) {
       const pricing = await calculateEventAuthoritativePrice({
+        game_id: event.game_id,
         startDate: event.start_date,
         endDate: event.end_date,
       });

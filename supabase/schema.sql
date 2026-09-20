@@ -4934,12 +4934,46 @@ CREATE POLICY "Developer admins can view api error logs"
 GRANT ALL ON public.api_error_logs TO service_role;
 GRANT SELECT ON public.api_error_logs TO authenticated;
 
+-- ------------------------------------------------------------------------------
+-- GAME PRICING & EVENT PRICING SNAPSHOTS
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.game_pricing (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  game_id UUID NOT NULL REFERENCES public.games(id) ON DELETE CASCADE,
+  min_days INT NOT NULL CHECK (min_days >= 1),
+  max_days INT CHECK (max_days IS NULL OR max_days >= min_days),
+  price NUMERIC(10, 2) NOT NULL CHECK (price > 0),
+  currency TEXT NOT NULL DEFAULT 'MYR',
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  is_base BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
 
+CREATE INDEX IF NOT EXISTS idx_game_pricing_game_id ON public.game_pricing(game_id);
+CREATE INDEX IF NOT EXISTS idx_game_pricing_active ON public.game_pricing(is_active);
+CREATE INDEX IF NOT EXISTS idx_game_pricing_game_days ON public.game_pricing(game_id, min_days, max_days);
+CREATE INDEX IF NOT EXISTS idx_game_pricing_is_base ON public.game_pricing(game_id, is_base) WHERE is_base = true;
 
+ALTER TABLE public.game_pricing ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can view active game pricing" ON public.game_pricing;
+CREATE POLICY "Anyone can view active game pricing"
+  ON public.game_pricing
+  FOR SELECT
+  USING (true);
 
+DROP POLICY IF EXISTS "Service role can manage game pricing" ON public.game_pricing;
+CREATE POLICY "Service role can manage game pricing"
+  ON public.game_pricing
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
 
-
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS pricing_id UUID REFERENCES public.game_pricing(id) ON DELETE SET NULL;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS duration_days INT;
+CREATE INDEX IF NOT EXISTS idx_events_pricing_id ON public.events(pricing_id);
 
 
 

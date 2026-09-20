@@ -5,6 +5,7 @@ import {
   NotificationCategory,
   NotificationPriority,
   NOTIFICATION_CATALOG,
+  calculateNotificationExpiry,
   renderNotificationContent,
 } from '../notifications/types.js';
 import crypto from 'node:crypto';
@@ -113,13 +114,9 @@ export async function createNotification(
   const finalPriority = customPriority || rendered.priority;
   const finalCategory = rendered.category;
 
-  // Calculate default expiration date if none specified
-  let finalExpiresAt = expiresAt;
-  if (!finalExpiresAt && catalogItem?.retentionDays) {
-    const d = new Date();
-    d.setDate(d.getDate() + catalogItem.retentionDays);
-    finalExpiresAt = d.toISOString();
-  }
+  // Authoritative catalog-driven expiry calculation
+  // Strictly decoupled from retention: only items with expiresByDefault: true expire automatically.
+  const finalExpiresAt = calculateNotificationExpiry(type, new Date(), expiresAt);
 
   // 1. Check deduplication in database or local fallback
   if (deduplicationKey) {
@@ -157,8 +154,8 @@ export async function createNotification(
     expires_at: finalExpiresAt,
   };
 
-  const supabase = getSupabaseServerClient(env);
   if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
     try {
       const { data, error } = await supabase
         .from('notifications')
@@ -231,8 +228,8 @@ export async function getNotificationByDeduplicationKey(
   deduplicationKey: string,
   env?: Record<string, any>
 ): Promise<NotificationRecord | null> {
-  const supabase = getSupabaseServerClient(env);
   if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
     try {
       const { data, error } = await supabase
         .from('notifications')
@@ -262,6 +259,7 @@ export async function getNotificationByDeduplicationKey(
 
 /**
  * List notifications for a user with optional organization, category, unread filters, and pagination.
+ * Automatically filters out expired notifications (expires_at IS NULL OR expires_at > NOW()).
  */
 export async function listNotifications(
   params: ListNotificationsParams,
@@ -293,19 +291,23 @@ export async function listNotifications(
     typeof val === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
-  const supabase = getSupabaseServerClient(env);
+  const nowIso = new Date().toISOString();
+  const nowTime = Date.now();
+
   if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
     // Only query Supabase when userId is a valid UUID because recipient_user_id is type UUID in Postgres
     if (isValidUUID(userId)) {
       try {
-        // 1. Get total unread count for badge
+        // 1. Get total unread count for badge (strictly active notifications)
         let unreadCount = 0;
         try {
           let unreadQuery = supabase
             .from('notifications')
             .select('id', { count: 'exact', head: true })
             .eq('recipient_user_id', userId)
-            .eq('is_read', false);
+            .eq('is_read', false)
+            .or(`expires_at.is.null,expires_at.gt.${nowIso}`);
 
           if (organizationId && isValidUUID(organizationId)) {
             unreadQuery = unreadQuery.or(`organization_id.eq.${organizationId},organization_id.is.null`);
@@ -319,11 +321,12 @@ export async function listNotifications(
           console.warn('[Notifications] Notice fetching unread count from Supabase:', uErr);
         }
 
-        // 2. Query notifications list
+        // 2. Query notifications list (strictly active notifications)
         let query = supabase
           .from('notifications')
           .select('*', { count: 'exact' })
-          .eq('recipient_user_id', userId);
+          .eq('recipient_user_id', userId)
+          .or(`expires_at.is.null,expires_at.gt.${nowIso}`);
 
         if (organizationId && isValidUUID(organizationId)) {
           query = query.or(`organization_id.eq.${organizationId},organization_id.is.null`);
@@ -363,7 +366,10 @@ export async function listNotifications(
   // Local fallback
   if (isLocalFallbackAllowed(env)) {
     try {
-      let locals = readLocalNotifications(env).filter((n) => n.recipient_user_id === userId);
+      // Filter by recipient and strictly active (not expired)
+      let locals = readLocalNotifications(env).filter(
+        (n) => n.recipient_user_id === userId && (!n.expires_at || new Date(n.expires_at).getTime() > nowTime)
+      );
 
       if (organizationId) {
         locals = locals.filter((n) => !n.organization_id || n.organization_id === organizationId);
@@ -402,7 +408,7 @@ export async function listNotifications(
 }
 
 /**
- * Gets count of unread notifications for a user.
+ * Gets count of unread notifications for a user (strictly active notifications: expires_at IS NULL OR expires_at > NOW()).
  */
 export async function getUnreadNotificationCount(
   userId: string,
@@ -425,15 +431,19 @@ export async function getUnreadNotificationCount(
     typeof val === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
-  const supabase = getSupabaseServerClient(env);
+  const nowIso = new Date().toISOString();
+  const nowTime = Date.now();
+
   if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
     if (isValidUUID(userId)) {
       try {
         let query = supabase
           .from('notifications')
           .select('id', { count: 'exact', head: true })
           .eq('recipient_user_id', userId)
-          .eq('is_read', false);
+          .eq('is_read', false)
+          .or(`expires_at.is.null,expires_at.gt.${nowIso}`);
 
         if (organizationId && isValidUUID(organizationId)) {
           query = query.or(`organization_id.eq.${organizationId},organization_id.is.null`);
@@ -455,6 +465,7 @@ export async function getUnreadNotificationCount(
         (n) =>
           n.recipient_user_id === userId &&
           !n.is_read &&
+          (!n.expires_at || new Date(n.expires_at).getTime() > nowTime) &&
           (!organizationId || !n.organization_id || n.organization_id === organizationId)
       );
       return locals.length;
@@ -468,6 +479,7 @@ export async function getUnreadNotificationCount(
 
 /**
  * Mark a single notification as read by its recipient.
+ * Only active notifications (expires_at IS NULL OR expires_at > NOW()) can be marked as read.
  */
 export async function markNotificationAsRead(
   notificationId: string,
@@ -481,9 +493,10 @@ export async function markNotificationAsRead(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
   const now = new Date().toISOString();
-  const supabase = getSupabaseServerClient(env);
+  const nowTime = Date.now();
 
   if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
     if (isValidUUID(notificationId) && isValidUUID(userId)) {
       try {
         const { data, error } = await supabase
@@ -494,6 +507,7 @@ export async function markNotificationAsRead(
           })
           .eq('id', notificationId)
           .eq('recipient_user_id', userId)
+          .or(`expires_at.is.null,expires_at.gt.${now}`)
           .select('*')
           .maybeSingle();
 
@@ -501,7 +515,12 @@ export async function markNotificationAsRead(
           // Also update local fallback if present
           if (isLocalFallbackAllowed(env)) {
             const locals = readLocalNotifications(env);
-            const idx = locals.findIndex((n) => n.id === notificationId && n.recipient_user_id === userId);
+            const idx = locals.findIndex(
+              (n) =>
+                n.id === notificationId &&
+                n.recipient_user_id === userId &&
+                (!n.expires_at || new Date(n.expires_at).getTime() > nowTime)
+            );
             if (idx !== -1) {
               locals[idx].is_read = true;
               locals[idx].read_at = now;
@@ -518,7 +537,12 @@ export async function markNotificationAsRead(
 
   if (isLocalFallbackAllowed(env)) {
     const locals = readLocalNotifications(env);
-    const idx = locals.findIndex((n) => n.id === notificationId && n.recipient_user_id === userId);
+    const idx = locals.findIndex(
+      (n) =>
+        n.id === notificationId &&
+        n.recipient_user_id === userId &&
+        (!n.expires_at || new Date(n.expires_at).getTime() > nowTime)
+    );
     if (idx !== -1) {
       locals[idx].is_read = true;
       locals[idx].read_at = now;
@@ -531,7 +555,8 @@ export async function markNotificationAsRead(
 }
 
 /**
- * Mark all notifications for a user (and optional organization) as read.
+ * Mark all active unread notifications for a user (and optional organization) as read.
+ * Does NOT mark expired notifications as read.
  */
 export async function markAllNotificationsAsRead(
   userId: string,
@@ -553,9 +578,10 @@ export async function markAllNotificationsAsRead(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
   const now = new Date().toISOString();
-  const supabase = getSupabaseServerClient(env);
+  const nowTime = Date.now();
 
   if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
     if (isValidUUID(userId)) {
       try {
         let query = supabase
@@ -565,7 +591,8 @@ export async function markAllNotificationsAsRead(
             read_at: now,
           })
           .eq('recipient_user_id', userId)
-          .eq('is_read', false);
+          .eq('is_read', false)
+          .or(`expires_at.is.null,expires_at.gt.${now}`);
 
         if (organizationId && isValidUUID(organizationId)) {
           query = query.or(`organization_id.eq.${organizationId},organization_id.is.null`);
@@ -581,6 +608,7 @@ export async function markAllNotificationsAsRead(
               if (
                 n.recipient_user_id === userId &&
                 !n.is_read &&
+                (!n.expires_at || new Date(n.expires_at).getTime() > nowTime) &&
                 (!organizationId || !n.organization_id || n.organization_id === organizationId)
               ) {
                 n.is_read = true;
@@ -588,7 +616,9 @@ export async function markAllNotificationsAsRead(
                 count++;
               }
             });
-            writeLocalNotifications(locals, env);
+            if (count > 0) {
+              writeLocalNotifications(locals, env);
+            }
           }
           return { marked_count: data.length };
         }
@@ -605,6 +635,7 @@ export async function markAllNotificationsAsRead(
       if (
         n.recipient_user_id === userId &&
         !n.is_read &&
+        (!n.expires_at || new Date(n.expires_at).getTime() > nowTime) &&
         (!organizationId || !n.organization_id || n.organization_id === organizationId)
       ) {
         n.is_read = true;
@@ -612,7 +643,9 @@ export async function markAllNotificationsAsRead(
         markedCount++;
       }
     });
-    writeLocalNotifications(locals, env);
+    if (markedCount > 0) {
+      writeLocalNotifications(locals, env);
+    }
     return { marked_count: markedCount };
   }
 
@@ -633,9 +666,8 @@ export async function deleteNotification(
     typeof val === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
-  const supabase = getSupabaseServerClient(env);
-
   if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
     if (isValidUUID(notificationId) && isValidUUID(userId)) {
       try {
         const { error } = await supabase
@@ -671,35 +703,45 @@ export async function deleteNotification(
 }
 
 /**
- * Cleans up expired notifications past their retention window.
+ * Cleans up old notifications based on the catalog retention policy (storage lifecycle),
+ * completely decoupled from notification visibility expiration (expires_at).
+ * Notifications are deleted only when created_at is older than retentionDays.
  */
-export async function cleanupExpiredNotifications(env?: Record<string, any>): Promise<number> {
-  const now = new Date().toISOString();
-  const supabase = getSupabaseServerClient(env);
-
+export async function cleanupNotificationsByRetention(env?: Record<string, any>): Promise<number> {
   if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
     try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .delete()
-        .lt('expires_at', now)
-        .select('id');
-
-      if (!error && data) {
-        return data.length;
+      const { data, error } = await supabase.rpc('cleanup_notifications_retention');
+      if (!error && typeof data === 'number') {
+        return data;
       }
-    } catch (err) {
-      console.error('Error cleaning up expired notifications in DB:', err);
+    } catch (rpcErr) {
+      console.warn('[Notifications] Stored procedure cleanup_notifications_retention fallback:', rpcErr);
     }
   }
 
   if (isLocalFallbackAllowed(env)) {
     const locals = readLocalNotifications(env);
-    const remaining = locals.filter((n) => !n.expires_at || n.expires_at >= now);
+    const nowTime = Date.now();
+    const remaining = locals.filter((n) => {
+      const catalogItem = NOTIFICATION_CATALOG[n.type];
+      const retentionDays = catalogItem?.retentionDays ?? 90;
+      const cutoffTime = nowTime - retentionDays * 24 * 60 * 60 * 1000;
+      const createdTime = new Date(n.created_at).getTime();
+      return createdTime >= cutoffTime;
+    });
+
     const deletedCount = locals.length - remaining.length;
-    writeLocalNotifications(remaining, env);
+    if (deletedCount > 0) {
+      writeLocalNotifications(remaining, env);
+    }
     return deletedCount;
   }
 
   return 0;
 }
+
+/**
+ * Backward compatibility alias for cleanupNotificationsByRetention.
+ */
+export const cleanupExpiredNotifications = cleanupNotificationsByRetention;

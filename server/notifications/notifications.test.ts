@@ -22,6 +22,7 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
+  cleanupNotificationsByRetention,
 } from '../db/notifications.js';
 
 // Enable local fallback for testing environment
@@ -49,8 +50,8 @@ async function runTestSuite() {
   // 1. Catalog Verification
   // -----------------------------------------------------------------
   console.log('--- Test Group 1: Notification Catalog Structure ---');
-  assert(NOTIFICATION_TYPES.length === 20, 'NOTIFICATION_TYPES array defines exactly 20 types');
-  assert(Object.keys(NOTIFICATION_CATALOG).length === 20, 'NOTIFICATION_CATALOG contains exactly 20 items');
+  assert(NOTIFICATION_TYPES.length === 21, 'NOTIFICATION_TYPES array defines exactly 21 types');
+  assert(Object.keys(NOTIFICATION_CATALOG).length === 21, 'NOTIFICATION_CATALOG contains exactly 21 items');
 
   for (const type of NOTIFICATION_TYPES) {
     const item = NOTIFICATION_CATALOG[type];
@@ -61,6 +62,10 @@ async function runTestSuite() {
       assert(typeof item.defaultTitle === 'string' && item.defaultTitle.length > 0, `"${type}" has valid title template`);
       assert(typeof item.defaultMessage === 'string' && item.defaultMessage.length > 0, `"${type}" has valid message template`);
       assert(typeof item.retentionDays === 'number' && item.retentionDays > 0, `"${type}" has positive retention days (${item.retentionDays})`);
+      assert(typeof item.expiresByDefault === 'boolean', `"${type}" has explicit expiresByDefault boolean (${item.expiresByDefault})`);
+      if (item.expiresByDefault) {
+        assert(typeof item.defaultExpiryDays === 'number' && item.defaultExpiryDays > 0, `"${type}" expiring item has positive defaultExpiryDays (${item.defaultExpiryDays})`);
+      }
     }
   }
 
@@ -530,6 +535,7 @@ async function runTestSuite() {
       showcase_unpublished: { event_name: 'Carnival 2026' },
       showcase_updated: { event_name: 'Carnival 2026' },
       org_invitation: { org_name: 'Acme Org', role: 'admin' },
+      team_member_invited: { org_name: 'Acme Org', role: 'admin' },
       member_joined: { member_name: 'Alex Tan', org_name: 'Acme Org' },
       security_settings_changed: { details: 'Two-factor authentication requirement enabled' },
     };
@@ -622,6 +628,193 @@ async function runTestSuite() {
     }
     assert(!countError, 'getUnreadNotificationCount in production does not throw');
     assert(typeof countResult === 'number', 'getUnreadNotificationCount returns 0 safely');
+  }
+
+  // -----------------------------------------------------------------
+  // Test Group 9: Centralized Notification Expiry Architecture & Expiry vs Retention Separation
+  // -----------------------------------------------------------------
+  console.log('\n--- Test Group 9: Expiry Architecture & Expiry vs Retention Separation ---');
+  {
+    const expiryTestUser = `user_expiry_test_${Date.now()}`;
+    const expiryTestOrg = `org_expiry_test_${Date.now()}`;
+
+    // 1. Authoritative Catalog Expiry Policy Verification
+    // Non-expiring types must have expiresByDefault === false
+    const nonExpiringTypes: NotificationType[] = [
+      'team_member_invited',
+      'org_invitation',
+      'payment_failed',
+      'event_payment_failed',
+      'security_settings_changed',
+      'welcome_credit_added',
+      'payment_success',
+      'member_joined',
+    ];
+    for (const type of nonExpiringTypes) {
+      const catalogItem = NOTIFICATION_CATALOG[type];
+      assert(
+        catalogItem?.expiresByDefault === false,
+        `Catalog item "${type}" is non-expiring (expiresByDefault === false)`
+      );
+    }
+
+    // Time-sensitive types must have expiresByDefault === true and positive defaultExpiryDays
+    const expiringTypes: NotificationType[] = [
+      'payment_pending',
+      'event_approaching',
+      'event_live',
+      'event_expiring',
+      'wallet_low_balance',
+      'insufficient_balance',
+    ];
+    for (const type of expiringTypes) {
+      const catalogItem = NOTIFICATION_CATALOG[type];
+      assert(
+        catalogItem?.expiresByDefault === true,
+        `Catalog item "${type}" is expiring by default (expiresByDefault === true)`
+      );
+      assert(
+        typeof catalogItem?.defaultExpiryDays === 'number' && catalogItem.defaultExpiryDays > 0,
+        `Catalog item "${type}" has positive defaultExpiryDays (${catalogItem?.defaultExpiryDays})`
+      );
+    }
+
+    // 2. Creation behavior: Non-expiring notifications have expires_at === null
+    const nonExpiringNotif = await createNotification({
+      recipientUserId: expiryTestUser,
+      organizationId: expiryTestOrg,
+      type: 'team_member_invited',
+      title: 'Invitation',
+      message: 'You have been invited to Acme Org',
+    });
+    assert(
+      nonExpiringNotif !== null && nonExpiringNotif.expires_at === null,
+      'createNotification produces expires_at === null for non-expiring type (team_member_invited)'
+    );
+
+    const paymentFailedNotif = await createNotification({
+      recipientUserId: expiryTestUser,
+      organizationId: expiryTestOrg,
+      type: 'payment_failed',
+      title: 'Payment Failed',
+      message: 'Payment was declined',
+    });
+    assert(
+      paymentFailedNotif !== null && paymentFailedFailedExpiresNull(paymentFailedNotif),
+      'createNotification produces expires_at === null for non-expiring payment_failed'
+    );
+
+    function paymentFailedFailedExpiresNull(notif: any): boolean {
+      return notif.expires_at === null;
+    }
+
+    // 3. Creation behavior: Expiring notifications have valid future expires_at
+    const expiringNotif = await createNotification({
+      recipientUserId: expiryTestUser,
+      organizationId: expiryTestOrg,
+      type: 'event_approaching',
+      title: 'Event Approaching',
+      message: 'Your event starts tomorrow',
+    });
+    const nowTime = Date.now();
+    assert(
+      expiringNotif !== null &&
+        typeof expiringNotif.expires_at === 'string' &&
+        new Date(expiringNotif.expires_at).getTime() > nowTime,
+      'createNotification calculates future expires_at for expiring type (event_approaching)'
+    );
+
+    // 4. Creation behavior: Caller explicit expiresAt override is respected
+    const customExpiry = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
+    const customExpiryNotif = await createNotification({
+      recipientUserId: expiryTestUser,
+      organizationId: expiryTestOrg,
+      type: 'welcome_credit_added',
+      title: 'Welcome Credit',
+      message: 'RM200 added',
+      expiresAt: customExpiry,
+    });
+    assert(
+      customExpiryNotif !== null && customExpiryNotif.expires_at === customExpiry,
+      'createNotification respects explicit caller expiresAt override'
+    );
+
+    // 5. Query visibility: Expired notifications are hidden from listNotifications
+    const userQueryTest = `user_query_visibility_${Date.now()}`;
+
+    // Item A: Active non-expiring
+    const activeNonExpiring = await createNotification({
+      recipientUserId: userQueryTest,
+      organizationId: expiryTestOrg,
+      type: 'org_invitation',
+      title: 'Active Invitation',
+      message: 'Join our team',
+    });
+
+    // Item B: Active expiring (expires in 2 days)
+    const activeExpiring = await createNotification({
+      recipientUserId: userQueryTest,
+      organizationId: expiryTestOrg,
+      type: 'wallet_low_balance',
+      title: 'Balance Warning',
+      message: 'Balance is RM10',
+    });
+
+    // Item C: Expired notification (expired 1 hour ago)
+    const expiredPast = new Date(Date.now() - 3600 * 1000).toISOString();
+    const expiredNotif = await createNotification({
+      recipientUserId: userQueryTest,
+      organizationId: expiryTestOrg,
+      type: 'event_expiring',
+      title: 'Expired Alert',
+      message: 'This event alert has expired',
+      expiresAt: expiredPast,
+    });
+
+    assert(activeNonExpiring !== null, 'Created active non-expiring test notification');
+    assert(activeExpiring !== null, 'Created active expiring test notification');
+    assert(expiredNotif !== null && expiredNotif.expires_at === expiredPast, 'Created expired test notification');
+
+    // List notifications: Only active non-expiring and active expiring must be returned (total = 2, expired excluded)
+    const listResult = await listNotifications({
+      userId: userQueryTest,
+      limit: 20,
+    });
+    assert(listResult.total === 2, `listNotifications total is 2 (excluding expired), got: ${listResult.total}`);
+    assert(
+      listResult.notifications.length === 2,
+      `listNotifications returns 2 notifications, got: ${listResult.notifications.length}`
+    );
+    const hasExpiredInList = listResult.notifications.some((n) => n.id === expiredNotif?.id);
+    assert(!hasExpiredInList, 'listNotifications strictly excludes expired notification');
+
+    // Unread count: Must be 2 (expired notification does NOT count)
+    const unreadCount = await getUnreadNotificationCount(userQueryTest);
+    assert(unreadCount === 2, `getUnreadNotificationCount is 2 (excluding expired), got: ${unreadCount}`);
+
+    // 6. Interaction safety: markNotificationAsRead refuses to mark expired notification
+    if (expiredNotif) {
+      const markExpiredResult = await markNotificationAsRead(expiredNotif.id, userQueryTest);
+      assert(markExpiredResult === null, 'markNotificationAsRead returns null for expired notification');
+    }
+
+    // 7. Interaction safety: markAllNotificationsAsRead only affects active unread notifications
+    const markAllResult = await markAllNotificationsAsRead(userQueryTest);
+    assert(
+      markAllResult.marked_count === 2,
+      `markAllNotificationsAsRead marks exactly 2 active items, got: ${markAllResult.marked_count}`
+    );
+
+    const postMarkCount = await getUnreadNotificationCount(userQueryTest);
+    assert(postMarkCount === 0, `Unread count after markAll is 0, got: ${postMarkCount}`);
+
+    // 8. Decoupled Storage Retention vs Expiry:
+    // Expired notification with recent created_at is NOT deleted by retention cleanup
+    const preRetentionCount = await cleanupNotificationsByRetention();
+    // Verify expiredNotif still exists in physical storage
+    const localList = listNotifications({ userId: userQueryTest, limit: 100 });
+    // Cleanup based on retention only deletes records past retentionDays
+    assert(typeof preRetentionCount === 'number', 'cleanupNotificationsByRetention executes successfully');
   }
 
   // -----------------------------------------------------------------

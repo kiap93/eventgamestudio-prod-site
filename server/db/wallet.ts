@@ -1817,6 +1817,7 @@ export async function canUseWelcomeCredit(
         } else if (ev.start_date && ev.end_date) {
           const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
           const pricing = await calculateEventAuthoritativePrice({
+            game_id: ev.game_id,
             startDate: ev.start_date,
             endDate: ev.end_date,
           }, env);
@@ -2359,6 +2360,7 @@ export async function canUseShowcaseCredit(
         } else if (ev.start_date && ev.end_date) {
           const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
           const pricing = await calculateEventAuthoritativePrice({
+            game_id: ev.game_id,
             startDate: ev.start_date,
             endDate: ev.end_date,
           }, env);
@@ -2766,6 +2768,7 @@ export async function calculateEventPaymentQuote(
         } else if (ev.start_date && ev.end_date) {
           const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
           const pricing = await calculateEventAuthoritativePrice({
+            game_id: ev.game_id,
             startDate: ev.start_date,
             endDate: ev.end_date,
           }, env);
@@ -2926,6 +2929,7 @@ export async function processEventPayment(
         } else if (ev.start_date && ev.end_date) {
           const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
           const pricing = await calculateEventAuthoritativePrice({
+            game_id: ev.game_id,
             startDate: ev.start_date,
             endDate: ev.end_date,
           }, env);

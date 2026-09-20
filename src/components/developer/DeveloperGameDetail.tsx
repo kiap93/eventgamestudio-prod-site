@@ -25,7 +25,9 @@ import {
   AlertCircle,
   AlertTriangle,
   X,
+  Coins,
 } from 'lucide-react';
+import { DeveloperGamePricingManager } from './DeveloperGamePricingManager';
 
 interface DeveloperGameDetailProps {
   gameId: string;
@@ -58,7 +60,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
   const [themeToUnsetDefault, setThemeToUnsetDefault] = useState<GameTheme | null>(null);
   const [unsettingDefault, setUnsettingDefault] = useState<boolean>(false);
   const [playtestingTheme, setPlaytestingTheme] = useState<GameTheme | null>(null);
-  const [activeTab, setActiveTab] = useState<'themes' | 'engine'>('themes');
+  const [activeTab, setActiveTab] = useState<'themes' | 'pricing' | 'engine'>('themes');
   const [notification, setNotification] = useState<string | null>(null);
 
   const loadData = async () => {
@@ -185,6 +187,18 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
         >
           <Sparkles className="w-4 h-4" />
           <span>System Default Themes ({themes.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('pricing')}
+          className={`flex items-center space-x-2 px-4 py-2 text-xs font-semibold rounded-xl transition-colors ${
+            activeTab === 'pricing'
+              ? 'bg-slate-800 text-amber-400 border border-slate-700'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Coins className="w-4 h-4" />
+          <span>Game Pricing Tiers</span>
         </button>
 
         <button
@@ -406,7 +420,17 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
         </div>
       )}
 
-      {/* Tab 2: Game Engine Defaults & Schema */}
+      {/* Tab 2: Game Pricing Tiers */}
+      {activeTab === 'pricing' && (
+        <DeveloperGamePricingManager
+          game={game}
+          onPricingUpdated={() => {
+            showNotification('Game pricing updated successfully.');
+          }}
+        />
+      )}
+
+      {/* Tab 3: Game Engine Defaults & Schema */}
       {activeTab === 'engine' && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-6">
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">

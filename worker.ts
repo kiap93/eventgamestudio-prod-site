@@ -102,6 +102,14 @@ import {
   DEFAULT_CONTACT_SETTINGS,
   calculateEventCalendarDays,
   calculateEventAuthoritativePrice,
+  getGamePricing,
+  getActiveGamePricing,
+  resolveGamePrice,
+  createGamePricingTier,
+  updateGamePricingTier,
+  deleteGamePricingTier,
+  bulkUpsertGamePricing,
+  ensureDefaultGamePricing,
   getAllAdminEvents,
   updateEventPrice,
   getShowcaseByEventId,
@@ -2490,6 +2498,20 @@ export default {
         return jsonResponse({ themes }, 200, cors);
       }
 
+      // GET /api/games/:gameId/pricing
+      const gamePricingMatch = parseRoute('/api/games/:gameId/pricing', pathname);
+      if (gamePricingMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        const { gameId } = gamePricingMatch;
+        try {
+          const tiers = await getActiveGamePricing(gameId, env);
+          return jsonResponse({ success: true, tiers, game_id: gameId }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
       // ==========================================
       // 8. Events & Public Deployment Routes
       // ==========================================
@@ -2644,20 +2666,36 @@ export default {
         let currency = 'MYR';
         let durationDays = 1;
         let ruleLabel = '1 day';
+        let targetGameId = body.game_id || body.gameId;
 
         if (!price && event_id) {
           const existing = await getEventById(event_id, env);
-          if (existing && existing.event_price) {
-            price = existing.event_price;
-            currency = existing.event_currency || 'MYR';
-            durationDays = calculateEventCalendarDays(existing.start_date || existing.event_date, existing.end_date || existing.start_date || existing.event_date);
-            ruleLabel = `${durationDays} day${durationDays > 1 ? 's' : ''}`;
+          if (existing) {
+            if (existing.game_id && !targetGameId) {
+              targetGameId = existing.game_id;
+            }
+            if (existing.event_price) {
+              price = existing.event_price;
+              currency = existing.event_currency || 'MYR';
+              durationDays = calculateEventCalendarDays(existing.start_date || existing.event_date, existing.end_date || existing.start_date || existing.event_date);
+              ruleLabel = `${durationDays} day${durationDays > 1 ? 's' : ''}`;
+            }
           }
+        }
+
+        if (!targetGameId && game_theme_id) {
+          try {
+            const theme = await getThemeById(game_theme_id, env);
+            if (theme?.game_id) {
+              targetGameId = theme.game_id;
+            }
+          } catch (_) {}
         }
 
         if (!price) {
           try {
             const pricing = await calculateEventAuthoritativePrice({
+              game_id: targetGameId,
               start_date: start_date || startDate,
               end_date: end_date || endDate,
               event_date,
@@ -2958,6 +2996,7 @@ export default {
         let authoritativeEventPrice = event.event_price && Number(event.event_price) > 0 ? Number(event.event_price) : undefined;
         if (!authoritativeEventPrice && event.start_date && event.end_date) {
           const pricing = await calculateEventAuthoritativePrice({
+            game_id: event.game_id,
             startDate: event.start_date,
             endDate: event.end_date,
           }, env);
@@ -4824,6 +4863,127 @@ export default {
           return jsonResponse({ success: true, message: 'Game deleted successfully' }, 200, cors);
         } catch (err: any) {
           console.error('Developer delete game error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // ==========================================
+      // Developer Game Pricing Routes
+      // ==========================================
+      const devGamePricingMatch = parseRoute('/api/developer/games/:gameId/pricing', pathname);
+      if (devGamePricingMatch && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+        const { gameId } = devGamePricingMatch;
+        try {
+          const tiers = await getGamePricing(gameId, env);
+          return jsonResponse({ success: true, tiers, game_id: gameId }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      if (devGamePricingMatch && method === 'PUT') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+        const { gameId } = devGamePricingMatch;
+        const body = (await request.json().catch(() => ({}))) as any;
+        if (!Array.isArray(body.tiers)) {
+          return errorResponse('Tiers must be an array of pricing tier configurations', 400, cors);
+        }
+        try {
+          const updated = await bulkUpsertGamePricing(gameId, body.tiers, env);
+          return jsonResponse({ success: true, tiers: updated, message: 'Game pricing tiers updated successfully' }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      const devGamePricingSeedMatch = parseRoute('/api/developer/games/:gameId/pricing/seed-defaults', pathname);
+      if (devGamePricingSeedMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+        const { gameId } = devGamePricingSeedMatch;
+        try {
+          const game = await getGameById(gameId, env);
+          const tiers = await ensureDefaultGamePricing(gameId, game?.slug || game?.game_type, env);
+          return jsonResponse({ success: true, tiers, message: 'Default pricing tiers seeded successfully' }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      const devGamePricingTierMatch = parseRoute('/api/developer/games/:gameId/pricing/tier', pathname);
+      if (devGamePricingTierMatch && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+        const { gameId } = devGamePricingTierMatch;
+        const body = (await request.json().catch(() => ({}))) as any;
+        if (typeof body.min_days !== 'number' || typeof body.price !== 'number') {
+          return errorResponse('min_days and price are required numbers', 400, cors);
+        }
+        try {
+          const tier = await createGamePricingTier(gameId, {
+            min_days: body.min_days,
+            max_days: body.max_days !== undefined ? body.max_days : null,
+            price: body.price,
+            currency: body.currency,
+            is_active: body.is_active,
+            is_base: body.is_base,
+          }, env);
+          return jsonResponse({ success: true, tier }, 201, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      const devGamePricingTierIdMatch = parseRoute('/api/developer/games/:gameId/pricing/tier/:tierId', pathname);
+      if (devGamePricingTierIdMatch && method === 'PUT') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+        const { tierId } = devGamePricingTierIdMatch;
+        const body = (await request.json().catch(() => ({}))) as any;
+        try {
+          const tier = await updateGamePricingTier(tierId, {
+            min_days: body.min_days,
+            max_days: body.max_days,
+            price: body.price,
+            currency: body.currency,
+            is_active: body.is_active,
+            is_base: body.is_base,
+          }, env);
+          return jsonResponse({ success: true, tier }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      if (devGamePricingTierIdMatch && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+        const { tierId } = devGamePricingTierIdMatch;
+        try {
+          await deleteGamePricingTier(tierId, env);
+          return jsonResponse({ success: true, message: 'Pricing tier deleted successfully' }, 200, cors);
+        } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
         }
       }
@@ -6963,6 +7123,7 @@ export default {
         let authoritativeEventPrice = event.event_price && Number(event.event_price) > 0 ? Number(event.event_price) : undefined;
         if (!authoritativeEventPrice && event.start_date && event.end_date) {
           const pricing = await calculateEventAuthoritativePrice({
+            game_id: event.game_id,
             startDate: event.start_date,
             endDate: event.end_date,
           }, env);

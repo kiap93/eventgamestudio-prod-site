@@ -2255,18 +2255,24 @@ export async function createEvent(
     effectivePaymentStatus === 'UNPAID' ||
     params.status === 'pending_payment';
 
-  // 5. Resolve server-authoritative event pricing based on calendar duration
+  // 5. Resolve server-authoritative event pricing based on game and calendar duration
   let price = params.event_price;
   let currency = params.event_currency || 'MYR';
+  let pricingId: string | null = null;
+  let durationDays: number = calculateEventCalendarDays(norm.startDate, norm.endDate);
+
   if (params.custom_price_override && typeof price === 'number' && price > 0) {
     // Explicit custom price override (e.g. Developer Admin override)
   } else {
     const durationPricing = await calculateEventAuthoritativePrice({
+      game_id: targetGameId,
       startDate: norm.startDate,
       endDate: norm.endDate,
     }, env);
     price = durationPricing.price;
     currency = durationPricing.currency;
+    pricingId = durationPricing.tierId || null;
+    durationDays = durationPricing.durationDays;
   }
 
   // 6. Generate collision-resistant unique token
@@ -2319,6 +2325,8 @@ export async function createEvent(
     p_max_pending_events: 2,
     p_skip_pending_limit_check: Boolean(params.skipPendingLimitCheck),
     p_event_timezone: resolvedTimezone,
+    p_pricing_id: pricingId,
+    p_duration_days: durationDays,
   };
 
   let rpcAttempted = false;
@@ -2376,6 +2384,8 @@ export async function createEvent(
         const fullRecord: EventRecord = {
           ...(rpcData.event as any),
           game_id: targetGameId,
+          pricing_id: (rpcData.event as any)?.pricing_id || pricingId,
+          duration_days: (rpcData.event as any)?.duration_days || durationDays,
           status: initialStatus,
           event_status: initialEventStatus,
           payment_status: initialPaymentStatus,
@@ -2515,6 +2525,8 @@ export async function createEvent(
     event_price: price,
     event_currency: currency,
     event_timezone: resolvedTimezone,
+    pricing_id: pricingId,
+    duration_days: durationDays,
     public_token: token,
     created_by: params.created_by || null,
     created_at: now,
@@ -2822,13 +2834,25 @@ export async function createEventWithAtomicPayment(
       reference_id,
     } = params;
 
-    // Resolve server-authoritative event pricing based on duration
+    // 1. Validate Theme & Organization Isolation & System Theme Restriction
+    const theme = await getThemeById(game_theme_id, env);
+    if (!theme) {
+      const err: any = new Error('Selected Game Theme not found');
+      err.status = 404;
+      err.code = 'THEME_NOT_FOUND';
+      throw err;
+    }
+
+    const targetGameId = game_id || theme.game_id;
+
+    // Resolve server-authoritative event pricing based on game and duration
     let eventPrice = params.event_price;
     let eventCurrency = params.event_currency || 'MYR';
     if (params.custom_price_override && typeof eventPrice === 'number' && eventPrice > 0) {
       // Explicit custom price override
     } else {
       const durationPricing = await calculateEventAuthoritativePrice({
+        game_id: targetGameId,
         start_date: params.start_date || params.startDate,
         end_date: params.end_date || params.endDate,
         event_date: params.event_date,
@@ -2837,15 +2861,6 @@ export async function createEventWithAtomicPayment(
       }, env);
       eventPrice = durationPricing.price;
       eventCurrency = durationPricing.currency;
-    }
-
-    // 1. Validate Theme & Organization Isolation & System Theme Restriction
-    const theme = await getThemeById(game_theme_id, env);
-    if (!theme) {
-      const err: any = new Error('Selected Game Theme not found');
-      err.status = 404;
-      err.code = 'THEME_NOT_FOUND';
-      throw err;
     }
 
     if (theme.is_system || theme.ownership_type === 'system' || theme.organization_id !== organization_id) {
@@ -2863,7 +2878,6 @@ export async function createEventWithAtomicPayment(
     }
 
     // 2. Validate Game Existence & Active Status
-    const targetGameId = game_id || theme.game_id;
     if (!targetGameId) {
       throw new Error('No game specified for this event');
     }

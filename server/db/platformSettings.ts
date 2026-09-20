@@ -1,6 +1,7 @@
 import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed, assertProductionPricingSafe } from '../supabase.js';
 import { PlatformPricingSettings, EventPricingRule, PlatformContactSettings } from './types.js';
 import { normalizeEventDateBoundaries } from './events.js';
+import { resolveGamePrice } from './gamePricing.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -249,10 +250,14 @@ export function calculateEventPriceFromDuration(
 }
 
 /**
- * Calculates server-authoritative event pricing from date boundaries.
+ * Calculates server-authoritative event pricing from date boundaries and selected game.
  */
 export async function calculateEventAuthoritativePrice(
   params: {
+    game_id?: string | null;
+    gameId?: string | null;
+    game_theme_id?: string | null;
+    gameThemeId?: string | null;
     start_date?: string | null;
     end_date?: string | null;
     startDate?: string | null;
@@ -267,10 +272,27 @@ export async function calculateEventAuthoritativePrice(
   price: number;
   currency: string;
   ruleLabel: string;
-  matchedRule: EventPricingRule | null;
+  tierId?: string | null;
+  matchedRule: EventPricingRule | any | null;
 }> {
   const norm = normalizeEventDateBoundaries(params);
   const durationDays = calculateEventCalendarDays(norm.startDate, norm.endDate);
+  const targetGameId = params.game_id || params.gameId;
+
+  // If a specific game is specified, resolve through the game-level pricing architecture
+  if (targetGameId) {
+    const gameQuote = await resolveGamePrice(targetGameId, durationDays, env);
+    return {
+      durationDays,
+      price: gameQuote.price,
+      currency: gameQuote.currency,
+      ruleLabel: gameQuote.ruleLabel,
+      tierId: gameQuote.tierId,
+      matchedRule: gameQuote.tier,
+    };
+  }
+
+  // Fallback to platform settings if no game is specified
   const settings = await getPlatformPricingSettings(env);
   const calc = calculateEventPriceFromDuration(durationDays, settings);
   return {
@@ -278,6 +300,7 @@ export async function calculateEventAuthoritativePrice(
     price: calc.price,
     currency: calc.currency,
     ruleLabel: calc.ruleLabel,
+    tierId: calc.matchedRule?.id || null,
     matchedRule: calc.matchedRule,
   };
 }

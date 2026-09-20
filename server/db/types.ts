@@ -299,9 +299,26 @@ export interface EventRecord {
   created_by?: string | null;
   event_timezone?: string | null;
   setup_starts_at?: string | null;
+  pricing_id?: string | null;
+  duration_days?: number | null;
   created_at: string;
   updated_at: string;
 }
+
+export interface GamePricingRecord {
+  id: string;
+  game_id: string;
+  min_days: number;
+  max_days: number | null; // null = unlimited (e.g., 91+ days)
+  price: number;
+  currency: string;
+  is_active: boolean;
+  is_base: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type GamePricingTier = GamePricingRecord;
 
 export interface EventPricingRule {
   id: string;

@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from '../../lib/api';
-import { PlatformPricingSettings, AdminEventPricingItem, EventPricingRule } from '../../types/developer';
+import { PlatformPricingSettings, AdminEventPricingItem, EventPricingRule, PlatformGame } from '../../types/developer';
 import { calculateEventCalendarDays } from '../../lib/dateUtils';
+import { DeveloperGamePricingManager } from './DeveloperGamePricingManager';
+import { getGameTypeIcon } from '../../games';
+import { navigateTo } from '../../hooks/useRouteContext';
 import {
   Coins,
   DollarSign,
@@ -28,6 +31,7 @@ import {
   ArrowRight,
   Calculator,
   CheckCircle2,
+  Gamepad2,
 } from 'lucide-react';
 
 const DEFAULT_RULE_TEMPLATES: EventPricingRule[] = [
@@ -49,6 +53,9 @@ export const DeveloperPricingManager: React.FC = () => {
     pricing_rules: DEFAULT_RULE_TEMPLATES,
   });
   const [events, setEvents] = useState<AdminEventPricingItem[]>([]);
+  const [games, setGames] = useState<PlatformGame[]>([]);
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+  const [pricingTab, setPricingTab] = useState<'games' | 'events' | 'legacy'>('games');
   const [loading, setLoading] = useState<boolean>(true);
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,10 +115,22 @@ export const DeveloperPricingManager: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [settingsRes, eventsRes] = await Promise.all([
+      const [settingsRes, eventsRes, gamesRes] = await Promise.all([
         apiFetch('/api/developer/pricing/settings', { headers: getHeaders() }),
         apiFetch('/api/developer/events', { headers: getHeaders() }),
+        apiFetch('/api/developer/games', { headers: getHeaders() }),
       ]);
+
+      if (gamesRes.ok) {
+        const data = await gamesRes.json();
+        if (Array.isArray(data.games)) {
+          setGames(data.games);
+          setSelectedGameId((prev) => {
+            if (prev && data.games.some((g: PlatformGame) => g.id === prev)) return prev;
+            return data.games[0]?.id || '';
+          });
+        }
+      }
 
       if (settingsRes.ok) {
         const data = await settingsRes.json();
@@ -548,6 +567,110 @@ export const DeveloperPricingManager: React.FC = () => {
         </div>
       )}
 
+      {/* Primary Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-900/90 border border-slate-800 rounded-2xl">
+        <button
+          onClick={() => setPricingTab('games')}
+          className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            pricingTab === 'games'
+              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-950/40'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <Gamepad2 className="w-4 h-4" />
+          <span>Game-Specific Pricing Tiers</span>
+          <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-950/30 text-current">
+            {games.length} games
+          </span>
+        </button>
+
+        <button
+          onClick={() => setPricingTab('events')}
+          className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            pricingTab === 'events'
+              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-950/40'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          <span>Event Pricing Overrides</span>
+          <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-950/30 text-current">
+            {events.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setPricingTab('legacy')}
+          className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            pricingTab === 'legacy'
+              ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-950/40'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Platform Fallback & Settings</span>
+        </button>
+      </div>
+
+      {/* Tab 1: Game-Specific Pricing Tiers */}
+      {pricingTab === 'games' && (
+        <div className="space-y-6">
+          {/* Game Selection Bar */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <Gamepad2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Select Game Engine</h3>
+                <p className="text-xs text-slate-400">Choose a game to inspect or customize its duration-based license pricing tiers</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {games.map((g) => {
+                const isSelected = selectedGameId === g.id;
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => setSelectedGameId(g.id)}
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-950/30'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60'
+                    }`}
+                  >
+                    <span>{g.name}</span>
+                    <span className="text-[10px] font-mono opacity-80">({g.slug})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Active Game Pricing Manager */}
+          {(() => {
+            const activeGame = games.find((g) => g.id === selectedGameId) || games[0];
+            if (!activeGame) {
+              return (
+                <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl text-slate-400 text-xs">
+                  No games registered on the platform yet.
+                </div>
+              );
+            }
+            return (
+              <DeveloperGamePricingManager
+                game={activeGame}
+                onPricingUpdated={fetchData}
+              />
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Tab 3: Platform Fallback Rules & Simulator */}
+      {pricingTab === 'legacy' && (
+        <div className="space-y-6">
       {/* Top Section: Default Base & Quick Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800/90 rounded-3xl border border-slate-800 p-6 shadow-xl relative overflow-hidden">
@@ -894,8 +1017,11 @@ export const DeveloperPricingManager: React.FC = () => {
           </div>
         </div>
       </div>
+      </div>
+      )}
 
-      {/* Events Pricing Overview Table */}
+      {/* Tab 2: Events Pricing Overview Table */}
+      {pricingTab === 'events' && (
       <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-xl">
         {/* Table Header & Search Filter Bar */}
         <div className="p-5 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-slate-900/50">
@@ -1134,6 +1260,7 @@ export const DeveloperPricingManager: React.FC = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* Add / Edit Duration Rule Modal */}
       {isAddingRule && (

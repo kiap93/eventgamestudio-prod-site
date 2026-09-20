@@ -12,19 +12,22 @@ const clientCache = new Map<string, SupabaseClient>();
  */
 export function getSupabaseServerClient(env?: Record<string, any>): SupabaseClient {
   const procEnv = typeof process !== 'undefined' ? process.env : {};
-  const supabaseUrl =
-    (env && typeof env.SUPABASE_URL === 'string' ? env.SUPABASE_URL : undefined) ??
-    (env && typeof env.VITE_SUPABASE_URL === 'string' ? env.VITE_SUPABASE_URL : undefined) ??
-    procEnv.SUPABASE_URL ??
-    procEnv.VITE_SUPABASE_URL ??
+  const rawUrl =
+    (env && typeof env.SUPABASE_URL === 'string' && env.SUPABASE_URL.trim() ? env.SUPABASE_URL.trim() : undefined) ??
+    (env && typeof env.VITE_SUPABASE_URL === 'string' && env.VITE_SUPABASE_URL.trim() ? env.VITE_SUPABASE_URL.trim() : undefined) ??
+    (procEnv.SUPABASE_URL?.trim()) ??
+    (procEnv.VITE_SUPABASE_URL?.trim()) ??
     'https://placeholder-project.supabase.co';
 
-  const serviceRoleKey =
-    (env && typeof env.SUPABASE_SERVICE_ROLE_KEY === 'string' ? env.SUPABASE_SERVICE_ROLE_KEY : undefined) ??
-    (env && typeof env.SUPABASE_KEY === 'string' ? env.SUPABASE_KEY : undefined) ??
-    procEnv.SUPABASE_SERVICE_ROLE_KEY ??
-    procEnv.SUPABASE_KEY ??
+  const rawKey =
+    (env && typeof env.SUPABASE_SERVICE_ROLE_KEY === 'string' && env.SUPABASE_SERVICE_ROLE_KEY.trim() ? env.SUPABASE_SERVICE_ROLE_KEY.trim() : undefined) ??
+    (env && typeof env.SUPABASE_KEY === 'string' && env.SUPABASE_KEY.trim() ? env.SUPABASE_KEY.trim() : undefined) ??
+    (procEnv.SUPABASE_SERVICE_ROLE_KEY?.trim()) ??
+    (procEnv.SUPABASE_KEY?.trim()) ??
     'placeholder-service-key';
+
+  const supabaseUrl = rawUrl || 'https://placeholder-project.supabase.co';
+  const serviceRoleKey = rawKey || 'placeholder-service-key';
 
   const cacheKey = `${supabaseUrl}:${serviceRoleKey}`;
   if (clientCache.has(cacheKey)) {

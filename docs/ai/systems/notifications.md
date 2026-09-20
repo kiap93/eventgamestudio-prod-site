@@ -45,34 +45,66 @@ All business domains (wallet, events, themes, leaderboards, showcases, team secu
 
 ## 2. Notification Catalog & Business Event Types
 
-Every notification dispatched on the platform must be registered in the authoritative **Notification Catalog** (`src/lib/notifications/types.ts` & `server/notifications/types.ts`). The catalog defines all 20 platform notification types:
+Every notification dispatched on the platform must be registered in the authoritative **Notification Catalog** (`src/lib/notifications/types.ts` & `server/notifications/types.ts`). The catalog is the **single source of truth** for all 21 platform notification types, their visual metadata, priority, retention, and expiration behavior:
 
-| Notification Type | Category | Priority | Default Retention | Deduplication Policy | Recipient Target |
-|---|---|---|---|---|---|
-| `welcome_credit_added` | `wallet` | `normal` | 90 days | Deduplicated by user/org | Org Members / Owner |
-| `payment_success` | `billing` | `high` | 180 days | Deduplicated by reference ID | Billing Actor / Owner |
-| `payment_pending` | `billing` | `normal` | 30 days | Deduplicated by order ID | Order Creator |
-| `payment_failed` | `billing` | `urgent` | 90 days | Deduplicated by reference/order ID | Billing Actor / Owner |
-| `event_created` | `event` | `normal` | 90 days | Deduplicated by event ID | Org Admins & Owner |
-| `event_approaching` | `event` | `normal` | 30 days | Deduplicated by event ID + start date | Org Admins & Owner |
-| `event_live` | `event` | `high` | 60 days | Deduplicated by event ID | Org Admins & Owner |
-| `event_expiring` | `event` | `high` | 30 days | Daily window deduplication | Org Admins & Owner |
-| `event_expired` | `event` | `normal` | 60 days | Deduplicated by event ID | Org Admins & Owner |
-| `event_payment_failed` | `billing` | `urgent` | 90 days | 1-minute window deduplication | Org Admins & Owner |
-| `wallet_low_balance` | `wallet` | `high` | 30 days | Daily window deduplication | Org Admins & Owner |
-| `insufficient_balance` | `wallet` | `high` | 45 days | 1-minute window deduplication | Billing Actor / Owner |
-| `theme_ready` | `theme` | `low` | 45 days | Deduplicated by theme ID | Theme Creator / Org |
-| `showcase_draft_created` | `showcase` | `normal` | 60 days | Deduplicated by showcase ID | **Showcase Owner Only** |
-| `showcase_published` | `showcase` | `normal` | 90 days | Deduplicated by showcase ID | **Showcase Owner Only** |
-| `showcase_unpublished` | `showcase` | `normal` | 60 days | Deduplicated by showcase ID | **Showcase Owner Only** |
-| `showcase_updated` | `showcase` | `low` | 45 days | 1-minute window deduplication | **Showcase Owner Only** |
-| `org_invitation` | `security` | `normal` | 60 days | Deduplicated by org ID + invitee email | Invitee User |
-| `member_joined` | `security` | `normal` | 45 days | Deduplicated by org ID + member user ID | Org Admins & Owner |
-| `security_settings_changed` | `security` | `urgent` | 180 days | 1-minute window deduplication | Targeted User / Admins |
+| Notification Type | Category | Priority | Default Retention | Expires by Default | Default Expiry Window | Deduplication Policy | Recipient Target |
+|---|---|---|---|---|---|---|---|
+| `welcome_credit_added` | `wallet` | `normal` | 365 days | `false` | None (Permanent) | Deduplicated by user/org | Org Members / Owner |
+| `payment_success` | `billing` | `high` | 365 days | `false` | None (Permanent) | Deduplicated by reference ID | Billing Actor / Owner |
+| `payment_pending` | `billing` | `normal` | 90 days | `true` | 3 days | Deduplicated by order ID | Order Creator |
+| `payment_failed` | `billing` | `urgent` | 365 days | `false` | None (Permanent) | Deduplicated by reference/order ID | Billing Actor / Owner |
+| `event_created` | `event` | `normal` | 90 days | `false` | None (Permanent) | Deduplicated by event ID | Org Admins & Owner |
+| `event_approaching` | `event` | `normal` | 90 days | `true` | 3 days | Deduplicated by event ID + start date | Org Admins & Owner |
+| `event_live` | `event` | `high` | 90 days | `true` | 7 days | Deduplicated by event ID | Org Admins & Owner |
+| `event_expiring` | `event` | `high` | 90 days | `true` | 2 days | Daily window deduplication | Org Admins & Owner |
+| `event_expired` | `event` | `normal` | 90 days | `false` | None (Permanent) | Deduplicated by event ID | Org Admins & Owner |
+| `event_payment_failed` | `billing` | `urgent` | 365 days | `false` | None (Permanent) | 1-minute window deduplication | Org Admins & Owner |
+| `wallet_low_balance` | `wallet` | `high` | 90 days | `true` | 14 days | Daily window deduplication | Org Admins & Owner |
+| `insufficient_balance` | `wallet` | `high` | 90 days | `true` | 7 days | 1-minute window deduplication | Billing Actor / Owner |
+| `theme_ready` | `theme` | `low` | 180 days | `false` | None (Permanent) | Deduplicated by theme ID | Theme Creator / Org |
+| `showcase_draft_created` | `showcase` | `normal` | 180 days | `false` | None (Permanent) | Deduplicated by showcase ID | **Showcase Owner Only** |
+| `showcase_published` | `showcase` | `normal` | 180 days | `false` | None (Permanent) | Deduplicated by showcase ID | **Showcase Owner Only** |
+| `showcase_unpublished` | `showcase` | `normal` | 180 days | `false` | None (Permanent) | Deduplicated by showcase ID | **Showcase Owner Only** |
+| `showcase_updated` | `showcase` | `low` | 180 days | `false` | None (Permanent) | 1-minute window deduplication | **Showcase Owner Only** |
+| `org_invitation` | `security` | `normal` | 365 days | `false` | None (Permanent) | Deduplicated by org ID + invitee email | Invitee User |
+| `team_member_invited` | `security` | `normal` | 365 days | `false` | None (Permanent) | Deduplicated by org ID + invitee email | Invitee User |
+| `member_joined` | `security` | `normal` | 365 days | `false` | None (Permanent) | Deduplicated by org ID + member user ID | Org Admins & Owner |
+| `security_settings_changed` | `security` | `urgent` | 365 days | `false` | None (Permanent) | 1-minute window deduplication | Targeted User / Admins |
 
 ---
 
-## 3. Recipient Isolation & Security Boundary Rules
+## 3. Centralized Notification Expiry Architecture & Expiry vs. Retention Separation
+
+The platform enforces a strict separation between **Visibility Expiration (`expires_at`)** and **Storage Retention (`retentionDays`)**:
+
+### A. Visibility Expiration (`expires_at`)
+- **Purpose**: Controls when a notification is no longer relevant for the user to see in their inbox or notification bell.
+- **Rule**:
+  ```text
+  Active Notification Condition:
+  expires_at IS NULL OR expires_at > NOW()
+  ```
+- **Authoritative Catalog Source**:
+  - Every catalog item defines `expiresByDefault: boolean` and optional `defaultExpiryDays: number`.
+  - Non-expiring types (invitations, payments, receipts, security alerts, permanent milestones) explicitly have `expiresByDefault: false` and `expires_at = NULL`.
+  - Time-sensitive types (pending orders, live events, approaching alerts, temporary low-balance warnings) have `expiresByDefault: true` with a catalog-defined `defaultExpiryDays`.
+  - `calculateNotificationExpiry(type, explicitExpiresAt)` in `src/lib/notifications/types.ts` is the single canonical computation engine.
+- **Query Enforcements**:
+  - `listNotifications`: Always queries `(expires_at IS NULL OR expires_at > NOW())`. Expired alerts are hidden from pagination and inbox lists.
+  - `getUnreadNotificationCount`: Badge counts only include active unread notifications.
+  - `markNotificationAsRead` / `markAllNotificationsAsRead`: Only active notifications can be marked as read.
+
+### B. Storage Retention (`retentionDays`)
+- **Purpose**: Governs physical record cleanup from the database (`public.notifications`) for storage optimization and compliance.
+- **Rule**: Notifications are only purged from physical storage when `created_at < NOW() - INTERVAL '<retentionDays> days'`.
+- **Decoupling**:
+  - An expired notification (`expires_at < NOW()`) is NOT deleted from the database immediately. It remains in storage until its retention period elapses.
+  - A non-expiring notification (`expires_at IS NULL`) is purged only when its full retention period (e.g. 365 days) has passed.
+  - Cleanup is executed via the server-authoritative `cleanup_notifications_retention()` stored procedure or `cleanupNotificationsByRetention()` DB helper.
+
+---
+
+## 4. Recipient Isolation & Security Boundary Rules
 
 1. **Showcase Recipient Isolation**:
    - Showcase rewards and showcase publishing are strictly account-owner-level actions.

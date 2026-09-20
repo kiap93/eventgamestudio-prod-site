@@ -1,6 +1,6 @@
 {
-  "name": "Event Game Studio",
-  "description": "Multi-tenant SaaS platform for interactive event mini-games, custom branded activations, live leaderboard management, and duration-based event licensing.",
+  "name": "Remix Copy of Remix Durian Catcher",
+  "description": "A retro 2D pixel-art arcade game where you catch green durians and avoid orange durians in a lush forest.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

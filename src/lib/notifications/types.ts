@@ -22,6 +22,7 @@ export type NotificationType =
   | 'showcase_unpublished'
   | 'showcase_updated'
   | 'org_invitation'
+  | 'team_member_invited'
   | 'member_joined'
   | 'security_settings_changed';
 
@@ -66,11 +67,13 @@ export interface NotificationCatalogItem {
   mandatory: boolean; // cannot be muted / opted out
   duplicatesAllowed: boolean;
   retentionDays: number;
+  expiresByDefault: boolean;
+  defaultExpiryDays?: number;
 }
 
 /**
- * Authoritative Notification Catalog defining all 20 platform notification types,
- * default templates, priority levels, categories, and delivery behavior.
+ * Authoritative Notification Catalog defining platform notification types,
+ * default templates, priority levels, categories, expiration rules, and retention policy.
  */
 export const NOTIFICATION_TYPES: readonly NotificationType[] = [
   'welcome_credit_added',
@@ -91,6 +94,7 @@ export const NOTIFICATION_TYPES: readonly NotificationType[] = [
   'showcase_unpublished',
   'showcase_updated',
   'org_invitation',
+  'team_member_invited',
   'member_joined',
   'security_settings_changed',
 ] as const;
@@ -106,6 +110,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: true,
     duplicatesAllowed: false,
     retentionDays: 90,
+    expiresByDefault: false,
   },
   payment_success: {
     type: 'payment_success',
@@ -117,6 +122,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: true,
     duplicatesAllowed: true,
     retentionDays: 180,
+    expiresByDefault: false,
   },
   payment_pending: {
     type: 'payment_pending',
@@ -128,6 +134,8 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: false,
     retentionDays: 30,
+    expiresByDefault: true,
+    defaultExpiryDays: 3,
   },
   event_created: {
     type: 'event_created',
@@ -139,6 +147,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: false,
     retentionDays: 90,
+    expiresByDefault: false,
   },
   event_live: {
     type: 'event_live',
@@ -150,6 +159,8 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: true,
     duplicatesAllowed: false,
     retentionDays: 60,
+    expiresByDefault: true,
+    defaultExpiryDays: 7,
   },
   event_expiring: {
     type: 'event_expiring',
@@ -161,6 +172,8 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: true,
     duplicatesAllowed: false,
     retentionDays: 30,
+    expiresByDefault: true,
+    defaultExpiryDays: 2,
   },
   event_expired: {
     type: 'event_expired',
@@ -172,6 +185,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: false,
     retentionDays: 60,
+    expiresByDefault: false,
   },
   wallet_low_balance: {
     type: 'wallet_low_balance',
@@ -183,6 +197,8 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: false,
     retentionDays: 30,
+    expiresByDefault: true,
+    defaultExpiryDays: 14,
   },
   theme_ready: {
     type: 'theme_ready',
@@ -194,6 +210,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: false,
     retentionDays: 45,
+    expiresByDefault: false,
   },
   showcase_draft_created: {
     type: 'showcase_draft_created',
@@ -205,6 +222,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: false,
     retentionDays: 60,
+    expiresByDefault: false,
   },
   showcase_published: {
     type: 'showcase_published',
@@ -216,6 +234,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: false,
     retentionDays: 90,
+    expiresByDefault: false,
   },
   showcase_unpublished: {
     type: 'showcase_unpublished',
@@ -227,6 +246,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: false,
     retentionDays: 60,
+    expiresByDefault: false,
   },
   showcase_updated: {
     type: 'showcase_updated',
@@ -238,6 +258,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: true,
     retentionDays: 45,
+    expiresByDefault: false,
   },
   payment_failed: {
     type: 'payment_failed',
@@ -249,6 +270,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: true,
     duplicatesAllowed: true,
     retentionDays: 90,
+    expiresByDefault: false,
   },
   event_payment_failed: {
     type: 'event_payment_failed',
@@ -260,6 +282,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: true,
     duplicatesAllowed: true,
     retentionDays: 90,
+    expiresByDefault: false,
   },
   event_approaching: {
     type: 'event_approaching',
@@ -271,6 +294,8 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: false,
     retentionDays: 30,
+    expiresByDefault: true,
+    defaultExpiryDays: 3,
   },
   insufficient_balance: {
     type: 'insufficient_balance',
@@ -282,6 +307,8 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: true,
     duplicatesAllowed: true,
     retentionDays: 45,
+    expiresByDefault: true,
+    defaultExpiryDays: 7,
   },
   org_invitation: {
     type: 'org_invitation',
@@ -293,6 +320,19 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: true,
     duplicatesAllowed: false,
     retentionDays: 60,
+    expiresByDefault: false,
+  },
+  team_member_invited: {
+    type: 'team_member_invited',
+    category: 'security',
+    defaultTitle: 'Team Workspace Invitation',
+    defaultMessage: 'You have been invited to join "{org_name}" as a {role}.',
+    priority: 'normal',
+    defaultActionUrl: '/team',
+    mandatory: true,
+    duplicatesAllowed: false,
+    retentionDays: 60,
+    expiresByDefault: false,
   },
   member_joined: {
     type: 'member_joined',
@@ -304,6 +344,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: false,
     duplicatesAllowed: true,
     retentionDays: 45,
+    expiresByDefault: false,
   },
   security_settings_changed: {
     type: 'security_settings_changed',
@@ -315,8 +356,32 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
     mandatory: true,
     duplicatesAllowed: true,
     retentionDays: 180,
+    expiresByDefault: false,
   },
 };
+
+/**
+ * Calculates the authoritative expiration timestamp for a notification based on catalog configuration.
+ * - If expiresByDefault is true: returns ISO string of (createdAt + defaultExpiryDays).
+ * - If expiresByDefault is false: returns null (non-expiring notification).
+ */
+export function calculateNotificationExpiry(
+  type: NotificationType,
+  createdAt: Date = new Date(),
+  explicitExpiresAt?: string | null
+): string | null {
+  if (explicitExpiresAt !== undefined && explicitExpiresAt !== null) {
+    return explicitExpiresAt;
+  }
+  const catalogItem = NOTIFICATION_CATALOG[type];
+  if (!catalogItem || !catalogItem.expiresByDefault) {
+    return null;
+  }
+  const expiryDays = catalogItem.defaultExpiryDays || 7;
+  const d = new Date(createdAt.getTime());
+  d.setDate(d.getDate() + expiryDays);
+  return d.toISOString();
+}
 
 /**
  * Interpolates template strings using metadata keys.
