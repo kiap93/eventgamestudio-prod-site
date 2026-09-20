@@ -17,7 +17,7 @@ import {
 } from './wallet.js';
 import { isUserOrganizationOwner, hasUserClaimedReward, getShowcaseRewardEligibility } from './rewards.js';
 import { getShowcaseMedia } from './showcaseMedia.js';
-import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase } from './events.js';
+import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase, isEventEligibleForShowcaseReward } from './events.js';
 import { getOrganizationById } from './organizations.js';
 import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import fs from 'node:fs';
@@ -870,17 +870,46 @@ export async function evaluateShowcaseRewardEligibility(
     }
   }
 
-  // 2. Event payment and started/concluded check
+  // 2. Event payment and completed event check
+  // Authoritative Separation:
+  // - Showcase creation & publishing eligibility -> event has started (is LIVE or COMPLETED, and PAID)
+  // - Showcase reward review eligibility         -> event has completed (is COMPLETED and PAID)
   const eventData = await getEventById(eventId, env);
 
   const isPaid = eventData?.payment_status === 'PAID';
   const todayStr = getNormalizedCurrentDate();
-  const isStartedOrConcluded =
-    eventData?.status === 'live' ||
+  const isCompleted =
     eventData?.status === 'completed' ||
-    eventData?.event_status === 'LIVE' ||
     eventData?.event_status === 'COMPLETED' ||
-    (Boolean(eventData?.start_date) && todayStr >= (eventData?.start_date || ''));
+    (Boolean(eventData?.end_date) && todayStr > (eventData?.end_date || ''));
+
+  if (!isPaid) {
+    return await updateShowcase(
+      eventId,
+      {
+        reward_review_status: 'NOT_ELIGIBLE',
+        reward_status: 'NOT_ELIGIBLE',
+        reward_rejection_reason: 'Showcase reward requires a confirmed, paid event.',
+        owner_user_id: ownerUserId || undefined,
+      },
+      env,
+      true
+    );
+  }
+
+  if (!isCompleted) {
+    return await updateShowcase(
+      eventId,
+      {
+        reward_review_status: 'NOT_ELIGIBLE',
+        reward_status: 'NOT_ELIGIBLE',
+        reward_rejection_reason: 'Reward review is available once the event has completed.',
+        owner_user_id: ownerUserId || undefined,
+      },
+      env,
+      true
+    );
+  }
 
   // 3. Media requirements: >= 3 images OR >= 1 video
   const mediaList = await getShowcaseMedia(showcase.id, showcase.organization_id, env);
@@ -904,8 +933,6 @@ export async function evaluateShowcaseRewardEligibility(
     !showcase.deleted_at;
 
   const isEligible =
-    isPaid &&
-    isStartedOrConcluded &&
     hasRequiredMedia &&
     hasTitle &&
     hasValidDescription &&
@@ -917,18 +944,29 @@ export async function evaluateShowcaseRewardEligibility(
       {
         reward_review_status: 'AWAITING_APPROVAL',
         reward_status: 'PENDING',
+        reward_rejection_reason: null,
         owner_user_id: ownerUserId || undefined,
       },
       env,
       true
     );
   } else {
-    // If not eligible, ensure both review and reward status are NOT_ELIGIBLE
+    // Determine exact missing requirement for transparency
+    let rejectionReason = 'Showcase does not meet reward criteria.';
+    if (!isPublishedAndActive) {
+      rejectionReason = 'Showcase must be published to be eligible for reward review.';
+    } else if (!hasRequiredMedia) {
+      rejectionReason = 'At least 3 photos or 1 video clip must be uploaded.';
+    } else if (!hasTitle || !hasValidDescription) {
+      rejectionReason = 'Title and a detailed summary of at least 50 characters are required.';
+    }
+
     return await updateShowcase(
       eventId,
       {
         reward_review_status: 'NOT_ELIGIBLE',
         reward_status: 'NOT_ELIGIBLE',
+        reward_rejection_reason: rejectionReason,
         owner_user_id: ownerUserId || undefined,
       },
       env,
@@ -966,6 +1004,18 @@ export async function submitShowcaseForReview(
     const err = new Error('Showcase title is required.');
     (err as any).code = 'VALIDATION_ERROR';
     throw err;
+  }
+
+  // Authoritative rule: Reward review requires that the event has completed
+  const event = await getEventById(eventId, env);
+  if (event) {
+    const rewardElig = isEventEligibleForShowcaseReward(event);
+    if (!rewardElig.eligible) {
+      const err = new Error(rewardElig.reason || 'Reward review is only available after the event has completed.');
+      (err as any).code = rewardElig.code || 'EVENT_NOT_COMPLETED';
+      (err as any).status = 422;
+      throw err;
+    }
   }
 
   const now = new Date().toISOString();

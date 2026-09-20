@@ -140,6 +140,7 @@ Contains the canonical timestamp migrations:
 - `20260914010000_disable_automatic_welcome_credit.sql` — Disables automatic welcome credit grant on organization creation
 - `20260914020000_lock_topup_payment_constraints_and_idempotency.sql` — Topup payment constraints, webhook event dedup, and idempotency
 - `20260915000000_create_api_error_logs.sql` — Centralized API error logs table, indexes, and service role / developer admin RLS policies
+- `20260924000000_enforce_owner_organization_limit.sql` — Enforces maximum 5 organizations per user at trigger and create_organization_atomic RPC levels
 
 ### Historical Archive (`supabase/migrations_history/`)
 Preserves the complete original sequential migration chain (`001_...` through `031_...`), branch collision variants (`013`, `014`, `017b`), and `MIGRATIONS_AUDIT.md`.

@@ -348,14 +348,18 @@ export const EventCard: React.FC<EventCardProps> = ({
                 ? 'Showcases are not available for expired events'
                 : effectiveStatus === 'cancelled'
                 ? 'Showcases are not available for cancelled events'
-                : 'Available after event completion'
+                : !isPaid
+                ? 'Showcases require a paid event'
+                : 'Available once event starts'
             }
           >
             {effectiveStatus === 'expired'
               ? 'Not available (expired)'
               : effectiveStatus === 'cancelled'
               ? 'Not available (cancelled)'
-              : 'Available after completion'}
+              : !isPaid
+              ? 'Available when paid'
+              : 'Available once started'}
           </span>
         )}
       </div>

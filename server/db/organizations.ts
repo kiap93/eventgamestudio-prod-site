@@ -18,6 +18,30 @@ import { getEventsByOrgId } from './events.js';
 import crypto from 'node:crypto';
 export { isValidCountryCode, getCountryByCode, getDefaultTimezoneForCountry } from '../../src/lib/countryUtils.js';
 
+export const MAX_ORGANIZATIONS_PER_OWNER = 5;
+
+export async function getOwnerOrganizationCount(ownerId: string, env?: Record<string, any>): Promise<number> {
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    const { count, error } = await supabase
+      .from('organizations')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_id', ownerId);
+
+    if (error) {
+      console.error('Error counting owner organizations in database:', error);
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error(`Failed to count owner organizations: ${error.message}`);
+      }
+    } else if (typeof count === 'number') {
+      return count;
+    }
+  }
+
+  // Local cache fallback
+  return Array.from(localOrgsCache.values()).filter((o) => o.owner_id === ownerId).length;
+}
+
 export interface UserOrganizationMembership {
   id: string; // organization id
   name: string;
@@ -259,6 +283,21 @@ export async function createOrganization(
 
   if (!isSupabaseConfigured(env)) {
     assertProductionSafe('createOrganization', env);
+
+    // Enforce owner-level organization limit (Max 5 organizations per user)
+    const existingCount = Array.from(localOrgsCache.values()).filter((o) => o.owner_id === params.owner_id).length;
+    if (existingCount >= MAX_ORGANIZATIONS_PER_OWNER) {
+      const limitErr: any = new Error(
+        `Organization limit reached: You can own a maximum of ${MAX_ORGANIZATIONS_PER_OWNER} organizations. Please manage or delete existing organizations before creating a new one.`
+      );
+      limitErr.code = 'ORGANIZATION_LIMIT_REACHED';
+      limitErr.status = 422;
+      limitErr.statusCode = 422;
+      limitErr.current_count = existingCount;
+      limitErr.max_allowed = MAX_ORGANIZATIONS_PER_OWNER;
+      throw limitErr;
+    }
+
     localOrgsCache.set(id, orgRecord);
     try {
       await addMember(
@@ -395,6 +434,17 @@ export async function createOrganization(
       console.warn('create_organization_atomic RPC encountered error, falling back to sequential flow:', rpcError.message || rpcError);
     } else if (rpcData && !rpcData.success) {
       console.warn('create_organization_atomic RPC returned unsuccessful response:', rpcData);
+      if (rpcData.code === 'ORGANIZATION_LIMIT_REACHED') {
+        const limitErr: any = new Error(
+          rpcData.message || rpcData.error || `Organization limit reached: You can own a maximum of ${MAX_ORGANIZATIONS_PER_OWNER} organizations.`
+        );
+        limitErr.status = 422;
+        limitErr.statusCode = 422;
+        limitErr.code = 'ORGANIZATION_LIMIT_REACHED';
+        limitErr.current_count = rpcData.current_count ?? MAX_ORGANIZATIONS_PER_OWNER;
+        limitErr.max_allowed = rpcData.max_allowed ?? MAX_ORGANIZATIONS_PER_OWNER;
+        throw limitErr;
+      }
       if (rpcData.code === 'VALIDATION_ERROR') {
         const valErr: any = new Error(rpcData.error || rpcData.message || 'Validation error');
         valErr.statusCode = 422;
@@ -403,7 +453,7 @@ export async function createOrganization(
       }
     }
   } catch (rpcCatchErr: any) {
-    if (rpcCatchErr.statusCode === 422) {
+    if (rpcCatchErr.code === 'ORGANIZATION_LIMIT_REACHED' || rpcCatchErr.statusCode === 422) {
       throw rpcCatchErr;
     }
     console.warn('create_organization_atomic RPC unavailable or failed, falling back to sequential flow:', rpcCatchErr?.message || rpcCatchErr);
@@ -412,6 +462,24 @@ export async function createOrganization(
   // 2. Sequential Fallback
   // Ensure owner user exists in database to prevent foreign key constraint violations
   await ensureOwnerInDatabase(params.owner_id);
+
+  // Pre-check owner-level organization limit in sequential flow
+  const { count: dbCount } = await supabase
+    .from('organizations')
+    .select('id', { count: 'exact', head: true })
+    .eq('owner_id', params.owner_id);
+
+  if (typeof dbCount === 'number' && dbCount >= MAX_ORGANIZATIONS_PER_OWNER) {
+    const limitErr: any = new Error(
+      `Organization limit reached: You can own a maximum of ${MAX_ORGANIZATIONS_PER_OWNER} organizations. Please manage or delete existing organizations before creating a new one.`
+    );
+    limitErr.code = 'ORGANIZATION_LIMIT_REACHED';
+    limitErr.status = 422;
+    limitErr.statusCode = 422;
+    limitErr.current_count = dbCount;
+    limitErr.max_allowed = MAX_ORGANIZATIONS_PER_OWNER;
+    throw limitErr;
+  }
 
   let currentSlug = slug;
   let insertResult = await supabase
@@ -457,6 +525,19 @@ export async function createOrganization(
   }
 
   if (insertResult.error) {
+    if (
+      insertResult.error.message?.includes('Organization limit reached') ||
+      insertResult.error.details?.includes('Organization limit reached')
+    ) {
+      const limitErr: any = new Error(
+        `Organization limit reached: You can own a maximum of ${MAX_ORGANIZATIONS_PER_OWNER} organizations. Please manage or delete existing organizations before creating a new one.`
+      );
+      limitErr.code = 'ORGANIZATION_LIMIT_REACHED';
+      limitErr.status = 422;
+      limitErr.statusCode = 422;
+      limitErr.max_allowed = MAX_ORGANIZATIONS_PER_OWNER;
+      throw limitErr;
+    }
     console.error('Fatal error in createOrganization sequential fallback:', insertResult.error);
     throw new Error(`Failed to create organization in database: ${insertResult.error.message}`);
   }

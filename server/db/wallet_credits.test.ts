@@ -35,6 +35,7 @@
 import crypto from 'node:crypto';
 import { getSupabaseServerClient } from '../supabase.js';
 import { createOrganization, localOrgsCache } from './organizations.js';
+import { localEventsCache } from './events.js';
 import {
   grantWelcomeCredit,
   canUseWelcomeCredit,
@@ -96,24 +97,35 @@ async function ensureTestOrg(orgId: string, ownerId?: string): Promise<string> {
 
 async function ensureTestEvent(eventId: string, orgId: string) {
   const supabase = getSupabaseServerClient();
+  const themeId = '1a480be3-5313-49ba-a9c2-f5b2293576cf';
+  const now = new Date().toISOString();
+  const token = crypto.randomBytes(4).toString('hex').toUpperCase();
+
+  const eventRecord: any = {
+    id: eventId,
+    organization_id: orgId,
+    game_theme_id: themeId,
+    name: `Test Event ${eventId.slice(0, 8)}`,
+    event_date: now.split('T')[0],
+    starts_at: now,
+    expires_at: new Date(Date.now() + 86400000).toISOString(),
+    status: 'scheduled',
+    payment_status: 'UNPAID',
+    event_price: 1400.00,
+    event_currency: 'MYR',
+    public_token: token,
+    created_by: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
+    created_at: now,
+    updated_at: now,
+  };
+  localEventsCache.set(eventId, eventRecord);
+
   try {
     const { data: themes } = await supabase.from('game_themes').select('id').limit(1);
-    const themeId = themes?.[0]?.id || '1a480be3-5313-49ba-a9c2-f5b2293576cf';
-    const now = new Date().toISOString();
-    const token = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const resolvedThemeId = themes?.[0]?.id || themeId;
     await supabase.from('events').upsert({
-      id: eventId,
-      organization_id: orgId,
-      game_theme_id: themeId,
-      name: `Test Event ${eventId.slice(0, 8)}`,
-      event_date: now.split('T')[0],
-      starts_at: now,
-      expires_at: new Date(Date.now() + 86400000).toISOString(),
-      status: 'scheduled',
-      public_token: token,
-      created_by: '4c857d15-ab93-45a6-8de5-7858ab4d6bd2',
-      created_at: now,
-      updated_at: now,
+      ...eventRecord,
+      game_theme_id: resolvedThemeId,
     });
   } catch {
     // Ignore in local mode

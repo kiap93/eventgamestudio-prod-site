@@ -732,14 +732,20 @@ export function deriveEventLifecycleStatus(
 
 /**
  * Determines whether an event is eligible for Event Showcase creation, upload, editing, or publication.
- * Authoritative Rule:
- * ONLY COMPLETED events (PAID + after Event End Date) are eligible for Showcase.
+ * 
+ * Authoritative Rule (Separation of Concerns):
+ * 1. Showcase Publishing Eligibility:
+ *    - An event can have its showcase created, edited, media uploaded, and published once the event has STARTED
+ *      (is LIVE or COMPLETED, current date >= start_date) and is PAID.
+ * 
+ * 2. Showcase Reward Eligibility:
+ *    - Reward evaluation/approval for the First-Event Showcase Reward strictly requires that the event has COMPLETED.
+ *      (See isEventEligibleForShowcaseReward below).
  *
- * Events in ANY other state are NOT eligible:
+ * Events in other states are NOT eligible for showcase creation/publishing:
  * - EXPIRED (unpaid + after event date) -> NOT ELIGIBLE
  * - PENDING_PAYMENT / UNPAID           -> NOT ELIGIBLE
- * - SCHEDULED                          -> NOT ELIGIBLE
- * - LIVE                               -> NOT ELIGIBLE
+ * - SCHEDULED (before start date)       -> NOT ELIGIBLE (Showcase can be created once the event starts)
  * - CANCELLED                          -> NOT ELIGIBLE
  * - DRAFT                              -> NOT ELIGIBLE
  */
@@ -753,10 +759,6 @@ export function isEventEligibleForShowcase(
 
   const effectiveStatus = calculateEventStatus(event, now);
   const lifecycleStatus = deriveEventLifecycleStatus(event, now);
-
-  if (effectiveStatus === 'completed' || lifecycleStatus === 'COMPLETED') {
-    return { eligible: true };
-  }
 
   if (effectiveStatus === 'expired' || lifecycleStatus === 'EXPIRED') {
     return {
@@ -774,10 +776,88 @@ export function isEventEligibleForShowcase(
     };
   }
 
+  const payStatus = (event.payment_status || '').toUpperCase();
+  const isPaid = payStatus === 'PAID';
+
+  if (!isPaid || effectiveStatus === 'pending_payment' || lifecycleStatus === 'PENDING_PAYMENT' || lifecycleStatus === 'PAYMENT_PENDING') {
+    return {
+      eligible: false,
+      code: 'EVENT_UNPAID',
+      reason: 'Showcase requires a confirmed, paid event.',
+    };
+  }
+
+  // Check if event has started (LIVE or COMPLETED)
+  if (
+    effectiveStatus === 'live' ||
+    effectiveStatus === 'completed' ||
+    lifecycleStatus === 'LIVE' ||
+    lifecycleStatus === 'COMPLETED'
+  ) {
+    return { eligible: true };
+  }
+
+  const { startDate } = getNormalizedEventDates(event);
+  const eventTimezone = resolveEventTimezone(event);
+  const curDate = getNormalizedCurrentDate(now, eventTimezone);
+
+  if (startDate && curDate >= startDate) {
+    return { eligible: true };
+  }
+
+  return {
+    eligible: false,
+    code: 'EVENT_NOT_STARTED',
+    reason: 'Showcase can be created and published once the event starts.',
+  };
+}
+
+/**
+ * Determines whether an event is eligible for the First-Event RM300 Showcase Reward review.
+ * 
+ * Authoritative Rule:
+ * Reward review eligibility strictly requires that the event has COMPLETED (is COMPLETED and PAID).
+ * 
+ * An event that is still LIVE (or not yet started) cannot have its showcase reward reviewed or approved yet.
+ */
+export function isEventEligibleForShowcaseReward(
+  event: any,
+  now?: Date | string
+): { eligible: boolean; code?: string; reason?: string } {
+  if (!event) {
+    return { eligible: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found.' };
+  }
+
+  const payStatus = (event.payment_status || '').toUpperCase();
+  const isPaid = payStatus === 'PAID';
+
+  if (!isPaid) {
+    return {
+      eligible: false,
+      code: 'EVENT_UNPAID',
+      reason: 'Showcase reward requires a confirmed, paid event.',
+    };
+  }
+
+  const effectiveStatus = calculateEventStatus(event, now);
+  const lifecycleStatus = deriveEventLifecycleStatus(event, now);
+
+  if (effectiveStatus === 'completed' || lifecycleStatus === 'COMPLETED') {
+    return { eligible: true };
+  }
+
+  const { endDate } = getNormalizedEventDates(event);
+  const eventTimezone = resolveEventTimezone(event);
+  const curDate = getNormalizedCurrentDate(now, eventTimezone);
+
+  if (endDate && curDate > endDate) {
+    return { eligible: true };
+  }
+
   return {
     eligible: false,
     code: 'EVENT_NOT_COMPLETED',
-    reason: 'Showcase is only available after the event has completed.',
+    reason: 'Reward review is available once the event has completed.',
   };
 }
 
@@ -2145,6 +2225,8 @@ export async function createEvent(
     skipPendingLimitCheck?: boolean;
     currentDate?: string | Date | null;
     event_timezone?: string | null;
+    pricing_id?: string | null;
+    duration_days?: number | null;
   },
   env?: Record<string, any>
 ): Promise<EventRecord> {
@@ -2913,6 +2995,7 @@ export async function createEventWithAtomicPayment(
     // Resolve server-authoritative event pricing based on game and duration
     let eventPrice = params.event_price;
     let eventCurrency = params.event_currency || 'MYR';
+    let durationPricingTierId: string | null = null;
     if (params.custom_price_override && typeof eventPrice === 'number' && eventPrice > 0) {
       // Explicit custom price override
     } else {
@@ -2926,6 +3009,7 @@ export async function createEventWithAtomicPayment(
       }, env);
       eventPrice = durationPricing.price;
       eventCurrency = durationPricing.currency;
+      durationPricingTierId = (durationPricing as any)?.tierId || null;
     }
 
     if (theme.is_system || theme.ownership_type === 'system' || theme.organization_id !== organization_id) {
@@ -3066,7 +3150,7 @@ export async function createEventWithAtomicPayment(
         discount_amount: calculation.totalDiscount,
         event_price: eventPrice,
         event_currency: eventCurrency,
-        pricing_id: (durationPricing as any)?.tierId || null,
+        pricing_id: durationPricingTierId,
         event_timezone: params.event_timezone,
         skipPendingLimitCheck: true,
       },

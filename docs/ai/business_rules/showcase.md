@@ -47,13 +47,13 @@ The platform strictly decouples **Public Visibility**, **Admin Event Review**, a
 ```
 
 ### Inviolable Invariants
-1. **No Visibility Approval Gate**: Organizers can publish their showcase immediately once the event has concluded. There is NO upfront approval required for a showcase to become publicly visible.
+1. **No Visibility Approval Gate**: Organizers can create, upload media to, and publish their showcase immediately once the event has started (is LIVE or COMPLETED, and PAID). There is NO upfront approval required for a showcase to become publicly visible.
 2. **Reactive Content Moderation**: Showcase content is presumed valid upon publication. Platform developer admins intervene only to **block** (`BLOCKED`) or **delete** (`DELETED`) inappropriate content (TOS, copyright, illegal material).
-3. **Owner-Level First-Event Reward**: The **RM300 Showcase Reward** is tied to the **Account Owner** (`owner_user_id`), NOT the organization. An account owner is eligible for at most **one** showcase reward in their lifetime across all organizations they own or create.
+3. **Owner-Level First-Event Reward**: The **RM300 Showcase Reward** is tied to the **Account Owner** (`owner_user_id`), NOT the organization. An account owner is eligible for at most **one** showcase reward in their lifetime across all organizations they own or create. Reward review strictly requires that the event has **COMPLETED**.
 4. **Three Fully Decoupled Workflows**:
-   - **Showcase Publishing** (`status`: `DRAFT`, `PUBLISHED`, `UNPUBLISHED`, `BLOCKED`, `DELETED`) is self-serve and independent.
+   - **Showcase Publishing** (`status`: `DRAFT`, `PUBLISHED`, `UNPUBLISHED`, `BLOCKED`, `DELETED`) is self-serve once the event starts.
    - **Admin Event Review** (`review_status`: `DRAFT`, `SUBMITTED`, `APPROVED`, `REJECTED`) is an editorial quality review.
-   - **Reward Approval** (`reward_status` / `reward_review_status`: `NOT_ELIGIBLE`, `AWAITING_APPROVAL`, `REWARDED`, `REJECTED`) is a financial decision tracked in `owner_showcase_rewards`.
+   - **Reward Approval** (`reward_status` / `reward_review_status`: `NOT_ELIGIBLE`, `AWAITING_APPROVAL`, `REWARDED`, `REJECTED`) is a financial decision tracked in `owner_showcase_rewards` evaluated after event completion.
    - Rejecting an event review or reward NEVER unpublishes or blocks the showcase!
 
 ---

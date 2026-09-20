@@ -144,20 +144,30 @@ The system will decouple content visibility from financial reward status. The au
 
 ## 3. First Event Case Reward Architecture
 
-### 3.1 Strict Separation of Concepts
+### 3.1 Strict Separation of Concerns & Rules
 
-$$\text{Showcase Visibility Approval} \neq \text{First Event Case Reward Approval}$$
+$$\text{Showcase Publishing Eligibility} \neq \text{First Event Case Reward Eligibility}$$
 
-- **Upload & Public Visibility**: 100% self-serve. No admin gatekeeper.
-- **Financial Reward Eligibility**: Evaluated independently by the backend wallet and showcase engine.
+The platform establishes two cleanly decoupled eligibility boundaries:
+
+1. **Showcase Creation & Publishing Eligibility** (`isEventEligibleForShowcase`):
+   - **Trigger**: The event has **STARTED** (is `LIVE` or `COMPLETED`, `current_date >= start_date` in Asia/Singapore UTC+8).
+   - **Payment Rule**: The event must have `payment_status === 'PAID'`.
+   - **Behavior**: 100% self-serve. Organizers can create the showcase, upload event photos/videos, edit descriptions, and publish immediately once the event is underway.
+   - **Ineligible States**: `DRAFT`, `PENDING_PAYMENT` / unpaid, `SCHEDULED` (before event start date), `EXPIRED` (unpaid after end date), and `CANCELLED`.
+
+2. **Reward Review & Approval Eligibility** (`isEventEligibleForShowcaseReward`, `evaluateShowcaseRewardEligibility`):
+   - **Trigger**: The event has **COMPLETED** (is `COMPLETED`, `current_date > end_date` in Asia/Singapore UTC+8).
+   - **Payment Rule**: The event must have `payment_status === 'PAID'`.
+   - **Behavior**: While an event is still `LIVE`, the showcase can be published and viewed publicly, but reward review remains in `NOT_ELIGIBLE` status (*"Reward review is available once the event has completed"*). Once the event concludes, the showcase is automatically evaluated for the First-Event Case Reward audit.
 
 ### 3.2 Reward Qualification Rules
 
-An Event Showcase qualifies for First Event Case Reward evaluation if and only if **ALL** of the following conditions are met:
-1. **First-Time Organization Reward**: The organization has never received a showcase credit (`showcase_credit_granted === false` and no completed `SHOWCASE_CREDIT` transaction exists).
+An Event Showcase qualifies for First Event Case Reward evaluation (`AWAITING_APPROVAL`) if and only if **ALL** of the following conditions are met:
+1. **First-Time Account Owner Reward**: The account owner (`owner_user_id`) has never received a showcase credit across any organization (`owner_showcase_rewards` and `user_rewards` contain no completed `SHOWCASE_CREDIT`).
 2. **Paid Event Requirement**: The associated event must have `payment_status === 'PAID'` (free or test events cannot generate paid reward credits).
-3. **Completed Event Window**: The event has concluded or is active (`starts_at` has occurred).
-4. **Media Completeness**: The showcase has at least **3 high-resolution photos or video clips** uploaded to its gallery.
+3. **Completed Event Window**: The event has **COMPLETED** (`status === 'completed'` / `COMPLETED`, `current_date > end_date` in UTC+8). Live or scheduled events do not qualify for reward review until completion.
+4. **Media Completeness**: The showcase has at least **3 high-resolution photos or 1 video clip** uploaded to its gallery.
 5. **Content Completeness**: Showcase has a non-empty `title`, `description` ($\ge 50$ characters), and verified client/event details.
 6. **Not Blocked**: The showcase is in `PUBLISHED` status (not `BLOCKED` or `DELETED`).
 

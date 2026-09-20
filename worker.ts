@@ -1072,46 +1072,50 @@ export default {
           return errorResponse('Invalid country code. Please select a valid country.', 422, cors);
         }
 
-        const organization = await createOrganization(
-          {
-            name: name.trim(),
-            owner_id: user.id,
-            logo_url: logo_url || null,
-            country_code: country_code ? country_code.trim().toUpperCase() : null,
-          },
-          env
-        );
-
-        let gameId = 'catch-brand';
         try {
-          const defaultGame = await ensureDefaultGame(organization.id, organization.name, env);
-          if (defaultGame?.id) {
-            gameId = defaultGame.id;
-          }
-        } catch (gameErr) {
-          console.warn('[worker][POST /api/organizations] Non-blocking warning ensuring default game:', gameErr);
-        }
-
-        const token = await signAppToken(user.id, organization.id, 'owner', undefined, env);
-
-        return jsonResponse(
-          {
-            organization: {
-              id: organization.id,
-              name: organization.name,
-              slug: organization.slug,
-              role: 'owner',
-              logo_url: organization.logo_url,
-              country_code: organization.country_code || null,
+          const organization = await createOrganization(
+            {
+              name: name.trim(),
+              owner_id: user.id,
+              logo_url: logo_url || null,
+              country_code: country_code ? country_code.trim().toUpperCase() : null,
             },
-            token,
-            gameId,
-            welcome_credit_granted: Boolean(organization.welcome_credit_granted),
-            welcome_credit_amount: organization.welcome_credit_amount || 0,
-          },
-          200,
-          cors
-        );
+            env
+          );
+
+          let gameId = 'catch-brand';
+          try {
+            const defaultGame = await ensureDefaultGame(organization.id, organization.name, env);
+            if (defaultGame?.id) {
+              gameId = defaultGame.id;
+            }
+          } catch (gameErr) {
+            console.warn('[worker][POST /api/organizations] Non-blocking warning ensuring default game:', gameErr);
+          }
+
+          const token = await signAppToken(user.id, organization.id, 'owner', undefined, env);
+
+          return jsonResponse(
+            {
+              organization: {
+                id: organization.id,
+                name: organization.name,
+                slug: organization.slug,
+                role: 'owner',
+                logo_url: organization.logo_url,
+                country_code: organization.country_code || null,
+              },
+              token,
+              gameId,
+              welcome_credit_granted: Boolean(organization.welcome_credit_granted),
+              welcome_credit_amount: organization.welcome_credit_amount || 0,
+            },
+            200,
+            cors
+          );
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
       }
 
       const orgGetParams = parseRoute('/api/organizations/:organizationId', pathname);

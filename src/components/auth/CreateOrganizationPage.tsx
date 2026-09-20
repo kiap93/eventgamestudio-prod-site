@@ -5,13 +5,16 @@ import { navigateTo, navigateBack } from '../../hooks/useRouteContext';
 import { Building2, Sparkles, ArrowRight, ArrowLeft, Shield, Loader2 } from 'lucide-react';
 
 export const CreateOrganizationPage: React.FC = () => {
-  const { createOrganization, logout, currentUser, cancelCreateOrganization } = useAuth();
+  const { createOrganization, logout, currentUser, cancelCreateOrganization, organizations } = useAuth();
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [countryCode, setCountryCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const ownedOrgsCount = organizations.filter((o) => o.role === 'owner').length;
+  const isOrgLimitReached = ownedOrgsCount >= 5;
 
   const handleGoBack = () => {
     // Safely restore previous active organization if user belongs to existing organization(s)
@@ -25,6 +28,11 @@ export const CreateOrganizationPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return; // Prevent double submission (Requirement 7)
+
+    if (isOrgLimitReached) {
+      setError('You have reached the maximum limit of 5 organizations for your account.');
+      return;
+    }
 
     if (!name.trim()) {
       setError('Please enter your organization name');
@@ -106,6 +114,17 @@ export const CreateOrganizationPage: React.FC = () => {
           </button>
         </div>
 
+        {isOrgLimitReached && (
+          <div id="org-limit-reached-banner" className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs space-y-1">
+            <div className="font-bold flex items-center justify-between">
+              <span>Organization Limit Reached (5 / 5)</span>
+            </div>
+            <p className="text-slate-300 text-[11px] leading-relaxed">
+              Each account can own a maximum of 5 organizations. To create another workspace, please manage or transfer ownership of an existing organization.
+            </p>
+          </div>
+        )}
+
         {error && (
           <div className="mb-6 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs">
             {error}
@@ -165,13 +184,18 @@ export const CreateOrganizationPage: React.FC = () => {
           </div>
 
           <button
+            id="create-org-submit-btn"
             type="submit"
-            disabled={loading || !name.trim() || !countryCode}
+            disabled={loading || isOrgLimitReached || !name.trim() || !countryCode}
             className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg active:scale-[0.99] disabled:opacity-50 cursor-pointer"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
-            <span>{statusMessage || (loading ? 'Creating...' : 'Create Workspace & Launch Studio')}</span>
-            {!loading && <ArrowRight className="w-4 h-4" />}
+            <span>
+              {isOrgLimitReached
+                ? 'Limit Reached (5 Organizations Max)'
+                : statusMessage || (loading ? 'Creating...' : 'Create Workspace & Launch Studio')}
+            </span>
+            {!loading && !isOrgLimitReached && <ArrowRight className="w-4 h-4" />}
           </button>
         </form>
       </div>

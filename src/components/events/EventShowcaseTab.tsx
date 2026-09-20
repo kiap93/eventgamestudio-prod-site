@@ -135,7 +135,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
 
     const eligibility = isEventEligibleForShowcase(event);
     if (!eligibility.eligible) {
-      setError(eligibility.reason || 'Showcase is only available for completed events.');
+      setError(eligibility.reason || 'Showcase can be created and published once the event starts.');
       return;
     }
 
@@ -386,7 +386,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
               <h3 className="text-base font-bold text-slate-200">Showcase Not Available</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
                 {isEventEligibleForShowcase(event).reason ||
-                  'Event Showcases can only be created for completed events (paid events whose scheduled end date has passed).'}
+                  'Event Showcases can be created and published once the event starts.'}
               </p>
             </div>
           </div>

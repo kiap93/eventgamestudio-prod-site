@@ -346,8 +346,10 @@ export function isOperationalError(err: any): boolean {
   // 0. Explicit operational business errors (bypass internal DB and trigger sanitization filters)
   if (
     code === 'PENDING_EVENT_LIMIT_REACHED' ||
+    code === 'ORGANIZATION_LIMIT_REACHED' ||
     msg.includes('pending_event_limit_reached') ||
-    msg.includes('maximum 2 pending payment events reached')
+    msg.includes('maximum 2 pending payment events reached') ||
+    msg.includes('organization limit')
   ) {
     return true;
   }
@@ -496,6 +498,7 @@ export function isOperationalError(err: any): boolean {
     code === 'WEBHOOK_VERIFICATION_FAILED' ||
     code === 'SCORE_SUBMISSION_ERROR' ||
     code === 'DUPLICATE_ORDER' ||
+    code === 'ORGANIZATION_LIMIT_REACHED' ||
     code === 'ORGANIZATION_NOT_FOUND' ||
     code === 'THEME_NOT_FOUND' ||
     code === 'EVENT_NOT_FOUND' ||

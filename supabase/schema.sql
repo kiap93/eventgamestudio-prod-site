@@ -42,6 +42,33 @@ CREATE INDEX IF NOT EXISTS idx_organizations_slug ON public.organizations (slug)
 CREATE INDEX IF NOT EXISTS idx_organizations_owner_id ON public.organizations (owner_id);
 CREATE INDEX IF NOT EXISTS idx_organizations_country_code ON public.organizations (country_code);
 
+-- Trigger Function: Enforce Owner-Level Organization Limit (Max 5 organizations per user)
+CREATE OR REPLACE FUNCTION public.check_owner_organization_limit()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  SELECT count(*) INTO v_count
+  FROM public.organizations
+  WHERE owner_id = NEW.owner_id;
+
+  IF v_count >= 5 THEN
+    RAISE EXCEPTION 'Organization limit reached: You can own a maximum of 5 organizations.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_owner_organization_limit ON public.organizations;
+CREATE TRIGGER trg_enforce_owner_organization_limit
+  BEFORE INSERT ON public.organizations
+  FOR EACH ROW
+  EXECUTE FUNCTION public.check_owner_organization_limit();
+
 -- ------------------------------------------------------------------------------
 -- 3. ORGANIZATION MEMBERS TABLE
 -- ------------------------------------------------------------------------------
@@ -4805,6 +4832,7 @@ DECLARE
   v_grant_res JSONB;
   v_welcome_granted BOOLEAN := false;
   v_welcome_amount NUMERIC(12, 2) := 0.00;
+  v_existing_org_count INTEGER := 0;
 BEGIN
   -- 1. Input validations
   IF p_name IS NULL OR trim(p_name) = '' THEN
@@ -4832,6 +4860,22 @@ BEGIN
       'code', 'USER_NOT_FOUND',
       'error', 'Owner user not found',
       'message', 'Owner user not found'
+    );
+  END IF;
+
+  -- 2. Check Owner-Level Organization Limit (Maximum 5 organizations per user)
+  SELECT count(*) INTO v_existing_org_count
+  FROM public.organizations
+  WHERE owner_id = p_owner_id;
+
+  IF v_existing_org_count >= 5 THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'ORGANIZATION_LIMIT_REACHED',
+      'error', 'Organization limit reached: You can own a maximum of 5 organizations.',
+      'message', 'Organization limit reached: You can own a maximum of 5 organizations. Please manage or delete existing organizations before creating a new one.',
+      'current_count', v_existing_org_count,
+      'max_allowed', 5
     );
   END IF;
 
@@ -4985,6 +5029,16 @@ EXCEPTION
       );
     END IF;
   WHEN OTHERS THEN
+    IF SQLSTATE = 'P0001' AND SQLERRM LIKE '%Organization limit reached%' THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'ORGANIZATION_LIMIT_REACHED',
+        'error', SQLERRM,
+        'message', 'Organization limit reached: You can own a maximum of 5 organizations.',
+        'current_count', 5,
+        'max_allowed', 5
+      );
+    END IF;
     RETURN jsonb_build_object(
       'success', false,
       'code', 'INTERNAL_ERROR',

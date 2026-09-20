@@ -614,7 +614,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
           <div className="space-y-2">
             <h2 className="text-lg font-bold text-slate-100">Showcase Not Available</h2>
             <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
-              {eligibility.reason || 'Event Showcases can only be created once the event has concluded and is completed.'}
+              {eligibility.reason || 'Event Showcases can be created and published once the event starts.'}
             </p>
           </div>
         </div>

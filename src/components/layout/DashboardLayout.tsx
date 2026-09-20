@@ -57,6 +57,9 @@ export const DashboardLayout: React.FC = () => {
   const [loadingWallet, setLoadingWallet] = useState<boolean>(true);
   const [walletError, setWalletError] = useState<boolean>(false);
 
+  const ownedOrgsCount = organizations.filter((o) => o.role === 'owner').length;
+  const isOrgLimitReached = ownedOrgsCount >= 5;
+
   const headerRef = useRef<HTMLElement | null>(null);
 
   // Close dropdowns on outside click or escape key
@@ -336,17 +339,39 @@ export const DashboardLayout: React.FC = () => {
                   </div>
 
                   <div className="border-t border-slate-800 pt-1 mt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowOrgDropdown(false);
-                        startCreateOrganization();
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-amber-400 hover:bg-slate-800 rounded-xl transition-colors font-medium cursor-pointer text-left"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Create New Organization</span>
-                    </button>
+                    {isOrgLimitReached ? (
+                      <div
+                        id="org-dropdown-limit-notice"
+                        className="px-3 py-2 text-[11px] text-slate-400 bg-slate-950/60 rounded-xl flex items-center justify-between"
+                        title="You have reached the maximum of 5 owned organizations allowed per account."
+                      >
+                        <span className="flex items-center gap-1.5 text-slate-400">
+                          <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Max 5 Orgs Reached</span>
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-amber-400 font-bold">
+                          {ownedOrgsCount}/5
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        id="create-new-org-btn"
+                        type="button"
+                        onClick={() => {
+                          setShowOrgDropdown(false);
+                          startCreateOrganization();
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs text-amber-400 hover:bg-slate-800 rounded-xl transition-colors font-medium cursor-pointer text-left"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Plus className="w-4 h-4" />
+                          <span>Create New Organization</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-500">
+                          {ownedOrgsCount}/5
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

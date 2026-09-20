@@ -1830,11 +1830,14 @@ export async function canUseWelcomeCredit(
   } else if (eventPriceOverride && Number(eventPriceOverride) > 0) {
     eventPrice = Number(eventPriceOverride);
   } else {
-    const err: any = new Error('Pricing configuration error: Valid event price is required.');
-    err.status = 503;
-    err.statusCode = 503;
-    err.code = 'PRICING_CONFIGURATION_ERROR';
-    throw err;
+    // If no specific event or override price is specified, default to authoritative 1-day platform base price (RM1,400.00)
+    try {
+      const { getAuthoritativePlatformSettings, calculateEventAuthoritativePrice } = await import('./platformSettings.js');
+      const settings = await getAuthoritativePlatformSettings(env);
+      eventPrice = calculateEventAuthoritativePrice(1, settings);
+    } catch {
+      eventPrice = 1400.00;
+    }
   }
 
   const wallet = await getWalletBalance(organizationId, env);
@@ -2363,11 +2366,14 @@ export async function canUseShowcaseCredit(
   } else if (eventPriceOverride && Number(eventPriceOverride) > 0) {
     eventPrice = Number(eventPriceOverride);
   } else {
-    const err: any = new Error('Pricing configuration error: Valid event price is required.');
-    err.status = 503;
-    err.statusCode = 503;
-    err.code = 'PRICING_CONFIGURATION_ERROR';
-    throw err;
+    // If no specific event or override price is specified, default to authoritative 1-day platform base price (RM1,400.00)
+    try {
+      const { getAuthoritativePlatformSettings, calculateEventAuthoritativePrice } = await import('./platformSettings.js');
+      const settings = await getAuthoritativePlatformSettings(env);
+      eventPrice = calculateEventAuthoritativePrice(1, settings);
+    } catch {
+      eventPrice = 1400.00;
+    }
   }
 
   const wallet = await getWalletBalance(organizationId, env);
