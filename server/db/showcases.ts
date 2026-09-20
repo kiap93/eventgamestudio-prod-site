@@ -15,7 +15,7 @@ import {
   hasUserReceivedShowcaseCredit,
   localOwnerShowcaseRewardsCache,
 } from './wallet.js';
-import { isUserOrganizationOwner, hasUserClaimedReward } from './rewards.js';
+import { isUserOrganizationOwner, hasUserClaimedReward, getShowcaseRewardEligibility } from './rewards.js';
 import { getShowcaseMedia } from './showcaseMedia.js';
 import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase } from './events.js';
 import { getOrganizationById } from './organizations.js';
@@ -34,7 +34,7 @@ const LOCAL_SHOWCASES_FILE = path.join(process.cwd(), 'uploads', 'showcases.json
 const LOCAL_MODERATION_LOGS_FILE = path.join(process.cwd(), 'uploads', 'showcase_moderation_logs.json');
 
 // In-memory cache for fast reads and reliable fallback
-const localShowcasesCache = new Map<string, EventShowcaseRecord>();
+export const localShowcasesCache = new Map<string, EventShowcaseRecord>();
 const localModerationLogsCache: ShowcaseModerationLog[] = [];
 
 function loadLocalShowcases(): void {
@@ -845,6 +845,7 @@ export async function evaluateShowcaseRewardEligibility(
         {
           reward_review_status: 'NOT_ELIGIBLE',
           reward_status: 'NOT_ELIGIBLE',
+          reward_rejection_reason: 'Only the organization owner is eligible for Showcase Reward. Organization members cannot receive promotional credits.',
           owner_user_id: ownerUserId,
         },
         env,
@@ -852,143 +853,21 @@ export async function evaluateShowcaseRewardEligibility(
       );
     }
 
-    // Check local fallback cache first
-    const localOwnerReward = localOwnerShowcaseRewardsCache.get(ownerUserId);
-    if (localOwnerReward) {
-      if (localOwnerReward.showcase_id === showcase.id) {
-        return await updateShowcase(
-          eventId,
-          {
-            reward_review_status: 'REWARDED',
-            reward_status: 'REWARDED',
-            reward_transaction_id: localOwnerReward.transaction_id || undefined,
-            owner_user_id: ownerUserId,
-          },
-          env,
-          true
-        );
-      }
+    // Authoritative lifetime eligibility check via user_rewards & transactions
+    const eligibility = await getShowcaseRewardEligibility(ownerUserId, env);
+    if (!eligibility.eligible) {
       return await updateShowcase(
         eventId,
         {
           reward_review_status: 'NOT_ELIGIBLE',
           reward_status: 'NOT_ELIGIBLE',
+          reward_rejection_reason: eligibility.reason || 'Owner has already received their one-time lifetime showcase reward on another event.',
           owner_user_id: ownerUserId,
         },
         env,
         true
       );
     }
-
-    if (isSupabaseConfigured(env)) {
-      const { data: ownerReward } = await supabase
-        .from('owner_showcase_rewards')
-        .select('showcase_id, transaction_id')
-        .eq('owner_user_id', ownerUserId)
-        .maybeSingle();
-
-      if (ownerReward) {
-        if (ownerReward.showcase_id === showcase.id) {
-          return await updateShowcase(
-            eventId,
-            {
-              reward_review_status: 'REWARDED',
-              reward_status: 'REWARDED',
-              reward_transaction_id: ownerReward.transaction_id || undefined,
-              owner_user_id: ownerUserId,
-            },
-            env,
-            true
-          );
-        }
-        return await updateShowcase(
-          eventId,
-          {
-            reward_review_status: 'NOT_ELIGIBLE',
-            reward_status: 'NOT_ELIGIBLE',
-            owner_user_id: ownerUserId,
-          },
-          env,
-          true
-        );
-      }
-
-      // Check if any other showcase by this owner was already rewarded
-      const { data: otherOwnerRewarded } = await supabase
-        .from('event_showcases')
-        .select('id')
-        .eq('owner_user_id', ownerUserId)
-        .neq('id', showcase.id)
-        .or('reward_review_status.eq.REWARDED,reward_status.eq.REWARDED')
-        .limit(1);
-
-      if (otherOwnerRewarded && otherOwnerRewarded.length > 0) {
-        return await updateShowcase(
-          eventId,
-          {
-            reward_review_status: 'NOT_ELIGIBLE',
-            reward_status: 'NOT_ELIGIBLE',
-            owner_user_id: ownerUserId,
-          },
-          env,
-          true
-        );
-      }
-    } else {
-      // Local check: other showcases by this owner
-      const otherRewardedLocal = Array.from(localShowcasesCache.values()).find(
-        (s) =>
-          s.owner_user_id === ownerUserId &&
-          s.id !== showcase.id &&
-          (s.reward_review_status === 'REWARDED' || s.reward_status === 'REWARDED')
-      );
-      if (otherRewardedLocal) {
-        return await updateShowcase(
-          eventId,
-          {
-            reward_review_status: 'NOT_ELIGIBLE',
-            reward_status: 'NOT_ELIGIBLE',
-            owner_user_id: ownerUserId,
-          },
-          env,
-          true
-        );
-      }
-    }
-
-    // Strict check across all user rewards and transactions
-    const userAlreadyRewarded = await hasUserReceivedShowcaseCredit(ownerUserId, env) || await hasUserClaimedReward(ownerUserId, 'SHOWCASE_REWARD', env);
-    if (userAlreadyRewarded) {
-      return await updateShowcase(
-        eventId,
-        {
-          reward_review_status: 'NOT_ELIGIBLE',
-          reward_status: 'NOT_ELIGIBLE',
-          owner_user_id: ownerUserId,
-        },
-        env,
-        true
-      );
-    }
-  }
-
-  // Also check if this organization already received showcase credit
-  const { data: orgWallet } = await supabase
-    .from('organization_wallets')
-    .select('showcase_credit_granted, showcase_credit')
-    .eq('organization_id', showcase.organization_id)
-    .maybeSingle();
-
-  if (orgWallet?.showcase_credit_granted) {
-    return await updateShowcase(
-      eventId,
-      {
-        reward_review_status: 'NOT_ELIGIBLE',
-        reward_status: 'NOT_ELIGIBLE',
-      },
-      env,
-      true
-    );
   }
 
   // 2. Event payment and started/concluded check
@@ -1139,6 +1018,16 @@ export async function approveShowcaseReward(
       reward: null,
       alreadyRewarded: true,
     };
+  }
+
+  // If showcase has been explicitly evaluated and rejected with a rejection reason, reject approval
+  if ((showcase.reward_review_status === 'NOT_ELIGIBLE' || showcase.reward_status === 'NOT_ELIGIBLE') && showcase.reward_rejection_reason) {
+    const err = new Error(
+      showcase.reward_rejection_reason ||
+        'Showcase does not meet the RM300 first-event reward criteria (owner has already received their one-time lifetime showcase reward).'
+    );
+    (err as any).code = 'SHOWCASE_NOT_ELIGIBLE';
+    throw err;
   }
 
   // Resolve ownerUserId

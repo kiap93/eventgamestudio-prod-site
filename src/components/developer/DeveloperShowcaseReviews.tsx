@@ -137,23 +137,22 @@ export const DeveloperShowcaseReviews: React.FC = () => {
       setError(null);
       setActionSuccess(null);
 
-      const res = await apiFetch(`/api/developer/showcases/${showcaseId}/approve`, {
+      const res = await apiFetch(`/api/developer/showcases/${showcaseId}/reward/approve`, {
         method: 'POST',
       });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to approve showcase');
+        throw new Error(data.error || 'Failed to approve showcase reward');
       }
 
-      setActionSuccess(data.message || 'Showcase approved and RM300 reward granted!');
+      setActionSuccess(data.message || 'Owner first-event showcase reward approved and RM300 credit granted!');
       setApprovingShowcase(null);
       if (selectedShowcase?.id === showcaseId) {
         setSelectedShowcase({
           ...selectedShowcase,
-          review_status: 'APPROVED',
-          publication_status: 'PUBLISHED',
-          status: 'PUBLISHED',
+          reward_review_status: 'REWARDED',
+          reward_status: 'REWARDED',
           reward_granted_at: new Date().toISOString(),
         });
       }
@@ -161,8 +160,8 @@ export const DeveloperShowcaseReviews: React.FC = () => {
       fetchShowcases();
       setTimeout(() => setActionSuccess(null), 5000);
     } catch (err: any) {
-      console.error('Approve showcase error:', err);
-      setError(err.message || 'Failed to approve showcase');
+      console.error('Approve showcase reward error:', err);
+      setError(err.message || 'Failed to approve showcase reward');
     } finally {
       setActionLoading(false);
     }
@@ -172,7 +171,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
     e.preventDefault();
     if (!rejectingShowcase) return;
     if (!rejectionReason.trim()) {
-      setError('Please provide a reason for rejecting the showcase.');
+      setError('Please provide a reason for rejecting the showcase reward.');
       return;
     }
 
@@ -181,31 +180,32 @@ export const DeveloperShowcaseReviews: React.FC = () => {
       setError(null);
       setActionSuccess(null);
 
-      const res = await apiFetch(`/api/developer/showcases/${rejectingShowcase.id}/reject`, {
+      const res = await apiFetch(`/api/developer/showcases/${rejectingShowcase.id}/reward/reject`, {
         method: 'POST',
         body: JSON.stringify({ reason: rejectionReason.trim() }),
       });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to reject showcase');
+        throw new Error(data.error || 'Failed to reject showcase reward');
       }
 
-      setActionSuccess('Showcase rejected with feedback sent to the organization.');
+      setActionSuccess('Showcase reward rejected with feedback sent to the organization. Showcase remains live and published.');
       setRejectingShowcase(null);
       setRejectionReason('');
       if (selectedShowcase?.id === rejectingShowcase.id) {
         setSelectedShowcase({
           ...selectedShowcase,
-          review_status: 'REJECTED',
-          rejection_reason: rejectionReason.trim(),
+          reward_review_status: 'REJECTED',
+          reward_status: 'REJECTED',
+          reward_rejection_reason: rejectionReason.trim(),
         });
       }
       fetchShowcases();
       setTimeout(() => setActionSuccess(null), 5000);
     } catch (err: any) {
-      console.error('Reject showcase error:', err);
-      setError(err.message || 'Failed to reject showcase');
+      console.error('Reject showcase reward error:', err);
+      setError(err.message || 'Failed to reject showcase reward');
     } finally {
       setActionLoading(false);
     }
@@ -342,16 +342,35 @@ export const DeveloperShowcaseReviews: React.FC = () => {
     }
   };
 
+  // Helpers to inspect separated lifecycles
+  const isRewardPending = (sc: AdminShowcaseListItem) =>
+    (sc.reward_review_status === 'AWAITING_APPROVAL' ||
+     sc.reward_status === 'PENDING' ||
+     sc.review_status === 'SUBMITTED') &&
+    sc.status !== 'DELETED' &&
+    sc.status !== 'BLOCKED' &&
+    sc.reward_review_status !== 'REWARDED' &&
+    sc.reward_status !== 'REWARDED';
+
+  const isRewarded = (sc: AdminShowcaseListItem) =>
+    (sc.reward_review_status === 'REWARDED' || sc.reward_status === 'REWARDED' || sc.review_status === 'APPROVED') &&
+    sc.status !== 'DELETED';
+
+  const isRewardRejected = (sc: AdminShowcaseListItem) =>
+    (sc.reward_review_status === 'REJECTED' || sc.review_status === 'REJECTED') &&
+    sc.status !== 'DELETED';
+
   // Filtered showcases
   const filteredShowcases = showcases.filter((sc) => {
     // Status filter
     if (filterStatus !== 'ALL') {
-      if (filterStatus === 'SUBMITTED' && (sc.review_status !== 'SUBMITTED' || sc.status === 'DELETED')) return false;
-      if (filterStatus === 'APPROVED' && (sc.review_status !== 'APPROVED' || sc.status === 'DELETED')) return false;
-      if (filterStatus === 'REJECTED' && (sc.review_status !== 'REJECTED' || sc.status === 'DELETED')) return false;
+      if (filterStatus === 'REWARD_PENDING' && !isRewardPending(sc)) return false;
+      if (filterStatus === 'REWARDED' && !isRewarded(sc)) return false;
+      if (filterStatus === 'REJECTED' && !isRewardRejected(sc)) return false;
+      if (filterStatus === 'PUBLISHED' && (sc.status !== 'PUBLISHED' || sc.status === 'BLOCKED' || sc.status === 'DELETED')) return false;
       if (filterStatus === 'BLOCKED' && sc.status !== 'BLOCKED') return false;
       if (filterStatus === 'DELETED' && sc.status !== 'DELETED') return false;
-      if (filterStatus === 'DRAFT' && (sc.review_status !== 'DRAFT' || sc.status === 'DELETED')) return false;
+      if (filterStatus === 'DRAFT' && sc.status !== 'DRAFT' && sc.status !== 'UNPUBLISHED') return false;
     }
 
     // Search query
@@ -368,13 +387,14 @@ export const DeveloperShowcaseReviews: React.FC = () => {
   });
 
   // Quick stats
-  const countSubmitted = showcases.filter((s) => s.review_status === 'SUBMITTED' && s.status !== 'DELETED').length;
-  const countApproved = showcases.filter((s) => s.review_status === 'APPROVED' && s.status !== 'DELETED').length;
-  const countRejected = showcases.filter((s) => s.review_status === 'REJECTED' && s.status !== 'DELETED').length;
+  const countRewardPending = showcases.filter(isRewardPending).length;
+  const countRewarded = showcases.filter(isRewarded).length;
+  const countRewardRejected = showcases.filter(isRewardRejected).length;
+  const countPublished = showcases.filter((s) => (s.status === 'PUBLISHED' || s.publication_status === 'PUBLISHED') && s.status !== 'BLOCKED' && s.status !== 'DELETED').length;
   const countBlocked = showcases.filter((s) => s.status === 'BLOCKED').length;
   const countDeleted = showcases.filter((s) => s.status === 'DELETED').length;
-  const countDraft = showcases.filter((s) => s.review_status === 'DRAFT' && s.status !== 'DELETED').length;
-  const totalRewardedMYR = countApproved * 300;
+  const countDraft = showcases.filter((s) => (s.status === 'DRAFT' || s.status === 'UNPUBLISHED') && s.status !== 'DELETED').length;
+  const totalRewardedMYR = countRewarded * 300;
 
   return (
     <div className="space-y-6">
@@ -390,7 +410,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
-            Review event marketing showcases submitted by organizations. Approving a showcase publishes it to the platform gallery and automatically grants <strong className="text-amber-400">RM300 Showcase Credit</strong> into the organization wallet. Admins can also block sensitive showcases or perform administrative soft-deletes.
+            Manage public event marketing showcases and review first-event owner rewards. Showcase publishing is self-service and immediately live. Approving an eligible showcase grants <strong className="text-amber-400">RM300 Showcase Credit</strong> to the organization account owner without gating publication. Admins can also moderate sensitive showcases or soft-delete content.
           </p>
         </div>
 
@@ -407,10 +427,10 @@ export const DeveloperShowcaseReviews: React.FC = () => {
       {/* Metrics Row */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
-          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Pending Review</div>
+          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Reward Pending</div>
           <div className="text-2xl font-black text-blue-400 flex items-center gap-2">
-            <span>{countSubmitted}</span>
-            {countSubmitted > 0 && (
+            <span>{countRewardPending}</span>
+            {countRewardPending > 0 && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-bold animate-pulse">
                 Needs Action
               </span>
@@ -420,7 +440,12 @@ export const DeveloperShowcaseReviews: React.FC = () => {
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
           <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Approved & Rewarded</div>
-          <div className="text-2xl font-black text-emerald-400">{countApproved}</div>
+          <div className="text-2xl font-black text-emerald-400">{countRewarded}</div>
+        </div>
+
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
+          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Published Live</div>
+          <div className="text-2xl font-black text-emerald-300">{countPublished}</div>
         </div>
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
@@ -438,11 +463,6 @@ export const DeveloperShowcaseReviews: React.FC = () => {
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
           <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Rewards</div>
           <div className="text-2xl font-black text-amber-400">RM {totalRewardedMYR.toLocaleString()}</div>
-        </div>
-
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
-          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Changes Requested</div>
-          <div className="text-2xl font-black text-slate-300">{countRejected}</div>
         </div>
       </div>
 
@@ -467,9 +487,10 @@ export const DeveloperShowcaseReviews: React.FC = () => {
         <div className="flex flex-wrap items-center gap-1.5">
           {[
             { id: 'ALL', label: 'All Submissions', count: showcases.length },
-            { id: 'SUBMITTED', label: 'Pending Review', count: countSubmitted, highlight: true },
-            { id: 'APPROVED', label: 'Approved', count: countApproved },
-            { id: 'REJECTED', label: 'Rejected', count: countRejected },
+            { id: 'REWARD_PENDING', label: 'Reward Pending', count: countRewardPending, highlight: true },
+            { id: 'REWARDED', label: 'Rewarded (RM300)', count: countRewarded },
+            { id: 'PUBLISHED', label: 'Published Live', count: countPublished },
+            { id: 'REJECTED', label: 'Reward Rejected', count: countRewardRejected },
             { id: 'BLOCKED', label: 'Blocked', count: countBlocked, isBlocked: true },
             { id: 'DELETED', label: 'Deleted', count: countDeleted },
             { id: 'DRAFT', label: 'Drafts', count: countDraft },
@@ -541,18 +562,14 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   <th className="px-4 py-3">Showcase & Event</th>
                   <th className="px-4 py-3">Organization & Client</th>
                   <th className="px-4 py-3">Media</th>
-                  <th className="px-4 py-3">Submission Date</th>
-                  <th className="px-4 py-3">Review Status</th>
+                  <th className="px-4 py-3">Created / Published</th>
+                  <th className="px-4 py-3">RM300 Reward</th>
                   <th className="px-4 py-3">Visibility</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
                 {filteredShowcases.map((sc) => {
-                  const isSubmitted = sc.review_status === 'SUBMITTED';
-                  const isApproved = sc.review_status === 'APPROVED';
-                  const isRejected = sc.review_status === 'REJECTED';
-
                   return (
                     <tr key={sc.id} className="hover:bg-slate-800/30 transition-colors">
                       {/* Showcase Title & Event */}
@@ -602,20 +619,24 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Submission Date */}
+                      {/* Creation / Publication Date */}
                       <td className="px-4 py-3">
                         <div className="text-[11px] text-slate-300">
-                          {sc.submitted_at ? (
-                            <span title={new Date(sc.submitted_at).toLocaleString()}>
-                              {new Date(sc.submitted_at).toLocaleDateString()}
+                          {sc.published_at ? (
+                            <span title={new Date(sc.published_at).toLocaleString()}>
+                              Published: {new Date(sc.published_at).toLocaleDateString()}
+                            </span>
+                          ) : sc.created_at ? (
+                            <span title={new Date(sc.created_at).toLocaleString()}>
+                              Created: {new Date(sc.created_at).toLocaleDateString()}
                             </span>
                           ) : (
-                            <span className="text-slate-500 italic">Not submitted</span>
+                            <span className="text-slate-500 italic">N/A</span>
                           )}
                         </div>
                       </td>
 
-                      {/* Review Status Badge */}
+                      {/* RM300 Reward Status Badge */}
                       <td className="px-4 py-3">
                         {sc.status === 'DELETED' ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 border border-slate-700 text-slate-400">
@@ -628,36 +649,38 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                               <ShieldAlert className="w-3 h-3 text-rose-400" />
                               BLOCKED
                             </span>
-                            {sc.moderation_reason && (
-                              <div className="text-[10px] text-rose-400/80 line-clamp-1 max-w-[150px]" title={sc.moderation_reason}>
-                                {sc.moderation_reason}
-                              </div>
-                            )}
                           </div>
-                        ) : isApproved ? (
+                        ) : isRewarded(sc) ? (
                           <div className="space-y-1">
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
                               <CheckCircle2 className="w-3 h-3" />
-                              Approved
+                              Rewarded
                             </span>
                             <div className="text-[10px] font-semibold text-amber-400 flex items-center gap-1">
                               <Gift className="w-3 h-3 text-amber-400" />
-                              <span>RM300 Showcase Credit Granted</span>
+                              <span>RM300 Granted</span>
                             </div>
                           </div>
-                        ) : isSubmitted ? (
+                        ) : isRewardPending(sc) ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/15 border border-blue-500/30 text-blue-400 animate-pulse">
                             <Clock className="w-3 h-3" />
-                            SUBMITTED
+                            Reward Pending
                           </span>
-                        ) : isRejected ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/15 border border-rose-500/30 text-rose-400">
-                            <XCircle className="w-3 h-3" />
-                            REJECTED
-                          </span>
+                        ) : isRewardRejected(sc) ? (
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/15 border border-rose-500/30 text-rose-400">
+                              <XCircle className="w-3 h-3" />
+                              Reward Declined
+                            </span>
+                            {sc.reward_rejection_reason && (
+                              <div className="text-[10px] text-rose-400/80 line-clamp-1 max-w-[150px]" title={sc.reward_rejection_reason}>
+                                {sc.reward_rejection_reason}
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
-                            DRAFT
+                            {sc.reward_review_status === 'NOT_ELIGIBLE' || sc.reward_status === 'NOT_ELIGIBLE' ? 'Not Eligible' : 'Standard'}
                           </span>
                         )}
                       </td>
@@ -676,7 +699,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                         ) : sc.status === 'PUBLISHED' || sc.publication_status === 'PUBLISHED' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 border border-emerald-500/30 text-emerald-300">
                             <Globe className="w-2.5 h-2.5" />
-                            Published
+                            Published Live
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-900 border border-slate-800 text-slate-500">
@@ -731,30 +754,30 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                             <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
                           </button>
 
-                          {/* Approve Action */}
-                          {isSubmitted && sc.status !== 'DELETED' && sc.status !== 'BLOCKED' && (
+                          {/* Approve Reward Action */}
+                          {isRewardPending(sc) && (
                             <button
                               onClick={() => setApprovingShowcase(sc)}
                               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm shadow-emerald-600/30 cursor-pointer"
-                              title="Approve Showcase & Grant RM300 Reward"
+                              title="Approve First-Event Showcase Reward (RM300)"
                             >
                               <Check className="w-3.5 h-3.5" />
-                              <span>Approve</span>
+                              <span>Approve Reward</span>
                             </button>
                           )}
 
-                          {/* Reject Action */}
-                          {isSubmitted && sc.status !== 'DELETED' && sc.status !== 'BLOCKED' && (
+                          {/* Reject Reward Action */}
+                          {isRewardPending(sc) && (
                             <button
                               onClick={() => {
                                 setRejectingShowcase(sc);
                                 setRejectionReason('');
                               }}
                               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition-all cursor-pointer"
-                              title="Reject Showcase with Feedback"
+                              title="Reject Showcase Reward (Showcase remains published)"
                             >
                               <X className="w-3.5 h-3.5" />
-                              <span>Reject</span>
+                              <span>Reject Reward</span>
                             </button>
                           )}
 
@@ -875,7 +898,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <XCircle className="w-5 h-5 text-rose-400" />
-                <h3 className="text-sm font-bold text-white">Reject Showcase</h3>
+                <h3 className="text-sm font-bold text-white">Reject First-Event Showcase Reward</h3>
               </div>
               <button
                 type="button"
@@ -944,22 +967,26 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                       <ShieldAlert className="w-3 h-3 text-rose-400" />
                       BLOCKED BY ADMIN
                     </span>
-                  ) : selectedShowcase.review_status === 'APPROVED' ? (
+                  ) : isRewarded(selectedShowcase) ? (
                     <div className="flex items-center gap-1.5">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
-                        Approved
+                        Rewarded
                       </span>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300">
                         RM300 Showcase Credit Granted
                       </span>
                     </div>
-                  ) : selectedShowcase.review_status === 'SUBMITTED' ? (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300">
-                      Under Review
+                  ) : isRewardPending(selectedShowcase) ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 animate-pulse">
+                      Reward Pending
+                    </span>
+                  ) : isRewardRejected(selectedShowcase) ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300">
+                      Reward Declined
                     </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400">
-                      {selectedShowcase.review_status || 'Draft'}
+                      {selectedShowcase.reward_review_status || 'Standard'}
                     </span>
                   )}
                 </div>
@@ -1208,7 +1235,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                   </>
                 )}
 
-                {selectedShowcase.review_status === 'SUBMITTED' && selectedShowcase.status !== 'BLOCKED' && selectedShowcase.status !== 'DELETED' && (
+                {isRewardPending(selectedShowcase) && (
                   <>
                     <button
                       onClick={() => {
@@ -1217,14 +1244,14 @@ export const DeveloperShowcaseReviews: React.FC = () => {
                       }}
                       className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition-all cursor-pointer"
                     >
-                      Reject with Feedback
+                      Reject Reward
                     </button>
                     <button
                       onClick={() => setApprovingShowcase(selectedShowcase)}
                       className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      <span>Approve & Grant RM300</span>
+                      <span>Approve Reward (RM300)</span>
                     </button>
                   </>
                 )}

@@ -3850,11 +3850,14 @@ BEGIN
   FROM public.organizations
   WHERE id = v_showcase.organization_id;
 
-  v_owner_id := COALESCE(v_showcase.owner_user_id, v_org.owner_id);
+  v_owner_id := v_org.owner_id;
 
   IF v_owner_id IS NULL THEN
     RAISE EXCEPTION 'Organization owner could not be resolved for showcase %', p_showcase_id;
   END IF;
+
+  -- Serialize multi-showcase/multi-org reward grants per user via explicit user row lock
+  PERFORM 1 FROM public.users WHERE id = v_owner_id FOR UPDATE;
 
   -- 4. Idempotency Check: If this exact showcase is already rewarded, return current state safely
   IF (v_showcase.reward_review_status = 'REWARDED' OR v_showcase.reward_status = 'REWARDED') THEN
@@ -3888,19 +3891,11 @@ BEGIN
     );
   END IF;
 
-  -- 5. Owner-Level First-Reward Invariant Check:
+  -- 5. Primary Authoritative Lifetime Invariant Check against user_rewards:
   -- Verify if owner_user_id has ALREADY received a lifetime showcase reward in ANY organization
   SELECT * INTO v_user_reward
   FROM public.user_rewards
-  WHERE user_id = v_owner_id AND reward_type = 'SHOWCASE_CREDIT';
-
-  IF FOUND THEN
-    RAISE EXCEPTION 'First-event reward invariant violation: Owner has already received a lifetime showcase reward credit.';
-  END IF;
-
-  SELECT * INTO v_owner_reward
-  FROM public.owner_showcase_rewards
-  WHERE owner_user_id = v_owner_id;
+  WHERE user_id = v_owner_id AND reward_type IN ('SHOWCASE_CREDIT', 'SHOWCASE_REWARD');
 
   IF FOUND THEN
     RAISE EXCEPTION 'First-event reward invariant violation: Owner has already received a lifetime showcase reward credit.';
@@ -3999,6 +3994,7 @@ BEGIN
     balance_type,
     amount,
     status,
+    description,
     reference_id,
     created_by,
     metadata,
@@ -4013,6 +4009,7 @@ BEGIN
     'SHOWCASE_CREDIT',
     v_credit_amount,
     'COMPLETED',
+    'One-time Event Showcase completion reward credit',
     v_reference_id,
     p_reviewer_id,
     p_metadata || jsonb_build_object(
@@ -4523,6 +4520,26 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_user_welcome_credit_unique
 CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_owner_showcase_credit_unique
   ON public.wallet_transactions (owner_user_id)
   WHERE transaction_type = 'SHOWCASE_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_rewards_showcase_lifetime_unique
+  ON public.user_rewards (user_id)
+  WHERE reward_type IN ('SHOWCASE_CREDIT', 'SHOWCASE_REWARD');
+
+-- Descriptive comments establishing the authoritative hierarchy
+COMMENT ON TABLE public.user_rewards IS
+  'Authoritative user-level reward entitlement and lifetime uniqueness. Showcase reward eligibility must be enforced here and through the atomic reward RPC.';
+
+COMMENT ON TABLE public.owner_showcase_rewards IS
+  'Derived/audit relationship between an owner and Showcase reward. Not an independent lifetime eligibility authority.';
+
+COMMENT ON COLUMN public.event_showcases.reward_status IS
+  'Showcase-specific reward workflow/display state. Does not determine lifetime user eligibility.';
+
+COMMENT ON COLUMN public.event_showcases.reward_review_status IS
+  'Showcase-specific reward review state. Approval alone never grants wallet credit; atomic reward RPC is required.';
+
+COMMENT ON COLUMN public.organization_wallets.showcase_credit_granted IS
+  'Legacy/derived organization-level display or compatibility state. Never use as the authoritative user-level Showcase Reward eligibility check.';
 
 -- ------------------------------------------------------------------------------
 -- REWARD TABLES ROW LEVEL SECURITY (RLS) & CLIENT MUTATION LOCKDOWN

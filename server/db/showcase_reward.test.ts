@@ -19,6 +19,8 @@
 import crypto from 'node:crypto';
 import { getSupabaseServerClient } from '../supabase.js';
 import { localEventsCache } from './events.js';
+import { localOrgsCache } from './organizations.js';
+import { localUsersCache } from './users.js';
 import {
   createShowcase,
   updateShowcase,
@@ -43,6 +45,7 @@ import {
   grantShowcaseCredit,
   getWalletTransactions,
   SHOWCASE_CREDIT_AMOUNT,
+  localWalletsCache,
 } from './wallet.js';
 
 let passed = 0;
@@ -82,6 +85,40 @@ async function ensureTestOrg(orgId: string, ownerId?: string) {
   } catch {
     // Local fallback handled
   }
+
+  localUsersCache.set(validOwnerId, {
+    id: validOwnerId,
+    email: `test-owner-${validOwnerId.slice(0, 8)}@example.com`,
+    name: `Test Owner ${validOwnerId.slice(0, 8)}`,
+    is_developer: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  } as any);
+
+  localOrgsCache.set(orgId, {
+    id: orgId,
+    name: `Test Org ${orgId.slice(0, 8)}`,
+    slug: `test-org-${orgId.slice(0, 8)}`,
+    owner_id: validOwnerId,
+    country_code: 'MY',
+    currency: 'MYR',
+    event_count: 0,
+    member_count: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  } as any);
+
+  localWalletsCache.set(orgId, {
+    organization_id: orgId,
+    paid_balance: 0,
+    topup_credit: 0,
+    welcome_credit: 0,
+    showcase_credit: 0,
+    showcase_credit_granted: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  } as any);
+
   return validOwnerId;
 }
 

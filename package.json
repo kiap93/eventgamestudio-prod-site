@@ -19,6 +19,7 @@
     "test:security": "tsx server/db/wallet_security_lifecycle.test.ts",
     "test:credits": "tsx server/db/wallet_credits.test.ts",
     "test:showcase": "tsx server/db/showcase_reward.test.ts",
+    "test:showcase-decoupled": "tsx server/db/showcase_decoupled_flow.test.ts",
     "test:upload-security": "tsx server/db/showcase_direct_upload_security.test.ts",
     "test:upload-validation": "tsx server/db/upload_magic_bytes_and_svg_rejection.test.ts",
     "test:bucket-limits": "tsx server/db/storage_bucket_limits.test.ts",

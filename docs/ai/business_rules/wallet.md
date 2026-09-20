@@ -105,6 +105,7 @@ Reward credits are dynamically calculated by `calculateTopupCredit(amount)`:
 ### Showcase Reward Credit
 - **Amount**: RM300.00 one-time grant.
 - **Trigger**: Platform administrator approval of the owner's first eligible event showcase (`approve_first_event_showcase_reward_atomic`).
+- **Decoupled Architecture**: Showcase publishing is entirely self-serve and does NOT require admin approval to become live and visible. Reward approval is strictly an independent owner-level financial audit. Delaying or rejecting the reward never unpublishes or blocks the showcase.
 - **Idempotency & Lifetime Scope**: Guarded at the owner account level by `public.owner_showcase_rewards` and `public.user_rewards (user_id, 'SHOWCASE_CREDIT')`. An owner is eligible for at most ONE showcase reward in their lifetime across all organizations. Deleting an event or organization never resets this eligibility (`ON DELETE SET NULL`).
 
 ---

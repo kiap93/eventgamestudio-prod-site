@@ -1,0 +1,128 @@
+[
+  {
+    "id": "3758645c-d58b-4b13-be44-e5ba1ca4c6ab",
+    "showcase_id": "b0370c72-0086-498a-80c7-58c54e10a2c7",
+    "moderator_id": "admin-user-1",
+    "action": "BLOCK",
+    "reason": "Inappropriate logo uploaded",
+    "metadata": {},
+    "created_at": "2026-09-20T04:14:35.520Z"
+  },
+  {
+    "id": "2d00803e-3e28-458c-a83c-a21ce9026cfa",
+    "showcase_id": "b0370c72-0086-498a-80c7-58c54e10a2c7",
+    "moderator_id": "admin-user-1",
+    "action": "UNBLOCK",
+    "reason": "Issue resolved by organizer",
+    "metadata": {},
+    "created_at": "2026-09-20T04:14:36.067Z"
+  },
+  {
+    "id": "9006c3c4-089f-48e3-bd28-7cf1149f0f99",
+    "showcase_id": "5f840284-2aec-4e2b-b46e-28b844a85f24",
+    "moderator_id": "admin-user-1",
+    "action": "BLOCK",
+    "reason": "Inappropriate logo uploaded",
+    "metadata": {},
+    "created_at": "2026-09-20T04:15:28.048Z"
+  },
+  {
+    "id": "d22e2ff8-727f-4bcc-a259-8f42646efe39",
+    "showcase_id": "5f840284-2aec-4e2b-b46e-28b844a85f24",
+    "moderator_id": "admin-user-1",
+    "action": "UNBLOCK",
+    "reason": "Issue resolved by organizer",
+    "metadata": {},
+    "created_at": "2026-09-20T04:15:28.597Z"
+  },
+  {
+    "id": "07f79348-2bd6-4132-8f42-9fa22f3a3a07",
+    "showcase_id": "5f840284-2aec-4e2b-b46e-28b844a85f24",
+    "moderator_id": "admin-user-1",
+    "action": "DELETE",
+    "reason": "Organizer requested deletion",
+    "metadata": {},
+    "created_at": "2026-09-20T04:15:29.132Z"
+  },
+  {
+    "id": "94022c3b-81a2-44df-9246-6f9eaed15b02",
+    "showcase_id": "eb4ec151-b944-4bf0-bf35-16e980ac9882",
+    "moderator_id": "admin-user-1",
+    "action": "BLOCK",
+    "reason": "Inappropriate logo uploaded",
+    "metadata": {},
+    "created_at": "2026-09-20T04:15:44.270Z"
+  },
+  {
+    "id": "08859701-9a26-4ad0-8575-249bcb50e1dc",
+    "showcase_id": "eb4ec151-b944-4bf0-bf35-16e980ac9882",
+    "moderator_id": "admin-user-1",
+    "action": "UNBLOCK",
+    "reason": "Issue resolved by organizer",
+    "metadata": {},
+    "created_at": "2026-09-20T04:15:44.817Z"
+  },
+  {
+    "id": "bb752ddd-09ab-42ce-be11-69102f406ba4",
+    "showcase_id": "eb4ec151-b944-4bf0-bf35-16e980ac9882",
+    "moderator_id": "admin-user-1",
+    "action": "DELETE",
+    "reason": "Organizer requested deletion",
+    "metadata": {},
+    "created_at": "2026-09-20T04:15:45.376Z"
+  },
+  {
+    "id": "a0f2a5bb-d3e8-49b1-9771-8f1dd3167e2a",
+    "showcase_id": "4ed80b93-ac59-423a-8fa4-5c33dd75709d",
+    "moderator_id": "admin-user-1",
+    "action": "BLOCK",
+    "reason": "Inappropriate logo uploaded",
+    "metadata": {},
+    "created_at": "2026-09-20T04:16:00.698Z"
+  },
+  {
+    "id": "402b1899-e64e-4e5a-ac79-8d94dd30b3ce",
+    "showcase_id": "4ed80b93-ac59-423a-8fa4-5c33dd75709d",
+    "moderator_id": "admin-user-1",
+    "action": "UNBLOCK",
+    "reason": "Issue resolved by organizer",
+    "metadata": {},
+    "created_at": "2026-09-20T04:16:01.233Z"
+  },
+  {
+    "id": "66eba5a4-12cd-4c2d-a21d-c9193e719ca2",
+    "showcase_id": "4ed80b93-ac59-423a-8fa4-5c33dd75709d",
+    "moderator_id": "admin-user-1",
+    "action": "DELETE",
+    "reason": "Organizer requested deletion",
+    "metadata": {},
+    "created_at": "2026-09-20T04:16:01.774Z"
+  },
+  {
+    "id": "fed50ab3-d711-43aa-9c1f-e57cc88f59c2",
+    "showcase_id": "5d3a2357-0444-4f72-b2e4-5b8e141b62a6",
+    "moderator_id": "admin-user-1",
+    "action": "BLOCK",
+    "reason": "Inappropriate logo uploaded",
+    "metadata": {},
+    "created_at": "2026-09-20T04:18:22.372Z"
+  },
+  {
+    "id": "34975bc5-cc6a-4b2f-92e0-a85a3aaa84b0",
+    "showcase_id": "5d3a2357-0444-4f72-b2e4-5b8e141b62a6",
+    "moderator_id": "admin-user-1",
+    "action": "UNBLOCK",
+    "reason": "Issue resolved by organizer",
+    "metadata": {},
+    "created_at": "2026-09-20T04:18:22.962Z"
+  },
+  {
+    "id": "84edcefd-4562-47fc-9523-39581cf93219",
+    "showcase_id": "5d3a2357-0444-4f72-b2e4-5b8e141b62a6",
+    "moderator_id": "admin-user-1",
+    "action": "DELETE",
+    "reason": "Organizer requested deletion",
+    "metadata": {},
+    "created_at": "2026-09-20T04:18:23.528Z"
+  }
+]

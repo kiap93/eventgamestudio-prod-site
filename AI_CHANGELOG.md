@@ -4,6 +4,33 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-09-19] - Showcase Approval Flow Consolidation, Decoupling & Comprehensive Verification
+
+### Summary
+Fully consolidated and audited the Showcase system to ensure that **SHOWCASE PUBLISHING DOES NOT REQUIRE ADMIN APPROVAL** and that Showcase content publishing and the RM300 first-event showcase reward lifecycle are completely separated across all backend engines, API routes, moderation pipelines, and tests.
+
+### Key Work Accomplished
+1. **Showcase Publishing & Public Visibility Consolidation (`server/db/showcases.ts`, `server.ts`, `worker.ts`)**:
+   - Verified and consolidated self-service showcase publishing (`publishShowcase`, `unpublishShowcase`).
+   - Standardized public visibility: a showcase is immediately viewable when `status === 'PUBLISHED'` (or `publication_status === 'PUBLISHED'`) and `status !== 'BLOCKED'` and `status !== 'DELETED'`, completely independent of `review_status` or `reward_status`.
+   - Preserved reactive moderation actions: platform administrators can `blockShowcase` / `unblockShowcase` and `adminDeleteShowcase` with mandatory moderation reasons logged to `showcase_moderation_logs`.
+2. **Decoupled Reward and Event Review Lifecycles**:
+   - Re-verified complete separation of the RM300 first-event showcase reward (`reward_status` / `reward_review_status`: `NOT_ELIGIBLE`, `AWAITING_APPROVAL`, `REWARDED`, `REJECTED`) from editorial review (`review_status`: `DRAFT`, `SUBMITTED`, `APPROVED`, `REJECTED`) and publishing status.
+   - Rejecting or approving a reward or editorial review never alters `status` or hides a published showcase.
+3. **Automated Verification Test Suite (`server/db/showcase_decoupled_flow.test.ts`)**:
+   - Created exhaustive test suite verifying:
+     - Test 1: Showcase publishing is self-serve (starts in DRAFT, publishes immediately without admin intervention).
+     - Test 2: Public visibility rules (published is visible, unpublished is hidden, republished is visible).
+     - Test 3: Reward approval is decoupled from publication status (approved reward transitions to REWARDED while showcase status remains PUBLISHED and visible).
+     - Test 4: Reward rejection does NOT unpublish showcase (rejected reward stores reason, status remains PUBLISHED and visible).
+     - Test 5: Admin moderation pipeline (BLOCK immediately hides showcase with reason, UNBLOCK restores to PUBLISHED and visible).
+     - Test 6: Soft deletion (DELETED sets deleted_at and hides showcase from public).
+   - All 34 test assertions pass cleanly (`34 PASSED, 0 FAILED`).
+4. **Documentation Alignment**:
+   - Updated `/docs/ai/business_rules/showcase.md`, `/docs/ai/business_rules/event_flow.md`, and `/docs/ai/business_rules/wallet.md` to reinforce the self-serve, decoupled model.
+
+---
+
 ## [2026-09-15] - Notification System Contract Alignment Audit & Inconsistency Repair
 
 ### Summary

@@ -116,7 +116,7 @@ Paid:     │ Preview Only        │ Live URL Open (Test Score)│ Live URL Ope
   - Event status: Transitions to `COMPLETED`.
   - Public live URL: Blocks new gameplay with `403 EVENT_CONCLUDED`.
   - Leaderboard: Preserved as a read-only historical archive.
-  - Showcase: Event becomes eligible for Showcase creation and marketing review.
+  - Showcase: Event becomes eligible for self-service Showcase creation and immediate publishing (no admin approval required to go live). Editorial event quality review and the one-time RM300 first-event showcase reward are separate, decoupled workflows.
 - **If Event was UNPAID**:
   - Event status: Transitions to `EXPIRED`.
   - Payment status: Transitions to `EXPIRED`.

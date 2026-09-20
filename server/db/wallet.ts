@@ -75,6 +75,16 @@ export const localWalletsCache = new Map<string, OrganizationWalletRecord>();
 export const localTransactionsCache = new Map<string, WalletTransactionRecord>();
 export const localTopupOrdersCache = new Map<string, TopupOrderRecord>();
 export const localAuditLogCache = new Map<string, WalletAuditRecord>();
+/**
+ * STRICT CACHE ONLY:
+ * localOwnerShowcaseRewardsCache is an in-memory optimization and local-dev fallback.
+ * It must NEVER be used to authorize a reward or bypass the database.
+ * Whenever an actual reward decision is made:
+ *   CACHE -> optional optimization / test fallback only
+ *   DATABASE (public.user_rewards) / ATOMIC RPC -> authoritative decision
+ * If the cache conflicts with the database:
+ *   DATABASE WINS
+ */
 export const localOwnerShowcaseRewardsCache = new Map<string, OwnerShowcaseRewardRecord>();
 export const localUserRewardsCache = new Map<string, UserRewardRecord>();
 
@@ -1748,121 +1758,16 @@ export async function hasUserReceivedWelcomeCredit(
 /**
  * Check if a user/owner has already received Showcase Credit in their account lifetime.
  * This is strictly a one-time per user account lifetime limit.
+ * Delegates authoritatively to getShowcaseRewardEligibility with public.user_rewards as the source of truth.
  */
 export async function hasUserReceivedShowcaseCredit(
   userId: string,
   env?: Record<string, any>
 ): Promise<boolean> {
   if (!userId) return false;
-
-  if (isSupabaseConfigured(env)) {
-    const supabase = getSupabaseServerClient(env);
-
-    // 1. Check user_rewards table
-    const { data: userReward, error: userRewardErr } = await supabase
-      .from('user_rewards')
-      .select('id')
-      .eq('user_id', userId)
-      .in('reward_type', ['SHOWCASE_CREDIT', 'SHOWCASE_REWARD'])
-      .maybeSingle();
-
-    if (userRewardErr && !isLocalFallbackAllowed(env)) {
-      throw new Error(`Database error checking user_rewards for showcase credit: ${userRewardErr.message}`);
-    }
-    if (userReward) return true;
-
-    // 2. Check owner_showcase_rewards ledger
-    const { data: ownerReward, error: ownerRewardErr } = await supabase
-      .from('owner_showcase_rewards')
-      .select('owner_user_id')
-      .eq('owner_user_id', userId)
-      .maybeSingle();
-
-    if (ownerRewardErr && !isLocalFallbackAllowed(env)) {
-      throw new Error(`Database error checking owner_showcase_rewards: ${ownerRewardErr.message}`);
-    }
-    if (ownerReward) return true;
-
-    // 3. Check wallet_transactions table
-    const { data: txnData, error: txnErr } = await supabase
-      .from('wallet_transactions')
-      .select('id')
-      .eq('transaction_type', 'SHOWCASE_CREDIT')
-      .eq('status', 'COMPLETED')
-      .or(`owner_user_id.eq.${userId},created_by.eq.${userId}`)
-      .limit(1)
-      .maybeSingle();
-
-    if (txnErr && !isLocalFallbackAllowed(env)) {
-      throw new Error(`Database error checking wallet_transactions for showcase credit: ${txnErr.message}`);
-    }
-    if (txnData) return true;
-
-    // 4. Check organizations owned by this user
-    const { data: userOrgs, error: orgsErr } = await supabase
-      .from('organizations')
-      .select('id')
-      .eq('owner_id', userId);
-
-    if (orgsErr && !isLocalFallbackAllowed(env)) {
-      throw new Error(`Database error checking organizations for showcase credit: ${orgsErr.message}`);
-    }
-
-    if (userOrgs && userOrgs.length > 0) {
-      const orgIds = userOrgs.map((o) => o.id);
-      const { data: orgTxn, error: orgTxnErr } = await supabase
-        .from('wallet_transactions')
-        .select('id')
-        .eq('transaction_type', 'SHOWCASE_CREDIT')
-        .eq('status', 'COMPLETED')
-        .in('organization_id', orgIds)
-        .limit(1)
-        .maybeSingle();
-
-      if (orgTxnErr && !isLocalFallbackAllowed(env)) {
-        throw new Error(`Database error checking organization showcase transactions: ${orgTxnErr.message}`);
-      }
-      if (orgTxn) return true;
-    }
-
-    return false;
-  }
-
-  // Local fallback
-  if (localUserRewardsCache.has(`${userId}:SHOWCASE_CREDIT`) || localUserRewardsCache.has(`${userId}:SHOWCASE_REWARD`)) {
-    return true;
-  }
-
-  if (localOwnerShowcaseRewardsCache.has(userId)) {
-    return true;
-  }
-
-  const existingTxn = Array.from(localTransactionsCache.values()).find(
-    (t) =>
-      (t.owner_user_id === userId || t.created_by === userId) &&
-      t.transaction_type === 'SHOWCASE_CREDIT' &&
-      t.status === 'COMPLETED'
-  );
-  if (existingTxn) return true;
-
-  const { localOrgsCache } = await import('./organizations.js');
-  const userOrgIds = new Set(
-    Array.from(localOrgsCache.values())
-      .filter((o) => o.owner_id === userId)
-      .map((o) => o.id)
-  );
-
-  if (userOrgIds.size > 0) {
-    const orgTxn = Array.from(localTransactionsCache.values()).find(
-      (t) =>
-        userOrgIds.has(t.organization_id) &&
-        t.transaction_type === 'SHOWCASE_CREDIT' &&
-        t.status === 'COMPLETED'
-    );
-    if (orgTxn) return true;
-  }
-
-  return false;
+  const { getShowcaseRewardEligibility } = await import('./rewards.js');
+  const eligibility = await getShowcaseRewardEligibility(userId, env);
+  return !eligibility.eligible;
 }
 
 /**

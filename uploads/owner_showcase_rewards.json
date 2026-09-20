@@ -78,5 +78,135 @@
     "amount": 300,
     "rewarded_at": "2026-09-19T02:24:49.409Z",
     "created_at": "2026-09-19T02:24:49.409Z"
+  },
+  {
+    "owner_user_id": "872fed02-6d3e-4da2-a398-2cd0422d385a",
+    "organization_id": "43e3d4fc-fe34-4513-aa6a-99693d3d08d2",
+    "event_id": "5664d72a-fb32-48a5-90a9-559cee64d853",
+    "showcase_id": "4b644246-66bc-4e93-b162-f1265999ebc9",
+    "transaction_id": "433ce98d-0b2e-4e32-91c2-a71a027bef69",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T04:54:08.650Z",
+    "created_at": "2026-09-20T04:54:08.650Z"
+  },
+  {
+    "owner_user_id": "c51e888b-2be5-4cce-b66a-a0d443ce6a31",
+    "organization_id": "3259ad81-0cd7-4585-a0a4-b1288c5f863d",
+    "event_id": "a879ec54-186e-4b6f-990c-95cc13ecd865",
+    "showcase_id": "e2f31e1a-0ae5-4e09-bb50-f5d38d0172c4",
+    "transaction_id": "d4356c7a-649b-4403-a885-987036f7bf45",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T04:56:41.672Z",
+    "created_at": "2026-09-20T04:56:41.672Z"
+  },
+  {
+    "owner_user_id": "6deb94e3-0f32-49b2-94ee-389f61f95f43",
+    "organization_id": "8d1ae3d3-505d-489e-a75f-e6213f01838e",
+    "event_id": "c34f0b13-8fdc-426f-a75f-a04ea9e7a058",
+    "showcase_id": "d244c5f4-ef7a-41c5-acd8-3b25601c71cd",
+    "transaction_id": "661acf8c-b828-4d46-bc69-c6ac6705c6a6",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T04:56:41.875Z",
+    "created_at": "2026-09-20T04:56:41.875Z"
+  },
+  {
+    "owner_user_id": "cfa19399-c03d-449c-9c77-6ab65cd862a9",
+    "organization_id": "6a5c891f-465a-4958-8deb-8a364929c7e1",
+    "event_id": "e231d4a6-fd6c-46a3-9021-3797a1b207f0",
+    "showcase_id": "63918e53-7fd5-474a-8736-69aada36c7e2",
+    "transaction_id": "6201a5f5-8b63-446a-bec7-cee0fb4e2503",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T04:56:57.596Z",
+    "created_at": "2026-09-20T04:56:57.596Z"
+  },
+  {
+    "owner_user_id": "bef3a679-b390-4c78-bb70-66f2fa471930",
+    "organization_id": "bb664480-dea3-4ef0-b036-99a6295ca4e3",
+    "event_id": "48ae876a-5a9b-4b9b-b506-559afef86639",
+    "showcase_id": "e55f581b-5a25-4211-b854-815154ef5d3a",
+    "transaction_id": "41f73cbf-4e00-4c1c-a858-64813d520eed",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T04:58:02.952Z",
+    "created_at": "2026-09-20T04:58:02.952Z"
+  },
+  {
+    "owner_user_id": "a17c4196-71f6-4ae3-b156-1d13a16ad376",
+    "organization_id": "8dce9a50-3cb3-4263-b32c-b5a0b9d2113e",
+    "event_id": "5a855e1a-434b-439e-8ddc-216007ec6327",
+    "showcase_id": "47fd1808-aee4-4eff-b4be-920b8ddb5e3b",
+    "transaction_id": "fae6d4b0-7eb3-4b44-a172-6cb9d6428329",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T04:59:39.092Z",
+    "created_at": "2026-09-20T04:59:39.092Z"
+  },
+  {
+    "owner_user_id": "c51fe4c9-3217-4419-acf8-7382678b3a4c",
+    "organization_id": "5789e6c0-b578-4f52-a35d-a41e78b028fa",
+    "event_id": "eb5dbb98-0da7-4d27-b617-f15c8a7906a9",
+    "showcase_id": "d511005a-b8a4-4aa9-ad40-3ef3889a242b",
+    "transaction_id": "11519ee0-6cc3-4f9a-9a89-042d951a6f87",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T04:59:39.524Z",
+    "created_at": "2026-09-20T04:59:39.524Z"
+  },
+  {
+    "owner_user_id": "cce80eed-16b9-464b-8baf-2010f7fe6529",
+    "organization_id": "ff4c7038-04e3-4533-bff9-86118c98f229",
+    "event_id": "dc52a6f1-abbc-4ff1-90fd-14a40f3f7592",
+    "showcase_id": "4e6ba285-c265-4416-8b29-cdb42d2dcf96",
+    "transaction_id": "3e8b622b-36b8-4ec2-9b96-e10b1967bca4",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T04:59:39.698Z",
+    "created_at": "2026-09-20T04:59:39.698Z"
+  },
+  {
+    "owner_user_id": "1d7bbe16-fc81-4091-9d40-5c4dee42df3e",
+    "organization_id": "722a247f-76e7-4945-99ca-3e4cef7fd089",
+    "event_id": "3d05127c-ebac-48c3-bc19-eb6cb165f454",
+    "showcase_id": "179b1d1d-fb9f-411f-9849-4cb2d7def9b4",
+    "transaction_id": "51a68527-6325-440a-8b92-ebedd09049e4",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T04:59:55.958Z",
+    "created_at": "2026-09-20T04:59:55.958Z"
+  },
+  {
+    "owner_user_id": "9451d637-5416-4af2-aff8-69649dcaaaf8",
+    "organization_id": "f147c870-82b1-4491-a9b4-7cb438c8709d",
+    "event_id": "962ddb6e-6440-4534-a02e-ac8fe4e0277d",
+    "showcase_id": "8847ed78-4b03-46c4-a65f-1fe3993e5406",
+    "transaction_id": "0967758a-9f9e-4254-8f5e-0796852e7baa",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T04:59:56.144Z",
+    "created_at": "2026-09-20T04:59:56.144Z"
+  },
+  {
+    "owner_user_id": "a51de031-60fc-4c69-b997-9cf9a1fb2142",
+    "organization_id": "36f370fd-ddbc-4e9c-a43a-00d62639a5b1",
+    "event_id": "38bbaf93-40a7-4e86-999d-555be1328cce",
+    "showcase_id": "9a6cfe49-ab63-45fc-85fa-c63e3b9a2bbb",
+    "transaction_id": "3e1e5eef-bd7b-446e-8b8b-068e5a45eb02",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T05:01:24.997Z",
+    "created_at": "2026-09-20T05:01:24.997Z"
+  },
+  {
+    "owner_user_id": "b3052c89-b6fa-42af-af96-7c84b5043a7d",
+    "organization_id": "dd46a420-9297-4b30-965e-ce9d0679002a",
+    "event_id": "b95ec20c-c160-4e37-afcb-61b84e85931d",
+    "showcase_id": "0724207b-43d5-4070-909d-c9f7593c7f87",
+    "transaction_id": "73aced7c-0320-4575-bd7c-54dabff95b8b",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T05:01:25.425Z",
+    "created_at": "2026-09-20T05:01:25.425Z"
+  },
+  {
+    "owner_user_id": "2a049393-0fde-4856-8337-d4c7b0cb6a19",
+    "organization_id": "27edf5fe-db28-4f34-8300-85acd8c01d5d",
+    "event_id": "0a571d6c-c6a6-49bb-91d3-339627df3e56",
+    "showcase_id": "9619b8fb-6793-4cfc-acbc-eaa9bfb91941",
+    "transaction_id": "8ebd06f5-3466-43b1-bd55-e3fa101b7877",
+    "amount": 300,
+    "rewarded_at": "2026-09-20T05:01:25.621Z",
+    "created_at": "2026-09-20T05:01:25.621Z"
   }
 ]
