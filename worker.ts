@@ -185,7 +185,7 @@ import {
   listContactEnquiries,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
-import { handleWorkerApiError, AppError, resolveCorrelationId, isOperationalError } from './server/errors.js';
+import { handleWorkerApiError, AppError, PricingConfigurationError, resolveCorrelationId, isOperationalError } from './server/errors.js';
 
 import {
   buildGoogleAuthUrl,
@@ -2988,7 +2988,7 @@ export default {
         }
       }
 
-      const payEventDirectParams = parseRoute('/api/events/:eventId/pay', pathname);
+      const payEventDirectParams = parseRoute('/api/events/:eventId/pay', pathname) || parseRoute('/events/:eventId/pay', pathname);
       if (payEventDirectParams && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
@@ -3021,11 +3021,12 @@ export default {
         const currency = typeof event.event_currency === 'string' ? event.event_currency.trim().toUpperCase() : '';
 
         if (isNaN(numericPrice) || numericPrice <= 0 || !currency) {
-          const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
-          err.status = 503;
-          err.statusCode = 503;
-          err.code = 'PRICING_CONFIGURATION_ERROR';
-          return handleWorkerApiError(err, request, cors, env);
+          return handleWorkerApiError(
+            new PricingConfigurationError('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.'),
+            request,
+            cors,
+            env
+          );
         }
         const authoritativeEventPrice = numericPrice;
 
@@ -7048,15 +7049,38 @@ export default {
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        let price = body.event_price !== undefined && body.event_price !== null ? Number(body.event_price) : undefined;
-        if (!price || isNaN(price) || price <= 0) {
-          try {
-            const settings = await getPlatformPricingSettings(env);
-            price = settings.default_price;
-          } catch (err: any) {
-            console.error('Failed to resolve authoritative price in calculate-event-payment (worker):', err);
-            return handleWorkerApiError(err, request, cors, env);
+        let price: number | undefined = undefined;
+
+        if (body.event_id) {
+          const existing = await getEventById(body.event_id, env);
+          if (!existing) {
+            return errorResponse('Event not found', 404, cors);
           }
+          if (existing.organization_id !== orgId) {
+            return errorResponse('Forbidden: Event does not belong to this organization', 403, cors);
+          }
+          const existingPrice = existing.event_price !== undefined && existing.event_price !== null ? Number(existing.event_price) : NaN;
+          const existingCurrency = typeof existing.event_currency === 'string' ? existing.event_currency.trim().toUpperCase() : '';
+          if (isNaN(existingPrice) || existingPrice <= 0 || !existingCurrency) {
+            return handleWorkerApiError(
+              new PricingConfigurationError('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment calculation cannot proceed.'),
+              request,
+              cors,
+              env
+            );
+          }
+          price = existingPrice;
+        } else {
+          const numericPrice = body.event_price !== undefined && body.event_price !== null ? Number(body.event_price) : NaN;
+          if (isNaN(numericPrice) || numericPrice <= 0) {
+            return handleWorkerApiError(
+              new PricingConfigurationError('Pricing configuration error: Valid event price is required. Authoritative price must be configured.'),
+              request,
+              cors,
+              env
+            );
+          }
+          price = numericPrice;
         }
         const mode = (body.payment_mode || 'FULL_PAID') as any;
 
@@ -7150,11 +7174,12 @@ export default {
         const currency = typeof event.event_currency === 'string' ? event.event_currency.trim().toUpperCase() : '';
 
         if (isNaN(numericPrice) || numericPrice <= 0 || !currency) {
-          const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
-          err.status = 503;
-          err.statusCode = 503;
-          err.code = 'PRICING_CONFIGURATION_ERROR';
-          return handleWorkerApiError(err, request, cors, env);
+          return handleWorkerApiError(
+            new PricingConfigurationError('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.'),
+            request,
+            cors,
+            env
+          );
         }
         const authoritativeEventPrice = numericPrice;
 

@@ -1687,7 +1687,7 @@ CREATE OR REPLACE FUNCTION public.process_event_payment_atomic(
   p_organization_id UUID,
   p_event_id UUID,
   p_payment_mode TEXT,
-  p_event_price NUMERIC DEFAULT 1400.00,
+  p_event_price NUMERIC DEFAULT NULL,
   p_topup_credit_requested NUMERIC DEFAULT 0.00,
   p_reference_id TEXT DEFAULT NULL,
   p_created_by UUID DEFAULT NULL,
@@ -1751,10 +1751,19 @@ BEGIN
     IF v_event.payment_status = 'PAID' THEN
       RAISE EXCEPTION 'Event is already marked as PAID';
     END IF;
-    -- Server-Authoritative: Event's own stored price takes precedence
-    v_event_price := COALESCE(v_event.event_price, p_event_price, 1400.00);
+    -- Server-Authoritative: Event's own stored price and currency must be valid. Fail closed if missing or invalid.
+    IF v_event.event_price IS NULL OR v_event.event_price <= 0 THEN
+      RAISE EXCEPTION 'PRICING_CONFIGURATION_ERROR: Event is missing a valid authoritative price.';
+    END IF;
+    IF v_event.event_currency IS NULL OR trim(v_event.event_currency) = '' THEN
+      RAISE EXCEPTION 'PRICING_CONFIGURATION_ERROR: Event is missing a valid authoritative currency.';
+    END IF;
+    v_event_price := v_event.event_price;
   ELSE
-    v_event_price := COALESCE(p_event_price, 1400.00);
+    IF p_event_price IS NULL OR p_event_price <= 0 THEN
+      RAISE EXCEPTION 'PRICING_CONFIGURATION_ERROR: Valid event price is required.';
+    END IF;
+    v_event_price := p_event_price;
   END IF;
 
   IF v_event_price <= 0 THEN
@@ -4147,8 +4156,8 @@ CREATE OR REPLACE FUNCTION public.create_event_atomic(
   p_event_status TEXT DEFAULT 'DRAFT',
   p_payment_status TEXT DEFAULT 'UNPAID',
   p_cancel_reason TEXT DEFAULT NULL,
-  p_event_price NUMERIC DEFAULT 1400.00,
-  p_event_currency TEXT DEFAULT 'MYR',
+  p_event_price NUMERIC DEFAULT NULL,
+  p_event_currency TEXT DEFAULT NULL,
   p_paid_amount NUMERIC DEFAULT 0.00,
   p_discount_amount NUMERIC DEFAULT 0.00,
   p_payment_mode TEXT DEFAULT NULL,
@@ -4157,7 +4166,9 @@ CREATE OR REPLACE FUNCTION public.create_event_atomic(
   p_event_id UUID DEFAULT NULL,
   p_max_pending_events INT DEFAULT 2,
   p_skip_pending_limit_check BOOLEAN DEFAULT FALSE,
-  p_event_timezone TEXT DEFAULT NULL
+  p_event_timezone TEXT DEFAULT NULL,
+  p_pricing_id UUID DEFAULT NULL,
+  p_duration_days INT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -4178,6 +4189,11 @@ DECLARE
   v_token_attempts INT := 0;
   v_max_limit INT := COALESCE(p_max_pending_events, 2);
   v_event_timezone TEXT := p_event_timezone;
+  v_pricing_id UUID := p_pricing_id;
+  v_duration_days INT := p_duration_days;
+  v_resolved_price NUMERIC(10,2) := p_event_price;
+  v_resolved_currency TEXT := NULLIF(TRIM(p_event_currency), '');
+  v_pricing_record RECORD;
 BEGIN
   -- 1. Input validations
   IF p_organization_id IS NULL THEN
@@ -4335,13 +4351,116 @@ BEGIN
     END IF;
   END IF;
 
-  -- 4. Evaluate whether the new event being created counts as a pending-payment event
+  -- 4. Calculate duration_days if not provided
+  IF v_duration_days IS NULL OR v_duration_days <= 0 THEN
+    BEGIN
+      v_duration_days := GREATEST(1, (p_end_date::date - p_start_date::date) + 1);
+    EXCEPTION WHEN OTHERS THEN
+      v_duration_days := 1;
+    END;
+  END IF;
+
+  -- Authoritative Pricing Tier Validation & Resolution
+  IF v_pricing_id IS NOT NULL THEN
+    -- Look up the specified pricing tier directly
+    SELECT id, game_id, price, currency, is_active, min_days, max_days
+    INTO v_pricing_record
+    FROM public.game_pricing
+    WHERE id = v_pricing_id;
+
+    IF v_pricing_record.id IS NULL THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_TIER_NOT_FOUND',
+        'error', 'The specified pricing tier does not exist.',
+        'message', 'The specified pricing tier does not exist.'
+      );
+    END IF;
+
+    -- Integrity Check 1: pricing.game_id = target_game_id (Reject cross-game pricing leakage)
+    IF v_pricing_record.game_id <> v_target_game_id THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_GAME_MISMATCH',
+        'error', 'The specified pricing tier does not belong to the selected game.',
+        'message', 'The specified pricing tier does not belong to the selected game.'
+      );
+    END IF;
+
+    -- Integrity Check 2: pricing is active
+    IF NOT COALESCE(v_pricing_record.is_active, false) THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_TIER_INACTIVE',
+        'error', 'The specified pricing tier is inactive and cannot be used.',
+        'message', 'The specified pricing tier is inactive and cannot be used.'
+      );
+    END IF;
+
+    -- Integrity Check 3: pricing covers duration_days
+    IF v_duration_days < v_pricing_record.min_days OR (v_pricing_record.max_days IS NOT NULL AND v_duration_days > v_pricing_record.max_days) THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_DURATION_MISMATCH',
+        'error', 'The specified pricing tier does not cover this duration (' || v_duration_days || ' days).',
+        'message', 'The specified pricing tier does not cover this duration (' || v_duration_days || ' days).'
+      );
+    END IF;
+
+    -- Authoritative price and currency strictly derived from the verified tier
+    v_resolved_price := v_pricing_record.price;
+    v_resolved_currency := v_pricing_record.currency;
+  ELSE
+    -- Auto-resolve matching active pricing tier for the target game and duration
+    SELECT id, game_id, price, currency, is_active, min_days, max_days
+    INTO v_pricing_record
+    FROM public.game_pricing
+    WHERE game_id = v_target_game_id
+      AND is_active = true
+      AND min_days <= v_duration_days
+      AND (max_days IS NULL OR max_days >= v_duration_days)
+    ORDER BY min_days ASC
+    LIMIT 1;
+
+    IF v_pricing_record.id IS NOT NULL THEN
+      v_pricing_id := v_pricing_record.id;
+      v_resolved_price := v_pricing_record.price;
+      v_resolved_currency := v_pricing_record.currency;
+    ELSIF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'NO_PRICING_TIER',
+        'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.',
+        'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.'
+      );
+    END IF;
+  END IF;
+
+  IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'PRICING_CONFIGURATION_ERROR',
+      'error', 'Event price must be positive and valid. Could not resolve pricing.',
+      'message', 'Event price must be positive and valid. Could not resolve pricing.'
+    );
+  END IF;
+
+  IF v_resolved_currency IS NULL OR TRIM(v_resolved_currency) = '' THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'PRICING_CONFIGURATION_ERROR',
+      'error', 'Event currency must be valid. Could not resolve pricing currency.',
+      'message', 'Event currency must be valid. Could not resolve pricing currency.'
+    );
+  END IF;
+
+  -- 5. Evaluate whether the new event being created counts as a pending-payment event
   v_is_pending := (
     UPPER(COALESCE(p_payment_status, 'UNPAID')) IN ('PENDING_PAYMENT', 'UNPAID')
     OR LOWER(COALESCE(p_status, 'draft')) = 'pending_payment'
   );
 
-  -- 5. Atomic check of pending event limit under the organization lock
+  -- 6. Atomic check of pending event limit under the organization lock
   IF v_is_pending AND NOT COALESCE(p_skip_pending_limit_check, false) THEN
     SELECT COUNT(*) INTO v_pending_count
     FROM public.events
@@ -4366,7 +4485,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- 6. Generate collision-resistant unique public token
+  -- 7. Generate collision-resistant unique public token
   v_token := p_public_token;
   IF v_token IS NULL OR TRIM(v_token) = '' THEN
     v_token := lower(encode(gen_random_bytes(6), 'hex'));
@@ -4379,7 +4498,7 @@ BEGIN
 
   v_event_id := COALESCE(p_event_id, gen_random_uuid());
 
-  -- 7. Insert the event record atomically within the serialized transaction
+  -- 8. Insert the event record atomically within the serialized transaction
   INSERT INTO public.events (
     id,
     organization_id,
@@ -4403,6 +4522,8 @@ BEGIN
     public_token,
     created_by,
     event_timezone,
+    pricing_id,
+    duration_days,
     created_at,
     updated_at
   ) VALUES (
@@ -4420,20 +4541,22 @@ BEGIN
     COALESCE(p_event_status, 'DRAFT'),
     COALESCE(p_payment_status, 'UNPAID'),
     p_cancel_reason,
-    COALESCE(p_event_price, 1400.00),
-    COALESCE(p_event_currency, 'MYR'),
+    v_resolved_price,
+    v_resolved_currency,
     COALESCE(p_paid_amount, 0.00),
     COALESCE(p_discount_amount, 0.00),
     p_payment_mode,
     v_token,
     p_created_by,
     v_event_timezone,
+    v_pricing_id,
+    v_duration_days,
     v_now,
     v_now
   )
   RETURNING * INTO v_event;
 
-  -- 8. Return successfully created event record
+  -- 9. Return successfully created event record
   RETURN jsonb_build_object(
     'success', true,
     'event', to_jsonb(v_event),
@@ -4442,8 +4565,8 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.create_event_atomic(UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT) TO service_role;
-REVOKE EXECUTE ON FUNCTION public.create_event_atomic(UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT) FROM authenticated, anon, public;
+GRANT EXECUTE ON FUNCTION public.create_event_atomic(UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT, UUID, INT) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.create_event_atomic(UUID, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, UUID, UUID, INT, BOOLEAN, TEXT, UUID, INT) FROM authenticated, anon, public;
 
 -- ------------------------------------------------------------------------------
 -- DATABASE-LEVEL TRIGGER FOR DISTRIBUTED PENDING LIMIT ENFORCEMENT
@@ -4493,6 +4616,59 @@ CREATE TRIGGER trg_check_event_pending_limit
   ON public.events
   FOR EACH ROW
   EXECUTE FUNCTION public.check_event_pending_limit();
+
+-- ------------------------------------------------------------------------------
+-- DATABASE-LEVEL TRIGGER FOR PRICING INTEGRITY ENFORCEMENT
+-- ------------------------------------------------------------------------------
+-- Guarantees that any direct INSERT or UPDATE on public.events with a pricing_id
+-- strictly matches the event's game_id, is active, and covers the duration_days.
+CREATE OR REPLACE FUNCTION public.check_event_pricing_game_integrity()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_tier RECORD;
+BEGIN
+  IF NEW.pricing_id IS NOT NULL THEN
+    SELECT id, game_id, is_active, min_days, max_days
+    INTO v_tier
+    FROM public.game_pricing
+    WHERE id = NEW.pricing_id;
+
+    IF v_tier.id IS NULL THEN
+      RAISE EXCEPTION 'PRICING_TIER_NOT_FOUND: Pricing tier % does not exist', NEW.pricing_id
+        USING ERRCODE = '23503';
+    END IF;
+
+    IF NEW.game_id IS NOT NULL AND v_tier.game_id <> NEW.game_id THEN
+      RAISE EXCEPTION 'PRICING_GAME_MISMATCH: Pricing tier % belongs to game % but event belongs to game %',
+        NEW.pricing_id, v_tier.game_id, NEW.game_id
+        USING ERRCODE = '23514';
+    END IF;
+
+    IF v_tier.is_active = false THEN
+      RAISE EXCEPTION 'PRICING_TIER_INACTIVE: Pricing tier % is inactive', NEW.pricing_id
+        USING ERRCODE = '23514';
+    END IF;
+
+    IF NEW.duration_days IS NOT NULL AND NEW.duration_days > 0 THEN
+      IF NEW.duration_days < v_tier.min_days OR (v_tier.max_days IS NOT NULL AND NEW.duration_days > v_tier.max_days) THEN
+        RAISE EXCEPTION 'PRICING_DURATION_MISMATCH: Pricing tier % covers %-% days but event duration is % days',
+          NEW.pricing_id, v_tier.min_days, COALESCE(v_tier.max_days::text, 'unlimited'), NEW.duration_days
+          USING ERRCODE = '23514';
+      END IF;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_check_event_pricing_game_integrity ON public.events;
+CREATE TRIGGER trg_check_event_pricing_game_integrity
+  BEFORE INSERT OR UPDATE OF pricing_id, game_id, duration_days ON public.events
+  FOR EACH ROW
+  EXECUTE FUNCTION public.check_event_pricing_game_integrity();
 
 -- ------------------------------------------------------------------------------
 -- USER REWARDS TABLE & USER-LEVEL LIFETIME WELCOME CREDIT

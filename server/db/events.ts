@@ -20,6 +20,7 @@ import {
 import { getThemeById, isUUID, enrichThemesWithGameData, DEFAULT_CARNIVAL_THEME, checkOrganizationThemeReadiness } from './themes.js';
 import { calculateCatchBrandSanityLimits, CatchBrandPhysicsSanityConfig } from '../games/catchBrandScoring.js';
 import { getGameById } from './games.js';
+import { getGamePricingTierById } from './gamePricing.js';
 import { getShowcaseByEventId, getShowcasesByOrgId } from './showcases.js';
 import {
   STANDARD_EVENT_PRICE,
@@ -1242,7 +1243,7 @@ export async function getEventsByOrgId(
           payment_mode: cached?.payment_mode || ev.payment_mode,
           paid_amount: cached?.paid_amount !== undefined && cached.paid_amount !== null ? cached.paid_amount : ev.paid_amount,
           event_price: cached?.event_price !== undefined && cached.event_price !== null ? cached.event_price : ev.event_price,
-          event_currency: cached?.event_currency || ev.event_currency || 'MYR',
+          event_currency: cached?.event_currency || ev.event_currency,
           cancel_reason: cached?.cancel_reason !== undefined ? cached.cancel_reason : ev.cancel_reason,
         };
         if (isLocalFallbackAllowed(env)) {
@@ -1316,7 +1317,7 @@ export async function getEventsByOrgId(
     const cancellationEligibility = canCancelEvent(event);
     const storedPrice = event.event_price !== undefined && event.event_price !== null
       ? Number(event.event_price)
-      : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : 1400.00);
+      : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : undefined);
     const paymentStatus = (event.payment_status || (event.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'UNPAID')).toUpperCase();
     const isPaid = paymentStatus === 'PAID';
     const eventLifecycle = event.event_status || deriveEventLifecycleStatus(event);
@@ -1331,8 +1332,8 @@ export async function getEventsByOrgId(
       end_date: rawEndDate,
       event_date: rawEventDate,
       game_id: event.game_id || theme?.game_id || resolvedGame?.id || null,
-      event_price: storedPrice,
-      event_currency: event.event_currency || 'MYR',
+      event_price: storedPrice !== undefined ? storedPrice : undefined,
+      event_currency: event.event_currency ? String(event.event_currency).trim().toUpperCase() : undefined,
       event_status: eventLifecycle,
       payment_status: paymentStatus as any,
       cancel_reason: event.cancel_reason || null,
@@ -1408,7 +1409,7 @@ export async function getEventById(
           payment_mode: cached?.payment_mode || raw.payment_mode,
           paid_amount: cached?.paid_amount !== undefined && cached.paid_amount !== null ? cached.paid_amount : raw.paid_amount,
           event_price: cached?.event_price !== undefined && cached.event_price !== null ? cached.event_price : raw.event_price,
-          event_currency: cached?.event_currency || raw.event_currency || 'MYR',
+          event_currency: cached?.event_currency || raw.event_currency,
         };
         if (isLocalFallbackAllowed(env)) {
           localEventsCache.set(raw.id, eventRecord);
@@ -1439,7 +1440,7 @@ export async function getEventById(
   const cancellationEligibility = canCancelEvent(eventRecord);
   const storedPrice = eventRecord.event_price !== undefined && eventRecord.event_price !== null
     ? Number(eventRecord.event_price)
-    : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : 1400.00);
+    : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : undefined);
   const paymentStatus = (eventRecord.payment_status || (eventRecord.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'UNPAID')).toUpperCase();
   const isPaid = paymentStatus === 'PAID';
   const eventLifecycle = eventRecord.event_status || deriveEventLifecycleStatus(eventRecord);
@@ -1464,8 +1465,8 @@ export async function getEventById(
     end_date: rawEndDate,
     event_date: rawEventDate,
     game_id: eventRecord.game_id || theme?.game_id || game?.id || null,
-    event_price: storedPrice,
-    event_currency: eventRecord.event_currency || 'MYR',
+    event_price: storedPrice !== undefined ? storedPrice : undefined,
+    event_currency: eventRecord.event_currency ? String(eventRecord.event_currency).trim().toUpperCase() : undefined,
     event_status: eventLifecycle,
     payment_status: paymentStatus as any,
     cancel_reason: eventRecord.cancel_reason || null,
@@ -1611,7 +1612,7 @@ export async function getEventByPublicToken(
 
   const storedPrice = eventRecord.event_price !== undefined && eventRecord.event_price !== null
     ? Number(eventRecord.event_price)
-    : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : 1400.00);
+    : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : undefined);
 
   const rawStartDate = eventRecord.start_date || (eventRecord.starts_at ? eventRecord.starts_at.split('T')[0] : eventRecord.event_date) || null;
   const rawEndDate = eventRecord.end_date || (eventRecord.expires_at ? eventRecord.expires_at.split('T')[0] : rawStartDate) || rawStartDate;
@@ -2258,11 +2259,40 @@ export async function createEvent(
   // 5. Resolve server-authoritative event pricing based on game and calendar duration
   let price = params.event_price;
   let currency = params.event_currency || 'MYR';
-  let pricingId: string | null = null;
+  let pricingId: string | null = (params as any).pricing_id || null;
   let durationDays: number = calculateEventCalendarDays(norm.startDate, norm.endDate);
 
   if (params.custom_price_override && typeof price === 'number' && price > 0) {
     // Explicit custom price override (e.g. Developer Admin override)
+  } else if (pricingId) {
+    // Validate supplied pricing_id against targetGameId, is_active, and duration
+    const tier = await getGamePricingTierById(pricingId, env);
+    if (!tier) {
+      const err: any = new Error('The specified pricing tier does not exist.');
+      err.code = 'PRICING_TIER_NOT_FOUND';
+      err.status = 422;
+      throw err;
+    }
+    if (tier.game_id !== targetGameId) {
+      const err: any = new Error('The specified pricing tier does not belong to the selected game.');
+      err.code = 'PRICING_GAME_MISMATCH';
+      err.status = 422;
+      throw err;
+    }
+    if (!tier.is_active) {
+      const err: any = new Error('The specified pricing tier is inactive and cannot be used.');
+      err.code = 'PRICING_TIER_INACTIVE';
+      err.status = 422;
+      throw err;
+    }
+    if (durationDays < tier.min_days || (tier.max_days !== null && durationDays > tier.max_days)) {
+      const err: any = new Error(`The specified pricing tier does not cover this duration (${durationDays} days).`);
+      err.code = 'PRICING_DURATION_MISMATCH';
+      err.status = 422;
+      throw err;
+    }
+    price = tier.price;
+    currency = tier.currency;
   } else {
     const durationPricing = await calculateEventAuthoritativePrice({
       game_id: targetGameId,
@@ -2373,6 +2403,11 @@ export async function createEvent(
           rpcData.code === 'INVALID_DATE_RANGE' ||
           rpcData.code === 'EVENT_DATE_PASSED' ||
           rpcData.code === 'NO_PRICING_TIER' ||
+          rpcData.code === 'PRICING_GAME_MISMATCH' ||
+          rpcData.code === 'PRICING_TIER_INACTIVE' ||
+          rpcData.code === 'PRICING_DURATION_MISMATCH' ||
+          rpcData.code === 'PRICING_TIER_NOT_FOUND' ||
+          rpcData.code === 'PRICING_CONFIGURATION_ERROR' ||
           rpcData.code === 'NO_ACTIVE_GAME_PRICING' ||
           rpcData.code === 'INVALID_GAME_PRICING' ||
           rpcData.code === 'UNSUPPORTED_DURATION' ||
@@ -2383,7 +2418,12 @@ export async function createEvent(
         err.status = isOperational
           ? (rpcData.code === 'ORGANIZATION_NOT_FOUND' || rpcData.code === 'THEME_NOT_FOUND' || rpcData.code === 'GAME_NOT_FOUND' ? 404 :
              rpcData.code === 'THEME_FORBIDDEN' ? 403 :
-             rpcData.code === 'NO_PRICING_TIER' ? 422 :
+             rpcData.code === 'NO_PRICING_TIER' ||
+             rpcData.code === 'PRICING_GAME_MISMATCH' ||
+             rpcData.code === 'PRICING_TIER_INACTIVE' ||
+             rpcData.code === 'PRICING_DURATION_MISMATCH' ||
+             rpcData.code === 'PRICING_TIER_NOT_FOUND' ||
+             rpcData.code === 'PRICING_CONFIGURATION_ERROR' ? 422 :
              rpcData.code === 'NO_ACTIVE_GAME_PRICING' || rpcData.code === 'INVALID_GAME_PRICING' ? 503 : 422)
           : 500;
         err.stage = 'rpc_create_event_atomic';
@@ -2505,6 +2545,11 @@ export async function createEvent(
       err?.code === 'GAME_NOT_FOUND' ||
       err?.code === 'THEME_GAME_MISMATCH' ||
       err?.code === 'NO_PRICING_TIER' ||
+      err?.code === 'PRICING_GAME_MISMATCH' ||
+      err?.code === 'PRICING_TIER_INACTIVE' ||
+      err?.code === 'PRICING_DURATION_MISMATCH' ||
+      err?.code === 'PRICING_TIER_NOT_FOUND' ||
+      err?.code === 'PRICING_CONFIGURATION_ERROR' ||
       err?.code === 'UNSUPPORTED_DURATION' ||
       err?.code === 'NO_ACTIVE_GAME_PRICING' ||
       err?.code === 'INVALID_GAME_PRICING' ||
@@ -3007,6 +3052,10 @@ export async function createEventWithAtomicPayment(
         game_theme_id,
         name,
         event_date,
+        start_date: params.start_date || params.startDate,
+        end_date: params.end_date || params.endDate,
+        startDate: params.startDate,
+        endDate: params.endDate,
         starts_at,
         expires_at,
         status: 'pending_payment',
@@ -3017,6 +3066,7 @@ export async function createEventWithAtomicPayment(
         discount_amount: calculation.totalDiscount,
         event_price: eventPrice,
         event_currency: eventCurrency,
+        pricing_id: (durationPricing as any)?.tierId || null,
         event_timezone: params.event_timezone,
         skipPendingLimitCheck: true,
       },
@@ -3748,7 +3798,7 @@ export async function getAllAdminEvents(
     const calculated = calculateEventStatus(event);
     const storedPrice = event.event_price !== undefined && event.event_price !== null
       ? Number(event.event_price)
-      : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : 1400.00);
+      : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : undefined);
     const paymentStatus = (event.payment_status || (event.status === 'pending_payment' ? 'PENDING_PAYMENT' : 'UNPAID')).toUpperCase();
     const isPaid = paymentStatus === 'PAID';
     const eventLifecycle = event.event_status || deriveEventLifecycleStatus(event);
@@ -3758,8 +3808,8 @@ export async function getAllAdminEvents(
     return {
       ...event,
       duration_days: durDays,
-      event_price: storedPrice,
-      event_currency: event.event_currency || 'MYR',
+      event_price: storedPrice !== undefined ? storedPrice : undefined,
+      event_currency: event.event_currency ? String(event.event_currency).trim().toUpperCase() : undefined,
       event_status: eventLifecycle,
       payment_status: paymentStatus as any,
       cancel_reason: event.cancel_reason || null,
@@ -3832,7 +3882,7 @@ export async function updateEventPrice(
     throw new Error('Invalid currency code');
   }
 
-  const oldPrice = existing.event_price || 1400.00;
+  const oldPrice = existing.event_price ?? 0;
   const oldCurrency = existing.event_currency || 'MYR';
   const now = new Date().toISOString();
 

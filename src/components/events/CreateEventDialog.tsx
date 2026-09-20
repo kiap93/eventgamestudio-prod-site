@@ -554,7 +554,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
   // Selected Theme Details
   const selectedTheme = themes.find((t) => t.id === selectedThemeId) || themes[0];
-  const eventPrice = activeCalculation?.eventPrice ?? createdEvent?.event_price ?? 1400;
+  const eventPrice = Number(activeCalculation?.eventPrice ?? createdEvent?.event_price ?? 0);
   const standardPrice = eventPrice;
   const availableWelcomeCredit = Number(activeCalculation?.availableBalances?.welcome_credit ?? wallet?.welcome_credit ?? 0);
   const availableEventCredit = Number(activeCalculation?.availableBalances?.topup_credit ?? wallet?.topup_credit ?? 0);
@@ -1419,7 +1419,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
               <button
                 type="button"
-                disabled={submittingPayment || isInsufficientBalance || loadingQuote || !!quoteError}
+                disabled={submittingPayment || isInsufficientBalance || loadingQuote || !!quoteError || eventPrice <= 0}
                 onClick={handleConfirmPaymentAndActivate}
                 className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
               >

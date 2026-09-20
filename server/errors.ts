@@ -127,6 +127,13 @@ export class InternalInfrastructureError extends AppError {
   }
 }
 
+export class PricingConfigurationError extends AppError {
+  constructor(message = 'Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.', code = 'PRICING_CONFIGURATION_ERROR', metadata?: Record<string, any>) {
+    super(message, 503, code, true, 'pricing', metadata);
+    this.name = 'PricingConfigurationError';
+  }
+}
+
 // ----------------------------------------------------------------------------
 // Error Classification & Service Detection
 // ----------------------------------------------------------------------------

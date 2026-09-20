@@ -190,6 +190,7 @@ import { dispatchNotificationEvent } from './server/notifications/dispatcher.js'
 import {
   handleApiError,
   AppError,
+  PricingConfigurationError,
   resolveCorrelationId,
   isOperationalError,
 } from './server/errors.js';
@@ -2660,10 +2661,10 @@ app.post('/api/events', eventCreationRateLimiter, authenticateJWT, async (req: A
 });
 
 /**
- * POST /api/events/:eventId/pay
+ * POST /api/events/:eventId/pay (and /events/:eventId/pay)
  * Pay and activate a PENDING_PAYMENT event.
  */
-app.post('/api/events/:eventId/pay', walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
+app.post(['/api/events/:eventId/pay', '/events/:eventId/pay'], walletRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const { eventId } = req.params;
@@ -2693,11 +2694,7 @@ app.post('/api/events/:eventId/pay', walletRateLimiter, authenticateJWT, async (
     const currency = typeof event.event_currency === 'string' ? event.event_currency.trim().toUpperCase() : '';
 
     if (isNaN(numericPrice) || numericPrice <= 0 || !currency) {
-      const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
-      err.status = 503;
-      err.statusCode = 503;
-      err.code = 'PRICING_CONFIGURATION_ERROR';
-      throw err;
+      throw new PricingConfigurationError('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
     }
     const authoritativeEventPrice = numericPrice;
 
@@ -6665,16 +6662,35 @@ app.post('/api/organizations/:orgId/wallet/calculate-event-payment', walletRateL
       return;
     }
 
-    const { event_price, payment_mode, topup_credit_requested } = req.body;
-    let price = event_price !== undefined && event_price !== null ? Number(event_price) : undefined;
-    if (!price || isNaN(price) || price <= 0) {
-      try {
-        const settings = await getPlatformPricingSettings();
-        price = settings.default_price;
-      } catch (err: any) {
-        handleApiError(err, req, res);
+    const { event_id, event_price, payment_mode, topup_credit_requested } = req.body;
+    let price: number | undefined = undefined;
+
+    if (event_id) {
+      if (!isUUID(event_id)) {
+        res.status(400).json({ error: `Invalid event ID format: ${event_id}` });
         return;
       }
+      const existing = await getEventById(event_id);
+      if (!existing) {
+        res.status(404).json({ error: 'Event not found' });
+        return;
+      }
+      if (existing.organization_id !== orgId) {
+        res.status(403).json({ error: 'Event does not belong to this organization' });
+        return;
+      }
+      const existingPrice = existing.event_price !== undefined && existing.event_price !== null ? Number(existing.event_price) : NaN;
+      const existingCurrency = typeof existing.event_currency === 'string' ? existing.event_currency.trim().toUpperCase() : '';
+      if (isNaN(existingPrice) || existingPrice <= 0 || !existingCurrency) {
+        throw new PricingConfigurationError('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment calculation cannot proceed.');
+      }
+      price = existingPrice;
+    } else {
+      const numericPrice = event_price !== undefined && event_price !== null ? Number(event_price) : NaN;
+      if (isNaN(numericPrice) || numericPrice <= 0) {
+        throw new PricingConfigurationError('Pricing configuration error: Valid event price is required. Authoritative price must be configured.');
+      }
+      price = numericPrice;
     }
     const mode = (payment_mode || 'FULL_PAID') as any;
 
@@ -6789,11 +6805,7 @@ app.post('/api/organizations/:orgId/wallet/pay-event', walletRateLimiter, authen
     const currency = typeof event.event_currency === 'string' ? event.event_currency.trim().toUpperCase() : '';
 
     if (isNaN(numericPrice) || numericPrice <= 0 || !currency) {
-      const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
-      err.status = 503;
-      err.statusCode = 503;
-      err.code = 'PRICING_CONFIGURATION_ERROR';
-      throw err;
+      throw new PricingConfigurationError('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
     }
     const authoritativeEventPrice = numericPrice;
 

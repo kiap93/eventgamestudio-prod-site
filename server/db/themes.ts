@@ -12,7 +12,7 @@ import { CATALOG_GAMES, getGameById } from './games.js';
 import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import crypto from 'node:crypto';
 
-const localThemesCache = new Map<string, GameThemeRecord>();
+export const localThemesCache = new Map<string, GameThemeRecord>();
 
 // ============================================================================
 // DEFAULT REFERENCE THEME TEMPLATES

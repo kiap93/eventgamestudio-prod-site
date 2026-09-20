@@ -209,6 +209,82 @@ export async function getActiveGamePricing(gameId: string, env?: any): Promise<G
 }
 
 /**
+ * Retrieve a specific game pricing tier by its primary key ID.
+ */
+export async function getGamePricingTierById(tierId: string, env?: any): Promise<GamePricingRecord | null> {
+  if (!tierId) return null;
+
+  assertProductionPricingSafe(env);
+
+  const supabase = getSupabaseServerClient(env);
+  if (supabase && isSupabaseConfigured(env)) {
+    try {
+      const { data, error } = await supabase
+        .from('game_pricing')
+        .select('*')
+        .eq('id', tierId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching game_pricing tier by ID from Supabase:', error);
+        throw {
+          status: 503,
+          code: 'PRICING_SERVICE_UNAVAILABLE',
+          message: 'Pricing service temporarily unavailable. Please try again or contact support.',
+        };
+      }
+
+      if (!data) return null;
+
+      return {
+        id: data.id,
+        game_id: data.game_id,
+        min_days: Number(data.min_days),
+        max_days: data.max_days !== null && data.max_days !== undefined ? Number(data.max_days) : null,
+        price: Number(data.price),
+        currency: data.currency || 'MYR',
+        is_active: Boolean(data.is_active),
+        is_base: Boolean(data.is_base),
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
+    } catch (err: any) {
+      if (err?.status === 503 || err?.code === 'PRICING_SERVICE_UNAVAILABLE') throw err;
+      console.error('Supabase query exception in getGamePricingTierById:', err);
+      throw {
+        status: 503,
+        code: 'PRICING_SERVICE_UNAVAILABLE',
+        message: 'Pricing service temporarily unavailable. Please try again or contact support.',
+      };
+    }
+  }
+
+  // Local/Test mode fallback
+  if (isLocalFallbackAllowed()) {
+    for (const tiers of localGamePricingCache.values()) {
+      const found = tiers.find((t) => t.id === tierId);
+      if (found) return found;
+    }
+    const canonicalGames = ['catch-brand', 'memory-match', 'reaction-tap'];
+    for (const gid of canonicalGames) {
+      if (!localGamePricingCache.has(gid)) {
+        const defaults = buildDefaultPricingTiers(gid);
+        localGamePricingCache.set(gid, defaults);
+        const found = defaults.find((t) => t.id === tierId);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  throw {
+    status: 503,
+    code: 'PRICING_SERVICE_UNAVAILABLE',
+    message: 'Pricing service temporarily unavailable: database is unconfigured in production mode.',
+  };
+}
+
+/**
  * Authoritatively resolves a game's price for a given duration in calendar days.
  * Never trusts any client-provided price!
  * Fails closed if no active pricing tier covers the requested duration.

@@ -208,8 +208,8 @@ CREATE OR REPLACE FUNCTION public.create_event_atomic(
   p_event_status TEXT DEFAULT 'DRAFT',
   p_payment_status TEXT DEFAULT 'UNPAID',
   p_cancel_reason TEXT DEFAULT NULL,
-  p_event_price NUMERIC DEFAULT 1400.00,
-  p_event_currency TEXT DEFAULT 'MYR',
+  p_event_price NUMERIC DEFAULT NULL,
+  p_event_currency TEXT DEFAULT NULL,
   p_paid_amount NUMERIC DEFAULT 0.00,
   p_discount_amount NUMERIC DEFAULT 0.00,
   p_payment_mode TEXT DEFAULT NULL,
@@ -244,6 +244,7 @@ DECLARE
   v_pricing_id UUID := p_pricing_id;
   v_duration_days INT := p_duration_days;
   v_resolved_price NUMERIC(10,2) := p_event_price;
+  v_resolved_currency TEXT := NULLIF(TRIM(p_event_currency), '');
   v_pricing_record RECORD;
 BEGIN
   -- 1. Lock organization row FOR UPDATE
@@ -392,8 +393,59 @@ BEGIN
   END IF;
 
   -- Authoritative Pricing Tier Validation & Resolution
-  IF v_pricing_id IS NULL THEN
-    SELECT id, price, currency INTO v_pricing_record
+  IF v_pricing_id IS NOT NULL THEN
+    -- Look up the specified pricing tier directly
+    SELECT id, game_id, price, currency, is_active, min_days, max_days
+    INTO v_pricing_record
+    FROM public.game_pricing
+    WHERE id = v_pricing_id;
+
+    IF v_pricing_record.id IS NULL THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_TIER_NOT_FOUND',
+        'error', 'The specified pricing tier does not exist.',
+        'message', 'The specified pricing tier does not exist.'
+      );
+    END IF;
+
+    -- Integrity Check 1: pricing.game_id = target_game_id (Reject cross-game pricing leakage)
+    IF v_pricing_record.game_id <> v_target_game_id THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_GAME_MISMATCH',
+        'error', 'The specified pricing tier does not belong to the selected game.',
+        'message', 'The specified pricing tier does not belong to the selected game.'
+      );
+    END IF;
+
+    -- Integrity Check 2: pricing is active
+    IF NOT COALESCE(v_pricing_record.is_active, false) THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_TIER_INACTIVE',
+        'error', 'The specified pricing tier is inactive and cannot be used.',
+        'message', 'The specified pricing tier is inactive and cannot be used.'
+      );
+    END IF;
+
+    -- Integrity Check 3: pricing covers duration_days
+    IF v_duration_days < v_pricing_record.min_days OR (v_pricing_record.max_days IS NOT NULL AND v_duration_days > v_pricing_record.max_days) THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_DURATION_MISMATCH',
+        'error', 'The specified pricing tier does not cover this duration (' || v_duration_days || ' days).',
+        'message', 'The specified pricing tier does not cover this duration (' || v_duration_days || ' days).'
+      );
+    END IF;
+
+    -- Authoritative price and currency strictly derived from the verified tier
+    v_resolved_price := v_pricing_record.price;
+    v_resolved_currency := v_pricing_record.currency;
+  ELSE
+    -- Auto-resolve matching active pricing tier for the target game and duration
+    SELECT id, game_id, price, currency, is_active, min_days, max_days
+    INTO v_pricing_record
     FROM public.game_pricing
     WHERE game_id = v_target_game_id
       AND is_active = true
@@ -402,48 +454,35 @@ BEGIN
     ORDER BY min_days ASC
     LIMIT 1;
 
-    IF v_pricing_record.id IS NULL THEN
+    IF v_pricing_record.id IS NOT NULL THEN
+      v_pricing_id := v_pricing_record.id;
+      v_resolved_price := v_pricing_record.price;
+      v_resolved_currency := v_pricing_record.currency;
+    ELSIF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
       RETURN jsonb_build_object(
         'success', false,
         'code', 'NO_PRICING_TIER',
-        'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game.',
-        'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game.'
+        'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.',
+        'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.'
       );
-    END IF;
-
-    v_pricing_id := v_pricing_record.id;
-    IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
-      v_resolved_price := v_pricing_record.price;
-    END IF;
-  ELSE
-    SELECT id, price, currency INTO v_pricing_record
-    FROM public.game_pricing
-    WHERE id = v_pricing_id
-      AND game_id = v_target_game_id
-      AND is_active = true
-      AND min_days <= v_duration_days
-      AND (max_days IS NULL OR max_days >= v_duration_days);
-
-    IF v_pricing_record.id IS NULL THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'NO_PRICING_TIER',
-        'error', 'The specified pricing tier is invalid, inactive, or does not cover this duration.',
-        'message', 'The specified pricing tier is invalid, inactive, or does not cover this duration.'
-      );
-    END IF;
-
-    IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
-      v_resolved_price := v_pricing_record.price;
     END IF;
   END IF;
 
   IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
     RETURN jsonb_build_object(
       'success', false,
-      'code', 'NO_PRICING_TIER',
-      'error', 'No valid price could be resolved for this duration.',
-      'message', 'No valid price could be resolved for this duration.'
+      'code', 'PRICING_CONFIGURATION_ERROR',
+      'error', 'Event price must be positive and valid. Could not resolve pricing.',
+      'message', 'Event price must be positive and valid. Could not resolve pricing.'
+    );
+  END IF;
+
+  IF v_resolved_currency IS NULL OR TRIM(v_resolved_currency) = '' THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'PRICING_CONFIGURATION_ERROR',
+      'error', 'Event currency must be valid. Could not resolve pricing currency.',
+      'message', 'Event currency must be valid. Could not resolve pricing currency.'
     );
   END IF;
 
@@ -538,7 +577,7 @@ BEGIN
     UPPER(COALESCE(p_payment_status, 'UNPAID')),
     p_cancel_reason,
     v_resolved_price,
-    COALESCE(p_event_currency, 'MYR'),
+    v_resolved_currency,
     COALESCE(p_paid_amount, 0.00),
     COALESCE(p_discount_amount, 0.00),
     p_payment_mode,

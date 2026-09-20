@@ -37,6 +37,7 @@ import {
   dispatchEventPaymentFailed,
   dispatchPaymentLifecycleTransition,
 } from '../notifications/dispatcher.js';
+import { PricingConfigurationError } from '../errors.js';
 
 // Business Constants
 export const STANDARD_EVENT_PRICE = 1400.00;
@@ -2521,11 +2522,7 @@ export async function calculateEventPayment(
 ): Promise<EventPaymentCalculation> {
   let resolvedPrice = eventPrice !== undefined && eventPrice !== null ? Number(eventPrice) : 0;
   if (!resolvedPrice || isNaN(resolvedPrice) || resolvedPrice <= 0) {
-    const err: any = new Error('Pricing service temporarily unavailable: Event price is missing or invalid. Authoritative price required.');
-    err.status = 503;
-    err.statusCode = 503;
-    err.code = 'PRICING_CONFIGURATION_ERROR';
-    throw err;
+    throw new PricingConfigurationError('Pricing configuration error: Event price is missing or invalid. Authoritative price required.');
   }
   const normalizedPrice = Math.max(0, fromCents(toCents(resolvedPrice)));
   const wallet = await getWalletBalance(organizationId, env);
@@ -2735,6 +2732,7 @@ export async function calculateEventPaymentQuote(
   else mode = 'FULL_PAID';
 
   let eventPrice: number | undefined = undefined;
+  let resolvedCurrency = 'MYR';
   if (eventId) {
     const { getEventById } = await import('./events.js');
     const ev = await getEventById(eventId, env);
@@ -2747,22 +2745,15 @@ export async function calculateEventPaymentQuote(
     const snapPrice = Number(ev.event_price);
     const snapCurrency = typeof ev.event_currency === 'string' ? ev.event_currency.trim().toUpperCase() : '';
     if (!snapPrice || isNaN(snapPrice) || snapPrice <= 0 || !snapCurrency) {
-      const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
-      err.status = 503;
-      err.statusCode = 503;
-      err.code = 'PRICING_CONFIGURATION_ERROR';
-      throw err;
+      throw new PricingConfigurationError('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
     }
     eventPrice = snapPrice;
+    resolvedCurrency = snapCurrency;
   } else {
     if (params.eventPrice && Number(params.eventPrice) > 0) {
       eventPrice = Number(params.eventPrice);
     } else {
-      const err: any = new Error('Pricing configuration error: Valid event price is required to calculate payment.');
-      err.status = 503;
-      err.statusCode = 503;
-      err.code = 'PRICING_CONFIGURATION_ERROR';
-      throw err;
+      throw new PricingConfigurationError('Pricing configuration error: Valid event price is required to calculate payment.');
     }
   }
 
@@ -2783,7 +2774,7 @@ export async function calculateEventPaymentQuote(
     event_id: eventId,
     event_price: calc.eventPrice,
     standard_price: calc.eventPrice,
-    currency: 'MYR',
+    currency: resolvedCurrency,
     credit_choice: creditChoice,
     credit_applied: calc.totalDiscount,
     paid_balance_required: calc.paidAmount,
@@ -2903,11 +2894,7 @@ export async function processEventPayment(
       const snapPrice = Number(ev.event_price);
       const snapCurrency = typeof ev.event_currency === 'string' ? ev.event_currency.trim().toUpperCase() : '';
       if (!snapPrice || isNaN(snapPrice) || snapPrice <= 0 || !snapCurrency) {
-        const err: any = new Error('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
-        err.status = 503;
-        err.statusCode = 503;
-        err.code = 'PRICING_CONFIGURATION_ERROR';
-        throw err;
+        throw new PricingConfigurationError('Pricing configuration error: Event is missing a valid authoritative price or currency. Payment cannot proceed.');
       }
       eventPrice = snapPrice;
       if (!resolvedEventName) {
@@ -2921,11 +2908,7 @@ export async function processEventPayment(
     if (params.eventPrice && Number(params.eventPrice) > 0) {
       eventPrice = Number(params.eventPrice);
     } else {
-      const err: any = new Error('Pricing configuration error: Valid event price is required to execute payment.');
-      err.status = 503;
-      err.statusCode = 503;
-      err.code = 'PRICING_CONFIGURATION_ERROR';
-      throw err;
+      throw new PricingConfigurationError('Pricing configuration error: Valid event price is required to execute payment.');
     }
   }
   const topupCreditRequested = params.topupCreditRequested ?? params.topupCreditAmountToUse;
