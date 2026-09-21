@@ -11,7 +11,7 @@
 
 In Event Game Studio, an **Event Showcase** represents a real-world case study or marketing activation report uploaded by an event organizer (brand, agency, or event producer) showcasing photos, videos, attendee turnout, and venue execution of their interactive game installation.
 
-### Core Principle: "Publish First, Moderate When Necessary"
+### Core Principle: "Publish First, Moderate When Necessary" 
 
 ```
 [ USER UPLOAD / SAVE ]
