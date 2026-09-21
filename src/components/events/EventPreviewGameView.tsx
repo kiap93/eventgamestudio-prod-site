@@ -1,18 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouteContext, navigateTo } from '../../hooks/useRouteContext';
-import { useAuth } from '../../context/AuthContext';
 import { GameContainer } from '../GameContainer';
-import { EventPaymentModal } from './EventPaymentModal';
 import { apiFetch } from '../../lib/api';
-import { getGameTypeIcon } from '../../games';
 import {
   canAccessPreviewEvent,
-  canAccessLiveEvent,
   isEventExplicitlyCancelled,
   shouldShowPreviewHeader,
-  getEventAvailabilityState,
-  formatDateOnly,
-  getNormalizedEventDates,
 } from '../../lib/dateUtils';
 import {
   ArrowLeft,
@@ -20,16 +13,8 @@ import {
   RefreshCw,
   Maximize2,
   Minimize2,
-  CreditCard,
   AlertCircle,
-  Gamepad2,
-  Check,
-  Copy,
-  ExternalLink,
-  ShieldCheck,
-  Play,
-  Calendar,
-  Lock,
+  FlaskConical,
 } from 'lucide-react';
 
 interface EventPreviewData {
@@ -71,7 +56,7 @@ interface EventPreviewGameViewProps {
 export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ eventId: propEventId }) => {
   const routeContext = useRouteContext();
   const eventId = propEventId || routeContext.eventId;
-  const { currentOrganization } = useAuth();
+  const previewShellRef = useRef<HTMLDivElement | null>(null);
 
   const [eventData, setEventData] = useState<EventPreviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,77 +64,6 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [errorPayload, setErrorPayload] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  // Authoritative Pricing State (event.event_price -> authoritative API quote -> loading/error state)
-  const [authoritativePrice, setAuthoritativePrice] = useState<number | null>(null);
-  const [loadingQuote, setLoadingQuote] = useState(false);
-  const [quoteError, setQuoteError] = useState<string | null>(null);
-
-  // Synchronize Authoritative Price: Check eventData.event_price first; if missing, request authoritative server quote
-  useEffect(() => {
-    if (!eventData) {
-      setAuthoritativePrice(null);
-      setLoadingQuote(false);
-      setQuoteError(null);
-      return;
-    }
-
-    if (typeof eventData.event_price === 'number' && eventData.event_price > 0) {
-      setAuthoritativePrice(eventData.event_price);
-      setLoadingQuote(false);
-      setQuoteError(null);
-      return;
-    }
-
-    let cancelled = false;
-    const fetchAuthoritativeQuote = async () => {
-      setLoadingQuote(true);
-      setQuoteError(null);
-      try {
-        const res = await apiFetch('/api/events/quote', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            event_id: eventData.id,
-            start_date: eventData.start_date,
-            end_date: eventData.end_date,
-            payment_mode: 'COMBINED_CREDIT',
-          }),
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Failed to fetch authoritative price quote');
-        }
-
-        const data = await res.json();
-        const price = data.calculation?.eventPrice ?? data.quote?.event_price ?? null;
-        if (!cancelled) {
-          if (typeof price === 'number' && price > 0) {
-            setAuthoritativePrice(price);
-          } else {
-            setQuoteError('Authoritative quote unavailable');
-          }
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          console.error('Error fetching authoritative preview quote:', err);
-          setQuoteError(err.message || 'Price calculation failed');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingQuote(false);
-        }
-      }
-    };
-
-    fetchAuthoritativeQuote();
-    return () => {
-      cancelled = true;
-    };
-  }, [eventData?.id, eventData?.event_price, eventData?.start_date, eventData?.end_date]);
 
   const fetchEvent = async () => {
     if (!eventId) {
@@ -238,7 +152,9 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
     const isCurrentlyFs =
       !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
     if (!isCurrentlyFs) {
-      const el = document.documentElement;
+      // Prioritize previewShellRef so that in browser element-level fullscreen, the preview shell
+      // (which contains the permanent TESTING overlay) is the fullscreen element!
+      const el = previewShellRef.current || document.documentElement;
       const reqFs =
         el.requestFullscreen ||
         (el as any).webkitRequestFullscreen ||
@@ -267,19 +183,6 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
     }
   };
 
-  const copyPublicLink = async () => {
-    const token = eventData?.public_token || errorPayload?.public_token;
-    if (!token) return;
-    const url = `${window.location.origin}/play/${token}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy public URL', err);
-    }
-  };
-
   // Loading State
   if (loading) {
     return (
@@ -289,7 +192,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
           <Sparkles className="w-5 h-5 text-amber-400 absolute inset-0 m-auto animate-pulse" />
         </div>
         <div className="text-center space-y-1">
-          <p className="text-sm font-semibold text-slate-200">Loading Event Studio Preview...</p>
+          <p className="text-sm font-semibold text-slate-200">Loading Event Preview...</p>
           <p className="text-xs text-slate-500 font-mono">Event ID: {eventId}</p>
         </div>
       </div>
@@ -299,10 +202,6 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
   // Check Preview Availability State
   const targetEvent = eventData || errorPayload?.event;
   const isPreviewAllowed = targetEvent ? canAccessPreviewEvent(targetEvent) : false;
-  const isLiveAllowed = targetEvent ? canAccessLiveEvent(targetEvent) : false;
-  const availability = targetEvent ? getEventAvailabilityState(targetEvent) : null;
-  const isPaid = (targetEvent?.payment_status || '').toUpperCase() === 'PAID';
-  const publicToken = targetEvent?.public_token || errorPayload?.public_token;
 
   // Handle Event Cancelled State
   const isCancelled = errorCode === 'EVENT_CANCELLED' || (targetEvent ? isEventExplicitlyCancelled(targetEvent) : false);
@@ -403,108 +302,83 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
     );
   }
 
-  const isPendingPayment =
-    (eventData.payment_status || '').toUpperCase() !== 'PAID' ||
-    eventData.status === 'pending_payment' ||
-    eventData.calculated_status === 'pending_payment';
-
   const theme = eventData.game_theme;
   const gameType = eventData.game?.game_type || 'catch-brand';
   const gameName = eventData.game?.name || 'Catch The Brand';
   const themeName = eventData.game_theme?.name || 'Theme';
-  const dates = getNormalizedEventDates(eventData);
 
-  const showHeader = shouldShowPreviewHeader(eventData) && !isFullscreen;
+  // The preview header/overlay is permanent and must ALWAYS be visible, including in fullscreen!
+  const showHeader = shouldShowPreviewHeader(eventData);
 
   return (
     <div
-      className={`h-screen h-[100dvh] w-screen max-w-[100vw] bg-[#07130b] text-slate-100 flex flex-col font-sans select-none overflow-hidden ${
+      ref={previewShellRef}
+      id="preview-shell"
+      className={`preview-shell relative h-screen h-[100dvh] w-screen max-w-[100vw] bg-[#07130b] text-slate-100 flex flex-col font-sans select-none overflow-hidden ${
         isFullscreen ? 'p-0 m-0' : ''
       }`}
     >
       {/* ------------------------------------------------------------- */}
-      {/* AUTHENTICATED PREVIEW HEADER TOOLBAR                          */}
-      {/* Rule: Visible when Preview URL is available                    */}
+      {/* PERMANENT TESTING / PREVIEW HEADER OVERLAY                   */}
+      {/* Rule: Always visible in preview (normal & fullscreen)        */}
       {/* ------------------------------------------------------------- */}
       {showHeader && (
-        <header className="w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-slate-100 z-50 shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 transition-all h-13 sm:h-14">
+        <header
+          id="preview-testing-overlay"
+          className="preview-testing-overlay w-full bg-slate-950/95 backdrop-blur-md border-b border-amber-500/40 text-slate-100 z-50 shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 transition-all shadow-lg shadow-black/60"
+          role="banner"
+          aria-label="Testing Preview Banner"
+        >
           {/* Left: Navigation & Context */}
-          <div className="flex items-center gap-2.5 min-w-0 truncate">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               type="button"
+              id="preview-back-to-events-btn"
               onClick={() => navigateTo('/events')}
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
-              title="Exit Preview"
+              className="p-1.5 sm:px-3 sm:py-1.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold shrink-0"
+              title="Back to Events"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Events</span>
+              <ArrowLeft className="w-4 h-4 text-slate-400" />
+              <span>Back to Events</span>
             </button>
 
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-300 text-[11px] font-bold shrink-0">
-              {getGameTypeIcon(eventData.game?.game_type || eventData.game?.slug || gameName, 'w-3.5 h-3.5 text-purple-400')}
-              <span>TEST PLAY PREVIEW</span>
-            </div>
-
-            <div className="hidden lg:flex items-center gap-2 text-xs truncate">
-              <span className="font-bold text-slate-200 truncate">{eventData.name}</span>
+            <div className="hidden lg:flex items-center gap-2 text-xs truncate border-l border-slate-800 pl-3">
+              <span className="font-semibold text-slate-300 truncate max-w-[200px]">{eventData.name}</span>
               <span className="text-slate-600">•</span>
-              <span className="text-slate-400 truncate font-mono text-[11px]">
-                {gameName} / <strong className="text-amber-300 font-semibold">{themeName}</strong>
+              <span className="text-slate-400 font-mono text-[11px] truncate">
+                {gameName} / <strong className="text-amber-400 font-medium">{themeName}</strong>
               </span>
             </div>
           </div>
 
-          {/* Right: Payment Status & Action CTAs */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {isPendingPayment ? (
-              <div className="flex items-center gap-2">
-                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-semibold">
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                  <span>
-                    {loadingQuote ? (
-                      'Payment Pending (Calculating quote...)'
-                    ) : authoritativePrice !== null ? (
-                      `Payment Pending (${eventData.event_currency || 'RM'} ${authoritativePrice.toFixed(2)})`
-                    ) : quoteError ? (
-                      'Payment Pending (Price unavailable)'
-                    ) : (
-                      'Payment Pending'
-                    )}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentModal(true)}
-                  className="px-3 sm:px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  <CreditCard className="w-3.5 h-3.5 text-slate-950" />
-                  <span>Pay & Activate</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Paid • Opens {formatDateOnly(dates.liveOpenDate)}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={copyPublicLink}
-                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 font-semibold text-xs transition-all cursor-pointer flex items-center gap-1.5"
-                  title={`Copy Live URL (Opens on ${formatDateOnly(dates.liveOpenDate)})`}
-                >
-                  {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span className="hidden md:inline">{copiedLink ? 'Copied URL' : 'Copy Live URL'}</span>
-                </button>
-              </div>
-            )}
+          {/* Center: Prominent TESTING — PREVIEW ONLY Indicator */}
+          <div className="flex flex-col items-center justify-center text-center px-2 min-w-0">
+            <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-300 shadow-sm shrink-0">
+              <FlaskConical className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 animate-pulse shrink-0" />
+              <span className="bg-amber-400/30 text-amber-200 px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-black tracking-wider uppercase font-mono">
+                TESTING
+              </span>
+              <span className="text-slate-400 font-semibold text-xs sm:text-sm">—</span>
+              <span className="text-amber-300 font-extrabold text-xs sm:text-sm tracking-wide">
+                PREVIEW ONLY
+              </span>
+            </div>
+            <p className="text-[10px] sm:text-[11px] text-amber-200/90 font-medium tracking-normal mt-0.5 text-center truncate max-w-lg">
+              This is a test preview. Scores are not live and this screen cannot be used as the live event.
+            </p>
+          </div>
 
+          {/* Right: Fullscreen Toggle */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
+              type="button"
+              id="preview-toggle-fullscreen-btn"
               onClick={toggleFullscreen}
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
-              title="Toggle Fullscreen"
+              className="p-1.5 sm:px-3 sm:py-1.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
             >
-              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              {isFullscreen ? <Minimize2 className="w-4 h-4 text-amber-400" /> : <Maximize2 className="w-4 h-4 text-slate-300" />}
+              <span className="hidden sm:inline text-xs">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
             </button>
           </div>
         </header>
@@ -532,23 +406,6 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
           />
         </div>
       </main>
-
-      {/* Pay & Activate Modal */}
-      {showPaymentModal && eventData && (
-        <EventPaymentModal
-          isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
-          event={{
-            ...eventData,
-            event_price: authoritativePrice ?? undefined,
-          }}
-          onPaymentSuccess={(updated) => {
-            setEventData((prev) => (prev ? { ...prev, ...updated, status: 'scheduled', payment_status: 'PAID' } : updated));
-            setShowPaymentModal(false);
-            fetchEvent();
-          }}
-        />
-      )}
     </div>
   );
 };
