@@ -1,4 +1,5 @@
 import { GameTheme, getMemoryMatchConfig } from '../../themes/types';
+import { resolveMemoryPairAsset } from '../../themes/gameAssetResolver';
 import {
   MemoryCard,
   MemoryMatchPairConfig,
@@ -304,7 +305,7 @@ export function createShuffledDeck(theme?: GameTheme | null): MemoryCard[] {
     const fallbackProto = DEFAULT_CARD_PROTOTYPES[index % DEFAULT_CARD_PROTOTYPES.length];
     const pairId = pair.id || `pair_${index + 1}`;
     const name = pair.name || fallbackProto.name;
-    const imageUrl = pair.imageUrl || null;
+    const imageUrl = pair.imageUrl || (index < 8 ? resolveMemoryPairAsset(index, theme) : fallbackProto.imageUrl || null);
     const iconName = pair.iconName || fallbackProto.iconName;
     const color = pair.color || fallbackProto.color;
     const bgColor = pair.bgColor || fallbackProto.bgColor;

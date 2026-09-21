@@ -37,7 +37,7 @@ import {
   dispatchEventPaymentFailed,
   dispatchPaymentLifecycleTransition,
 } from '../notifications/dispatcher.js';
-import { PricingConfigurationError } from '../errors.js';
+import { PricingConfigurationError, AppError } from '../errors.js';
 
 // Business Constants
 export const STANDARD_EVENT_PRICE = 1400.00;
@@ -3002,6 +3002,32 @@ export async function processEventPayment(
         env
       ).catch((notifErr) => console.error('[NOTIFICATION] Failed to dispatch EVENT_PAYMENT_FAILED on fatal error:', notifErr));
 
+      if (error.message && error.message.toLowerCase().includes('insufficient')) {
+        const match = error.message.match(/available:\s*([0-9.]+),\s*required:\s*([0-9.]+)/i);
+        const available = match ? parseFloat(match[1]) : undefined;
+        const required = match ? parseFloat(match[2]) : undefined;
+        const shortfall = (required !== undefined && available !== undefined) ? Math.max(0, required - available) : undefined;
+        const cleanMsg = error.message.replace(/^.*INSUFFICIENT_BALANCE:\s*/i, '').trim() || 'Insufficient balance to complete event payment';
+        const insufficientErr = new AppError(
+          cleanMsg,
+          402,
+          'INSUFFICIENT_BALANCE',
+          { isOperational: true, metadata: { available, required, shortfall } }
+        );
+        (insufficientErr as any).available = available;
+        (insufficientErr as any).required = required;
+        (insufficientErr as any).shortfall = shortfall;
+        throw insufficientErr;
+      }
+
+      if (error.message && error.message.includes('PRICING_CONFIGURATION_ERROR')) {
+        throw new PricingConfigurationError(error.message.replace(/^.*PRICING_CONFIGURATION_ERROR:\s*/, '').trim());
+      }
+
+      if (error.message && error.message.toLowerCase().includes('does not belong to your organization')) {
+        throw new AppError('Security Error: Event does not belong to your organization', 403, 'FORBIDDEN', { isOperational: true });
+      }
+
       throw new Error(`Financial ledger transaction failed: ${error.message}`);
     }
 
@@ -3039,6 +3065,18 @@ export async function processEventPayment(
           },
           env
         ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch INSUFFICIENT_BALANCE:', err));
+
+        const cleanMsg = payload.message || payload.error || 'Insufficient balance to complete event payment';
+        const insufficientErr = new AppError(
+          cleanMsg,
+          402,
+          'INSUFFICIENT_BALANCE',
+          { isOperational: true, metadata: { available: payload.available, required: payload.required, shortfall: payload.shortfall } }
+        );
+        (insufficientErr as any).available = payload.available;
+        (insufficientErr as any).required = payload.required;
+        (insufficientErr as any).shortfall = payload.shortfall;
+        throw insufficientErr;
       }
 
       await dispatchEventPaymentFailed(

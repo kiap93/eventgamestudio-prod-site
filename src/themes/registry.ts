@@ -1,5 +1,6 @@
 import { GameTheme, ThemeDropItem } from './types';
 import { normalizeGameLayout } from './layout';
+import { defaultCatchBrandTheme } from './defaultCatchBrand';
 import { carnivalTheme } from './carnival';
 import { christmasTheme } from './christmas';
 import { cnyTheme } from './cny';
@@ -7,13 +8,20 @@ import { halloweenTheme } from './halloween';
 import { mangoTheme } from './mango';
 import { memoryMatchTheme } from './memory-match';
 import { reactionTheme } from './reaction-time';
+import {
+  resolveThemeDefaultBgImage,
+  resolveThemeDefaultBasketImage,
+  resolveThemeDefaultItemImage,
+} from './gameAssetResolver';
 
 /**
  * Default active theme ID.
  */
-export const DEFAULT_ACTIVE_THEME_ID = 'carnival';
+export const DEFAULT_ACTIVE_THEME_ID = 'default';
 
 export const THEME_REGISTRY: Record<string, GameTheme> = {
+  default: defaultCatchBrandTheme,
+  'catch-brand': defaultCatchBrandTheme,
   carnival: carnivalTheme,
   christmas: christmasTheme,
   'chinese-new-year': cnyTheme,
@@ -23,16 +31,16 @@ export const THEME_REGISTRY: Record<string, GameTheme> = {
   'memory-match': memoryMatchTheme,
   'reaction-tap': reactionTheme,
   'reaction-time': reactionTheme,
-  // Alias durian to carnival for seamless backwards-compatibility
-  durian: carnivalTheme,
+  // Alias durian to default for seamless backwards-compatibility
+  durian: defaultCatchBrandTheme,
 };
 
-let currentActiveTheme: GameTheme = carnivalTheme;
+let currentActiveTheme: GameTheme = defaultCatchBrandTheme;
 
 export function resolveThemeBaseId(raw: any): string {
-  if (!raw) return 'carnival';
-  if (raw.base_theme_id) return raw.base_theme_id === 'durian' ? 'carnival' : raw.base_theme_id;
-  if (raw.baseThemeId) return raw.baseThemeId === 'durian' ? 'carnival' : raw.baseThemeId;
+  if (!raw) return 'default';
+  if (raw.base_theme_id) return raw.base_theme_id === 'durian' ? 'default' : raw.base_theme_id;
+  if (raw.baseThemeId) return raw.baseThemeId === 'durian' ? 'default' : raw.baseThemeId;
 
   const id = (raw.id || '').toLowerCase();
   const slug = (raw.slug || '').toLowerCase();
@@ -62,6 +70,9 @@ export function resolveThemeBaseId(raw: any): string {
     gameType === 'memory-match'
   ) {
     return 'memory-match';
+  }
+  if (id === 'default' || slug === 'default') {
+    return 'default';
   }
   if (id === 'carnival' || slug.includes('carnival') || name.includes('carnival')) {
     return 'carnival';
@@ -93,85 +104,17 @@ export function resolveThemeBaseId(raw: any): string {
   // Check if raw.id is in registry
   if (raw.id && THEME_REGISTRY[raw.id]?.base_theme_id) {
     const matched = THEME_REGISTRY[raw.id].base_theme_id!;
-    return matched === 'durian' ? 'carnival' : matched;
+    return matched === 'durian' ? 'default' : matched;
   }
 
-  return 'carnival';
-}
-
-/**
- * Resolves theme-specific default artwork for a drop item if imageUrl is empty/null.
- */
-export function resolveThemeDefaultItemImage(
-  theme: Partial<GameTheme> | any,
-  item: Partial<ThemeDropItem> | any
-): string {
-  const baseId = resolveThemeBaseId(theme);
-
-  if (baseId === 'memory-match' || baseId === 'memory-carnival') {
-    return '';
-  }
-
-  const isHazard = item.isHazard || (item.points !== undefined && item.points < 0);
-  const isBonus = item.isBonus || (item.points !== undefined && item.points >= 50);
-
-  if (baseId === 'christmas') {
-    if (isHazard) return '/assets/coal.png';
-    if (isBonus) return '/assets/golden_star.png';
-    return '/assets/christmas_gift.png';
-  }
-  if (baseId === 'chinese-new-year') {
-    if (isHazard) return '/assets/firecracker.png';
-    if (isBonus) return '/assets/gold_ingot.png';
-    return '/assets/angpow.png';
-  }
-  if (baseId === 'halloween') {
-    if (isHazard) return '/assets/poison_spider.png';
-    if (isBonus) return '/assets/golden_skull.png';
-    return '/assets/spooky_candy.png';
-  }
-  if (baseId === 'mango') {
-    if (isHazard) return '/assets/sour_mango.png';
-    if (isBonus) return '/assets/honey_mango.png';
-    return '/assets/ripe_mango.png';
-  }
-  // Default Carnival theme assets
-  if (isHazard) return '/assets/themes/carnival/item_hazard_01.png';
-  if (isBonus) return '/assets/themes/carnival/item_bonus_01.png';
-  return '/assets/themes/carnival/item_normal_01.png';
-}
-
-/**
- * Resolves theme-specific default basket image
- */
-export function resolveThemeDefaultBasketImage(theme: Partial<GameTheme> | any): string {
-  const baseId = resolveThemeBaseId(theme);
-  if (baseId === 'memory-match' || baseId === 'memory-carnival') return '';
-  if (baseId === 'christmas') return '/assets/santa_sack.png';
-  if (baseId === 'chinese-new-year') return '/assets/fortune_basket.png';
-  if (baseId === 'halloween') return '/assets/pumpkin_bucket.png';
-  if (baseId === 'mango') return '/assets/fruit_crate.png';
-  return '/assets/themes/carnival/basket.png';
-}
-
-/**
- * Resolves theme-specific default background image
- */
-export function resolveThemeDefaultBgImage(theme: Partial<GameTheme> | any): string {
-  const baseId = resolveThemeBaseId(theme);
-  if (baseId === 'memory-match' || baseId === 'memory-carnival') return '';
-  if (baseId === 'christmas') return '/assets/christmas_bg.png';
-  if (baseId === 'chinese-new-year') return '/assets/cny_bg.png';
-  if (baseId === 'halloween') return '/assets/halloween_bg.png';
-  if (baseId === 'mango') return '/assets/mango_bg.png';
-  return '/assets/themes/carnival/background.png';
+  return 'default';
 }
 
 /**
  * Normalizes a theme object (whether from DB or preset) into a fully populated GameTheme
  */
 export function normalizeGameTheme(raw: any): GameTheme {
-  if (!raw) return carnivalTheme;
+  if (!raw) return defaultCatchBrandTheme;
 
   const base_theme_id = resolveThemeBaseId(raw);
   const resolvedGameType =
@@ -179,27 +122,35 @@ export function normalizeGameTheme(raw: any): GameTheme {
     raw.game_slug ||
     raw.games?.slug ||
     raw.games?.game_type ||
-    (base_theme_id === 'memory-match' || base_theme_id === 'memory-carnival' || (raw.slug || '').includes('memory') || (raw.name || '').toLowerCase().includes('memory') ? 'memory-match' : 'catch-brand');
+    (base_theme_id === 'memory-match' || base_theme_id === 'memory-carnival' || (raw.slug || '').includes('memory') || (raw.name || '').toLowerCase().includes('memory')
+      ? 'memory-match'
+      : base_theme_id === 'reaction-tap' || base_theme_id === 'reaction-time' || (raw.slug || '').includes('reaction') || (raw.name || '').toLowerCase().includes('reaction')
+      ? 'reaction-tap'
+      : 'catch-brand');
 
   const isMemory = resolvedGameType === 'memory-match' || base_theme_id === 'memory-match' || base_theme_id === 'memory-carnival';
-  const basePreset = isMemory ? memoryMatchTheme : (THEME_REGISTRY[base_theme_id] || carnivalTheme);
+  const isReaction = resolvedGameType === 'reaction-tap' || resolvedGameType === 'reaction-time' || base_theme_id === 'reaction-tap' || base_theme_id === 'reaction-time';
+
+  const basePreset = isMemory
+    ? memoryMatchTheme
+    : isReaction
+    ? reactionTheme
+    : (THEME_REGISTRY[base_theme_id] || defaultCatchBrandTheme);
 
   const id = raw.id || raw.slug || 'theme-' + Date.now();
-  const name = String(raw.name || raw.branding?.gameTitle || basePreset?.name || (isMemory ? 'Brand Memory Match' : 'Custom Theme'));
+  const name = String(raw.name || raw.branding?.gameTitle || basePreset?.name || (isMemory ? 'Brand Memory Match' : isReaction ? 'Reaction Tap' : 'Custom Theme'));
   const slug = raw.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const description = raw.description ?? basePreset.description;
   const status = raw.status || 'active';
 
   const branding = {
-    gameTitle: raw.branding?.gameTitle || raw.gameTitle || (isMemory ? 'BRAND MEMORY MATCH' : name.toUpperCase()),
-    subtitle: raw.branding?.subtitle || raw.subtitle || basePreset.branding?.subtitle || (isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : 'Catch falling items, avoid hazards!'),
+    gameTitle: raw.branding?.gameTitle || raw.gameTitle || (isMemory ? 'BRAND MEMORY MATCH' : isReaction ? 'REACTION TAP' : name.toUpperCase()),
+    subtitle: raw.branding?.subtitle || raw.subtitle || basePreset.branding?.subtitle || (isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : isReaction ? 'Tap the lights as fast as you can!' : 'Catch falling items, avoid hazards!'),
     logoUrl: raw.branding?.logoUrl ?? raw.logo ?? null,
     clientLogoUrl: raw.branding?.clientLogoUrl ?? raw.clientLogo ?? null,
   };
 
-  const background_url = isMemory
-    ? (raw.background_url || raw.background || null)
-    : (raw.background_url || raw.background || basePreset.background_url || resolveThemeDefaultBgImage({ base_theme_id }));
+  const background_url = raw.background_url || raw.background || basePreset.background_url || resolveThemeDefaultBgImage({ ...raw, base_theme_id, game_type: resolvedGameType });
 
   let rawGameConfig = raw.game_config;
   if (typeof rawGameConfig === 'string') {
@@ -259,11 +210,11 @@ export function normalizeGameTheme(raw: any): GameTheme {
     game_config.cardBackUrl = cardBackUrl;
   }
 
-  const basket_config = isMemory
+  const basket_config = (isMemory || isReaction)
     ? null
     : {
         name: raw.basket_config?.name || raw.catcherName || basePreset.basket_config?.name || 'Catcher Basket',
-        imageUrl: raw.basket_config?.imageUrl ?? raw.catcher ?? basePreset.basket_config?.imageUrl ?? '/assets/basket.png',
+        imageUrl: raw.basket_config?.imageUrl ?? raw.catcher ?? basePreset.basket_config?.imageUrl ?? '/assets/games/catch-brand/themes/default/basket.png',
         width: raw.basket_config?.width || basePreset.basket_config?.width || 140,
         height: raw.basket_config?.height || basePreset.basket_config?.height || 70,
         catchAreaRatio: raw.basket_config?.catchAreaRatio || basePreset.basket_config?.catchAreaRatio || 0.72,
@@ -277,7 +228,7 @@ export function normalizeGameTheme(raw: any): GameTheme {
     ? game_config.pairs
     : (Array.isArray(raw.items_config) && raw.items_config.length > 0
         ? raw.items_config
-        : basePreset.items_config);
+        : (basePreset.items_config || []));
 
   const items_config: ThemeDropItem[] = isMemory
     ? rawItems.map((item: any, index: number) => ({
@@ -291,6 +242,8 @@ export function normalizeGameTheme(raw: any): GameTheme {
         isHazard: false,
         isBonus: false,
       }))
+    : isReaction
+    ? []
     : rawItems.map((item: any, index: number) => {
         const points = item.points !== undefined ? Number(item.points) : (index === 0 ? 10 : index === 1 ? -10 : 50);
         const isHazard = item.isHazard !== undefined ? !!item.isHazard : points < 0;
@@ -372,38 +325,41 @@ export function normalizeGameTheme(raw: any): GameTheme {
 
   const goodEffectiveImg = (firstGood && firstGood.imageUrl)
     ? firstGood.imageUrl
-    : resolveThemeDefaultItemImage({ base_theme_id }, { isHazard: false, isBonus: false });
+    : (isMemory || isReaction ? '' : resolveThemeDefaultItemImage({ ...raw, base_theme_id, game_type: resolvedGameType }, { isHazard: false, isBonus: false }));
 
   const badEffectiveImg = (firstBad && firstBad.imageUrl)
     ? firstBad.imageUrl
-    : resolveThemeDefaultItemImage({ base_theme_id }, { isHazard: true, isBonus: false });
+    : (isMemory || isReaction ? '' : resolveThemeDefaultItemImage({ ...raw, base_theme_id, game_type: resolvedGameType }, { isHazard: true, isBonus: false }));
 
   const bonusEffectiveImg = (firstBonus && firstBonus.imageUrl)
     ? firstBonus.imageUrl
-    : resolveThemeDefaultItemImage({ base_theme_id }, { isHazard: false, isBonus: true });
+    : (isMemory || isReaction ? '' : resolveThemeDefaultItemImage({ ...raw, base_theme_id, game_type: resolvedGameType }, { isHazard: false, isBonus: true }));
 
-  const catcherEffectiveImg = basket_config?.imageUrl || (isMemory ? '' : resolveThemeDefaultBasketImage({ base_theme_id }));
+  const catcherEffectiveImg = basket_config?.imageUrl || ((isMemory || isReaction) ? '' : resolveThemeDefaultBasketImage({ ...raw, base_theme_id, game_type: resolvedGameType }));
 
     const isSystemTheme = Boolean(
       raw.is_system ||
       raw.is_system_theme ||
       raw.ownership_type === 'system' ||
       (!raw.organization_id && (
+        id === 'default' ||
         id === 'carnival' ||
         id === 'christmas' ||
         id === 'chinese-new-year' ||
         id === 'halloween' ||
         id === 'mango' ||
         id === 'memory-match' ||
-        id === 'memory-carnival'
+        id === 'memory-carnival' ||
+        id === 'reaction-tap' ||
+        id === 'reaction-time'
       ))
     );
 
     return {
       id,
       organization_id: raw.organization_id,
-      game_id: raw.game_id || raw.games?.id || (resolvedGameType === 'memory-match' ? 'memory-match' : null),
-      game_name: raw.game_name || raw.games?.name || (resolvedGameType === 'memory-match' ? 'Brand Memory Match' : 'Catch the Brand'),
+      game_id: raw.game_id || raw.games?.id || (resolvedGameType === 'memory-match' ? 'memory-match' : resolvedGameType === 'reaction-tap' ? 'reaction-tap' : 'catch-brand'),
+      game_name: raw.game_name || raw.games?.name || (resolvedGameType === 'memory-match' ? 'Brand Memory Match' : resolvedGameType === 'reaction-tap' ? 'Reaction Tap' : 'Catch the Brand'),
       game_slug: raw.game_slug || raw.games?.slug || resolvedGameType,
       game_type: resolvedGameType,
       is_system: isSystemTheme,
@@ -476,8 +432,11 @@ export function normalizeGameTheme(raw: any): GameTheme {
         if (target === 'memory-match') {
           return theme.game_slug === 'memory-match' || theme.game_type === 'memory-match' || theme.id === 'memory-match';
         }
+        if (target === 'reaction-tap' || target === 'reaction-time') {
+          return theme.game_slug === 'reaction-tap' || theme.game_type === 'reaction-tap' || theme.id === 'reaction-tap';
+        }
         if (target === 'catch-brand' || target === 'catch') {
-          return !theme.game_type || theme.game_type === 'catch-brand' || theme.game_slug === 'catch-brand' || theme.id !== 'memory-match';
+          return theme.game_type === 'catch-brand' || theme.game_slug === 'catch-brand' || (!theme.game_type && theme.id !== 'memory-match' && theme.id !== 'reaction-tap');
         }
       }
       return true;

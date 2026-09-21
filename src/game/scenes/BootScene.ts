@@ -19,22 +19,22 @@ export class BootScene extends Phaser.Scene {
       }
     });
 
-    // 1. Preload default Durian theme PNG assets into legacy texture keys
-    this.load.image('background', '/assets/themes/carnival/background.png');
-    this.load.image('ticket', '/assets/themes/carnival/item_normal_01.png');
-    this.load.image('mask', '/assets/themes/carnival/item_hazard_01.png');
-    this.load.image('star', '/assets/themes/carnival/item_bonus_01.png');
-    this.load.image('basket', '/assets/themes/carnival/basket.png');
+    // 1. Preload default Catch the Brand theme PNG assets into legacy texture keys
+    this.load.image('background', '/assets/games/catch-brand/themes/default/background.png');
+    this.load.image('ticket', '/assets/games/catch-brand/themes/default/item_normal_01.png');
+    this.load.image('mask', '/assets/games/catch-brand/themes/default/item_hazard_01.png');
+    this.load.image('star', '/assets/games/catch-brand/themes/default/item_bonus_01.png');
+    this.load.image('basket', '/assets/games/catch-brand/themes/default/basket.png');
 
     // 2. Preload active theme image assets
     const themeId = theme.id;
     const bgPath = theme.background_url || theme.background;
     const catcherPath = theme.basket_config?.imageUrl || theme.catcher;
 
-    if (bgPath && bgPath !== '/assets/themes/carnival/background.png' && !bgPath.startsWith('theme_')) {
+    if (bgPath && bgPath !== '/assets/games/catch-brand/themes/default/background.png' && !bgPath.startsWith('theme_')) {
       this.load.image(`theme_${themeId}_bg`, bgPath);
     }
-    if (catcherPath && catcherPath !== '/assets/themes/carnival/basket.png') {
+    if (catcherPath && catcherPath !== '/assets/games/catch-brand/themes/default/basket.png') {
       this.load.image(`theme_${themeId}_catcher`, catcherPath);
     }
 

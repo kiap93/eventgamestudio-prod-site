@@ -35,7 +35,14 @@ import { createShuffledDeck } from './cardDeck';
 import { memorySounds } from './memorySounds';
 import { generateCardPositions, generateRandomCardPositions, CardPosition } from './memoryMatchBoardLayout';
 import { GameState, GameStats, EventLeaderboardEntry } from '../../types';
-import { getMemoryMatchConfig, getCardFrontBg, getCardGoodBg, resolveScreenBackground } from '../../themes';
+import {
+  getMemoryMatchConfig,
+  getCardFrontBg,
+  getCardGoodBg,
+  resolveScreenBackground,
+  resolveMemoryCardBack,
+  resolveThemeDefaultBgImage,
+} from '../../themes';
 import {
   normalizeGameLayout,
   GameLayoutConfig,
@@ -189,7 +196,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     settings?.comboPoints ??
     config?.comboPoints ??
     30;
-  const cardBackUrl = memoryConfig.cardBackUrl;
+  const cardBackUrl = memoryConfig.cardBackUrl || resolveMemoryCardBack(activeTheme);
 
   const [gameState, setGameState] = useState<GameState>(
     initialGameState || (autoStart ? 'PLAYING' : 'START')
@@ -1506,7 +1513,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
   const customBgUrl = activeTheme?.background_url && activeTheme.background_url.trim() !== ''
     ? activeTheme.background_url
-    : null;
+    : resolveThemeDefaultBgImage(activeTheme, 'memory-match');
 
   const boardLayout = layout.memoryCardBoard || { visible: true, x: 50, y: 50 };
   const boardX =

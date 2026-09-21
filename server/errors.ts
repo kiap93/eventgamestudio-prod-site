@@ -347,9 +347,18 @@ export function isOperationalError(err: any): boolean {
   if (
     code === 'PENDING_EVENT_LIMIT_REACHED' ||
     code === 'ORGANIZATION_LIMIT_REACHED' ||
+    code === 'INSUFFICIENT_BALANCE' ||
+    code === 'PRICING_CONFIGURATION_ERROR' ||
     msg.includes('pending_event_limit_reached') ||
     msg.includes('maximum 2 pending payment events reached') ||
-    msg.includes('organization limit')
+    msg.includes('organization limit') ||
+    msg.includes('insufficient_balance') ||
+    msg.includes('insufficient balance') ||
+    msg.includes('insufficient paid balance') ||
+    msg.includes('insufficient welcome credit') ||
+    msg.includes('insufficient top-up credit') ||
+    msg.includes('insufficient showcase credit') ||
+    msg.includes('pricing_configuration_error')
   ) {
     return true;
   }

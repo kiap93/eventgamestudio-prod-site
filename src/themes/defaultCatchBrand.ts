@@ -1,34 +1,34 @@
 import { GameTheme } from './types';
 import { DEFAULT_GAME_LAYOUT } from './layout';
 
-export const carnivalTheme: GameTheme = {
-  id: 'carnival',
-  base_theme_id: 'carnival',
-  name: 'Carnival',
-  slug: 'carnival',
+export const defaultCatchBrandTheme: GameTheme = {
+  id: 'default',
+  base_theme_id: 'default',
+  name: 'Default',
+  slug: 'default',
   game_id: 'catch-brand',
   game_slug: 'catch-brand',
   game_type: 'catch-brand',
   game_name: 'Catch the Brand',
-  description: 'Grand festive celebration theme: Catch golden carnival tickets and cosmic stars while dodging cursed hazard masks.',
+  description: 'Standard brand arcade theme: Catch good brand items and golden bonuses while dodging hazard obstacles.',
   status: 'active',
-  is_default: false,
+  is_default: true,
   is_system: true,
   is_system_theme: true,
   ownership_type: 'system',
 
   branding: {
-    gameTitle: 'CARNIVAL FIESTA',
-    subtitle: 'Catch golden tickets, avoid cursed masks!',
+    gameTitle: 'CATCH THE BRAND',
+    subtitle: 'Catch good brand items, avoid hazards!',
     logoUrl: null,
     clientLogoUrl: null,
   },
 
-  background_url: '/assets/themes/carnival/background.png',
+  background_url: '/assets/games/catch-brand/themes/default/background.png',
 
   basket_config: {
-    name: 'Carnival Cart',
-    imageUrl: '/assets/themes/carnival/basket.png',
+    name: 'Basket',
+    imageUrl: '/assets/games/catch-brand/themes/default/basket.png',
     width: 140,
     height: 70,
     catchAreaRatio: 0.75,
@@ -40,9 +40,9 @@ export const carnivalTheme: GameTheme = {
 
   items_config: [
     {
-      id: 'ticket',
-      name: 'Golden Carnival Ticket',
-      imageUrl: '/assets/themes/carnival/item_normal_01.png',
+      id: 'item_normal_01',
+      name: 'Brand Good Item',
+      imageUrl: '/assets/games/catch-brand/themes/default/item_normal_01.png',
       points: 10,
       speedMultiplier: 1.0,
       spawnWeight: 75,
@@ -54,9 +54,9 @@ export const carnivalTheme: GameTheme = {
       collisionCenterYRatio: 0.54,
     },
     {
-      id: 'mask',
-      name: 'Carnival Cursed Mask',
-      imageUrl: '/assets/themes/carnival/item_hazard_01.png',
+      id: 'item_hazard_01',
+      name: 'Hazard Obstacle',
+      imageUrl: '/assets/games/catch-brand/themes/default/item_hazard_01.png',
       points: -10,
       speedMultiplier: 1.15,
       spawnWeight: 20,
@@ -68,9 +68,9 @@ export const carnivalTheme: GameTheme = {
       collisionCenterYRatio: 0.54,
     },
     {
-      id: 'star',
-      name: 'Cosmic Carnival Star',
-      imageUrl: '/assets/themes/carnival/item_bonus_01.png',
+      id: 'item_bonus_01',
+      name: 'Golden Bonus Item',
+      imageUrl: '/assets/games/catch-brand/themes/default/item_bonus_01.png',
       points: 50,
       speedMultiplier: 1.3,
       spawnWeight: 5,
@@ -97,7 +97,7 @@ export const carnivalTheme: GameTheme = {
         speedMax: 500,
         hazardRatio: 0.2,
         bonusRatio: 0.05,
-        stageName: 'Stage 1: Carnival Gates',
+        stageName: 'Stage 1: Warm Up',
       },
       {
         timeThreshold: 7,
@@ -106,7 +106,7 @@ export const carnivalTheme: GameTheme = {
         speedMax: 600,
         hazardRatio: 0.3,
         bonusRatio: 0.08,
-        stageName: 'Stage 2: Midway Magic',
+        stageName: 'Stage 2: Acceleration',
       },
       {
         timeThreshold: 14,
@@ -115,7 +115,7 @@ export const carnivalTheme: GameTheme = {
         speedMax: 700,
         hazardRatio: 0.4,
         bonusRatio: 0.12,
-        stageName: 'Stage 3: Grand Gala Storm!',
+        stageName: 'Stage 3: Turbo Rush!',
       },
     ],
   },
@@ -150,31 +150,4 @@ export const carnivalTheme: GameTheme = {
   },
 
   layout: DEFAULT_GAME_LAYOUT,
-
-  // Backward compatibility fields
-  background: '/assets/themes/carnival/background.png',
-  catcher: '/assets/themes/carnival/basket.png',
-  fallingObject: '/assets/themes/carnival/item_normal_01.png',
-  badFallingObject: '/assets/themes/carnival/item_hazard_01.png',
-  bonusFallingObject: '/assets/themes/carnival/item_bonus_01.png',
-  gameTitle: 'CARNIVAL FIESTA',
-  subtitle: 'Catch golden tickets, avoid cursed masks!',
-  fallingObjectName: 'CARNIVAL TICKET',
-  badFallingObjectName: 'CURSED MASK',
-  bonusFallingObjectName: 'COSMIC STAR',
-  catcherName: 'CARNIVAL CART',
-  particles: {
-    good: 'particle_gold',
-    bad: 'particle_spike',
-    bonus: 'particle_star',
-  },
-  colors: {
-    primary: '#f59e0b',
-    secondary: '#ec4899',
-    accent: '#fbbf24',
-    cardGoodBg: 'rgba(180, 83, 9, 0.7)',
-    cardGoodBorder: 'rgba(245, 158, 11, 0.5)',
-    cardBadBg: 'rgba(159, 18, 57, 0.7)',
-    cardBadBorder: 'rgba(244, 63, 94, 0.5)',
-  },
 };

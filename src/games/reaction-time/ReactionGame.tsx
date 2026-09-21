@@ -28,6 +28,7 @@ import { reactionSounds } from './reactionSounds';
 import { ResultScreenRenderer } from '../shared/ResultScreenRenderer';
 import { StartScreenRenderer } from '../shared/StartScreenRenderer';
 import { useResponsiveLayout } from '../../themes/responsive';
+import { resolveThemeDefaultBgImage } from '../../themes';
 import { EventLeaderboardEntry } from '../../types';
 import { apiFetch } from '../../lib/api';
 
@@ -521,7 +522,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
 
   // Background visual style
   const bgStyle = useMemo<React.CSSProperties>(() => {
-    const bgUrl = activeTheme?.background_url || activeTheme?.background;
+    const bgUrl = activeTheme?.background_url || activeTheme?.background || resolveThemeDefaultBgImage(activeTheme, 'reaction-tap');
     if (bgUrl) {
       return {
         backgroundImage: `url("${bgUrl}")`,

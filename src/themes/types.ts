@@ -377,17 +377,17 @@ export const DEFAULT_SCREENS_CONFIG: MemoryMatchScreensConfig = {
 };
 
 export const DEFAULT_MEMORY_MATCH_CONFIG: MemoryMatchGameConfig = {
-  cardBackUrl: null,
+  cardBackUrl: '/assets/games/memory-match/themes/default/cardback.png',
   card: DEFAULT_CARD_CONFIG,
   pairs: [
-    { id: 'pair_diamond', name: 'Diamond', imageUrl: null, points: 100, iconName: 'Sparkles', color: '#6366f1', bgColor: 'rgba(99, 102, 241, 0.15)', borderColor: '#6366f1' },
-    { id: 'pair_crown', name: 'Crown', imageUrl: null, points: 100, iconName: 'Award', color: '#eab308', bgColor: 'rgba(234, 179, 8, 0.15)', borderColor: '#eab308' },
-    { id: 'pair_star', name: 'Star', imageUrl: null, points: 100, iconName: 'Star', color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.15)', borderColor: '#f59e0b' },
-    { id: 'pair_heart', name: 'Heart', imageUrl: null, points: 100, iconName: 'Gift', color: '#ec4899', bgColor: 'rgba(236, 72, 153, 0.15)', borderColor: '#ec4899' },
-    { id: 'pair_lightning', name: 'Lightning', imageUrl: null, points: 100, iconName: 'Zap', color: '#38bdf8', bgColor: 'rgba(56, 189, 248, 0.15)', borderColor: '#38bdf8' },
-    { id: 'pair_shield', name: 'Shield', imageUrl: null, points: 100, iconName: 'Medal', color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10b981' },
-    { id: 'pair_trophy', name: 'Trophy', imageUrl: null, points: 100, iconName: 'Trophy', color: '#a855f7', bgColor: 'rgba(168, 85, 247, 0.15)', borderColor: '#a855f7' },
-    { id: 'pair_rocket', name: 'Rocket', imageUrl: null, points: 100, iconName: 'Flame', color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.15)', borderColor: '#f97316' },
+    { id: 'pair_diamond', name: 'Diamond', imageUrl: '/assets/games/memory-match/themes/default/pair01.png', points: 100, iconName: 'Sparkles', color: '#6366f1', bgColor: 'rgba(99, 102, 241, 0.15)', borderColor: '#6366f1' },
+    { id: 'pair_crown', name: 'Crown', imageUrl: '/assets/games/memory-match/themes/default/pair02.png', points: 100, iconName: 'Award', color: '#eab308', bgColor: 'rgba(234, 179, 8, 0.15)', borderColor: '#eab308' },
+    { id: 'pair_star', name: 'Star', imageUrl: '/assets/games/memory-match/themes/default/pair03.png', points: 100, iconName: 'Star', color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.15)', borderColor: '#f59e0b' },
+    { id: 'pair_heart', name: 'Heart', imageUrl: '/assets/games/memory-match/themes/default/pair04.png', points: 100, iconName: 'Gift', color: '#ec4899', bgColor: 'rgba(236, 72, 153, 0.15)', borderColor: '#ec4899' },
+    { id: 'pair_lightning', name: 'Lightning', imageUrl: '/assets/games/memory-match/themes/default/pair05.png', points: 100, iconName: 'Zap', color: '#38bdf8', bgColor: 'rgba(56, 189, 248, 0.15)', borderColor: '#38bdf8' },
+    { id: 'pair_shield', name: 'Shield', imageUrl: '/assets/games/memory-match/themes/default/pair06.png', points: 100, iconName: 'Medal', color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10b981' },
+    { id: 'pair_trophy', name: 'Trophy', imageUrl: '/assets/games/memory-match/themes/default/pair07.png', points: 100, iconName: 'Trophy', color: '#a855f7', bgColor: 'rgba(168, 85, 247, 0.15)', borderColor: '#a855f7' },
+    { id: 'pair_rocket', name: 'Rocket', imageUrl: '/assets/games/memory-match/themes/default/pair08.png', points: 100, iconName: 'Flame', color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.15)', borderColor: '#f97316' },
   ],
   board: {
     layoutMode: 'grid',

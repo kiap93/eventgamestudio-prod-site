@@ -24,18 +24,17 @@ export const memoryMatchTheme: GameTheme = {
     clientLogoUrl: null,
   },
 
-  background_url: '',
+  background_url: '/assets/games/memory-match/themes/default/background.png',
 
   basket_config: null,
 
   game_config: DEFAULT_MEMORY_MATCH_CONFIG,
 
   items_config: [
-
     {
       id: 'pair_diamond',
       name: 'Diamond',
-      imageUrl: null,
+      imageUrl: '/assets/games/memory-match/themes/default/pair01.png',
       points: 100,
       speedMultiplier: 1.0,
       spawnWeight: 1,
@@ -46,7 +45,7 @@ export const memoryMatchTheme: GameTheme = {
     {
       id: 'pair_crown',
       name: 'Crown',
-      imageUrl: null,
+      imageUrl: '/assets/games/memory-match/themes/default/pair02.png',
       points: 100,
       speedMultiplier: 1.0,
       spawnWeight: 1,
@@ -57,7 +56,7 @@ export const memoryMatchTheme: GameTheme = {
     {
       id: 'pair_star',
       name: 'Star',
-      imageUrl: null,
+      imageUrl: '/assets/games/memory-match/themes/default/pair03.png',
       points: 100,
       speedMultiplier: 1.0,
       spawnWeight: 1,
@@ -68,7 +67,7 @@ export const memoryMatchTheme: GameTheme = {
     {
       id: 'pair_heart',
       name: 'Heart',
-      imageUrl: null,
+      imageUrl: '/assets/games/memory-match/themes/default/pair04.png',
       points: 100,
       speedMultiplier: 1.0,
       spawnWeight: 1,
@@ -79,7 +78,7 @@ export const memoryMatchTheme: GameTheme = {
     {
       id: 'pair_lightning',
       name: 'Lightning',
-      imageUrl: null,
+      imageUrl: '/assets/games/memory-match/themes/default/pair05.png',
       points: 100,
       speedMultiplier: 1.0,
       spawnWeight: 1,
@@ -90,7 +89,7 @@ export const memoryMatchTheme: GameTheme = {
     {
       id: 'pair_shield',
       name: 'Shield',
-      imageUrl: null,
+      imageUrl: '/assets/games/memory-match/themes/default/pair06.png',
       points: 100,
       speedMultiplier: 1.0,
       spawnWeight: 1,
@@ -101,7 +100,7 @@ export const memoryMatchTheme: GameTheme = {
     {
       id: 'pair_trophy',
       name: 'Trophy',
-      imageUrl: null,
+      imageUrl: '/assets/games/memory-match/themes/default/pair07.png',
       points: 100,
       speedMultiplier: 1.0,
       spawnWeight: 1,
@@ -112,7 +111,7 @@ export const memoryMatchTheme: GameTheme = {
     {
       id: 'pair_rocket',
       name: 'Rocket',
-      imageUrl: null,
+      imageUrl: '/assets/games/memory-match/themes/default/pair08.png',
       points: 100,
       speedMultiplier: 1.0,
       spawnWeight: 1,
@@ -132,7 +131,7 @@ export const memoryMatchTheme: GameTheme = {
   },
 
   visuals_config: {
-    cardBackUrl: null,
+    cardBackUrl: '/assets/games/memory-match/themes/default/cardback.png',
     cardFrontBg: '#0f172a',
     cardFrontBgOpacity: 0.95,
     particleGood: 'particle_gold',

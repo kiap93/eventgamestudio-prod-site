@@ -25,7 +25,7 @@ export const reactionTheme: GameTheme = {
     clientLogoUrl: null,
   },
 
-  background_url: '',
+  background_url: '/assets/games/reaction-tap/themes/default/background.png',
   basket_config: null,
   game_config: DEFAULT_REACTION_CONFIG as any,
 

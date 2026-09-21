@@ -308,7 +308,8 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
   const themeName = eventData.game_theme?.name || 'Theme';
 
   // The preview header/overlay is permanent and must ALWAYS be visible, including in fullscreen!
-  const showHeader = shouldShowPreviewHeader(eventData);
+  // In the event preview route, this is strictly a TESTING / PREVIEW environment.
+  const showHeader = true;
 
   return (
     <div
@@ -325,7 +326,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
       {showHeader && (
         <header
           id="preview-testing-overlay"
-          className="preview-testing-overlay w-full bg-slate-950/95 backdrop-blur-md border-b border-amber-500/40 text-slate-100 z-50 shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 transition-all shadow-lg shadow-black/60"
+          className="preview-testing-overlay sticky top-0 w-full bg-slate-950/95 backdrop-blur-md border-b-2 border-amber-500/60 text-slate-100 z-50 shrink-0 flex items-center justify-between px-3 sm:px-4 py-2 transition-all shadow-xl shadow-black/80"
           role="banner"
           aria-label="Testing Preview Banner"
         >
@@ -353,17 +354,17 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
 
           {/* Center: Prominent TESTING — PREVIEW ONLY Indicator */}
           <div className="flex flex-col items-center justify-center text-center px-2 min-w-0">
-            <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-300 shadow-sm shrink-0">
-              <FlaskConical className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 animate-pulse shrink-0" />
-              <span className="bg-amber-400/30 text-amber-200 px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-black tracking-wider uppercase font-mono">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border-2 border-amber-400/60 text-amber-300 shadow-md shrink-0">
+              <FlaskConical className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
+              <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded text-xs font-black tracking-wider uppercase font-mono shadow-sm">
                 TESTING
               </span>
-              <span className="text-slate-400 font-semibold text-xs sm:text-sm">—</span>
-              <span className="text-amber-300 font-extrabold text-xs sm:text-sm tracking-wide">
+              <span className="text-amber-400/70 font-bold text-sm">—</span>
+              <span className="text-amber-300 font-black text-xs sm:text-sm tracking-wide">
                 PREVIEW ONLY
               </span>
             </div>
-            <p className="text-[10px] sm:text-[11px] text-amber-200/90 font-medium tracking-normal mt-0.5 text-center truncate max-w-lg">
+            <p className="text-[10px] sm:text-xs text-amber-200/90 font-medium tracking-normal mt-1 text-center truncate max-w-lg">
               This is a test preview. Scores are not live and this screen cannot be used as the live event.
             </p>
           </div>
@@ -386,11 +387,17 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
 
       {/* Main Play Area */}
       <main
-        className={`flex-1 w-full min-h-0 min-w-0 max-w-full overflow-hidden flex flex-col items-center justify-center ${
+        className={`flex-1 w-full min-h-0 min-w-0 max-w-full overflow-hidden flex flex-col items-center justify-center relative ${
           isFullscreen ? 'p-0 m-0 h-full w-full min-w-0 min-h-0 max-w-none max-h-none' : 'p-1 sm:p-2 sm:px-3'
         }`}
       >
-        <div className="w-full h-full min-h-0 min-w-0 max-w-full max-h-full flex flex-col items-center justify-center overflow-hidden">
+        <div className="w-full h-full min-h-0 min-w-0 max-w-full max-h-full flex flex-col items-center justify-center overflow-hidden relative">
+          {/* Subtle floating watermark tag on top of the game canvas */}
+          <div className="absolute top-2 right-2 pointer-events-none z-40 hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-950/80 border border-amber-500/40 text-[10px] font-mono text-amber-300 backdrop-blur-sm shadow-md">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+            <span className="font-bold uppercase tracking-wider">TEST PREVIEW</span>
+          </div>
+
           <GameContainer
             gameType={gameType}
             customTheme={theme}

@@ -3060,10 +3060,13 @@ export default {
           }, 200, cors);
         } catch (err: any) {
           console.error('Pay event error in worker:', err);
-          if (err.code === 'INSUFFICIENT_BALANCE' || (isOperationalError(err) && err.message && err.message.toLowerCase().includes('insufficient'))) {
+          const isInsufficient =
+            err.code === 'INSUFFICIENT_BALANCE' ||
+            (err.message && err.message.toLowerCase().includes('insufficient'));
+          if (isInsufficient) {
             return jsonResponse({
               code: 'INSUFFICIENT_BALANCE',
-              error: isOperationalError(err) ? (err.message || 'Insufficient balance') : 'Insufficient balance',
+              error: err.message || 'Insufficient balance',
               required: err.required,
               available: err.available,
               shortfall: err.shortfall,
@@ -7214,6 +7217,18 @@ export default {
             cors
           );
         } catch (err: any) {
+          const isInsufficient =
+            err.code === 'INSUFFICIENT_BALANCE' ||
+            (err.message && err.message.toLowerCase().includes('insufficient'));
+          if (isInsufficient) {
+            return jsonResponse({
+              code: 'INSUFFICIENT_BALANCE',
+              error: err.message || 'Insufficient balance',
+              required: err.required,
+              available: err.available,
+              shortfall: err.shortfall,
+            }, 402, cors);
+          }
           return handleWorkerApiError(err, request, cors, env);
         }
       }
