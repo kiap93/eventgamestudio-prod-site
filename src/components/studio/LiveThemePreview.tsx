@@ -127,15 +127,25 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     }
   }, [theme.layout?.orientation]);
 
-  // Fullscreen synchronization with browser Fullscreen API
+  // Fullscreen synchronization with browser Fullscreen API and scroll lock
   useEffect(() => {
+    const triggerResponsiveResize = () => {
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 300);
+    };
+
     const handleFullscreenChange = () => {
       const isFs =
         !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
       setIsFullscreen(isFs);
-      requestAnimationFrame(() => {
-        window.dispatchEvent(new Event('resize'));
-      });
+      triggerResponsiveResize();
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -159,6 +169,20 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     };
   }, [isFullscreen]);
 
+  // Prevent unwanted page scrolling when fullscreen mode is active
+  useEffect(() => {
+    if (isFullscreen) {
+      const originalBodyOverflow = document.body.style.overflow;
+      const originalHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalBodyOverflow;
+        document.documentElement.style.overflow = originalHtmlOverflow;
+      };
+    }
+  }, [isFullscreen]);
+
   const handleCloseFullscreen = async () => {
     try {
       if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
@@ -175,6 +199,12 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
       requestAnimationFrame(() => {
         window.dispatchEvent(new Event('resize'));
       });
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 300);
     }
   };
 
@@ -193,12 +223,18 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           await document.documentElement.requestFullscreen();
         }
       } catch (err) {
-        console.warn('Request fullscreen failed:', err);
+        console.warn('Browser requestFullscreen failed, using CSS fullscreen fallback:', err);
       } finally {
         setIsFullscreen(true);
         requestAnimationFrame(() => {
           window.dispatchEvent(new Event('resize'));
         });
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+        }, 100);
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+        }, 300);
       }
     } else {
       await handleCloseFullscreen();
@@ -904,19 +940,34 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
       ref={containerRef}
       className={
         isFullscreen
-          ? 'fixed inset-0 z-[99999] w-screen h-screen bg-[#07130b] overflow-hidden p-2 sm:p-4 flex flex-col justify-between'
+          ? 'fixed inset-0 z-[99999] w-full h-full min-h-[100dvh] max-h-[100dvh] bg-[#07130b] overflow-hidden p-0 m-0 flex flex-col justify-between select-none'
           : `bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col gap-3 relative overflow-hidden ${className}`
+      }
+      style={
+        isFullscreen
+          ? {
+              backgroundColor: theme.visuals_config?.bgGradientTo || '#07130b',
+              backgroundImage: theme.background_url
+                ? `url("${theme.background_url}")`
+                : `radial-gradient(circle at 50% 20%, ${
+                    theme.visuals_config?.bgGradientFrom || 'rgba(30, 16, 53, 0.6)'
+                  } 0%, ${theme.visuals_config?.bgGradientTo || '#07130b'} 100%)`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+            }
+          : undefined
       }
     >
       {/* Header bar */}
       {isFullscreen ? (
-        <div className="w-full max-w-7xl mx-auto flex items-center justify-between gap-3 py-2 px-4 bg-slate-900/90 border border-slate-800/80 rounded-2xl shadow-xl backdrop-blur-md shrink-0">
+        <div className="w-full flex items-center justify-between gap-3 py-2.5 px-4 sm:px-6 bg-slate-950/85 border-b border-slate-800/80 shadow-xl backdrop-blur-md shrink-0 z-30">
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             <span className="text-xs sm:text-sm font-black text-slate-100 tracking-tight truncate">
               {theme.name || 'Theme'} • Live Simulation
             </span>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-md hidden sm:inline-block">
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/70 border border-emerald-800/70 px-2 py-0.5 rounded-md hidden sm:inline-block">
               Fullscreen
             </span>
           </div>
@@ -928,7 +979,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
                 isInteractive
                   ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
               }`}
               title="Toggle between Interactive Player Control and Auto-Attract Simulation"
             >
@@ -939,7 +990,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             <button
               type="button"
               onClick={() => setPreviewOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60"
               title={`Switch preview to ${previewOrientation === 'landscape' ? 'Mobile Portrait (9:16)' : 'Landscape (16:9)'}`}
             >
               {previewOrientation === 'landscape' ? (
@@ -958,7 +1009,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             <button
               type="button"
               onClick={() => setIsMuted(!isMuted)}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors"
+              className="p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors border border-slate-700/60"
               title={isMuted ? 'Unmute preview sounds' : 'Mute preview sounds'}
             >
               {isMuted ? (
@@ -971,7 +1022,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             <button
               type="button"
               onClick={handleResetSimulation}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors"
+              className="p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors border border-slate-700/60"
               title="Restart simulation"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -1078,26 +1129,44 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         onPointerMove={handleContainerPointerMove}
         onPointerUp={handleContainerPointerUp}
         onPointerCancel={handleContainerPointerUp}
-        className={`relative ${
+        className={
           isFullscreen
-            ? responsive.isPortrait
-              ? 'aspect-[9/16] max-h-[82vh] w-auto mx-auto my-auto flex-1'
-              : 'aspect-[16/9] max-w-7xl max-h-[82vh] w-full mx-auto my-auto flex-1'
-            : responsive.isPortrait
-              ? 'aspect-[9/16] max-h-[580px] w-auto mx-auto'
-              : 'aspect-[16/9] w-full'
-        } rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none flex items-center justify-center transition-all`}
+            ? 'relative flex-1 w-full h-full min-w-0 min-h-0 overflow-hidden select-none flex items-center justify-center'
+            : `relative ${
+                responsive.isPortrait
+                  ? 'aspect-[9/16] max-h-[580px] w-auto mx-auto'
+                  : 'aspect-[16/9] w-full'
+              } rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none flex items-center justify-center transition-all`
+        }
         style={{
           '--game-ui-scale': responsive.uiScale,
           '--game-design-width': `${responsive.designWidth}px`,
           '--game-design-height': `${responsive.designHeight}px`,
         } as React.CSSProperties}
       >
+        {/* Full container backdrop in Fullscreen Mode */}
+        {isFullscreen && (
+          <div
+            className="game-ui-backdrop absolute inset-0 pointer-events-none w-full h-full"
+            style={{
+              backgroundColor: theme.visuals_config?.bgGradientTo || '#07130b',
+              backgroundImage: theme.background_url
+                ? `url("${theme.background_url}")`
+                : `radial-gradient(circle at 50% 20%, ${
+                    theme.visuals_config?.bgGradientFrom || 'rgba(30, 16, 53, 0.6)'
+                  } 0%, ${theme.visuals_config?.bgGradientTo || '#07130b'} 100%)`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+            }}
+          />
+        )}
+
         {isReaction ? (
           /* REACTION GAME LIVE SIMULATION */
           <ReactionGame
             key={`sim-rx-${theme.id}-${restartKey}-${responsive.isPortrait ? 'portrait' : 'landscape'}`}
-            className="w-full h-full"
+            className="w-full h-full relative z-10"
             activeTheme={theme}
             config={theme.game_config}
             isMuted={isMuted}
@@ -1113,7 +1182,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
           /* MEMORY MATCH LIVE GAME SIMULATION - TRUE PROPORTIONAL SCALING */
           <MemoryMatchGame
             key={`sim-mm-${theme.id}-${restartKey}-${responsive.isPortrait ? 'portrait' : 'landscape'}`}
-            className="w-full h-full"
+            className="w-full h-full relative z-10"
             activeTheme={theme}
             settings={{
               soundEnabled: !isMuted,
@@ -1133,67 +1202,101 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             onToggleFullscreen={handleToggleFullscreen}
           />
         ) : (
-          /* CATCH BRAND FALLING CANVAS SIMULATION */
-          <canvas
-            ref={canvasRef}
-            width={responsive.designWidth}
-            height={responsive.designHeight}
-            onPointerMove={handlePointerMove}
-            className={`w-full h-full object-contain ${
-              isInteractive ? 'cursor-ew-resize' : 'cursor-default'
-            }`}
-          />
-        )}
+          /* CATCH BRAND FALLING CANVAS SIMULATION - CENTERED AND PROPORTIONALLY SCALED */
+          <div
+            id="catch-brand-simulation-stage"
+            className={`game-stage relative overflow-hidden pointer-events-auto shrink-0 shadow-2xl transition-all z-10 ${
+              responsive.isPortrait ? 'is-portrait aspect-[9/16]' : 'aspect-[16/9]'
+            } ${isFullscreen ? '' : 'w-full h-full'}`}
+            style={
+              isFullscreen
+                ? {
+                    width: `${responsive.stageWidth}px`,
+                    height: `${responsive.stageHeight}px`,
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                  }
+                : {
+                    width: '100%',
+                    height: '100%',
+                  }
+            }
+          >
+            <canvas
+              ref={canvasRef}
+              width={responsive.designWidth}
+              height={responsive.designHeight}
+              onPointerMove={handlePointerMove}
+              className={`w-full h-full ${
+                isInteractive ? 'cursor-ew-resize' : 'cursor-default'
+              }`}
+            />
 
-        {/* SHARED WYSIWYG GAME HUD OVERLAY FOR CATCH BRAND */}
-        {!isMemoryMatch && !isReaction && (
-          <GameLayoutHudOverlay
-            layout={effectiveLayout}
-            theme={theme}
-            gameType={gameType}
-            isPortrait={responsive.isPortrait}
-            score={score}
-            moves={0}
-            pairs={0}
-            totalPairs={8}
-            timeRemaining={timeRemaining}
-            editableLayout={editableLayout}
-            selectedElementKey={selectedElementKey}
-            onSelectElementKey={onSelectElementKey}
-            onElementPointerDown={handleElementPointerDown}
-          />
-        )}
+            {/* SHARED WYSIWYG GAME HUD OVERLAY FOR CATCH BRAND */}
+            <GameLayoutHudOverlay
+              layout={effectiveLayout}
+              theme={theme}
+              gameType={gameType}
+              isPortrait={responsive.isPortrait}
+              score={score}
+              moves={0}
+              pairs={0}
+              totalPairs={8}
+              timeRemaining={timeRemaining}
+              editableLayout={editableLayout}
+              selectedElementKey={selectedElementKey}
+              onSelectElementKey={onSelectElementKey}
+              onElementPointerDown={handleElementPointerDown}
+            />
 
-        {/* IN-GAME FLOATING CONTROL BAR FOR CATCH THE BRAND LIVE GAME SIMULATION */}
-        {!isMemoryMatch && !isReaction && (
-          <GameControlBar
-            id="simulation-catch-brand-control-bar"
-            disabled={true}
-            isMuted={isMuted}
-            isPaused={false}
-            isFullscreen={isFullscreen}
-            className="absolute top-2 right-2 sm:top-3 sm:right-3 z-40"
-          />
-        )}
+            {/* IN-GAME FLOATING CONTROL BAR FOR CATCH THE BRAND LIVE GAME SIMULATION */}
+            <GameControlBar
+              id="simulation-catch-brand-control-bar"
+              disabled={true}
+              isMuted={isMuted}
+              isPaused={false}
+              isFullscreen={isFullscreen}
+              className="absolute top-2 right-2 sm:top-3 sm:right-3 z-40"
+            />
 
-        {isInteractive && !isMemoryMatch && !isReaction && (
-          <div className="absolute bottom-2 inset-x-0 mx-auto w-fit bg-amber-500/90 text-slate-950 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-lg pointer-events-none animate-bounce z-30">
-            Move mouse / finger horizontally across canvas to catch items!
+            {isInteractive && (
+              <div className="absolute bottom-2 inset-x-0 mx-auto w-fit bg-amber-500/90 text-slate-950 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-lg pointer-events-none animate-bounce z-30">
+                Move mouse / finger horizontally across canvas to catch items!
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* When in Fullscreen: render the dedicated centered [ CLOSE / EXIT FULLSCREEN ] button matching the user's diagram */}
+      {/* When in Fullscreen: render integrated bottom simulation bar */}
       {isFullscreen ? (
-        <div className="shrink-0 flex items-center justify-center pt-2 pb-1">
+        <div className="w-full px-4 sm:px-6 py-2 bg-slate-950/85 border-t border-slate-800/80 shadow-xl backdrop-blur-md shrink-0 z-30 flex items-center justify-between gap-3">
+          {/* Status or instruction message */}
+          <div className="flex items-center gap-2 min-w-0 text-xs text-slate-300">
+            {isReaction ? (
+              <span className="font-mono text-[11px] truncate text-slate-400">
+                ⚡ Click, tap, or press SPACE on canvas to react when lights go out!
+              </span>
+            ) : isMemoryMatch ? (
+              <span className="font-mono text-[11px] truncate text-slate-400">
+                🎴 Click cards to flip and match pairs ({memoryConfig.pairs?.length || 8} pairs configured)
+              </span>
+            ) : (
+              <span className="font-mono text-[11px] truncate text-slate-400">
+                🎮 {isInteractive ? 'Move mouse or touch horizontally to catch items' : 'Auto-attract demo mode active'}
+              </span>
+            )}
+          </div>
+
+          {/* Exit Fullscreen Control */}
           <button
             type="button"
             onClick={handleCloseFullscreen}
-            className="flex items-center gap-2 px-6 py-2.5 bg-slate-900/95 hover:bg-slate-800 active:scale-95 text-slate-200 hover:text-white border border-slate-700/80 rounded-xl text-xs font-bold transition-all shadow-2xl backdrop-blur-md cursor-pointer"
+            className="flex items-center gap-2 px-4 py-1.5 bg-slate-900/95 hover:bg-slate-800 active:scale-95 text-slate-200 hover:text-white border border-slate-700/80 rounded-xl text-xs font-bold transition-all shadow-md backdrop-blur-md cursor-pointer shrink-0"
             title="Exit Fullscreen Mode (Esc)"
           >
-            <Minimize2 className="w-4 h-4 text-amber-400" />
-            <span>Close / Exit Fullscreen</span>
+            <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
+            <span>Exit Fullscreen</span>
             <span className="text-[10px] text-slate-400 font-mono ml-1 px-1.5 py-0.5 bg-slate-950 rounded border border-slate-800">
               ESC
             </span>
