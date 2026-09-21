@@ -269,6 +269,64 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     [layout, responsive.isPortrait, gameType]
   );
 
+  const isCatchBrand = useMemo(() => {
+    if (isMemoryMatch || isReaction) return false;
+    // Exclude Durian Catcher explicitly per prompt rules
+    if (theme.id === 'durian' || theme.slug === 'durian' || theme.base_theme_id === 'durian') {
+      return false;
+    }
+    return true;
+  }, [isMemoryMatch, isReaction, theme.id, theme.slug, theme.base_theme_id]);
+
+  // Dedicated responsive scaling for Catch the Brand simulation stage in Fullscreen
+  const catchBrandStageDimensions = useMemo(() => {
+    if (!isFullscreen || !isCatchBrand) {
+      return {
+        stageWidth: responsive.stageWidth,
+        stageHeight: responsive.stageHeight,
+        scale: responsive.uiScale,
+      };
+    }
+
+    const logicalGameWidth = responsive.isPortrait ? 576 : 1024;
+    const logicalGameHeight = responsive.isPortrait ? 1024 : 576;
+
+    // Viewport client dimensions (flex-1 element between top and bottom bars)
+    const vp = viewportRef.current;
+    let availableWidth = vp ? vp.clientWidth : window.innerWidth;
+    let availableHeight = vp ? vp.clientHeight : window.innerHeight - 96;
+
+    // Account for safe margins inside viewport (16px on mobile, 24px on desktop)
+    const safePadX = availableWidth < 640 ? 16 : 24;
+    const safePadY = availableHeight < 640 ? 16 : 24;
+    const effectiveWidth = Math.max(100, availableWidth - safePadX);
+    const effectiveHeight = Math.max(100, availableHeight - safePadY);
+
+    // Uniform scaling formula: min(availableWidth / logicalGameWidth, availableHeight / logicalGameHeight)
+    const scale = Math.min(
+      effectiveWidth / logicalGameWidth,
+      effectiveHeight / logicalGameHeight
+    );
+
+    const stageWidth = Math.max(1, Math.floor(logicalGameWidth * scale));
+    const stageHeight = Math.max(1, Math.floor(logicalGameHeight * scale));
+
+    return {
+      stageWidth,
+      stageHeight,
+      scale,
+    };
+  }, [
+    isFullscreen,
+    isCatchBrand,
+    responsive.isPortrait,
+    responsive.width,
+    responsive.height,
+    responsive.stageWidth,
+    responsive.stageHeight,
+    responsive.uiScale,
+  ]);
+
   // Simulation physics state refs (Catch The Brand)
   const simState = useRef({
     basketX: 512,
@@ -326,8 +384,8 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         initH = dims.height;
       }
 
-      const isPortrait = previewOrientation === 'portrait';
-      const designW = isPortrait ? 576 : 1024;
+      const isPortrait = responsive.isPortrait;
+      const designW = responsive.designWidth;
 
       const newItem: SimulatedItem = {
         id: `sim_${Date.now()}_${Math.random()}`,
@@ -940,7 +998,9 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
       ref={containerRef}
       className={
         isFullscreen
-          ? 'fixed inset-0 z-[99999] w-full h-full min-h-[100dvh] max-h-[100dvh] bg-[#07130b] overflow-hidden p-0 m-0 flex flex-col justify-between select-none'
+          ? isCatchBrand
+            ? 'catch-brand-fullscreen-container fixed inset-0 z-[99999] w-full h-full min-h-[100dvh] max-h-[100dvh] bg-[#07130b] overflow-hidden p-0 m-0 flex flex-col justify-between select-none'
+            : 'fixed inset-0 z-[99999] w-full h-full min-h-[100dvh] max-h-[100dvh] bg-[#07130b] overflow-hidden p-0 m-0 flex flex-col justify-between select-none'
           : `bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col gap-3 relative overflow-hidden ${className}`
       }
       style={
@@ -961,84 +1021,191 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     >
       {/* Header bar */}
       {isFullscreen ? (
-        <div className="w-full flex items-center justify-between gap-3 py-2.5 px-4 sm:px-6 bg-slate-950/85 border-b border-slate-800/80 shadow-xl backdrop-blur-md shrink-0 z-30">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            <span className="text-xs sm:text-sm font-black text-slate-100 tracking-tight truncate">
-              {theme.name || 'Theme'} • Live Simulation
-            </span>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/70 border border-emerald-800/70 px-2 py-0.5 rounded-md hidden sm:inline-block">
-              Fullscreen
-            </span>
-          </div>
+        isCatchBrand ? (
+          /* CATCH THE BRAND DEDICATED FULLSCREEN TOOLBAR (COMPACT & RESPONSIVE) */
+          <div className="w-full flex items-center justify-between gap-2 px-3 sm:px-5 py-1.5 bg-slate-950/90 border-b border-slate-800/80 shadow-xl backdrop-blur-md shrink-0 z-30 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-2 min-w-0 shrink">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="text-xs font-bold text-slate-100 tracking-tight truncate max-w-[130px] sm:max-w-[220px]">
+                {theme.name || 'Catch The Brand'}
+              </span>
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/70 border border-emerald-800/70 px-1.5 py-0.5 rounded shrink-0 hidden md:inline-block">
+                Catch The Brand • Fullscreen
+              </span>
+            </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsInteractive(!isInteractive)}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
-                isInteractive
-                  ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400'
-                  : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
-              }`}
-              title="Toggle between Interactive Player Control and Auto-Attract Simulation"
-            >
-              <Gamepad2 className="w-3.5 h-3.5" />
-              <span>{isInteractive ? 'Testing (Interactive)' : 'Auto Demo'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setPreviewOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60"
-              title={`Switch preview to ${previewOrientation === 'landscape' ? 'Mobile Portrait (9:16)' : 'Landscape (16:9)'}`}
-            >
-              {previewOrientation === 'landscape' ? (
-                <>
-                  <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Portrait</span>
-                </>
-              ) : (
-                <>
-                  <Monitor className="w-3.5 h-3.5 text-sky-400" />
-                  <span className="hidden sm:inline">Landscape</span>
-                </>
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 whitespace-nowrap">
+              {onPlayLiveGame && (
+                <button
+                  type="button"
+                  onClick={onPlayLiveGame}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-sm ring-1 ring-emerald-400 active:scale-95 shrink-0"
+                  title="Switch to full-page live playable game mode"
+                >
+                  <Gamepad2 className="w-3 h-3" />
+                  <span>Play Live Game</span>
+                </button>
               )}
-            </button>
 
-            <button
-              type="button"
-              onClick={() => setIsMuted(!isMuted)}
-              className="p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors border border-slate-700/60"
-              title={isMuted ? 'Unmute preview sounds' : 'Mute preview sounds'}
-            >
-              {isMuted ? (
-                <VolumeX className="w-3.5 h-3.5 text-slate-500" />
-              ) : (
-                <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-              )}
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsInteractive(!isInteractive)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all shrink-0 ${
+                  isInteractive
+                    ? 'bg-amber-500 text-slate-950 shadow-sm ring-1 ring-amber-400'
+                    : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
+                }`}
+                title="Toggle between Interactive Player Control and Auto-Attract Simulation"
+              >
+                <Gamepad2 className="w-3 h-3" />
+                <span>{isInteractive ? 'Testing (Interactive)' : 'Auto Demo'}</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={handleResetSimulation}
-              className="p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors border border-slate-700/60"
-              title="Restart simulation"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setPreviewOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))
+                }
+                className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60 shrink-0"
+                title={`Switch preview to ${
+                  previewOrientation === 'landscape'
+                    ? 'Mobile Portrait (9:16)'
+                    : 'Landscape (16:9)'
+                }`}
+              >
+                {previewOrientation === 'landscape' ? (
+                  <>
+                    <Smartphone className="w-3 h-3 text-amber-400" />
+                    <span>Portrait</span>
+                  </>
+                ) : (
+                  <>
+                    <Monitor className="w-3 h-3 text-sky-400" />
+                    <span>Landscape</span>
+                  </>
+                )}
+              </button>
 
-            <button
-              type="button"
-              onClick={handleCloseFullscreen}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
-              title="Close Fullscreen (Esc)"
-            >
-              <Minimize2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>Close</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsMuted(!isMuted)}
+                className="p-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors border border-slate-700/60 shrink-0"
+                title={isMuted ? 'Unmute preview sounds' : 'Mute preview sounds'}
+              >
+                {isMuted ? (
+                  <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+                ) : (
+                  <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetSimulation}
+                className="p-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors border border-slate-700/60 shrink-0"
+                title="Restart simulation"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCloseFullscreen}
+                className="flex items-center gap-1 px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-white border border-rose-500/40 rounded-lg text-[11px] font-bold transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
+                title="Close Fullscreen (Esc)"
+              >
+                <Minimize2 className="w-3.5 h-3.5 text-rose-400" />
+                <span>Close</span>
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* PRESERVED TOOLBAR FOR OTHER GAMES */
+          <div className="w-full flex items-center justify-between gap-3 py-2.5 px-4 sm:px-6 bg-slate-950/85 border-b border-slate-800/80 shadow-xl backdrop-blur-md shrink-0 z-30">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="text-xs sm:text-sm font-black text-slate-100 tracking-tight truncate">
+                {theme.name || 'Theme'} • Live Simulation
+              </span>
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/70 border border-emerald-800/70 px-2 py-0.5 rounded-md hidden sm:inline-block">
+                Fullscreen
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsInteractive(!isInteractive)}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
+                  isInteractive
+                    ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400'
+                    : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
+                }`}
+                title="Toggle between Interactive Player Control and Auto-Attract Simulation"
+              >
+                <Gamepad2 className="w-3.5 h-3.5" />
+                <span>{isInteractive ? 'Testing (Interactive)' : 'Auto Demo'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setPreviewOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))
+                }
+                className="px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60"
+                title={`Switch preview to ${
+                  previewOrientation === 'landscape'
+                    ? 'Mobile Portrait (9:16)'
+                    : 'Landscape (16:9)'
+                }`}
+              >
+                {previewOrientation === 'landscape' ? (
+                  <>
+                    <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="hidden sm:inline">Portrait</span>
+                  </>
+                ) : (
+                  <>
+                    <Monitor className="w-3.5 h-3.5 text-sky-400" />
+                    <span className="hidden sm:inline">Landscape</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsMuted(!isMuted)}
+                className="p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors border border-slate-700/60"
+                title={isMuted ? 'Unmute preview sounds' : 'Mute preview sounds'}
+              >
+                {isMuted ? (
+                  <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+                ) : (
+                  <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetSimulation}
+                className="p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors border border-slate-700/60"
+                title="Restart simulation"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCloseFullscreen}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-white border border-rose-500/40 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+                title="Close Fullscreen (Esc)"
+              >
+                <Minimize2 className="w-3.5 h-3.5 text-rose-400" />
+                <span>Close</span>
+              </button>
+            </div>
+          </div>
+        )
       ) : (
         <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
           <div className="flex items-center gap-2">
@@ -1131,7 +1298,9 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         onPointerCancel={handleContainerPointerUp}
         className={
           isFullscreen
-            ? 'relative flex-1 w-full h-full min-w-0 min-h-0 overflow-hidden select-none flex items-center justify-center'
+            ? isCatchBrand
+              ? 'catch-brand-fullscreen-viewport relative flex-1 w-full h-full min-w-0 min-h-0 overflow-hidden select-none flex items-center justify-center p-2 sm:p-3'
+              : 'relative flex-1 w-full h-full min-w-0 min-h-0 overflow-hidden select-none flex items-center justify-center'
             : `relative ${
                 responsive.isPortrait
                   ? 'aspect-[9/16] max-h-[580px] w-auto mx-auto'
@@ -1207,12 +1376,12 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             id="catch-brand-simulation-stage"
             className={`game-stage relative overflow-hidden pointer-events-auto shrink-0 shadow-2xl transition-all z-10 ${
               responsive.isPortrait ? 'is-portrait aspect-[9/16]' : 'aspect-[16/9]'
-            } ${isFullscreen ? '' : 'w-full h-full'}`}
+            } ${isFullscreen ? 'rounded-2xl ring-1 ring-white/10' : 'w-full h-full'}`}
             style={
               isFullscreen
                 ? {
-                    width: `${responsive.stageWidth}px`,
-                    height: `${responsive.stageHeight}px`,
+                    width: `${catchBrandStageDimensions.stageWidth}px`,
+                    height: `${catchBrandStageDimensions.stageHeight}px`,
                     maxWidth: '100%',
                     maxHeight: '100%',
                   }
@@ -1256,11 +1425,15 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               isMuted={isMuted}
               isPaused={false}
               isFullscreen={isFullscreen}
-              className="absolute top-2 right-2 sm:top-3 sm:right-3 z-40"
+              className={`absolute z-40 origin-top-right transition-transform ${
+                responsive.isPortrait
+                  ? 'top-2 right-2 scale-[0.72] sm:scale-[0.82]'
+                  : 'top-2 right-2 sm:top-2.5 sm:right-2.5 scale-[0.85] sm:scale-100'
+              }`}
             />
 
             {isInteractive && (
-              <div className="absolute bottom-2 inset-x-0 mx-auto w-fit bg-amber-500/90 text-slate-950 px-3 py-1 rounded-full text-[11px] font-extrabold shadow-lg pointer-events-none animate-bounce z-30">
+              <div className="absolute bottom-2 inset-x-0 mx-auto w-fit bg-amber-500/90 text-slate-950 px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold shadow-lg pointer-events-none animate-bounce z-30">
                 Move mouse / finger horizontally across canvas to catch items!
               </div>
             )}
@@ -1270,38 +1443,104 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
       {/* When in Fullscreen: render integrated bottom simulation bar */}
       {isFullscreen ? (
-        <div className="w-full px-4 sm:px-6 py-2 bg-slate-950/85 border-t border-slate-800/80 shadow-xl backdrop-blur-md shrink-0 z-30 flex items-center justify-between gap-3">
-          {/* Status or instruction message */}
-          <div className="flex items-center gap-2 min-w-0 text-xs text-slate-300">
-            {isReaction ? (
-              <span className="font-mono text-[11px] truncate text-slate-400">
-                ⚡ Click, tap, or press SPACE on canvas to react when lights go out!
+        isCatchBrand ? (
+          /* CATCH THE BRAND COMPACT BOTTOM SIMULATION BAR WITH EMBEDDED ITEM DROP TESTER */
+          <div className="w-full px-3 sm:px-5 py-1.5 bg-slate-950/90 border-t border-slate-800/80 shadow-xl backdrop-blur-md shrink-0 z-30 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+            {/* Quick item drop buttons */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 shrink-0 mr-1">
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span className="hidden sm:inline">Drop:</span>
               </span>
-            ) : isMemoryMatch ? (
-              <span className="font-mono text-[11px] truncate text-slate-400">
-                🎴 Click cards to flip and match pairs ({memoryConfig.pairs?.length || 8} pairs configured)
-              </span>
-            ) : (
-              <span className="font-mono text-[11px] truncate text-slate-400">
-                🎮 {isInteractive ? 'Move mouse or touch horizontally to catch items' : 'Auto-attract demo mode active'}
-              </span>
-            )}
-          </div>
+              {(theme.items_config || []).map((item, idx) => (
+                <button
+                  key={item.id || idx}
+                  onClick={() => dropItemInstantly(item)}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-semibold shrink-0 flex items-center gap-1 border transition-all active:scale-95 ${
+                    item.isHazard
+                      ? 'bg-rose-500/15 border-rose-500/30 text-rose-300 hover:bg-rose-500/25'
+                      : item.isBonus
+                      ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25'
+                      : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25'
+                  }`}
+                  title={`Drop ${item.name} (${item.points > 0 ? `+${item.points}` : item.points} pts)`}
+                >
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      className="w-3.5 h-3.5 object-contain rounded shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : item.isHazard ? (
+                    <Flame className="w-3 h-3 text-rose-400 shrink-0" />
+                  ) : item.isBonus ? (
+                    <Star className="w-3 h-3 text-amber-400 shrink-0" />
+                  ) : (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                  )}
+                  <span className="truncate max-w-[80px] sm:max-w-[100px]">{item.name}</span>
+                  <span className="text-[10px] opacity-75 font-mono">
+                    {item.points > 0 ? `+${item.points}` : item.points}
+                  </span>
+                </button>
+              ))}
+            </div>
 
-          {/* Exit Fullscreen Control */}
-          <button
-            type="button"
-            onClick={handleCloseFullscreen}
-            className="flex items-center gap-2 px-4 py-1.5 bg-slate-900/95 hover:bg-slate-800 active:scale-95 text-slate-200 hover:text-white border border-slate-700/80 rounded-xl text-xs font-bold transition-all shadow-md backdrop-blur-md cursor-pointer shrink-0"
-            title="Exit Fullscreen Mode (Esc)"
-          >
-            <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
-            <span>Exit Fullscreen</span>
-            <span className="text-[10px] text-slate-400 font-mono ml-1 px-1.5 py-0.5 bg-slate-950 rounded border border-slate-800">
-              ESC
-            </span>
-          </button>
-        </div>
+            {/* Right side: Status and Exit Fullscreen */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[11px] font-mono text-slate-400 hidden md:inline truncate max-w-[200px]">
+                {isInteractive ? '🎮 Interactive test' : '🤖 Auto demo'}
+              </span>
+              <button
+                type="button"
+                onClick={handleCloseFullscreen}
+                className="flex items-center gap-1.5 px-3 py-1 bg-slate-900/95 hover:bg-slate-800 active:scale-95 text-slate-200 hover:text-white border border-slate-700/80 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer shrink-0"
+                title="Exit Fullscreen Mode (Esc)"
+              >
+                <Minimize2 className="w-3 h-3 text-amber-400" />
+                <span>Exit Fullscreen</span>
+                <span className="text-[9px] text-slate-400 font-mono px-1 py-0.2 bg-slate-950 rounded border border-slate-800 hidden sm:inline">
+                  ESC
+                </span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* PRESERVED BOTTOM BAR FOR OTHER GAMES */
+          <div className="w-full px-4 sm:px-6 py-2 bg-slate-950/85 border-t border-slate-800/80 shadow-xl backdrop-blur-md shrink-0 z-30 flex items-center justify-between gap-3">
+            {/* Status or instruction message */}
+            <div className="flex items-center gap-2 min-w-0 text-xs text-slate-300">
+              {isReaction ? (
+                <span className="font-mono text-[11px] truncate text-slate-400">
+                  ⚡ Click, tap, or press SPACE on canvas to react when lights go out!
+                </span>
+              ) : isMemoryMatch ? (
+                <span className="font-mono text-[11px] truncate text-slate-400">
+                  🎴 Click cards to flip and match pairs ({memoryConfig.pairs?.length || 8} pairs configured)
+                </span>
+              ) : (
+                <span className="font-mono text-[11px] truncate text-slate-400">
+                  🎮 {isInteractive ? 'Move mouse or touch horizontally to catch items' : 'Auto-attract demo mode active'}
+                </span>
+              )}
+            </div>
+
+            {/* Exit Fullscreen Control */}
+            <button
+              type="button"
+              onClick={handleCloseFullscreen}
+              className="flex items-center gap-2 px-4 py-1.5 bg-slate-900/95 hover:bg-slate-800 active:scale-95 text-slate-200 hover:text-white border border-slate-700/80 rounded-xl text-xs font-bold transition-all shadow-md backdrop-blur-md cursor-pointer shrink-0"
+              title="Exit Fullscreen Mode (Esc)"
+            >
+              <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>Exit Fullscreen</span>
+              <span className="text-[10px] text-slate-400 font-mono ml-1 px-1.5 py-0.5 bg-slate-950 rounded border border-slate-800">
+                ESC
+              </span>
+            </button>
+          </div>
+        )
       ) : (
         <div className="space-y-1.5 pt-1">
           <div className="flex items-center justify-between text-[11px] text-slate-400">
@@ -1326,59 +1565,66 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               </div>
             </div>
           ) : isMemoryMatch ? (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-            {(memoryConfig.pairs || []).map((pair, idx) => (
-              <div
-                key={pair.id || idx}
-                className="px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 border bg-slate-950/80 border-slate-800 text-slate-300"
-              >
-                {pair.imageUrl ? (
-                  <img
-                    src={pair.imageUrl}
-                    alt={pair.name}
-                    className="w-4 h-4 object-contain rounded"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <span className="w-2 h-2 rounded-full bg-amber-400" />
-                )}
-                <span className="truncate max-w-[100px]">{pair.name || `Pair ${idx + 1}`}</span>
-                <span className="text-[10px] text-amber-400 font-mono">
-                  {pair.points ? `+${pair.points}` : '+100'}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-            {(theme.items_config || []).map((item, idx) => (
-              <button
-                key={item.id || idx}
-                onClick={() => dropItemInstantly(item)}
-                className={`px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 border transition-all ${
-                  item.isHazard
-                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20'
-                    : item.isBonus
-                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
-                    : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
-                }`}
-              >
-                {item.isHazard ? (
-                  <Flame className="w-3 h-3 text-rose-400" />
-                ) : item.isBonus ? (
-                  <Star className="w-3 h-3 text-amber-400" />
-                ) : (
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                )}
-                <span className="truncate max-w-[90px]">{item.name}</span>
-                <span className="text-[10px] opacity-75">
-                  ({item.points > 0 ? `+${item.points}` : item.points})
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              {(memoryConfig.pairs || []).map((pair, idx) => (
+                <div
+                  key={pair.id || idx}
+                  className="px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 border bg-slate-950/80 border-slate-800 text-slate-300"
+                >
+                  {pair.imageUrl ? (
+                    <img
+                      src={pair.imageUrl}
+                      alt={pair.name}
+                      className="w-4 h-4 object-contain rounded"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  )}
+                  <span className="truncate max-w-[100px]">{pair.name || `Pair ${idx + 1}`}</span>
+                  <span className="text-[10px] text-amber-400 font-mono">
+                    {pair.points ? `+${pair.points}` : '+100'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              {(theme.items_config || []).map((item, idx) => (
+                <button
+                  key={item.id || idx}
+                  onClick={() => dropItemInstantly(item)}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 border transition-all ${
+                    item.isHazard
+                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20'
+                      : item.isBonus
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
+                      : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
+                  }`}
+                >
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      className="w-3.5 h-3.5 object-contain rounded"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : item.isHazard ? (
+                    <Flame className="w-3 h-3 text-rose-400" />
+                  ) : item.isBonus ? (
+                    <Star className="w-3 h-3 text-amber-400" />
+                  ) : (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  )}
+                  <span className="truncate max-w-[90px]">{item.name}</span>
+                  <span className="text-[10px] opacity-75">
+                    ({item.points > 0 ? `+${item.points}` : item.points})
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
