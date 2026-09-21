@@ -1832,9 +1832,9 @@ export async function canUseWelcomeCredit(
   } else {
     // If no specific event or override price is specified, default to authoritative 1-day platform base price (RM1,400.00)
     try {
-      const { getAuthoritativePlatformSettings, calculateEventAuthoritativePrice } = await import('./platformSettings.js');
-      const settings = await getAuthoritativePlatformSettings(env);
-      eventPrice = calculateEventAuthoritativePrice(1, settings);
+      const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
+      const pricing = await calculateEventAuthoritativePrice({ start_date: '2026-01-01', end_date: '2026-01-01' }, env);
+      eventPrice = pricing.price;
     } catch {
       eventPrice = 1400.00;
     }
@@ -2368,9 +2368,9 @@ export async function canUseShowcaseCredit(
   } else {
     // If no specific event or override price is specified, default to authoritative 1-day platform base price (RM1,400.00)
     try {
-      const { getAuthoritativePlatformSettings, calculateEventAuthoritativePrice } = await import('./platformSettings.js');
-      const settings = await getAuthoritativePlatformSettings(env);
-      eventPrice = calculateEventAuthoritativePrice(1, settings);
+      const { calculateEventAuthoritativePrice } = await import('./platformSettings.js');
+      const pricing = await calculateEventAuthoritativePrice({ start_date: '2026-01-01', end_date: '2026-01-01' }, env);
+      eventPrice = pricing.price;
     } catch {
       eventPrice = 1400.00;
     }

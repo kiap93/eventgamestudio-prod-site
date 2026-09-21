@@ -45,6 +45,29 @@ export const getApiBaseUrl = (): string => {
 export const API_BASE_URL = getApiBaseUrl();
 
 /**
+ * One-time clean migration: if a client still has legacy 'durian_app_token',
+ * migrate it to 'app_token' (if not already set) and immediately remove the legacy key
+ * so the application only interacts with 'app_token'.
+ */
+export function migrateLegacyAppToken(): void {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  try {
+    const legacyToken = localStorage.getItem('durian_app_token');
+    if (legacyToken) {
+      if (!localStorage.getItem('app_token')) {
+        localStorage.setItem('app_token', legacyToken);
+      }
+      localStorage.removeItem('durian_app_token');
+    }
+  } catch {
+    // Ignore storage access errors (e.g. sandboxed iframes)
+  }
+}
+
+// Automatically execute on module load in browser environments
+migrateLegacyAppToken();
+
+/**
  * Sends an HTTP request to the Cloudflare Worker API.
  *
  * @param path The endpoint path (e.g., '/api/themes') or full URL
@@ -66,7 +89,7 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
 
   // 1. Automatic Authorization header from localStorage if available and not explicitly provided
   if (!headers.has('Authorization')) {
-    const token = localStorage.getItem('app_token') || localStorage.getItem('durian_app_token');
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('app_token') : null;
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }

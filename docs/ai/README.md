@@ -101,7 +101,7 @@ Before modifying code, read the specific documents relevant to your task:
 | **Editing pricing or payment logic** | `business_rules/payment_flow.md` → `business_rules/wallet.md` → `systems/database.md` |
 | **Updating Wallet or Credit balances** | `business_rules/wallet.md` → `systems/database.md` → `systems/api.md` |
 | **Modifying High Scores or Leaderboards** | `business_rules/scores.md` → `business_rules/event_flow.md` → `systems/api.md` |
-| **Working on Theme Studio or Visual Editors**| `systems/game_ui.md` → `systems/themes.md` → `systems/games.md` |
+| **Working on Game Studio, Themes, or Visual Editors**| `systems/game_ui.md` → `systems/themes.md` → `systems/games.md` |
 | **Updating Showcase or Moderation** | `business_rules/showcase.md` → `systems/database.md` → `systems/api.md` |
 | **Modifying Authentication or RBAC** | `systems/auth.md` → `systems/database.md` → `systems/api.md` |
 | **Changing Server Endpoints or Middlewares** | `systems/api.md` → `architecture.md` → `deployment.md` *(Check both Express and Worker!)* |

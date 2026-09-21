@@ -60,18 +60,12 @@ This document tracks verified architectural gaps, technical debt, and pending is
 ## Issue 4: Legacy Token Fallback in Client Transport
 
 - **Affected Files**:
-  - `src/lib/api.ts` (line 49)
-- **Current Behavior**:
-  `apiFetch` retrieves tokens using:
-  ```typescript
-  const token = localStorage.getItem('app_token') || localStorage.getItem('durian_app_token');
-  ```
-  `durian_app_token` is a legacy artifact from an earlier prototype.
-- **Intended Behavior**:
-  Standardize entirely on `'app_token'` and clean up legacy storage keys.
-- **Risk / Impact**:
-  **Low**. Harmless backward compatibility.
-- **Status**: `PARTIALLY FIXED`
+  - `src/lib/api.ts`
+  - `src/components/developer/DeveloperEmailSettings.tsx`
+  - `src/context/AuthContext.tsx`
+- **Behavior**:
+  Legacy prototype key `durian_app_token` has been removed. A clean one-time migration (`migrateLegacyAppToken`) copies any existing `durian_app_token` to `app_token` (if not already set) and immediately removes the legacy key from `localStorage`. All components and transport functions now standardize strictly on `app_token`.
+- **Status**: `RESOLVED`
 - **Workaround**: None needed.
 
 ---

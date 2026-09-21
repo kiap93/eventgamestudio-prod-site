@@ -1899,7 +1899,7 @@ export default {
       }
 
       // ==========================================
-      // 6. Theme Studio Routes
+      // 6. Themes & Game Studio Routes
       // ==========================================
       if (pathname === '/api/themes' && method === 'GET') {
         const auth = await authenticateWorkerRequest(request, env, cors);

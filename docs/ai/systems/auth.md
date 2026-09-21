@@ -54,8 +54,8 @@ interface AppJWTPayload {
 ```
 
 ### Token Storage & Transport
-- **Storage**: The token is stored in the browser's `localStorage` under the key `'app_token'`.
-- **Legacy Fallback**: `apiFetch` in `src/lib/api.ts` also checks `localStorage.getItem('durian_app_token')` as a migration fallback.
+- **Storage**: The token is stored in the browser's `localStorage` exclusively under the key `'app_token'`.
+- **Clean Migration**: `src/lib/api.ts` runs a one-time migration (`migrateLegacyAppToken`) that copies any existing `durian_app_token` to `'app_token'` if absent and immediately deletes the obsolete key.
 - **Request Transport**: Sent via the standard HTTP Authorization header:
   `Authorization: Bearer <app_token>`
 

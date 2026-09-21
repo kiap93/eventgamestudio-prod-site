@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { GameTheme, registerThemes, setActiveTheme, normalizeGameTheme, getActiveTheme } from '../themes';
-import { apiFetch } from '../lib/api';
+import { apiFetch, migrateLegacyAppToken } from '../lib/api';
 import { navigateTo } from '../hooks/useRouteContext';
 
 export interface User {
@@ -78,7 +78,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
   const [previousActiveOrg, setPreviousActiveOrg] = useState<Organization | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('app_token'));
+  const [token, setToken] = useState<string | null>(() => {
+    migrateLegacyAppToken();
+    return typeof localStorage !== 'undefined' ? localStorage.getItem('app_token') : null;
+  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeGame, setActiveGame] = useState<GameCustomization | null>(null);
   const [themes, setThemes] = useState<GameTheme[]>([]);
@@ -295,6 +298,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } else {
         localStorage.removeItem('app_token');
+        try { localStorage.removeItem('durian_app_token'); } catch {}
         setToken(null);
         setCurrentUser(null);
         setCurrentOrganization(null);
@@ -351,6 +355,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     localStorage.removeItem('app_token');
+    try { localStorage.removeItem('durian_app_token'); } catch {}
     setToken(null);
     setCurrentUser(null);
     setCurrentOrganization(null);

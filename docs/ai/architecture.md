@@ -64,7 +64,7 @@ The frontend is a single-page application built with modern web technologies:
 - **Routing Engine**: Lightweight custom browser-history router implemented in `src/hooks/useRouteContext.ts` and controlled via `navigateTo(url)`. It avoids heavy routing dependencies and operates safely in iframe previews.
 - **State Management**:
   - `AuthContext.tsx`: Global session state, user authentication, active organization switching, and token restoration from `localStorage`.
-  - Local component state + hooks for event lists, theme studio editing, media upload queues, and game states.
+  - Local component state + hooks for event lists, Game Studio theme editing, media upload queues, and game states.
 
 ### Frontend View Modes
 The router (`useRouteContext.ts`) parses the URL path into distinct presentation modes:

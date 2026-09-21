@@ -438,6 +438,8 @@ export async function getPlatformPricingSettings(env?: Record<string, any>): Pro
   return buildSettingsFromData(cached, cached.updated_at, cached.updated_by);
 }
 
+export const getAuthoritativePlatformSettings = getPlatformPricingSettings;
+
 /**
  * Update platform default event pricing configuration and duration pricing rules.
  * Requires Developer Admin authorization.

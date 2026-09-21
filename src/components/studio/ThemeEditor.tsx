@@ -349,7 +349,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
   }
 
   // ============================================================
-  // STANDARD THEME STUDIO EDITOR LAYOUT
+  // STANDARD GAME STUDIO THEME EDITOR LAYOUT
   // ============================================================
   return (
     <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4 space-y-6">

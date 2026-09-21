@@ -146,19 +146,13 @@ export const DeveloperEmailSettings: React.FC = () => {
       }
 
       // Fallback: direct browser navigation with explicit redirect flag
-      const token =
-        localStorage.getItem('app_token') ||
-        localStorage.getItem('durian_app_token') ||
-        '';
+      const token = localStorage.getItem('app_token') || '';
       const baseUrl = getApiBaseUrl();
       const connectUrl = `${baseUrl}/api/email/google/connect?redirect=true${token ? `&token=${encodeURIComponent(token)}` : ''}`;
       window.location.href = connectUrl;
     } catch (err: any) {
       console.warn('apiFetch failed, falling back to direct navigation:', err);
-      const token =
-        localStorage.getItem('app_token') ||
-        localStorage.getItem('durian_app_token') ||
-        '';
+      const token = localStorage.getItem('app_token') || '';
       const baseUrl = getApiBaseUrl();
       const connectUrl = `${baseUrl}/api/email/google/connect?redirect=true${token ? `&token=${encodeURIComponent(token)}` : ''}`;
       window.location.href = connectUrl;
