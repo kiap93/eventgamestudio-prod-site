@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { GameTheme, memoryMatchTheme, reactionTheme, defaultCatchBrandTheme, getDefaultThemeForGameType } from '../../themes';
 import { getDefaultUILayout } from '../../themes/layout';
 import { Sparkles, Copy, Plus, AlertCircle, Check, X, Layers } from 'lucide-react';
@@ -34,17 +34,21 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
     return existingThemes.length > 0 ? existingThemes[0].id : '';
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting || isSubmittingRef.current) return;
+
     if (!themeName.trim()) {
       setErrorMessage('Please enter a theme name');
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -138,6 +142,8 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to create theme');
+    } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -284,7 +290,7 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
             <button
               type="submit"
               disabled={!themeName.trim() || isSubmitting}
-              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 text-xs font-black rounded-xl transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 text-xs font-black rounded-xl transition-all shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>

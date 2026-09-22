@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeCard } from '../studio/ThemeCard';
 import { CreateThemeDialog } from '../studio/CreateThemeDialog';
@@ -62,8 +62,12 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'archived'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [themeToRename, setThemeToRename] = useState<GameTheme | null>(null);
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [showCloneAllModal, setShowCloneAllModal] = useState(false);
   const [isCloningAll, setIsCloningAll] = useState(false);
+  const isCloningAllRef = useRef(false);
+  const [cloningThemeId, setCloningThemeId] = useState<string | null>(null);
+  const cloningThemeRef = useRef<string | null>(null);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // System Themes state for this specific game
@@ -193,6 +197,10 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
   };
 
   const handleCloneSystemTheme = async (sysTheme: GameTheme) => {
+    if (cloningThemeRef.current || isCloningAll) return;
+    cloningThemeRef.current = sysTheme.id;
+    setCloningThemeId(sysTheme.id);
+
     try {
       const cloned = await cloneSystemTheme(sysTheme.id, undefined, game.id);
       showNotification('success', `Theme "${cloned.name}" cloned to My Themes!`);
@@ -200,6 +208,9 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
       setActiveTab('my-themes');
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to clone system theme');
+    } finally {
+      cloningThemeRef.current = null;
+      setCloningThemeId(null);
     }
   };
 
@@ -208,7 +219,10 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
       showNotification('error', 'No game selected');
       return;
     }
+    if (isCloningAll || isCloningAllRef.current) return;
+    isCloningAllRef.current = true;
     setIsCloningAll(true);
+
     try {
       const clonedList = await cloneAllSystemThemes(game.id);
       setShowCloneAllModal(false);
@@ -221,6 +235,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to clone default themes');
     } finally {
+      isCloningAllRef.current = false;
       setIsCloningAll(false);
     }
   };
@@ -511,6 +526,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                     theme={theme}
                     onPlay={(t) => setPlayingTheme(t)}
                     onClone={!isViewer ? () => handleCloneSystemTheme(theme) : undefined}
+                    isCloning={cloningThemeId === theme.id}
                     isSystem={true}
                     isViewer={isViewer}
                   />
@@ -651,7 +667,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                 type="button"
                 onClick={handleConfirmCloneAll}
                 disabled={isCloningAll}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCloningAll ? (
                   <>

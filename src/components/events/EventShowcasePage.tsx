@@ -66,7 +66,9 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
   // Loading & Action states
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [publishing, setPublishing] = useState(false);
+  const publishingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -167,6 +169,8 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
   // Handle Save (Draft or Update)
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (saving || savingRef.current) return null;
+
     const effectiveTitle = (title.trim() || eventData?.name || 'Event Showcase').trim();
     if (!effectiveTitle) {
       setError('Showcase title is required');
@@ -174,11 +178,12 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
     }
     setTitle(effectiveTitle);
 
-    try {
-      setSaving(true);
-      setError(null);
-      setSuccessMsg(null);
+    savingRef.current = true;
+    setSaving(true);
+    setError(null);
+    setSuccessMsg(null);
 
+    try {
       const payload = {
         title: effectiveTitle,
         description: description.trim() || null,
@@ -193,7 +198,6 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
           const eligibility = isEventEligibleForShowcase(eventData);
           if (!eligibility.eligible) {
             setError(eligibility.reason || 'Showcase is only available for completed events.');
-            setSaving(false);
             return null;
           }
         }
@@ -228,16 +232,19 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
       setError(err.message || 'Failed to save showcase');
       return null;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   // Handle Publish / Unpublish
   const handlePublishToggle = async () => {
-    try {
-      setPublishing(true);
-      setError(null);
+    if (publishing || publishingRef.current) return;
+    publishingRef.current = true;
+    setPublishing(true);
+    setError(null);
 
+    try {
       const isPublished = showcase?.status === 'PUBLISHED';
       const endpoint = isPublished
         ? `/api/events/${eventId}/showcase/unpublish`
@@ -281,6 +288,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
       console.error('Publish toggle error:', err);
       setError(err.message || 'Action failed');
     } finally {
+      publishingRef.current = false;
       setPublishing(false);
     }
   };

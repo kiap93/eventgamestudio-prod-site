@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import {
@@ -118,6 +118,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
   // Creation State
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+  const isCreatingEventRef = useRef(false);
   const [creationError, setCreationError] = useState<string | null>(null);
   const [createdEvent, setCreatedEvent] = useState<any | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -133,6 +134,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
   // Payment Execution & Success State
   const [submittingPayment, setSubmittingPayment] = useState(false);
+  const submittingPaymentRef = useRef(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [activatedEvent, setActivatedEvent] = useState<any | null>(null);
 
@@ -141,6 +143,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   const [checkoutSession, setCheckoutSession] = useState<PaymentCheckoutSession | null>(null);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [isSubmittingTopUp, setIsSubmittingTopUp] = useState(false);
+  const isSubmittingTopUpRef = useRef(false);
   const [topUpSuccessNotice, setTopUpSuccessNotice] = useState<string | null>(null);
 
   // Format currency
@@ -345,6 +348,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     e.preventDefault();
     setCreationError(null);
 
+    if (isCreatingEvent || isCreatingEventRef.current) return;
+
     if (!name.trim()) {
       setCreationError('Please enter an event name');
       return;
@@ -378,6 +383,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       setCreationError('The event end date cannot be earlier than the start date. Please select a valid date range.');
       return;
     }
+
+    isCreatingEventRef.current = true;
 
     try {
       setIsCreatingEvent(true);
@@ -416,6 +423,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       console.error('Create event error:', err);
       setCreationError(err.message || 'Failed to create event. Please check your inputs and try again.');
     } finally {
+      isCreatingEventRef.current = false;
       setIsCreatingEvent(false);
     }
   };
@@ -432,6 +440,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   // STEP 2: CONFIRM PAYMENT & ACTIVATE EVENT (SERVER AUTHORITATIVE)
   const handleConfirmPaymentAndActivate = async () => {
     if (!createdEvent) return;
+    if (submittingPayment || submittingPaymentRef.current) return;
+    submittingPaymentRef.current = true;
     setPaymentError(null);
 
     let resolvedMode: PaymentMode = 'FULL_PAID';
@@ -480,6 +490,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       console.error('Payment error:', err);
       setPaymentError(err.message || 'Payment failed. Please try again.');
     } finally {
+      submittingPaymentRef.current = false;
       setSubmittingPayment(false);
     }
   };
@@ -487,6 +498,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   // Top-Up flow for insufficient balance
   const handleStartTopUpFlow = async (amountToTopUp: number) => {
     if (!currentOrganization?.id || amountToTopUp <= 0) return;
+    if (isSubmittingTopUp || isSubmittingTopUpRef.current) return;
+    isSubmittingTopUpRef.current = true;
 
     try {
       setIsSubmittingTopUp(true);
@@ -531,6 +544,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
       console.error('Error starting top-up checkout:', err);
       setPaymentError(err.message || 'Failed to start payment checkout');
     } finally {
+      isSubmittingTopUpRef.current = false;
       setIsSubmittingTopUp(false);
     }
   };

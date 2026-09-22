@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import {
@@ -162,7 +162,13 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
   const shortfall = Math.max(0, amountRequired - availablePaidBalance);
   const isInsufficientBalance = !loadingQuote && !quoteError && wallet !== null && shortfall > 0;
 
+  // Double-click protection refs for immediate synchronous lockout
+  const submittingPaymentRef = useRef(false);
+  const isSubmittingTopUpRef = useRef(false);
+
   const handleConfirmPay = async () => {
+    if (submittingPayment || submittingPaymentRef.current) return;
+    submittingPaymentRef.current = true;
     setPaymentError(null);
     try {
       setSubmittingPayment(true);
@@ -209,6 +215,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
       console.error('Event payment error:', err);
       setPaymentError(err.message || 'Payment processing failed. Please try again.');
     } finally {
+      submittingPaymentRef.current = false;
       setSubmittingPayment(false);
     }
   };
@@ -217,6 +224,8 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
   const handleStartTopUpFlow = async (amountToTopUp: number) => {
     const orgId = event.organization_id || currentOrganization?.id;
     if (!orgId || amountToTopUp <= 0) return;
+    if (isSubmittingTopUp || isSubmittingTopUpRef.current) return;
+    isSubmittingTopUpRef.current = true;
 
     try {
       setIsSubmittingTopUp(true);
@@ -261,6 +270,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
       console.error('Error starting top-up checkout:', err);
       setPaymentError(err.message || 'Failed to start payment checkout');
     } finally {
+      isSubmittingTopUpRef.current = false;
       setIsSubmittingTopUp(false);
     }
   };
@@ -608,7 +618,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                         type="button"
                         disabled={isSubmittingTopUp}
                         onClick={() => handleStartTopUpFlow(shortfall)}
-                        className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                        className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
                       >
                         {isSubmittingTopUp ? (
                           <>

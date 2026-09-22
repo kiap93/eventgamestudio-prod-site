@@ -69,6 +69,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
   const pollingTimerRef = useRef<any>(null);
   const countdownTimerRef = useRef<any>(null);
+  const isSubmittingOrderRef = useRef<boolean>(false);
+  const isProcessingPaymentRef = useRef<boolean>(false);
 
   const currencyCode = wallet?.currency || 'MYR';
 
@@ -280,6 +282,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
       setQuoteError('Please enter a valid top-up amount greater than 0');
       return;
     }
+    if (isSubmittingOrder || isSubmittingOrderRef.current) return;
+    isSubmittingOrderRef.current = true;
 
     try {
       setIsSubmittingOrder(true);
@@ -331,6 +335,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
       console.error('Payment initialization error:', err);
       setQuoteError(err.message || 'Failed to start payment flow');
     } finally {
+      isSubmittingOrderRef.current = false;
       setIsSubmittingOrder(false);
     }
   };
@@ -371,6 +376,8 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
 
   const handleSimulatePaymentCompletion = async (statusToTrigger: 'payment.succeeded' | 'payment.failed') => {
     if (!currentOrganization?.id || !activeOrder?.id) return;
+    if (isProcessingPayment || isProcessingPaymentRef.current) return;
+    isProcessingPaymentRef.current = true;
 
     try {
       if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
@@ -403,6 +410,7 @@ export const TopUpPage: React.FC<TopUpPageProps> = ({ onBackToWallet, onNavigate
       console.error('Payment simulation error:', err);
       setPaymentError(err.message || 'Payment processing error');
     } finally {
+      isProcessingPaymentRef.current = false;
       setIsProcessingPayment(false);
     }
   };

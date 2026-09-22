@@ -15,6 +15,7 @@ import {
   Play,
   ShieldCheck,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 
 interface ThemeCardProps {
@@ -25,6 +26,7 @@ interface ThemeCardProps {
   onDuplicate?: (themeId: string) => void;
   onDelete?: (themeId: string) => void;
   onClone?: (theme: GameTheme) => void;
+  isCloning?: boolean;
   isSystem?: boolean;
   isViewer?: boolean;
   isOnlyTheme?: boolean;
@@ -38,6 +40,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
   onDuplicate,
   onDelete,
   onClone,
+  isCloning = false,
   isSystem,
   isViewer = false,
   isOnlyTheme = false,
@@ -388,13 +391,26 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
 
               <button
                 type="button"
-                onClick={() => onClone?.(theme)}
-                disabled={isViewer}
-                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-black text-xs rounded-xl transition-all shadow-md shadow-amber-500/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                onClick={() => {
+                  if (!isCloning && !isViewer) {
+                    onClone?.(theme);
+                  }
+                }}
+                disabled={isViewer || isCloning}
+                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-black text-xs rounded-xl transition-all shadow-md shadow-amber-500/10 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Clone this system theme into your organization"
               >
-                <Copy className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Clone</span>
+                {isCloning ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Cloning...</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Clone</span>
+                  </>
+                )}
               </button>
             </>
           ) : (

@@ -43,6 +43,7 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
   const isDevAdmin = Boolean(import.meta.env.DEV && currentUser?.is_developer);
 
   const pollingTimerRef = useRef<any>(null);
+  const isProcessingRef = useRef<boolean>(false);
 
   useEffect(() => {
     return () => {
@@ -131,6 +132,8 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
     statusToTrigger: 'payment.succeeded' | 'payment.failed' | 'checkout.session.expired'
   ) => {
     if (!organizationId || !order?.id) return;
+    if (isProcessingPayment || isProcessingRef.current) return;
+    isProcessingRef.current = true;
 
     try {
       setIsProcessingPayment(true);
@@ -161,6 +164,8 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({
     } catch (err: any) {
       console.error('Payment simulation error:', err);
       setPaymentError(err.message || 'Payment processing error');
+    } finally {
+      isProcessingRef.current = false;
       setIsProcessingPayment(false);
     }
   };
