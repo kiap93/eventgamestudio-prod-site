@@ -12,6 +12,11 @@ import {
 import { soundManager } from '../../game/systems/SoundManager';
 import { MemoryMatchGame } from '../../games/memory-match/MemoryMatchGame';
 import { ReactionGame } from '../../games/reaction-time/ReactionGame';
+import { ScaledGameStage } from './ScaledGameStage';
+import {
+  REACTION_GAME_DESIGN_WIDTH,
+  REACTION_GAME_DESIGN_HEIGHT,
+} from '../../games/reaction-time/types';
 import {
   GameLayoutConfig,
   LayoutElementKey,
@@ -1443,21 +1448,34 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         )}
 
         {isReaction ? (
-          /* REACTION GAME LIVE SIMULATION */
-          <ReactionGame
-            key={`sim-rx-${theme.id}-${restartKey}-${responsive.isPortrait ? 'portrait' : 'landscape'}`}
+          /* REACTION GAME LIVE SIMULATION - UNIFORMLY SCALED 1024x576 STAGE */
+          <ScaledGameStage
+            id="reaction-game-simulation-stage"
+            designWidth={REACTION_GAME_DESIGN_WIDTH}
+            designHeight={REACTION_GAME_DESIGN_HEIGHT}
+            scale={responsive.uiScale}
+            viewportWidth={responsive.width}
+            viewportHeight={responsive.height}
             className="w-full h-full relative z-10"
-            activeTheme={theme}
-            config={theme.game_config}
-            isMuted={isMuted}
-            isFullscreen={isFullscreen}
-            isEventPreview={true}
-            isSimulation={false}
-            isInteractive={true}
-            overrideOrientation={responsive.isPortrait ? 'portrait' : 'landscape'}
-            onToggleMute={() => setIsMuted(!isMuted)}
-            onToggleFullscreen={handleToggleFullscreen}
-          />
+          >
+            <ReactionGame
+              key={`sim-rx-${theme.id}-${restartKey}-${responsive.isPortrait ? 'portrait' : 'landscape'}`}
+              className="w-full h-full"
+              activeTheme={theme}
+              config={theme.game_config}
+              isMuted={isMuted}
+              isFullscreen={isFullscreen}
+              isEventPreview={true}
+              isSimulation={false}
+              isInteractive={true}
+              stageScale={responsive.uiScale}
+              stageWidth={REACTION_GAME_DESIGN_WIDTH}
+              stageHeight={REACTION_GAME_DESIGN_HEIGHT}
+              overrideOrientation={responsive.isPortrait ? 'portrait' : 'landscape'}
+              onToggleMute={() => setIsMuted(!isMuted)}
+              onToggleFullscreen={handleToggleFullscreen}
+            />
+          </ScaledGameStage>
         ) : isMemoryMatch ? (
           /* MEMORY MATCH LIVE GAME SIMULATION - TRUE PROPORTIONAL SCALING */
           <MemoryMatchGame

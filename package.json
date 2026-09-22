@@ -11,6 +11,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "test:reaction-scaling": "bun src/components/studio/ScaledGameStage.test.ts",
+    "test:responsive": "bun src/themes/responsive.test.ts",
     "test:sizing": "tsx src/themes/itemSizing.test.ts",
     "test:flow": "tsx server/db/event_payment_flow.test.ts",
     "test:cors": "tsx server/cors.test.ts",

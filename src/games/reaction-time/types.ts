@@ -1,6 +1,10 @@
 import { BaseGameConfig } from '../types';
 import { ResultScreenConfig, generateDefaultReactionResultScreenElements } from '../shared/resultScreenTypes';
 import { StartScreenConfig } from '../shared/startScreenTypes';
+import { LANDSCAPE_DESIGN_WIDTH, LANDSCAPE_DESIGN_HEIGHT } from '../../themes/responsive';
+
+export const REACTION_GAME_DESIGN_WIDTH = LANDSCAPE_DESIGN_WIDTH; // 1024
+export const REACTION_GAME_DESIGN_HEIGHT = LANDSCAPE_DESIGN_HEIGHT; // 576
 
 export interface ReactionScreensConfig {
   start?: StartScreenConfig;

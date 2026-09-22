@@ -23,6 +23,8 @@ import {
   ReactionRoundResult,
   DEFAULT_REACTION_CONFIG,
   getReactionRating,
+  REACTION_GAME_DESIGN_WIDTH,
+  REACTION_GAME_DESIGN_HEIGHT,
 } from './types';
 import { reactionSounds } from './reactionSounds';
 import { ResultScreenRenderer } from '../shared/ResultScreenRenderer';
@@ -36,6 +38,9 @@ export interface ReactionGameProps extends GameComponentProps<ReactionGameConfig
   isSimulation?: boolean;
   isInteractive?: boolean;
   className?: string;
+  stageWidth?: number;
+  stageHeight?: number;
+  stageScale?: number;
 }
 
 export const ReactionGame: React.FC<ReactionGameProps> = ({
@@ -52,6 +57,9 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
   isMuted = false,
   isFullscreen = false,
   className = '',
+  stageWidth = REACTION_GAME_DESIGN_WIDTH,
+  stageHeight = REACTION_GAME_DESIGN_HEIGHT,
+  stageScale,
   onToggleFullscreen,
   onToggleMute,
   onGameStateChange,
@@ -114,7 +122,33 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
   const roundAdvanceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const orientationPreference = activeTheme?.layout?.orientation || 'auto';
-  const responsive = useResponsiveLayout(containerRef, orientationPreference, overrideOrientation);
+  // Fallback responsive hook only if stageScale is not passed by parent container
+  const fallbackResponsive = useResponsiveLayout(containerRef, orientationPreference, overrideOrientation);
+
+  const effectiveScale = stageScale ?? fallbackResponsive.uiScale;
+  const effectiveDesignWidth = stageWidth ?? REACTION_GAME_DESIGN_WIDTH;
+  const effectiveDesignHeight = stageHeight ?? REACTION_GAME_DESIGN_HEIGHT;
+  const isPortrait = overrideOrientation === 'portrait' || (!stageScale && fallbackResponsive.isPortrait);
+
+  const responsive = useMemo(() => {
+    if (stageScale !== undefined) {
+      return {
+        width: effectiveDesignWidth,
+        height: effectiveDesignHeight,
+        stageWidth: effectiveDesignWidth,
+        stageHeight: effectiveDesignHeight,
+        aspectRatio: effectiveDesignWidth / effectiveDesignHeight,
+        orientation: (isPortrait ? 'portrait' : 'landscape') as 'portrait' | 'landscape',
+        isPortrait,
+        isLandscape: !isPortrait,
+        uiScale: effectiveScale,
+        designWidth: effectiveDesignWidth,
+        designHeight: effectiveDesignHeight,
+        safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+      };
+    }
+    return fallbackResponsive;
+  }, [stageScale, effectiveDesignWidth, effectiveDesignHeight, effectiveScale, isPortrait, fallbackResponsive]);
 
   // Fetch leaderboard data
   const fetchLeaderboard = useCallback(async () => {
@@ -541,7 +575,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
     reactionConfig.lightShape === 'rounded'
       ? 'rounded-2xl'
       : reactionConfig.lightShape === 'pill'
-      ? 'rounded-full h-16 w-10 sm:h-24 sm:w-14'
+      ? 'rounded-full h-24 w-14'
       : 'rounded-full';
 
   return (
@@ -554,7 +588,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
           handleUserTrigger();
         }
       }}
-      className="relative w-full h-full select-none overflow-hidden flex flex-col justify-between items-center cursor-pointer font-sans"
+      className={`relative w-full h-full select-none overflow-hidden flex flex-col justify-between items-center cursor-pointer font-sans ${className}`}
       style={{
         ...bgStyle,
         touchAction: 'manipulation',
@@ -574,16 +608,16 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
         }`}
       />
 
-      {/* Top Header / Status Bar */}
+      {/* Top Header / Status Bar - Fixed logical sizing for 1024x576 */}
       <div
-        className="w-full px-4 sm:px-6 pt-3 sm:pt-4 flex items-center justify-between z-20 shrink-0"
+        className="w-full px-6 pt-4 flex items-center justify-between z-20 shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Left: Branding & Round Counter */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-slate-900/80 backdrop-blur-md border border-slate-800 px-3 py-1.5 rounded-xl shadow-lg">
             <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
-            <span className="font-mono font-bold text-xs sm:text-sm tracking-wider text-slate-200 uppercase">
+            <span className="font-mono font-bold text-sm tracking-wider text-slate-200 uppercase">
               {activeTheme?.branding?.gameTitle || 'REFLEX SPEED'}
             </span>
           </div>
@@ -599,7 +633,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
         {/* Right: Controls & Best Time Chip */}
         <div className="flex items-center gap-2">
           {stats.bestMs > 0 && (
-            <div className="hidden sm:flex items-center gap-1.5 bg-emerald-950/70 border border-emerald-500/40 px-3 py-1.5 rounded-xl font-mono text-xs text-emerald-400">
+            <div className="flex items-center gap-1.5 bg-emerald-950/70 border border-emerald-500/40 px-3 py-1.5 rounded-xl font-mono text-xs text-emerald-400">
               <Trophy className="w-3.5 h-3.5 text-emerald-400" />
               <span>BEST:</span>
               <span className="font-bold">{stats.bestMs}ms</span>
@@ -630,8 +664,8 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
 
       {/* Main Center Stage: Formula 1 Start Lights Gantry & Action Indicators */}
       <div className="flex-1 w-full max-w-3xl flex flex-col items-center justify-center px-4 z-10">
-        {/* The Light Gantry Housing */}
-        <div className="relative bg-gradient-to-b from-slate-900 via-slate-950 to-black border-2 sm:border-4 border-slate-800 rounded-3xl p-4 sm:p-7 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col items-center gap-4 sm:gap-6 w-full max-w-2xl">
+        {/* The Light Gantry Housing - Fixed logical dimensions */}
+        <div className="relative bg-gradient-to-b from-slate-900 via-slate-950 to-black border-4 border-slate-800 rounded-3xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col items-center gap-5 w-full max-w-2xl">
           {/* Top Carbon Fiber Mount Detailing */}
           <div className="flex items-center justify-between w-full px-2 border-b border-slate-800/80 pb-2.5">
             <div className="flex items-center gap-1.5">
@@ -649,8 +683,8 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
             </div>
           </div>
 
-          {/* Lights Array */}
-          <div className="flex items-center justify-center gap-3 sm:gap-6 w-full py-2 sm:py-4">
+          {/* Lights Array - Logically 80px x 80px lights */}
+          <div className="flex items-center justify-center gap-6 w-full py-3">
             {Array.from({ length: reactionConfig.lightCount }).map((_, idx) => {
               const isLightActive =
                 gameState === 'GO'
@@ -669,12 +703,12 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
                   key={idx}
                   className="flex flex-col items-center gap-2 relative group"
                 >
-                  {/* Visor / Light Hood */}
-                  <div className="w-12 sm:w-20 h-2 sm:h-3.5 bg-slate-800 rounded-t-lg -mb-1 shadow-md border-t border-slate-700" />
+                  {/* Visor / Light Hood - Logically 80px x 14px */}
+                  <div className="w-20 h-3.5 bg-slate-800 rounded-t-lg -mb-1 shadow-md border-t border-slate-700" />
 
-                  {/* Bulb Enclosure */}
+                  {/* Bulb Enclosure - Logically 80px x 80px */}
                   <div
-                    className={`w-12 h-12 sm:w-20 sm:h-20 ${lightShapeClasses} flex items-center justify-center p-1.5 border-2 sm:border-4 transition-all duration-100 ${
+                    className={`w-20 h-20 ${lightShapeClasses} flex items-center justify-center p-1.5 border-4 transition-all duration-100 ${
                       isLightActive
                         ? 'border-white/50'
                         : 'border-slate-800 shadow-inner'
@@ -700,11 +734,11 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
             })}
           </div>
 
-          {/* Gantry Subtitle / Status Text */}
+          {/* Gantry Subtitle / Status Text - Fixed logical typography */}
           <div className="w-full text-center">
             {gameState === 'IDLE' && (
               <div className="flex flex-col items-center gap-2">
-                <span className="text-sm sm:text-base font-bold text-amber-400 tracking-wider uppercase font-mono animate-pulse">
+                <span className="text-base font-bold text-amber-400 tracking-wider uppercase font-mono animate-pulse">
                   {reactionConfig.readyTitle || 'TAP ANYWHERE OR PRESS SPACE TO START'}
                 </span>
                 <span className="text-xs text-slate-400 max-w-md">
@@ -715,19 +749,19 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
             )}
 
             {gameState === 'LIGHT_SEQUENCE' && (
-              <span className="text-sm sm:text-base font-black text-rose-400 tracking-widest uppercase font-mono">
+              <span className="text-base font-black text-rose-400 tracking-widest uppercase font-mono">
                 GET READY...
               </span>
             )}
 
             {gameState === 'RANDOM_WAIT' && (
-              <span className="text-sm sm:text-base font-black text-amber-400 tracking-widest uppercase font-mono animate-pulse">
+              <span className="text-base font-black text-amber-400 tracking-widest uppercase font-mono animate-pulse">
                 WAIT FOR LIGHTS OUT...
               </span>
             )}
 
             {gameState === 'GO' && (
-              <span className="text-2xl sm:text-4xl font-black text-emerald-400 tracking-widest uppercase font-mono animate-bounce">
+              <span className="text-4xl font-black text-emerald-400 tracking-widest uppercase font-mono animate-bounce">
                 {reactionConfig.goText || 'GO!'}
               </span>
             )}
@@ -736,7 +770,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
               <div className="flex flex-col items-center gap-1">
                 <div className="flex items-center gap-2 text-rose-400">
                   <AlertTriangle className="w-5 h-5 text-rose-500 animate-bounce" />
-                  <span className="text-lg sm:text-2xl font-black tracking-wider uppercase font-mono">
+                  <span className="text-2xl font-black tracking-wider uppercase font-mono">
                     {falseStartMessage}
                   </span>
                 </div>
@@ -751,7 +785,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
             {gameState === 'ROUND_RESULT' && lastReactionTime !== null && (
               <div className="flex flex-col items-center gap-1 animate-in zoom-in-95 duration-150">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl sm:text-5xl font-black font-mono text-emerald-400">
+                  <span className="text-5xl font-black font-mono text-emerald-400">
                     {lastReactionTime}
                   </span>
                   <span className="text-lg font-mono font-bold text-emerald-500">ms</span>
@@ -765,7 +799,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
         </div>
 
         {/* Round Progress Tracker Chips */}
-        <div className="flex items-center justify-center gap-2 mt-6 flex-wrap">
+        <div className="flex items-center justify-center gap-2 mt-5 flex-wrap">
           {Array.from({ length: reactionConfig.roundsCount }).map((_, idx) => {
             const roundNumber = idx + 1;
             const res = roundResults.find((r) => r.round === roundNumber);
@@ -793,7 +827,7 @@ export const ReactionGame: React.FC<ReactionGameProps> = ({
       </div>
 
       {/* Bottom Footer Hint */}
-      <div className="w-full px-4 pb-4 flex items-center justify-center text-slate-500 text-xs font-mono z-10">
+      <div className="w-full px-6 pb-4 flex items-center justify-center text-slate-500 text-xs font-mono z-10">
         <span>Click, tap, or press [SPACE] to react</span>
       </div>
 
