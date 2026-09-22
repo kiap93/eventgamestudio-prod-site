@@ -14,8 +14,6 @@ import {
   Settings,
   Timer,
   Zap,
-  Palette,
-  Check,
   Megaphone,
   Medal,
   Crown,
@@ -29,7 +27,7 @@ import {
 } from 'lucide-react';
 import { GameState, GameStats, GameSettings, EventLeaderboardEntry } from '../types';
 import { GAME_DURATION_SECONDS } from '../game/config';
-import { GameTheme, THEME_REGISTRY, getActiveTheme, getAllUniqueThemes } from '../themes';
+import { GameTheme } from '../themes';
 import { normalizeGameLayout, GameLayoutConfig } from '../themes/layout';
 import { useResponsiveLayout, getEffectiveGameLayout, ResponsiveLayoutState } from '../themes/responsive';
 import { apiFetch } from '../lib/api';
@@ -63,7 +61,7 @@ interface ArcadeUIProps {
   onUpdateSettings: (newSettings: GameSettings) => void;
   onResetSettings: () => void;
   activeTheme: GameTheme;
-  onSelectTheme: (themeId: string) => void;
+  onSelectTheme?: (themeId: string) => void;
   responsive?: ResponsiveLayoutState;
 }
 
@@ -91,7 +89,6 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   onUpdateSettings,
   onResetSettings,
   activeTheme,
-  onSelectTheme,
   responsive: responsiveProp,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -486,7 +483,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
             <button
               onClick={() => setShowSettingsModal(true)}
               className="p-2.5 rounded-xl bg-[#0f2d18]/90 border-2 border-[#d4e157] hover:border-[#ffee58] text-[#ffee58] shadow-lg transition-all"
-              title="Game Settings & Themes"
+              title="Game Settings"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -517,6 +514,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
               isMuted={isMuted}
               isPaused={gameState === 'PAUSED'}
               isFullscreen={isFullscreen}
+              settingsTooltip="Game Settings"
               onSettingsClick={() => setShowSettingsModal(true)}
               onToggleMute={onToggleMute}
               onPauseResume={gameState === 'PLAYING' ? onPauseGame : onResumeGame}
@@ -1058,7 +1056,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
           </div>
         )}
 
-        {/* ================= SETTINGS & THEME SELECTOR MODAL ================= */}
+        {/* ================= GAME SETTINGS MODAL ================= */}
         {showSettingsModal && (
           <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md pointer-events-auto flex items-center justify-center p-3 sm:p-4 z-50">
             <div className="max-w-md w-full bg-slate-900 border-2 border-amber-500/80 rounded-2xl p-5 sm:p-6 shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto text-slate-100">
@@ -1067,7 +1065,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                 <div className="flex items-center gap-2">
                   <Settings className="w-5 h-5 text-amber-400" />
                   <h3 className="text-xl font-black text-amber-400 tracking-wider">
-                    SETTINGS & THEMES
+                    GAME SETTINGS
                   </h3>
                 </div>
                 <button
@@ -1081,47 +1079,6 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
 
               {/* Options */}
               <div className="space-y-4 text-xs sm:text-sm">
-                {/* THEME SELECTOR */}
-                <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
-                  <div className="flex justify-between items-center font-bold">
-                    <span className="text-slate-200 flex items-center gap-2">
-                      <Palette className="w-4 h-4 text-amber-400" /> Select Game Theme
-                    </span>
-                    <span className="text-amber-400 font-mono font-bold text-xs uppercase bg-amber-950 border border-amber-500/40 px-2 py-0.5 rounded-full">
-                      {activeTheme.name}
-                    </span>
-                  </div>
-
-                  <div className="flex gap-3 overflow-x-auto pb-2 mt-2 [scrollbar-width:thin] [scrollbar-color:rgba(100,116,139,0.5)_transparent] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-slate-950 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full">
-                    {getAllUniqueThemes().map((t) => {
-                      const isSelected = t.id === activeTheme.id;
-                      return (
-                        <button
-                          key={t.id}
-                          onClick={() => onSelectTheme(t.id)}
-                          className={`min-w-[240px] sm:min-w-[260px] flex-shrink-0 p-2.5 rounded-lg border text-left transition-all flex items-center justify-between ${
-                            isSelected
-                              ? 'bg-amber-500/20 border-amber-400 text-amber-200'
-                              : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-800/80'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 overflow-hidden">
-                            <div className="w-7 h-7 rounded-full bg-slate-950 border border-slate-700 flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
-                              <img src={t.fallingObject} alt={t.name} className="w-full h-full object-contain" />
-                            </div>
-                            <div className="truncate">
-                              <div className="font-bold text-xs leading-tight truncate">{t.name}</div>
-                              <div className="text-[10px] text-slate-400 truncate">{t.gameTitle}</div>
-                            </div>
-                          </div>
-
-                          {isSelected && <Check className="w-4 h-4 text-amber-400 shrink-0 ml-2" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
                 {/* MASTER VOLUME */}
                 <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2">
                   <div className="flex justify-between items-center font-bold">

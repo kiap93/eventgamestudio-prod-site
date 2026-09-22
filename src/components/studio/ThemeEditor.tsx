@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { GameTheme, getThemeGameType, isMemoryMatchTheme, isReactionTheme } from '../../themes';
+import { deepEqual } from '../../lib/deepEqual';
 import { LiveThemePreview } from './LiveThemePreview';
 import { VisualsTab } from './VisualsTab';
 import { ItemsTab } from './ItemsTab';
@@ -138,17 +139,31 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [uploadingAsset, setUploadingAsset] = useState<string | null>(null);
+  const [hasCompletedOnboardingSave, setHasCompletedOnboardingSave] = useState(false);
 
   // Unsaved changes confirmation dialog
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
 
+  // Ref tracking current draft for in-flight save comparison (Scenario 8)
+  const draftThemeRef = useRef<GameTheme | null>(draftTheme);
+  draftThemeRef.current = draftTheme;
+
+  // Ref tracking loaded theme ID to prevent context updates from overriding dirty state
+  const loadedThemeIdRef = useRef<string | null>(null);
+
   // Initialize or fetch theme
   useEffect(() => {
+    // Only load if we haven't loaded this themeId yet
+    if (loadedThemeIdRef.current === themeId && draftTheme) {
+      return;
+    }
+
     const found = themes.find((t) => t.id === themeId);
     if (found) {
       const cloned = JSON.parse(JSON.stringify(found));
       setDraftTheme(cloned);
       setSavedThemeSnapshot(cloned);
+      loadedThemeIdRef.current = themeId;
     } else {
       // If themes list is empty or not yet loaded, fetch
       fetchThemes().then((list) => {
@@ -157,15 +172,16 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
           const cloned = JSON.parse(JSON.stringify(t));
           setDraftTheme(cloned);
           setSavedThemeSnapshot(cloned);
+          loadedThemeIdRef.current = themeId;
         }
       });
     }
-  }, [themeId, themes]);
+  }, [themeId, themes, draftTheme]);
 
   // Determine if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
     if (!draftTheme || !savedThemeSnapshot) return false;
-    return JSON.stringify(draftTheme) !== JSON.stringify(savedThemeSnapshot);
+    return !deepEqual(draftTheme, savedThemeSnapshot);
   }, [draftTheme, savedThemeSnapshot]);
 
   // Handle Back to Themes with unsaved changes guard
@@ -177,36 +193,65 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
     }
   };
 
+  // Safe theme change dispatcher for all tabs and customizers
+  const handleThemeChange = useCallback((updated: GameTheme | ((prev: GameTheme | null) => GameTheme | null)) => {
+    setDraftTheme((prev) => {
+      const next = typeof updated === 'function' ? (updated as any)(prev) : updated;
+      return next;
+    });
+    setErrorMessage(null);
+  }, []);
+
   // Reset Draft
   const handleResetDraft = () => {
     if (!savedThemeSnapshot) return;
     setDraftTheme(JSON.parse(JSON.stringify(savedThemeSnapshot)));
     setErrorMessage(null);
+    setSaveSuccess(false);
   };
 
   // Save Theme to Supabase
   const handleSaveTheme = async () => {
-    if (!draftTheme || isViewer) return;
+    if (!draftTheme || isViewer || saving) return;
+
+    // Capture exact snapshot being submitted
+    const themeBeingSaved = JSON.parse(JSON.stringify(draftTheme));
+
     setSaving(true);
     setErrorMessage(null);
     setSaveSuccess(false);
 
     try {
-      const updated = await updateTheme(draftTheme.id, draftTheme);
-      const cloned = JSON.parse(JSON.stringify(updated));
-      setDraftTheme(cloned);
-      setSavedThemeSnapshot(cloned);
-      setSaveSuccess(true);
+      const updated = await updateTheme(themeBeingSaved.id, themeBeingSaved);
+      const clonedSaved = JSON.parse(JSON.stringify(updated));
+
+      // Update saved baseline to what server persisted
+      setSavedThemeSnapshot(clonedSaved);
+
+      // Check if user made additional changes while save was in-flight (Scenario 8)
+      const currentDraft = draftThemeRef.current;
+      if (currentDraft && deepEqual(currentDraft, themeBeingSaved)) {
+        // No changes occurred during save
+        setDraftTheme(clonedSaved);
+        setSaveSuccess(true);
+      } else {
+        // Newer unsaved changes were made during in-flight save!
+        // Keep currentDraft in draftTheme so user's work is preserved.
+        setSaveSuccess(false);
+      }
+
       await fetchThemes();
 
       // If user is in the mandatory onboarding theme setup flow, seamlessly guide them to create their first event
       if (isFlowOnboarding) {
+        setHasCompletedOnboardingSave(true);
         setTimeout(() => {
           navigateTo('/events?create=true');
         }, 1200);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to save theme');
+      setSaveSuccess(false);
     } finally {
       setSaving(false);
     }
@@ -435,25 +480,27 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
 
           {/* PRIMARY ACTION: SAVE THEME */}
           {(() => {
-            const canSave =
-              hasUnsavedChanges ||
-              isFlowOnboarding ||
-              draftTheme?.game_config?.is_onboarding_draft === true ||
-              draftTheme?.status === 'draft';
+            const isOnboardingInitial = isFlowOnboarding && !hasCompletedOnboardingSave;
+            const canSave = hasUnsavedChanges || isOnboardingInitial;
+            const isSaved = !hasUnsavedChanges && !isOnboardingInitial;
+
             return (
               <button
                 type="button"
+                id="theme-editor-save-button"
                 onClick={handleSaveTheme}
                 disabled={saving || isViewer || !canSave}
                 className={`px-5 py-2.5 rounded-xl font-black text-xs shadow-xl transition-all flex items-center gap-2 ${
-                  canSave
+                  saving
+                    ? 'bg-amber-600/80 text-slate-950 cursor-wait'
+                    : canSave
                     ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 active:scale-95 ring-2 ring-amber-400/30 cursor-pointer'
                     : 'bg-slate-800 text-slate-400 border border-slate-700 cursor-default'
                 }`}
               >
                 {saving ? (
                   <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                ) : saveSuccess ? (
+                ) : isSaved ? (
                   <Check className="w-4 h-4 text-emerald-400" />
                 ) : (
                   <Save className="w-4 h-4" />
@@ -461,7 +508,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
                 <span>
                   {saving
                     ? 'Saving...'
-                    : saveSuccess
+                    : isSaved
                     ? isFlowOnboarding
                       ? 'Saved! Unlocking Event...'
                       : 'Saved!'
@@ -487,7 +534,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               </span>
             </div>
           </div>
-          {saveSuccess ? (
+          {saveSuccess && !hasUnsavedChanges ? (
             <span className="font-bold text-emerald-400 shrink-0 flex items-center gap-1.5 animate-pulse">
               <Check className="w-4 h-4 text-emerald-400" />
               Theme setup complete! Redirecting to create event...
@@ -501,7 +548,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
       )}
 
       {/* Error / Success Notifications */}
-      {saveSuccess && (
+      {saveSuccess && !hasUnsavedChanges && (
         <div className="bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 p-4 sm:p-5 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="flex items-center gap-3.5">
             <div className="p-2.5 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shrink-0">
@@ -655,7 +702,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             {activeTab === 'visuals' && (
               <VisualsTab
                 theme={draftTheme}
-                onChange={setDraftTheme}
+                onChange={handleThemeChange}
                 onUploadAsset={handleUploadAssetFile}
                 uploadingAsset={uploadingAsset}
               />
@@ -664,7 +711,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             {activeTab === 'items' && (
               <ItemsTab
                 theme={draftTheme}
-                onChange={setDraftTheme}
+                onChange={handleThemeChange}
                 onUploadAsset={handleUploadAssetFile}
                 uploadingAsset={uploadingAsset}
               />
@@ -673,21 +720,21 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             {activeTab === 'gameplay' && (
               <GameplayTab
                 theme={draftTheme}
-                onChange={setDraftTheme}
+                onChange={handleThemeChange}
               />
             )}
 
             {activeTab === 'audio' && (
               <AudioTab
                 theme={draftTheme}
-                onChange={setDraftTheme}
+                onChange={handleThemeChange}
               />
             )}
 
             {activeTab === 'branding' && (
               <BrandingTab
                 theme={draftTheme}
-                onChange={setDraftTheme}
+                onChange={handleThemeChange}
                 onUploadAsset={handleUploadAssetFile}
                 uploadingAsset={uploadingAsset}
               />
@@ -696,7 +743,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             {activeTab === 'layout' && (
               <LayoutTab
                 theme={draftTheme}
-                onChange={setDraftTheme}
+                onChange={handleThemeChange}
                 selectedElementKey={selectedLayoutElement}
                 onSelectElementKey={setSelectedLayoutElement}
               />
@@ -705,7 +752,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             {activeTab === 'screens' && (
               <ScreensTab
                 theme={draftTheme}
-                onChange={setDraftTheme}
+                onChange={handleThemeChange}
                 onUploadAsset={handleUploadAssetFile}
                 uploadingAsset={uploadingAsset}
               />
@@ -725,7 +772,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             onSelectElementKey={setSelectedLayoutElement}
             onPlayLiveGame={() => setIsPlayingLiveGame(true)}
             onUpdateLayout={(newLayoutOrUpdater) => {
-              setDraftTheme((prev) => {
+              handleThemeChange((prev) => {
                 if (!prev) return prev;
                 const currentLayout = prev.layout || getDefaultUILayout(getThemeGameType(prev));
                 const nextLayout =

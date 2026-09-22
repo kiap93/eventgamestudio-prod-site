@@ -9,7 +9,7 @@ import {
   DEFAULT_GAME_SETTINGS,
   saveGameSettings,
 } from '../../game/settings';
-import { GameTheme, setActiveThemeId, setActiveTheme as setRegistryActiveTheme } from '../../themes';
+import { GameTheme, setActiveTheme as setRegistryActiveTheme } from '../../themes';
 import { useResponsiveLayout } from '../../themes/responsive';
 import { GameComponentProps, CatchBrandConfig } from '../types';
 
@@ -248,15 +248,6 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
     handleUpdateSettings(DEFAULT_GAME_SETTINGS);
   };
 
-  // Theme selection handler
-  const handleSelectTheme = (themeId: string) => {
-    const updatedTheme = setActiveThemeId(themeId);
-    setActiveThemeState(updatedTheme);
-    if (sceneRef.current) {
-      sceneRef.current.refreshTheme();
-    }
-  };
-
   // UI Button Actions
   const handleStartGame = () => {
     if (sceneRef.current) {
@@ -380,7 +371,6 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
           onUpdateSettings={handleUpdateSettings}
           onResetSettings={handleResetSettings}
           activeTheme={activeTheme}
-          onSelectTheme={handleSelectTheme}
           responsive={responsive}
         />
       </div>
