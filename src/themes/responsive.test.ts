@@ -57,17 +57,19 @@ assert(effectiveLandscape.scoreHud?.x === baseLayout.scoreHud?.x, 'returns exact
 assert(effectiveLandscape.scoreHud?.y === baseLayout.scoreHud?.y, 'returns exact base scoreHud y');
 
 const effectivePortrait = getEffectiveGameLayout(baseLayout, true, 'memory-match');
-assert(effectivePortrait.scoreHud?.x === 4, 'Memory match portrait scoreHud x is 4');
-assert(effectivePortrait.scoreHud?.y === 9, 'Memory match portrait scoreHud y is 9');
-assert(effectivePortrait.timer?.x === 52, 'Memory match portrait timer x is 52');
-assert(effectivePortrait.timer?.y === 9, 'Memory match portrait timer y is 9');
+assert(effectivePortrait.scoreHud?.x === 2, 'Memory match portrait scoreHud x is 2');
+assert(effectivePortrait.scoreHud?.y === 2.0, 'Memory match portrait scoreHud y is 2.0');
+assert(effectivePortrait.movesHud?.x === 19.5, 'Memory match portrait movesHud x is 19.5');
+assert(effectivePortrait.pairsHud?.x === 37, 'Memory match portrait pairsHud x is 37');
+assert(effectivePortrait.timer?.x === 54.5, 'Memory match portrait timer x is 54.5');
+assert(effectivePortrait.timer?.y === 2.0, 'Memory match portrait timer y is 2.0');
 assert(effectivePortrait.memoryCardBoard?.x === 50, 'Memory match portrait board x is 50');
-assert(effectivePortrait.memoryCardBoard?.y === 55, 'Memory match portrait board y is 55');
+assert(effectivePortrait.memoryCardBoard?.y === 53, 'Memory match portrait board y is 53');
 
 const catchBase = normalizeGameLayout(undefined, 'catch-brand');
 const effectiveCatch = getEffectiveGameLayout(catchBase, true, 'catch-brand');
 assert(effectiveCatch.scoreHud?.x === 4, 'Catch-brand portrait scoreHud x is 4');
-assert(effectiveCatch.scoreHud?.y === 10, 'Catch-brand portrait scoreHud y is 10');
+assert(effectiveCatch.scoreHud?.y === 9.5, 'Catch-brand portrait scoreHud y is 9.5');
 assert(effectiveCatch.footerSponsor?.y === 94, 'Catch-brand portrait footerSponsor y is 94');
 
 const customThemeLayout: GameLayoutConfig = {
@@ -81,12 +83,19 @@ const effectiveCustom = getEffectiveGameLayout(customThemeLayout, true, 'memory-
 assert(effectiveCustom.scoreHud?.x === 25, 'custom scoreHud x is 25');
 assert(effectiveCustom.timer?.x === 75, 'custom timer x is 75');
 
-// Memory match non-overlapping layout tests
-console.log('\n[Memory Match Non-Overlapping Layout Tests]');
-assert(baseLayout.movesHud?.x === 4, 'Memory match landscape movesHud x is placed on left wing (4)');
-assert(baseLayout.movesHud?.y === 34, 'Memory match landscape movesHud y is placed below score (34)');
-assert(baseLayout.pairsHud?.x === 76, 'Memory match landscape pairsHud x is placed on right wing (76)');
-assert(baseLayout.pairsHud?.y === 34, 'Memory match landscape pairsHud y is placed below timer (34)');
+// Memory match unified status row layout tests
+console.log('\n[Memory Match Unified Status Row Layout Tests]');
+assert(baseLayout.scoreHud?.x === 2.5, 'Memory match landscape scoreHud x is placed first in row (2.5)');
+assert(baseLayout.scoreHud?.y === 2.5, 'Memory match landscape scoreHud y is placed in row 1 (2.5)');
+assert(baseLayout.movesHud?.x === 21, 'Memory match landscape movesHud x is placed second in row (21)');
+assert(baseLayout.movesHud?.y === 2.5, 'Memory match landscape movesHud y is placed in row 1 (2.5)');
+assert(baseLayout.pairsHud?.x === 39.5, 'Memory match landscape pairsHud x is placed third in row (39.5)');
+assert(baseLayout.pairsHud?.y === 2.5, 'Memory match landscape pairsHud y is placed in row 1 (2.5)');
+assert(baseLayout.timer?.x === 58, 'Memory match landscape timer x is placed fourth in row (58)');
+assert(baseLayout.timer?.y === 2.5, 'Memory match landscape timer y is placed in row 1 (2.5)');
+assert(baseLayout.gameTitle?.x === 36, 'Memory match landscape gameTitle x is centered (36)');
+assert(baseLayout.gameTitle?.width === 28, 'Memory match landscape gameTitle width is 28 (center at 50)');
+assert(baseLayout.clientLogo?.visible === false, 'Memory match landscape clientLogo is hidden by default');
 
 // Custom HUD position preservation tests (verifying removal of arbitrary rejection / auto-heal)
 const customHudLayout = normalizeGameLayout(

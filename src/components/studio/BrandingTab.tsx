@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameTheme } from '../../themes/types';
-import { DEFAULT_CATCH_BRAND_LAYOUT } from '../../themes/layout';
+import { getDefaultUILayout } from '../../themes/layout';
 import {
   Palette,
   Upload,
@@ -41,6 +41,9 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
     primaryColor: '#0c2012',
     hudColor: '#c8e038',
   };
+
+  const gameType = theme.game_type || theme.gameType || 'catch-brand';
+  const defaultLayout = getDefaultUILayout(gameType);
 
   const visuals = theme.visuals_config || {
     primaryColor: '#10b981',
@@ -95,7 +98,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
         layout: {
           ...theme.layout,
           clientLogo: {
-            ...(theme.layout?.clientLogo || DEFAULT_CATCH_BRAND_LAYOUT.clientLogo),
+            ...(theme.layout?.clientLogo || defaultLayout.clientLogo),
             visible: true,
           },
         },
@@ -200,7 +203,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                     layout: {
                       ...theme.layout,
                       clientLogo: {
-                        ...(theme.layout?.clientLogo || DEFAULT_CATCH_BRAND_LAYOUT.clientLogo),
+                        ...(theme.layout?.clientLogo || defaultLayout.clientLogo),
                         visible: val ? (theme.layout?.clientLogo?.visible ?? true) : false,
                       },
                     },
@@ -258,7 +261,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                         layout: {
                           ...theme.layout,
                           clientLogo: {
-                            ...(theme.layout?.clientLogo || DEFAULT_CATCH_BRAND_LAYOUT.clientLogo),
+                            ...(theme.layout?.clientLogo || defaultLayout.clientLogo),
                             visible: nextVisible,
                           },
                         },
@@ -305,7 +308,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                       layout: {
                         ...theme.layout,
                         clientLogo: {
-                          ...(theme.layout?.clientLogo || DEFAULT_CATCH_BRAND_LAYOUT.clientLogo),
+                          ...(theme.layout?.clientLogo || defaultLayout.clientLogo),
                           visible: false,
                         },
                       },
