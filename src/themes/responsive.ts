@@ -237,41 +237,42 @@ export const DEFAULT_PORTRAIT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
   orientation: 'auto',
   clientLogo: {
     visible: false,
-    x: 4,
-    y: 3,
-    width: 22,
+    x: 2,
+    y: 6.8,
+    width: 16,
   },
-  // Row 1: Unified status row [SCORE] [MOVES] [TIME] [PAIRS]
+  // Row 1: Unified status row [SCORE] [MOVES] [PAIRS] [TIME]
+  // Strict order: SCORE → MOVES → PAIRS → TIME
   scoreHud: {
     visible: true,
-    x: 3,
+    x: 2,
     y: 2.0,
-    width: 22,
+    width: 16,
   },
   movesHud: {
     visible: true,
-    x: 27,
+    x: 19.5,
     y: 2.0,
-    width: 22,
-  },
-  timer: {
-    visible: true,
-    x: 51,
-    y: 2.0,
-    width: 22,
+    width: 16,
   },
   pairsHud: {
     visible: true,
-    x: 75,
+    x: 37,
     y: 2.0,
-    width: 22,
+    width: 16,
   },
-  // Row 2: Game title centered horizontally underneath status panels
+  timer: {
+    visible: true,
+    x: 54.5,
+    y: 2.0,
+    width: 16,
+  },
+  // Row 2: Game title centered horizontally relative to game canvas
   gameTitle: {
     visible: true,
-    x: 18,
+    x: 20,
     y: 6.8,
-    width: 64,
+    width: 60,
   },
   memoryCardBoard: {
     visible: true,

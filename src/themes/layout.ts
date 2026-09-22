@@ -129,37 +129,40 @@ export const DEFAULT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
 export const DEFAULT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
   clientLogo: {
     visible: false,
-    x: 4,
-    y: 3,
-    width: 14,
+    x: 2.5,
+    y: 8.5,
+    width: 16,
   },
-  // Row 1: Unified status HUD row [SCORE] [MOVES] [TIME] [PAIRS]
-  // Horizontally aligned, evenly distributed, consistent height & styling
+  // ROW 1 — STATUS + CONTROLS: [SCORE] [MOVES] [PAIRS] [TIME] ... [CONTROLS]
+  // Four status panels in one horizontal row, identical height, consistent spacing, compact width
+  // Ordered strictly: SCORE → MOVES → PAIRS → TIME
+  // Upper-right area (~78% to ~98%) remains clear for independent CONTROLS dock
   scoreHud: {
     visible: true,
-    x: 6,
+    x: 2.5,
     y: 2.5,
-    width: 19,
+    width: 16,
   },
   movesHud: {
     visible: true,
-    x: 29,
+    x: 21,
     y: 2.5,
-    width: 19,
-  },
-  timer: {
-    visible: true,
-    x: 52,
-    y: 2.5,
-    width: 19,
+    width: 16,
   },
   pairsHud: {
     visible: true,
-    x: 75,
+    x: 39.5,
     y: 2.5,
-    width: 19,
+    width: 16,
   },
-  // Row 2: Game title centered horizontally directly underneath the status row
+  timer: {
+    visible: true,
+    x: 58,
+    y: 2.5,
+    width: 16,
+  },
+  // ROW 2 — CLIENT LOGO + TITLE: [INVISIBLE CLIENT LOGO] ... [GAME TITLE]
+  // Game title centered horizontally relative to the GAME CANVAS (x: 36, width: 28 -> center at 50%)
   gameTitle: {
     visible: true,
     x: 36,
@@ -383,30 +386,46 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
       const isLegacyDefaultScore =
         key === 'scoreHud' &&
         ((Math.abs(x - 4) < 0.2 && Math.abs(y - 18) < 0.5) ||
-          (Math.abs(x - 3.5) < 0.2 && Math.abs(y - 11) < 0.5));
+          (Math.abs(x - 3.5) < 0.2 && Math.abs(y - 11) < 0.5) ||
+          (Math.abs(x - 6) < 0.2 && Math.abs(y - 2.5) < 0.5) ||
+          (Math.abs(x - 3.5) < 0.2 && Math.abs(y - 3.5) < 0.5));
       const isLegacyDefaultMoves =
         key === 'movesHud' &&
         ((Math.abs(x - 4) < 0.2 && Math.abs(y - 34) < 0.5) ||
-          (Math.abs(x - 3.5) < 0.2 && Math.abs(y - 20.5) < 0.5));
+          (Math.abs(x - 3.5) < 0.2 && Math.abs(y - 20.5) < 0.5) ||
+          (Math.abs(x - 29) < 0.2 && Math.abs(y - 2.5) < 0.5) ||
+          (Math.abs(x - 27.5) < 0.2 && Math.abs(y - 3.5) < 0.5));
       const isLegacyDefaultTimer =
         key === 'timer' &&
         ((Math.abs(x - 76) < 0.5 && Math.abs(y - 18) < 0.5) ||
-          (Math.abs(x - 78.5) < 0.5 && Math.abs(y - 11) < 0.5));
+          (Math.abs(x - 78.5) < 0.5 && Math.abs(y - 11) < 0.5) ||
+          (Math.abs(x - 52) < 0.5 && Math.abs(y - 2.5) < 0.5) ||
+          (Math.abs(x - 51.5) < 0.5 && Math.abs(y - 3.5) < 0.5) ||
+          (Math.abs(x - 75.5) < 0.5 && Math.abs(y - 3.5) < 0.5));
       const isLegacyDefaultPairs =
         key === 'pairsHud' &&
         ((Math.abs(x - 76) < 0.5 && Math.abs(y - 34) < 0.5) ||
-          (Math.abs(x - 78.5) < 0.5 && Math.abs(y - 20.5) < 0.5));
+          (Math.abs(x - 78.5) < 0.5 && Math.abs(y - 20.5) < 0.5) ||
+          (Math.abs(x - 75) < 0.5 && Math.abs(y - 2.5) < 0.5) ||
+          (Math.abs(x - 75.5) < 0.5 && Math.abs(y - 3.5) < 0.5) ||
+          (Math.abs(x - 51.5) < 0.5 && Math.abs(y - 3.5) < 0.5));
       const isLegacyDefaultTitle =
         key === 'gameTitle' &&
         ((Math.abs(x - 34) < 0.5 && Math.abs(y - 3) < 0.5) ||
-          (Math.abs(x - 33) < 0.5 && Math.abs(y - 3) < 0.5));
+          (Math.abs(x - 33) < 0.5 && Math.abs(y - 3) < 0.5) ||
+          (Math.abs(x - 35) < 0.5 && Math.abs(y - 10.5) < 0.5));
+      const isLegacyDefaultLogo =
+        key === 'clientLogo' &&
+        ((Math.abs(x - 4) < 0.5 && Math.abs(y - 3) < 0.5) ||
+          (Math.abs(x - 3.5) < 0.5 && Math.abs(y - 10.5) < 0.5));
 
       if (
         isLegacyDefaultScore ||
         isLegacyDefaultMoves ||
         isLegacyDefaultTimer ||
         isLegacyDefaultPairs ||
-        isLegacyDefaultTitle
+        isLegacyDefaultTitle ||
+        isLegacyDefaultLogo
       ) {
         x = fallback.x;
         y = fallback.y;
