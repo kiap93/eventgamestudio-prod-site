@@ -349,6 +349,9 @@ export function isOperationalError(err: any): boolean {
     code === 'ORGANIZATION_LIMIT_REACHED' ||
     code === 'INSUFFICIENT_BALANCE' ||
     code === 'PRICING_CONFIGURATION_ERROR' ||
+    code === 'OVERLAPPING_PRICING_TIER' ||
+    code === 'AMBIGUOUS_PRICING_TIER' ||
+    code === 'INVALID_DURATION_RANGE' ||
     msg.includes('pending_event_limit_reached') ||
     msg.includes('maximum 2 pending payment events reached') ||
     msg.includes('organization limit') ||
@@ -358,7 +361,12 @@ export function isOperationalError(err: any): boolean {
     msg.includes('insufficient welcome credit') ||
     msg.includes('insufficient top-up credit') ||
     msg.includes('insufficient showcase credit') ||
-    msg.includes('pricing_configuration_error')
+    msg.includes('pricing_configuration_error') ||
+    msg.includes('overlapping_pricing_tier') ||
+    msg.includes('overlaps with existing active tier') ||
+    msg.includes('overlapping active ranges') ||
+    msg.includes('ambiguous_pricing_tier') ||
+    msg.includes('multiple active pricing tiers match duration')
   ) {
     return true;
   }
@@ -480,6 +488,9 @@ export function isOperationalError(err: any): boolean {
     code === 'INVALID_DATE_RANGE' ||
     code === 'EVENT_DATE_PASSED' ||
     code === 'NO_PRICING_TIER' ||
+    code === 'OVERLAPPING_PRICING_TIER' ||
+    code === 'AMBIGUOUS_PRICING_TIER' ||
+    code === 'INVALID_DURATION_RANGE' ||
     code === 'PRICING_CONFIGURATION_ERROR' ||
     code === 'INVALID_EVENT_PRICING' ||
     code === 'NO_ACTIVE_GAME_PRICING' ||

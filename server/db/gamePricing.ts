@@ -314,11 +314,22 @@ export async function resolveGamePrice(
   }
 
   // Find exact tier where min_days <= days and (max_days is null or max_days >= days)
-  const matchedTier = activeTiers.find((t) => {
+  const matchedTiers = activeTiers.filter((t) => {
     if (days < t.min_days) return false;
     if (t.max_days === null || t.max_days === undefined) return true;
     return days <= t.max_days;
   });
+
+  if (matchedTiers.length > 1) {
+    console.error(`Multiple active pricing tiers match duration ${days} days for game ${gameId}:`, matchedTiers);
+    throw {
+      status: 409,
+      code: 'AMBIGUOUS_PRICING_TIER',
+      message: `Multiple active pricing tiers match duration of ${days} days for this game. Overlapping active tiers must be resolved in Developer Settings.`,
+    };
+  }
+
+  const matchedTier = matchedTiers[0];
 
   // Business Rule: If no tier matches or price is invalid, FAIL CLOSED.
   // Never fall back to base tier, largest tier, or default price.
@@ -343,6 +354,53 @@ export async function resolveGamePrice(
 }
 
 /**
+ * Determines whether two duration ranges overlap.
+ * Both ranges are inclusive: [min, max].
+ * If max is null or undefined, the range is unbounded [min, +infinity).
+ */
+export function doPricingRangesOverlap(
+  minA: number,
+  maxA: number | null | undefined,
+  minB: number,
+  maxB: number | null | undefined
+): boolean {
+  const effectiveMaxA = (maxA === null || maxA === undefined) ? Infinity : maxA;
+  const effectiveMaxB = (maxB === null || maxB === undefined) ? Infinity : maxB;
+  return minA <= effectiveMaxB && minB <= effectiveMaxA;
+}
+
+/**
+ * Validates that a proposed pricing tier range does not overlap with any other active tier for the same game.
+ * Throws an OVERLAPPING_PRICING_TIER error (status 409) if an overlap is detected.
+ */
+export async function validateNoOverlappingPricingTier(
+  gameId: string,
+  minDays: number,
+  maxDays: number | null | undefined,
+  excludeTierId?: string,
+  env?: any
+): Promise<void> {
+  const allTiers = await getGamePricing(gameId, env);
+  const activeTiers = allTiers.filter(
+    (t) => t.is_active && (!excludeTierId || t.id !== excludeTierId)
+  );
+
+  const conflicting = activeTiers.find((t) =>
+    doPricingRangesOverlap(minDays, maxDays, t.min_days, t.max_days)
+  );
+
+  if (conflicting) {
+    const newLabel = formatPricingDurationLabel(minDays, maxDays ?? null);
+    const existingLabel = formatPricingDurationLabel(conflicting.min_days, conflicting.max_days);
+    throw {
+      status: 409,
+      code: 'OVERLAPPING_PRICING_TIER',
+      message: `Pricing tier range (${newLabel}) overlaps with existing active tier (${existingLabel}) for this game. Overlapping active ranges are not permitted.`,
+    };
+  }
+}
+
+/**
  * Create a new pricing tier for a game
  */
 export async function createGamePricingTier(
@@ -351,7 +409,18 @@ export async function createGamePricingTier(
   env?: any
 ): Promise<GamePricingRecord> {
   const minDays = Math.max(1, Math.floor(Number(params.min_days) || 1));
-  const maxDays = params.max_days !== null && params.max_days !== undefined ? Math.max(minDays, Math.floor(Number(params.max_days))) : null;
+  let maxDays: number | null = null;
+  if (params.max_days !== null && params.max_days !== undefined) {
+    const parsedMax = Math.floor(Number(params.max_days));
+    if (isNaN(parsedMax) || parsedMax < minDays) {
+      throw {
+        status: 400,
+        code: 'INVALID_DURATION_RANGE',
+        message: 'Maximum days must be greater than or equal to minimum days.',
+      };
+    }
+    maxDays = parsedMax;
+  }
   const price = Number(params.price);
   const currency = String(params.currency || 'MYR').trim().toUpperCase();
   const isActive = params.is_active !== undefined ? Boolean(params.is_active) : true;
@@ -363,6 +432,11 @@ export async function createGamePricingTier(
       code: 'INVALID_PRICE',
       message: 'Price must be a positive number greater than zero.',
     };
+  }
+
+  // Reject overlapping active ranges for the same game
+  if (isActive) {
+    await validateNoOverlappingPricingTier(gameId, minDays, maxDays, undefined, env);
   }
 
   const supabase = getSupabaseServerClient(env);
@@ -391,6 +465,17 @@ export async function createGamePricingTier(
 
     if (error || !data) {
       console.error('Failed to create game pricing tier:', error);
+      if (
+        error?.message &&
+        (error.message.includes('overlaps with existing active tier') ||
+          error.message.includes('OVERLAPPING_PRICING_TIER'))
+      ) {
+        throw {
+          status: 409,
+          code: 'OVERLAPPING_PRICING_TIER',
+          message: error.message.replace(/^.*ERROR:\s*/, '').trim(),
+        };
+      }
       throw {
         status: 500,
         code: 'CREATE_PRICING_FAILED',
@@ -446,37 +531,65 @@ export async function updateGamePricingTier(
   params: UpdateGamePricingParams,
   env?: any
 ): Promise<GamePricingRecord> {
+  const existingTier = await getGamePricingTierById(tierId, env);
+  if (!existingTier) {
+    throw { status: 404, code: 'TIER_NOT_FOUND', message: 'Pricing tier not found.' };
+  }
+
+  const gameId = existingTier.game_id;
+  const targetMinDays = params.min_days !== undefined ? Math.max(1, Math.floor(Number(params.min_days))) : existingTier.min_days;
+  let targetMaxDays = existingTier.max_days;
+  if (params.max_days !== undefined) {
+    if (params.max_days === null) {
+      targetMaxDays = null;
+    } else {
+      const parsedMax = Math.floor(Number(params.max_days));
+      if (isNaN(parsedMax) || parsedMax < targetMinDays) {
+        throw {
+          status: 400,
+          code: 'INVALID_DURATION_RANGE',
+          message: 'Maximum days must be greater than or equal to minimum days.',
+        };
+      }
+      targetMaxDays = parsedMax;
+    }
+  } else if (targetMaxDays !== null && targetMaxDays < targetMinDays) {
+    throw {
+      status: 400,
+      code: 'INVALID_DURATION_RANGE',
+      message: 'Maximum days must be greater than or equal to minimum days.',
+    };
+  }
+
+  const targetIsActive = params.is_active !== undefined ? Boolean(params.is_active) : existingTier.is_active;
+
+  // Reject overlapping active ranges for the same game
+  if (targetIsActive) {
+    await validateNoOverlappingPricingTier(gameId, targetMinDays, targetMaxDays, tierId, env);
+  }
+
   const supabase = getSupabaseServerClient(env);
   if (supabase && isSupabaseConfigured(env)) {
-    // If setting as base, first find the game_id of this tier
+    // If setting as base, unset previous base
     if (params.is_base === true) {
-      const { data: tierData } = await supabase
+      await supabase
         .from('game_pricing')
-        .select('game_id')
-        .eq('id', tierId)
-        .single();
-      if (tierData?.game_id) {
-        await supabase
-          .from('game_pricing')
-          .update({ is_base: false })
-          .eq('game_id', tierData.game_id);
-      }
+        .update({ is_base: false })
+        .eq('game_id', gameId);
     }
 
     const updatePayload: Record<string, any> = {
       updated_at: new Date().toISOString(),
     };
-    if (params.min_days !== undefined) updatePayload.min_days = Math.max(1, Math.floor(Number(params.min_days)));
-    if (params.max_days !== undefined) {
-      updatePayload.max_days = params.max_days === null ? null : Math.max(1, Math.floor(Number(params.max_days)));
-    }
+    if (params.min_days !== undefined) updatePayload.min_days = targetMinDays;
+    if (params.max_days !== undefined) updatePayload.max_days = targetMaxDays;
     if (params.price !== undefined) {
       const p = Number(params.price);
-      if (isNaN(p) || p <= 0) throw { status: 400, message: 'Price must be greater than zero.' };
+      if (isNaN(p) || p <= 0) throw { status: 400, code: 'INVALID_PRICE', message: 'Price must be greater than zero.' };
       updatePayload.price = p;
     }
     if (params.currency !== undefined) updatePayload.currency = String(params.currency).trim().toUpperCase();
-    if (params.is_active !== undefined) updatePayload.is_active = Boolean(params.is_active);
+    if (params.is_active !== undefined) updatePayload.is_active = targetIsActive;
     if (params.is_base !== undefined) updatePayload.is_base = Boolean(params.is_base);
 
     const { data, error } = await supabase
@@ -487,6 +600,17 @@ export async function updateGamePricingTier(
       .single();
 
     if (error || !data) {
+      if (
+        error?.message &&
+        (error.message.includes('overlaps with existing active tier') ||
+          error.message.includes('OVERLAPPING_PRICING_TIER'))
+      ) {
+        throw {
+          status: 409,
+          code: 'OVERLAPPING_PRICING_TIER',
+          message: error.message.replace(/^.*ERROR:\s*/, '').trim(),
+        };
+      }
       throw {
         status: 500,
         code: 'UPDATE_PRICING_FAILED',
@@ -516,11 +640,11 @@ export async function updateGamePricingTier(
       if (params.is_base === true) {
         tiers.forEach((t) => (t.is_base = false));
       }
-      if (params.min_days !== undefined) tier.min_days = Math.max(1, Math.floor(Number(params.min_days)));
-      if (params.max_days !== undefined) tier.max_days = params.max_days;
+      tier.min_days = targetMinDays;
+      tier.max_days = targetMaxDays;
       if (params.price !== undefined) tier.price = Number(params.price);
       if (params.currency !== undefined) tier.currency = String(params.currency).trim().toUpperCase();
-      if (params.is_active !== undefined) tier.is_active = Boolean(params.is_active);
+      tier.is_active = targetIsActive;
       if (params.is_base !== undefined) tier.is_base = Boolean(params.is_base);
       tier.updated_at = new Date().toISOString();
       tiers.sort((a, b) => a.min_days - b.min_days);
@@ -528,7 +652,7 @@ export async function updateGamePricingTier(
     }
   }
 
-  throw { status: 404, message: 'Pricing tier not found.' };
+  throw { status: 404, code: 'TIER_NOT_FOUND', message: 'Pricing tier not found.' };
 }
 
 /**
@@ -632,6 +756,29 @@ export async function bulkUpsertGamePricing(
     throw new Error('Game ID is required for bulk pricing upsert');
   }
 
+  // Pre-validate that incoming active tiers do not overlap among themselves
+  const activeIncoming = tiers.filter((t) => t.is_active !== false);
+  for (let i = 0; i < activeIncoming.length; i++) {
+    for (let j = i + 1; j < activeIncoming.length; j++) {
+      const a = activeIncoming[i];
+      const b = activeIncoming[j];
+      const aMin = Math.max(1, Math.floor(Number(a.min_days) || 1));
+      const aMax = a.max_days !== null && a.max_days !== undefined ? Math.floor(Number(a.max_days)) : null;
+      const bMin = Math.max(1, Math.floor(Number(b.min_days) || 1));
+      const bMax = b.max_days !== null && b.max_days !== undefined ? Math.floor(Number(b.max_days)) : null;
+
+      if (doPricingRangesOverlap(aMin, aMax, bMin, bMax)) {
+        const labelA = formatPricingDurationLabel(aMin, aMax);
+        const labelB = formatPricingDurationLabel(bMin, bMax);
+        throw {
+          status: 409,
+          code: 'OVERLAPPING_PRICING_TIER',
+          message: `Bulk pricing update contains overlapping active ranges: (${labelA}) and (${labelB}). Overlapping active ranges are not permitted.`,
+        };
+      }
+    }
+  }
+
   const results: GamePricingRecord[] = [];
   for (const t of tiers) {
     if (t.id) {
@@ -640,7 +787,10 @@ export async function bulkUpsertGamePricing(
         results.push(updated);
         continue;
       } catch (err: any) {
-        // If not found or failed, fall through to create
+        if (err?.code === 'OVERLAPPING_PRICING_TIER' || err?.status === 409) {
+          throw err;
+        }
+        // If not found or other non-overlap error, fall through to create
       }
     }
     const created = await createGamePricingTier(gameId, t, env);

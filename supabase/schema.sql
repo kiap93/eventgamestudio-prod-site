@@ -4218,6 +4218,7 @@ DECLARE
   v_event_timezone TEXT := p_event_timezone;
   v_pricing_id UUID := p_pricing_id;
   v_duration_days INT := p_duration_days;
+  v_matching_count INT := 0;
   v_resolved_price NUMERIC(10,2) := p_event_price;
   v_resolved_currency TEXT := NULLIF(TRIM(p_event_currency), '');
   v_pricing_record RECORD;
@@ -4438,6 +4439,24 @@ BEGIN
     v_resolved_price := v_pricing_record.price;
     v_resolved_currency := v_pricing_record.currency;
   ELSE
+    -- Check for ambiguous / multiple matching tiers (fails closed)
+    SELECT count(*)
+    INTO v_matching_count
+    FROM public.game_pricing
+    WHERE game_id = v_target_game_id
+      AND is_active = true
+      AND min_days <= v_duration_days
+      AND (max_days IS NULL OR max_days >= v_duration_days);
+
+    IF v_matching_count > 1 THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'AMBIGUOUS_PRICING_TIER',
+        'error', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.',
+        'message', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.'
+      );
+    END IF;
+
     -- Auto-resolve matching active pricing tier for the target game and duration
     SELECT id, game_id, price, currency, is_active, min_days, max_days
     INTO v_pricing_record
@@ -4445,9 +4464,7 @@ BEGIN
     WHERE game_id = v_target_game_id
       AND is_active = true
       AND min_days <= v_duration_days
-      AND (max_days IS NULL OR max_days >= v_duration_days)
-    ORDER BY min_days ASC
-    LIMIT 1;
+      AND (max_days IS NULL OR max_days >= v_duration_days);
 
     IF v_pricing_record.id IS NOT NULL THEN
       v_pricing_id := v_pricing_record.id;
@@ -5204,6 +5221,60 @@ CREATE POLICY "Service role can manage game pricing"
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS pricing_id UUID REFERENCES public.game_pricing(id) ON DELETE SET NULL;
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS duration_days INT;
 CREATE INDEX IF NOT EXISTS idx_events_pricing_id ON public.events(pricing_id);
+
+-- ------------------------------------------------------------------------------
+-- DATABASE TRIGGER: Reject Overlapping Active Game Pricing Tiers
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.validate_game_pricing_overlap()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_conflicting RECORD;
+BEGIN
+  -- Only validate if the row being inserted or updated is active
+  IF NEW.is_active = true THEN
+    IF NEW.min_days < 1 THEN
+      RAISE EXCEPTION 'Minimum days must be an integer >= 1'
+        USING ERRCODE = 'check_violation';
+    END IF;
+
+    IF NEW.max_days IS NOT NULL AND NEW.max_days < NEW.min_days THEN
+      RAISE EXCEPTION 'Maximum days must be greater than or equal to minimum days'
+        USING ERRCODE = 'check_violation';
+    END IF;
+
+    -- Look for any other active pricing tier for the same game that overlaps
+    SELECT id, min_days, max_days, price, currency
+    INTO v_conflicting
+    FROM public.game_pricing
+    WHERE game_id = NEW.game_id
+      AND is_active = true
+      AND (NEW.id IS NULL OR id != NEW.id)
+      AND (
+        NEW.min_days <= COALESCE(max_days, 2147483647)
+        AND min_days <= COALESCE(NEW.max_days, 2147483647)
+      )
+    LIMIT 1;
+
+    IF v_conflicting.id IS NOT NULL THEN
+      RAISE EXCEPTION 'OVERLAPPING_PRICING_TIER: Pricing tier range (%–% days) overlaps with existing active tier (%–% days) for this game.',
+        NEW.min_days,
+        COALESCE(NEW.max_days::text, '+'),
+        v_conflicting.min_days,
+        COALESCE(v_conflicting.max_days::text, '+')
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_validate_game_pricing_overlap ON public.game_pricing;
+CREATE TRIGGER trg_validate_game_pricing_overlap
+  BEFORE INSERT OR UPDATE ON public.game_pricing
+  FOR EACH ROW
+  EXECUTE FUNCTION public.validate_game_pricing_overlap();
+
 
 
 

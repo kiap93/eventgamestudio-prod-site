@@ -196,6 +196,25 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
       return;
     }
 
+    // Client-side overlap validation
+    if (formIsActive) {
+      const formMax = maxD === null ? Infinity : maxD;
+      const conflicting = tiers.find((t) => {
+        if (editingTierId && t.id === editingTierId) return false;
+        if (!t.is_active) return false;
+        const tMax = t.max_days === null || t.max_days === undefined ? Infinity : t.max_days;
+        return minD <= tMax && t.min_days <= formMax;
+      });
+      if (conflicting) {
+        const existingLabel = conflicting.min_days === conflicting.max_days
+          ? `${conflicting.min_days} day`
+          : `${conflicting.min_days}–${conflicting.max_days || '+'} days`;
+        const newLabel = minD === maxD ? `${minD} day` : `${minD}–${maxD || '+'} days`;
+        setError(`Pricing tier range (${newLabel}) overlaps with existing active tier (${existingLabel}). Overlapping active ranges are not permitted.`);
+        return;
+      }
+    }
+
     setSaving(true);
     setError(null);
 
@@ -276,6 +295,27 @@ export const DeveloperGamePricingManager: React.FC<DeveloperGamePricingManagerPr
   };
 
   const handleToggleActive = async (tier: GamePricingTier) => {
+    // If activating an inactive tier, check for overlap with other active tiers
+    if (!tier.is_active) {
+      const tierMax = tier.max_days === null || tier.max_days === undefined ? Infinity : tier.max_days;
+      const conflicting = tiers.find((t) => {
+        if (t.id === tier.id) return false;
+        if (!t.is_active) return false;
+        const otherMax = t.max_days === null || t.max_days === undefined ? Infinity : t.max_days;
+        return tier.min_days <= otherMax && t.min_days <= tierMax;
+      });
+      if (conflicting) {
+        const existingLabel = conflicting.min_days === conflicting.max_days
+          ? `${conflicting.min_days} day`
+          : `${conflicting.min_days}–${conflicting.max_days || '+'} days`;
+        const tierLabel = tier.min_days === tier.max_days
+          ? `${tier.min_days} day`
+          : `${tier.min_days}–${tier.max_days || '+'} days`;
+        setError(`Cannot activate tier (${tierLabel}): it overlaps with existing active tier (${existingLabel}).`);
+        return;
+      }
+    }
+
     setSaving(true);
     setError(null);
     try {
