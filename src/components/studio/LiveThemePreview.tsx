@@ -71,6 +71,8 @@ interface LiveThemePreviewProps {
     newLayout: GameLayoutConfig | ((prev: GameLayoutConfig) => GameLayoutConfig)
   ) => void;
   onPlayLiveGame?: () => void;
+  forcedOrientation?: 'landscape' | 'portrait' | null;
+  onOrientationChange?: (orientation: 'landscape' | 'portrait') => void;
 }
 
 interface SimulatedItem {
@@ -122,6 +124,8 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   onSelectElementKey,
   onUpdateLayout,
   onPlayLiveGame,
+  forcedOrientation,
+  onOrientationChange,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -142,10 +146,19 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
   const orientationPreference: GameOrientation = theme.layout?.orientation || 'auto';
 
+  const effectiveManualOrientation = forcedOrientation !== undefined ? forcedOrientation : manualOrientation;
+
   // Master responsive layout state driven authoritatively by useResponsiveLayout:
   // Priority: Manual Override > Theme Preference > Auto Container Responsive
-  const responsive = useResponsiveLayout(viewportRef, orientationPreference, manualOrientation);
+  const responsive = useResponsiveLayout(viewportRef, orientationPreference, effectiveManualOrientation);
   const effectivePreviewOrientation: EffectiveOrientation = responsive.orientation;
+
+  const handleToggleOrientation = () => {
+    const current = effectiveManualOrientation ?? responsive.orientation;
+    const next = current === 'landscape' ? 'portrait' : 'landscape';
+    setManualOrientation(next);
+    onOrientationChange?.(next);
+  };
   const uiScale = responsive.uiScale;
   const [restartKey, setRestartKey] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -1198,10 +1211,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
               <button
                 type="button"
-                onClick={() => {
-                  const next = (manualOrientation ?? responsive.orientation) === 'landscape' ? 'portrait' : 'landscape';
-                  setManualOrientation(next);
-                }}
+                onClick={handleToggleOrientation}
                 className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60 shrink-0"
                 title={`Switch preview to ${
                   effectivePreviewOrientation === 'landscape'
@@ -1285,10 +1295,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
               <button
                 type="button"
-                onClick={() => {
-                  const next = (manualOrientation ?? responsive.orientation) === 'landscape' ? 'portrait' : 'landscape';
-                  setManualOrientation(next);
-                }}
+                onClick={handleToggleOrientation}
                 className="px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60"
                 title={`Switch preview to ${
                   effectivePreviewOrientation === 'landscape'
@@ -1379,10 +1386,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             </button>
 
             <button
-              onClick={() => {
-                const next = (manualOrientation ?? responsive.orientation) === 'landscape' ? 'portrait' : 'landscape';
-                setManualOrientation(next);
-              }}
+              onClick={handleToggleOrientation}
               className="px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
               title={`Switch preview to ${effectivePreviewOrientation === 'landscape' ? 'Mobile Portrait (9:16)' : 'Landscape (16:9)'}`}
             >

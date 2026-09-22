@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { GameTheme, getThemeGameType, GameOrientation } from '../../themes/types';
 import {
   GameLayoutConfig,
@@ -12,6 +12,7 @@ import {
   getLayoutElementKeys,
   getDefaultUILayout,
 } from '../../themes/layout';
+import { getEditableGameLayout } from '../../themes/responsive';
 import {
   Image,
   Trophy,
@@ -38,6 +39,8 @@ interface LayoutTabProps {
   onChange: (updatedTheme: GameTheme) => void;
   selectedElementKey: LayoutElementKey | null;
   onSelectElementKey: (key: LayoutElementKey) => void;
+  activeOrientation?: 'landscape' | 'portrait';
+  onOrientationChange?: (orientation: 'landscape' | 'portrait') => void;
 }
 
 export const LayoutTab: React.FC<LayoutTabProps> = ({
@@ -45,11 +48,28 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
   onChange,
   selectedElementKey = 'clientLogo',
   onSelectElementKey,
+  activeOrientation: controlledOrientation,
+  onOrientationChange,
 }) => {
   const gameType = getThemeGameType(theme);
   const elementKeys = getLayoutElementKeys(gameType);
   const defaultLayout = getDefaultUILayout(gameType);
-  const layout: GameLayoutConfig = normalizeGameLayout(theme.layout, gameType);
+
+  const [internalOrientation, setInternalOrientation] = useState<'landscape' | 'portrait'>(() => {
+    return theme.layout?.orientation === 'portrait' ? 'portrait' : 'landscape';
+  });
+  const activeOrientation = controlledOrientation ?? internalOrientation;
+  const isPortraitMode = activeOrientation === 'portrait';
+
+  const handleSetOrientation = (orient: 'landscape' | 'portrait') => {
+    setInternalOrientation(orient);
+    onOrientationChange?.(orient);
+  };
+
+  const activeLayout: GameLayoutConfig = useMemo(
+    () => getEditableGameLayout(theme.layout, isPortraitMode, gameType),
+    [theme.layout, isPortraitMode, gameType]
+  );
 
   const activeKey: LayoutElementKey =
     selectedElementKey && elementKeys.includes(selectedElementKey as LayoutElementKey)
@@ -57,11 +77,13 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
       : 'clientLogo';
 
   const activeMeta = LAYOUT_ELEMENTS_META[activeKey];
-  const activeElement = layout[activeKey] || defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey];
+  const activeElement =
+    activeLayout[activeKey] || defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey];
 
   // Helper to update layout configuration
   const handleUpdateLayout = (updater: (prev: GameLayoutConfig) => GameLayoutConfig) => {
-    const nextLayout = updater(layout);
+    const rawLayout = theme.layout || getDefaultUILayout(gameType);
+    const nextLayout = updater(rawLayout);
     onChange({
       ...theme,
       layout: nextLayout,
@@ -73,25 +95,64 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
     field: 'visible' | 'x' | 'y' | 'width' | 'height',
     value: boolean | number
   ) => {
-    handleUpdateLayout((prev) => ({
-      ...prev,
-      [activeKey]: {
-        ...(prev[activeKey] || defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey]),
-        [field]: value,
-      },
-    }));
+    handleUpdateLayout((prev) => {
+      if (isPortraitMode) {
+        const currentPortrait = prev.portraitLayout || {};
+        const currentElem =
+          (currentPortrait as any)[activeKey] ||
+          activeLayout[activeKey] ||
+          defaultLayout[activeKey] ||
+          DEFAULT_GAME_LAYOUT[activeKey];
+        return {
+          ...prev,
+          portraitLayout: {
+            ...currentPortrait,
+            [activeKey]: {
+              ...currentElem,
+              [field]: value,
+            },
+          },
+        };
+      }
+      const currentElem = prev[activeKey] || defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey];
+      return {
+        ...prev,
+        [activeKey]: {
+          ...currentElem,
+          [field]: value,
+        },
+      };
+    });
   };
 
   // Toggle visibility
   const handleToggleVisibility = (key: LayoutElementKey, e?: React.MouseEvent) => {
     e?.stopPropagation();
     handleUpdateLayout((prev) => {
-      const currentEl = prev[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
+      if (isPortraitMode) {
+        const currentPortrait = prev.portraitLayout || {};
+        const currentElem =
+          (currentPortrait as any)[key] ||
+          activeLayout[key] ||
+          defaultLayout[key] ||
+          DEFAULT_GAME_LAYOUT[key];
+        return {
+          ...prev,
+          portraitLayout: {
+            ...currentPortrait,
+            [key]: {
+              ...currentElem,
+              visible: !currentElem.visible,
+            },
+          },
+        };
+      }
+      const currentElem = prev[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
       return {
         ...prev,
         [key]: {
-          ...currentEl,
-          visible: !currentEl.visible,
+          ...currentElem,
+          visible: !currentElem.visible,
         },
       };
     });
@@ -99,24 +160,45 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
 
   // Reset active element to default
   const handleResetActiveElement = () => {
-    handleUpdateLayout((prev) => ({
-      ...prev,
-      [activeKey]: { ...(defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey]) },
-    }));
+    handleUpdateLayout((prev) => {
+      if (isPortraitMode) {
+        const currentPortrait = { ...(prev.portraitLayout || {}) };
+        delete (currentPortrait as any)[activeKey];
+        return {
+          ...prev,
+          portraitLayout: currentPortrait,
+        };
+      }
+      return {
+        ...prev,
+        [activeKey]: { ...(defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey]) },
+      };
+    });
   };
 
   // Reset entire layout to default
   const handleResetAllLayout = () => {
     const isMemory = gameType === 'memory-match';
-    const message = isMemory
-      ? 'Reset all Memory Match UI elements (Logo, Score, Moves, Timer, Title, Footer) to standard defaults?'
-      : 'Reset all UI elements (Logo, Score, Timer, Title, Footer) to standard arcade defaults?';
-
-    if (window.confirm(message)) {
-      onChange({
-        ...theme,
-        layout: getDefaultUILayout(gameType),
-      });
+    if (isPortraitMode) {
+      const message = isMemory
+        ? 'Reset all Memory Match portrait UI elements to default portrait layout?'
+        : 'Reset all portrait UI elements to default portrait layout?';
+      if (window.confirm(message)) {
+        handleUpdateLayout((prev) => {
+          const { portraitLayout, ...rest } = prev;
+          return rest;
+        });
+      }
+    } else {
+      const message = isMemory
+        ? 'Reset all Memory Match landscape UI elements to standard defaults?'
+        : 'Reset all landscape UI elements to standard defaults?';
+      if (window.confirm(message)) {
+        handleUpdateLayout((prev) => ({
+          ...getDefaultUILayout(gameType),
+          ...(prev.portraitLayout ? { portraitLayout: prev.portraitLayout } : {}),
+        }));
+      }
     }
   };
 
@@ -124,27 +206,43 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
   const handleApplyQuickPosition = (anchor: QuickPositionAnchor) => {
     if (activeKey === 'memoryCardBoard') {
       const coords = getBoardQuickPositionCoords(anchor);
-      handleUpdateLayout((prev) => ({
-        ...prev,
-        [activeKey]: {
-          ...(prev[activeKey] || defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey]),
-          x: coords.x,
-          y: coords.y,
-        },
-      }));
+      handleUpdateElementField('x', coords.x);
+      handleUpdateElementField('y', coords.y);
       return;
     }
 
     const elWidth = activeElement.width || activeMeta.defaultWidth;
     const coords = getQuickPositionCoords(anchor, elWidth);
-    handleUpdateLayout((prev) => ({
-      ...prev,
-      [activeKey]: {
-        ...(prev[activeKey] || defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey]),
-        x: coords.x,
-        y: coords.y,
-      },
-    }));
+    handleUpdateLayout((prev) => {
+      if (isPortraitMode) {
+        const currentPortrait = prev.portraitLayout || {};
+        const currentElem =
+          (currentPortrait as any)[activeKey] ||
+          activeLayout[activeKey] ||
+          defaultLayout[activeKey] ||
+          DEFAULT_GAME_LAYOUT[activeKey];
+        return {
+          ...prev,
+          portraitLayout: {
+            ...currentPortrait,
+            [activeKey]: {
+              ...currentElem,
+              x: coords.x,
+              y: coords.y,
+            },
+          },
+        };
+      }
+      const currentElem = prev[activeKey] || defaultLayout[activeKey] || DEFAULT_GAME_LAYOUT[activeKey];
+      return {
+        ...prev,
+        [activeKey]: {
+          ...currentElem,
+          x: coords.x,
+          y: coords.y,
+        },
+      };
+    });
   };
 
   const getElementIcon = (key: LayoutElementKey) => {
@@ -226,19 +324,24 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
               icon: <Smartphone className="w-4 h-4 text-amber-400" />,
             },
           ].map((mode) => {
-            const currentOrientation = layout.orientation || 'auto';
+            const currentOrientation = theme.layout?.orientation || 'auto';
             const isSelected = currentOrientation === mode.id;
 
             return (
               <button
                 key={mode.id}
                 type="button"
-                onClick={() =>
+                onClick={() => {
                   handleUpdateLayout((prev) => ({
                     ...prev,
                     orientation: mode.id,
-                  }))
-                }
+                  }));
+                  if (mode.id === 'portrait') {
+                    handleSetOrientation('portrait');
+                  } else if (mode.id === 'landscape') {
+                    handleSetOrientation('landscape');
+                  }
+                }}
                 className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1.5 ${
                   isSelected
                     ? 'bg-emerald-500/15 border-emerald-400/80 shadow-md ring-1 ring-emerald-400/40'
@@ -256,15 +359,86 @@ export const LayoutTab: React.FC<LayoutTabProps> = ({
         </div>
       </div>
 
+      {/* Active Layout Editing Mode Selector */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h4 className="text-xs font-black text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <Move className="w-3.5 h-3.5 text-amber-400" /> Active Layout Editing Mode
+            </h4>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Switch between Landscape and Portrait to position elements independently for each orientation.
+            </p>
+          </div>
+          <span
+            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border uppercase shrink-0 self-start sm:self-auto ${
+              isPortraitMode
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+            }`}
+          >
+            Editing: {activeOrientation}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            onClick={() => handleSetOrientation('landscape')}
+            className={`p-3 rounded-xl border text-left font-bold text-xs flex items-center justify-between transition-all ${
+              !isPortraitMode
+                ? 'bg-sky-500/15 border-sky-400 text-sky-200 shadow-md ring-1 ring-sky-400/40'
+                : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Monitor className="w-4 h-4 text-sky-400" />
+              <div>
+                <div>Landscape Layout</div>
+                <div className="text-[10px] font-normal text-slate-400">1024 × 576 base layout</div>
+              </div>
+            </div>
+            {!isPortraitMode && (
+              <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-sky-500/20 text-sky-300 rounded font-semibold border border-sky-500/30">
+                Active
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSetOrientation('portrait')}
+            className={`p-3 rounded-xl border text-left font-bold text-xs flex items-center justify-between transition-all ${
+              isPortraitMode
+                ? 'bg-amber-500/15 border-amber-400 text-amber-200 shadow-md ring-1 ring-amber-400/40'
+                : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Smartphone className="w-4 h-4 text-amber-400" />
+              <div>
+                <div>Portrait Layout</div>
+                <div className="text-[10px] font-normal text-slate-400">576 × 1024 vertical layout</div>
+              </div>
+            </div>
+            {isPortraitMode && (
+              <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded font-semibold border border-amber-500/30">
+                Active
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* Elements Selection Tabs / Badges */}
       <div className="space-y-2">
         <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-          Select UI Element to Position
+          Select UI Element to Position ({isPortraitMode ? 'Portrait' : 'Landscape'})
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {elementKeys.map((key) => {
             const meta = LAYOUT_ELEMENTS_META[key];
-            const elem = layout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
+            const elem = activeLayout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
             const isSelected = activeKey === key;
             const isVisible = elem.visible;
 

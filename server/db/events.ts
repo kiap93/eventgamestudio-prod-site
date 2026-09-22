@@ -2576,6 +2576,30 @@ export async function createEvent(
               organizationId: fullRecord.organization_id,
             });
           });
+        } else if (fullRecord.payment_status === 'PAID') {
+          const { startDate: evStartDate, liveOpenDate: evLiveOpenDate } = getNormalizedEventDates(fullRecord);
+          const evTimezone = resolveEventTimezone(fullRecord);
+          const curCalDate = getNormalizedCurrentDate(new Date(), evTimezone);
+          if (evLiveOpenDate && evStartDate && curCalDate >= evLiveOpenDate && curCalDate < evStartDate) {
+            await dispatchNotificationEvent(
+              {
+                eventType: 'LIVE_URL_AVAILABLE',
+                organizationId: fullRecord.organization_id,
+                recipientUserId: params.created_by || undefined,
+                eventId: fullRecord.id,
+                eventName: fullRecord.name,
+                publicUrl: `/play/${fullRecord.public_token}`,
+                setupDate: evLiveOpenDate,
+              },
+              env
+            ).catch((err) => {
+              console.error('[NOTIFICATION] LIVE_URL_AVAILABLE notification dispatch failed on RPC success:', {
+                error: err?.message || err,
+                eventId: fullRecord.id,
+                organizationId: fullRecord.organization_id,
+              });
+            });
+          }
         }
 
         return fullRecord;
@@ -2827,6 +2851,30 @@ export async function createEvent(
               organizationId: fullRecord.organization_id,
             });
           });
+        } else if (fullRecord.payment_status === 'PAID') {
+          const { startDate: evStartDate, liveOpenDate: evLiveOpenDate } = getNormalizedEventDates(fullRecord);
+          const evTimezone = resolveEventTimezone(fullRecord);
+          const curCalDate = getNormalizedCurrentDate(new Date(), evTimezone);
+          if (evLiveOpenDate && evStartDate && curCalDate >= evLiveOpenDate && curCalDate < evStartDate) {
+            await dispatchNotificationEvent(
+              {
+                eventType: 'LIVE_URL_AVAILABLE',
+                organizationId: fullRecord.organization_id,
+                recipientUserId: params.created_by || undefined,
+                eventId: fullRecord.id,
+                eventName: fullRecord.name,
+                publicUrl: `/play/${fullRecord.public_token}`,
+                setupDate: evLiveOpenDate,
+              },
+              env
+            ).catch((err) => {
+              console.error('[NOTIFICATION] LIVE_URL_AVAILABLE notification dispatch failed on local fallback:', {
+                error: err?.message || err,
+                eventId: fullRecord.id,
+                organizationId: fullRecord.organization_id,
+              });
+            });
+          }
         }
 
         return fullRecord;
@@ -2913,6 +2961,30 @@ export async function createEvent(
         organizationId: fullRecord.organization_id,
       });
     });
+  } else if (fullRecord.payment_status === 'PAID') {
+    const { startDate: evStartDate, liveOpenDate: evLiveOpenDate } = getNormalizedEventDates(fullRecord);
+    const evTimezone = resolveEventTimezone(fullRecord);
+    const curCalDate = getNormalizedCurrentDate(new Date(), evTimezone);
+    if (evLiveOpenDate && evStartDate && curCalDate >= evLiveOpenDate && curCalDate < evStartDate) {
+      await dispatchNotificationEvent(
+        {
+          eventType: 'LIVE_URL_AVAILABLE',
+          organizationId: fullRecord.organization_id,
+          recipientUserId: params.created_by || undefined,
+          eventId: fullRecord.id,
+          eventName: fullRecord.name,
+          publicUrl: `/play/${fullRecord.public_token}`,
+          setupDate: evLiveOpenDate,
+        },
+        env
+      ).catch((err) => {
+        console.error('[NOTIFICATION] LIVE_URL_AVAILABLE notification dispatch failed on direct insert:', {
+          error: err?.message || err,
+          eventId: fullRecord.id,
+          organizationId: fullRecord.organization_id,
+        });
+      });
+    }
   }
 
   return fullRecord;
@@ -3569,10 +3641,60 @@ export async function runEventLifecycleMaintenance(
   const testScoresClearedEvents: string[] = [];
 
   let allEvents: EventRecord[] = [];
-  const { data, error } = await supabase.from('events').select('*');
-  if (error || !data) {
+
+  // Query only actionable records using existing lifecycle indexes:
+  // 1. Unpaid events approaching or past end date (excluding already EXPIRED or CANCELLED)
+  //    -> utilizes idx_events_expired_cron (payment_status, expires_at, event_status) / idx_events_lifecycle_cron
+  // 2. Paid events approaching, live, or completing (excluding already COMPLETED or CANCELLED)
+  //    -> utilizes idx_events_lifecycle_cron (event_status, starts_at, payment_status) / idx_events_completed_cron
+  // 3. Events requiring test-score clearing (reached start date, not yet cleared)
+  //    -> utilizes idx_events_test_scores_cleared (test_scores_cleared_at, event_date, starts_at)
+  //
+  // Approaching horizon is set to now + 72 hours (3 days) to account for all global timezones (UTC+14 to UTC-12)
+  // and the 36-hour pre-event approaching notification window. All far-future scheduled events (> 72 hours away)
+  // and already COMPLETED/EXPIRED events with cleared test scores are excluded from database scans.
+  const approachingHorizon = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+  const approachingHorizonIso = approachingHorizon.toISOString();
+
+  const [unpaidRes, paidRes, testScoreRes] = await Promise.all([
+    // Category 1: Unpaid events approaching or requiring expiration (not yet EXPIRED/CANCELLED)
+    supabase
+      .from('events')
+      .select('*')
+      .neq('payment_status', 'PAID')
+      .neq('event_status', 'EXPIRED')
+      .neq('status', 'expired')
+      .neq('event_status', 'CANCELLED')
+      .neq('status', 'cancelled')
+      .lte('starts_at', approachingHorizonIso),
+
+    // Category 2: Paid events approaching, live, or completing (not yet COMPLETED/CANCELLED)
+    supabase
+      .from('events')
+      .select('*')
+      .eq('payment_status', 'PAID')
+      .neq('event_status', 'COMPLETED')
+      .neq('status', 'completed')
+      .neq('event_status', 'CANCELLED')
+      .neq('status', 'cancelled')
+      .lte('starts_at', approachingHorizonIso),
+
+    // Category 3: Events requiring test-score clearing (not yet cleared, not cancelled)
+    supabase
+      .from('events')
+      .select('*')
+      .is('test_scores_cleared_at', null)
+      .neq('event_status', 'CANCELLED')
+      .neq('status', 'cancelled')
+      .lte('starts_at', approachingHorizonIso),
+  ]);
+
+  const queryError = unpaidRes.error || paidRes.error || testScoreRes.error;
+  const hasNullData = !unpaidRes.data || !paidRes.data || !testScoreRes.data;
+
+  if (queryError || hasNullData) {
     if (!isLocalFallbackAllowed(env)) {
-      const errorDetail = error ? `[${error.code || 'ERROR'}] ${error.message}` : 'Supabase returned empty or null data response';
+      const errorDetail = queryError ? `[${queryError.code || 'ERROR'}] ${queryError.message}` : 'Supabase returned empty or null data response';
       console.error(`[Event Lifecycle Maintenance] Fatal: Failed to fetch events from database in production: ${errorDetail}`);
       throw new Error(
         `[Event Lifecycle Maintenance] Fatal: Failed to fetch events from Supabase in production: ${errorDetail}. Local cache fallback is strictly prohibited in production.`
@@ -3580,7 +3702,19 @@ export async function runEventLifecycleMaintenance(
     }
     allEvents = Array.from(localEventsCache.values());
   } else {
-    allEvents = data as EventRecord[];
+    // Deduplicate across the 3 actionable queries using a Map
+    const actionableMap = new Map<string, EventRecord>();
+    for (const ev of unpaidRes.data as EventRecord[]) {
+      actionableMap.set(ev.id, ev);
+    }
+    for (const ev of paidRes.data as EventRecord[]) {
+      actionableMap.set(ev.id, ev);
+    }
+    for (const ev of testScoreRes.data as EventRecord[]) {
+      actionableMap.set(ev.id, ev);
+    }
+    allEvents = Array.from(actionableMap.values());
+
     if (isLocalFallbackAllowed(env)) {
       for (const ev of allEvents) {
         localEventsCache.set(ev.id, ev);
@@ -3677,9 +3811,10 @@ export async function runEventLifecycleMaintenance(
 
     // 2. Paid events:
     if (payStatus === 'PAID') {
-      const { endDate, startDate } = getNormalizedEventDates(ev);
+      const { endDate, startDate, liveOpenDate } = getNormalizedEventDates(ev);
       const isAfterEndDate = Boolean(endDate && curDate > endDate);
       const isLiveNow = Boolean(startDate && endDate && curDate >= startDate && curDate <= endDate);
+      const isSetupDayNow = Boolean(liveOpenDate && startDate && curDate >= liveOpenDate && curDate < startDate);
 
       // Event date has completely passed -> Mark COMPLETED
       if (isAfterEndDate) {
@@ -3767,6 +3902,21 @@ export async function runEventLifecycleMaintenance(
           }
         }
       } else if (startDate && curDate < startDate) {
+        // Setup Day check: If paid and Setup Day is active, live game URL is now active for testing!
+        if (isSetupDayNow) {
+          await dispatchNotificationEvent(
+            {
+              eventType: 'LIVE_URL_AVAILABLE',
+              organizationId: ev.organization_id,
+              eventId: ev.id,
+              eventName: ev.name,
+              publicUrl: `/play/${ev.public_token}`,
+              setupDate: liveOpenDate,
+            },
+            env
+          ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch LIVE_URL_AVAILABLE:', err));
+        }
+
         const startDateTime = getUtcBoundaryInTimezone(startDate, 'start', evTimezone).getTime();
         const diffHoursToStart = (startDateTime - nowTime) / (1000 * 60 * 60);
         // Approaching when within 36 hours of start date (tomorrow / setup day)

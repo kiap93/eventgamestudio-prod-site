@@ -4,6 +4,7 @@ import {
   DEFAULT_CATCH_BRAND_LAYOUT,
   DEFAULT_MEMORY_MATCH_LAYOUT,
   normalizeGameLayout,
+  LayoutElementKey,
 } from './layout';
 
 export type { GameOrientation };
@@ -291,6 +292,134 @@ export const DEFAULT_PORTRAIT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
 };
 
 /**
+ * Resolves the active layout for BOTH editing and rendering based on active orientation.
+ * Single source of truth across the editor and live preview.
+ * - When in landscape: returns the normalized landscape layout.
+ * - When in portrait: seamlessly resolves coordinates from portraitLayout (if customized)
+ *   or falls back to default portrait layout, preserving visibility inheritance.
+ */
+export function getEditableGameLayout(
+  layout: GameLayoutConfig | undefined,
+  isPortrait: boolean,
+  gameType?: string
+): GameLayoutConfig {
+  const isMemory = gameType === 'memory-match';
+  const normalized = normalizeGameLayout(layout, gameType);
+
+  if (!isPortrait) {
+    return {
+      ...normalized,
+      orientation: normalized.orientation || 'auto',
+    };
+  }
+
+  const portraitDefaults = isMemory
+    ? DEFAULT_PORTRAIT_MEMORY_MATCH_LAYOUT
+    : DEFAULT_PORTRAIT_CATCH_BRAND_LAYOUT;
+
+  const portraitCustom =
+    normalized.portraitLayout && typeof normalized.portraitLayout === 'object'
+      ? normalized.portraitLayout
+      : {};
+
+  // Check if logo is visible in portrait:
+  // Explicit portrait override -> base element visibility -> portrait default visibility
+  const isLogoVisible =
+    (portraitCustom as any)?.clientLogo?.visible !== undefined
+      ? Boolean((portraitCustom as any).clientLogo.visible)
+      : normalized.clientLogo?.visible !== undefined
+      ? Boolean(normalized.clientLogo.visible)
+      : Boolean(portraitDefaults.clientLogo.visible);
+
+  const resolveElement = (
+    key: LayoutElementKey,
+    defaultEl: GameLayoutElement
+  ): GameLayoutElement => {
+    const baseEl = normalized[key];
+    const customEl = (portraitCustom as any)[key];
+
+    // Visibility inheritance: explicit portrait override -> base layout visibility -> default visibility
+    const visible =
+      customEl?.visible !== undefined
+        ? Boolean(customEl.visible)
+        : baseEl?.visible !== undefined
+        ? Boolean(baseEl.visible)
+        : Boolean(defaultEl.visible);
+
+    // Smart portrait defaults for catch-brand when clientLogo is hidden:
+    // When logo is hidden and no custom portrait coordinate is provided, adjust default y
+    let defaultY = defaultEl.y;
+    if (!isMemory && !isLogoVisible) {
+      if (key === 'gameTitle') defaultY = 3;
+      if (key === 'scoreHud' || key === 'timer') defaultY = 9.5;
+    }
+
+    const x =
+      typeof customEl?.x === 'number' && !isNaN(customEl.x)
+        ? customEl.x
+        : defaultEl.x;
+
+    const y =
+      typeof customEl?.y === 'number' && !isNaN(customEl.y)
+        ? customEl.y
+        : defaultY;
+
+    const width =
+      typeof customEl?.width === 'number' && !isNaN(customEl.width)
+        ? customEl.width
+        : defaultEl.width;
+
+    const height =
+      typeof customEl?.height === 'number' && !isNaN(customEl.height)
+        ? customEl.height
+        : defaultEl.height;
+
+    return {
+      visible,
+      x,
+      y,
+      ...(width !== undefined ? { width } : {}),
+      ...(height !== undefined ? { height } : {}),
+    };
+  };
+
+  const res: GameLayoutConfig = {
+    orientation: normalized.orientation || 'auto',
+    ...(normalized.position ? { position: normalized.position } : {}),
+    ...(normalized.contentAlignment ? { contentAlignment: normalized.contentAlignment } : {}),
+    ...(normalized.horizontalAlignment ? { horizontalAlignment: normalized.horizontalAlignment } : {}),
+    ...(normalized.verticalAlignment ? { verticalAlignment: normalized.verticalAlignment } : {}),
+    ...(normalized.portraitLayout ? { portraitLayout: normalized.portraitLayout } : {}),
+    clientLogo: resolveElement('clientLogo', portraitDefaults.clientLogo),
+    scoreHud: resolveElement('scoreHud', portraitDefaults.scoreHud),
+    timer: resolveElement('timer', portraitDefaults.timer),
+    gameTitle: resolveElement('gameTitle', portraitDefaults.gameTitle),
+    footerSponsor: resolveElement('footerSponsor', portraitDefaults.footerSponsor),
+  };
+
+  if (isMemory || normalized.movesHud) {
+    res.movesHud = resolveElement(
+      'movesHud',
+      DEFAULT_PORTRAIT_MEMORY_MATCH_LAYOUT.movesHud || { visible: true, x: 19.5, y: 2.0, width: 16 }
+    );
+  }
+  if (isMemory || normalized.pairsHud) {
+    res.pairsHud = resolveElement(
+      'pairsHud',
+      DEFAULT_PORTRAIT_MEMORY_MATCH_LAYOUT.pairsHud || { visible: true, x: 37, y: 2.0, width: 16 }
+    );
+  }
+  if (isMemory || normalized.memoryCardBoard) {
+    res.memoryCardBoard = resolveElement(
+      'memoryCardBoard',
+      DEFAULT_PORTRAIT_MEMORY_MATCH_LAYOUT.memoryCardBoard || { visible: true, x: 50, y: 53, width: 92 }
+    );
+  }
+
+  return res;
+}
+
+/**
  * Returns the effective layout adapted for either landscape or portrait orientation.
  * When in landscape, returns the original layout configuration without modification.
  * When in portrait, seamlessly maps HUD coordinates for optimal mobile/tablet readability.
@@ -300,93 +429,7 @@ export function getEffectiveGameLayout(
   isPortrait: boolean,
   gameType?: string
 ): GameLayoutConfig {
-  const isMemory = gameType === 'memory-match';
-
-  // 1. Landscape mode preserves original theme layout verbatim
-  if (!isPortrait) {
-    return {
-      ...layout,
-      orientation: layout?.orientation || 'auto',
-    };
-  }
-
-  // 2. If an explicit portrait layout configuration exists, use it
-  if (layout.portraitLayout && typeof layout.portraitLayout === 'object') {
-    const basePortrait = isMemory
-      ? DEFAULT_PORTRAIT_MEMORY_MATCH_LAYOUT
-      : DEFAULT_PORTRAIT_CATCH_BRAND_LAYOUT;
-    return normalizeGameLayout(
-      {
-        ...basePortrait,
-        ...layout.portraitLayout,
-        // Preserve parent element visibilities if not explicitly overridden in portrait
-        clientLogo: { ...basePortrait.clientLogo, ...layout.portraitLayout.clientLogo, visible: layout.clientLogo?.visible ?? basePortrait.clientLogo.visible },
-        scoreHud: { ...basePortrait.scoreHud, ...layout.portraitLayout.scoreHud, visible: layout.scoreHud?.visible ?? basePortrait.scoreHud.visible },
-        timer: { ...basePortrait.timer, ...layout.portraitLayout.timer, visible: layout.timer?.visible ?? basePortrait.timer.visible },
-        gameTitle: { ...basePortrait.gameTitle, ...layout.portraitLayout.gameTitle, visible: layout.gameTitle?.visible ?? basePortrait.gameTitle.visible },
-        footerSponsor: { ...basePortrait.footerSponsor, ...layout.portraitLayout.footerSponsor, visible: layout.footerSponsor?.visible ?? basePortrait.footerSponsor.visible },
-        ...(isMemory ? {
-          movesHud: { ...basePortrait.movesHud, ...layout.portraitLayout.movesHud, visible: layout.movesHud?.visible ?? basePortrait.movesHud?.visible },
-          pairsHud: { ...basePortrait.pairsHud, ...layout.portraitLayout.pairsHud, visible: layout.pairsHud?.visible ?? basePortrait.pairsHud?.visible },
-          memoryCardBoard: { ...basePortrait.memoryCardBoard, ...layout.portraitLayout.memoryCardBoard, visible: layout.memoryCardBoard?.visible ?? basePortrait.memoryCardBoard?.visible },
-        } : {}),
-      },
-      gameType
-    );
-  }
-
-  // 3. Smart portrait layout mapping
-  const portraitDefaults = isMemory
-    ? DEFAULT_PORTRAIT_MEMORY_MATCH_LAYOUT
-    : DEFAULT_PORTRAIT_CATCH_BRAND_LAYOUT;
-
-  const res: GameLayoutConfig = {
-    orientation: layout.orientation || 'auto',
-    ...(layout.position ? { position: layout.position } : {}),
-    ...(layout.contentAlignment ? { contentAlignment: layout.contentAlignment } : {}),
-    ...(layout.horizontalAlignment ? { horizontalAlignment: layout.horizontalAlignment } : {}),
-    ...(layout.verticalAlignment ? { verticalAlignment: layout.verticalAlignment } : {}),
-    clientLogo: {
-      ...portraitDefaults.clientLogo,
-      visible: layout.clientLogo?.visible ?? portraitDefaults.clientLogo.visible,
-    },
-    gameTitle: {
-      ...portraitDefaults.gameTitle,
-      y: !isMemory && !layout.clientLogo?.visible ? 3 : portraitDefaults.gameTitle.y,
-      visible: layout.gameTitle?.visible ?? true,
-    },
-    scoreHud: {
-      ...portraitDefaults.scoreHud,
-      y: !isMemory && !layout.clientLogo?.visible ? 9.5 : portraitDefaults.scoreHud.y,
-      visible: layout.scoreHud?.visible ?? true,
-    },
-    timer: {
-      ...portraitDefaults.timer,
-      y: !isMemory && !layout.clientLogo?.visible ? 9.5 : portraitDefaults.timer.y,
-      visible: layout.timer?.visible ?? true,
-    },
-    footerSponsor: {
-      ...portraitDefaults.footerSponsor,
-      visible: layout.footerSponsor?.visible ?? true,
-    },
-  };
-
-  if (isMemory) {
-    res.movesHud = {
-      ...portraitDefaults.movesHud!,
-      visible: layout.movesHud?.visible ?? true,
-    };
-    res.pairsHud = {
-      ...portraitDefaults.pairsHud!,
-      visible: layout.pairsHud?.visible ?? true,
-    };
-    res.memoryCardBoard = {
-      ...portraitDefaults.memoryCardBoard!,
-      visible: layout.memoryCardBoard?.visible ?? true,
-    };
-  }
-
-  return res;
+  return getEditableGameLayout(layout, isPortrait, gameType);
 }
 
 /**

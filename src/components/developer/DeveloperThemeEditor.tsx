@@ -48,6 +48,13 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
   const [isPlayingTest, setIsPlayingTest] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'visuals' | 'items' | 'gameplay' | 'audio' | 'branding' | 'layout'>('visuals');
   const [selectedLayoutElement, setSelectedLayoutElement] = useState<LayoutElementKey>('clientLogo');
+  const [layoutOrientation, setLayoutOrientation] = useState<'landscape' | 'portrait'>('landscape');
+
+  useEffect(() => {
+    if (theme?.layout?.orientation === 'portrait') {
+      setLayoutOrientation('portrait');
+    }
+  }, [theme?.layout?.orientation]);
 
   // Load theme data from developer endpoint
   useEffect(() => {
@@ -397,6 +404,8 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
                 }}
                 selectedElementKey={selectedLayoutElement}
                 onSelectElementKey={setSelectedLayoutElement}
+                activeOrientation={layoutOrientation}
+                onOrientationChange={setLayoutOrientation}
               />
             )}
           </div>
@@ -424,6 +433,8 @@ export const DeveloperThemeEditor: React.FC<DeveloperThemeEditorProps> = ({
                 editableLayout={activeTab === 'layout'}
                 selectedElementKey={selectedLayoutElement}
                 onSelectElementKey={setSelectedLayoutElement}
+                forcedOrientation={activeTab === 'layout' ? layoutOrientation : undefined}
+                onOrientationChange={activeTab === 'layout' ? setLayoutOrientation : undefined}
                 onUpdateLayout={(newLayoutOrUpdater) => {
                   setTheme((prev) => {
                     if (!prev) return prev;

@@ -11,6 +11,8 @@ export type NotificationType =
   | 'event_created'
   | 'event_approaching'
   | 'event_live'
+  | 'event_started'
+  | 'live_url_available'
   | 'event_expiring'
   | 'event_expired'
   | 'event_payment_failed'
@@ -83,6 +85,8 @@ export const NOTIFICATION_TYPES: readonly NotificationType[] = [
   'event_created',
   'event_approaching',
   'event_live',
+  'event_started',
+  'live_url_available',
   'event_expiring',
   'event_expired',
   'event_payment_failed',
@@ -152,8 +156,34 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, NotificationCatalogI
   event_live: {
     type: 'event_live',
     category: 'event',
-    defaultTitle: 'Event Is Now Live!',
-    defaultMessage: '"{event_name}" is active and playable! Attendees can join via the live event QR and URL.',
+    defaultTitle: 'Event Started',
+    defaultMessage: '"{event_name}" has officially started! Attendees can join and compete via the live event QR and URL.',
+    priority: 'high',
+    defaultActionUrl: '/events',
+    mandatory: true,
+    duplicatesAllowed: false,
+    retentionDays: 60,
+    expiresByDefault: true,
+    defaultExpiryDays: 7,
+  },
+  event_started: {
+    type: 'event_started',
+    category: 'event',
+    defaultTitle: 'Event Started',
+    defaultMessage: '"{event_name}" has officially started! Attendees can join and compete via the live event QR and URL.',
+    priority: 'high',
+    defaultActionUrl: '/events',
+    mandatory: true,
+    duplicatesAllowed: false,
+    retentionDays: 60,
+    expiresByDefault: true,
+    defaultExpiryDays: 7,
+  },
+  live_url_available: {
+    type: 'live_url_available',
+    category: 'event',
+    defaultTitle: 'Live Game URL Available',
+    defaultMessage: 'The live game URL for "{event_name}" is now active on Setup Day. You can test your screens and arcade setups: {live_url}',
     priority: 'high',
     defaultActionUrl: '/events',
     mandatory: true,

@@ -11,6 +11,9 @@ const clientCache = new Map<string, SupabaseClient>();
  * This must NEVER be imported or exposed to browser code.
  */
 export function getSupabaseServerClient(env?: Record<string, any>): SupabaseClient {
+  if (env && env.__supabaseClient) {
+    return env.__supabaseClient;
+  }
   const procEnv = typeof process !== 'undefined' ? process.env : {};
   const rawUrl =
     (env && typeof env.SUPABASE_URL === 'string' && env.SUPABASE_URL.trim() ? env.SUPABASE_URL.trim() : undefined) ??

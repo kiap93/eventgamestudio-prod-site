@@ -50,8 +50,8 @@ async function runTestSuite() {
   // 1. Catalog Verification
   // -----------------------------------------------------------------
   console.log('--- Test Group 1: Notification Catalog Structure ---');
-  assert(NOTIFICATION_TYPES.length === 21, 'NOTIFICATION_TYPES array defines exactly 21 types');
-  assert(Object.keys(NOTIFICATION_CATALOG).length === 21, 'NOTIFICATION_CATALOG contains exactly 21 items');
+  assert(NOTIFICATION_TYPES.length === 23, 'NOTIFICATION_TYPES array defines exactly 23 types');
+  assert(Object.keys(NOTIFICATION_CATALOG).length === 23, 'NOTIFICATION_CATALOG contains exactly 23 items');
 
   for (const type of NOTIFICATION_TYPES) {
     const item = NOTIFICATION_CATALOG[type];
@@ -524,6 +524,8 @@ async function runTestSuite() {
       event_created: { event_name: 'Carnival 2026', start_date: '2026-10-01', end_date: '2026-10-02' },
       event_approaching: { event_name: 'Carnival 2026', start_date: '2026-10-01' },
       event_live: { event_name: 'Carnival 2026' },
+      event_started: { event_name: 'Carnival 2026' },
+      live_url_available: { event_name: 'Carnival 2026', live_url: '/play/carnival-2026' },
       event_expiring: { event_name: 'Carnival 2026', time_remaining: '4 hours' },
       event_expired: { event_name: 'Carnival 2026' },
       event_payment_failed: { event_name: 'Carnival 2026' },

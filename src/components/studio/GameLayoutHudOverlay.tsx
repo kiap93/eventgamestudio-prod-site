@@ -10,7 +10,7 @@ import {
   getLayoutElementKeys,
   getDefaultUILayout,
 } from '../../themes/layout';
-import { getEffectiveGameLayout } from '../../themes/responsive';
+import { getEffectiveGameLayout, getEditableGameLayout } from '../../themes/responsive';
 import {
   Trophy,
   Clock,
@@ -96,7 +96,7 @@ export function calculateCatchBrandHudPosition({
   );
 
   const hasCustomValue = effectiveIsPortrait
-    ? (isPortraitCustom || isBaseCustom)
+    ? isPortraitCustom
     : isBaseCustom;
 
   let posX = elem.x;
@@ -200,9 +200,8 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
     typeof explicitIsPortrait === 'boolean'
       ? explicitIsPortrait
       : (theme?.layout?.orientation === 'portrait');
-  const normalized = normalizeGameLayout(rawLayout || theme?.layout, resolvedGameType);
-  const layout = getEffectiveGameLayout(normalized, effectiveIsPortrait, resolvedGameType);
-  const defaultLayout = getEffectiveGameLayout(getDefaultUILayout(resolvedGameType), effectiveIsPortrait, resolvedGameType);
+  const layout = getEditableGameLayout(theme?.layout || rawLayout, effectiveIsPortrait, resolvedGameType);
+  const defaultLayout = getEditableGameLayout(getDefaultUILayout(resolvedGameType), effectiveIsPortrait, resolvedGameType);
   const activeElementKeys = getLayoutElementKeys(resolvedGameType).filter(
     (k) => k !== 'memoryCardBoard'
   );

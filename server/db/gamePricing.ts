@@ -180,10 +180,11 @@ export async function getGamePricing(gameId: string, env?: any): Promise<GamePri
   }
 
   // Local/Test mode fallback
-  if (isLocalFallbackAllowed()) {
+  if (isLocalFallbackAllowed(env)) {
     if (!localGamePricingCache.has(gameId)) {
       const canonicalGames = ['catch-brand', 'memory-match', 'reaction-tap'];
-      if (canonicalGames.includes(gameId)) {
+      const rawSlug = gameId.replace(/^game-/, '');
+      if (canonicalGames.includes(gameId) || canonicalGames.includes(rawSlug)) {
         const defaults = buildDefaultPricingTiers(gameId);
         localGamePricingCache.set(gameId, defaults);
       } else {

@@ -147,6 +147,15 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
   // Unsaved changes confirmation dialog
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
 
+  // Active orientation editing mode synchronized between Layout tab and Live Preview
+  const [layoutOrientation, setLayoutOrientation] = useState<'landscape' | 'portrait'>('landscape');
+
+  useEffect(() => {
+    if (draftTheme?.layout?.orientation === 'portrait') {
+      setLayoutOrientation('portrait');
+    }
+  }, [draftTheme?.layout?.orientation]);
+
   // Ref tracking current draft for in-flight save comparison (Scenario 8)
   const draftThemeRef = useRef<GameTheme | null>(draftTheme);
   draftThemeRef.current = draftTheme;
@@ -794,6 +803,8 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
                 onChange={handleThemeChange}
                 selectedElementKey={selectedLayoutElement}
                 onSelectElementKey={setSelectedLayoutElement}
+                activeOrientation={layoutOrientation}
+                onOrientationChange={setLayoutOrientation}
               />
             )}
 
@@ -819,6 +830,8 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             selectedElementKey={selectedLayoutElement}
             onSelectElementKey={setSelectedLayoutElement}
             onPlayLiveGame={() => setIsPlayingLiveGame(true)}
+            forcedOrientation={activeTab === 'layout' ? layoutOrientation : undefined}
+            onOrientationChange={activeTab === 'layout' ? setLayoutOrientation : undefined}
             onUpdateLayout={(newLayoutOrUpdater) => {
               handleThemeChange((prev) => {
                 if (!prev) return prev;

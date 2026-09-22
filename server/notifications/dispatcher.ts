@@ -67,6 +67,25 @@ export interface EventLiveEvent extends BaseBusinessEvent {
   publicUrl?: string | null;
 }
 
+export interface EventStartedEvent extends BaseBusinessEvent {
+  eventType: 'EVENT_STARTED';
+  recipientUserId?: string | null;
+  eventId: string;
+  eventName: string;
+  liveUrl?: string | null;
+  publicUrl?: string | null;
+}
+
+export interface LiveUrlAvailableEvent extends BaseBusinessEvent {
+  eventType: 'LIVE_URL_AVAILABLE';
+  recipientUserId?: string | null;
+  eventId: string;
+  eventName: string;
+  liveUrl?: string | null;
+  publicUrl?: string | null;
+  setupDate?: string;
+}
+
 export interface EventExpiringEvent extends BaseBusinessEvent {
   eventType: 'EVENT_EXPIRING';
   recipientUserId?: string | null;
@@ -220,6 +239,8 @@ export type BusinessNotificationEvent =
   | EventCreatedEvent
   | EventApproachingEvent
   | EventLiveEvent
+  | EventStartedEvent
+  | LiveUrlAvailableEvent
   | EventExpiringEvent
   | EventExpiredEvent
   | EventPaymentFailedEvent
@@ -566,6 +587,25 @@ export class NotificationDispatcher {
         };
       }
 
+      case 'LIVE_URL_AVAILABLE': {
+        const effectiveUrl = event.publicUrl || event.liveUrl || '/events';
+        return {
+          type: 'live_url_available',
+          actionUrl: effectiveUrl,
+          entityType: 'event',
+          entityId: event.eventId,
+          metadata: {
+            event_id: event.eventId,
+            event_name: event.eventName,
+            live_url: event.publicUrl || event.liveUrl,
+            setup_date: event.setupDate,
+            ...event.metadata,
+          },
+          deduplicationKey: `live_url_available_${event.eventId}`,
+        };
+      }
+
+      case 'EVENT_STARTED':
       case 'EVENT_LIVE': {
         const effectiveUrl = event.publicUrl || event.liveUrl || '/events';
         return {
@@ -1096,6 +1136,55 @@ export async function dispatchPaymentLifecycleTransition(
         ...metadata,
         status: newStatus,
       },
+    },
+    env
+  );
+}
+
+/**
+ * Centralized backend dispatcher for LIVE_URL_AVAILABLE notification on Setup Day.
+ */
+export async function dispatchLiveUrlAvailable(
+  params: {
+    organizationId: string;
+    recipientUserId?: string | null;
+    eventId: string;
+    eventName: string;
+    publicUrl?: string | null;
+    liveUrl?: string | null;
+    setupDate?: string;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<NotificationRecord[]> {
+  return dispatchNotificationEvent(
+    {
+      eventType: 'LIVE_URL_AVAILABLE',
+      ...params,
+    },
+    env
+  );
+}
+
+/**
+ * Centralized backend dispatcher for EVENT_STARTED / EVENT_LIVE notification when event officially starts.
+ */
+export async function dispatchEventStarted(
+  params: {
+    organizationId: string;
+    recipientUserId?: string | null;
+    eventId: string;
+    eventName: string;
+    publicUrl?: string | null;
+    liveUrl?: string | null;
+    metadata?: Record<string, any>;
+  },
+  env?: Record<string, any>
+): Promise<NotificationRecord[]> {
+  return dispatchNotificationEvent(
+    {
+      eventType: 'EVENT_STARTED',
+      ...params,
     },
     env
   );
