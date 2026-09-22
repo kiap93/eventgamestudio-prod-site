@@ -445,14 +445,14 @@ export const DEFAULT_MEMORY_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
     bgmEnabled: true,
   },
   layout: {
-    clientLogo: { visible: true, x: 4, y: 4, width: 14 },
-    scoreHud: { visible: true, x: 4, y: 18, width: 20 },
-    movesHud: { visible: true, x: 4, y: 34, width: 20 },
-    pairsHud: { visible: true, x: 76, y: 34, width: 20 },
-    timer: { visible: true, x: 76, y: 18, width: 20 },
-    gameTitle: { visible: true, x: 34, y: 3, width: 32 },
-    footerSponsor: { visible: true, x: 30, y: 93, width: 40 },
-    memoryCardBoard: { visible: true, x: 50, y: 50 },
+    clientLogo: { visible: false, x: 4, y: 3, width: 14 },
+    scoreHud: { visible: true, x: 6, y: 2.5, width: 19 },
+    movesHud: { visible: true, x: 29, y: 2.5, width: 19 },
+    timer: { visible: true, x: 52, y: 2.5, width: 19 },
+    pairsHud: { visible: true, x: 75, y: 2.5, width: 19 },
+    gameTitle: { visible: true, x: 36, y: 8.5, width: 28 },
+    footerSponsor: { visible: true, x: 24, y: 92.5, width: 52 },
+    memoryCardBoard: { visible: true, x: 50, y: 53 },
   },
 };
 

@@ -366,9 +366,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const rawCardHeight = cardConfig?.height ?? 90;
 
   // Calculate safe board bounds to prevent cards from colliding with HUD elements
-  // In landscape: HUD resides on sides (x: 0-22%, 78-100%), title at top (0-8%), sponsor at bottom (91-100%)
-  // In portrait: HUD resides at top (0-24%), sponsor at bottom (92-100%)
-  const availableBoardWidth = isPortrait ? designWidth * 0.88 : designWidth * 0.54;
+  // In landscape: HUD resides on top (Row 1 status row 2.5%, Row 2 title 8.5%), sponsor at bottom (92.5%)
+  // In portrait: HUD resides at top (Row 1 status row 2.0%, Row 2 title 6.8%), sponsor at bottom (94%)
+  const availableBoardWidth = isPortrait ? designWidth * 0.88 : designWidth * 0.84;
   const availableBoardHeight = isPortrait ? designHeight * 0.68 : designHeight * 0.74;
   const totalGridGapX = Math.max(0, cols - 1) * (boardConfig.cardGap ?? 10);
   const totalGridGapY = Math.max(0, rows - 1) * (boardConfig.cardGap ?? 10);

@@ -133,46 +133,49 @@ export const DEFAULT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
     y: 3,
     width: 14,
   },
+  // Row 1: Unified status HUD row [SCORE] [MOVES] [TIME] [PAIRS]
+  // Horizontally aligned, evenly distributed, consistent height & styling
   scoreHud: {
     visible: true,
-    x: 3.5,
-    y: 11,
-    width: 18,
-  },
-  timer: {
-    visible: true,
-    x: 78.5,
-    y: 11,
-    width: 18,
+    x: 6,
+    y: 2.5,
+    width: 19,
   },
   movesHud: {
     visible: true,
-    x: 3.5,
-    y: 20.5,
-    width: 18,
+    x: 29,
+    y: 2.5,
+    width: 19,
+  },
+  timer: {
+    visible: true,
+    x: 52,
+    y: 2.5,
+    width: 19,
   },
   pairsHud: {
     visible: true,
-    x: 78.5,
-    y: 20.5,
-    width: 18,
+    x: 75,
+    y: 2.5,
+    width: 19,
   },
+  // Row 2: Game title centered horizontally directly underneath the status row
   gameTitle: {
     visible: true,
-    x: 33,
-    y: 3,
-    width: 34,
+    x: 36,
+    y: 8.5,
+    width: 28,
   },
   footerSponsor: {
     visible: true,
     x: 24,
-    y: 92,
+    y: 92.5,
     width: 52,
   },
   memoryCardBoard: {
     visible: true,
     x: 50,
-    y: 52,
+    y: 53,
   },
 };
 
@@ -372,6 +375,45 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
       x = 41;
       y = 9.5;
       width = 18;
+    }
+
+    // Migrate uncustomized legacy Memory Match coordinates to the new two-row default layout
+    // If the user customized any element (custom x/y/width), their customization is preserved
+    if (isMemory && fallback) {
+      const isLegacyDefaultScore =
+        key === 'scoreHud' &&
+        ((Math.abs(x - 4) < 0.2 && Math.abs(y - 18) < 0.5) ||
+          (Math.abs(x - 3.5) < 0.2 && Math.abs(y - 11) < 0.5));
+      const isLegacyDefaultMoves =
+        key === 'movesHud' &&
+        ((Math.abs(x - 4) < 0.2 && Math.abs(y - 34) < 0.5) ||
+          (Math.abs(x - 3.5) < 0.2 && Math.abs(y - 20.5) < 0.5));
+      const isLegacyDefaultTimer =
+        key === 'timer' &&
+        ((Math.abs(x - 76) < 0.5 && Math.abs(y - 18) < 0.5) ||
+          (Math.abs(x - 78.5) < 0.5 && Math.abs(y - 11) < 0.5));
+      const isLegacyDefaultPairs =
+        key === 'pairsHud' &&
+        ((Math.abs(x - 76) < 0.5 && Math.abs(y - 34) < 0.5) ||
+          (Math.abs(x - 78.5) < 0.5 && Math.abs(y - 20.5) < 0.5));
+      const isLegacyDefaultTitle =
+        key === 'gameTitle' &&
+        ((Math.abs(x - 34) < 0.5 && Math.abs(y - 3) < 0.5) ||
+          (Math.abs(x - 33) < 0.5 && Math.abs(y - 3) < 0.5));
+
+      if (
+        isLegacyDefaultScore ||
+        isLegacyDefaultMoves ||
+        isLegacyDefaultTimer ||
+        isLegacyDefaultPairs ||
+        isLegacyDefaultTitle
+      ) {
+        x = fallback.x;
+        y = fallback.y;
+        if (fallback.width !== undefined) {
+          width = fallback.width;
+        }
+      }
     }
     const height =
       typeof el.height === 'number' && !isNaN(el.height)
