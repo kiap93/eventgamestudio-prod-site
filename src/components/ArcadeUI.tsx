@@ -174,17 +174,17 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   const goodItemImg =
     activeTheme?.fallingObject ||
     goodItem?.imageUrl ||
-    '/assets/themes/carnival/item_normal_01.png';
+    '/assets/games/catch-brand/themes/default/item_normal_01.png';
 
   const badItemImg =
     activeTheme?.badFallingObject ||
     badItem?.imageUrl ||
-    '/assets/themes/carnival/item_hazard_01.png';
+    '/assets/games/catch-brand/themes/default/item_hazard_01.png';
 
   const catcherImg =
     activeTheme?.basket ||
     activeTheme?.basket_config?.imageUrl ||
-    '/assets/themes/carnival/basket.png';
+    '/assets/games/catch-brand/themes/default/basket.png';
 
   const hasEventContext = Boolean(publicToken || (eventId && eventId !== 'undefined' && eventId !== 'null'));
   const isOfficialEventFlow = hasEventContext && !isEventPreview;
@@ -1041,7 +1041,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                   <ul className="list-disc list-inside space-y-1 font-mono text-[11px] text-amber-300">
                     <li><code className="text-slate-200">ACTIVE_THEME_ID</code>: Single configuration value in <code className="text-slate-200">src/themes/registry.ts</code>.</li>
                     <li><code className="text-slate-200">GameTheme interface</code>: Define background, catcher, falling items, titles, and custom sounds.</li>
-                    <li><code className="text-slate-200">Fallback Protection</code>: Automatically degrades to default Carnival assets if any asset is missing.</li>
+                    <li><code className="text-slate-200">Fallback Protection</code>: Automatically degrades to default Catch The Brand assets if any asset is missing.</li>
                   </ul>
                 </div>
               </div>

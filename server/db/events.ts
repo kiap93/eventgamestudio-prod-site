@@ -17,7 +17,7 @@ import {
   CancellationErrorCode,
   PublicEventDTO,
 } from './types.js';
-import { getThemeById, isUUID, enrichThemesWithGameData, DEFAULT_CARNIVAL_THEME, checkOrganizationThemeReadiness } from './themes.js';
+import { getThemeById, isUUID, enrichThemesWithGameData, getDefaultThemeForGameType, checkOrganizationThemeReadiness } from './themes.js';
 import { calculateCatchBrandSanityLimits, CatchBrandPhysicsSanityConfig } from '../games/catchBrandScoring.js';
 import { getGameById } from './games.js';
 import { getGamePricingTierById } from './gamePricing.js';
@@ -2138,9 +2138,10 @@ export async function resolveAuthoritativeCatchBrandConfig(
     }
   }
 
-  // Fallback defaults from DEFAULT_CARNIVAL_THEME
-  const defaultPhysics = DEFAULT_CARNIVAL_THEME.physics_config;
-  const defaultItems = DEFAULT_CARNIVAL_THEME.items_config;
+  // Fallback defaults from game-specific default theme
+  const defaultTheme = getDefaultThemeForGameType(gameType);
+  const defaultPhysics = defaultTheme.physics_config;
+  const defaultItems = defaultTheme.items_config;
 
   // 5. Authoritative duration (seconds)
   let gameDurationSeconds = 20;

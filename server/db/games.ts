@@ -13,9 +13,9 @@ export const DEFAULT_BASKET_CONFIG: BasketConfig = {
 };
 
 export const DEFAULT_ITEMS_CONFIG: ItemConfig[] = [
-  { id: 'ticket', name: 'Golden Carnival Ticket', points: 100, speedMultiplier: 1.0, enabled: true, isHazard: false },
-  { id: 'star', name: 'Cosmic Carnival Star', points: 250, speedMultiplier: 1.2, enabled: true, isHazard: false },
-  { id: 'mask', name: 'Carnival Cursed Mask', points: -150, speedMultiplier: 1.3, enabled: true, isHazard: true },
+  { id: 'item_normal_01', name: 'Brand Good Item', points: 10, speedMultiplier: 1.0, enabled: true, isHazard: false },
+  { id: 'item_bonus_01', name: 'Golden Bonus Item', points: 50, speedMultiplier: 1.3, enabled: true, isHazard: false },
+  { id: 'item_hazard_01', name: 'Hazard Obstacle', points: -10, speedMultiplier: 1.15, enabled: true, isHazard: true },
 ];
 
 export const DEFAULT_SETTINGS_CONFIG: SettingsConfig = {
@@ -343,7 +343,7 @@ export async function ensureDefaultGame(organizationId: string, _orgName?: strin
     description: CATALOG_GAMES[0].description,
     icon_name: CATALOG_GAMES[0].icon_name,
     status: 'active',
-    background_url: '/assets/themes/carnival/background.png',
+    background_url: '/assets/games/catch-brand/themes/default/background.png',
     created_at: now,
     updated_at: now,
   } as GameRecord;
@@ -533,7 +533,7 @@ export async function ensureSystemCatalogGames(env?: Record<string, any>): Promi
             description: catalogGame.description,
             icon_name: catalogGame.icon_name,
             status: 'active',
-            background_url: '/assets/themes/carnival/background.png',
+            background_url: '/assets/games/catch-brand/themes/default/background.png',
             basket_config: DEFAULT_BASKET_CONFIG,
             items_config: DEFAULT_ITEMS_CONFIG,
             settings_config: DEFAULT_SETTINGS_CONFIG,
@@ -594,7 +594,7 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
             description: catalogGame.description,
             icon_name: catalogGame.icon_name,
             status: 'active',
-            background_url: '/assets/themes/carnival/background.png',
+            background_url: '/assets/games/catch-brand/themes/default/background.png',
             basket_config: DEFAULT_BASKET_CONFIG,
             items_config: DEFAULT_ITEMS_CONFIG,
             settings_config: DEFAULT_SETTINGS_CONFIG,
@@ -631,7 +631,7 @@ export async function getAllPlatformGames(env?: Record<string, any>): Promise<Ga
             description: catalogGame.description,
             icon_name: catalogGame.icon_name,
             status: 'active',
-            background_url: '/assets/themes/carnival/background.png',
+            background_url: '/assets/games/catch-brand/themes/default/background.png',
             basket_config: DEFAULT_BASKET_CONFIG,
             items_config: DEFAULT_ITEMS_CONFIG,
             settings_config: DEFAULT_SETTINGS_CONFIG,
@@ -770,7 +770,7 @@ export async function createPlatformGame(
     description: params.description ? params.description.trim() : null,
     icon_name: params.icon_name || (cleanGameType === 'reaction-tap' ? 'Zap' : cleanGameType === 'memory-match' ? 'Grid3X3' : cleanGameType === 'catch-brand' ? 'ShoppingBasket' : 'Gamepad2'),
     status: params.status || 'active',
-    background_url: params.background_url || '/assets/themes/carnival/background.png',
+    background_url: params.background_url || '/assets/games/catch-brand/themes/default/background.png',
     basket_config: params.basket_config ?? DEFAULT_BASKET_CONFIG,
     items_config: params.items_config ?? DEFAULT_ITEMS_CONFIG,
     settings_config: params.settings_config ?? DEFAULT_SETTINGS_CONFIG,
@@ -971,7 +971,7 @@ export async function getAvailableGamesForStudio(organizationId: string, env?: R
       description: cg.description,
       icon_name: cg.icon_name,
       status: 'active',
-      background_url: '/assets/themes/carnival/background.png',
+      background_url: '/assets/games/catch-brand/themes/default/background.png',
       basket_config: DEFAULT_BASKET_CONFIG,
       items_config: DEFAULT_ITEMS_CONFIG,
       settings_config: DEFAULT_SETTINGS_CONFIG,
@@ -1005,7 +1005,7 @@ export async function getAvailableGamesForStudio(organizationId: string, env?: R
         description: cg.description,
         icon_name: cg.icon_name,
         status: 'active',
-        background_url: '/assets/themes/carnival/background.png',
+        background_url: '/assets/games/catch-brand/themes/default/background.png',
         basket_config: DEFAULT_BASKET_CONFIG,
         items_config: DEFAULT_ITEMS_CONFIG,
         settings_config: DEFAULT_SETTINGS_CONFIG,

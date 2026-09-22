@@ -5,6 +5,7 @@ import {
   getSystemThemes,
   registerThemes,
 } from './registry';
+import { defaultCatchBrandTheme } from './defaultCatchBrand';
 import { carnivalTheme } from './carnival';
 import { christmasTheme } from './christmas';
 import { cnyTheme } from './cny';
@@ -17,7 +18,7 @@ console.log('RUNNING LANDING DEMO THEMES DEDUPLICATION TESTS');
 console.log('======================================================');
 
 // 1. Static system themes have is_system and is_system_theme set to true
-const systemThemes = [carnivalTheme, christmasTheme, cnyTheme, halloweenTheme, mangoTheme, memoryMatchTheme];
+const systemThemes = [defaultCatchBrandTheme, carnivalTheme, christmasTheme, cnyTheme, halloweenTheme, mangoTheme, memoryMatchTheme];
 for (const t of systemThemes) {
   assert.strictEqual(t.is_system, true, `${t.name} must have is_system === true`);
   assert.strictEqual(t.is_system_theme, true, `${t.name} must have is_system_theme === true`);
@@ -78,6 +79,7 @@ const systemDemoThemes = uniqueThemes.filter((theme) => {
     theme.is_system === true ||
     theme.ownership_type === 'system' ||
     (!theme.organization_id && (
+      theme.id === 'default' ||
       theme.id === 'carnival' ||
       theme.id === 'christmas' ||
       theme.id === 'chinese-new-year' ||
@@ -111,9 +113,9 @@ assert.strictEqual(themeIds.includes('client-custom-theme-1'), false, 'Custom cl
 assert.strictEqual(themeIds.includes('client-custom-theme-2'), false, 'Custom client theme 2 must not appear');
 assert.strictEqual(themeIds.includes('client-custom-theme-3'), false, 'Custom client theme 3 must not appear');
 
-// Exactly the 5 system themes for catch-brand
-assert.deepStrictEqual(themeIds, ['carnival', 'christmas', 'chinese-new-year', 'halloween', 'mango']);
-assert.deepStrictEqual(themeNames, ['Carnival', 'Christmas', 'Lunar', 'Halloween', 'Mango']);
+// Catch-brand system themes including default and other presets
+assert.deepStrictEqual(themeIds, ['default', 'carnival', 'christmas', 'chinese-new-year', 'halloween', 'mango']);
+assert.deepStrictEqual(themeNames, ['Default', 'Carnival', 'Christmas', 'Lunar', 'Halloween', 'Mango']);
 console.log('✓ PASS: Landing Demo correctly deduplicates and excludes client/test themes');
 console.log('======================================================');
 console.log('ALL LANDING DEMO THEME TESTS PASSED!');

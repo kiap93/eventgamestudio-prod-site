@@ -6,6 +6,7 @@ import {
   isReactionTheme,
   getDropItemDisplaySize,
   DEFAULT_MAX_DROP_ITEM_SIZE,
+  memoryMatchTheme,
 } from '../../themes';
 import { MemoryMatchCardsCustomizer } from './games/MemoryMatchCustomizer';
 import {
@@ -286,16 +287,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
   const items = theme.items_config || [];
 
   const handleResetDefaultPairs = () => {
-    const defaultPairs: ThemeDropItem[] = [
-      { id: 'pair_ticket', name: 'Golden Ticket', imageUrl: '/assets/themes/carnival/item_normal_01.png', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
-      { id: 'pair_mask', name: 'Carnival Mask', imageUrl: '/assets/themes/carnival/item_hazard_01.png', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
-      { id: 'pair_star', name: 'Cosmic Star', imageUrl: '/assets/themes/carnival/item_bonus_01.png', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: true },
-      { id: 'pair_cart', name: 'Carnival Cart', imageUrl: '/assets/themes/carnival/basket.png', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
-      { id: 'pair_tent', name: 'Big Top Tent', imageUrl: '', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
-      { id: 'pair_balloons', name: 'Party Balloons', imageUrl: '', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
-      { id: 'pair_cup', name: 'Carnival Cup', imageUrl: '', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
-      { id: 'pair_wheel', name: 'Fortune Wheel', imageUrl: '', points: 100, speedMultiplier: 1, spawnWeight: 12, enabled: true, isHazard: false, isBonus: false },
-    ];
+    const defaultPairs: ThemeDropItem[] = memoryMatchTheme.items_config || [];
     onChange({
       ...theme,
       items_config: defaultPairs,

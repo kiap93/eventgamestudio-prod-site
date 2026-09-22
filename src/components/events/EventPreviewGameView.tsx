@@ -309,7 +309,7 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
 
   // The preview header/overlay is permanent and must ALWAYS be visible, including in fullscreen!
   // In the event preview route, this is strictly a TESTING / PREVIEW environment.
-  const showHeader = true;
+  const showHeader = shouldShowPreviewHeader(eventData);
 
   return (
     <div

@@ -467,14 +467,14 @@ export function getActiveTheme(): GameTheme {
 }
 
 /**
- * Retrieve a theme by ID or slug with safe fallback to carnivalTheme
+ * Retrieve a theme by ID or slug with safe fallback to defaultCatchBrandTheme
  */
 export function getThemeById(id: string): GameTheme {
   const theme = THEME_REGISTRY[id];
   if (theme) {
     return theme;
   }
-  return currentActiveTheme || carnivalTheme;
+  return currentActiveTheme || defaultCatchBrandTheme;
 }
 
 /**

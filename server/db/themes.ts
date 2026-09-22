@@ -152,6 +152,7 @@ export const DEFAULT_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organization_
   slug: 'carnival',
   description: 'Grand festive celebration theme: Catch golden carnival tickets and cosmic stars while dodging cursed hazard masks.',
   status: 'active',
+  is_default: false,
   branding: {
     gameTitle: 'CARNIVAL FIESTA',
     subtitle: 'Catch golden tickets, avoid cursed masks!',
@@ -286,6 +287,146 @@ export const DEFAULT_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organization_
   },
 };
 
+export const DEFAULT_CATCH_BRAND_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Default',
+  slug: 'default',
+  description: 'Standard brand arcade theme: Catch good brand items and golden bonuses while dodging hazard obstacles.',
+  status: 'active',
+  is_default: true,
+  branding: {
+    gameTitle: 'CATCH THE BRAND',
+    subtitle: 'Catch good brand items, avoid hazards!',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/catch-brand/themes/default/background.png',
+  basket_config: {
+    name: 'Basket',
+    imageUrl: '/assets/games/catch-brand/themes/default/basket.png',
+    width: 140,
+    height: 70,
+    catchAreaRatio: 0.75,
+    speed: 550,
+    collisionWidthRatio: 0.7235,
+    collisionHeightRatio: 0.13,
+    collisionOffsetYRatio: 0.3394,
+  },
+  items_config: [
+    {
+      id: 'item_normal_01',
+      name: 'Brand Good Item',
+      imageUrl: '/assets/games/catch-brand/themes/default/item_normal_01.png',
+      points: 10,
+      speedMultiplier: 1.0,
+      spawnWeight: 75,
+      enabled: true,
+      isHazard: false,
+      isBonus: false,
+      collisionRadiusRatio: 0.3,
+      collisionCenterXRatio: 0.5,
+      collisionCenterYRatio: 0.54,
+    },
+    {
+      id: 'item_hazard_01',
+      name: 'Hazard Obstacle',
+      imageUrl: '/assets/games/catch-brand/themes/default/item_hazard_01.png',
+      points: -10,
+      speedMultiplier: 1.15,
+      spawnWeight: 20,
+      enabled: true,
+      isHazard: true,
+      isBonus: false,
+      collisionRadiusRatio: 0.3,
+      collisionCenterXRatio: 0.5,
+      collisionCenterYRatio: 0.54,
+    },
+    {
+      id: 'item_bonus_01',
+      name: 'Golden Bonus Item',
+      imageUrl: '/assets/games/catch-brand/themes/default/item_bonus_01.png',
+      points: 50,
+      speedMultiplier: 1.3,
+      spawnWeight: 5,
+      enabled: true,
+      isHazard: false,
+      isBonus: true,
+      collisionRadiusRatio: 0.3,
+      collisionCenterXRatio: 0.5,
+      collisionCenterYRatio: 0.54,
+    },
+  ],
+  physics_config: {
+    gameDurationSeconds: 20,
+    baseFallSpeed: 500,
+    fallSpeedMultiplier: 0.7,
+    spawnIntervalMin: 550,
+    spawnIntervalMax: 1000,
+    difficultyStages: [
+      {
+        timeThreshold: 0,
+        spawnInterval: 1000,
+        speedMin: 350,
+        speedMax: 500,
+        hazardRatio: 0.2,
+        bonusRatio: 0.05,
+        stageName: 'Stage 1: Warm Up',
+      },
+      {
+        timeThreshold: 7,
+        spawnInterval: 750,
+        speedMin: 400,
+        speedMax: 600,
+        hazardRatio: 0.3,
+        bonusRatio: 0.08,
+        stageName: 'Stage 2: Acceleration',
+      },
+      {
+        timeThreshold: 14,
+        spawnInterval: 550,
+        speedMin: 500,
+        speedMax: 700,
+        hazardRatio: 0.4,
+        bonusRatio: 0.12,
+        stageName: 'Stage 3: Turbo Rush!',
+      },
+    ],
+  },
+  visuals_config: {
+    particleGood: 'particle_gold',
+    particleBad: 'particle_spike',
+    particleBonus: 'particle_star',
+    primaryColor: '#f59e0b',
+    secondaryColor: '#ec4899',
+    accentColor: '#fbbf24',
+    textColor: '#ffffff',
+    cardGoodBg: 'rgba(180, 83, 9, 0.7)',
+    cardGoodBorder: 'rgba(245, 158, 11, 0.5)',
+    cardBadBg: 'rgba(159, 18, 57, 0.7)',
+    cardBadBorder: 'rgba(244, 63, 94, 0.5)',
+    bgGradientFrom: '#1e1035',
+    bgGradientVia: '#18122B',
+    bgGradientTo: '#0f172a',
+  },
+  sounds_config: {
+    catchGoodUrl: null,
+    catchBadUrl: null,
+    catchBonusUrl: null,
+    gameStartUrl: null,
+    gameOverUrl: null,
+    bgmUrl: null,
+    soundVolume: 0.8,
+    soundEnabled: true,
+    bgmEnabled: true,
+  },
+  layout: {
+    clientLogo: { visible: true, x: 4, y: 4, width: 14 },
+    scoreHud: { visible: true, x: 4, y: 15, width: 18 },
+    timer: { visible: true, x: 78, y: 15, width: 18 },
+    gameTitle: { visible: true, x: 36, y: 4, width: 28 },
+    footerSponsor: { visible: true, x: 32, y: 92, width: 36 },
+  },
+};
+
 export const DEFAULT_DURIAN_THEME = DEFAULT_CARNIVAL_THEME;
 
 export const DEFAULT_MEMORY_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
@@ -293,13 +434,14 @@ export const DEFAULT_MEMORY_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
   slug: 'memory-match',
   description: 'Classic memory concentration card match with 8 pairs, custom card-back styling, and combo multipliers.',
   status: 'active',
+  is_default: true,
   branding: {
     gameTitle: 'MEMORY MATCH',
     subtitle: 'Flip cards, match 8 pairs, and beat the clock!',
     logoUrl: null,
     clientLogoUrl: null,
   },
-  background_url: null,
+  background_url: '/assets/games/memory-match/themes/default/background.png',
   basket_config: {} as any,
   items_config: [
     {
@@ -462,10 +604,11 @@ export function getDefaultThemeForGameType(gameType?: string | null): Omit<GameT
   if (gameType === 'memory-match') {
     return DEFAULT_MEMORY_THEME;
   }
-  return DEFAULT_CARNIVAL_THEME;
+  return DEFAULT_CATCH_BRAND_THEME;
 }
 
 export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'>> = [
+  DEFAULT_CATCH_BRAND_THEME,
   DEFAULT_CARNIVAL_THEME,
   DEFAULT_MEMORY_CARNIVAL_THEME,
   {
@@ -1444,7 +1587,7 @@ export async function createTheme(
   }
 
   const isMemory = resolvedGameType === 'memory-match' || params.game_type === 'memory-match' || params.game_slug === 'memory-match' || resolvedGameSlug === 'memory-match';
-  const defaultTemplate = isMemory ? DEFAULT_MEMORY_THEME : DEFAULT_CARNIVAL_THEME;
+  const defaultTemplate = getDefaultThemeForGameType(resolvedGameType);
 
   const defaultBranding: ThemeBrandingConfig = {
     gameTitle: params.name.toUpperCase(),
@@ -1979,9 +2122,33 @@ export async function getAllSystemThemes(env?: Record<string, any>): Promise<Gam
 
   if (error) {
     if (error.message?.includes('Placeholder') || error.code === 'PGRST000') {
+      const now = new Date().toISOString();
       return [
         {
-          id: '8463ed7c-2b78-4285-8fdf-c0b18383fb3d',
+          id: 'default',
+          organization_id: null as any,
+          game_id: null,
+          name: 'Default',
+          slug: 'default',
+          description: DEFAULT_CATCH_BRAND_THEME.description,
+          status: 'active',
+          is_system: true,
+          is_default: true,
+          branding: DEFAULT_CATCH_BRAND_THEME.branding,
+          background_url: DEFAULT_CATCH_BRAND_THEME.background_url,
+          basket_config: DEFAULT_CATCH_BRAND_THEME.basket_config,
+          items_config: DEFAULT_CATCH_BRAND_THEME.items_config,
+          physics_config: DEFAULT_CATCH_BRAND_THEME.physics_config,
+          visuals_config: DEFAULT_CATCH_BRAND_THEME.visuals_config,
+          sounds_config: DEFAULT_CATCH_BRAND_THEME.sounds_config,
+          created_at: now,
+          updated_at: now,
+          game_name: 'Catch The Brand',
+          game_slug: 'catch-brand',
+          ownership_type: 'system',
+        } as GameThemeRecord,
+        {
+          id: 'carnival',
           organization_id: null as any,
           game_id: null,
           name: 'Carnival',
@@ -1989,7 +2156,7 @@ export async function getAllSystemThemes(env?: Record<string, any>): Promise<Gam
           description: 'Grand festive celebration theme: Catch golden carnival tickets and cosmic stars while dodging cursed hazard masks.',
           status: 'active',
           is_system: true,
-          is_default: true,
+          is_default: false,
           branding: DEFAULT_CARNIVAL_THEME.branding,
           background_url: DEFAULT_CARNIVAL_THEME.background_url,
           basket_config: DEFAULT_CARNIVAL_THEME.basket_config,
@@ -1997,10 +2164,34 @@ export async function getAllSystemThemes(env?: Record<string, any>): Promise<Gam
           physics_config: DEFAULT_CARNIVAL_THEME.physics_config,
           visuals_config: DEFAULT_CARNIVAL_THEME.visuals_config,
           sounds_config: DEFAULT_CARNIVAL_THEME.sounds_config,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          created_at: now,
+          updated_at: now,
           game_name: 'Catch The Brand',
           game_slug: 'catch-brand',
+          ownership_type: 'system',
+        } as GameThemeRecord,
+        {
+          id: 'theme-memory-match',
+          organization_id: null as any,
+          game_id: null,
+          name: 'Brand Memory Match',
+          slug: 'memory-match',
+          description: DEFAULT_MEMORY_THEME.description,
+          status: 'active',
+          is_system: true,
+          is_default: true,
+          branding: DEFAULT_MEMORY_THEME.branding,
+          background_url: DEFAULT_MEMORY_THEME.background_url,
+          basket_config: DEFAULT_MEMORY_THEME.basket_config,
+          items_config: DEFAULT_MEMORY_THEME.items_config,
+          physics_config: DEFAULT_MEMORY_THEME.physics_config,
+          visuals_config: DEFAULT_MEMORY_THEME.visuals_config,
+          sounds_config: DEFAULT_MEMORY_THEME.sounds_config,
+          game_config: (DEFAULT_MEMORY_THEME as any).game_config,
+          created_at: now,
+          updated_at: now,
+          game_name: 'Brand Memory Match',
+          game_slug: 'memory-match',
           ownership_type: 'system',
         } as GameThemeRecord,
       ];
@@ -2405,6 +2596,9 @@ export async function cloneSystemThemeToOrg(
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
+  const resolvedThemeGameType = isMemory ? 'memory-match' : (systemTheme.game_type || systemTheme.game_slug || 'catch-brand');
+  const fallbackDefaultTheme = getDefaultThemeForGameType(resolvedThemeGameType);
+
   const { data, error } = await safeInsertTheme(supabase, {
     id,
     organization_id: targetOrgId,
@@ -2419,9 +2613,9 @@ export async function cloneSystemThemeToOrg(
     branding: systemTheme.branding,
     background_url: isMemory ? (systemTheme.background_url || null) : systemTheme.background_url,
     basket_config: isMemory ? null : systemTheme.basket_config,
-    items_config: systemTheme.items_config?.length ? systemTheme.items_config : (isMemory ? DEFAULT_MEMORY_THEME.items_config : DEFAULT_CARNIVAL_THEME.items_config),
-    physics_config: isMemory ? DEFAULT_MEMORY_THEME.physics_config : systemTheme.physics_config,
-    visuals_config: systemTheme.visuals_config || (isMemory ? DEFAULT_MEMORY_THEME.visuals_config : DEFAULT_CARNIVAL_THEME.visuals_config),
+    items_config: systemTheme.items_config?.length ? systemTheme.items_config : fallbackDefaultTheme.items_config,
+    physics_config: isMemory ? DEFAULT_MEMORY_THEME.physics_config : (systemTheme.physics_config || fallbackDefaultTheme.physics_config),
+    visuals_config: systemTheme.visuals_config || fallbackDefaultTheme.visuals_config,
     sounds_config: systemTheme.sounds_config,
     layout: systemTheme.layout,
     game_config: systemTheme.game_config ?? (isMemory ? DEFAULT_MEMORY_THEME.game_config : {}),
@@ -2478,6 +2672,9 @@ export async function cloneAllSystemThemesToOrg(
       (sysTheme.slug || '').includes('memory') ||
       (sysTheme.name || '').toLowerCase().includes('memory');
 
+    const resolvedThemeGameType = isMemory ? 'memory-match' : (sysTheme.game_type || sysTheme.game_slug || 'catch-brand');
+    const fallbackDefaultTheme = getDefaultThemeForGameType(resolvedThemeGameType);
+
     const { data, error } = await safeInsertTheme(supabase, {
       id,
       organization_id: targetOrgId,
@@ -2492,9 +2689,9 @@ export async function cloneAllSystemThemesToOrg(
       branding: sysTheme.branding,
       background_url: isMemory ? (sysTheme.background_url || null) : sysTheme.background_url,
       basket_config: isMemory ? null : sysTheme.basket_config,
-      items_config: sysTheme.items_config?.length ? sysTheme.items_config : (isMemory ? DEFAULT_MEMORY_THEME.items_config : DEFAULT_CARNIVAL_THEME.items_config),
-      physics_config: isMemory ? DEFAULT_MEMORY_THEME.physics_config : sysTheme.physics_config,
-      visuals_config: sysTheme.visuals_config || (isMemory ? DEFAULT_MEMORY_THEME.visuals_config : DEFAULT_CARNIVAL_THEME.visuals_config),
+      items_config: sysTheme.items_config?.length ? sysTheme.items_config : fallbackDefaultTheme.items_config,
+      physics_config: isMemory ? DEFAULT_MEMORY_THEME.physics_config : (sysTheme.physics_config || fallbackDefaultTheme.physics_config),
+      visuals_config: sysTheme.visuals_config || fallbackDefaultTheme.visuals_config,
       sounds_config: sysTheme.sounds_config,
       layout: sysTheme.layout,
       game_config: sysTheme.game_config ?? (isMemory ? DEFAULT_MEMORY_THEME.game_config : {}),
@@ -2539,7 +2736,9 @@ export async function ensureSystemDefaultThemesForGame(
 
   const presetsToSeed = relevantPresets.length > 0
     ? relevantPresets
-    : (gameType === 'memory-match' ? [DEFAULT_MEMORY_THEME] : [DEFAULT_CARNIVAL_THEME]);
+    : [getDefaultThemeForGameType(gameType)];
+
+  const defaultThemeForGame = getDefaultThemeForGameType(gameType);
 
   for (let i = 0; i < presetsToSeed.length; i++) {
     const preset = presetsToSeed[i];
@@ -2562,12 +2761,12 @@ export async function ensureSystemDefaultThemesForGame(
         status: 'active',
         branding: preset.branding,
         background_url: preset.background_url,
-        basket_config: isMemory ? (preset.basket_config ?? null) : (preset.basket_config ?? DEFAULT_CARNIVAL_THEME.basket_config),
-        items_config: preset.items_config,
-        physics_config: preset.physics_config,
-        visuals_config: preset.visuals_config,
-        sounds_config: preset.sounds_config,
-        layout: (preset as any).layout ?? DEFAULT_CARNIVAL_THEME.layout,
+        basket_config: isMemory ? (preset.basket_config ?? null) : (preset.basket_config ?? defaultThemeForGame.basket_config),
+        items_config: preset.items_config ?? defaultThemeForGame.items_config,
+        physics_config: preset.physics_config ?? defaultThemeForGame.physics_config,
+        visuals_config: preset.visuals_config ?? defaultThemeForGame.visuals_config,
+        sounds_config: preset.sounds_config ?? defaultThemeForGame.sounds_config,
+        layout: (preset as any).layout ?? defaultThemeForGame.layout,
         game_config: (preset as any).game_config ?? (isMemory ? DEFAULT_MEMORY_THEME.game_config : {}),
         created_at: now,
         updated_at: now,
@@ -2634,11 +2833,12 @@ export async function ensureDefaultThemes(
     }
 
     const isMemory = preset.slug.includes('memory');
+    const defaultLayoutTheme = getDefaultThemeForGameType(isMemory ? 'memory-match' : 'catch-brand');
     const theme = await createTheme(
       {
         organization_id: organizationId,
         game_id: targetGameId,
-        name: isFirst ? `${orgName} Carnival` : preset.name,
+        name: isFirst ? (isMemory ? `${orgName} Memory Match` : `${orgName} Theme`) : preset.name,
         slug: preset.slug,
         description: preset.description,
         status: preset.status,
@@ -2649,7 +2849,7 @@ export async function ensureDefaultThemes(
         physics_config: isMemory ? DEFAULT_MEMORY_THEME.physics_config : preset.physics_config,
         visuals_config: isMemory ? DEFAULT_MEMORY_THEME.visuals_config : preset.visuals_config,
         sounds_config: preset.sounds_config,
-        layout: isMemory ? DEFAULT_MEMORY_THEME.layout : ((preset as any).layout ?? DEFAULT_CARNIVAL_THEME.layout),
+        layout: isMemory ? DEFAULT_MEMORY_THEME.layout : ((preset as any).layout ?? defaultLayoutTheme.layout),
       },
       env
     );
@@ -2786,13 +2986,20 @@ export async function getOrCreateOnboardingTheme(
     systemThemes = await getAllSystemThemes(env);
   }
 
-  // Prefer catch-the-brand system theme as default onboarding starter
+  // Prefer Catch The Brand default system theme as onboarding starter
   const baseSystemTheme =
     systemThemes.find(
       (t) =>
-        (t.game_slug === 'catch-the-brand' || (t.slug || '').includes('carnival') || (t.slug || '').includes('catch')) &&
+        (t.game_slug === 'catch-brand' || t.game_type === 'catch-brand' || t.game_slug === 'catch-the-brand') &&
+        (t.slug === 'default' || t.is_default) &&
         (t.is_system === true || t.ownership_type === 'system')
-    ) || systemThemes[0];
+    ) ||
+    systemThemes.find(
+      (t) =>
+        (t.game_slug === 'catch-brand' || t.game_type === 'catch-brand' || t.game_slug === 'catch-the-brand') &&
+        (t.is_system === true || t.ownership_type === 'system')
+    ) ||
+    systemThemes[0];
 
   if (!baseSystemTheme) {
     throw new Error('No template theme available to initialize onboarding theme');

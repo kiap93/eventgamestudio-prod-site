@@ -69,7 +69,7 @@ export const GAME_ASSET_MANIFEST: Record<string, Partial<Record<GameAssetType, s
  * Any other theme ID falls back to 'default'.
  */
 const KNOWN_THEME_FOLDERS: Record<string, Set<string>> = {
-  'catch-brand': new Set(['default']),
+  'catch-brand': new Set(['default', 'carnival']),
   'memory-match': new Set(['default']),
   'reaction-tap': new Set(['default']),
 };

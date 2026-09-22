@@ -32,18 +32,18 @@ Event Game Studio supports two distinct classes of visual themes:
 
 ## 2. Built-in Curated Themes
 
-The platform ships with pre-configured themes in `src/themes/`:
+The platform ships with pre-configured themes in `src/themes/` and `server/db/themes.ts`:
 
-| Theme ID | Associated Game | Visual Concept | Primary Asset Palette |
-| :--- | :--- | :--- | :--- |
-| `carnival` | `catch-brand` | Retro circus / amusement park | Striped tent background, pop-corn bucket, balloons, ticking bombs |
-| `durian` | `catch-brand` | Tropical fruit festival | Malaysian fruit orchard, bamboo basket, Musang King durian, spikes |
-| `cny` | `catch-brand` | Lunar New Year | Red lantern festive night, gold ingot bowl, mandarin oranges, firecrackers |
-| `christmas` | `catch-brand` | Holiday winter festival | Snowy night forest, Santa's sack, candy canes, snowballs |
-| `halloween` | `catch-brand` | Spooky haunted house | Graveyard night, pumpkin bucket, wrapped sweets, flying bats |
-| `mango` | `catch-brand` | Tropical summer fruit | Bright beach orchard, rattan basket, ripe mangoes, rotten fruit |
-| `memory-match`| `memory-match`| Branded corporate puzzle | Modern geometric grid, dark corporate card back, product logo pairs |
-| `reaction-time`| `reaction-tap`| F1 Grand Prix starting grid | Pit-lane tarmac, carbon-fiber lights chassis, 5 red F1 light bulbs |
+| Theme ID | Associated Game | Default? | Visual Concept | Primary Asset Palette |
+| :--- | :--- | :--- | :--- | :--- |
+| `default` | `catch-brand` | **Yes (Authoritative)** | Clean corporate arcade | Dark neon backdrop, wooden basket, brand token, hazard spike, golden bonus star (`/assets/games/catch-brand/themes/default/`) |
+| `carnival` | `catch-brand` | No (Selectable theme) | Retro circus / amusement park | Striped tent background, carnival cart, golden ticket, cursed mask, cosmic star (`/assets/games/catch-brand/themes/carnival/` or `/assets/themes/carnival/`) |
+| `cny` | `catch-brand` | No (Selectable theme) | Lunar New Year | Red lantern festive night, gold ingot bowl, mandarin oranges, firecrackers |
+| `christmas` | `catch-brand` | No (Selectable theme) | Holiday winter festival | Snowy night forest, Santa's sack, candy canes, snowballs |
+| `halloween` | `catch-brand` | No (Selectable theme) | Spooky haunted house | Graveyard night, pumpkin bucket, wrapped sweets, flying bats |
+| `mango` | `catch-brand` | No (Selectable theme) | Tropical summer fruit | Bright beach orchard, rattan basket, ripe mangoes, rotten fruit |
+| `memory-match`| `memory-match`| **Yes (Authoritative)** | Branded corporate puzzle | Modern geometric grid, dark corporate card back, product logo pairs (`/assets/games/memory-match/themes/default/`) |
+| `reaction-time`| `reaction-tap`| **Yes (Authoritative)** | F1 Grand Prix starting grid | Pit-lane tarmac, carbon-fiber lights chassis, 5 red F1 light bulbs (`/assets/games/reaction-tap/themes/default/`) |
 
 ---
 
@@ -54,8 +54,8 @@ Themes assign image and audio assets to standardized functional roles:
 ### Catcher / Arcade Roles (`catch-brand`)
 - **`background`**: Full-screen backdrop image (optimal: 1920×1080 or 1024×576).
 - **`basket`** (or `catcher`): The player-controlled avatar moved along the bottom stage.
-- **`reward`** / `good_item`: Positive scoring targets (e.g. durian, golden coin, product logo).
-- **`hazard`** / `bad_item`: Negative scoring obstacles (e.g. bomb, rotten fruit, thorn).
+- **`reward`** / `good_item`: Positive scoring targets (e.g. brand token, product logo).
+- **`hazard`** / `bad_item`: Negative scoring obstacles (e.g. hazard spike, negative penalty item).
 - **`bonus`**: Rare golden multiplier target (+50 points).
 
 ### Puzzle Roles (`memory-match`)
@@ -70,7 +70,7 @@ Themes assign image and audio assets to standardized functional roles:
 
 ## 4. Asset Resolution & Fallback Pipeline
 
-Custom assets uploaded by organizers can occasionally fail to load or be missing. The theme resolver (`resolveThemeConfig` in `src/themes/registry.ts`) implements a strict fallback hierarchy:
+The system enforces game-scoped default themes via `getDefaultThemeForGameType(gameType)` on the server and `defaultCatchBrandTheme` / `gameAssetResolver.ts` on the client. **Carnival is strictly a selectable theme and is never an implicit fallback.**
 
 ```
 [ Custom Theme Uploaded Asset ]
@@ -78,16 +78,17 @@ Custom assets uploaded by organizers can occasionally fail to load or be missing
       (If Missing / 404)
              │
              ▼
-[ Curated Base Theme Asset (e.g. carnival/basket.png) ]
+[ Explicit Theme Asset (e.g., /assets/games/{gameType}/themes/{themeId}/{filename}) ]
              │
       (If Missing / 404)
              │
              ▼
-[ Platform Default Asset (public/assets/durian_brown.png) ]
+[ Game Default Theme Asset (/assets/games/{gameType}/themes/default/{filename}) ]
 ```
 
 ### Safety Rules:
-- **No Cross-Game Fallback**: A missing `memory-match` card back must NEVER fall back to a `catch-brand` basket. Fallbacks remain strictly scoped to that specific game's asset catalog.
+- **No Implicit Carnival Fallback**: Catch The Brand defaults strictly to `default` theme (`/assets/games/catch-brand/themes/default/`). Carnival is preserved as a fully-featured, selectable theme.
+- **No Cross-Game Fallback**: A missing `memory-match` card back or pair must NEVER fall back to a `catch-brand` basket or Carnival items. Fallbacks remain strictly scoped to that specific game's asset catalog.
 - **Safe URLs**: All resolved asset URLs are sanitized. External URLs must use HTTPS. Direct data URIs are capped to prevent payload bloat.
 
 ---

@@ -35,7 +35,7 @@ export class GameScene extends Phaser.Scene {
 
   private redFlashOverlay!: Phaser.GameObjects.Rectangle;
   private bgImage!: Phaser.GameObjects.Image;
-  private loadedThemeId: string = 'carnival';
+  private loadedThemeId: string = 'default';
   private currentDifficultyStageIndex: number = -1;
 
   // Authoritative Canonical Logical Dimensions (1024x576 Landscape / 576x1024 Portrait)
