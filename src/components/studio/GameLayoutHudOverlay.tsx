@@ -376,21 +376,27 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
 
         // In live game simulation for Catch the Brand, anchor correctly to prevent overlapping
         if (isCatch && !editableLayout) {
-          const hasValidLogo = clientLogoUrl && !logoLoadError;
+          const hasValidLogo = Boolean(clientLogoUrl && !logoLoadError && isVisible);
           if (!effectiveIsPortrait) {
             // Landscape simulation
-            if (key === 'scoreHud') {
+            if (key === 'gameTitle') {
+              // First row: centered horizontally
+              widthPercent = Math.max(26, Math.min(36, widthPercent));
+              posX = (100 - widthPercent) / 2;
+              posY = 3.5;
+            } else if (key === 'clientLogo') {
+              // Dedicated second row: centered horizontally below game title
+              widthPercent = Math.max(14, Math.min(24, elem.width || 18));
+              posX = (100 - widthPercent) / 2;
+              posY = 9.5;
+            } else if (key === 'scoreHud') {
               posX = 3.5;
-              posY = hasValidLogo ? 11.5 : 3.5;
+              posY = 3.5;
               widthPercent = Math.max(15, Math.min(22, widthPercent));
             } else if (key === 'timer') {
               posX = 79.5;
               posY = 11;
               widthPercent = Math.max(15, Math.min(22, widthPercent));
-            } else if (key === 'gameTitle') {
-              widthPercent = Math.max(26, Math.min(36, widthPercent));
-              posX = (100 - widthPercent) / 2;
-              posY = 3.5;
             } else if (key === 'footerSponsor') {
               widthPercent = Math.max(48, Math.min(65, widthPercent));
               posX = (100 - widthPercent) / 2;
@@ -399,16 +405,22 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
           } else {
             // Portrait simulation
             if (key === 'gameTitle') {
+              // First row: centered horizontally
               widthPercent = Math.max(45, Math.min(60, widthPercent));
               posX = (100 - widthPercent) / 2;
-              posY = 3;
+              posY = hasValidLogo ? 2.5 : 3.0;
+            } else if (key === 'clientLogo') {
+              // Dedicated second row: centered horizontally below game title
+              widthPercent = Math.max(24, Math.min(36, elem.width || 28));
+              posX = (100 - widthPercent) / 2;
+              posY = 7.5;
             } else if (key === 'scoreHud') {
               posX = 4;
-              posY = 10;
+              posY = hasValidLogo ? 13.5 : 9.5;
               widthPercent = 44;
             } else if (key === 'timer') {
               posX = 52;
-              posY = 10;
+              posY = hasValidLogo ? 13.5 : 9.5;
               widthPercent = 44;
             } else if (key === 'footerSponsor') {
               widthPercent = Math.max(70, Math.min(88, widthPercent));
@@ -421,8 +433,8 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
         // In live game mode (non-editable), if invisible, don't render
         if (!editableLayout && !isVisible) return null;
 
-        // In live game mode, if client logo has no valid URL, don't render
-        if (!editableLayout && key === 'clientLogo' && (!clientLogoUrl || logoLoadError)) {
+        // In live game mode, if client logo has no valid URL, is errored, or is disabled, collapse second row completely
+        if (!editableLayout && key === 'clientLogo' && (!clientLogoUrl || logoLoadError || !isVisible)) {
           return null;
         }
 

@@ -199,27 +199,27 @@ export function getSafeAreaInsets(): SafeAreaInsets {
 export const DEFAULT_PORTRAIT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
   orientation: 'auto',
   clientLogo: {
-    visible: true,
-    x: 4,
-    y: 3,
-    width: 22,
+    visible: false,
+    x: 36,
+    y: 7.5,
+    width: 28,
   },
   gameTitle: {
     visible: true,
-    x: 28,
-    y: 3,
-    width: 48,
+    x: 24,
+    y: 2.5,
+    width: 52,
   },
   scoreHud: {
     visible: true,
     x: 4,
-    y: 10,
+    y: 13,
     width: 44,
   },
   timer: {
     visible: true,
     x: 52,
-    y: 10,
+    y: 13,
     width: 44,
   },
   footerSponsor: {
@@ -343,18 +343,21 @@ export function getEffectiveGameLayout(
     ...(layout.verticalAlignment ? { verticalAlignment: layout.verticalAlignment } : {}),
     clientLogo: {
       ...portraitDefaults.clientLogo,
-      visible: layout.clientLogo?.visible ?? true,
+      visible: layout.clientLogo?.visible ?? portraitDefaults.clientLogo.visible,
     },
     gameTitle: {
       ...portraitDefaults.gameTitle,
+      y: !isMemory && !layout.clientLogo?.visible ? 3 : portraitDefaults.gameTitle.y,
       visible: layout.gameTitle?.visible ?? true,
     },
     scoreHud: {
       ...portraitDefaults.scoreHud,
+      y: !isMemory && !layout.clientLogo?.visible ? 9.5 : portraitDefaults.scoreHud.y,
       visible: layout.scoreHud?.visible ?? true,
     },
     timer: {
       ...portraitDefaults.timer,
+      y: !isMemory && !layout.clientLogo?.visible ? 9.5 : portraitDefaults.timer.y,
       visible: layout.timer?.visible ?? true,
     },
     footerSponsor: {

@@ -116,6 +116,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [gameOverTab, setGameOverTab] = useState<'summary' | 'leaderboard'>('summary');
+  const [logoLoadError, setLogoLoadError] = useState(false);
 
   // Handlers to guarantee a clean slate for new game sessions
   const handlePlayAgain = useCallback(() => {
@@ -397,6 +398,10 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
     activeTheme?.branding?.logoUrl ||
     activeTheme?.logo;
 
+  useEffect(() => {
+    setLogoLoadError(false);
+  }, [clientLogoUrl]);
+
   // Resolve theme background and start screen background
   const startBg = useMemo(() => {
     const resolvedConfig = getStartScreenConfig(
@@ -520,14 +525,14 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
               className="absolute top-3 right-3 z-50"
             />
 
-            {/* 1. Client Logo Element */}
-            {layout.clientLogo?.visible && clientLogoUrl && (
+            {/* 1. Client Logo Element (Dedicated Second Row below Game Title) */}
+            {layout.clientLogo?.visible && clientLogoUrl && !logoLoadError && (
               <div
                 style={{
                   position: 'absolute',
                   left: `${layout.clientLogo.x}%`,
                   top: `${layout.clientLogo.y}%`,
-                  width: `${layout.clientLogo.width || 14}%`,
+                  width: `${layout.clientLogo.width || 18}%`,
                   zIndex: 35,
                 }}
                 className="pointer-events-none transition-all flex items-center justify-center"
@@ -535,10 +540,12 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                 <img
                   src={clientLogoUrl}
                   alt="Client Logo"
-                  className="max-h-12 w-full object-contain drop-shadow"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
+                  style={{
+                    maxHeight: isPortrait ? '34px' : '38px',
+                    maxWidth: '100%',
                   }}
+                  className="w-full object-contain drop-shadow"
+                  onError={() => setLogoLoadError(true)}
                 />
               </div>
             )}

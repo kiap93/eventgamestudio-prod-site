@@ -95,10 +95,10 @@ export function useGameUiScale(containerRef: RefObject<HTMLElement | null>): num
  */
 export const DEFAULT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
   clientLogo: {
-    visible: true,
-    x: 3.5,
-    y: 3.5,
-    width: 14,
+    visible: false,
+    x: 41,
+    y: 9.5,
+    width: 18,
   },
   scoreHud: {
     visible: true,
@@ -227,9 +227,9 @@ export const LAYOUT_ELEMENTS_META: Record<LayoutElementKey, LayoutElementMeta> =
     key: 'clientLogo',
     label: 'Client Logo',
     shortName: 'Logo',
-    description: 'Event or client brand mark in the game viewport',
+    description: 'Second-row branding logo positioned below the game title',
     iconName: 'Image',
-    defaultWidth: 14,
+    defaultWidth: 18,
     minWidth: 6,
     maxWidth: 40,
   },
@@ -360,12 +360,19 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
     }
 
     const visible = el.visible !== undefined ? !!el.visible : fallback.visible;
-    const x = typeof el.x === 'number' && !isNaN(el.x) ? Math.max(0, Math.min(100, el.x)) : fallback.x;
-    const y = typeof el.y === 'number' && !isNaN(el.y) ? Math.max(0, Math.min(100, el.y)) : fallback.y;
-    const width =
+    let x = typeof el.x === 'number' && !isNaN(el.x) ? Math.max(0, Math.min(100, el.x)) : fallback.x;
+    let y = typeof el.y === 'number' && !isNaN(el.y) ? Math.max(0, Math.min(100, el.y)) : fallback.y;
+    let width =
       typeof el.width === 'number' && !isNaN(el.width)
         ? Math.max(4, Math.min(100, el.width))
         : fallback.width;
+
+    // Migrate legacy Catch the Brand top-left (3.5, 3.5) logo coordinates to clean centered second row
+    if (!isMemory && key === 'clientLogo' && Math.abs(x - 3.5) < 0.1 && Math.abs(y - 3.5) < 0.1) {
+      x = 41;
+      y = 9.5;
+      width = 18;
+    }
     const height =
       typeof el.height === 'number' && !isNaN(el.height)
         ? Math.max(2, Math.min(100, el.height))

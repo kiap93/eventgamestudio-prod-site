@@ -1,11 +1,15 @@
 import React from 'react';
 import { GameTheme } from '../../themes/types';
+import { DEFAULT_CATCH_BRAND_LAYOUT } from '../../themes/layout';
 import {
   Palette,
   Upload,
   Sparkles,
   Type,
   ImageIcon,
+  Eye,
+  EyeOff,
+  Trash2,
 } from 'lucide-react';
 
 interface BrandingTabProps {
@@ -88,6 +92,13 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
           clientLogoUrl: url,
           logoUrl: url,
         },
+        layout: {
+          ...theme.layout,
+          clientLogo: {
+            ...(theme.layout?.clientLogo || DEFAULT_CATCH_BRAND_LAYOUT.clientLogo),
+            visible: true,
+          },
+        },
       });
     } catch {
       // Error handled in parent
@@ -165,7 +176,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
             <div>
               <h3 className="text-sm font-bold text-slate-100">Event / Client Logo</h3>
               <p className="text-xs text-slate-400">
-                Displays in the top-left HUD corner of the arcade canvas
+                Displays centered in the second row below the game title (hidden by default)
               </p>
             </div>
           </div>
@@ -176,15 +187,23 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                 type="text"
                 value={branding.clientLogoUrl || branding.logoUrl || theme.clientLogo || theme.logo || ''}
                 onChange={(e) => {
+                  const val = e.target.value;
                   handleUpdateBranding({
-                    clientLogoUrl: e.target.value,
-                    logoUrl: e.target.value,
+                    clientLogoUrl: val,
+                    logoUrl: val,
                   });
                   onChange({
                     ...theme,
-                    clientLogo: e.target.value,
-                    logo: e.target.value,
-                    branding: { ...branding, clientLogoUrl: e.target.value },
+                    clientLogo: val,
+                    logo: val,
+                    branding: { ...branding, clientLogoUrl: val, logoUrl: val },
+                    layout: {
+                      ...theme.layout,
+                      clientLogo: {
+                        ...(theme.layout?.clientLogo || DEFAULT_CATCH_BRAND_LAYOUT.clientLogo),
+                        visible: val ? (theme.layout?.clientLogo?.visible ?? true) : false,
+                      },
+                    },
                   });
                 }}
                 placeholder="https://example.com/logo.png"
@@ -203,13 +222,99 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
               </label>
             </div>
 
-            {(branding.clientLogoUrl || branding.logoUrl) && (
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 flex items-center justify-center h-20">
+            {/* Visibility Toggle Switch */}
+            {(() => {
+              const currentLogoUrl = branding.clientLogoUrl || branding.logoUrl || theme.clientLogo || theme.logo || '';
+              const isConfigured = Boolean(currentLogoUrl && currentLogoUrl.trim());
+              const isVisible = Boolean(theme.layout?.clientLogo?.visible && isConfigured);
+
+              return (
+                <div className="flex items-center justify-between p-3 bg-slate-950/70 border border-slate-800/80 rounded-2xl">
+                  <div className="space-y-0.5 pr-2">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
+                      {isVisible ? (
+                        <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <EyeOff className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                      <span>Display Client Logo in Game</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      {isConfigured
+                        ? isVisible
+                          ? 'Active: displayed centered in second row below title'
+                          : 'Hidden: second row collapsed completely'
+                        : 'No logo configured. Upload or enter a URL first.'}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={!isConfigured}
+                    onClick={() => {
+                      const nextVisible = !isVisible;
+                      onChange({
+                        ...theme,
+                        layout: {
+                          ...theme.layout,
+                          clientLogo: {
+                            ...(theme.layout?.clientLogo || DEFAULT_CATCH_BRAND_LAYOUT.clientLogo),
+                            visible: nextVisible,
+                          },
+                        },
+                      });
+                    }}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      !isConfigured
+                        ? 'opacity-40 cursor-not-allowed bg-slate-800'
+                        : isVisible
+                        ? 'bg-emerald-500'
+                        : 'bg-slate-800'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        isVisible ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              );
+            })()}
+
+            {(branding.clientLogoUrl || branding.logoUrl || theme.clientLogo || theme.logo) && (
+              <div className="relative bg-slate-950 border border-slate-800 rounded-2xl p-3 flex items-center justify-center h-20 group">
                 <img
-                  src={branding.clientLogoUrl || branding.logoUrl || ''}
+                  src={branding.clientLogoUrl || branding.logoUrl || theme.clientLogo || theme.logo || ''}
                   alt="Client Logo Preview"
                   className="max-h-14 max-w-full object-contain"
                 />
+                <button
+                  type="button"
+                  title="Remove Logo"
+                  onClick={() => {
+                    handleUpdateBranding({
+                      clientLogoUrl: '',
+                      logoUrl: '',
+                    });
+                    onChange({
+                      ...theme,
+                      clientLogo: '',
+                      logo: '',
+                      branding: { ...branding, clientLogoUrl: '', logoUrl: '' },
+                      layout: {
+                        ...theme.layout,
+                        clientLogo: {
+                          ...(theme.layout?.clientLogo || DEFAULT_CATCH_BRAND_LAYOUT.clientLogo),
+                          visible: false,
+                        },
+                      },
+                    });
+                  }}
+                  className="absolute top-2 right-2 p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all opacity-80 hover:opacity-100"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
           </div>
