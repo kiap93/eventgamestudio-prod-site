@@ -5,6 +5,7 @@ import {
   LayoutElementKey,
   LAYOUT_ELEMENTS_META,
   DEFAULT_GAME_LAYOUT,
+  DEFAULT_CATCH_BRAND_LAYOUT,
   normalizeGameLayout,
   getLayoutElementKeys,
   getDefaultUILayout,
@@ -40,6 +41,137 @@ export interface GameLayoutHudOverlayProps {
   ) => void;
   className?: string;
   uiScale?: number;
+}
+
+export interface CatchBrandHudPositionParams {
+  key: LayoutElementKey;
+  elem: { x: number; y: number; width?: number; visible?: boolean };
+  meta: { defaultWidth: number };
+  layoutSource?: GameLayoutConfig;
+  effectiveIsPortrait: boolean;
+  clientLogoUrl?: string | null;
+  logoLoadError?: boolean;
+  isVisible: boolean;
+}
+
+export function calculateCatchBrandHudPosition({
+  key,
+  elem,
+  meta,
+  layoutSource,
+  effectiveIsPortrait,
+  clientLogoUrl,
+  logoLoadError,
+  isVisible,
+}: CatchBrandHudPositionParams): {
+  posX: number;
+  posY: number;
+  widthPercent: number;
+  hasCustomValue: boolean;
+} {
+  const hasValidLogo = Boolean(clientLogoUrl && !logoLoadError && isVisible);
+
+  const isPortraitCustom = Boolean(
+    layoutSource?.portraitLayout?.[key] &&
+    typeof layoutSource.portraitLayout[key].x === 'number' &&
+    !isNaN(layoutSource.portraitLayout[key].x) &&
+    typeof layoutSource.portraitLayout[key].y === 'number' &&
+    !isNaN(layoutSource.portraitLayout[key].y)
+  );
+
+  const baseCustomElem = (layoutSource as any)?.[key];
+  const defaultRef = DEFAULT_CATCH_BRAND_LAYOUT[key];
+  const isBaseCustom = Boolean(
+    baseCustomElem &&
+    typeof baseCustomElem.x === 'number' &&
+    !isNaN(baseCustomElem.x) &&
+    typeof baseCustomElem.y === 'number' &&
+    !isNaN(baseCustomElem.y) &&
+    (
+      !defaultRef ||
+      baseCustomElem.x !== defaultRef.x ||
+      baseCustomElem.y !== defaultRef.y ||
+      (typeof baseCustomElem.width === 'number' && defaultRef.width && baseCustomElem.width !== defaultRef.width)
+    )
+  );
+
+  const hasCustomValue = effectiveIsPortrait
+    ? (isPortraitCustom || isBaseCustom)
+    : isBaseCustom;
+
+  let posX = elem.x;
+  let posY = elem.y;
+  let widthPercent = elem.width || meta.defaultWidth;
+
+  if (hasCustomValue) {
+    // Follow customization position
+    return {
+      posX,
+      posY,
+      widthPercent,
+      hasCustomValue: true,
+    };
+  }
+
+  // Default UI positioning
+  if (!effectiveIsPortrait) {
+    // Landscape simulation default UI
+    if (key === 'gameTitle') {
+      // First row: centered horizontally
+      widthPercent = Math.max(26, Math.min(36, widthPercent));
+      posX = (100 - widthPercent) / 2;
+      posY = 3.5;
+    } else if (key === 'clientLogo') {
+      // Dedicated second row: centered horizontally below game title
+      widthPercent = Math.max(14, Math.min(24, elem.width || 18));
+      posX = (100 - widthPercent) / 2;
+      posY = 9.5;
+    } else if (key === 'scoreHud') {
+      posX = 3.5;
+      posY = 3.5;
+      widthPercent = Math.max(15, Math.min(22, widthPercent));
+    } else if (key === 'timer') {
+      posX = 79.5;
+      posY = 11;
+      widthPercent = Math.max(15, Math.min(22, widthPercent));
+    } else if (key === 'footerSponsor') {
+      widthPercent = Math.max(48, Math.min(65, widthPercent));
+      posX = (100 - widthPercent) / 2;
+      posY = 92;
+    }
+  } else {
+    // Portrait simulation default UI
+    if (key === 'gameTitle') {
+      // First row: centered horizontally
+      widthPercent = Math.max(45, Math.min(60, widthPercent));
+      posX = (100 - widthPercent) / 2;
+      posY = hasValidLogo ? 2.5 : 3.0;
+    } else if (key === 'clientLogo') {
+      // Dedicated second row: centered horizontally below game title
+      widthPercent = Math.max(24, Math.min(36, elem.width || 28));
+      posX = (100 - widthPercent) / 2;
+      posY = 7.5;
+    } else if (key === 'scoreHud') {
+      posX = 4;
+      posY = hasValidLogo ? 13.5 : 9.5;
+      widthPercent = 44;
+    } else if (key === 'timer') {
+      posX = 52;
+      posY = hasValidLogo ? 13.5 : 9.5;
+      widthPercent = 44;
+    } else if (key === 'footerSponsor') {
+      widthPercent = Math.max(70, Math.min(88, widthPercent));
+      posX = (100 - widthPercent) / 2;
+      posY = 92;
+    }
+  }
+
+  return {
+    posX,
+    posY,
+    widthPercent,
+    hasCustomValue: false,
+  };
 }
 
 export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
@@ -438,60 +570,23 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
         let posX = elem.x;
         let posY = elem.y;
 
-        // In live game simulation for Catch the Brand, anchor correctly to prevent overlapping
+        // In live game simulation for Catch the Brand:
+        // if customization already have value, game hud ui should follow customization position, else default ui
         if (isCatch && !editableLayout) {
-          const hasValidLogo = Boolean(clientLogoUrl && !logoLoadError && isVisible);
-          if (!effectiveIsPortrait) {
-            // Landscape simulation
-            if (key === 'gameTitle') {
-              // First row: centered horizontally
-              widthPercent = Math.max(26, Math.min(36, widthPercent));
-              posX = (100 - widthPercent) / 2;
-              posY = 3.5;
-            } else if (key === 'clientLogo') {
-              // Dedicated second row: centered horizontally below game title
-              widthPercent = Math.max(14, Math.min(24, elem.width || 18));
-              posX = (100 - widthPercent) / 2;
-              posY = 9.5;
-            } else if (key === 'scoreHud') {
-              posX = 3.5;
-              posY = 3.5;
-              widthPercent = Math.max(15, Math.min(22, widthPercent));
-            } else if (key === 'timer') {
-              posX = 79.5;
-              posY = 11;
-              widthPercent = Math.max(15, Math.min(22, widthPercent));
-            } else if (key === 'footerSponsor') {
-              widthPercent = Math.max(48, Math.min(65, widthPercent));
-              posX = (100 - widthPercent) / 2;
-              posY = 92;
-            }
-          } else {
-            // Portrait simulation
-            if (key === 'gameTitle') {
-              // First row: centered horizontally
-              widthPercent = Math.max(45, Math.min(60, widthPercent));
-              posX = (100 - widthPercent) / 2;
-              posY = hasValidLogo ? 2.5 : 3.0;
-            } else if (key === 'clientLogo') {
-              // Dedicated second row: centered horizontally below game title
-              widthPercent = Math.max(24, Math.min(36, elem.width || 28));
-              posX = (100 - widthPercent) / 2;
-              posY = 7.5;
-            } else if (key === 'scoreHud') {
-              posX = 4;
-              posY = hasValidLogo ? 13.5 : 9.5;
-              widthPercent = 44;
-            } else if (key === 'timer') {
-              posX = 52;
-              posY = hasValidLogo ? 13.5 : 9.5;
-              widthPercent = 44;
-            } else if (key === 'footerSponsor') {
-              widthPercent = Math.max(70, Math.min(88, widthPercent));
-              posX = (100 - widthPercent) / 2;
-              posY = 92;
-            }
-          }
+          const layoutSource = theme?.layout || (rawLayout as GameLayoutConfig | undefined);
+          const computed = calculateCatchBrandHudPosition({
+            key,
+            elem,
+            meta,
+            layoutSource,
+            effectiveIsPortrait,
+            clientLogoUrl,
+            logoLoadError,
+            isVisible,
+          });
+          posX = computed.posX;
+          posY = computed.posY;
+          widthPercent = computed.widthPercent;
         }
 
         // In live game mode (non-editable), if invisible, don't render
