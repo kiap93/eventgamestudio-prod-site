@@ -272,6 +272,45 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   const showSettingsModalRef = useRef(showSettingsModal);
   showSettingsModalRef.current = showSettingsModal;
 
+  const catchBrandSettingsBackdropRef = useRef<HTMLDivElement>(null);
+  const [modalMaxHeight, setModalMaxHeight] = useState<number | null>(null);
+
+  // Measure and dynamically adapt settings modal height to the exact preview container
+  useEffect(() => {
+    if (!showSettingsModal) return;
+
+    const measureBackdrop = () => {
+      const el = catchBrandSettingsBackdropRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const availableH = el.clientHeight || rect.height;
+        if (availableH > 0) {
+          const verticalPadding = availableH < 400 ? 12 : 24;
+          setModalMaxHeight(Math.max(160, Math.floor(availableH - verticalPadding)));
+        }
+      }
+    };
+
+    measureBackdrop();
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && catchBrandSettingsBackdropRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        measureBackdrop();
+      });
+      resizeObserver.observe(catchBrandSettingsBackdropRef.current);
+    }
+
+    window.addEventListener('resize', measureBackdrop);
+    window.addEventListener('orientationchange', measureBackdrop);
+
+    return () => {
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener('resize', measureBackdrop);
+      window.removeEventListener('orientationchange', measureBackdrop);
+    };
+  }, [showSettingsModal, isFullscreen, responsive.stageHeight, responsive.isPortrait]);
+
   const [previewFallSpeed, setPreviewFallSpeed] = useState<number>(
     theme.physics_config?.fallSpeedMultiplier ?? 0.7
   );
@@ -380,6 +419,11 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     responsive.stageHeight,
     responsive.uiScale,
   ]);
+
+  const effectiveCatchBrandStageHeight = isFullscreen
+    ? catchBrandStageDimensions.stageHeight
+    : (modalMaxHeight || responsive.stageHeight || responsive.height);
+  const isCompactModal = effectiveCatchBrandStageHeight > 0 && effectiveCatchBrandStageHeight < 440;
 
   // Simulation physics state refs (Catch The Brand)
   const simState = useRef({
@@ -1522,7 +1566,8 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             {showSettingsModal && (
               <div
                 id="catch-brand-simulation-settings-modal"
-                className="absolute inset-0 bg-slate-950/85 backdrop-blur-md pointer-events-auto flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-150"
+                ref={catchBrandSettingsBackdropRef}
+                className="absolute inset-0 w-full h-full bg-slate-950/85 backdrop-blur-md pointer-events-auto flex items-center justify-center p-1.5 sm:p-2.5 md:p-3 z-[60] animate-in fade-in duration-150 box-border overflow-hidden"
                 onClick={() => {
                   setShowSettingsModal(false);
                   setIsPaused(false);
@@ -1531,14 +1576,21 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                 onMouseDown={(e) => e.stopPropagation()}
               >
                 <div
-                  className="max-w-sm sm:max-w-md w-full bg-slate-900 border-2 border-[#b2c833] rounded-2xl p-4 sm:p-5 shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto text-slate-100 font-sans"
+                  className="flex flex-col w-full max-w-[min(94%,440px)] max-h-full min-h-0 bg-slate-900 border-2 border-[#b2c833] rounded-xl sm:rounded-2xl shadow-2xl relative text-slate-100 font-sans overflow-hidden box-border"
+                  style={{
+                    maxHeight: modalMaxHeight ? `${modalMaxHeight}px` : 'calc(100% - 12px)',
+                  }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Header */}
-                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
-                    <div className="flex items-center gap-2">
-                      <Settings className="w-5 h-5 text-amber-400" />
-                      <h3 className="text-base sm:text-lg font-black text-amber-400 tracking-wider">
+                  {/* Fixed Sticky Header: Always visible with close button */}
+                  <div
+                    className={`shrink-0 flex items-center justify-between border-b border-slate-800 bg-slate-900/95 backdrop-blur-xs ${
+                      isCompactModal ? 'px-2.5 py-1.5 sm:px-3 sm:py-2' : 'px-3.5 py-2.5 sm:px-4 sm:py-3'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                      <Settings className={`${isCompactModal ? 'w-4 h-4' : 'w-4.5 h-4.5 sm:w-5 sm:h-5'} text-amber-400 shrink-0`} />
+                      <h3 className={`${isCompactModal ? 'text-xs sm:text-sm' : 'text-sm sm:text-base'} font-black text-amber-400 tracking-wider truncate`}>
                         CATCH THE BRAND SETTINGS
                       </h3>
                     </div>
@@ -1548,63 +1600,80 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                         setShowSettingsModal(false);
                         setIsPaused(false);
                       }}
-                      className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all cursor-pointer"
+                      className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all cursor-pointer shrink-0 ml-2"
                       title="Close Settings"
                     >
-                      <X className="w-4 h-4" />
+                      <X className={isCompactModal ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
                     </button>
                   </div>
 
-                  <div className="space-y-3.5 text-xs sm:text-sm">
+                  {/* Scrollable Content Body: Independently scrollable settings sections */}
+                  <div
+                    className={`flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:thin] [scrollbar-color:rgba(100,116,139,0.5)_transparent] ${
+                      isCompactModal ? 'p-2 sm:p-2.5 space-y-2' : 'p-3 sm:p-3.5 space-y-2.5 sm:space-y-3'
+                    }`}
+                  >
                     {/* Active Theme Info */}
-                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                    <div
+                      className={`bg-slate-950/80 border border-slate-800 rounded-xl flex items-center justify-between ${
+                        isCompactModal ? 'p-2' : 'p-2.5 sm:p-3'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                         <div className="truncate">
-                          <div className="text-[10px] text-slate-400 font-mono uppercase">Active Theme</div>
-                          <div className="font-bold text-slate-100 truncate">{theme.name}</div>
+                          <div className="text-[9px] sm:text-[10px] text-slate-400 font-mono uppercase">Active Theme</div>
+                          <div className="font-bold text-slate-100 text-xs sm:text-sm truncate">{theme.name}</div>
                         </div>
                       </div>
-                      <span className="text-[10px] font-mono text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-md shrink-0">
+                      <span className="text-[9px] sm:text-[10px] font-mono text-amber-300 bg-amber-950/60 border border-amber-500/30 px-1.5 sm:px-2 py-0.5 rounded-md shrink-0 ml-2">
                         {theme.branding?.gameTitle || 'Catch the Brand'}
                       </span>
                     </div>
 
                     {/* Master Sound & Audio */}
-                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2">
+                    <div
+                      className={`bg-slate-950/80 border border-slate-800 rounded-xl ${
+                        isCompactModal ? 'p-2 space-y-1' : 'p-2.5 sm:p-3 space-y-1.5'
+                      }`}
+                    >
                       <div className="flex justify-between items-center font-bold">
-                        <span className="text-slate-200 flex items-center gap-2">
-                          <Volume2 className="w-4 h-4 text-emerald-400" /> Sound Audio
+                        <span className="text-slate-200 flex items-center gap-1.5 text-xs sm:text-sm">
+                          <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" /> Sound Audio
                         </span>
                         <button
                           type="button"
                           onClick={handleToggleMute}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                             isMuted
                               ? 'bg-rose-950/60 border border-rose-500/40 text-rose-300'
                               : 'bg-emerald-950/60 border border-emerald-500/40 text-emerald-300'
                           }`}
                         >
-                          {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                          {isMuted ? <VolumeX className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                           <span>{isMuted ? 'Muted' : 'Sound Enabled'}</span>
                         </button>
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-tight">
+                      <p className="text-[10px] sm:text-[11px] text-slate-400 leading-tight">
                         Toggles sound effects for caught items, hazard collisions, and multipliers.
                       </p>
                     </div>
 
                     {/* Game Duration / Timer */}
-                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2">
+                    <div
+                      className={`bg-slate-950/80 border border-slate-800 rounded-xl ${
+                        isCompactModal ? 'p-2 space-y-1.5' : 'p-2.5 sm:p-3 space-y-2'
+                      }`}
+                    >
                       <div className="flex justify-between items-center font-bold">
-                        <span className="text-slate-200 flex items-center gap-2">
-                          <Timer className="w-4 h-4 text-teal-400" /> Game Duration
+                        <span className="text-slate-200 flex items-center gap-1.5 text-xs sm:text-sm">
+                          <Timer className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal-400 shrink-0" /> Game Duration
                         </span>
-                        <span className="text-amber-400 font-mono font-black text-sm">
+                        <span className="text-amber-400 font-mono font-black text-xs sm:text-sm">
                           {previewDuration} SEC
                         </span>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-1.5 sm:gap-2">
                         {[15, 20, 30, 45, 60].map((sec) => (
                           <button
                             key={sec}
@@ -1614,7 +1683,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                               simState.current.timeRemaining = sec;
                               setTimeRemaining(sec);
                             }}
-                            className={`flex-1 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer border ${
+                            className={`flex-1 py-0.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-mono font-bold transition-all cursor-pointer border ${
                               previewDuration === sec
                                 ? 'bg-teal-500/20 border-teal-400 text-teal-200'
                                 : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
@@ -1640,13 +1709,17 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                       />
                     </div>
 
-                    {/* Fall Speed */}
-                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2">
+                    {/* Fall Speed Multiplier */}
+                    <div
+                      className={`bg-slate-950/80 border border-slate-800 rounded-xl ${
+                        isCompactModal ? 'p-2 space-y-1.5' : 'p-2.5 sm:p-3 space-y-2'
+                      }`}
+                    >
                       <div className="flex justify-between items-center font-bold">
-                        <span className="text-slate-200 flex items-center gap-2">
-                          <Zap className="w-4 h-4 text-amber-400" /> Falling Speed Multiplier
+                        <span className="text-slate-200 flex items-center gap-1.5 text-xs sm:text-sm">
+                          <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" /> Falling Speed Multiplier
                         </span>
-                        <span className="text-amber-400 font-mono font-black text-sm">
+                        <span className="text-amber-400 font-mono font-black text-xs sm:text-sm">
                           {Math.round(previewFallSpeed * 100)}%
                         </span>
                       </div>
@@ -1659,7 +1732,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                         onChange={(e) => setPreviewFallSpeed(parseFloat(e.target.value))}
                         className="w-full accent-amber-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
                       />
-                      <div className="flex justify-between text-[10px] font-mono text-slate-400">
+                      <div className="flex justify-between text-[9px] sm:text-[10px] font-mono text-slate-400">
                         <span>50% (Gentle)</span>
                         <span>100% (Standard)</span>
                         <span>150% (Intense)</span>
@@ -1667,15 +1740,19 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                     </div>
 
                     {/* Simulation Control Mode */}
-                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2">
+                    <div
+                      className={`bg-slate-950/80 border border-slate-800 rounded-xl ${
+                        isCompactModal ? 'p-2 space-y-1' : 'p-2.5 sm:p-3 space-y-1.5'
+                      }`}
+                    >
                       <div className="flex justify-between items-center font-bold">
-                        <span className="text-slate-200 flex items-center gap-2">
-                          <Play className="w-4 h-4 text-sky-400" /> Simulation Mode
+                        <span className="text-slate-200 flex items-center gap-1.5 text-xs sm:text-sm">
+                          <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-400 shrink-0" /> Simulation Mode
                         </span>
                         <button
                           type="button"
                           onClick={() => setIsInteractive((prev) => !prev)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                          className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
                             isInteractive
                               ? 'bg-amber-500/20 border-amber-400 text-amber-200'
                               : 'bg-sky-500/20 border-sky-400 text-sky-200'
@@ -1684,40 +1761,48 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
                           <span>{isInteractive ? '🎮 Interactive Test' : '🤖 Auto Demo'}</span>
                         </button>
                       </div>
-                      <p className="text-[11px] text-slate-400 leading-tight">
+                      <p className="text-[10px] sm:text-[11px] text-slate-400 leading-tight">
                         {isInteractive
                           ? 'Move mouse or touch horizontally across the stage to control the basket.'
                           : 'AI autopilot tracks and catches items automatically.'}
                       </p>
                     </div>
+                  </div>
 
-                    {/* Reset Simulation and Close buttons */}
-                    <div className="flex gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleResetSimulation();
-                          setShowSettingsModal(false);
-                          setIsPaused(false);
-                        }}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs transition-all border border-slate-700 cursor-pointer"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Restart Simulation</span>
-                      </button>
+                  {/* Fixed Sticky Footer Actions: Always visible and clickable */}
+                  <div
+                    className={`shrink-0 border-t border-slate-800 bg-slate-900/95 flex gap-2 ${
+                      isCompactModal ? 'px-2.5 py-1.5 sm:px-3 sm:py-2' : 'px-3.5 py-2.5 sm:px-4 sm:py-3'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleResetSimulation();
+                        setShowSettingsModal(false);
+                        setIsPaused(false);
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg sm:rounded-xl font-bold transition-all border border-slate-700 cursor-pointer ${
+                        isCompactModal ? 'px-2 py-1.5 text-[11px]' : 'px-3 py-2 text-xs'
+                      }`}
+                    >
+                      <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
+                      <span className="truncate">Restart Simulation</span>
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowSettingsModal(false);
-                          setIsPaused(false);
-                        }}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer"
-                      >
-                        <Check className="w-4 h-4" />
-                        <span>Apply & Resume</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSettingsModal(false);
+                        setIsPaused(false);
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-lg sm:rounded-xl shadow-lg transition-all cursor-pointer ${
+                        isCompactModal ? 'px-2 py-1.5 text-[11px]' : 'px-3 py-2 text-xs'
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                      <span className="truncate">Apply & Resume</span>
+                    </button>
                   </div>
                 </div>
               </div>
