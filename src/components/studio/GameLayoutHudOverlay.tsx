@@ -81,7 +81,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
     theme?.clientLogo ||
     theme?.branding?.logoUrl ||
     theme?.logo ||
-    null;
+    '/logo.png';
 
   // Reset logo error when logo url changes
   useEffect(() => {
@@ -146,8 +146,8 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
           );
         }
 
-        // Fallback brand container when logo is missing or errored (useful in studio editor for non-memory games)
-        if (editableLayout && resolvedGameType !== 'memory-match') {
+        // Fallback brand container when logo is missing or errored (useful in studio editor)
+        if (editableLayout) {
           return (
             <div className="w-full bg-slate-900/90 backdrop-blur-sm border border-emerald-500/60 rounded-xl px-2 py-1 flex items-center justify-center gap-1.5 shadow-md pointer-events-none select-none">
               <ImageIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -500,12 +500,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
         // If client logo has no valid URL, is errored, or is disabled:
         if (key === 'clientLogo') {
           if (!clientLogoUrl || logoLoadError || !isVisible) {
-            // For Memory Match, client logo is invisible by default (no placeholder, no empty box, no space reserved)
-            if (resolvedGameType === 'memory-match') {
-              if (!editableLayout || selectedElementKey !== 'clientLogo' || !clientLogoUrl) {
-                return null;
-              }
-            } else if (!editableLayout) {
+            if (!editableLayout) {
               return null;
             }
           }

@@ -127,8 +127,10 @@ export const DEFAULT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
 };
 
 export const DEFAULT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
+  // ROW 2 — CLIENT LOGO + TITLE: [CLIENT LOGO] ... [GAME TITLE]
+  // Client Logo: placed on left of second row at y: 8.5%
   clientLogo: {
-    visible: false,
+    visible: true,
     x: 2.5,
     y: 8.5,
     width: 16,
@@ -161,8 +163,8 @@ export const DEFAULT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
     y: 2.5,
     width: 16,
   },
-  // ROW 2 — CLIENT LOGO + TITLE: [INVISIBLE CLIENT LOGO] ... [GAME TITLE]
-  // Game title centered horizontally relative to the GAME CANVAS (x: 36, width: 28 -> center at 50%)
+  // ROW 2 — CLIENT LOGO + TITLE: [CLIENT LOGO] ... [GAME TITLE]
+  // Game title centered horizontally in second row relative to the GAME CANVAS (x: 36, width: 28 -> center at 50%)
   gameTitle: {
     visible: true,
     x: 36,
@@ -365,7 +367,7 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
       return { ...fallback };
     }
 
-    const visible = el.visible !== undefined ? !!el.visible : fallback.visible;
+    let visible = el.visible !== undefined ? !!el.visible : fallback.visible;
     let x = typeof el.x === 'number' && !isNaN(el.x) ? Math.max(0, Math.min(100, el.x)) : fallback.x;
     let y = typeof el.y === 'number' && !isNaN(el.y) ? Math.max(0, Math.min(100, el.y)) : fallback.y;
     let width =
@@ -385,39 +387,49 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
     if (isMemory && fallback) {
       const isLegacyDefaultScore =
         key === 'scoreHud' &&
-        ((Math.abs(x - 4) < 0.2 && Math.abs(y - 18) < 0.5) ||
-          (Math.abs(x - 3.5) < 0.2 && Math.abs(y - 11) < 0.5) ||
-          (Math.abs(x - 6) < 0.2 && Math.abs(y - 2.5) < 0.5) ||
-          (Math.abs(x - 3.5) < 0.2 && Math.abs(y - 3.5) < 0.5));
+        ((Math.abs(x - 4) < 0.6 && Math.abs(y - 18) < 0.6) ||
+          (Math.abs(x - 4) < 0.6 && Math.abs(y - 11) < 0.6) ||
+          (Math.abs(x - 4) < 0.6 && Math.abs(y - 15) < 0.6) ||
+          (Math.abs(x - 3.5) < 0.6 && Math.abs(y - 11) < 0.6) ||
+          (Math.abs(x - 6) < 0.6 && Math.abs(y - 2.5) < 0.6) ||
+          (Math.abs(x - 3.5) < 0.6 && Math.abs(y - 3.5) < 0.6));
       const isLegacyDefaultMoves =
         key === 'movesHud' &&
-        ((Math.abs(x - 4) < 0.2 && Math.abs(y - 34) < 0.5) ||
-          (Math.abs(x - 3.5) < 0.2 && Math.abs(y - 20.5) < 0.5) ||
-          (Math.abs(x - 29) < 0.2 && Math.abs(y - 2.5) < 0.5) ||
-          (Math.abs(x - 27.5) < 0.2 && Math.abs(y - 3.5) < 0.5));
+        ((Math.abs(x - 4) < 0.6 && Math.abs(y - 34) < 0.6) ||
+          (Math.abs(x - 3.5) < 0.6 && Math.abs(y - 20.5) < 0.6) ||
+          (Math.abs(x - 29) < 0.6 && Math.abs(y - 2.5) < 0.6) ||
+          (Math.abs(x - 25) < 0.6 && Math.abs(y - 3.5) < 0.6) ||
+          (Math.abs(x - 27.5) < 0.6 && Math.abs(y - 3.5) < 0.6));
       const isLegacyDefaultTimer =
         key === 'timer' &&
-        ((Math.abs(x - 76) < 0.5 && Math.abs(y - 18) < 0.5) ||
-          (Math.abs(x - 78.5) < 0.5 && Math.abs(y - 11) < 0.5) ||
-          (Math.abs(x - 52) < 0.5 && Math.abs(y - 2.5) < 0.5) ||
-          (Math.abs(x - 51.5) < 0.5 && Math.abs(y - 3.5) < 0.5) ||
-          (Math.abs(x - 75.5) < 0.5 && Math.abs(y - 3.5) < 0.5));
+        ((Math.abs(x - 76) < 1 && Math.abs(y - 18) < 1) ||
+          (Math.abs(x - 78) < 1 && Math.abs(y - 15) < 1) ||
+          (Math.abs(x - 78.5) < 1 && Math.abs(y - 11) < 1) ||
+          (Math.abs(x - 52) < 1 && Math.abs(y - 2.5) < 1) ||
+          (Math.abs(x - 51.5) < 1 && Math.abs(y - 3.5) < 1) ||
+          (Math.abs(x - 75.5) < 1 && Math.abs(y - 3.5) < 1));
       const isLegacyDefaultPairs =
         key === 'pairsHud' &&
-        ((Math.abs(x - 76) < 0.5 && Math.abs(y - 34) < 0.5) ||
-          (Math.abs(x - 78.5) < 0.5 && Math.abs(y - 20.5) < 0.5) ||
-          (Math.abs(x - 75) < 0.5 && Math.abs(y - 2.5) < 0.5) ||
-          (Math.abs(x - 75.5) < 0.5 && Math.abs(y - 3.5) < 0.5) ||
-          (Math.abs(x - 51.5) < 0.5 && Math.abs(y - 3.5) < 0.5));
+        ((Math.abs(x - 76) < 1 && Math.abs(y - 34) < 1) ||
+          (Math.abs(x - 78.5) < 1 && Math.abs(y - 20.5) < 1) ||
+          (Math.abs(x - 75) < 1 && Math.abs(y - 2.5) < 1) ||
+          (Math.abs(x - 75.5) < 1 && Math.abs(y - 3.5) < 1) ||
+          (Math.abs(x - 51.5) < 1 && Math.abs(y - 3.5) < 1));
       const isLegacyDefaultTitle =
         key === 'gameTitle' &&
-        ((Math.abs(x - 34) < 0.5 && Math.abs(y - 3) < 0.5) ||
-          (Math.abs(x - 33) < 0.5 && Math.abs(y - 3) < 0.5) ||
-          (Math.abs(x - 35) < 0.5 && Math.abs(y - 10.5) < 0.5));
+        ((Math.abs(x - 34) < 1 && Math.abs(y - 3) < 1) ||
+          (Math.abs(x - 33) < 1 && Math.abs(y - 3) < 1) ||
+          (Math.abs(x - 35) < 1 && Math.abs(y - 10.5) < 1) ||
+          (Math.abs(x - 36) < 1 && Math.abs(y - 4) < 1) ||
+          (y < 6.5 && Math.abs(x - 36) < 4) ||
+          (y < 6.5 && Math.abs(x - 34) < 4));
       const isLegacyDefaultLogo =
         key === 'clientLogo' &&
-        ((Math.abs(x - 4) < 0.5 && Math.abs(y - 3) < 0.5) ||
-          (Math.abs(x - 3.5) < 0.5 && Math.abs(y - 10.5) < 0.5));
+        ((Math.abs(x - 4) < 1 && Math.abs(y - 3) < 1) ||
+          (Math.abs(x - 4) < 1 && Math.abs(y - 4) < 1) ||
+          (Math.abs(x - 3.5) < 1 && Math.abs(y - 10.5) < 1) ||
+          (Math.abs(x - 2.5) < 1 && Math.abs(y - 8.5) < 1) ||
+          (Math.abs(x - 3.5) < 1 && Math.abs(y - 3.5) < 1));
 
       if (
         isLegacyDefaultScore ||
@@ -431,6 +443,12 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
         y = fallback.y;
         if (fallback.width !== undefined) {
           width = fallback.width;
+        }
+        if (key === 'clientLogo') {
+          // Ensure clientLogo visibility defaults to true unless explicitly turned off on an updated logo
+          if (el.visible === undefined || isLegacyDefaultLogo) {
+            visible = fallback.visible;
+          }
         }
       }
     }

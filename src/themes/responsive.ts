@@ -236,7 +236,7 @@ export const DEFAULT_PORTRAIT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
 export const DEFAULT_PORTRAIT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
   orientation: 'auto',
   clientLogo: {
-    visible: false,
+    visible: true,
     x: 2,
     y: 6.8,
     width: 16,

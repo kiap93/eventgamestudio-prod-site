@@ -95,7 +95,10 @@ assert(baseLayout.timer?.x === 58, 'Memory match landscape timer x is placed fou
 assert(baseLayout.timer?.y === 2.5, 'Memory match landscape timer y is placed in row 1 (2.5)');
 assert(baseLayout.gameTitle?.x === 36, 'Memory match landscape gameTitle x is centered (36)');
 assert(baseLayout.gameTitle?.width === 28, 'Memory match landscape gameTitle width is 28 (center at 50)');
-assert(baseLayout.clientLogo?.visible === false, 'Memory match landscape clientLogo is hidden by default');
+assert(baseLayout.gameTitle?.y === 8.5, 'Memory match landscape gameTitle y is in row 2 (8.5)');
+assert(baseLayout.clientLogo?.visible === true, 'Memory match landscape clientLogo is visible by default');
+assert(baseLayout.clientLogo?.x === 2.5, 'Memory match landscape clientLogo x is placed in row 2 (2.5)');
+assert(baseLayout.clientLogo?.y === 8.5, 'Memory match landscape clientLogo y is placed in row 2 (8.5)');
 
 // Custom HUD position preservation tests (verifying removal of arbitrary rejection / auto-heal)
 const customHudLayout = normalizeGameLayout(

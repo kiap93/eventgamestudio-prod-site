@@ -179,7 +179,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
             <div>
               <h3 className="text-sm font-bold text-slate-100">Event / Client Logo</h3>
               <p className="text-xs text-slate-400">
-                Displays centered in the second row below the game title (hidden by default)
+                Displays in the second row next to the game title
               </p>
             </div>
           </div>
@@ -204,7 +204,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                       ...theme.layout,
                       clientLogo: {
                         ...(theme.layout?.clientLogo || defaultLayout.clientLogo),
-                        visible: val ? (theme.layout?.clientLogo?.visible ?? true) : false,
+                        visible: theme.layout?.clientLogo?.visible ?? true,
                       },
                     },
                   });
@@ -227,9 +227,9 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
 
             {/* Visibility Toggle Switch */}
             {(() => {
-              const currentLogoUrl = branding.clientLogoUrl || branding.logoUrl || theme.clientLogo || theme.logo || '';
+              const currentLogoUrl = branding.clientLogoUrl || branding.logoUrl || theme.clientLogo || theme.logo || '/logo.png';
               const isConfigured = Boolean(currentLogoUrl && currentLogoUrl.trim());
-              const isVisible = Boolean(theme.layout?.clientLogo?.visible && isConfigured);
+              const isVisible = theme.layout?.clientLogo?.visible !== false;
 
               return (
                 <div className="flex items-center justify-between p-3 bg-slate-950/70 border border-slate-800/80 rounded-2xl">
@@ -245,8 +245,8 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                     <p className="text-[11px] text-slate-400">
                       {isConfigured
                         ? isVisible
-                          ? 'Active: displayed centered in second row below title'
-                          : 'Hidden: second row collapsed completely'
+                          ? 'Active: displayed in second row next to game title'
+                          : 'Hidden: logo element hidden from game HUD'
                         : 'No logo configured. Upload or enter a URL first.'}
                     </p>
                   </div>

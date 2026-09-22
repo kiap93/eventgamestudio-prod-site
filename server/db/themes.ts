@@ -445,7 +445,7 @@ export const DEFAULT_MEMORY_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
     bgmEnabled: true,
   },
   layout: {
-    clientLogo: { visible: false, x: 2.5, y: 8.5, width: 16 },
+    clientLogo: { visible: true, x: 2.5, y: 8.5, width: 16 },
     scoreHud: { visible: true, x: 2.5, y: 2.5, width: 16 },
     movesHud: { visible: true, x: 21, y: 2.5, width: 16 },
     pairsHud: { visible: true, x: 39.5, y: 2.5, width: 16 },
