@@ -83,6 +83,8 @@ export function resolveEffectiveGameOrientation(
   return getOrientation(viewportWidth, viewportHeight, 'auto');
 }
 
+export const resolveEffectiveOrientation = resolveEffectiveGameOrientation;
+
 /**
  * Calculates responsive UI scale factor based on container dimensions and orientation.
  */

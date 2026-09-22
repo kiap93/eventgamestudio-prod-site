@@ -26,7 +26,17 @@ import {
   getDefaultUILayout,
   calculateDraggedPosition,
 } from '../../themes/layout';
-import { useResponsiveLayout, getEffectiveGameLayout } from '../../themes/responsive';
+import {
+  useResponsiveLayout,
+  getEffectiveGameLayout,
+  calculateResponsiveStageDimensions,
+  PORTRAIT_DESIGN_WIDTH,
+  PORTRAIT_DESIGN_HEIGHT,
+  LANDSCAPE_DESIGN_WIDTH,
+  LANDSCAPE_DESIGN_HEIGHT,
+  EffectiveOrientation,
+} from '../../themes/responsive';
+import { GameOrientation } from '../../themes/types';
 import { GameLayoutHudOverlay } from './GameLayoutHudOverlay';
 import { GameControlBar } from './GameControlBar';
 import {
@@ -116,28 +126,29 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const catchBrandStageRef = useRef<HTMLDivElement | null>(null);
 
   const [isPlaying] = useState<boolean>(true);
   const [isInteractive, setIsInteractive] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [previewOrientation, setPreviewOrientation] = useState<'landscape' | 'portrait'>(() => {
-    return theme.layout?.orientation === 'portrait' ? 'portrait' : 'landscape';
-  });
 
-  const orientationPreference = theme.layout?.orientation || 'auto';
-  const responsive = useResponsiveLayout(viewportRef, orientationPreference, previewOrientation);
+  // Manual orientation toggle state in the preview header (null when not manually overridden)
+  const [manualOrientation, setManualOrientation] = useState<'landscape' | 'portrait' | null>(null);
+
+  // Reset manual override whenever theme.layout?.orientation or theme.id changes
+  useEffect(() => {
+    setManualOrientation(null);
+  }, [theme.layout?.orientation, theme.id]);
+
+  const orientationPreference: GameOrientation = theme.layout?.orientation || 'auto';
+
+  // Master responsive layout state driven authoritatively by useResponsiveLayout:
+  // Priority: Manual Override > Theme Preference > Auto Container Responsive
+  const responsive = useResponsiveLayout(viewportRef, orientationPreference, manualOrientation);
+  const effectivePreviewOrientation: EffectiveOrientation = responsive.orientation;
   const uiScale = responsive.uiScale;
   const [restartKey, setRestartKey] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-
-  // Automatically sync preview orientation when theme.layout?.orientation changes
-  useEffect(() => {
-    if (theme.layout?.orientation === 'portrait') {
-      setPreviewOrientation('portrait');
-    } else if (theme.layout?.orientation === 'landscape') {
-      setPreviewOrientation('landscape');
-    }
-  }, [theme.layout?.orientation]);
 
   // Fullscreen synchronization with browser Fullscreen API and scroll lock
   useEffect(() => {
@@ -376,23 +387,27 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     return true;
   }, [isMemoryMatch, isReaction, theme.id, theme.slug, theme.base_theme_id]);
 
-  // Dedicated responsive scaling for Catch the Brand simulation stage in Fullscreen
-  const catchBrandStageDimensions = useMemo(() => {
-    if (!isFullscreen || !isCatchBrand) {
-      return {
-        stageWidth: responsive.stageWidth,
-        stageHeight: responsive.stageHeight,
-        scale: responsive.uiScale,
-      };
+  // Authoritative stage bounding rect for drag and drop coordinate calculations
+  const getAuthoritativeStageRect = useCallback((): DOMRect | null => {
+    if (isCatchBrand && catchBrandStageRef.current) {
+      const rect = catchBrandStageRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) return rect;
     }
+    if (viewportRef.current) {
+      const rect = viewportRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) return rect;
+    }
+    return null;
+  }, [isCatchBrand]);
 
-    const logicalGameWidth = responsive.isPortrait ? 576 : 1024;
-    const logicalGameHeight = responsive.isPortrait ? 1024 : 576;
+  // Dedicated responsive scaling for Catch the Brand simulation stage
+  const catchBrandStageDimensions = useMemo(() => {
+    const isPortrait = responsive.isPortrait;
 
     // Viewport client dimensions (flex-1 element between top and bottom bars)
     const vp = viewportRef.current;
-    let availableWidth = vp ? vp.clientWidth : window.innerWidth;
-    let availableHeight = vp ? vp.clientHeight : window.innerHeight - 96;
+    let availableWidth = vp?.clientWidth || (isFullscreen ? window.innerWidth : 500);
+    let availableHeight = vp?.clientHeight || (isFullscreen ? window.innerHeight - 96 : 540);
 
     // Account for safe margins inside viewport (16px on mobile, 24px on desktop)
     const safePadX = availableWidth < 640 ? 16 : 24;
@@ -400,19 +415,12 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     const effectiveWidth = Math.max(100, availableWidth - safePadX);
     const effectiveHeight = Math.max(100, availableHeight - safePadY);
 
-    // Uniform scaling formula: min(availableWidth / logicalGameWidth, availableHeight / logicalGameHeight)
-    const scale = Math.min(
-      effectiveWidth / logicalGameWidth,
-      effectiveHeight / logicalGameHeight
-    );
-
-    const stageWidth = Math.max(1, Math.floor(logicalGameWidth * scale));
-    const stageHeight = Math.max(1, Math.floor(logicalGameHeight * scale));
+    const dims = calculateResponsiveStageDimensions(effectiveWidth, effectiveHeight, isPortrait);
 
     return {
-      stageWidth,
-      stageHeight,
-      scale,
+      stageWidth: dims.stageWidth,
+      stageHeight: dims.stageHeight,
+      scale: dims.uiScale,
     };
   }, [
     isFullscreen,
@@ -420,9 +428,6 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     responsive.isPortrait,
     responsive.width,
     responsive.height,
-    responsive.stageWidth,
-    responsive.stageHeight,
-    responsive.uiScale,
   ]);
 
   const effectiveCatchBrandStageHeight = isFullscreen
@@ -432,8 +437,8 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
   // Simulation physics state refs (Catch The Brand)
   const simState = useRef({
-    basketX: 512,
-    basketTargetX: 512,
+    basketX: responsive.designWidth / 2,
+    basketTargetX: responsive.designWidth / 2,
     items: [] as SimulatedItem[],
     particles: [] as SimulatedParticle[],
     lastSpawnTime: 0,
@@ -487,13 +492,15 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         initH = dims.height;
       }
 
-      const isPortrait = responsive.isPortrait;
       const designW = responsive.designWidth;
+      const spawnMargin = 60;
+      const spawnMinX = spawnMargin;
+      const spawnMaxX = designW - spawnMargin;
 
       const newItem: SimulatedItem = {
         id: `sim_${Date.now()}_${Math.random()}`,
         config: targetItem,
-        x: Math.random() * (designW - 180) + 90,
+        x: Math.random() * (spawnMaxX - spawnMinX) + spawnMinX,
         y: -30,
         speed: finalSpeed,
         rotation: 0,
@@ -506,28 +513,29 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
       simState.current.items.push(newItem);
     },
-    [theme, previewOrientation, getOrLoadImage]
+    [theme, responsive.designWidth, getOrLoadImage]
   );
 
   // Reset simulation
   const handleResetSimulation = useCallback(() => {
     setRestartKey((prev) => prev + 1);
 
+    const designW = responsive.designWidth;
     simState.current.items = [];
     simState.current.particles = [];
     simState.current.score = 0;
     simState.current.caughtCount = 0;
     simState.current.timeElapsed = 0;
     simState.current.timeRemaining = previewDuration;
-    simState.current.basketX = 512;
-    simState.current.basketTargetX = 512;
+    simState.current.basketX = designW / 2;
+    simState.current.basketTargetX = designW / 2;
     simState.current.redFlashAlpha = 0;
     simState.current.basketBounce = 0;
 
     setScore(0);
     setTimeRemaining(previewDuration);
     setCurrentStageName('Stage 1: Calm');
-  }, [previewDuration]);
+  }, [previewDuration, responsive.designWidth]);
 
   // Stop simulation (resets and unpauses)
   const handleStopSimulation = useCallback(() => {
@@ -616,9 +624,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
         // Smooth basket interpolation
         const basketSpeed = theme.basket_config?.speed || 550;
-        const lerpFactor = Math.min(1, (basketSpeed / 60) * dt * 0.15);
+        const basketW = theme.basket_config?.width || 140;
+        const basketHalfW = basketW / 2;
+        const lerpFactor = isInteractive
+          ? Math.min(1, dt * 35)
+          : Math.min(1, (basketSpeed / 60) * dt * 0.15);
         state.basketX += (state.basketTargetX - state.basketX) * lerpFactor;
-        state.basketX = Math.max(90, Math.min(V_WIDTH - 90, state.basketX));
+        state.basketX = Math.max(basketHalfW, Math.min(V_WIDTH - basketHalfW, state.basketX));
 
         // Spawning logic
         const spawnInterval = curStage.spawnInterval || 800;
@@ -657,10 +669,14 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               initH = dims.height;
             }
 
+            const spawnMargin = 60;
+            const spawnMinX = spawnMargin;
+            const spawnMaxX = V_WIDTH - spawnMargin;
+
             state.items.push({
               id: `item_${Date.now()}_${Math.random()}`,
               config: chosen,
-              x: Math.random() * (V_WIDTH - 200) + 100,
+              x: Math.random() * (spawnMaxX - spawnMinX) + spawnMinX,
               y: -40,
               speed: finalSpeed,
               rotation: 0,
@@ -675,7 +691,6 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
         // Update items and collisions
         const basketY = V_HEIGHT - 65;
-        const basketW = theme.basket_config?.width || 140;
         const basketH = theme.basket_config?.height || 70;
         const catchRatio = theme.basket_config?.catchAreaRatio || 0.8;
         const catchHalfW = (basketW * catchRatio) / 2;
@@ -905,23 +920,27 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     isReaction,
     theme,
     getOrLoadImage,
-    previewOrientation,
+    responsive.orientation,
     responsive.isPortrait,
     responsive.designWidth,
     responsive.designHeight,
   ]);
 
   // Interactive mouse / touch move on canvas (Catch The Brand)
-  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isInteractive || isMemoryMatch || isReaction) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const designW = responsive.designWidth;
-    const scaleX = designW / rect.width;
-    const clientX = e.clientX - rect.left;
-    simState.current.basketTargetX = clientX * scaleX;
-  };
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLElement>) => {
+      if (!isInteractive || isMemoryMatch || isReaction) return;
+      const stage = catchBrandStageRef.current || canvasRef.current;
+      if (!stage) return;
+      const rect = stage.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const designW = responsive.designWidth;
+      const scaleX = designW / rect.width;
+      const clientX = e.clientX - rect.left;
+      simState.current.basketTargetX = clientX * scaleX;
+    },
+    [isInteractive, isMemoryMatch, isReaction, responsive.designWidth]
+  );
 
   // Dragging and resizing for Layout tab
   const handleElementPointerDown = (
@@ -936,7 +955,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     const elem = effectiveLayout[key] || defaultLayout[key] || DEFAULT_GAME_LAYOUT[key];
     const meta = LAYOUT_ELEMENTS_META[key];
 
-    const previewRect = viewportRef.current?.getBoundingClientRect();
+    const previewRect = getAuthoritativeStageRect();
     if (!previewRect || previewRect.width <= 0 || previewRect.height <= 0) return;
 
     // Pointer coordinates relative to the preview element as percentages (0-100%)
@@ -979,10 +998,10 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
   // Shared move handler for container and window pointer events
   const handleMove = (pointerX: number, pointerY: number) => {
-    if (!dragState || !viewportRef.current || !editableLayout) return;
+    if (!dragState || !editableLayout) return;
 
-    const previewRect = viewportRef.current.getBoundingClientRect();
-    if (previewRect.width <= 0 || previewRect.height <= 0) return;
+    const previewRect = getAuthoritativeStageRect();
+    if (!previewRect || previewRect.width <= 0 || previewRect.height <= 0) return;
 
     const key = dragState.elementKey;
     const meta = LAYOUT_ELEMENTS_META[key];
@@ -1179,17 +1198,18 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
               <button
                 type="button"
-                onClick={() =>
-                  setPreviewOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))
-                }
+                onClick={() => {
+                  const next = (manualOrientation ?? responsive.orientation) === 'landscape' ? 'portrait' : 'landscape';
+                  setManualOrientation(next);
+                }}
                 className="px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60 shrink-0"
                 title={`Switch preview to ${
-                  previewOrientation === 'landscape'
+                  effectivePreviewOrientation === 'landscape'
                     ? 'Mobile Portrait (9:16)'
                     : 'Landscape (16:9)'
                 }`}
               >
-                {previewOrientation === 'landscape' ? (
+                {effectivePreviewOrientation === 'landscape' ? (
                   <>
                     <Smartphone className="w-3 h-3 text-amber-400" />
                     <span>Portrait</span>
@@ -1265,17 +1285,18 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
               <button
                 type="button"
-                onClick={() =>
-                  setPreviewOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))
-                }
+                onClick={() => {
+                  const next = (manualOrientation ?? responsive.orientation) === 'landscape' ? 'portrait' : 'landscape';
+                  setManualOrientation(next);
+                }}
                 className="px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all bg-slate-800/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60"
                 title={`Switch preview to ${
-                  previewOrientation === 'landscape'
+                  effectivePreviewOrientation === 'landscape'
                     ? 'Mobile Portrait (9:16)'
                     : 'Landscape (16:9)'
                 }`}
               >
-                {previewOrientation === 'landscape' ? (
+                {effectivePreviewOrientation === 'landscape' ? (
                   <>
                     <Smartphone className="w-3.5 h-3.5 text-amber-400" />
                     <span className="hidden sm:inline">Portrait</span>
@@ -1358,11 +1379,14 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             </button>
 
             <button
-              onClick={() => setPreviewOrientation((prev) => (prev === 'landscape' ? 'portrait' : 'landscape'))}
+              onClick={() => {
+                const next = (manualOrientation ?? responsive.orientation) === 'landscape' ? 'portrait' : 'landscape';
+                setManualOrientation(next);
+              }}
               className="px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
-              title={`Switch preview to ${previewOrientation === 'landscape' ? 'Mobile Portrait (9:16)' : 'Landscape (16:9)'}`}
+              title={`Switch preview to ${effectivePreviewOrientation === 'landscape' ? 'Mobile Portrait (9:16)' : 'Landscape (16:9)'}`}
             >
-              {previewOrientation === 'landscape' ? (
+              {effectivePreviewOrientation === 'landscape' ? (
                 <>
                   <Smartphone className="w-3 h-3 text-amber-400" />
                   <span>Portrait</span>
@@ -1502,29 +1526,34 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         ) : (
           /* CATCH BRAND FALLING CANVAS SIMULATION - CENTERED AND PROPORTIONALLY SCALED */
           <div
+            ref={catchBrandStageRef}
             id="catch-brand-simulation-stage"
             className={`game-stage relative overflow-hidden pointer-events-auto shrink-0 shadow-2xl transition-all z-10 ${
               responsive.isPortrait ? 'is-portrait aspect-[9/16]' : 'aspect-[16/9]'
-            } ${isFullscreen ? 'rounded-2xl ring-1 ring-white/10' : 'w-full h-full'}`}
-            style={
-              isFullscreen
-                ? {
-                    width: `${catchBrandStageDimensions.stageWidth}px`,
-                    height: `${catchBrandStageDimensions.stageHeight}px`,
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                  }
-                : {
-                    width: '100%',
-                    height: '100%',
-                  }
-            }
+            } rounded-2xl ring-1 ring-white/10`}
+            style={{
+              width: `${catchBrandStageDimensions.stageWidth}px`,
+              height: `${catchBrandStageDimensions.stageHeight}px`,
+              maxWidth: '100%',
+              maxHeight: '100%',
+            }}
+            onPointerMove={(e) => {
+              if (isInteractive && !editableLayout) {
+                handlePointerMove(e);
+              }
+            }}
+            onPointerDown={(e) => {
+              if (isInteractive && !editableLayout) {
+                handlePointerMove(e);
+              }
+            }}
           >
             <canvas
               ref={canvasRef}
               width={responsive.designWidth}
               height={responsive.designHeight}
               onPointerMove={handlePointerMove}
+              onPointerDown={handlePointerMove}
               className={`w-full h-full ${
                 isInteractive ? 'cursor-ew-resize' : 'cursor-default'
               }`}
