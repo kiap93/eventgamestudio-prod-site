@@ -7,6 +7,7 @@ import {
   Play,
   Square,
   Maximize2,
+  Minimize2,
 } from 'lucide-react';
 
 export interface GameControlBarProps {
@@ -111,7 +112,12 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
             }
           : undefined
       }
-      className={`z-40 pointer-events-auto select-none inline-flex items-center w-fit gap-1 sm:gap-1.5 bg-slate-950/85 backdrop-blur-sm p-1 sm:p-1.5 rounded-xl border border-slate-700/80 shadow-lg ${
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerMove={(e) => e.stopPropagation()}
+      onMouseMove={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      className={`z-50 pointer-events-auto select-none inline-flex items-center w-fit gap-1 sm:gap-1.5 bg-slate-950/85 backdrop-blur-sm p-1 sm:p-1.5 rounded-xl border border-slate-700/80 shadow-lg ${
         className.includes('absolute') || className.includes('fixed') ? '' : 'relative'
       } ${className}`}
       role="toolbar"
@@ -125,13 +131,15 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           disabled={disabled}
           aria-disabled={disabled}
           onClick={(e) => {
+            e.stopPropagation();
             if (disabled) {
               e.preventDefault();
-              e.stopPropagation();
               return;
             }
             onSettingsClick?.();
           }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           onMouseEnter={() => setActiveTooltip('settings')}
           onMouseLeave={() => setActiveTooltip((cur) => (cur === 'settings' ? null : cur))}
           onFocus={() => setActiveTooltip('settings')}
@@ -150,7 +158,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           className={`p-1 sm:p-1.5 rounded-lg border transition-all flex items-center justify-center ${
             disabled
               ? 'bg-[#0c2012]/80 border-[#b2c833]/50 text-[#c8e038]/80 cursor-not-allowed opacity-90'
-              : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] active:scale-95 cursor-pointer'
+              : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] hover:border-[#c8e038] hover:text-[#e2f84c] active:scale-95 cursor-pointer shadow-sm'
           }`}
           aria-label="Game Settings"
         >
@@ -200,13 +208,15 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           disabled={disabled}
           aria-disabled={disabled}
           onClick={(e) => {
+            e.stopPropagation();
             if (disabled) {
               e.preventDefault();
-              e.stopPropagation();
               return;
             }
             onToggleMute?.();
           }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           onMouseEnter={() => setActiveTooltip('sound')}
           onMouseLeave={() => setActiveTooltip((cur) => (cur === 'sound' ? null : cur))}
           onFocus={() => setActiveTooltip('sound')}
@@ -225,7 +235,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           className={`p-1 sm:p-1.5 rounded-lg border transition-all flex items-center justify-center ${
             disabled
               ? 'bg-[#0c2012]/80 border-[#b2c833]/50 text-[#c8e038]/80 cursor-not-allowed opacity-90'
-              : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] active:scale-95 cursor-pointer'
+              : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] hover:border-[#c8e038] active:scale-95 cursor-pointer shadow-sm'
           }`}
           aria-label={isMuted ? 'Unmute Sound' : 'Mute Sound'}
         >
@@ -279,13 +289,15 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           disabled={disabled}
           aria-disabled={disabled}
           onClick={(e) => {
+            e.stopPropagation();
             if (disabled) {
               e.preventDefault();
-              e.stopPropagation();
               return;
             }
             onPauseResume?.();
           }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           onMouseEnter={() => setActiveTooltip('pause')}
           onMouseLeave={() => setActiveTooltip((cur) => (cur === 'pause' ? null : cur))}
           onFocus={() => setActiveTooltip('pause')}
@@ -305,8 +317,8 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
             disabled
               ? 'bg-[#0c2012]/80 border-[#b2c833]/50 text-[#c8e038]/80 cursor-not-allowed opacity-90'
               : isPaused
-              ? 'bg-[#c8e038] text-[#0c2012] border-[#b2c833] font-bold cursor-pointer'
-              : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] active:scale-95 cursor-pointer'
+              ? 'bg-amber-400 text-slate-950 border-amber-300 hover:bg-amber-300 font-bold active:scale-95 cursor-pointer shadow-md'
+              : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] hover:border-[#c8e038] active:scale-95 cursor-pointer shadow-sm'
           }`}
           aria-label={isPaused ? 'Resume Game' : 'Pause Game'}
         >
@@ -317,7 +329,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
                   ? { width: `${scaled.iconSize}px`, height: `${scaled.iconSize}px` }
                   : undefined
               }
-              className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0"
+              className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-slate-950 shrink-0"
             />
           ) : (
             <Pause
@@ -360,13 +372,15 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           disabled={disabled}
           aria-disabled={disabled}
           onClick={(e) => {
+            e.stopPropagation();
             if (disabled) {
               e.preventDefault();
-              e.stopPropagation();
               return;
             }
             onStop?.();
           }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           onMouseEnter={() => setActiveTooltip('stop')}
           onMouseLeave={() => setActiveTooltip((cur) => (cur === 'stop' ? null : cur))}
           onFocus={() => setActiveTooltip('stop')}
@@ -385,7 +399,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           className={`p-1 sm:p-1.5 rounded-lg border transition-all flex items-center justify-center ${
             disabled
               ? 'bg-[#0c2012]/80 border-rose-500/50 text-rose-400/80 cursor-not-allowed opacity-90'
-              : 'bg-[#0c2012]/90 border-rose-500/80 text-rose-400 hover:bg-rose-950 active:scale-95 cursor-pointer'
+              : 'bg-[#0c2012]/90 border-rose-500/80 text-rose-400 hover:bg-rose-950/80 hover:border-rose-400 active:scale-95 cursor-pointer shadow-sm'
           }`}
           aria-label="Stop Game"
         >
@@ -412,7 +426,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
             <p className="text-[11px] text-slate-300 leading-snug">
               {disabled
                 ? 'Stop game (preview only / disabled in simulation)'
-                : 'Stop game and return to main menu'}
+                : 'Stop game and reset simulation'}
             </p>
           </div>
         )}
@@ -426,13 +440,15 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           disabled={disabled}
           aria-disabled={disabled}
           onClick={(e) => {
+            e.stopPropagation();
             if (disabled) {
               e.preventDefault();
-              e.stopPropagation();
               return;
             }
             onToggleFullscreen?.();
           }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           onMouseEnter={() => setActiveTooltip('fullscreen')}
           onMouseLeave={() => setActiveTooltip((cur) => (cur === 'fullscreen' ? null : cur))}
           onFocus={() => setActiveTooltip('fullscreen')}
@@ -451,20 +467,29 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           className={`p-1 sm:p-1.5 rounded-lg border transition-all font-mono font-bold flex items-center justify-center leading-none ${
             disabled
               ? 'bg-[#0c2012]/80 border-[#b2c833]/50 text-[#c8e038]/80 cursor-not-allowed opacity-90'
-              : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] active:scale-95 cursor-pointer'
+              : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] hover:border-[#c8e038] hover:text-[#e2f84c] active:scale-95 cursor-pointer shadow-sm'
           }`}
           aria-label={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
         >
-          <span
-            style={
-              scaled
-                ? { fontSize: `${scaled.iconSize}px` }
-                : undefined
-            }
-            className="text-[11px] sm:text-xs font-bold leading-none select-none"
-          >
-            ⛶
-          </span>
+          {isFullscreen ? (
+            <Minimize2
+              style={
+                scaled
+                  ? { width: `${scaled.iconSize}px`, height: `${scaled.iconSize}px` }
+                  : undefined
+              }
+              className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0"
+            />
+          ) : (
+            <Maximize2
+              style={
+                scaled
+                  ? { width: `${scaled.iconSize}px`, height: `${scaled.iconSize}px` }
+                  : undefined
+              }
+              className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0"
+            />
+          )}
         </button>
 
         {/* Fullscreen Tooltip */}

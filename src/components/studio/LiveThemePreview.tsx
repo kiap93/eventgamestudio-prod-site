@@ -36,6 +36,13 @@ import {
   Monitor,
   Maximize2,
   Minimize2,
+  Settings,
+  Pause,
+  Play,
+  Timer,
+  Zap,
+  Check,
+  X,
 } from 'lucide-react';
 
 interface LiveThemePreviewProps {
@@ -153,6 +160,11 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (showSettingsModalRef.current) {
+          setShowSettingsModal(false);
+          setIsPaused(false);
+          return;
+        }
         const isFs =
           !!document.fullscreenElement || !!(document as any).webkitFullscreenElement;
         if (isFs || isFullscreen) {
@@ -253,6 +265,48 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     () => resolvedPreviewDuration
   );
   const [currentStageName, setCurrentStageName] = useState<string>('Stage 1: Calm');
+
+  // Interactive in-game controls state for Catch the Brand Live Simulation
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const showSettingsModalRef = useRef(showSettingsModal);
+  showSettingsModalRef.current = showSettingsModal;
+
+  const [previewFallSpeed, setPreviewFallSpeed] = useState<number>(
+    theme.physics_config?.fallSpeedMultiplier ?? 0.7
+  );
+  const [previewDuration, setPreviewDuration] = useState<number>(
+    resolvedPreviewDuration
+  );
+
+  useEffect(() => {
+    if (theme.physics_config?.fallSpeedMultiplier !== undefined) {
+      setPreviewFallSpeed(theme.physics_config.fallSpeedMultiplier);
+    }
+  }, [theme.physics_config?.fallSpeedMultiplier]);
+
+  useEffect(() => {
+    setPreviewDuration(resolvedPreviewDuration);
+  }, [resolvedPreviewDuration]);
+
+  const handleToggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      if (!next) {
+        soundManager.playGreenCatch();
+      }
+      return next;
+    });
+  }, []);
+
+  const handlePauseResume = useCallback(() => {
+    setIsPaused((prev) => !prev);
+  }, []);
+
+  const handleOpenSettings = useCallback(() => {
+    setIsPaused(true);
+    setShowSettingsModal(true);
+  }, []);
 
   // Dragging and resizing state for layout elements
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -415,16 +469,22 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     simState.current.score = 0;
     simState.current.caughtCount = 0;
     simState.current.timeElapsed = 0;
-    simState.current.timeRemaining = resolvedPreviewDuration;
+    simState.current.timeRemaining = previewDuration;
     simState.current.basketX = 512;
     simState.current.basketTargetX = 512;
     simState.current.redFlashAlpha = 0;
     simState.current.basketBounce = 0;
 
     setScore(0);
-    setTimeRemaining(resolvedPreviewDuration);
+    setTimeRemaining(previewDuration);
     setCurrentStageName('Stage 1: Calm');
-  }, [resolvedPreviewDuration]);
+  }, [previewDuration]);
+
+  // Stop simulation (resets and unpauses)
+  const handleStopSimulation = useCallback(() => {
+    setIsPaused(false);
+    handleResetSimulation();
+  }, [handleResetSimulation]);
 
   // Reset when theme duration changes
   const prevThemeIdRef = useRef(theme.id);
@@ -461,9 +521,13 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
       const state = simState.current;
 
-      if (isPlaying) {
+      if (isPaused) {
+        state.lastSpawnTime += dt * 1000;
+      }
+
+      if (isPlaying && !isPaused) {
         state.timeElapsed += dt;
-        const duration = theme.physics_config?.gameDurationSeconds || 20;
+        const duration = previewDuration;
         const remaining = Math.max(0, Math.ceil(duration - state.timeElapsed));
         state.timeRemaining = remaining;
         setTimeRemaining(remaining);
@@ -526,7 +590,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
             const baseSpeed = curStage.speedMin || 350;
             const speedVariation = ((curStage.speedMax || 500) - baseSpeed) * Math.random();
-            const globalMultiplier = theme.physics_config?.fallSpeedMultiplier || 0.7;
+            const globalMultiplier = previewFallSpeed;
             const itemMult = chosen.speedMultiplier || 1.0;
             const finalSpeed = (baseSpeed + speedVariation) * globalMultiplier * itemMult;
 
@@ -783,6 +847,9 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
     };
   }, [
     isPlaying,
+    isPaused,
+    previewFallSpeed,
+    previewDuration,
     isInteractive,
     isMuted,
     isMemoryMatch,
@@ -1422,13 +1489,239 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             {/* IN-GAME FLOATING CONTROL BAR FOR CATCH THE BRAND LIVE GAME SIMULATION */}
             <GameControlBar
               id="simulation-catch-brand-control-bar"
-              disabled={true}
+              disabled={false}
               isMuted={isMuted}
-              isPaused={false}
+              isPaused={isPaused}
               isFullscreen={isFullscreen}
               uiScale={catchBrandStageDimensions.scale}
-              className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 z-40"
+              onSettingsClick={handleOpenSettings}
+              onToggleMute={handleToggleMute}
+              onPauseResume={handlePauseResume}
+              onStop={handleStopSimulation}
+              onToggleFullscreen={handleToggleFullscreen}
+              className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 z-50 pointer-events-auto"
             />
+
+            {/* PAUSED OVERLAY (Subtle, non-blocking for controls) */}
+            {isPaused && !showSettingsModal && (
+              <div
+                id="catch-brand-simulation-paused-badge"
+                className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] pointer-events-none flex flex-col items-center justify-center gap-2 z-35 animate-in fade-in duration-150"
+              >
+                <div className="bg-slate-950/95 border-2 border-amber-400 px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2.5 text-amber-400 font-black tracking-widest text-sm sm:text-base uppercase">
+                  <Pause className="w-4 h-4 fill-amber-400" />
+                  <span>Simulation Paused</span>
+                </div>
+                <p className="text-[11px] text-slate-300 font-mono bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-800">
+                  Click Resume (▶) or Settings to continue
+                </p>
+              </div>
+            )}
+
+            {/* CATCH THE BRAND SETTINGS MODAL */}
+            {showSettingsModal && (
+              <div
+                id="catch-brand-simulation-settings-modal"
+                className="absolute inset-0 bg-slate-950/85 backdrop-blur-md pointer-events-auto flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-150"
+                onClick={() => {
+                  setShowSettingsModal(false);
+                  setIsPaused(false);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div
+                  className="max-w-sm sm:max-w-md w-full bg-slate-900 border-2 border-[#b2c833] rounded-2xl p-4 sm:p-5 shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto text-slate-100 font-sans"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <Settings className="w-5 h-5 text-amber-400" />
+                      <h3 className="text-base sm:text-lg font-black text-amber-400 tracking-wider">
+                        CATCH THE BRAND SETTINGS
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSettingsModal(false);
+                        setIsPaused(false);
+                      }}
+                      className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all cursor-pointer"
+                      title="Close Settings"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3.5 text-xs sm:text-sm">
+                    {/* Active Theme Info */}
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                        <div className="truncate">
+                          <div className="text-[10px] text-slate-400 font-mono uppercase">Active Theme</div>
+                          <div className="font-bold text-slate-100 truncate">{theme.name}</div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-md shrink-0">
+                        {theme.branding?.gameTitle || 'Catch the Brand'}
+                      </span>
+                    </div>
+
+                    {/* Master Sound & Audio */}
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2">
+                      <div className="flex justify-between items-center font-bold">
+                        <span className="text-slate-200 flex items-center gap-2">
+                          <Volume2 className="w-4 h-4 text-emerald-400" /> Sound Audio
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleToggleMute}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                            isMuted
+                              ? 'bg-rose-950/60 border border-rose-500/40 text-rose-300'
+                              : 'bg-emerald-950/60 border border-emerald-500/40 text-emerald-300'
+                          }`}
+                        >
+                          {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                          <span>{isMuted ? 'Muted' : 'Sound Enabled'}</span>
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-tight">
+                        Toggles sound effects for caught items, hazard collisions, and multipliers.
+                      </p>
+                    </div>
+
+                    {/* Game Duration / Timer */}
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2">
+                      <div className="flex justify-between items-center font-bold">
+                        <span className="text-slate-200 flex items-center gap-2">
+                          <Timer className="w-4 h-4 text-teal-400" /> Game Duration
+                        </span>
+                        <span className="text-amber-400 font-mono font-black text-sm">
+                          {previewDuration} SEC
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        {[15, 20, 30, 45, 60].map((sec) => (
+                          <button
+                            key={sec}
+                            type="button"
+                            onClick={() => {
+                              setPreviewDuration(sec);
+                              simState.current.timeRemaining = sec;
+                              setTimeRemaining(sec);
+                            }}
+                            className={`flex-1 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer border ${
+                              previewDuration === sec
+                                ? 'bg-teal-500/20 border-teal-400 text-teal-200'
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                            }`}
+                          >
+                            {sec}s
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="120"
+                        step="5"
+                        value={previewDuration}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          setPreviewDuration(val);
+                          simState.current.timeRemaining = val;
+                          setTimeRemaining(val);
+                        }}
+                        className="w-full accent-teal-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                      />
+                    </div>
+
+                    {/* Fall Speed */}
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2">
+                      <div className="flex justify-between items-center font-bold">
+                        <span className="text-slate-200 flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-amber-400" /> Falling Speed Multiplier
+                        </span>
+                        <span className="text-amber-400 font-mono font-black text-sm">
+                          {Math.round(previewFallSpeed * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="1.5"
+                        step="0.05"
+                        value={previewFallSpeed}
+                        onChange={(e) => setPreviewFallSpeed(parseFloat(e.target.value))}
+                        className="w-full accent-amber-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                      />
+                      <div className="flex justify-between text-[10px] font-mono text-slate-400">
+                        <span>50% (Gentle)</span>
+                        <span>100% (Standard)</span>
+                        <span>150% (Intense)</span>
+                      </div>
+                    </div>
+
+                    {/* Simulation Control Mode */}
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2">
+                      <div className="flex justify-between items-center font-bold">
+                        <span className="text-slate-200 flex items-center gap-2">
+                          <Play className="w-4 h-4 text-sky-400" /> Simulation Mode
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsInteractive((prev) => !prev)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                            isInteractive
+                              ? 'bg-amber-500/20 border-amber-400 text-amber-200'
+                              : 'bg-sky-500/20 border-sky-400 text-sky-200'
+                          }`}
+                        >
+                          <span>{isInteractive ? '🎮 Interactive Test' : '🤖 Auto Demo'}</span>
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-tight">
+                        {isInteractive
+                          ? 'Move mouse or touch horizontally across the stage to control the basket.'
+                          : 'AI autopilot tracks and catches items automatically.'}
+                      </p>
+                    </div>
+
+                    {/* Reset Simulation and Close buttons */}
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleResetSimulation();
+                          setShowSettingsModal(false);
+                          setIsPaused(false);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs transition-all border border-slate-700 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Restart Simulation</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowSettingsModal(false);
+                          setIsPaused(false);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>Apply & Resume</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {isInteractive && (
               <div
