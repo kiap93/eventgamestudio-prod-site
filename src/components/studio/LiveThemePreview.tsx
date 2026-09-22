@@ -406,8 +406,8 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
 
     // Viewport client dimensions (flex-1 element between top and bottom bars)
     const vp = viewportRef.current;
-    let availableWidth = vp?.clientWidth || (isFullscreen ? window.innerWidth : 500);
-    let availableHeight = vp?.clientHeight || (isFullscreen ? window.innerHeight - 96 : 540);
+    let availableWidth = vp?.clientWidth || (isFullscreen ? window.innerWidth : (isPortrait ? 476 : 500));
+    let availableHeight = vp?.clientHeight || (isFullscreen ? window.innerHeight - 96 : (isPortrait ? 700 : 540));
 
     // Account for safe margins inside viewport (16px on mobile, 24px on desktop)
     const safePadX = availableWidth < 640 ? 16 : 24;
@@ -1443,7 +1443,7 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
               : 'relative flex-1 w-full h-full min-w-0 min-h-0 overflow-hidden select-none flex items-center justify-center'
             : `relative ${
                 responsive.isPortrait
-                  ? 'aspect-[9/16] max-h-[580px] w-auto mx-auto'
+                  ? 'w-full max-w-full h-[700px] min-h-[580px] max-h-[750px] mx-auto'
                   : 'aspect-[16/9] w-full max-w-full max-h-[520px] mx-auto'
               } rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none flex items-center justify-center transition-all`
         }

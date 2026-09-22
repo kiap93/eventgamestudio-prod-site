@@ -232,6 +232,29 @@ const reloadedLandscape = getEffectiveGameLayout(updatedInPortrait, false, 'catc
 assert(reloadedLandscape.scoreHud?.x === 5, 'Landscape root scoreHud.x remains intact at 5 after portrait edit');
 
 // -----------------------------------------------------------------------------
+// TEST SUITE 7: Portrait 476x700 Container Dimension Stability
+// -----------------------------------------------------------------------------
+console.log('\n[Suite 7: Portrait 476x700 Container Dimension Stability]');
+
+// Studio preview column dimensions in portrait: 476px available width, 700px height
+const studioAvailableW = 476;
+const studioAvailableH = 700;
+const padX = studioAvailableW < 640 ? 16 : 24;
+const padY = studioAvailableH < 640 ? 16 : 24;
+const effW = studioAvailableW - padX; // 460
+const effH = studioAvailableH - padY; // 676
+
+const portraitStudioDims = calculateResponsiveStageDimensions(effW, effH, true);
+
+assert(portraitStudioDims.stageHeight > 600, `Stage height in 476x700 container is > 600px (got ${portraitStudioDims.stageHeight}px, not collapsed to 300px)`);
+assert(portraitStudioDims.stageWidth <= effW, `Stage width (${portraitStudioDims.stageWidth}px) fits within available width (${effW}px)`);
+assertCloseTo(portraitStudioDims.stageWidth / portraitStudioDims.stageHeight, 576 / 1024, 0.01, 'Stage preserves 9:16 aspect ratio strictly');
+
+// Verify that it does NOT collapse or invert to landscape in 476x700 container
+assert(resolveEffectiveOrientation('portrait', studioAvailableW, studioAvailableH) === 'portrait', 'Resolves to portrait in 476x700 container');
+assert(resolveEffectiveOrientation('auto', studioAvailableW, studioAvailableH) === 'portrait', 'Auto mode resolves to portrait in 476x700 container (476 < 700)');
+
+// -----------------------------------------------------------------------------
 // SUMMARY
 // -----------------------------------------------------------------------------
 console.log('\n======================================================');
