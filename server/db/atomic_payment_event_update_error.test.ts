@@ -64,7 +64,8 @@ async function runPaymentEventUpdateTests() {
   assert.strictEqual(paymentResult.success, true);
   const updatedEvent = await getEventById(event.id);
   assert.strictEqual(updatedEvent?.payment_status, 'PAID');
-  assert.strictEqual(updatedEvent?.event_status, 'LIVE');
+  assert.strictEqual(updatedEvent?.event_status, 'SCHEDULED');
+  assert.strictEqual(updatedEvent?.status, 'scheduled');
 
   console.log('Check 3: Strict production safe check blocks execution without configured database...');
   let caughtProdSafe = false;

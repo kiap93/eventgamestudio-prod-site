@@ -3135,12 +3135,18 @@ export async function processEventPayment(
     };
 
     try {
-      const { localEventsCache } = await import('./events.js');
-      const cachedEvent = localEventsCache.get(eventId);
+      const { localEventsCache, getEventById, deriveEventLifecycleStatus } = await import('./events.js');
+      let cachedEvent = localEventsCache.get(eventId);
+      if (!cachedEvent) {
+        cachedEvent = (await getEventById(eventId, env)) || undefined;
+      }
       if (cachedEvent) {
-        cachedEvent.status = 'scheduled';
-        cachedEvent.event_status = 'LIVE';
+        const nextEventStatus = deriveEventLifecycleStatus({ ...cachedEvent, payment_status: 'PAID', cancel_reason: null });
+        const nextStatus = nextEventStatus === 'LIVE' ? 'live' : (nextEventStatus === 'COMPLETED' ? 'completed' : 'scheduled');
+        cachedEvent.status = nextStatus;
+        cachedEvent.event_status = nextEventStatus;
         cachedEvent.payment_status = 'PAID';
+        cachedEvent.cancel_reason = null;
         cachedEvent.payment_mode = mode;
         cachedEvent.paid_amount = calculation.paidAmount;
         cachedEvent.discount_amount = calculation.totalDiscount;
@@ -3383,18 +3389,26 @@ export async function processEventPayment(
     const wallet = await recalculateWalletBalances(organizationId, env);
 
     // 6. Update Event record payment status if event exists in DB
+    let targetLifecycle: import('./types.js').EventLifecycleStatus = 'SCHEDULED';
+    let targetStatus: import('./types.js').EventStatus = 'scheduled';
+
     try {
-      const { localEventsCache } = await import('./events.js');
-      const cachedEvent = localEventsCache.get(eventId);
-      if (cachedEvent) {
-        cachedEvent.status = 'scheduled';
-        cachedEvent.event_status = 'LIVE';
-        cachedEvent.payment_status = 'PAID';
-        cachedEvent.cancel_reason = null;
-        cachedEvent.payment_mode = mode;
-        cachedEvent.paid_amount = calculation.paidAmount;
-        cachedEvent.discount_amount = calculation.totalDiscount;
-        localEventsCache.set(eventId, cachedEvent);
+      const { localEventsCache, getEventById, deriveEventLifecycleStatus } = await import('./events.js');
+      let targetEv = localEventsCache.get(eventId);
+      if (!targetEv) {
+        targetEv = (await getEventById(eventId, env)) || undefined;
+      }
+      if (targetEv) {
+        targetLifecycle = deriveEventLifecycleStatus({ ...targetEv, payment_status: 'PAID', cancel_reason: null });
+        targetStatus = targetLifecycle === 'LIVE' ? 'live' : (targetLifecycle === 'COMPLETED' ? 'completed' : 'scheduled');
+        targetEv.status = targetStatus;
+        targetEv.event_status = targetLifecycle;
+        targetEv.payment_status = 'PAID';
+        targetEv.cancel_reason = null;
+        targetEv.payment_mode = mode;
+        targetEv.paid_amount = calculation.paidAmount;
+        targetEv.discount_amount = calculation.totalDiscount;
+        localEventsCache.set(eventId, targetEv);
       }
     } catch (cacheErr) {
       // ignore
@@ -3405,8 +3419,8 @@ export async function processEventPayment(
       const { error: eventUpdateError } = await supabase
         .from('events')
         .update({
-          status: 'scheduled',
-          event_status: 'LIVE',
+          status: targetStatus,
+          event_status: targetLifecycle,
           payment_status: 'PAID',
           cancel_reason: null,
           payment_mode: mode,

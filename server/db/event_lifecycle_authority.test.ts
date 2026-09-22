@@ -25,10 +25,12 @@ function check(name: string, condition: boolean) {
 
 async function runTests() {
   const now = new Date('2026-06-15T12:00:00Z');
-  const pastStart = '2026-06-15T08:00:00Z';
-  const futureStart = '2026-06-15T14:00:00Z';
-  const futureExpire = '2026-06-15T18:00:00Z';
-  const pastExpire = '2026-06-15T10:00:00Z';
+  const pastStart = '2026-06-10T00:00:00Z';
+  const pastExpire = '2026-06-12T23:59:59Z';
+  const liveStart = '2026-06-15T00:00:00Z';
+  const liveExpire = '2026-06-16T23:59:59Z';
+  const futureStart = '2026-06-20T00:00:00Z';
+  const futureExpire = '2026-06-25T23:59:59Z';
 
   console.log('--- SCENARIO 1: Unpaid Event ---');
   const unpaidEvent: Partial<EventRecord> = {
@@ -36,8 +38,8 @@ async function runTests() {
     name: 'Unpaid Event',
     payment_status: 'UNPAID',
     status: 'draft',
-    starts_at: pastStart,
-    expires_at: futureExpire,
+    starts_at: liveStart,
+    expires_at: liveExpire,
   };
   const unpaidStatus = deriveEventLifecycleStatus(unpaidEvent, now);
   check('Unpaid event derives DRAFT status', unpaidStatus === 'DRAFT');
@@ -49,8 +51,8 @@ async function runTests() {
     name: 'Pending Payment Event',
     payment_status: 'PENDING_PAYMENT',
     status: 'pending_payment',
-    starts_at: pastStart,
-    expires_at: futureExpire,
+    starts_at: liveStart,
+    expires_at: liveExpire,
   };
   const pendingStatus = deriveEventLifecycleStatus(pendingEvent, now);
   check('Pending payment event derives PENDING_PAYMENT status', pendingStatus === 'PENDING_PAYMENT');
@@ -75,8 +77,8 @@ async function runTests() {
     name: 'Live Event',
     payment_status: 'PAID',
     status: 'live',
-    starts_at: pastStart,
-    expires_at: futureExpire,
+    starts_at: liveStart,
+    expires_at: liveExpire,
   };
   const liveStatus = deriveEventLifecycleStatus(liveEvent, now);
   check('Paid inside active window derives LIVE status', liveStatus === 'LIVE');
@@ -102,8 +104,9 @@ async function runTests() {
     payment_status: 'PAID',
     status: 'cancelled',
     event_status: 'CANCELLED',
-    starts_at: pastStart,
-    expires_at: futureExpire,
+    cancel_reason: 'USER_CANCELLED',
+    starts_at: liveStart,
+    expires_at: liveExpire,
   };
   const cancelledStatus = deriveEventLifecycleStatus(cancelledEvent, now);
   check('Cancelled event derives CANCELLED status', cancelledStatus === 'CANCELLED');

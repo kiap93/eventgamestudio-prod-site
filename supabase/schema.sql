@@ -190,7 +190,7 @@ CREATE TABLE IF NOT EXISTS public.events (
   starts_at TIMESTAMPTZ NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'live', 'expired', 'cancelled', 'pending_payment', 'active', 'completed')),
-  event_status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (event_status IN ('DRAFT', 'PAYMENT_PENDING', 'LIVE', 'COMPLETED', 'EXPIRED', 'CANCELLED')),
+  event_status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (event_status IN ('DRAFT', 'PAYMENT_PENDING', 'SCHEDULED', 'LIVE', 'COMPLETED', 'EXPIRED', 'CANCELLED')),
   payment_status TEXT NOT NULL DEFAULT 'UNPAID' CHECK (payment_status IN ('UNPAID', 'PENDING', 'PAID', 'FAILED', 'REFUNDED', 'PENDING_PAYMENT')),
   cancel_reason TEXT CHECK (cancel_reason IS NULL OR cancel_reason IN ('USER_CANCELLED', 'PAYMENT_TIMEOUT', 'ADMIN_CANCELLED')),
   payment_mode TEXT,
@@ -2149,19 +2149,40 @@ BEGIN
   -- 8. Refresh wallet record
   SELECT * INTO v_wallet FROM public.organization_wallets WHERE organization_id = p_organization_id;
 
-  -- 9. Mark Event as PAID in events table (and promote pending_payment to scheduled)
+  -- 9. Mark Event as PAID in events table (Decoupled lifecycle state)
   IF v_event.id IS NOT NULL THEN
-    UPDATE public.events
-    SET payment_status = 'PAID',
-        payment_mode = p_payment_mode,
-        paid_amount = v_paid_to_use,
-        discount_amount = v_credit_to_use,
-        event_price = v_event_price,
-        event_currency = 'MYR',
-        status = CASE WHEN status = 'pending_payment' THEN 'scheduled' ELSE status END,
-        event_status = 'LIVE',
-        updated_at = v_now
-    WHERE id = p_event_id;
+    DECLARE
+      v_ev_tz text := COALESCE(v_event.event_timezone, 'Asia/Singapore');
+      v_cur_date date := (v_now AT TIME ZONE v_ev_tz)::date;
+      v_start_date date := COALESCE(v_event.start_date, (v_event.starts_at AT TIME ZONE v_ev_tz)::date, v_event.event_date);
+      v_end_date date := COALESCE(v_event.end_date, (v_event.expires_at AT TIME ZONE v_ev_tz)::date, v_start_date);
+      v_target_event_status text;
+      v_target_status text;
+    BEGIN
+      IF v_start_date IS NOT NULL AND v_cur_date < v_start_date THEN
+        v_target_event_status := 'SCHEDULED';
+        v_target_status := 'scheduled';
+      ELSIF v_end_date IS NOT NULL AND v_cur_date > v_end_date THEN
+        v_target_event_status := 'COMPLETED';
+        v_target_status := 'completed';
+      ELSE
+        v_target_event_status := 'LIVE';
+        v_target_status := 'live';
+      END IF;
+
+      UPDATE public.events
+      SET payment_status = 'PAID',
+          payment_mode = p_payment_mode,
+          paid_amount = v_paid_to_use,
+          discount_amount = v_credit_to_use,
+          event_price = v_event_price,
+          event_currency = 'MYR',
+          cancel_reason = NULL,
+          status = v_target_status,
+          event_status = v_target_event_status,
+          updated_at = v_now
+      WHERE id = p_event_id;
+    END;
   END IF;
 
   -- 10. Return JSON result payload

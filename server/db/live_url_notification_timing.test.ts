@@ -3,7 +3,7 @@
  * 
  * Verifies that:
  * 1. On Setup Day (1 calendar day before start_date):
- *    - Paid event Live URL is active and accessible (canAccessLiveEvent -> can_play: true).
+ *    - Paid event Live URL is active and accessible (canAccessLiveEvent -> true).
  *    - LIVE_URL_AVAILABLE ("Live Game URL Available") notification is dispatched.
  *    - EVENT_LIVE ("Event Started") is NOT sent until event start_date.
  * 2. On Event Day (start_date):
@@ -13,9 +13,11 @@
  * 4. Unpaid events never receive LIVE_URL_AVAILABLE or EVENT_LIVE.
  */
 
-import { describe, it, expect } from 'bun:test';
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
 import {
   canAccessLiveEvent,
+  getClientLiveGameAccessDetails,
   getNormalizedEventDates,
   isSetupDayStarted,
   runEventLifecycleMaintenance,
@@ -35,20 +37,20 @@ describe('Live URL Notification Timing & Setup Day Alignment', () => {
 
   it('NOTIFICATION_CATALOG has updated Event Started and Live Game URL Available definitions', () => {
     const liveItem = NOTIFICATION_CATALOG['event_live'];
-    expect(liveItem).toBeDefined();
-    expect(liveItem.defaultTitle).toBe('Event Started');
-    expect(liveItem.defaultMessage).toContain('officially started');
+    assert.ok(liveItem);
+    assert.strictEqual(liveItem.defaultTitle, 'Event Started');
+    assert.ok(liveItem.defaultMessage.includes('officially started'));
 
     const startedItem = NOTIFICATION_CATALOG['event_started'];
-    expect(startedItem).toBeDefined();
-    expect(startedItem.defaultTitle).toBe('Event Started');
+    assert.ok(startedItem);
+    assert.strictEqual(startedItem.defaultTitle, 'Event Started');
 
     const setupItem = NOTIFICATION_CATALOG['live_url_available'];
-    expect(setupItem).toBeDefined();
-    expect(setupItem.defaultTitle).toBe('Live Game URL Available');
-    expect(setupItem.defaultMessage).toContain('Setup Day');
-    expect(setupItem.priority).toBe('high');
-    expect(setupItem.category).toBe('event');
+    assert.ok(setupItem);
+    assert.strictEqual(setupItem.defaultTitle, 'Live Game URL Available');
+    assert.ok(setupItem.defaultMessage.includes('Setup Day'));
+    assert.strictEqual(setupItem.priority, 'high');
+    assert.strictEqual(setupItem.category, 'event');
   });
 
   it('Verifies Setup Day date calculation for an event on 25 Sep', () => {
@@ -57,6 +59,8 @@ describe('Live URL Notification Timing & Setup Day Alignment', () => {
       name: 'Tech Expo 2026',
       start_date: '2026-09-25',
       end_date: '2026-09-26',
+      starts_at: '2026-09-25T00:00:00.000Z',
+      expires_at: '2026-09-26T23:59:59.999Z',
       event_timezone: 'Asia/Singapore',
       payment_status: 'PAID',
       event_status: 'PUBLISHED',
@@ -65,21 +69,21 @@ describe('Live URL Notification Timing & Setup Day Alignment', () => {
     };
 
     const dates = getNormalizedEventDates(event);
-    expect(dates.startDate).toBe('2026-09-25');
-    expect(dates.endDate).toBe('2026-09-26');
-    expect(dates.liveOpenDate).toBe('2026-09-24');
+    assert.strictEqual(dates.startDate, '2026-09-25');
+    assert.strictEqual(dates.endDate, '2026-09-26');
+    assert.strictEqual(dates.liveOpenDate, '2026-09-24');
 
     // On 23 Sep: Not setup day yet
     const sep23 = new Date('2026-09-23T10:00:00+08:00');
-    expect(isSetupDayStarted(event, sep23)).toBe(false);
+    assert.strictEqual(isSetupDayStarted(event, sep23), false);
 
     // On 24 Sep: Setup day started!
     const sep24 = new Date('2026-09-24T09:00:00+08:00');
-    expect(isSetupDayStarted(event, sep24)).toBe(true);
+    assert.strictEqual(isSetupDayStarted(event, sep24), true);
 
     // On 25 Sep: Event started
     const sep25 = new Date('2026-09-25T09:00:00+08:00');
-    expect(isSetupDayStarted(event, sep25)).toBe(true);
+    assert.strictEqual(isSetupDayStarted(event, sep25), true);
   });
 
   it('On Setup Day (24 Sep): Paid event Live URL is playable, but status is not yet LIVE', () => {
@@ -88,6 +92,8 @@ describe('Live URL Notification Timing & Setup Day Alignment', () => {
       name: 'Tech Expo 2026 Paid',
       start_date: '2026-09-25',
       end_date: '2026-09-26',
+      starts_at: '2026-09-25T00:00:00.000Z',
+      expires_at: '2026-09-26T23:59:59.999Z',
       event_timezone: 'Asia/Singapore',
       payment_status: 'PAID',
       event_status: 'PUBLISHED',
@@ -97,8 +103,9 @@ describe('Live URL Notification Timing & Setup Day Alignment', () => {
 
     const sep24 = new Date('2026-09-24T14:00:00+08:00');
     const access = canAccessLiveEvent(paidEvent, sep24);
-    expect(access.can_play).toBe(true);
-    expect(access.reason).toBe('LIVE_EVENT_ACTIVE');
+    assert.strictEqual(access, true);
+    const details = getClientLiveGameAccessDetails(paidEvent, sep24);
+    assert.strictEqual(details.canAccess, true);
   });
 
   it('On Setup Day (24 Sep): Unpaid event Live URL is strictly BLOCKED', () => {
@@ -107,6 +114,8 @@ describe('Live URL Notification Timing & Setup Day Alignment', () => {
       name: 'Tech Expo 2026 Unpaid',
       start_date: '2026-09-25',
       end_date: '2026-09-26',
+      starts_at: '2026-09-25T00:00:00.000Z',
+      expires_at: '2026-09-26T23:59:59.999Z',
       event_timezone: 'Asia/Singapore',
       payment_status: 'UNPAID',
       event_status: 'DRAFT',
@@ -116,8 +125,10 @@ describe('Live URL Notification Timing & Setup Day Alignment', () => {
 
     const sep24 = new Date('2026-09-24T14:00:00+08:00');
     const access = canAccessLiveEvent(unpaidEvent, sep24);
-    expect(access.can_play).toBe(false);
-    expect(access.reason).toBe('UNPAID');
+    assert.strictEqual(access, false);
+    const details = getClientLiveGameAccessDetails(unpaidEvent, sep24);
+    assert.strictEqual(details.canAccess, false);
+    assert.strictEqual(details.code, 'PAYMENT_REQUIRED');
   });
 
   it('Lifecycle cron dispatches LIVE_URL_AVAILABLE on Setup Day (24 Sep) and EVENT_LIVE on Event Day (25 Sep)', async () => {
@@ -136,7 +147,7 @@ describe('Live URL Notification Timing & Setup Day Alignment', () => {
       start_date: '2026-09-25',
       end_date: '2026-09-26',
       starts_at: '2026-09-25T00:00:00.000Z',
-      ends_at: '2026-09-26T15:59:59.999Z',
+      expires_at: '2026-09-26T15:59:59.999Z',
       event_timezone: 'Asia/Singapore',
       payment_status: 'PAID',
       event_status: currentEventStatus,
@@ -204,39 +215,39 @@ describe('Live URL Notification Timing & Setup Day Alignment', () => {
     const setupNotif = notificationsAfterSetup.notifications.find(n => n.type === 'live_url_available');
     const liveNotifEarly = notificationsAfterSetup.notifications.find(n => n.type === 'event_live');
 
-    expect(setupNotif).toBeDefined();
-    expect(setupNotif?.title).toBe('Live Game URL Available');
-    expect(setupNotif?.message).toContain('Setup Day');
-    expect(setupNotif?.action_url).toBe('/play/summit-2026');
+    assert.ok(setupNotif);
+    assert.strictEqual(setupNotif?.title, 'Live Game URL Available');
+    assert.ok(setupNotif?.message.includes('Setup Day'));
+    assert.strictEqual(setupNotif?.action_url, '/play/summit-2026');
     // On 24 Sep, EVENT_LIVE ("Event Started") must NOT be sent yet!
-    expect(liveNotifEarly).toBeUndefined();
+    assert.strictEqual(liveNotifEarly, undefined);
 
     // Step 2: Repeat on Setup Day to verify deduplication
     await runEventLifecycleMaintenance(mockEnv, new Date('2026-09-24T11:00:00+08:00'));
     const notificationsRepeatSetup = await listNotifications({ userId, limit: 20 }, mockEnv);
     const setupNotifCount = notificationsRepeatSetup.notifications.filter(n => n.type === 'live_url_available').length;
-    expect(setupNotifCount).toBe(1);
+    assert.strictEqual(setupNotifCount, 1);
 
     // Step 3: Run on Event Day (25 Sep 2026, 09:00 AM UTC+8)
     const sep25 = new Date('2026-09-25T09:00:00+08:00');
     await runEventLifecycleMaintenance(mockEnv, sep25);
 
     // Event status should have transitioned to LIVE
-    expect(currentEventStatus).toBe('LIVE');
-    expect(currentRawStatus).toBe('live');
+    assert.strictEqual(currentEventStatus, 'LIVE');
+    assert.strictEqual(currentRawStatus, 'live');
 
     // EVENT_LIVE ("Event Started") should now be sent
     const notificationsAfterLive = await listNotifications({ userId, limit: 20 }, mockEnv);
     const liveNotif = notificationsAfterLive.notifications.find(n => n.type === 'event_live');
-    expect(liveNotif).toBeDefined();
-    expect(liveNotif?.title).toBe('Event Started');
-    expect(liveNotif?.message).toContain('officially started');
-    expect(liveNotif?.action_url).toBe('/play/summit-2026');
+    assert.ok(liveNotif);
+    assert.strictEqual(liveNotif?.title, 'Event Started');
+    assert.ok(liveNotif?.message.includes('officially started'));
+    assert.strictEqual(liveNotif?.action_url, '/play/summit-2026');
 
     // Step 4: Repeat on Event Day to verify deduplication for EVENT_LIVE
     await runEventLifecycleMaintenance(mockEnv, new Date('2026-09-25T12:00:00+08:00'));
     const notificationsRepeatLive = await listNotifications({ userId, limit: 20 }, mockEnv);
     const liveNotifCount = notificationsRepeatLive.notifications.filter(n => n.type === 'event_live').length;
-    expect(liveNotifCount).toBe(1);
+    assert.strictEqual(liveNotifCount, 1);
   });
 });

@@ -45,6 +45,7 @@ import { cleanupExpiredNotifications } from './notifications.js';
 import { getOrganizationById } from './organizations.js';
 import { getDefaultTimezoneForCountry, isValidTimezone, resolveEventTimezone } from '../../src/lib/countryUtils.js';
 export { resolveEventTimezone };
+export type { EventStatus, EventLifecycleStatus };
 import crypto from 'node:crypto';
 
 // In-memory cache fallback for mock / test environments
@@ -3539,8 +3540,10 @@ export async function reactivateEvent(
   }
 
   const isPaid = existing.payment_status === 'PAID';
-  const targetEventStatus: EventLifecycleStatus = isPaid ? 'LIVE' : 'PAYMENT_PENDING';
-  const targetStatus: EventStatus = isPaid ? 'scheduled' : 'pending_payment';
+  const targetEventStatus: EventLifecycleStatus = isPaid
+    ? deriveEventLifecycleStatus({ ...existing, payment_status: 'PAID', cancel_reason: null })
+    : 'PAYMENT_PENDING';
+  const targetStatus: EventStatus = targetEventStatus === 'LIVE' ? 'live' : (targetEventStatus === 'COMPLETED' ? 'completed' : (isPaid ? 'scheduled' : 'pending_payment'));
 
   const updatePayload: any = {
     event_status: targetEventStatus,
