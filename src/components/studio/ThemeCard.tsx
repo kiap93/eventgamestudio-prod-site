@@ -21,6 +21,7 @@ interface ThemeCardProps {
   theme: GameTheme;
   onPlay: (theme: GameTheme) => void;
   onEdit?: (themeId: string) => void;
+  onRename?: (theme: GameTheme) => void;
   onDuplicate?: (themeId: string) => void;
   onDelete?: (themeId: string) => void;
   onClone?: (theme: GameTheme) => void;
@@ -33,6 +34,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
   theme,
   onPlay,
   onEdit,
+  onRename,
   onDuplicate,
   onDelete,
   onClone,
@@ -200,21 +202,39 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
       <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-2">
-            <h3
-              onClick={() => {
-                if (!isSystemTheme && onEdit) {
-                  onEdit(theme.id);
-                } else {
-                  onPlay(theme);
-                }
-              }}
-              className={`text-base font-black text-slate-100 transition-colors line-clamp-1 ${
-                !isSystemTheme ? 'group-hover:text-amber-400 cursor-pointer' : 'cursor-default'
-              }`}
-              title={theme.name}
-            >
-              {theme.name}
-            </h3>
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <h3
+                onClick={() => {
+                  if (!isSystemTheme && onEdit) {
+                    onEdit(theme.id);
+                  } else {
+                    onPlay(theme);
+                  }
+                }}
+                className={`text-base font-black text-slate-100 transition-colors line-clamp-1 ${
+                  !isSystemTheme ? 'group-hover:text-amber-400 cursor-pointer' : 'cursor-default'
+                }`}
+                title={theme.name}
+              >
+                {theme.name}
+              </h3>
+
+              {!isSystemTheme && onRename && !isViewer && (
+                <button
+                  type="button"
+                  id={`theme-card-inline-rename-${theme.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRename(theme);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-all shrink-0 cursor-pointer"
+                  title="Rename Theme"
+                  aria-label="Rename Theme"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
             {/* More Actions Menu Button (Only for Customer-Owned themes) */}
             {!isSystemTheme && (
@@ -258,6 +278,22 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                       >
                         <Edit3 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                         <span className="whitespace-nowrap">Edit Theme</span>
+                      </button>
+                    )}
+
+                    {onRename && (
+                      <button
+                        type="button"
+                        id={`theme-card-menu-rename-${theme.id}`}
+                        onClick={() => {
+                          setShowMenu(false);
+                          onRename(theme);
+                        }}
+                        disabled={isViewer}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 rounded-xl transition-colors text-left disabled:opacity-50 cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span className="whitespace-nowrap">Rename</span>
                       </button>
                     )}
 

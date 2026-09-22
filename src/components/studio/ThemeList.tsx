@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeCard } from './ThemeCard';
 import { CreateThemeDialog } from './CreateThemeDialog';
+import { RenameThemeDialog } from './RenameThemeDialog';
 import { GameCatalogModal } from './GameCatalogModal';
 import { GameShell } from '../shell/GameShell';
 import { GameTheme } from '../../themes';
@@ -38,6 +39,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
     themes,
     createTheme,
     duplicateTheme,
+    renameTheme,
     deleteTheme,
     currentOrganization,
     activeGame,
@@ -54,6 +56,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'archived'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [themeToRename, setThemeToRename] = useState<GameTheme | null>(null);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [showCloneAllModal, setShowCloneAllModal] = useState(false);
   const [isCloningAll, setIsCloningAll] = useState(false);
@@ -214,6 +217,17 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
       showNotification('success', `Theme duplicated successfully as "${dup.name}"`);
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to duplicate theme');
+    }
+  };
+
+  const handleRename = async (targetThemeId: string, newName: string) => {
+    try {
+      await renameTheme(targetThemeId, newName);
+      showNotification('success', `Theme renamed to "${newName}" successfully`);
+      await fetchThemes();
+    } catch (err: any) {
+      showNotification('error', err.message || 'Failed to rename theme');
+      throw err;
     }
   };
 
@@ -526,6 +540,7 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
                   isSystem={false}
                   onPlay={(selectedTheme) => setPlayingTheme(selectedTheme)}
                   onEdit={onEditTheme}
+                  onRename={(target) => setThemeToRename(target)}
                   onDuplicate={handleDuplicate}
                   onDelete={handleDelete}
                   isViewer={isViewer}
@@ -779,6 +794,17 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Rename Theme Dialog */}
+      {themeToRename && (
+        <RenameThemeDialog
+          isOpen={!!themeToRename}
+          onClose={() => setThemeToRename(null)}
+          theme={themeToRename}
+          existingThemes={themes}
+          onRename={handleRename}
+        />
       )}
     </div>
   );

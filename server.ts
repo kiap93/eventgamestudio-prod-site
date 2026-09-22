@@ -42,6 +42,8 @@ import {
   isUUID,
   createTheme,
   updateTheme,
+  renameTheme,
+  checkThemeNameAvailable,
   deleteTheme,
   duplicateTheme,
   getAllPlatformGames,
@@ -1940,33 +1942,116 @@ app.put('/api/themes/:themeId', authenticateJWT, async (req: AuthenticatedReques
       game_config,
     } = req.body;
 
-    const mergedGameConfig = {
-      ...(theme.game_config || {}),
-      ...(game_config || {}),
-      is_onboarding_draft: false,
-      theme_setup_completed: true,
-      theme_setup_completed_at: new Date().toISOString(),
-    };
+    let trimmedName: string | undefined = undefined;
+    if (name !== undefined) {
+      if (typeof name !== 'string') {
+        res.status(400).json({ error: 'Theme name must be a string' });
+        return;
+      }
+      trimmedName = name.trim();
+      if (trimmedName.length === 0) {
+        res.status(400).json({ error: 'Theme name is required' });
+        return;
+      }
+      if (trimmedName.length > 60) {
+        res.status(400).json({ error: 'Theme name must not exceed 60 characters' });
+        return;
+      }
+      if (theme.organization_id && trimmedName.toLowerCase() !== (theme.name || '').trim().toLowerCase()) {
+        const isAvailable = await checkThemeNameAvailable(theme.organization_id, trimmedName, themeId);
+        if (!isAvailable) {
+          res.status(400).json({ error: 'A theme with this name already exists in your organization' });
+          return;
+        }
+      }
+    }
 
-    const resolvedStatus = status && status !== 'draft' ? status : 'active';
+    const updatesToApply: Record<string, any> = {};
+    if (trimmedName !== undefined) {
+      updatesToApply.name = trimmedName;
+      if (slug !== undefined) {
+        updatesToApply.slug = slug;
+      } else {
+        updatesToApply.slug = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      }
+    } else if (slug !== undefined) {
+      updatesToApply.slug = slug;
+    }
 
-    const updatedTheme = await updateTheme(themeId, {
-      name,
-      slug,
-      description,
-      status: resolvedStatus,
-      styling: styling !== undefined ? styling : visuals_config,
-      branding,
-      background_url,
-      basket_config,
-      items_config,
-      physics_config,
-      visuals_config,
-      sounds_config,
-      layout,
-      game_config: mergedGameConfig,
-    });
+    if (description !== undefined) updatesToApply.description = description;
+    if (status !== undefined) {
+      updatesToApply.status = status && status !== 'draft' ? status : 'active';
+    }
+    if (styling !== undefined) {
+      updatesToApply.styling = styling;
+    } else if (visuals_config !== undefined) {
+      updatesToApply.styling = visuals_config;
+    }
+    if (visuals_config !== undefined) updatesToApply.visuals_config = visuals_config;
+    if (branding !== undefined) updatesToApply.branding = branding;
+    if (background_url !== undefined) updatesToApply.background_url = background_url;
+    if (basket_config !== undefined) updatesToApply.basket_config = basket_config;
+    if (items_config !== undefined) updatesToApply.items_config = items_config;
+    if (physics_config !== undefined) updatesToApply.physics_config = physics_config;
+    if (sounds_config !== undefined) updatesToApply.sounds_config = sounds_config;
+    if (layout !== undefined) updatesToApply.layout = layout;
 
+    if (game_config !== undefined) {
+      updatesToApply.game_config = {
+        ...(theme.game_config || {}),
+        ...game_config,
+        is_onboarding_draft: false,
+        theme_setup_completed: true,
+        theme_setup_completed_at: new Date().toISOString(),
+      };
+    }
+
+    const updatedTheme = await updateTheme(themeId, updatesToApply);
+
+    res.json({ ...updatedTheme, theme: updatedTheme });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/themes/:themeId/rename
+ * Rename an existing theme within an organization
+ */
+app.post('/api/themes/:themeId/rename', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { themeId } = req.params;
+
+    if (!isUUID(themeId)) {
+      res.status(400).json({ error: `Invalid theme ID format: ${themeId}` });
+      return;
+    }
+
+    const theme = await getThemeById(themeId);
+    if (!theme) {
+      res.status(404).json({ error: 'Theme not found' });
+      return;
+    }
+
+    if (theme.is_system || !theme.organization_id) {
+      res.status(403).json({ error: 'System themes are read-only templates and cannot be edited directly.' });
+      return;
+    }
+
+    const { isMember, role } = await verifyOrgMembershipAndPermission(user.id, theme.organization_id, 'game.items.edit');
+    if (!isMember || role === 'viewer') {
+      res.status(403).json({ error: 'Permission denied: Cannot rename themes' });
+      return;
+    }
+
+    const { name } = req.body;
+    if (name === undefined || typeof name !== 'string') {
+      res.status(400).json({ error: 'Theme name is required and must be a string' });
+      return;
+    }
+
+    const updatedTheme = await renameTheme(themeId, name);
     res.json({ ...updatedTheme, theme: updatedTheme });
   } catch (err: any) {
     handleApiError(err, req, res);

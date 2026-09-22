@@ -361,9 +361,27 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   }, [score, matchedPairsCount, moves, comboStreak, timeRemaining]);
 
   const themeId = activeTheme?.id;
-  const cardBorderRadius = cardConfig?.borderRadius ?? 16;
-  const cardWidth = cardConfig?.width ?? 120;
-  const cardHeight = cardConfig?.height ?? 120;
+  const rawCardRadius = cardConfig?.borderRadius ?? 14;
+  const rawCardWidth = cardConfig?.width ?? 90;
+  const rawCardHeight = cardConfig?.height ?? 90;
+
+  // Calculate safe board bounds to prevent cards from colliding with HUD elements
+  // In landscape: HUD resides on sides (x: 0-22%, 78-100%), title at top (0-8%), sponsor at bottom (91-100%)
+  // In portrait: HUD resides at top (0-24%), sponsor at bottom (92-100%)
+  const availableBoardWidth = isPortrait ? designWidth * 0.88 : designWidth * 0.54;
+  const availableBoardHeight = isPortrait ? designHeight * 0.68 : designHeight * 0.74;
+  const totalGridGapX = Math.max(0, cols - 1) * (boardConfig.cardGap ?? 10);
+  const totalGridGapY = Math.max(0, rows - 1) * (boardConfig.cardGap ?? 10);
+  const maxCardWidthForGrid = (availableBoardWidth - totalGridGapX) / cols;
+  const maxCardHeightForGrid = (availableBoardHeight - totalGridGapY) / rows;
+  const boardScale = Math.min(
+    1,
+    maxCardWidthForGrid / rawCardWidth,
+    maxCardHeightForGrid / rawCardHeight
+  );
+  const cardWidth = Math.round(rawCardWidth * boardScale);
+  const cardHeight = Math.round(rawCardHeight * boardScale);
+  const cardBorderRadius = Math.max(6, Math.round(rawCardRadius * boardScale));
   const cardAspect = cardWidth / cardHeight;
   const gridContainerAspect = (cols * cardWidth) / (rows * cardHeight);
 

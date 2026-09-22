@@ -32,6 +32,8 @@ import {
   isUUID,
   createTheme,
   updateTheme,
+  renameTheme,
+  checkThemeNameAvailable,
   duplicateTheme,
   deleteTheme,
   uploadGameAsset,
@@ -2247,41 +2249,121 @@ export default {
           game_config,
         } = body;
 
-        const mergedGameConfig = {
-          ...(theme.game_config || {}),
-          ...(game_config || {}),
-          is_onboarding_draft: false,
-          theme_setup_completed: true,
-          theme_setup_completed_at: new Date().toISOString(),
-        };
+        let trimmedName: string | undefined = undefined;
+        if (name !== undefined) {
+          if (typeof name !== 'string') {
+            return jsonResponse({ error: 'Theme name must be a string' }, 400, cors);
+          }
+          trimmedName = name.trim();
+          if (trimmedName.length === 0) {
+            return jsonResponse({ error: 'Theme name is required' }, 400, cors);
+          }
+          if (trimmedName.length > 60) {
+            return jsonResponse({ error: 'Theme name must not exceed 60 characters' }, 400, cors);
+          }
+          if (theme.organization_id && trimmedName.toLowerCase() !== (theme.name || '').trim().toLowerCase()) {
+            const isAvailable = await checkThemeNameAvailable(theme.organization_id, trimmedName, themeId, env);
+            if (!isAvailable) {
+              return jsonResponse({ error: 'A theme with this name already exists in your organization' }, 400, cors);
+            }
+          }
+        }
 
-        const resolvedStatus = status && status !== 'draft' ? status : 'active';
+        const updatesToApply: Record<string, any> = {};
+        if (trimmedName !== undefined) {
+          updatesToApply.name = trimmedName;
+          if (slug !== undefined) {
+            updatesToApply.slug = slug;
+          } else {
+            updatesToApply.slug = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          }
+        } else if (slug !== undefined) {
+          updatesToApply.slug = slug;
+        }
+
+        if (description !== undefined) updatesToApply.description = description;
+        if (status !== undefined) {
+          updatesToApply.status = status && status !== 'draft' ? status : 'active';
+        }
+        if (styling !== undefined) {
+          updatesToApply.styling = styling;
+        } else if (visuals_config !== undefined) {
+          updatesToApply.styling = visuals_config;
+        }
+        if (visuals_config !== undefined) updatesToApply.visuals_config = visuals_config;
+        if (branding !== undefined) updatesToApply.branding = branding;
+        if (background_url !== undefined) updatesToApply.background_url = background_url;
+        if (basket_config !== undefined) updatesToApply.basket_config = basket_config;
+        if (items_config !== undefined) updatesToApply.items_config = items_config;
+        if (physics_config !== undefined) updatesToApply.physics_config = physics_config;
+        if (sounds_config !== undefined) updatesToApply.sounds_config = sounds_config;
+        if (layout !== undefined) updatesToApply.layout = layout;
+
+        if (game_config !== undefined) {
+          updatesToApply.game_config = {
+            ...(theme.game_config || {}),
+            ...game_config,
+            is_onboarding_draft: false,
+            theme_setup_completed: true,
+            theme_setup_completed_at: new Date().toISOString(),
+          };
+        }
 
         try {
-          const updatedTheme = await updateTheme(
-            themeId,
-            {
-              name,
-              slug,
-              description,
-              status: resolvedStatus,
-              styling: styling !== undefined ? styling : visuals_config,
-              branding,
-              background_url,
-              basket_config,
-              items_config,
-              physics_config,
-              visuals_config,
-              sounds_config,
-              layout,
-              game_config: mergedGameConfig,
-            },
-            env
-          );
+          const updatedTheme = await updateTheme(themeId, updatesToApply, env);
 
           return jsonResponse({ ...updatedTheme, theme: updatedTheme }, 200, cors);
         } catch (err: any) {
           console.error('Error in worker updateTheme:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      const renameThemeParams = parseRoute('/api/themes/:themeId/rename', pathname);
+      if (renameThemeParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { themeId } = renameThemeParams;
+
+        if (!isUUID(themeId)) {
+          return jsonResponse({ error: `Invalid theme ID format: ${themeId}` }, 400, cors);
+        }
+
+        const theme = await getThemeById(themeId, env);
+        if (!theme) {
+          return jsonResponse({ error: 'Theme not found' }, 404, cors);
+        }
+
+        if (theme.is_system || !theme.organization_id) {
+          return jsonResponse(
+            { error: 'System themes are read-only templates and cannot be edited directly.' },
+            403,
+            cors
+          );
+        }
+
+        const { isMember, role } = await verifyOrgMembershipAndPermission(
+          user.id,
+          theme.organization_id,
+          'game.items.edit',
+          env
+        );
+        if (!isMember || role === 'viewer') {
+          return jsonResponse({ error: 'Permission denied: Cannot rename themes' }, 403, cors);
+        }
+
+        const body = (await request.json().catch(() => ({}))) as any;
+        const { name } = body;
+        if (name === undefined || typeof name !== 'string') {
+          return jsonResponse({ error: 'Theme name is required and must be a string' }, 400, cors);
+        }
+
+        try {
+          const updatedTheme = await renameTheme(themeId, name, env);
+          return jsonResponse({ ...updatedTheme, theme: updatedTheme }, 200, cors);
+        } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
         }
       }

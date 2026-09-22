@@ -57,6 +57,7 @@ interface AuthContextType {
   fetchSystemThemes: (gameId?: string) => Promise<GameTheme[]>;
   createTheme: (themeData: Partial<GameTheme>) => Promise<GameTheme>;
   updateTheme: (themeId: string, themeData: Partial<GameTheme>) => Promise<GameTheme>;
+  renameTheme: (themeId: string, newName: string) => Promise<GameTheme>;
   deleteTheme: (themeId: string) => Promise<void>;
   duplicateTheme: (themeId: string, newName?: string) => Promise<GameTheme>;
   cloneSystemTheme: (systemThemeId: string, customName?: string, gameId?: string) => Promise<GameTheme>;
@@ -158,7 +159,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const data = await res.json();
-    const normalized = normalizeGameTheme(data.theme);
+    const normalized = normalizeGameTheme(data.theme || data);
+    setThemes((prev) => prev.map((t) => (t.id === themeId ? normalized : t)));
+    if (activeTheme?.id === themeId) {
+      setActiveTheme(normalized);
+      setActiveThemeState(normalized);
+    }
+    return normalized;
+  };
+
+  const renameTheme = async (themeId: string, newName: string): Promise<GameTheme> => {
+    const trimmed = typeof newName === 'string' ? newName.trim() : '';
+    const res = await authFetch(`/api/themes/${themeId}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: trimmed }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to rename theme');
+    }
+
+    const data = await res.json();
+    const normalized = normalizeGameTheme(data.theme || data);
     setThemes((prev) => prev.map((t) => (t.id === themeId ? normalized : t)));
     if (activeTheme?.id === themeId) {
       setActiveTheme(normalized);
@@ -590,6 +614,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fetchSystemThemes,
         createTheme,
         updateTheme,
+        renameTheme,
         deleteTheme,
         duplicateTheme,
         cloneSystemTheme,

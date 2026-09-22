@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeCard } from '../studio/ThemeCard';
 import { CreateThemeDialog } from '../studio/CreateThemeDialog';
+import { RenameThemeDialog } from '../studio/RenameThemeDialog';
 import { GameShell } from '../shell/GameShell';
 import { GameTheme } from '../../themes';
 import { GameRecord } from '../../types';
@@ -44,6 +45,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
     themes,
     createTheme,
     duplicateTheme,
+    renameTheme,
     deleteTheme,
     currentOrganization,
     fetchThemes,
@@ -59,6 +61,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'archived'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [themeToRename, setThemeToRename] = useState<GameTheme | null>(null);
   const [showCloneAllModal, setShowCloneAllModal] = useState(false);
   const [isCloningAll, setIsCloningAll] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -229,6 +232,17 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
       await fetchThemes(game.id);
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to duplicate theme');
+    }
+  };
+
+  const handleRenameTheme = async (targetThemeId: string, newName: string) => {
+    try {
+      await renameTheme(targetThemeId, newName);
+      showNotification('success', `Theme renamed to "${newName}" successfully`);
+      await fetchThemes(game.id);
+    } catch (err: any) {
+      showNotification('error', err.message || 'Failed to rename theme');
+      throw err;
     }
   };
 
@@ -436,6 +450,7 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
                   theme={theme}
                   onPlay={(t) => setPlayingTheme(t)}
                   onEdit={!isViewer ? () => onEditTheme(theme.id) : undefined}
+                  onRename={!isViewer ? (theme) => setThemeToRename(theme) : undefined}
                   onDuplicate={!isViewer ? () => handleDuplicateTheme(theme.id) : undefined}
                   onDelete={!isViewer ? () => handleDeleteTheme(theme.id) : undefined}
                   isSystem={false}
@@ -651,6 +666,17 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Rename Theme Dialog */}
+      {themeToRename && (
+        <RenameThemeDialog
+          isOpen={!!themeToRename}
+          onClose={() => setThemeToRename(null)}
+          theme={themeToRename}
+          existingThemes={themes}
+          onRename={handleRenameTheme}
+        />
       )}
     </div>
   );

@@ -44,16 +44,16 @@ export interface BoardDimensionResult {
 }
 
 export const DEFAULT_CARD_CONFIG: MemoryMatchCardConfig = {
-  width: 120,
-  height: 120,
-  borderRadius: 16,
+  width: 90,
+  height: 90,
+  borderRadius: 14,
   rotationMode: 'none',
   rotation: 0,
   rotationRange: 8,
 };
 
 export const DEFAULT_RANDOM_LAYOUT_CONFIG: MemoryMatchRandomLayoutConfig = {
-  minSpacing: 12,
+  minSpacing: 10,
   rotationMin: -8,
   rotationMax: 8,
 };
@@ -62,7 +62,7 @@ export const DEFAULT_BOARD_CONFIG: MemoryMatchBoardConfig = {
   layoutMode: 'grid',
   rows: 4,
   cols: 4,
-  cardGap: 12,
+  cardGap: 10,
   randomLayout: DEFAULT_RANDOM_LAYOUT_CONFIG,
   card: DEFAULT_CARD_CONFIG,
 };

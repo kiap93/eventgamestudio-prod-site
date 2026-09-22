@@ -1559,8 +1559,16 @@ export async function updateTheme(
   const supabase = getSupabaseServerClient(env);
   const now = new Date().toISOString();
 
+  // Strip undefined values so they do not overwrite existing fields
+  const cleanUpdates: Record<string, any> = {};
+  for (const [key, val] of Object.entries(updates)) {
+    if (val !== undefined) {
+      cleanUpdates[key] = val;
+    }
+  }
+
   const payload: any = {
-    ...updates,
+    ...cleanUpdates,
     updated_at: now,
   };
 
@@ -1571,7 +1579,7 @@ export async function updateTheme(
       const existingTheme = (await getThemeById(themeId, env)) || ({} as GameThemeRecord);
       const updatedTheme = {
         ...existingTheme,
-        ...payload,
+        ...cleanUpdates,
         id: themeId,
       } as GameThemeRecord;
       localThemesCache.set(themeId, updatedTheme);
@@ -1605,6 +1613,83 @@ export async function updateTheme(
 
   localThemesCache.set(themeId, enriched);
   return enriched;
+}
+
+/**
+ * Checks whether a theme name is available (unique case-insensitive) in the organization.
+ */
+export async function checkThemeNameAvailable(
+  organizationId: string,
+  themeName: string,
+  excludeThemeId?: string,
+  env?: Record<string, any>
+): Promise<boolean> {
+  const trimmed = (themeName || '').trim().toLowerCase();
+  if (!trimmed) return false;
+  const supabase = getSupabaseServerClient(env);
+  if (isSupabaseConfigured(env)) {
+    let query = supabase
+      .from('game_themes')
+      .select('id, name')
+      .eq('organization_id', organizationId)
+      .ilike('name', themeName.trim());
+    if (excludeThemeId) {
+      query = query.neq('id', excludeThemeId);
+    }
+    const { data } = await query.limit(1);
+    return !data || data.length === 0;
+  } else {
+    for (const [, t] of localThemesCache) {
+      if (
+        t.organization_id === organizationId &&
+        (!excludeThemeId || t.id !== excludeThemeId) &&
+        t.name.trim().toLowerCase() === trimmed
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+/**
+ * Renames an existing organization theme.
+ * Preserves the theme ID, organization ownership, and all visual/audio/item settings.
+ */
+export async function renameTheme(
+  themeId: string,
+  newName: string,
+  env?: Record<string, any>
+): Promise<GameThemeRecord> {
+  if (!isUUID(themeId)) {
+    throw new Error(`Invalid theme ID format: ${themeId}`);
+  }
+  const trimmed = typeof newName === 'string' ? newName.trim() : '';
+  if (!trimmed) {
+    throw new Error('Theme name is required');
+  }
+  if (trimmed.length > 60) {
+    throw new Error('Theme name must not exceed 60 characters');
+  }
+
+  const existing = await getThemeById(themeId, env);
+  if (!existing) {
+    throw new Error('Theme not found');
+  }
+  if (existing.is_system || !existing.organization_id) {
+    throw new Error('System themes are read-only templates and cannot be edited directly.');
+  }
+
+  // Check duplicate name within the same organization (case-insensitive)
+  if (existing.organization_id && trimmed.toLowerCase() !== existing.name.trim().toLowerCase()) {
+    const isAvailable = await checkThemeNameAvailable(existing.organization_id, trimmed, themeId, env);
+    if (!isAvailable) {
+      throw new Error('A theme with this name already exists in your organization');
+    }
+  }
+
+  const newSlug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  return await updateTheme(themeId, { name: trimmed, slug: newSlug }, env);
 }
 
 export async function duplicateTheme(

@@ -1412,6 +1412,12 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
             ? isCatchBrand
               ? 'catch-brand-fullscreen-viewport relative flex-1 w-full h-full min-w-0 min-h-0 overflow-hidden select-none flex items-center justify-center p-2 sm:p-3'
               : 'relative flex-1 w-full h-full min-w-0 min-h-0 overflow-hidden select-none flex items-center justify-center'
+            : isMemoryMatch
+            ? `relative ${
+                responsive.isPortrait
+                  ? 'aspect-[9/16] max-h-[480px] w-auto mx-auto'
+                  : 'aspect-[16/9] w-full max-w-[500px] max-h-[295px] mx-auto'
+              } rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner group select-none flex items-center justify-center transition-all`
             : `relative ${
                 responsive.isPortrait
                   ? 'aspect-[9/16] max-h-[580px] w-auto mx-auto'

@@ -88,11 +88,11 @@ const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'
 const ALLOWED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp'];
 
 export const CARD_SHAPE_PRESETS = [
-  { label: 'Square', width: 120, height: 120, borderRadius: 16, desc: '120 × 120 (Standard Classic)' },
-  { label: 'Portrait', width: 100, height: 140, borderRadius: 14, desc: '100 × 140 (Playing Card)' },
-  { label: 'Landscape', width: 150, height: 105, borderRadius: 14, desc: '150 × 105 (Wide / Film)' },
-  { label: 'Tall Card', width: 90, height: 150, borderRadius: 12, desc: '90 × 150 (Slim Portrait)' },
-  { label: 'Banner Card', width: 160, height: 95, borderRadius: 12, desc: '160 × 95 (Banner / Ticket)' },
+  { label: 'Square', width: 90, height: 90, borderRadius: 14, desc: '90 × 90 (Compact Classic)' },
+  { label: 'Portrait', width: 80, height: 110, borderRadius: 12, desc: '80 × 110 (Playing Card)' },
+  { label: 'Landscape', width: 110, height: 80, borderRadius: 12, desc: '110 × 80 (Wide / Film)' },
+  { label: 'Tall Card', width: 75, height: 115, borderRadius: 12, desc: '75 × 115 (Slim Portrait)' },
+  { label: 'Banner Card', width: 115, height: 75, borderRadius: 12, desc: '115 × 75 (Banner / Ticket)' },
 ];
 
 export const PRESET_CARD_BACKS: Array<{ name: string; url: string }> = [

@@ -13,6 +13,7 @@ import { ScreensTab } from './ScreensTab';
 import { GameShell } from '../shell/GameShell';
 import { LayoutElementKey, GameLayoutConfig, getDefaultUILayout } from '../../themes/layout';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { RenameThemeDialog } from './RenameThemeDialog';
 import {
   ArrowLeft,
   Palette,
@@ -32,6 +33,7 @@ import {
   Maximize2,
   Minimize2,
   Tv,
+  Edit3,
 } from 'lucide-react';
 
 interface ThemeEditorProps {
@@ -44,6 +46,7 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
   const {
     themes,
     updateTheme,
+    renameTheme,
     uploadAsset,
     currentOrganization,
     activeGame,
@@ -268,6 +271,36 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
     }
   };
 
+  // Rename theme modal state and handler
+  const [showRenameModal, setShowRenameModal] = useState<boolean>(false);
+
+  const handleRenameTheme = async (targetThemeId: string, newName: string) => {
+    const updated = await renameTheme(targetThemeId, newName);
+
+    // Update saved snapshot with the new name and slug (as server persisted it)
+    setSavedThemeSnapshot((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        name: updated.name,
+        slug: updated.slug,
+      };
+    });
+
+    // Update current draft with the new name and slug, preserving any in-progress unsaved visual customizations!
+    setDraftTheme((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        name: updated.name,
+        slug: updated.slug,
+      };
+    });
+
+    // Refresh themes list so all navigation and lists update
+    await fetchThemes();
+  };
+
   if (!draftTheme) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center text-slate-400 space-y-4">
@@ -417,6 +450,21 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
               <h1 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">
                 {draftTheme.name}
               </h1>
+
+              {/* Rename Theme Action */}
+              {!isViewer && !draftTheme.is_system && (
+                <button
+                  type="button"
+                  id="theme-editor-rename-button"
+                  onClick={() => setShowRenameModal(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/80 hover:bg-slate-700/80 active:scale-95 text-slate-300 hover:text-amber-400 border border-slate-700/60 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm"
+                  title="Rename Theme"
+                  aria-label="Rename Theme"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Rename</span>
+                </button>
+              )}
 
               {/* Status Badge */}
               {draftTheme.status === 'draft' && (
@@ -825,6 +873,17 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ themeId, onBack, isOnb
             </div>
           </div>
         </div>
+      )}
+
+      {/* Rename Theme Dialog */}
+      {showRenameModal && (
+        <RenameThemeDialog
+          isOpen={showRenameModal}
+          onClose={() => setShowRenameModal(false)}
+          theme={draftTheme}
+          existingThemes={themes}
+          onRename={handleRenameTheme}
+        />
       )}
     </div>
   );

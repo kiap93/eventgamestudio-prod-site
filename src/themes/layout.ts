@@ -128,51 +128,51 @@ export const DEFAULT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
 
 export const DEFAULT_MEMORY_MATCH_LAYOUT: GameLayoutConfig = {
   clientLogo: {
-    visible: true,
+    visible: false,
     x: 4,
-    y: 4,
+    y: 3,
     width: 14,
   },
   scoreHud: {
     visible: true,
-    x: 4,
-    y: 18,
-    width: 20,
-  },
-  movesHud: {
-    visible: true,
-    x: 4,
-    y: 34,
-    width: 20,
-  },
-  pairsHud: {
-    visible: true,
-    x: 76,
-    y: 34,
-    width: 20,
+    x: 3.5,
+    y: 11,
+    width: 18,
   },
   timer: {
     visible: true,
-    x: 76,
-    y: 18,
-    width: 20,
+    x: 78.5,
+    y: 11,
+    width: 18,
+  },
+  movesHud: {
+    visible: true,
+    x: 3.5,
+    y: 20.5,
+    width: 18,
+  },
+  pairsHud: {
+    visible: true,
+    x: 78.5,
+    y: 20.5,
+    width: 18,
   },
   gameTitle: {
     visible: true,
-    x: 34,
+    x: 33,
     y: 3,
-    width: 32,
+    width: 34,
   },
   footerSponsor: {
     visible: true,
-    x: 30,
-    y: 93,
-    width: 40,
+    x: 24,
+    y: 92,
+    width: 52,
   },
   memoryCardBoard: {
     visible: true,
     x: 50,
-    y: 50,
+    y: 52,
   },
 };
 
