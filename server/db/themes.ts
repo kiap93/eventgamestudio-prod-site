@@ -427,7 +427,11 @@ export const DEFAULT_CATCH_BRAND_THEME: Omit<GameThemeRecord, 'id' | 'organizati
   },
 };
 
-export const DEFAULT_DURIAN_THEME = DEFAULT_CARNIVAL_THEME;
+/**
+ * Legacy alias for backward compatibility.
+ * Mapped to DEFAULT_CATCH_BRAND_THEME to ensure no legacy path re-introduces Carnival.
+ */
+export const DEFAULT_DURIAN_THEME = DEFAULT_CATCH_BRAND_THEME;
 
 export const DEFAULT_MEMORY_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
   name: 'Brand Memory Match',
@@ -600,8 +604,71 @@ export const DEFAULT_MEMORY_THEME: Omit<GameThemeRecord, 'id' | 'organization_id
 
 export const DEFAULT_MEMORY_CARNIVAL_THEME = DEFAULT_MEMORY_THEME;
 
+export const DEFAULT_REACTION_THEME: Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+  name: 'Formula Reflex Challenge',
+  slug: 'reaction-tap',
+  description: 'Test your reaction speed in this Formula 1 style reaction lights challenge. When the lights go out, react as fast as you can!',
+  status: 'active',
+  is_default: true,
+  branding: {
+    gameTitle: 'FORMULA REFLEX',
+    subtitle: 'When the lights go out, react as fast as you can!',
+    logoUrl: null,
+    clientLogoUrl: null,
+  },
+  background_url: '/assets/games/reaction-tap/themes/default/background.png',
+  basket_config: {} as any,
+  items_config: [],
+  physics_config: {
+    gameDurationSeconds: 45,
+    baseFallSpeed: 500,
+    fallSpeedMultiplier: 1.0,
+    spawnIntervalMin: 500,
+    spawnIntervalMax: 1000,
+    difficultyStages: [],
+  },
+  visuals_config: {
+    primaryColor: '#ef4444',
+    secondaryColor: '#10b981',
+    accentColor: '#38bdf8',
+    textColor: '#ffffff',
+    bgGradientFrom: '#070b14',
+    bgGradientVia: '#0b1329',
+    bgGradientTo: '#020617',
+  },
+  sounds_config: {
+    catchGoodUrl: null,
+    catchBadUrl: null,
+    catchBonusUrl: null,
+    gameStartUrl: null,
+    gameOverUrl: null,
+    bgmUrl: null,
+    soundVolume: 0.8,
+    soundEnabled: true,
+    bgmEnabled: true,
+  },
+  layout: {
+    clientLogo: { visible: true, x: 4, y: 4, width: 14 },
+    scoreHud: { visible: true, x: 4, y: 15, width: 18 },
+    timer: { visible: true, x: 78, y: 15, width: 18 },
+    gameTitle: { visible: true, x: 36, y: 4, width: 28 },
+    footerSponsor: { visible: true, x: 32, y: 92, width: 36 },
+  },
+};
+
 export function getDefaultThemeForGameType(gameType?: string | null): Omit<GameThemeRecord, 'id' | 'organization_id' | 'created_at' | 'updated_at'> {
-  if (gameType === 'memory-match') {
+  const clean = (gameType || '').toLowerCase().trim();
+  if (
+    clean === 'reaction-tap' ||
+    clean === 'reaction-time' ||
+    clean === 'reaction-tap-f1-reflex' ||
+    clean.includes('reaction') ||
+    clean.includes('reflex') ||
+    clean.includes('formula')
+  ) {
+    return DEFAULT_REACTION_THEME;
+  }
+  if (clean === 'memory-match' || clean.includes('memory')) {
     return DEFAULT_MEMORY_THEME;
   }
   return DEFAULT_CATCH_BRAND_THEME;
@@ -611,6 +678,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
   DEFAULT_CATCH_BRAND_THEME,
   DEFAULT_CARNIVAL_THEME,
   DEFAULT_MEMORY_CARNIVAL_THEME,
+  DEFAULT_REACTION_THEME,
   {
     name: 'Christmas Gift Rush',
     slug: 'christmas-rush',
@@ -1575,6 +1643,15 @@ export async function createTheme(
 
   if (
     !params.game_type &&
+    resolvedGameType !== 'reaction-tap' &&
+    ((params.name && (params.name.toLowerCase().includes('reaction') || params.name.toLowerCase().includes('reflex') || params.name.toLowerCase().includes('formula'))) ||
+      params.game_slug?.includes('reaction'))
+  ) {
+    resolvedGameType = 'reaction-tap';
+    resolvedGameName = 'Formula Reflex Challenge';
+    resolvedGameSlug = 'reaction-tap';
+  } else if (
+    !params.game_type &&
     resolvedGameType !== 'memory-match' &&
     ((params.name && params.name.toLowerCase().includes('memory')) ||
       params.game_config?.board ||
@@ -1586,12 +1663,13 @@ export async function createTheme(
     resolvedGameSlug = 'memory-match';
   }
 
-  const isMemory = resolvedGameType === 'memory-match' || params.game_type === 'memory-match' || params.game_slug === 'memory-match' || resolvedGameSlug === 'memory-match';
+  const isReaction = resolvedGameType === 'reaction-tap' || params.game_type === 'reaction-tap' || params.game_slug === 'reaction-tap' || resolvedGameSlug === 'reaction-tap';
+  const isMemory = !isReaction && (resolvedGameType === 'memory-match' || params.game_type === 'memory-match' || params.game_slug === 'memory-match' || resolvedGameSlug === 'memory-match');
   const defaultTemplate = getDefaultThemeForGameType(resolvedGameType);
 
   const defaultBranding: ThemeBrandingConfig = {
     gameTitle: params.name.toUpperCase(),
-    subtitle: params.description || (isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : 'Catch custom items, avoid hazards!'),
+    subtitle: params.description || (isReaction ? 'When the lights go out, react as fast as you can!' : isMemory ? 'Flip cards, match 8 pairs, and beat the clock!' : 'Catch custom items, avoid hazards!'),
     logoUrl: null,
     clientLogoUrl: null,
   };
@@ -1609,7 +1687,7 @@ export async function createTheme(
     status: params.status || 'active',
     branding: params.branding ?? (defaultTemplate.branding || defaultBranding),
     background_url: params.background_url ?? defaultTemplate.background_url,
-    basket_config: isMemory ? (params.basket_config ?? {}) : (params.basket_config ?? defaultTemplate.basket_config),
+    basket_config: (isMemory || isReaction) ? (params.basket_config ?? {}) : (params.basket_config ?? defaultTemplate.basket_config),
     items_config: params.items_config ?? defaultTemplate.items_config,
     physics_config: params.physics_config ?? defaultTemplate.physics_config,
     visuals_config: params.visuals_config ?? defaultTemplate.visuals_config,

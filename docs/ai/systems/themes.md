@@ -158,3 +158,45 @@ When an organization customizes a system theme (`POST /api/themes/:id/clone`):
 6. Deep-copies the `visuals`, `layout`, `audio`, and screen editor JSON blobs.
 7. Inserts the new row into `public.themes`.
 8. Returns the newly created organization theme ID for editing in the Studio.
+
+---
+
+## 7. Creating New Themes: "Start from Scratch" vs. "Duplicate"
+
+The platform strictly separates "Start from scratch" creation from "Duplicate" operations:
+
+```
+                          ┌─────────────────────────────┐
+                          │   Create New Theme Action   │
+                          └──────────────┬──────────────┘
+                                         │
+                 ┌───────────────────────┴───────────────────────┐
+                 │                                               │
+                 ▼                                               ▼
+     [ "Start From Scratch" ]                          [ "Duplicate Theme" ]
+                 │                                               │
+   Resolves authoritative game baseline              Uses explicitly selected source
+                 │                                               │
+    ┌────────────┼────────────┐                                  ▼
+    │            │            │                      [ Cloned Source Assets ]
+    ▼            ▼            ▼                   (e.g., Carnival -> Carnival
+Catch The      Memory      Reaction Time               CNY -> CNY, etc.)
+  Brand        Match
+    │            │            │
+    ▼            ▼            ▼
+defaultCatch  memoryMatch  reactionTheme
+BrandTheme      Theme
+```
+
+### Inviolable Invariants:
+1. **Scratch Creation Baseline**:
+   - Creating a new theme from scratch for `catch-brand` **ALWAYS** seeds from `defaultCatchBrandTheme` (`/assets/games/catch-brand/themes/default/`).
+   - It **NEVER** inherits `carnivalTheme` or random existing themes.
+   - Creating for `memory-match` **ALWAYS** seeds from `memoryMatchTheme`.
+   - Creating for `reaction-tap` **ALWAYS** seeds from `reactionTheme`.
+2. **Explicit Duplication**:
+   - Duplication strictly copies the user-selected `sourceThemeId`. Duplicating Carnival creates a Carnival clone; duplicating Default creates a Default clone.
+3. **Backend Creation Single Source of Truth**:
+   - Server-side `createTheme()` resolves defaults via `getDefaultThemeForGameType(gameType)`.
+   - `DEFAULT_DURIAN_THEME` is an alias mapped to `DEFAULT_CATCH_BRAND_THEME` so no legacy route can re-introduce Carnival.
+

@@ -616,6 +616,8 @@ export const GameDetailView: React.FC<GameDetailViewProps> = ({
         onDuplicate={duplicateTheme}
         gameId={game.id}
         gameName={game.name}
+        gameSlug={game.slug}
+        gameType={game.game_type}
       />
 
       {/* Clone All Default Themes Confirmation Modal */}

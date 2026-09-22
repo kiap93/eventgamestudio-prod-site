@@ -723,6 +723,10 @@ export const ThemeList: React.FC<ThemeListProps> = ({ onEditTheme }) => {
         existingThemes={themes}
         onCreate={createTheme}
         onDuplicate={duplicateTheme}
+        gameId={activeGame?.id}
+        gameName={activeGame?.name}
+        gameSlug={activeGame?.slug}
+        gameType={(activeGame as any)?.game_type}
       />
 
       {/* MULTI-GAME PLATFORM CATALOG MODAL */}

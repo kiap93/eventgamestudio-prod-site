@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GameTheme, carnivalTheme, memoryMatchTheme, reactionTheme } from '../../themes';
+import { GameTheme, memoryMatchTheme, reactionTheme, defaultCatchBrandTheme, getDefaultThemeForGameType } from '../../themes';
 import { getDefaultUILayout } from '../../themes/layout';
 import { Sparkles, Copy, Plus, AlertCircle, Check, X, Layers } from 'lucide-react';
 
@@ -12,6 +12,8 @@ interface CreateThemeDialogProps {
   onDuplicate: (themeId: string, newName?: string) => Promise<GameTheme>;
   gameId?: string;
   gameName?: string;
+  gameSlug?: string;
+  gameType?: string;
 }
 
 export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
@@ -23,6 +25,8 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
   onDuplicate,
   gameId,
   gameName,
+  gameSlug,
+  gameType,
 }) => {
   const [creationMode, setCreationMode] = useState<'scratch' | 'duplicate'>('scratch');
   const [themeName, setThemeName] = useState('');
@@ -53,8 +57,12 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
         const newTheme = await onDuplicate(targetSource, themeName.trim());
         onCreated(newTheme.id);
       } else {
-        // Start from scratch using clean baseline defaults
+        // Start from scratch using clean baseline defaults for the specific game
         const isReactionGame =
+          gameType === 'reaction-tap' ||
+          gameType === 'reaction-time' ||
+          gameSlug === 'reaction-tap' ||
+          gameSlug === 'reaction-time' ||
           gameName?.toLowerCase().includes('reaction') ||
           gameName?.toLowerCase().includes('formula') ||
           gameId === 'reaction-tap' ||
@@ -63,17 +71,21 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
           false;
         const isMemoryGame =
           !isReactionGame && (
+            gameType === 'memory-match' ||
+            gameSlug === 'memory-match' ||
             gameName?.toLowerCase().includes('memory') ||
             gameId === 'memory-match' ||
             gameId === 'c782cc78-d2f6-4e70-ac90-bbf9824c62f9' ||
             false
           );
         const resolvedGameSlug = isReactionGame ? 'reaction-tap' : isMemoryGame ? 'memory-match' : 'catch-brand';
-        const defaultBase = isReactionGame ? reactionTheme : isMemoryGame ? memoryMatchTheme : carnivalTheme;
-        const matchingExisting = existingThemes.find((t) =>
-          (t.game_slug === resolvedGameSlug || (t as any).game_type === resolvedGameSlug)
-        );
-        const base = matchingExisting || defaultBase;
+        
+        // Authoritative game default baseline.
+        // ARCHITECTURE INVARIANT: "Start from scratch" MUST use the game's authoritative default theme.
+        // It must NEVER fall back to Carnival or inherit an arbitrary existing theme!
+        const defaultBase = getDefaultThemeForGameType(resolvedGameSlug);
+        const base = defaultBase;
+
         const cleanName = (themeName || 'New Theme').trim();
         const newTheme = await onCreate({
           game_id: gameId,
@@ -96,30 +108,30 @@ export const CreateThemeDialog: React.FC<CreateThemeDialogProps> = ({
             logoUrl: null,
             clientLogoUrl: null,
           },
-          background_url: base.background_url || defaultBase.background_url || null,
+          background_url: base.background_url || null,
           basket_config: (isReactionGame || isMemoryGame)
             ? null
-            : JSON.parse(JSON.stringify(base.basket_config || defaultBase.basket_config)),
+            : JSON.parse(JSON.stringify(base.basket_config)),
           items_config: isReactionGame
-            ? JSON.parse(JSON.stringify(reactionTheme.items_config || {}))
+            ? JSON.parse(JSON.stringify(reactionTheme.items_config || []))
             : isMemoryGame
-            ? JSON.parse(JSON.stringify(memoryMatchTheme.items_config))
-            : JSON.parse(JSON.stringify(base.items_config || defaultBase.items_config)),
+            ? JSON.parse(JSON.stringify(memoryMatchTheme.items_config || []))
+            : JSON.parse(JSON.stringify(base.items_config || [])),
           physics_config: isReactionGame
             ? JSON.parse(JSON.stringify(reactionTheme.physics_config || {}))
             : isMemoryGame
-            ? JSON.parse(JSON.stringify(memoryMatchTheme.physics_config))
-            : JSON.parse(JSON.stringify(base.physics_config || defaultBase.physics_config)),
+            ? JSON.parse(JSON.stringify(memoryMatchTheme.physics_config || {}))
+            : JSON.parse(JSON.stringify(base.physics_config || {})),
           visuals_config: isReactionGame
             ? JSON.parse(JSON.stringify(reactionTheme.visuals_config || {}))
             : isMemoryGame
-            ? JSON.parse(JSON.stringify(memoryMatchTheme.visuals_config))
-            : JSON.parse(JSON.stringify(base.visuals_config || defaultBase.visuals_config)),
+            ? JSON.parse(JSON.stringify(memoryMatchTheme.visuals_config || {}))
+            : JSON.parse(JSON.stringify(base.visuals_config || {})),
           sounds_config: isReactionGame
             ? JSON.parse(JSON.stringify(reactionTheme.sounds_config || {}))
             : isMemoryGame
-            ? JSON.parse(JSON.stringify(memoryMatchTheme.sounds_config))
-            : JSON.parse(JSON.stringify(base.sounds_config || defaultBase.sounds_config)),
+            ? JSON.parse(JSON.stringify(memoryMatchTheme.sounds_config || {}))
+            : JSON.parse(JSON.stringify(base.sounds_config || {})),
           layout: getDefaultUILayout(),
         });
         onCreated(newTheme.id);

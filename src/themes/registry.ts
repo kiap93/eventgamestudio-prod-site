@@ -37,6 +37,31 @@ export const THEME_REGISTRY: Record<string, GameTheme> = {
 
 let currentActiveTheme: GameTheme = defaultCatchBrandTheme;
 
+/**
+ * Resolves the authoritative default theme for a given game type or slug.
+ * Used for "Start from scratch" theme creation and clean baselines.
+ * Catch The Brand -> defaultCatchBrandTheme
+ * Memory Match -> memoryMatchTheme
+ * Reaction Time / Tap -> reactionTheme
+ */
+export function getDefaultThemeForGameType(gameType?: string | null): GameTheme {
+  const clean = (gameType || '').toLowerCase().trim();
+  if (
+    clean === 'reaction-tap' ||
+    clean === 'reaction-time' ||
+    clean === 'reaction-tap-f1-reflex' ||
+    clean.includes('reaction') ||
+    clean.includes('reflex') ||
+    clean.includes('formula')
+  ) {
+    return reactionTheme;
+  }
+  if (clean === 'memory-match' || clean.includes('memory')) {
+    return memoryMatchTheme;
+  }
+  return defaultCatchBrandTheme;
+}
+
 export function resolveThemeBaseId(raw: any): string {
   if (!raw) return 'default';
   if (raw.base_theme_id) return raw.base_theme_id === 'durian' ? 'default' : raw.base_theme_id;
