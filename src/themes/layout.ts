@@ -96,33 +96,33 @@ export function useGameUiScale(containerRef: RefObject<HTMLElement | null>): num
 export const DEFAULT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
   clientLogo: {
     visible: true,
-    x: 4,
-    y: 4,
+    x: 3.5,
+    y: 3.5,
     width: 14,
   },
   scoreHud: {
     visible: true,
-    x: 4,
-    y: 15,
-    width: 18,
+    x: 3.5,
+    y: 3.5,
+    width: 17,
   },
   timer: {
     visible: true,
-    x: 78,
-    y: 15,
-    width: 18,
+    x: 79.5,
+    y: 11,
+    width: 17,
   },
   gameTitle: {
     visible: true,
-    x: 36,
-    y: 4,
-    width: 28,
+    x: 35,
+    y: 3.5,
+    width: 30,
   },
   footerSponsor: {
     visible: true,
-    x: 32,
+    x: 24,
     y: 92,
-    width: 36,
+    width: 52,
   },
 };
 

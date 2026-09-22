@@ -39,6 +39,7 @@ export interface GameLayoutHudOverlayProps {
     e: React.PointerEvent<HTMLDivElement>
   ) => void;
   className?: string;
+  uiScale?: number;
 }
 
 export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
@@ -56,8 +57,13 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
   onSelectElementKey,
   onElementPointerDown,
   className = '',
+  uiScale,
 }) => {
   const resolvedGameType = explicitGameType || getThemeGameType(theme);
+  const isCatch = resolvedGameType === 'catch-brand';
+  const effectiveScale = isCatch && uiScale !== undefined
+    ? Math.max(0.3, Math.min(2.5, uiScale))
+    : 1.0;
   const effectiveIsPortrait =
     typeof explicitIsPortrait === 'boolean'
       ? explicitIsPortrait
@@ -99,6 +105,24 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
     theme?.subtitle ||
     'Official Event Arcade Challenge';
 
+  // Scaled dimensions for Catch the Brand HUD elements
+  const hudMetrics = isCatch ? {
+    hudPadX: Math.max(6, Math.min(16, Math.round(10 * effectiveScale))),
+    hudPadY: Math.max(3, Math.min(10, Math.round(5 * effectiveScale))),
+    hudRadius: Math.max(8, Math.min(18, Math.round(12 * effectiveScale))),
+    hudBorder: Math.max(1.5, Math.min(3, 2 * effectiveScale)),
+    labelFont: Math.max(10, Math.min(14, Math.round(11 * effectiveScale))),
+    valFont: Math.max(12, Math.min(22, Math.round(16 * effectiveScale))),
+    iconSize: Math.max(11, Math.min(18, Math.round(14 * effectiveScale))),
+    titleFont: Math.max(11, Math.min(17, Math.round(13 * effectiveScale))),
+    titlePadX: Math.max(8, Math.min(16, Math.round(10 * effectiveScale))),
+    titlePadY: Math.max(3, Math.min(8, Math.round(4 * effectiveScale))),
+    titleRadius: Math.max(6, Math.min(14, Math.round(9 * effectiveScale))),
+    footerFont: Math.max(10, Math.min(14, Math.round(11 * effectiveScale))),
+    footerPadX: Math.max(8, Math.min(18, Math.round(12 * effectiveScale))),
+    footerPadY: Math.max(3, Math.min(8, Math.round(4 * effectiveScale))),
+  } : null;
+
   const renderElementContent = (key: LayoutElementKey) => {
     switch (key) {
       case 'clientLogo': {
@@ -110,6 +134,11 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
                 src={clientLogoUrl!}
                 alt="Client Logo"
                 draggable={false}
+                style={
+                  isCatch
+                    ? { maxHeight: `${Math.max(20, Math.round(42 * effectiveScale))}px` }
+                    : undefined
+                }
                 className="max-h-11 w-full object-contain drop-shadow pointer-events-none select-none"
                 onError={() => setLogoLoadError(true)}
               />
@@ -133,6 +162,38 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
       }
 
       case 'scoreHud':
+        if (hudMetrics) {
+          return (
+            <div
+              style={{
+                paddingLeft: `${hudMetrics.hudPadX}px`,
+                paddingRight: `${hudMetrics.hudPadX}px`,
+                paddingTop: `${hudMetrics.hudPadY}px`,
+                paddingBottom: `${hudMetrics.hudPadY}px`,
+                borderRadius: `${hudMetrics.hudRadius}px`,
+                borderWidth: `${hudMetrics.hudBorder}px`,
+              }}
+              className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-[#b2c833] shadow-lg text-white flex items-center justify-between pointer-events-none select-none overflow-hidden"
+            >
+              <span
+                style={{ fontSize: `${hudMetrics.labelFont}px` }}
+                className="font-mono font-bold text-slate-300 flex items-center gap-1 shrink-0"
+              >
+                <Trophy
+                  style={{ width: `${hudMetrics.iconSize}px`, height: `${hudMetrics.iconSize}px` }}
+                  className="text-amber-400 shrink-0"
+                />{' '}
+                SCORE
+              </span>
+              <span
+                style={{ color: hudColor, fontSize: `${hudMetrics.valFont}px` }}
+                className="font-mono font-black ml-1 shrink-0"
+              >
+                {score}
+              </span>
+            </div>
+          );
+        }
         return (
           <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-xl sm:rounded-2xl px-2 sm:px-3 py-0.5 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none overflow-hidden">
             <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-300 flex items-center gap-1 shrink-0">
@@ -178,6 +239,40 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
         );
 
       case 'timer':
+        if (hudMetrics) {
+          return (
+            <div
+              style={{
+                paddingLeft: `${hudMetrics.hudPadX}px`,
+                paddingRight: `${hudMetrics.hudPadX}px`,
+                paddingTop: `${hudMetrics.hudPadY}px`,
+                paddingBottom: `${hudMetrics.hudPadY}px`,
+                borderRadius: `${hudMetrics.hudRadius}px`,
+                borderWidth: `${hudMetrics.hudBorder}px`,
+              }}
+              className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-[#b2c833] shadow-lg text-white flex items-center justify-between pointer-events-none select-none overflow-hidden"
+            >
+              <span
+                style={{ fontSize: `${hudMetrics.labelFont}px` }}
+                className="font-mono font-bold text-slate-300 flex items-center gap-1 shrink-0"
+              >
+                <Clock
+                  style={{ width: `${hudMetrics.iconSize}px`, height: `${hudMetrics.iconSize}px` }}
+                  className="text-teal-400 shrink-0"
+                />{' '}
+                TIME
+              </span>
+              <span
+                style={{ fontSize: `${hudMetrics.valFont}px` }}
+                className={`font-mono font-black ml-1 shrink-0 ${
+                  timeRemaining <= 10 ? 'text-rose-400 animate-pulse' : 'text-amber-400'
+                }`}
+              >
+                {timeRemaining}s
+              </span>
+            </div>
+          );
+        }
         return (
           <div className="w-full bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-xl sm:rounded-2xl px-2 sm:px-3 py-0.5 sm:py-1.5 shadow-lg text-white flex items-center justify-between pointer-events-none select-none overflow-hidden">
             <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-300 flex items-center gap-1 shrink-0">
@@ -194,6 +289,27 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
         );
 
       case 'gameTitle':
+        if (hudMetrics) {
+          return (
+            <div
+              style={{
+                paddingLeft: `${hudMetrics.titlePadX}px`,
+                paddingRight: `${hudMetrics.titlePadX}px`,
+                paddingTop: `${hudMetrics.titlePadY}px`,
+                paddingBottom: `${hudMetrics.titlePadY}px`,
+                borderRadius: `${hudMetrics.titleRadius}px`,
+              }}
+              className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 shadow-md text-center pointer-events-none select-none overflow-hidden"
+            >
+              <div
+                style={{ color: accentColor, fontSize: `${hudMetrics.titleFont}px` }}
+                className="font-black uppercase tracking-wider truncate"
+              >
+                {gameTitle}
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-lg sm:rounded-xl px-2 sm:px-3 py-0.5 sm:py-1 shadow-md text-center pointer-events-none select-none overflow-hidden">
             <div
@@ -206,6 +322,30 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
         );
 
       case 'footerSponsor':
+        if (hudMetrics) {
+          return (
+            <div
+              style={{
+                paddingLeft: `${hudMetrics.footerPadX}px`,
+                paddingRight: `${hudMetrics.footerPadX}px`,
+                paddingTop: `${hudMetrics.footerPadY}px`,
+                paddingBottom: `${hudMetrics.footerPadY}px`,
+              }}
+              className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-full shadow-md text-center flex items-center justify-center gap-1.5 pointer-events-none select-none overflow-hidden"
+            >
+              <Megaphone
+                style={{ width: `${hudMetrics.iconSize}px`, height: `${hudMetrics.iconSize}px` }}
+                className="text-amber-400 shrink-0"
+              />
+              <span
+                style={{ fontSize: `${hudMetrics.footerFont}px` }}
+                className="text-slate-300 font-sans truncate"
+              >
+                {sponsorSubtitle}
+              </span>
+            </div>
+          );
+        }
         return (
           <div className="w-full bg-slate-950/80 backdrop-blur-sm border border-slate-700/80 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 shadow-md text-center flex items-center justify-center gap-1.5 pointer-events-none select-none overflow-hidden">
             <Megaphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
@@ -230,7 +370,53 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
         if (!elem) return null;
         const isSelected = selectedElementKey === key;
         const isVisible = elem.visible;
-        const widthPercent = elem.width || meta.defaultWidth;
+        let widthPercent = elem.width || meta.defaultWidth;
+        let posX = elem.x;
+        let posY = elem.y;
+
+        // In live game simulation for Catch the Brand, anchor correctly to prevent overlapping
+        if (isCatch && !editableLayout) {
+          const hasValidLogo = clientLogoUrl && !logoLoadError;
+          if (!effectiveIsPortrait) {
+            // Landscape simulation
+            if (key === 'scoreHud') {
+              posX = 3.5;
+              posY = hasValidLogo ? 11.5 : 3.5;
+              widthPercent = Math.max(15, Math.min(22, widthPercent));
+            } else if (key === 'timer') {
+              posX = 79.5;
+              posY = 11;
+              widthPercent = Math.max(15, Math.min(22, widthPercent));
+            } else if (key === 'gameTitle') {
+              widthPercent = Math.max(26, Math.min(36, widthPercent));
+              posX = (100 - widthPercent) / 2;
+              posY = 3.5;
+            } else if (key === 'footerSponsor') {
+              widthPercent = Math.max(48, Math.min(65, widthPercent));
+              posX = (100 - widthPercent) / 2;
+              posY = 92;
+            }
+          } else {
+            // Portrait simulation
+            if (key === 'gameTitle') {
+              widthPercent = Math.max(45, Math.min(60, widthPercent));
+              posX = (100 - widthPercent) / 2;
+              posY = 3;
+            } else if (key === 'scoreHud') {
+              posX = 4;
+              posY = 10;
+              widthPercent = 44;
+            } else if (key === 'timer') {
+              posX = 52;
+              posY = 10;
+              widthPercent = 44;
+            } else if (key === 'footerSponsor') {
+              widthPercent = Math.max(70, Math.min(88, widthPercent));
+              posX = (100 - widthPercent) / 2;
+              posY = 92;
+            }
+          }
+        }
 
         // In live game mode (non-editable), if invisible, don't render
         if (!editableLayout && !isVisible) return null;
@@ -245,8 +431,8 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
             key={key}
             style={{
               position: 'absolute',
-              left: `${elem.x}%`,
-              top: `${elem.y}%`,
+              left: `${posX}%`,
+              top: `${posY}%`,
               width: `${widthPercent}%`,
               zIndex: isSelected ? 45 : 35,
               touchAction: 'none',

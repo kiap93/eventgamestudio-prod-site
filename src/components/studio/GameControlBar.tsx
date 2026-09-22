@@ -15,6 +15,7 @@ export interface GameControlBarProps {
   isMuted?: boolean;
   isPaused?: boolean;
   isFullscreen?: boolean;
+  uiScale?: number;
   onSettingsClick?: () => void;
   onToggleMute?: () => void;
   onPauseResume?: () => void;
@@ -36,6 +37,7 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
   isMuted = false,
   isPaused = false,
   isFullscreen = false,
+  uiScale,
   onSettingsClick,
   onToggleMute,
   onPauseResume,
@@ -49,6 +51,16 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
   className = '',
 }) => {
   const [activeTooltip, setActiveTooltip] = useState<ControlKey | null>(null);
+
+  // Proportional scaling when uiScale is provided (clamped for optimal usability)
+  const scaled = uiScale !== undefined ? {
+    btnSize: Math.max(20, Math.min(40, Math.round(28 * uiScale))),
+    iconSize: Math.max(10, Math.min(18, Math.round(13 * uiScale))),
+    barPadding: Math.max(2, Math.min(8, Math.round(4 * uiScale))),
+    barGap: Math.max(2, Math.min(8, Math.round(4 * uiScale))),
+    barRadius: Math.max(6, Math.min(14, Math.round(10 * uiScale))),
+    btnRadius: Math.max(4, Math.min(10, Math.round(7 * uiScale))),
+  } : null;
 
   // Canonical tooltips
   const resolvedSettingsTooltip =
@@ -90,6 +102,15 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
   return (
     <div
       id={id}
+      style={
+        scaled
+          ? {
+              padding: `${scaled.barPadding}px`,
+              gap: `${scaled.barGap}px`,
+              borderRadius: `${scaled.barRadius}px`,
+            }
+          : undefined
+      }
       className={`z-40 pointer-events-auto select-none inline-flex items-center w-fit gap-1 sm:gap-1.5 bg-slate-950/85 backdrop-blur-sm p-1 sm:p-1.5 rounded-xl border border-slate-700/80 shadow-lg ${
         className.includes('absolute') || className.includes('fixed') ? '' : 'relative'
       } ${className}`}
@@ -116,14 +137,31 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           onFocus={() => setActiveTooltip('settings')}
           onBlur={() => setActiveTooltip((cur) => (cur === 'settings' ? null : cur))}
           title={resolvedSettingsTooltip}
-          className={`p-1 sm:p-1.5 rounded-lg border transition-all ${
+          style={
+            scaled
+              ? {
+                  width: `${scaled.btnSize}px`,
+                  height: `${scaled.btnSize}px`,
+                  borderRadius: `${scaled.btnRadius}px`,
+                  padding: 0,
+                }
+              : undefined
+          }
+          className={`p-1 sm:p-1.5 rounded-lg border transition-all flex items-center justify-center ${
             disabled
               ? 'bg-[#0c2012]/80 border-[#b2c833]/50 text-[#c8e038]/80 cursor-not-allowed opacity-90'
               : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] active:scale-95 cursor-pointer'
           }`}
           aria-label="Game Settings"
         >
-          <Settings className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+          <Settings
+            style={
+              scaled
+                ? { width: `${scaled.iconSize}px`, height: `${scaled.iconSize}px` }
+                : undefined
+            }
+            className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0"
+          />
         </button>
 
         {/* Settings Rich Tooltip Popover */}
@@ -174,7 +212,17 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           onFocus={() => setActiveTooltip('sound')}
           onBlur={() => setActiveTooltip((cur) => (cur === 'sound' ? null : cur))}
           title={resolvedSoundTooltip}
-          className={`p-1 sm:p-1.5 rounded-lg border transition-all ${
+          style={
+            scaled
+              ? {
+                  width: `${scaled.btnSize}px`,
+                  height: `${scaled.btnSize}px`,
+                  borderRadius: `${scaled.btnRadius}px`,
+                  padding: 0,
+                }
+              : undefined
+          }
+          className={`p-1 sm:p-1.5 rounded-lg border transition-all flex items-center justify-center ${
             disabled
               ? 'bg-[#0c2012]/80 border-[#b2c833]/50 text-[#c8e038]/80 cursor-not-allowed opacity-90'
               : 'bg-[#0c2012]/90 border-[#b2c833] text-[#c8e038] hover:bg-[#1a3820] active:scale-95 cursor-pointer'
@@ -182,9 +230,23 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           aria-label={isMuted ? 'Unmute Sound' : 'Mute Sound'}
         >
           {isMuted ? (
-            <VolumeX className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0" />
+            <VolumeX
+              style={
+                scaled
+                  ? { width: `${scaled.iconSize}px`, height: `${scaled.iconSize}px` }
+                  : undefined
+              }
+              className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 shrink-0"
+            />
           ) : (
-            <Volume2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
+            <Volume2
+              style={
+                scaled
+                  ? { width: `${scaled.iconSize}px`, height: `${scaled.iconSize}px` }
+                  : undefined
+              }
+              className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0"
+            />
           )}
         </button>
 
@@ -229,7 +291,17 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           onFocus={() => setActiveTooltip('pause')}
           onBlur={() => setActiveTooltip((cur) => (cur === 'pause' ? null : cur))}
           title={resolvedPauseTooltip}
-          className={`p-1 sm:p-1.5 rounded-lg border transition-all ${
+          style={
+            scaled
+              ? {
+                  width: `${scaled.btnSize}px`,
+                  height: `${scaled.btnSize}px`,
+                  borderRadius: `${scaled.btnRadius}px`,
+                  padding: 0,
+                }
+              : undefined
+          }
+          className={`p-1 sm:p-1.5 rounded-lg border transition-all flex items-center justify-center ${
             disabled
               ? 'bg-[#0c2012]/80 border-[#b2c833]/50 text-[#c8e038]/80 cursor-not-allowed opacity-90'
               : isPaused
@@ -239,9 +311,23 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           aria-label={isPaused ? 'Resume Game' : 'Pause Game'}
         >
           {isPaused && !disabled ? (
-            <Play className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+            <Play
+              style={
+                scaled
+                  ? { width: `${scaled.iconSize}px`, height: `${scaled.iconSize}px` }
+                  : undefined
+              }
+              className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0"
+            />
           ) : (
-            <Pause className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+            <Pause
+              style={
+                scaled
+                  ? { width: `${scaled.iconSize}px`, height: `${scaled.iconSize}px` }
+                  : undefined
+              }
+              className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0"
+            />
           )}
         </button>
 
@@ -286,6 +372,16 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           onFocus={() => setActiveTooltip('stop')}
           onBlur={() => setActiveTooltip((cur) => (cur === 'stop' ? null : cur))}
           title={resolvedStopTooltip}
+          style={
+            scaled
+              ? {
+                  width: `${scaled.btnSize}px`,
+                  height: `${scaled.btnSize}px`,
+                  borderRadius: `${scaled.btnRadius}px`,
+                  padding: 0,
+                }
+              : undefined
+          }
           className={`p-1 sm:p-1.5 rounded-lg border transition-all flex items-center justify-center ${
             disabled
               ? 'bg-[#0c2012]/80 border-rose-500/50 text-rose-400/80 cursor-not-allowed opacity-90'
@@ -293,7 +389,14 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           }`}
           aria-label="Stop Game"
         >
-          <Square className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-rose-400/80 shrink-0" />
+          <Square
+            style={
+              scaled
+                ? { width: `${scaled.iconSize}px`, height: `${scaled.iconSize}px` }
+                : undefined
+            }
+            className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-rose-400/80 shrink-0"
+          />
         </button>
 
         {/* Stop Tooltip */}
@@ -335,6 +438,16 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           onFocus={() => setActiveTooltip('fullscreen')}
           onBlur={() => setActiveTooltip((cur) => (cur === 'fullscreen' ? null : cur))}
           title={resolvedFullscreenTooltip}
+          style={
+            scaled
+              ? {
+                  width: `${scaled.btnSize}px`,
+                  height: `${scaled.btnSize}px`,
+                  borderRadius: `${scaled.btnRadius}px`,
+                  padding: 0,
+                }
+              : undefined
+          }
           className={`p-1 sm:p-1.5 rounded-lg border transition-all font-mono font-bold flex items-center justify-center leading-none ${
             disabled
               ? 'bg-[#0c2012]/80 border-[#b2c833]/50 text-[#c8e038]/80 cursor-not-allowed opacity-90'
@@ -342,7 +455,16 @@ export const GameControlBar: React.FC<GameControlBarProps> = ({
           }`}
           aria-label={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen'}
         >
-          <span className="text-[11px] sm:text-xs font-bold leading-none select-none">⛶</span>
+          <span
+            style={
+              scaled
+                ? { fontSize: `${scaled.iconSize}px` }
+                : undefined
+            }
+            className="text-[11px] sm:text-xs font-bold leading-none select-none"
+          >
+            ⛶
+          </span>
         </button>
 
         {/* Fullscreen Tooltip */}
