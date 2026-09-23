@@ -352,6 +352,16 @@ export function isOperationalError(err: any): boolean {
     code === 'OVERLAPPING_PRICING_TIER' ||
     code === 'AMBIGUOUS_PRICING_TIER' ||
     code === 'INVALID_DURATION_RANGE' ||
+    code === 'EVENT_NOT_STARTED' ||
+    code === 'EVENT_UNPAID' ||
+    code === 'EVENT_EXPIRED' ||
+    code === 'EVENT_CANCELLED' ||
+    code === 'EVENT_NOT_COMPLETED' ||
+    code === 'SHOWCASE_ALREADY_EXISTS' ||
+    code === 'SHOWCASE_BLOCKED' ||
+    code === 'SHOWCASE_DELETED' ||
+    code === 'SHOWCASE_NOT_ELIGIBLE' ||
+    code === 'MODERATION_REASON_REQUIRED' ||
     msg.includes('pending_event_limit_reached') ||
     msg.includes('maximum 2 pending payment events reached') ||
     msg.includes('organization limit') ||
@@ -366,7 +376,13 @@ export function isOperationalError(err: any): boolean {
     msg.includes('overlaps with existing active tier') ||
     msg.includes('overlapping active ranges') ||
     msg.includes('ambiguous_pricing_tier') ||
-    msg.includes('multiple active pricing tiers match duration')
+    msg.includes('multiple active pricing tiers match duration') ||
+    msg.includes('event is not eligible for showcase') ||
+    msg.includes('showcase is not available') ||
+    msg.includes('showcase can be created and published once the event starts') ||
+    msg.includes('showcase requires a confirmed, paid event') ||
+    msg.includes('cannot publish a blocked showcase') ||
+    msg.includes('event showcase already exists')
   ) {
     return true;
   }
@@ -523,7 +539,17 @@ export function isOperationalError(err: any): boolean {
     code === 'THEME_NOT_FOUND' ||
     code === 'EVENT_NOT_FOUND' ||
     code === 'GAME_NOT_FOUND' ||
-    code === 'SHOWCASE_NOT_FOUND'
+    code === 'SHOWCASE_NOT_FOUND' ||
+    code === 'SHOWCASE_ALREADY_EXISTS' ||
+    code === 'SHOWCASE_BLOCKED' ||
+    code === 'SHOWCASE_DELETED' ||
+    code === 'SHOWCASE_NOT_ELIGIBLE' ||
+    code === 'MODERATION_REASON_REQUIRED' ||
+    code === 'EVENT_NOT_STARTED' ||
+    code === 'EVENT_UNPAID' ||
+    code === 'EVENT_EXPIRED' ||
+    code === 'EVENT_CANCELLED' ||
+    code === 'EVENT_NOT_COMPLETED'
   ) {
     return true;
   }
@@ -613,7 +639,8 @@ export function handleApiError(
         code === 'GAME_IN_USE' ||
         code === 'GAME_TYPE_ALREADY_REGISTERED' ||
         code === 'GAME_SLUG_ALREADY_REGISTERED' ||
-        code === 'DUPLICATE_ORDER'
+        code === 'DUPLICATE_ORDER' ||
+        code === 'SHOWCASE_ALREADY_EXISTS'
       ) {
         statusCode = 409;
       } else if (code === 'INSUFFICIENT_BALANCE') {
@@ -622,7 +649,9 @@ export function handleApiError(
         statusCode = 413;
       } else if (
         code === 'THEME_FORBIDDEN' ||
-        code === 'PERMISSION_DENIED'
+        code === 'PERMISSION_DENIED' ||
+        code === 'SHOWCASE_BLOCKED' ||
+        code === 'SHOWCASE_DELETED'
       ) {
         statusCode = 403;
       } else if (
@@ -640,6 +669,7 @@ export function handleApiError(
         code === 'SYSTEM_THEME_NOT_ALLOWED' ||
         code === 'THEME_SETUP_REQUIRED' ||
         code === 'REJECTION_REASON_REQUIRED' ||
+        code === 'MODERATION_REASON_REQUIRED' ||
         code === 'PENDING_EVENT_LIMIT_REACHED' ||
         code === 'THEME_GAME_MISMATCH' ||
         code === 'GAME_INACTIVE' ||
@@ -649,7 +679,13 @@ export function handleApiError(
         code === 'INVALID_AMOUNT' ||
         code === 'INVALID_CURRENCY' ||
         code === 'INVALID_PAYMENT_METHOD' ||
-        code === 'INVALID_PAYMENT_MODE'
+        code === 'INVALID_PAYMENT_MODE' ||
+        code === 'EVENT_NOT_STARTED' ||
+        code === 'EVENT_UNPAID' ||
+        code === 'EVENT_EXPIRED' ||
+        code === 'EVENT_CANCELLED' ||
+        code === 'EVENT_NOT_COMPLETED' ||
+        code === 'SHOWCASE_NOT_ELIGIBLE'
       ) {
         statusCode = 422;
       } else {
@@ -808,7 +844,8 @@ export async function handleWorkerApiError(
         code === 'GAME_IN_USE' ||
         code === 'GAME_TYPE_ALREADY_REGISTERED' ||
         code === 'GAME_SLUG_ALREADY_REGISTERED' ||
-        code === 'DUPLICATE_ORDER'
+        code === 'DUPLICATE_ORDER' ||
+        code === 'SHOWCASE_ALREADY_EXISTS'
       ) {
         statusCode = 409;
       } else if (code === 'INSUFFICIENT_BALANCE') {
@@ -817,7 +854,9 @@ export async function handleWorkerApiError(
         statusCode = 413;
       } else if (
         code === 'THEME_FORBIDDEN' ||
-        code === 'PERMISSION_DENIED'
+        code === 'PERMISSION_DENIED' ||
+        code === 'SHOWCASE_BLOCKED' ||
+        code === 'SHOWCASE_DELETED'
       ) {
         statusCode = 403;
       } else if (
@@ -835,6 +874,7 @@ export async function handleWorkerApiError(
         code === 'SYSTEM_THEME_NOT_ALLOWED' ||
         code === 'THEME_SETUP_REQUIRED' ||
         code === 'REJECTION_REASON_REQUIRED' ||
+        code === 'MODERATION_REASON_REQUIRED' ||
         code === 'PENDING_EVENT_LIMIT_REACHED' ||
         code === 'THEME_GAME_MISMATCH' ||
         code === 'GAME_INACTIVE' ||
@@ -844,7 +884,13 @@ export async function handleWorkerApiError(
         code === 'INVALID_AMOUNT' ||
         code === 'INVALID_CURRENCY' ||
         code === 'INVALID_PAYMENT_METHOD' ||
-        code === 'INVALID_PAYMENT_MODE'
+        code === 'INVALID_PAYMENT_MODE' ||
+        code === 'EVENT_NOT_STARTED' ||
+        code === 'EVENT_UNPAID' ||
+        code === 'EVENT_EXPIRED' ||
+        code === 'EVENT_CANCELLED' ||
+        code === 'EVENT_NOT_COMPLETED' ||
+        code === 'SHOWCASE_NOT_ELIGIBLE'
       ) {
         statusCode = 422;
       } else {

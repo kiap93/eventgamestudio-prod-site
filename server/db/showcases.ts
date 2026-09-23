@@ -329,8 +329,8 @@ export async function createShowcase(
     id,
     event_id: params.event_id,
     organization_id: params.organization_id,
-    owner_user_id,
-    created_by,
+    owner_user_id: isUUID(owner_user_id) ? owner_user_id : null,
+    created_by: isUUID(created_by) ? created_by : null,
     title: params.title.trim(),
     description: params.description?.trim() || null,
     client_name: params.client_name?.trim() || null,
@@ -361,11 +361,46 @@ export async function createShowcase(
 
   try {
     const supabase = getSupabaseServerClient(env);
+    // CRITICAL: event_showcases table schema does NOT contain created_by column.
+    // Build insertPayload strictly containing valid table columns and sanitized UUIDs.
+    const insertPayload: Record<string, any> = {
+      id: record.id,
+      event_id: record.event_id,
+      organization_id: record.organization_id,
+      owner_user_id: isUUID(record.owner_user_id) ? record.owner_user_id : null,
+      title: record.title,
+      description: record.description,
+      client_name: record.client_name,
+      client_logo_url: record.client_logo_url,
+      cover_image_url: record.cover_image_url,
+      status: record.status,
+      review_status: record.review_status,
+      publication_status: record.publication_status,
+      reward_review_status: record.reward_review_status,
+      reward_reviewed_by: isUUID(record.reward_reviewed_by) ? record.reward_reviewed_by : null,
+      reward_reviewed_at: record.reward_reviewed_at,
+      reward_rejection_reason: record.reward_rejection_reason,
+      moderated_by: isUUID(record.moderated_by) ? record.moderated_by : null,
+      moderated_at: record.moderated_at,
+      moderation_reason: record.moderation_reason,
+      deleted_at: record.deleted_at,
+      submitted_at: record.submitted_at,
+      reviewed_at: record.reviewed_at,
+      reviewed_by: isUUID(record.reviewed_by) ? record.reviewed_by : null,
+      rejection_reason: record.rejection_reason,
+      reward_transaction_id: isUUID(record.reward_transaction_id) ? record.reward_transaction_id : null,
+      reward_granted_at: record.reward_granted_at,
+      reward_status: record.reward_status,
+      published_at: record.published_at,
+      created_at: record.created_at,
+      updated_at: record.updated_at,
+    };
+
     const { data, error } = await supabase
       .from('event_showcases')
-      .insert(record)
+      .insert(insertPayload)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       if (!isLocalFallbackAllowed(env)) {
@@ -379,7 +414,10 @@ export async function createShowcase(
       return record;
     }
 
-    const saved = data as EventShowcaseRecord;
+    const saved: EventShowcaseRecord = {
+      ...record,
+      ...(data as Partial<EventShowcaseRecord>),
+    };
     if (isLocalFallbackAllowed(env)) {
       localShowcasesCache.set(params.event_id, saved);
       saveLocalShowcases(env);
@@ -554,39 +592,41 @@ export async function updateShowcase(
 
   try {
     const supabase = getSupabaseServerClient(env);
+    const updatePayload: Record<string, any> = {
+      owner_user_id: isUUID(updatedRecord.owner_user_id) ? updatedRecord.owner_user_id : null,
+      title: updatedRecord.title,
+      description: updatedRecord.description,
+      client_name: updatedRecord.client_name,
+      client_logo_url: updatedRecord.client_logo_url,
+      cover_image_url: updatedRecord.cover_image_url,
+      status: updatedRecord.status,
+      review_status: updatedRecord.review_status,
+      publication_status: updatedRecord.publication_status,
+      reward_review_status: updatedRecord.reward_review_status,
+      reward_reviewed_by: isUUID(updatedRecord.reward_reviewed_by) ? updatedRecord.reward_reviewed_by : null,
+      reward_reviewed_at: updatedRecord.reward_reviewed_at,
+      reward_rejection_reason: updatedRecord.reward_rejection_reason,
+      moderated_by: isUUID(updatedRecord.moderated_by) ? updatedRecord.moderated_by : null,
+      moderated_at: updatedRecord.moderated_at,
+      moderation_reason: updatedRecord.moderation_reason,
+      deleted_at: updatedRecord.deleted_at,
+      submitted_at: updatedRecord.submitted_at,
+      reviewed_at: updatedRecord.reviewed_at,
+      reviewed_by: isUUID(updatedRecord.reviewed_by) ? updatedRecord.reviewed_by : null,
+      rejection_reason: updatedRecord.rejection_reason,
+      reward_transaction_id: isUUID(updatedRecord.reward_transaction_id) ? updatedRecord.reward_transaction_id : null,
+      reward_granted_at: updatedRecord.reward_granted_at,
+      reward_status: updatedRecord.reward_status,
+      published_at: updatedRecord.published_at,
+      updated_at: now,
+    };
+
     const { data, error } = await supabase
       .from('event_showcases')
-      .update({
-        owner_user_id: updatedRecord.owner_user_id,
-        title: updatedRecord.title,
-        description: updatedRecord.description,
-        client_name: updatedRecord.client_name,
-        client_logo_url: updatedRecord.client_logo_url,
-        cover_image_url: updatedRecord.cover_image_url,
-        status: updatedRecord.status,
-        review_status: updatedRecord.review_status,
-        publication_status: updatedRecord.publication_status,
-        reward_review_status: updatedRecord.reward_review_status,
-        reward_reviewed_by: updatedRecord.reward_reviewed_by,
-        reward_reviewed_at: updatedRecord.reward_reviewed_at,
-        reward_rejection_reason: updatedRecord.reward_rejection_reason,
-        moderated_by: updatedRecord.moderated_by,
-        moderated_at: updatedRecord.moderated_at,
-        moderation_reason: updatedRecord.moderation_reason,
-        deleted_at: updatedRecord.deleted_at,
-        submitted_at: updatedRecord.submitted_at,
-        reviewed_at: updatedRecord.reviewed_at,
-        reviewed_by: updatedRecord.reviewed_by,
-        rejection_reason: updatedRecord.rejection_reason,
-        reward_transaction_id: updatedRecord.reward_transaction_id,
-        reward_granted_at: updatedRecord.reward_granted_at,
-        reward_status: updatedRecord.reward_status,
-        published_at: updatedRecord.published_at,
-        updated_at: now,
-      })
+      .update(updatePayload)
       .eq('event_id', eventId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       if (!isLocalFallbackAllowed(env)) {
@@ -602,7 +642,10 @@ export async function updateShowcase(
       return updatedRecord;
     }
 
-    const saved = data as EventShowcaseRecord;
+    const saved: EventShowcaseRecord = {
+      ...updatedRecord,
+      ...(data as Partial<EventShowcaseRecord>),
+    };
     if (isLocalFallbackAllowed(env)) {
       localShowcasesCache.set(eventId, saved);
       saveLocalShowcases(env);

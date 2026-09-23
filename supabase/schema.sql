@@ -1405,6 +1405,7 @@ ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS moderated_at TIMESTA
 ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS moderation_reason TEXT;
 ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.users(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS public.showcase_moderation_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
