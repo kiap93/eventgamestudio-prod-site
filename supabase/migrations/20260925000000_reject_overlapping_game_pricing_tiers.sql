@@ -117,8 +117,18 @@ BEGIN
     END IF;
 
     v_target_game_id := COALESCE(p_game_id, v_event.game_id);
-    v_start_date := COALESCE(p_start_date, v_event.start_date, DATE(v_event.starts_at));
-    v_end_date := COALESCE(p_end_date, v_event.end_date, DATE(v_event.expires_at));
+    v_start_date := COALESCE(
+      p_start_date,
+      CASE WHEN v_event.start_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.start_date FROM 1 FOR 10))::date ELSE NULL END,
+      CASE WHEN v_event.event_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.event_date FROM 1 FOR 10))::date ELSE NULL END,
+      CASE WHEN v_event.starts_at IS NOT NULL THEN (v_event.starts_at AT TIME ZONE 'Asia/Singapore')::date ELSE NULL END
+    );
+    v_end_date := COALESCE(
+      p_end_date,
+      CASE WHEN v_event.end_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.end_date FROM 1 FOR 10))::date ELSE NULL END,
+      CASE WHEN v_event.expires_at IS NOT NULL THEN (v_event.expires_at AT TIME ZONE 'Asia/Singapore')::date ELSE NULL END,
+      v_start_date
+    );
     v_pricing_id := COALESCE(p_pricing_id, v_event.pricing_id);
     v_is_custom_price := COALESCE(v_event.is_custom_price, false);
 

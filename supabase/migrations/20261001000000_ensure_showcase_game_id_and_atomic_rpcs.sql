@@ -1,209 +1,24 @@
--- ==============================================================================
--- Migration: 20260929000000_fix_showcase_service_role_trigger.sql
--- Description: 1. Hardens prevent_event_showcase_unauthorized_client_mutations trigger
---                 to robustly recognise service_role backend connections via PostgREST
---                 JWT claims, session user, and role settings.
---              2. Adds save_event_showcase_atomic RPC function for atomic organizer
---                 showcase saving (Draft, Published, Updates) with strict null semantics.
---              3. Adds publish_event_showcase_atomic RPC function for atomic backend
---                 publishing under SECURITY DEFINER context with strict null semantics.
---              4. Adds delete_event_showcase_atomic RPC function for atomic backend deletion.
--- ==============================================================================
+-- Migration: 20261001000000_ensure_showcase_game_id_and_atomic_rpcs.sql
+-- Description: Ensure game_id on public.event_showcases is nullable, backfilled,
+--              and populated atomically in publish_event_showcase_atomic and save_event_showcase_atomic.
 
--- 1. Replace the trigger function with robust service_role detection
-CREATE OR REPLACE FUNCTION public.prevent_event_showcase_unauthorized_client_mutations()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, auth, extensions
-AS $$
-DECLARE
-  v_role text;
-  v_uid text;
-  v_claims jsonb;
-BEGIN
-  -- 1. Allow database administrator / migration scripts / direct postgres sessions
-  IF current_user IN ('postgres', 'supabase_admin') OR session_user IN ('postgres', 'supabase_admin') THEN
-    IF TG_OP = 'DELETE' THEN
-      RETURN OLD;
-    ELSE
-      RETURN NEW;
-    END IF;
-  END IF;
+-- 1. Ensure column game_id exists and is nullable on public.event_showcases
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS game_id UUID REFERENCES public.games(id) ON DELETE SET NULL;
+ALTER TABLE public.event_showcases ALTER COLUMN game_id DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_event_showcases_game_id ON public.event_showcases (game_id);
 
-  -- 2. Allow service_role connections (API server backend using SUPABASE_SERVICE_ROLE_KEY)
-  IF current_user = 'service_role' OR session_user = 'service_role' OR current_setting('role', true) = 'service_role' THEN
-    IF TG_OP = 'DELETE' THEN
-      RETURN OLD;
-    ELSE
-      RETURN NEW;
-    END IF;
-  END IF;
+-- 2. Backfill game_id on existing event_showcases from parent events or their game themes
+UPDATE public.event_showcases es
+SET game_id = COALESCE(
+  e.game_id,
+  gt.game_id,
+  (SELECT id FROM public.games WHERE is_system = true ORDER BY created_at ASC LIMIT 1)
+)
+FROM public.events e
+LEFT JOIN public.game_themes gt ON gt.id = e.game_theme_id
+WHERE es.event_id = e.id AND es.game_id IS NULL;
 
-  -- 3. Retrieve auth context from Supabase JWT claims
-  BEGIN
-    v_role := current_setting('request.jwt.claim.role', true);
-  EXCEPTION WHEN OTHERS THEN
-    v_role := NULL;
-  END;
-
-  -- In modern PostgREST / Supabase, all claims are stored in request.jwt.claims JSON
-  IF v_role IS NULL THEN
-    BEGIN
-      v_claims := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
-      IF v_claims IS NOT NULL THEN
-        v_role := v_claims ->> 'role';
-      END IF;
-    EXCEPTION WHEN OTHERS THEN
-      v_role := NULL;
-    END;
-  END IF;
-
-  IF v_role IS NULL THEN
-    BEGIN
-      v_role := auth.role();
-    EXCEPTION WHEN OTHERS THEN
-      v_role := NULL;
-    END;
-  END IF;
-
-  -- If the role is service_role, allow all backend operations
-  IF v_role = 'service_role' THEN
-    IF TG_OP = 'DELETE' THEN
-      RETURN OLD;
-    ELSE
-      RETURN NEW;
-    END IF;
-  END IF;
-
-  BEGIN
-    v_uid := current_setting('request.jwt.claim.sub', true);
-  EXCEPTION WHEN OTHERS THEN
-    v_uid := NULL;
-  END;
-
-  IF v_uid IS NULL THEN
-    BEGIN
-      IF v_claims IS NOT NULL THEN
-        v_uid := v_claims ->> 'sub';
-      ELSE
-        v_claims := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
-        IF v_claims IS NOT NULL THEN
-          v_uid := v_claims ->> 'sub';
-        END IF;
-      END IF;
-    EXCEPTION WHEN OTHERS THEN
-      v_uid := NULL;
-    END;
-  END IF;
-
-  IF v_uid IS NULL THEN
-    BEGIN
-      v_uid := auth.uid()::text;
-    EXCEPTION WHEN OTHERS THEN
-      v_uid := NULL;
-    END;
-  END IF;
-
-  -- Direct SQL sessions without web claims are administrative
-  IF v_role IS NULL AND v_uid IS NULL THEN
-    IF TG_OP = 'DELETE' THEN
-      RETURN OLD;
-    ELSE
-      RETURN NEW;
-    END IF;
-  END IF;
-
-  -- Block any mutation attempt originating from client roles (authenticated or anon)
-  IF v_role IN ('authenticated', 'anon') OR (v_uid IS NOT NULL AND (v_role IS NULL OR v_role != 'service_role')) THEN
-    RAISE EXCEPTION 'Direct client mutation on event_showcases is strictly prohibited. All showcase operations must be routed through the server API.';
-  END IF;
-
-  -- Defense-in-depth: Even if role check is bypassed, safeguard critical columns
-  IF TG_OP = 'UPDATE' THEN
-    IF v_role IS DISTINCT FROM 'service_role' THEN
-      IF NEW.review_status IS DISTINCT FROM OLD.review_status THEN
-        RAISE EXCEPTION 'Direct update of review_status is strictly prohibited';
-      END IF;
-      IF NEW.reward_status IS DISTINCT FROM OLD.reward_status THEN
-        RAISE EXCEPTION 'Direct update of reward_status is strictly prohibited';
-      END IF;
-      IF NEW.reward_transaction_id IS DISTINCT FROM OLD.reward_transaction_id THEN
-        RAISE EXCEPTION 'Direct update of reward_transaction_id is strictly prohibited';
-      END IF;
-      IF NEW.reward_granted_at IS DISTINCT FROM OLD.reward_granted_at THEN
-        RAISE EXCEPTION 'Direct update of reward_granted_at is strictly prohibited';
-      END IF;
-      IF NEW.reward_review_status IS DISTINCT FROM OLD.reward_review_status THEN
-        RAISE EXCEPTION 'Direct update of reward_review_status is strictly prohibited';
-      END IF;
-      IF NEW.reward_reviewed_by IS DISTINCT FROM OLD.reward_reviewed_by THEN
-        RAISE EXCEPTION 'Direct update of reward_reviewed_by is strictly prohibited';
-      END IF;
-      IF NEW.reward_reviewed_at IS DISTINCT FROM OLD.reward_reviewed_at THEN
-        RAISE EXCEPTION 'Direct update of reward_reviewed_at is strictly prohibited';
-      END IF;
-      IF NEW.reward_rejection_reason IS DISTINCT FROM OLD.reward_rejection_reason THEN
-        RAISE EXCEPTION 'Direct update of reward_rejection_reason is strictly prohibited';
-      END IF;
-      IF NEW.publication_status IS DISTINCT FROM OLD.publication_status THEN
-        RAISE EXCEPTION 'Direct update of publication_status is strictly prohibited';
-      END IF;
-      IF NEW.published_at IS DISTINCT FROM OLD.published_at THEN
-        RAISE EXCEPTION 'Direct update of published_at is strictly prohibited';
-      END IF;
-      IF NEW.status IS DISTINCT FROM OLD.status THEN
-        RAISE EXCEPTION 'Direct update of status is strictly prohibited';
-      END IF;
-      IF NEW.moderated_by IS DISTINCT FROM OLD.moderated_by THEN
-        RAISE EXCEPTION 'Direct update of moderated_by is strictly prohibited';
-      END IF;
-      IF NEW.moderated_at IS DISTINCT FROM OLD.moderated_at THEN
-        RAISE EXCEPTION 'Direct update of moderated_at is strictly prohibited';
-      END IF;
-      IF NEW.moderation_reason IS DISTINCT FROM OLD.moderation_reason THEN
-        RAISE EXCEPTION 'Direct update of moderation_reason is strictly prohibited';
-      END IF;
-      IF NEW.deleted_at IS DISTINCT FROM OLD.deleted_at THEN
-        RAISE EXCEPTION 'Direct update of deleted_at is strictly prohibited';
-      END IF;
-      IF NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
-        RAISE EXCEPTION 'Direct update of organization_id is strictly prohibited';
-      END IF;
-      IF NEW.event_id IS DISTINCT FROM OLD.event_id THEN
-        RAISE EXCEPTION 'Direct update of event_id is strictly prohibited';
-      END IF;
-      IF NEW.id IS DISTINCT FROM OLD.id THEN
-        RAISE EXCEPTION 'Direct update of id is strictly prohibited';
-      END IF;
-    END IF;
-    RETURN NEW;
-  ELSIF TG_OP = 'INSERT' THEN
-    IF v_role IS DISTINCT FROM 'service_role' THEN
-      RAISE EXCEPTION 'Direct client creation of event_showcases is strictly prohibited';
-    END IF;
-    RETURN NEW;
-  ELSIF TG_OP = 'DELETE' THEN
-    IF v_role IS DISTINCT FROM 'service_role' THEN
-      RAISE EXCEPTION 'Direct client deletion of event_showcases is strictly prohibited';
-    END IF;
-    RETURN OLD;
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
--- Ensure the trigger is properly attached
-DROP TRIGGER IF EXISTS trg_prevent_event_showcase_unauthorized_client_mutations ON public.event_showcases;
-CREATE TRIGGER trg_prevent_event_showcase_unauthorized_client_mutations
-  BEFORE INSERT OR UPDATE OR DELETE ON public.event_showcases
-  FOR EACH ROW
-  EXECUTE FUNCTION public.prevent_event_showcase_unauthorized_client_mutations();
-
--- ==============================================================================
--- 2. Atomic Backend RPC for saving an event showcase (Draft / Published / Update)
--- ==============================================================================
+-- 3. Atomic Backend RPC for saving an event showcase draft under SECURITY DEFINER
 CREATE OR REPLACE FUNCTION public.save_event_showcase_atomic(
   p_event_id UUID,
   p_payload JSONB DEFAULT '{}'::jsonb,
@@ -362,10 +177,6 @@ BEGIN
         WHEN p_payload ? 'moderation_reason' THEN (p_payload ->> 'moderation_reason')::text
         ELSE v_existing.moderation_reason
       END,
-      deleted_at = CASE
-        WHEN p_payload ? 'deleted_at' THEN (p_payload ->> 'deleted_at')::timestamptz
-        ELSE v_existing.deleted_at
-      END,
       submitted_at = CASE
         WHEN p_payload ? 'submitted_at' THEN (p_payload ->> 'submitted_at')::timestamptz
         ELSE v_existing.submitted_at
@@ -515,9 +326,7 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.save_event_showcase_atomic(UUID, JSONB, UUID, BOOLEAN) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.save_event_showcase_atomic(UUID, JSONB, UUID, BOOLEAN) TO service_role, postgres;
 
--- ==============================================================================
--- 3. Atomic Backend RPC for publishing an event showcase under SECURITY DEFINER
--- ==============================================================================
+-- 4. Atomic Backend RPC for publishing an event showcase under SECURITY DEFINER
 CREATE OR REPLACE FUNCTION public.publish_event_showcase_atomic(
   p_event_id UUID,
   p_payload JSONB DEFAULT '{}'::jsonb,
@@ -677,10 +486,14 @@ BEGIN
       )
       RETURNING * INTO v_showcase;
     EXCEPTION WHEN unique_violation THEN
-      -- Handle concurrent insert race condition gracefully
       SELECT * INTO v_existing FROM public.event_showcases WHERE event_id = p_event_id FOR UPDATE;
+
       IF v_existing.status = 'BLOCKED' THEN
         RAISE EXCEPTION 'Cannot publish a blocked showcase. Please contact support.' USING ERRCODE = 'P0003';
+      END IF;
+
+      IF v_existing.status = 'DELETED' OR v_existing.deleted_at IS NOT NULL THEN
+        RAISE EXCEPTION 'Event Showcase has been deleted' USING ERRCODE = 'P0007';
       END IF;
 
       UPDATE public.event_showcases
@@ -765,23 +578,3 @@ GRANT EXECUTE ON FUNCTION public.publish_event_showcase_atomic(UUID, JSONB, UUID
 
 REVOKE EXECUTE ON FUNCTION public.publish_event_showcase_atomic(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.publish_event_showcase_atomic(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID) TO service_role, postgres;
-
--- ==============================================================================
--- 4. Atomic Backend RPC for deleting an event showcase under SECURITY DEFINER
--- ==============================================================================
-CREATE OR REPLACE FUNCTION public.delete_event_showcase_atomic(
-  p_event_id UUID
-)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, auth, extensions
-AS $$
-BEGIN
-  DELETE FROM public.event_showcases WHERE event_id = p_event_id;
-  RETURN true;
-END;
-$$;
-
-REVOKE EXECUTE ON FUNCTION public.delete_event_showcase_atomic(UUID) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.delete_event_showcase_atomic(UUID) TO service_role, postgres;

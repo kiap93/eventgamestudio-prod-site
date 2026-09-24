@@ -409,6 +409,7 @@ export interface EventShowcaseRecord {
   id: string;
   event_id: string;
   organization_id: string;
+  game_id?: string | null;
   owner_user_id?: string | null;
   created_by?: string | null;
   title: string;

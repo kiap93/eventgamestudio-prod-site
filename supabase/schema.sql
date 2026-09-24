@@ -1406,6 +1406,9 @@ ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS moderation_reason TE
 ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
 ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS game_id UUID REFERENCES public.games(id) ON DELETE SET NULL;
+ALTER TABLE public.event_showcases ALTER COLUMN game_id DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_event_showcases_game_id ON public.event_showcases(game_id);
 
 CREATE TABLE IF NOT EXISTS public.showcase_moderation_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1720,13 +1723,14 @@ DECLARE
   v_existing RECORD;
   v_showcase RECORD;
   v_owner_id UUID;
+  v_game_id UUID;
   v_status TEXT;
   v_pub_status TEXT;
   v_title TEXT;
   v_now TIMESTAMPTZ := timezone('utc'::text, now());
 BEGIN
   -- 1. Fetch event
-  SELECT id, organization_id, name, payment_status, event_status, status, start_date, end_date
+  SELECT id, organization_id, game_id, game_theme_id, name, payment_status, event_status, status, start_date, end_date
   INTO v_event
   FROM public.events
   WHERE id = p_event_id;
@@ -1760,6 +1764,14 @@ BEGIN
     p_owner_user_id,
     CASE WHEN p_payload ? 'owner_user_id' AND (p_payload ->> 'owner_user_id') IS NOT NULL THEN (p_payload ->> 'owner_user_id')::uuid ELSE NULL END,
     v_org.owner_id
+  );
+
+  -- Resolve game_id from event, event's theme, payload, or canonical system game
+  v_game_id := COALESCE(
+    v_event.game_id,
+    (SELECT game_id FROM public.game_themes WHERE id = v_event.game_theme_id),
+    CASE WHEN p_payload ? 'game_id' AND (p_payload ->> 'game_id') IS NOT NULL THEN (p_payload ->> 'game_id')::uuid ELSE NULL END,
+    (SELECT id FROM public.games WHERE is_system = true ORDER BY created_at ASC LIMIT 1)
   );
 
   -- 3. Lock existing showcase if present
@@ -1797,6 +1809,7 @@ BEGIN
     -- Present key with null value clears the field. Omitted key preserves existing value.
     UPDATE public.event_showcases
     SET
+      game_id = COALESCE(v_existing.game_id, v_game_id),
       title = CASE
         WHEN p_payload ? 'title' AND NULLIF(TRIM(p_payload ->> 'title'), '') IS NOT NULL THEN TRIM(p_payload ->> 'title')
         ELSE v_existing.title
@@ -1915,6 +1928,7 @@ BEGIN
       INSERT INTO public.event_showcases (
         event_id,
         organization_id,
+        game_id,
         owner_user_id,
         created_by,
         title,
@@ -1933,6 +1947,7 @@ BEGIN
       ) VALUES (
         p_event_id,
         v_event.organization_id,
+        v_game_id,
         v_owner_id,
         v_owner_id,
         v_title,
@@ -1960,6 +1975,7 @@ BEGIN
 
       UPDATE public.event_showcases
       SET
+        game_id = COALESCE(v_existing.game_id, v_game_id),
         title = CASE
           WHEN p_payload ? 'title' AND NULLIF(TRIM(p_payload ->> 'title'), '') IS NOT NULL THEN TRIM(p_payload ->> 'title')
           ELSE v_existing.title
@@ -2036,11 +2052,12 @@ DECLARE
   v_existing RECORD;
   v_showcase RECORD;
   v_owner_id UUID;
+  v_game_id UUID;
   v_title TEXT;
   v_now TIMESTAMPTZ := timezone('utc'::text, now());
 BEGIN
   -- 1. Fetch event
-  SELECT id, organization_id, name, payment_status, event_status, status, start_date, end_date
+  SELECT id, organization_id, game_id, game_theme_id, name, payment_status, event_status, status, start_date, end_date
   INTO v_event
   FROM public.events
   WHERE id = p_event_id;
@@ -2071,6 +2088,14 @@ BEGIN
     v_org.owner_id
   );
 
+  -- Resolve game_id from event, event's theme, payload, or canonical system game
+  v_game_id := COALESCE(
+    v_event.game_id,
+    (SELECT game_id FROM public.game_themes WHERE id = v_event.game_theme_id),
+    CASE WHEN p_payload ? 'game_id' AND (p_payload ->> 'game_id') IS NOT NULL THEN (p_payload ->> 'game_id')::uuid ELSE NULL END,
+    (SELECT id FROM public.games WHERE is_system = true ORDER BY created_at ASC LIMIT 1)
+  );
+
   -- 3. Check for existing showcase with row-lock
   SELECT *
   INTO v_existing
@@ -2092,6 +2117,7 @@ BEGIN
     -- If key is omitted from p_payload, it preserves the existing value.
     UPDATE public.event_showcases
     SET
+      game_id = COALESCE(v_existing.game_id, v_game_id),
       title = CASE
         WHEN p_payload ? 'title' AND NULLIF(TRIM(p_payload ->> 'title'), '') IS NOT NULL THEN TRIM(p_payload ->> 'title')
         ELSE v_existing.title
@@ -2131,6 +2157,7 @@ BEGIN
       INSERT INTO public.event_showcases (
         event_id,
         organization_id,
+        game_id,
         owner_user_id,
         created_by,
         title,
@@ -2149,6 +2176,7 @@ BEGIN
       ) VALUES (
         p_event_id,
         v_event.organization_id,
+        v_game_id,
         v_owner_id,
         v_owner_id,
         v_title,
@@ -2175,6 +2203,7 @@ BEGIN
 
       UPDATE public.event_showcases
       SET
+        game_id = COALESCE(v_existing.game_id, v_game_id),
         title = CASE
           WHEN p_payload ? 'title' AND NULLIF(TRIM(p_payload ->> 'title'), '') IS NOT NULL THEN TRIM(p_payload ->> 'title')
           ELSE v_existing.title
@@ -2756,10 +2785,18 @@ BEGIN
   -- 9. Mark Event as PAID in events table (Decoupled lifecycle state)
   IF v_event.id IS NOT NULL THEN
     DECLARE
-      v_ev_tz text := COALESCE(v_event.event_timezone, 'Asia/Singapore');
+      v_ev_tz text := COALESCE(NULLIF(TRIM(v_event.event_timezone), ''), 'Asia/Singapore');
       v_cur_date date := (v_now AT TIME ZONE v_ev_tz)::date;
-      v_start_date date := COALESCE(v_event.start_date, (v_event.starts_at AT TIME ZONE v_ev_tz)::date, v_event.event_date);
-      v_end_date date := COALESCE(v_event.end_date, (v_event.expires_at AT TIME ZONE v_ev_tz)::date, v_start_date);
+      v_start_date date := COALESCE(
+        CASE WHEN v_event.start_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.start_date FROM 1 FOR 10))::date ELSE NULL END,
+        CASE WHEN v_event.event_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.event_date FROM 1 FOR 10))::date ELSE NULL END,
+        (v_event.starts_at AT TIME ZONE v_ev_tz)::date
+      );
+      v_end_date date := COALESCE(
+        CASE WHEN v_event.end_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.end_date FROM 1 FOR 10))::date ELSE NULL END,
+        (v_event.expires_at AT TIME ZONE v_ev_tz)::date,
+        v_start_date
+      );
       v_target_event_status text;
       v_target_status text;
     BEGIN
@@ -5949,6 +5986,199 @@ CREATE TRIGGER trg_validate_game_pricing_overlap
   BEFORE INSERT OR UPDATE ON public.game_pricing
   FOR EACH ROW
   EXECUTE FUNCTION public.validate_game_pricing_overlap();
+
+-- calculate_event_authoritative_price
+CREATE OR REPLACE FUNCTION public.calculate_event_authoritative_price(
+  p_event_id UUID DEFAULT NULL,
+  p_game_id UUID DEFAULT NULL,
+  p_start_date DATE DEFAULT NULL,
+  p_end_date DATE DEFAULT NULL,
+  p_pricing_id UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_event RECORD;
+  v_target_game_id UUID;
+  v_start_date DATE;
+  v_end_date DATE;
+  v_pricing_id UUID;
+  v_duration_days INT;
+  v_pricing_record RECORD;
+  v_matching_count INT;
+  v_resolved_price NUMERIC(10, 2);
+  v_resolved_currency TEXT := 'MYR';
+  v_is_custom_price BOOLEAN := false;
+BEGIN
+  -- Load event if p_event_id provided
+  IF p_event_id IS NOT NULL THEN
+    SELECT id, game_id, start_date, end_date, starts_at, expires_at,
+           pricing_id, is_custom_price, event_price, event_currency, duration_days
+    INTO v_event
+    FROM public.events
+    WHERE id = p_event_id;
+
+    IF v_event.id IS NULL THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'EVENT_NOT_FOUND',
+        'error', 'Event not found.'
+      );
+    END IF;
+
+    v_target_game_id := COALESCE(p_game_id, v_event.game_id);
+    v_start_date := COALESCE(
+      p_start_date,
+      CASE WHEN v_event.start_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.start_date FROM 1 FOR 10))::date ELSE NULL END,
+      CASE WHEN v_event.event_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.event_date FROM 1 FOR 10))::date ELSE NULL END,
+      CASE WHEN v_event.starts_at IS NOT NULL THEN (v_event.starts_at AT TIME ZONE 'Asia/Singapore')::date ELSE NULL END
+    );
+    v_end_date := COALESCE(
+      p_end_date,
+      CASE WHEN v_event.end_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.end_date FROM 1 FOR 10))::date ELSE NULL END,
+      CASE WHEN v_event.expires_at IS NOT NULL THEN (v_event.expires_at AT TIME ZONE 'Asia/Singapore')::date ELSE NULL END,
+      v_start_date
+    );
+    v_pricing_id := COALESCE(p_pricing_id, v_event.pricing_id);
+    v_is_custom_price := COALESCE(v_event.is_custom_price, false);
+
+    IF v_is_custom_price = true AND v_event.event_price IS NOT NULL AND v_event.event_price > 0 THEN
+      RETURN jsonb_build_object(
+        'success', true,
+        'price', v_event.event_price,
+        'currency', COALESCE(v_event.event_currency, 'MYR'),
+        'duration_days', COALESCE(v_event.duration_days, 1),
+        'is_custom_price', true,
+        'pricing_id', v_event.pricing_id
+      );
+    END IF;
+  ELSE
+    v_target_game_id := p_game_id;
+    v_start_date := p_start_date;
+    v_end_date := p_end_date;
+    v_pricing_id := p_pricing_id;
+  END IF;
+
+  IF v_start_date IS NULL OR v_end_date IS NULL THEN
+    v_duration_days := 1;
+  ELSE
+    v_duration_days := GREATEST(1, (v_end_date - v_start_date) + 1);
+  END IF;
+
+  IF v_target_game_id IS NULL THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'GAME_REQUIRED',
+      'error', 'A game must be selected to calculate authoritative event pricing.'
+    );
+  END IF;
+
+  IF v_pricing_id IS NOT NULL THEN
+    SELECT id, game_id, price, currency, is_active, min_days, max_days
+    INTO v_pricing_record
+    FROM public.game_pricing
+    WHERE id = v_pricing_id;
+
+    IF v_pricing_record.id IS NULL THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_TIER_NOT_FOUND',
+        'error', 'Specified pricing tier does not exist.'
+      );
+    END IF;
+
+    IF v_pricing_record.game_id != v_target_game_id THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_GAME_MISMATCH',
+        'error', 'Specified pricing tier does not belong to the selected game.'
+      );
+    END IF;
+
+    IF v_pricing_record.is_active != true THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_TIER_INACTIVE',
+        'error', 'Specified pricing tier is inactive and cannot be used.'
+      );
+    END IF;
+
+    IF v_duration_days < v_pricing_record.min_days OR (v_pricing_record.max_days IS NOT NULL AND v_duration_days > v_pricing_record.max_days) THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_DURATION_MISMATCH',
+        'error', 'The specified pricing tier does not cover this duration (' || v_duration_days || ' days).'
+      );
+    END IF;
+
+    v_resolved_price := v_pricing_record.price;
+    v_resolved_currency := v_pricing_record.currency;
+  ELSE
+    -- Check for ambiguous / multiple matching tiers (fails closed)
+    SELECT count(*)
+    INTO v_matching_count
+    FROM public.game_pricing
+    WHERE game_id = v_target_game_id
+      AND is_active = true
+      AND min_days <= v_duration_days
+      AND (max_days IS NULL OR max_days >= v_duration_days);
+
+    IF v_matching_count > 1 THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'AMBIGUOUS_PRICING_TIER',
+        'error', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.',
+        'message', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.'
+      );
+    END IF;
+
+    SELECT id, game_id, price, currency, is_active, min_days, max_days
+    INTO v_pricing_record
+    FROM public.game_pricing
+    WHERE game_id = v_target_game_id
+      AND is_active = true
+      AND min_days <= v_duration_days
+      AND (max_days IS NULL OR max_days >= v_duration_days);
+
+    IF v_pricing_record.id IS NOT NULL THEN
+      v_pricing_id := v_pricing_record.id;
+      v_resolved_price := v_pricing_record.price;
+      v_resolved_currency := v_pricing_record.currency;
+    ELSIF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'NO_PRICING_TIER',
+        'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.',
+        'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.'
+      );
+    END IF;
+  END IF;
+
+  IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'PRICING_CONFIGURATION_ERROR',
+      'error', 'Event price must be positive and valid. Could not resolve pricing.',
+      'message', 'Event price must be positive and valid. Could not resolve pricing.'
+    );
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'price', v_resolved_price,
+    'currency', v_resolved_currency,
+    'duration_days', v_duration_days,
+    'pricing_id', v_pricing_id,
+    'is_custom_price', false
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.calculate_event_authoritative_price(UUID, UUID, DATE, DATE, UUID) TO authenticated, service_role;
+
 
 
 

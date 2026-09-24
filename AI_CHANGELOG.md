@@ -4,6 +4,53 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-09-24] - Fix Event Showcase Publish 500 Error: null value in column "game_id" violates not-null constraint
+
+### Summary
+Fixed the HTTP 500 Internal Server Error when publishing an event showcase on `POST /api/events/:eventId/showcase/publish`:
+`"Database error publishing showcase: null value in column \"game_id\" of relation \"event_showcases\" violates not-null constraint"`
+The database RPCs `publish_event_showcase_atomic` and `save_event_showcase_atomic` did not fetch `game_id` from the parent event record and omitted `game_id` from the `INSERT` statements when creating new showcase records. Additionally, the backend service code did not supply `game_id` in the RPC payload or direct fallback insertions, and `event_showcases.game_id` possessed a `NOT NULL` constraint in some environments.
+
+### Key Changes Implemented
+1. **Database Migration (`supabase/migrations/20261001000000_ensure_showcase_game_id_and_atomic_rpcs.sql`)**:
+   - Added migration to ensure `game_id` column exists on `public.event_showcases`, relaxes any `NOT NULL` constraint (`ALTER TABLE public.event_showcases ALTER COLUMN game_id DROP NOT NULL`), and adds an index `idx_event_showcases_game_id`.
+   - Backfilled existing null `game_id` values on `event_showcases` by joining with parent events and game themes.
+   - Updated `publish_event_showcase_atomic` and `save_event_showcase_atomic` under `SECURITY DEFINER` to:
+     - Fetch `game_id` and `game_theme_id` from `public.events`.
+     - Resolve `v_game_id` with fallback cascade (`v_event.game_id` -> `game_themes.game_id` -> payload `game_id` -> default system game).
+     - Populate `game_id` on both `INSERT` and `UPDATE` statements for `event_showcases`.
+2. **Schema & Historical Migrations (`supabase/schema.sql`, `supabase/migrations/20260929000000_fix_showcase_service_role_trigger.sql`)**:
+   - Updated cumulative schema and migration files to maintain full parity.
+3. **Backend Service Layer (`server/db/showcases.ts` & `server/db/types.ts`)**:
+   - Updated `publishShowcase` to resolve `game_id` from the event or theme and pass `payload.game_id` into `publish_event_showcase_atomic`.
+   - Updated direct table fallback paths in `createShowcase` and `publishShowcase` to set `game_id` and gracefully retry if encountering older schemas without the column.
+   - Updated `EventShowcaseRecord` TypeScript definition in `server/db/types.ts` to include `game_id?: string | null`.
+4. **Verification & Test Suite (`server/db/showcase_game_id_not_null_fix.test.ts`)**:
+   - Added automated tests verifying schema SQL, migrations, and backend service payload handling for `game_id`.
+   - Ran complete linting and compilation passes with zero errors.
+
+---
+
+## [2026-09-24] - Fix Event Payment 500 Error: COALESCE Types Text and Date Cannot Be Matched
+
+### Summary
+Fixed the HTTP 500 Internal Server Error when executing event activation payment on `POST /api/events/:eventId/pay`:
+`"Financial ledger transaction failed: COALESCE types text and date cannot be matched"`
+The database RPCs `process_event_payment_atomic` and `calculate_event_authoritative_price` were calling `COALESCE` with mixed incompatible types: the `TEXT` columns `v_event.start_date`, `v_event.end_date`, and `v_event.event_date` together with PostgreSQL `DATE` expressions `(starts_at AT TIME ZONE tz)::date` and `p_start_date`. In PostgreSQL, `COALESCE` strictly requires all arguments to have identical or coercible data types; because `TEXT` and `DATE` cannot be implicitly matched, PostgreSQL raised a type resolution exception during payment transaction execution.
+
+### Key Changes Implemented
+1. **Migration & RPC Standardization (`supabase/migrations/20260930000000_fix_coalesce_date_type_mismatch_in_payment_and_pricing.sql`)**:
+   - Created new dedicated post-baseline migration `20260930000000_fix_coalesce_date_type_mismatch_in_payment_and_pricing.sql`.
+   - Updated `process_event_payment_atomic` to parse string dates into `DATE` safely via regex validation (`CASE WHEN v_event.start_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.start_date FROM 1 FOR 10))::date ELSE NULL END`) before passing them to `COALESCE`.
+   - Updated `calculate_event_authoritative_price` to standardize date resolution with identical explicit date casting.
+2. **Schema & Historical Migrations (`supabase/schema.sql`, `supabase/migrations/20260926000000_...`, `supabase/migrations/20260925000000_...`)**:
+   - Updated cumulative `supabase/schema.sql` and prior migration files so fresh installations and existing environments both resolve dates consistently without type mismatch errors.
+3. **Automated Test Suite (`server/db/coalesce_payment_date_type_fix.test.ts`)**:
+   - Added automated tests verifying that no migration or schema file contains mismatched `COALESCE(text, date)` patterns.
+   - Tested event payment execution with the exact user payload parameters (`payment_mode: "FULL_PAID"`, `topup_credit_requested: 0`, `use_event_credit: true`, `use_welcome_credit: false`, `welcome_credit_requested: 0`), verifying successful completion and wallet deduction.
+
+---
+
 ## [2026-09-24] - Fix Event Showcases `created_by` NOT NULL Constraint in Atomic Publish RPC
 
 ### Summary

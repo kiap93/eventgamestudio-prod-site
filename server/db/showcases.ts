@@ -18,6 +18,7 @@ import {
 import { isUserOrganizationOwner, hasUserClaimedReward, getShowcaseRewardEligibility } from './rewards.js';
 import { getShowcaseMedia } from './showcaseMedia.js';
 import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase, isEventEligibleForShowcaseReward } from './events.js';
+import { getThemeById } from './themes.js';
 import { getOrganizationById } from './organizations.js';
 import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import fs from 'node:fs';
@@ -466,11 +467,14 @@ export async function createShowcase(
 
     if (rpcMissing) {
       try {
+        const event = await getEventById(params.event_id, env);
+        const resolvedGameId = event?.game_id || (event?.game_theme_id ? (await getThemeById(event.game_theme_id, env))?.game_id : undefined);
         const creatorUserId = isUUID(created_by) ? created_by : (isUUID(owner_user_id) ? owner_user_id : null);
         const insertPayload: Record<string, any> = {
           id: crypto.randomUUID(),
           event_id: params.event_id,
           organization_id: params.organization_id,
+          game_id: isUUID(resolvedGameId) ? resolvedGameId : null,
           owner_user_id: isUUID(owner_user_id) ? owner_user_id : null,
           created_by: creatorUserId,
           title: params.title.trim(),
@@ -493,6 +497,13 @@ export async function createShowcase(
           .insert(insertPayload)
           .select()
           .single();
+
+        if (insertError && isMissingColumnError(insertError, 'game_id')) {
+          delete insertPayload.game_id;
+          const retry = await supabase.from('event_showcases').insert(insertPayload).select().single();
+          insertedData = retry.data;
+          insertError = retry.error;
+        }
 
         if (insertError && isMissingColumnError(insertError, 'created_by')) {
           delete insertPayload.created_by;
@@ -1994,6 +2005,11 @@ export async function publishShowcase(
     payload.owner_user_id = isUUID(updates.owner_user_id) ? updates.owner_user_id : null;
   }
 
+  const resolvedGameId = event.game_id || (event.game_theme_id ? (await getThemeById(event.game_theme_id, env))?.game_id : undefined);
+  if (resolvedGameId && isUUID(resolvedGameId)) {
+    payload.game_id = resolvedGameId;
+  }
+
   // Authoritative Production Path: Single Atomic PostgreSQL RPC under SECURITY DEFINER
   if (isSupabaseConfigured(env)) {
     const supabase = getSupabaseServerClient(env);
@@ -2150,6 +2166,7 @@ export async function publishShowcase(
             id: crypto.randomUUID(),
             event_id: eventId,
             organization_id: event.organization_id,
+            game_id: isUUID(resolvedGameId) ? resolvedGameId : null,
             owner_user_id: isUUID(ownerUserId) ? ownerUserId : null,
             created_by: isUUID(ownerUserId) ? ownerUserId : null,
             title: titleToUse,
@@ -2172,6 +2189,13 @@ export async function publishShowcase(
             .insert(insertFields)
             .select()
             .single();
+
+          if (insertErr && isMissingColumnError(insertErr, 'game_id')) {
+            delete insertFields.game_id;
+            const retry = await supabase.from('event_showcases').insert(insertFields).select().single();
+            insertData = retry.data;
+            insertErr = retry.error;
+          }
 
           if (insertErr && isMissingColumnError(insertErr, 'created_by')) {
             delete insertFields.created_by;
