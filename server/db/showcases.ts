@@ -148,6 +148,23 @@ function isMissingColumnError(err: any, colName: string): boolean {
   );
 }
 
+function shouldFallbackFromRpcError(err: any): boolean {
+  if (!err) return false;
+  if (isMissingRpcError(err)) return true;
+  const code = String(err.code || '');
+  const msg = String(err.message || '');
+  return (
+    code === '42804' || // datatype mismatch (e.g. COALESCE types text and uuid cannot be matched)
+    code === '42703' || // undefined column
+    code === '23502' || // not-null constraint violation in function
+    code === '42P01' || // undefined table
+    msg.includes('COALESCE types') ||
+    msg.includes('cannot be matched') ||
+    msg.includes('violates not-null constraint') ||
+    msg.includes('structure of query does not match function result type')
+  );
+}
+
 /**
  * Get showcase for a specific event
  */
@@ -439,8 +456,8 @@ export async function createShowcase(
           throw err;
         }
 
-        if (isMissingRpcError(rpcError)) {
-          console.warn('[Showcase Create] save_event_showcase_atomic RPC missing, using direct table insert:', rpcError.message);
+        if (shouldFallbackFromRpcError(rpcError)) {
+          console.warn('[Showcase Create] save_event_showcase_atomic RPC failed with missing or schema error, using direct table insert:', rpcError.message);
           rpcMissing = true;
         } else if (!isLocalFallbackAllowed(env)) {
           const dbErr = new Error(`Database error creating showcase: ${rpcError.message}`);
@@ -468,7 +485,15 @@ export async function createShowcase(
     if (rpcMissing) {
       try {
         const event = await getEventById(params.event_id, env);
-        const resolvedGameId = event?.game_id || (event?.game_theme_id ? (await getThemeById(event.game_theme_id, env))?.game_id : undefined);
+        let resolvedGameId = event?.game_id || (event?.game_theme_id ? (await getThemeById(event.game_theme_id, env))?.game_id : undefined);
+        if (!resolvedGameId || !isUUID(resolvedGameId)) {
+          try {
+            const { data: sysGame } = await supabase.from('games').select('id').eq('is_system', true).order('created_at', { ascending: true }).limit(1).maybeSingle();
+            if (sysGame?.id && isUUID(sysGame.id)) {
+              resolvedGameId = sysGame.id;
+            }
+          } catch {}
+        }
         const creatorUserId = isUUID(created_by) ? created_by : (isUUID(owner_user_id) ? owner_user_id : null);
         const insertPayload: Record<string, any> = {
           id: crypto.randomUUID(),
@@ -497,6 +522,18 @@ export async function createShowcase(
           .insert(insertPayload)
           .select()
           .single();
+
+        if (insertError && (insertError.code === '23502' || String(insertError.message || '').includes('game_id')) && !insertPayload.game_id) {
+          try {
+            const { data: sysGame } = await supabase.from('games').select('id').eq('is_system', true).order('created_at', { ascending: true }).limit(1).maybeSingle();
+            if (sysGame?.id) {
+              insertPayload.game_id = sysGame.id;
+              const retry = await supabase.from('event_showcases').insert(insertPayload).select().single();
+              insertedData = retry.data;
+              insertError = retry.error;
+            }
+          } catch {}
+        }
 
         if (insertError && isMissingColumnError(insertError, 'game_id')) {
           delete insertPayload.game_id;
@@ -839,8 +876,8 @@ export async function updateShowcase(
           throw err;
         }
 
-        if (isMissingRpcError(rpcError)) {
-          console.warn('[Showcase Update] save_event_showcase_atomic RPC missing, using direct table update:', rpcError.message);
+        if (shouldFallbackFromRpcError(rpcError)) {
+          console.warn('[Showcase Update] save_event_showcase_atomic RPC failed with missing or schema error, using direct table update:', rpcError.message);
           rpcMissing = true;
         } else if (!isLocalFallbackAllowed(env)) {
           const dbErr = new Error(`Database error updating showcase: ${rpcError.message}`);
@@ -2005,7 +2042,16 @@ export async function publishShowcase(
     payload.owner_user_id = isUUID(updates.owner_user_id) ? updates.owner_user_id : null;
   }
 
-  const resolvedGameId = event.game_id || (event.game_theme_id ? (await getThemeById(event.game_theme_id, env))?.game_id : undefined);
+  let resolvedGameId = event.game_id || (event.game_theme_id ? (await getThemeById(event.game_theme_id, env))?.game_id : undefined);
+  if (isSupabaseConfigured(env) && (!resolvedGameId || !isUUID(resolvedGameId))) {
+    try {
+      const supabaseClient = getSupabaseServerClient(env);
+      const { data: sysGame } = await supabaseClient.from('games').select('id').eq('is_system', true).order('created_at', { ascending: true }).limit(1).maybeSingle();
+      if (sysGame?.id && isUUID(sysGame.id)) {
+        resolvedGameId = sysGame.id;
+      }
+    } catch {}
+  }
   if (resolvedGameId && isUUID(resolvedGameId)) {
     payload.game_id = resolvedGameId;
   }
@@ -2072,8 +2118,8 @@ export async function publishShowcase(
           throw err;
         }
 
-        if (isMissingRpcError(rpcError)) {
-          console.warn('[Showcase Publish] publish_event_showcase_atomic RPC missing from schema cache, falling back to direct table publish:', rpcError.message);
+        if (shouldFallbackFromRpcError(rpcError)) {
+          console.warn('[Showcase Publish] publish_event_showcase_atomic RPC missing or failed with schema error, falling back to direct table publish:', rpcError.message);
           rpcMissing = true;
         } else if (!isLocalFallbackAllowed(env)) {
           const dbErr = new Error(`Database error publishing showcase: ${rpcError.message || 'Unknown error'}`);
@@ -2189,6 +2235,18 @@ export async function publishShowcase(
             .insert(insertFields)
             .select()
             .single();
+
+          if (insertErr && (insertErr.code === '23502' || String(insertErr.message || '').includes('game_id')) && !insertFields.game_id) {
+            try {
+              const { data: sysGame } = await supabase.from('games').select('id').eq('is_system', true).order('created_at', { ascending: true }).limit(1).maybeSingle();
+              if (sysGame?.id) {
+                insertFields.game_id = sysGame.id;
+                const retry = await supabase.from('event_showcases').insert(insertFields).select().single();
+                insertData = retry.data;
+                insertErr = retry.error;
+              }
+            } catch {}
+          }
 
           if (insertErr && isMissingColumnError(insertErr, 'game_id')) {
             delete insertFields.game_id;

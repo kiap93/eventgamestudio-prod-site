@@ -1406,8 +1406,48 @@ ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS moderation_reason TE
 ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
 ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.users(id) ON DELETE SET NULL;
-ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS game_id UUID REFERENCES public.games(id) ON DELETE SET NULL;
-ALTER TABLE public.event_showcases ALTER COLUMN game_id DROP NOT NULL;
+DO $$
+BEGIN
+  ALTER TABLE public.event_showcases ADD COLUMN IF NOT EXISTS game_id UUID;
+  ALTER TABLE public.event_showcases ALTER COLUMN game_id DROP NOT NULL;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+      AND table_name = 'event_showcases' 
+      AND column_name = 'game_id' 
+      AND data_type IN ('text', 'character varying', 'character')
+  ) THEN
+    UPDATE public.event_showcases es
+    SET game_id = g.id::text
+    FROM public.games g
+    WHERE es.game_id = g.slug
+      AND es.game_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+
+    ALTER TABLE public.event_showcases 
+      ALTER COLUMN game_id TYPE UUID 
+      USING (
+        CASE 
+          WHEN game_id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
+            THEN game_id::text::uuid
+          ELSE NULL
+        END
+      );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints tc
+    JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name
+    WHERE tc.table_schema = 'public' 
+      AND tc.table_name = 'event_showcases' 
+      AND ccu.column_name = 'game_id'
+      AND tc.constraint_type = 'FOREIGN KEY'
+  ) THEN
+    ALTER TABLE public.event_showcases
+      ADD CONSTRAINT fk_event_showcases_game_id 
+      FOREIGN KEY (game_id) REFERENCES public.games(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_event_showcases_game_id ON public.event_showcases(game_id);
 
 CREATE TABLE IF NOT EXISTS public.showcase_moderation_logs (
@@ -1724,6 +1764,8 @@ DECLARE
   v_showcase RECORD;
   v_owner_id UUID;
   v_game_id UUID;
+  v_target_game_id UUID;
+  v_target_owner_id UUID;
   v_status TEXT;
   v_pub_status TEXT;
   v_title TEXT;
@@ -1762,7 +1804,7 @@ BEGIN
 
   v_owner_id := COALESCE(
     p_owner_user_id,
-    CASE WHEN p_payload ? 'owner_user_id' AND (p_payload ->> 'owner_user_id') IS NOT NULL THEN (p_payload ->> 'owner_user_id')::uuid ELSE NULL END,
+    CASE WHEN p_payload ? 'owner_user_id' AND (p_payload ->> 'owner_user_id') IS NOT NULL AND (p_payload ->> 'owner_user_id') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN (p_payload ->> 'owner_user_id')::uuid ELSE NULL END,
     v_org.owner_id
   );
 
@@ -1770,7 +1812,7 @@ BEGIN
   v_game_id := COALESCE(
     v_event.game_id,
     (SELECT game_id FROM public.game_themes WHERE id = v_event.game_theme_id),
-    CASE WHEN p_payload ? 'game_id' AND (p_payload ->> 'game_id') IS NOT NULL THEN (p_payload ->> 'game_id')::uuid ELSE NULL END,
+    CASE WHEN p_payload ? 'game_id' AND (p_payload ->> 'game_id') IS NOT NULL AND (p_payload ->> 'game_id') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN (p_payload ->> 'game_id')::uuid ELSE NULL END,
     (SELECT id FROM public.games WHERE is_system = true ORDER BY created_at ASC LIMIT 1)
   );
 
@@ -1805,11 +1847,29 @@ BEGIN
       v_pub_status := CASE WHEN v_status = 'PUBLISHED' THEN 'PUBLISHED' ELSE 'UNPUBLISHED' END;
     END IF;
 
+    v_target_game_id := COALESCE(
+      CASE
+        WHEN v_existing.game_id IS NOT NULL AND v_existing.game_id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          THEN v_existing.game_id::text::uuid
+        ELSE NULL
+      END,
+      v_game_id
+    );
+
+    v_target_owner_id := COALESCE(
+      CASE
+        WHEN v_existing.owner_user_id IS NOT NULL AND v_existing.owner_user_id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          THEN v_existing.owner_user_id::text::uuid
+        ELSE NULL
+      END,
+      v_owner_id
+    );
+
     -- Update existing showcase with strict null semantics:
     -- Present key with null value clears the field. Omitted key preserves existing value.
     UPDATE public.event_showcases
     SET
-      game_id = COALESCE(v_existing.game_id, v_game_id),
+      game_id = v_target_game_id,
       title = CASE
         WHEN p_payload ? 'title' AND NULLIF(TRIM(p_payload ->> 'title'), '') IS NOT NULL THEN TRIM(p_payload ->> 'title')
         ELSE v_existing.title
@@ -1900,7 +1960,7 @@ BEGIN
         WHEN v_status = 'PUBLISHED' THEN COALESCE(v_existing.published_at, v_now)
         ELSE v_existing.published_at
       END,
-      owner_user_id = COALESCE(v_existing.owner_user_id, v_owner_id),
+      owner_user_id = v_target_owner_id,
       updated_at = v_now
     WHERE id = v_existing.id
     RETURNING * INTO v_showcase;
@@ -1973,9 +2033,27 @@ BEGIN
         RAISE EXCEPTION 'This showcase has been blocked by administrators and cannot be edited. Please contact support.' USING ERRCODE = 'P0003';
       END IF;
 
+      v_target_game_id := COALESCE(
+        CASE
+          WHEN v_existing.game_id IS NOT NULL AND v_existing.game_id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN v_existing.game_id::text::uuid
+          ELSE NULL
+        END,
+        v_game_id
+      );
+
+      v_target_owner_id := COALESCE(
+        CASE
+          WHEN v_existing.owner_user_id IS NOT NULL AND v_existing.owner_user_id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN v_existing.owner_user_id::text::uuid
+          ELSE NULL
+        END,
+        v_owner_id
+      );
+
       UPDATE public.event_showcases
       SET
-        game_id = COALESCE(v_existing.game_id, v_game_id),
+        game_id = v_target_game_id,
         title = CASE
           WHEN p_payload ? 'title' AND NULLIF(TRIM(p_payload ->> 'title'), '') IS NOT NULL THEN TRIM(p_payload ->> 'title')
           ELSE v_existing.title
@@ -2002,7 +2080,7 @@ BEGIN
           WHEN v_status = 'PUBLISHED' THEN COALESCE(v_existing.published_at, v_now)
           ELSE v_existing.published_at
         END,
-        owner_user_id = COALESCE(v_existing.owner_user_id, v_owner_id),
+        owner_user_id = v_target_owner_id,
         updated_at = v_now
       WHERE id = v_existing.id
       RETURNING * INTO v_showcase;
@@ -2053,6 +2131,8 @@ DECLARE
   v_showcase RECORD;
   v_owner_id UUID;
   v_game_id UUID;
+  v_target_game_id UUID;
+  v_target_owner_id UUID;
   v_title TEXT;
   v_now TIMESTAMPTZ := timezone('utc'::text, now());
 BEGIN
@@ -2084,7 +2164,7 @@ BEGIN
 
   v_owner_id := COALESCE(
     p_owner_user_id,
-    CASE WHEN p_payload ? 'owner_user_id' AND (p_payload ->> 'owner_user_id') IS NOT NULL THEN (p_payload ->> 'owner_user_id')::uuid ELSE NULL END,
+    CASE WHEN p_payload ? 'owner_user_id' AND (p_payload ->> 'owner_user_id') IS NOT NULL AND (p_payload ->> 'owner_user_id') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN (p_payload ->> 'owner_user_id')::uuid ELSE NULL END,
     v_org.owner_id
   );
 
@@ -2092,7 +2172,7 @@ BEGIN
   v_game_id := COALESCE(
     v_event.game_id,
     (SELECT game_id FROM public.game_themes WHERE id = v_event.game_theme_id),
-    CASE WHEN p_payload ? 'game_id' AND (p_payload ->> 'game_id') IS NOT NULL THEN (p_payload ->> 'game_id')::uuid ELSE NULL END,
+    CASE WHEN p_payload ? 'game_id' AND (p_payload ->> 'game_id') IS NOT NULL AND (p_payload ->> 'game_id') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN (p_payload ->> 'game_id')::uuid ELSE NULL END,
     (SELECT id FROM public.games WHERE is_system = true ORDER BY created_at ASC LIMIT 1)
   );
 
@@ -2112,12 +2192,30 @@ BEGIN
       RAISE EXCEPTION 'Event Showcase has been deleted' USING ERRCODE = 'P0007';
     END IF;
 
+    v_target_game_id := COALESCE(
+      CASE
+        WHEN v_existing.game_id IS NOT NULL AND v_existing.game_id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          THEN v_existing.game_id::text::uuid
+        ELSE NULL
+      END,
+      v_game_id
+    );
+
+    v_target_owner_id := COALESCE(
+      CASE
+        WHEN v_existing.owner_user_id IS NOT NULL AND v_existing.owner_user_id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          THEN v_existing.owner_user_id::text::uuid
+        ELSE NULL
+      END,
+      v_owner_id
+    );
+
     -- Strict null semantics:
     -- If key is present in p_payload and null/empty string, it clears the field to NULL.
     -- If key is omitted from p_payload, it preserves the existing value.
     UPDATE public.event_showcases
     SET
-      game_id = COALESCE(v_existing.game_id, v_game_id),
+      game_id = v_target_game_id,
       title = CASE
         WHEN p_payload ? 'title' AND NULLIF(TRIM(p_payload ->> 'title'), '') IS NOT NULL THEN TRIM(p_payload ->> 'title')
         ELSE v_existing.title
@@ -2138,7 +2236,7 @@ BEGIN
         WHEN p_payload ? 'cover_image_url' THEN NULLIF(TRIM(p_payload ->> 'cover_image_url'), '')
         ELSE v_existing.cover_image_url
       END,
-      owner_user_id = COALESCE(v_existing.owner_user_id, v_owner_id),
+      owner_user_id = v_target_owner_id,
       status = 'PUBLISHED',
       publication_status = 'PUBLISHED',
       published_at = COALESCE(v_existing.published_at, v_now),
@@ -2201,9 +2299,27 @@ BEGIN
         RAISE EXCEPTION 'Cannot publish a blocked showcase. Please contact support.' USING ERRCODE = 'P0003';
       END IF;
 
+      v_target_game_id := COALESCE(
+        CASE
+          WHEN v_existing.game_id IS NOT NULL AND v_existing.game_id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN v_existing.game_id::text::uuid
+          ELSE NULL
+        END,
+        v_game_id
+      );
+
+      v_target_owner_id := COALESCE(
+        CASE
+          WHEN v_existing.owner_user_id IS NOT NULL AND v_existing.owner_user_id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN v_existing.owner_user_id::text::uuid
+          ELSE NULL
+        END,
+        v_owner_id
+      );
+
       UPDATE public.event_showcases
       SET
-        game_id = COALESCE(v_existing.game_id, v_game_id),
+        game_id = v_target_game_id,
         title = CASE
           WHEN p_payload ? 'title' AND NULLIF(TRIM(p_payload ->> 'title'), '') IS NOT NULL THEN TRIM(p_payload ->> 'title')
           ELSE v_existing.title
@@ -2224,7 +2340,7 @@ BEGIN
           WHEN p_payload ? 'cover_image_url' THEN NULLIF(TRIM(p_payload ->> 'cover_image_url'), '')
           ELSE v_existing.cover_image_url
         END,
-        owner_user_id = COALESCE(v_existing.owner_user_id, v_owner_id),
+        owner_user_id = v_target_owner_id,
         status = 'PUBLISHED',
         publication_status = 'PUBLISHED',
         published_at = COALESCE(v_existing.published_at, v_now),
