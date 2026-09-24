@@ -26,6 +26,13 @@ import {
   X,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
+import {
+  MAIN_NAVIGATION_ITEMS,
+  matchesMainSection,
+  handleMainTabNavigation,
+} from '../../lib/navigation';
+
+export { MAIN_NAVIGATION_ITEMS, matchesMainSection, handleMainTabNavigation };
 
 export const DashboardLayout: React.FC = () => {
   const routeContext = useRouteContext();
@@ -40,11 +47,11 @@ export const DashboardLayout: React.FC = () => {
 
   const getInitialTab = (): 'events' | 'games' | 'team' | 'wallet' | 'wallet-topup' => {
     const path = window.location.pathname;
-    if (path === '/wallet/top-up' || path.startsWith('/wallet/top-up')) return 'wallet-topup';
-    if (path === '/wallet' || path.startsWith('/wallet')) return 'wallet';
-    if (path === '/games' || path.startsWith('/games') || path.startsWith('/game-themes') || path === '/studio') return 'games';
-    if (path === '/team') return 'team';
-    if (path === '/events' || path.startsWith('/events')) return 'events';
+    if (matchesMainSection(path, '/wallet/top-up')) return 'wallet-topup';
+    if (matchesMainSection(path, '/wallet')) return 'wallet';
+    if (matchesMainSection(path, '/games')) return 'games';
+    if (matchesMainSection(path, '/team')) return 'team';
+    if (matchesMainSection(path, '/events')) return 'events';
     return 'events';
   };
 
@@ -135,41 +142,45 @@ export const DashboardLayout: React.FC = () => {
   // Sync tab with browser URL history and route changes
   useEffect(() => {
     const path = routeContext.pathname || window.location.pathname;
-    if (path === '/wallet/top-up' || path.startsWith('/wallet/top-up')) {
+    if (matchesMainSection(path, '/wallet/top-up')) {
       setActiveTab('wallet-topup');
-    } else if (path === '/wallet' || path.startsWith('/wallet')) {
+    } else if (matchesMainSection(path, '/wallet')) {
       setActiveTab('wallet');
-    } else if (path === '/games' || path.startsWith('/games') || path.startsWith('/game-themes') || path === '/studio') {
+    } else if (matchesMainSection(path, '/games')) {
       setActiveTab('games');
-    } else if (path === '/team') {
+    } else if (matchesMainSection(path, '/team')) {
       setActiveTab('team');
-    } else if (path === '/events' || path.startsWith('/events')) {
+    } else if (matchesMainSection(path, '/events')) {
       setActiveTab('events');
     }
   }, [routeContext.pathname]);
 
+  const currentPath = routeContext.pathname || (typeof window !== 'undefined' ? window.location.pathname : '/');
+
+  /**
+   * Main Navigation Handler:
+   * 1. Active state only controls styling.
+   * 2. Clicking a main navigation tab always navigates to that tab's root landing route.
+   * 3. Never use logic like `if (isActive) return;` to prevent navigation.
+   * 4. If already on the root landing route, remain there while resetting nested states.
+   * 5. If on a nested route, navigate to the root route.
+   */
+  const handleNavigation = (href: string) => {
+    handleMainTabNavigation(href);
+  };
+
   const handleTabChange = (tab: 'events' | 'games' | 'team' | 'wallet' | 'wallet-topup') => {
     setActiveTab(tab);
     if (tab === 'events') {
-      if (window.location.pathname !== '/events') {
-        navigateTo('/events');
-      }
+      handleNavigation('/events');
     } else if (tab === 'games') {
-      if (!window.location.pathname.startsWith('/games')) {
-        navigateTo('/games');
-      }
+      handleNavigation('/games');
     } else if (tab === 'team') {
-      if (window.location.pathname !== '/team') {
-        navigateTo('/team');
-      }
+      handleNavigation('/team');
     } else if (tab === 'wallet') {
-      if (window.location.pathname !== '/wallet') {
-        navigateTo('/wallet');
-      }
+      handleNavigation('/wallet');
     } else if (tab === 'wallet-topup') {
-      if (window.location.pathname !== '/wallet/top-up') {
-        navigateTo('/wallet/top-up');
-      }
+      handleNavigation('/wallet/top-up');
     }
   };
 
@@ -223,41 +234,25 @@ export const DashboardLayout: React.FC = () => {
 
           {/* Center: Main Navigation (Desktop) */}
           <div className="hidden md:flex items-center gap-1 bg-slate-950 p-1 border border-slate-800 rounded-xl text-xs shrink-0">
-            <button
-              onClick={() => handleTabChange('events')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                activeTab === 'events'
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              <span>Events</span>
-            </button>
-
-            <button
-              onClick={() => handleTabChange('games')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                activeTab === 'games'
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Gamepad2 className="w-3.5 h-3.5" />
-              <span>Games</span>
-            </button>
-
-            <button
-              onClick={() => handleTabChange('team')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-                activeTab === 'team'
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Team</span>
-            </button>
+            {MAIN_NAVIGATION_ITEMS.map((item) => {
+              const isActive = matchesMainSection(currentPath, item.href);
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  id={`dashboard-nav-${item.id}`}
+                  onClick={() => handleNavigation(item.href)}
+                  className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Right: Workspace & Account (Organization ▼ | Wallet Balance | User ▼ | Logout) */}
@@ -524,48 +519,28 @@ export const DashboardLayout: React.FC = () => {
             className="md:hidden px-4 py-3 bg-slate-950/98 border-t border-slate-800 space-y-3 animate-in slide-in-from-top-2 duration-150"
           >
             <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl text-xs">
-              <button
-                onClick={() => {
-                  handleTabChange('events');
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-semibold transition-all cursor-pointer ${
-                  activeTab === 'events'
-                    ? 'bg-amber-500 text-slate-950 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Events</span>
-              </button>
-              <button
-                onClick={() => {
-                  handleTabChange('games');
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-semibold transition-all cursor-pointer ${
-                  activeTab === 'games'
-                    ? 'bg-amber-500 text-slate-950 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Gamepad2 className="w-3.5 h-3.5" />
-                <span>Games</span>
-              </button>
-              <button
-                onClick={() => {
-                  handleTabChange('team');
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-semibold transition-all cursor-pointer ${
-                  activeTab === 'team'
-                    ? 'bg-amber-500 text-slate-950 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>Team</span>
-              </button>
+              {MAIN_NAVIGATION_ITEMS.map((item) => {
+                const isActive = matchesMainSection(currentPath, item.href);
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    id={`mobile-nav-${item.id}`}
+                    onClick={() => {
+                      handleNavigation(item.href);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2 rounded-lg font-semibold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 font-bold'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Mobile Workspace & Balance Row */}

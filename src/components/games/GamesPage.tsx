@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useRouteContext, navigateTo } from '../../hooks/useRouteContext';
 import { apiFetch } from '../../lib/api';
 import { GameRecord } from '../../types';
 import { GameCatalogView } from './GameCatalogView';
@@ -17,6 +18,7 @@ import {
 
 export const GamesPage: React.FC = () => {
   const { currentOrganization, fetchThemes } = useAuth();
+  const routeContext = useRouteContext();
 
   const [games, setGames] = useState<GameRecord[]>([]);
   const [isLoadingGames, setIsLoadingGames] = useState<boolean>(true);
@@ -133,12 +135,16 @@ export const GamesPage: React.FC = () => {
     fetchThemes();
   }, [loadGames, fetchThemes]);
 
-  // Handle browser back / forward navigation
+  // Handle browser back / forward navigation and global route synchronization
   useEffect(() => {
     const handlePopState = () => {
       const route = parseGamesRoute();
       setSelectedGameId(route.gameId);
       setEditingThemeId(route.themeId);
+      if (!route.gameId && !route.themeId) {
+        setDemoPlayingGame(null);
+        setIsDemoFullscreen(false);
+      }
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -147,44 +153,46 @@ export const GamesPage: React.FC = () => {
     };
   }, []);
 
+  // React immediately to routeContext changes (e.g. clicking global Games tab)
+  useEffect(() => {
+    const route = parseGamesRoute();
+    setSelectedGameId(route.gameId);
+    setEditingThemeId(route.themeId);
+    if (!route.gameId && !route.themeId) {
+      setDemoPlayingGame(null);
+      setIsDemoFullscreen(false);
+    }
+  }, [routeContext.pathname]);
+
   // Navigation Handlers
   const handleSelectGame = (game: GameRecord) => {
     const newPath = `/games/${game.id}`;
-    if (window.location.pathname !== newPath) {
-      window.history.pushState({ gameId: game.id }, '', newPath);
-    }
     setSelectedGameId(game.id);
     setEditingThemeId(null);
     fetchThemes(game.id);
+    navigateTo(newPath, { gameId: game.id });
   };
 
   const handleBackToCatalog = () => {
-    const newPath = '/games';
-    if (window.location.pathname !== newPath) {
-      window.history.pushState(null, '', newPath);
-    }
     setSelectedGameId(null);
     setEditingThemeId(null);
     loadGames();
+    navigateTo('/games');
   };
 
   const handleOpenThemeEditor = (themeId: string) => {
     const gameId = selectedGameId || (games.length > 0 ? games[0].id : 'default');
     const newPath = `/games/${gameId}/themes/${themeId}/edit`;
-    if (window.location.pathname !== newPath) {
-      window.history.pushState({ gameId, themeId }, '', newPath);
-    }
     setEditingThemeId(themeId);
+    navigateTo(newPath, { gameId, themeId });
   };
 
   const handleBackFromThemeEditor = () => {
     if (selectedGameId) {
       const newPath = `/games/${selectedGameId}`;
-      if (window.location.pathname !== newPath) {
-        window.history.pushState({ gameId: selectedGameId }, '', newPath);
-      }
       setEditingThemeId(null);
       fetchThemes(selectedGameId);
+      navigateTo(newPath, { gameId: selectedGameId });
     } else {
       handleBackToCatalog();
     }

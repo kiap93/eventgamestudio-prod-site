@@ -862,6 +862,83 @@ export function isEventEligibleForShowcaseReward(
   };
 }
 
+/**
+ * Determines whether an event is eligible for Showcase RM300 Reward submission.
+ * 
+ * Authoritative Rule:
+ * The event only needs to have STARTED.
+ * Allowed:
+ * - LIVE + PAID
+ * - COMPLETED + PAID
+ * Rejected:
+ * - NOT_STARTED (code: 'EVENT_NOT_STARTED')
+ * - UNPAID (code: 'EVENT_UNPAID')
+ * - CANCELLED (code: 'EVENT_CANCELLED')
+ * - EXPIRED (code: 'EVENT_EXPIRED')
+ */
+export function isEventEligibleForShowcaseRewardSubmission(
+  event: any,
+  now?: Date | string
+): { eligible: boolean; code?: string; reason?: string } {
+  if (!event) {
+    return { eligible: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found.' };
+  }
+
+  const effectiveStatus = calculateEventStatus(event, now);
+  const lifecycleStatus = deriveEventLifecycleStatus(event, now);
+
+  const payStatus = (event.payment_status || '').toUpperCase();
+  const isPaid = payStatus === 'PAID';
+
+  if (!isPaid || effectiveStatus === 'pending_payment' || lifecycleStatus === 'PENDING_PAYMENT' || lifecycleStatus === 'PAYMENT_PENDING') {
+    return {
+      eligible: false,
+      code: 'EVENT_UNPAID',
+      reason: 'Showcase reward requires a confirmed, paid event.',
+    };
+  }
+
+  if (effectiveStatus === 'cancelled' || lifecycleStatus === 'CANCELLED') {
+    return {
+      eligible: false,
+      code: 'EVENT_CANCELLED',
+      reason: 'Showcase reward submission is not available for cancelled events.',
+    };
+  }
+
+  if (effectiveStatus === 'expired' || lifecycleStatus === 'EXPIRED') {
+    return {
+      eligible: false,
+      code: 'EVENT_EXPIRED',
+      reason: 'Showcase reward submission is not available because this event expired without payment.',
+    };
+  }
+
+  // Check if event has started (LIVE or COMPLETED)
+  if (
+    effectiveStatus === 'live' ||
+    effectiveStatus === 'completed' ||
+    lifecycleStatus === 'LIVE' ||
+    lifecycleStatus === 'COMPLETED'
+  ) {
+    return { eligible: true };
+  }
+
+  const { startDate } = getNormalizedEventDates(event);
+  const eventTimezone = resolveEventTimezone(event);
+  const curDate = getNormalizedCurrentDate(now, eventTimezone);
+
+  if (startDate && curDate >= startDate) {
+    return { eligible: true };
+  }
+
+  return {
+    eligible: false,
+    code: 'EVENT_NOT_STARTED',
+    reason: 'Showcase reward submission is available once the event starts.',
+  };
+}
+
 
 /**
  * Counts currently pending-payment events for an organization.

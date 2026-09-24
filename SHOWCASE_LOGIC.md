@@ -146,9 +146,9 @@ The system will decouple content visibility from financial reward status. The au
 
 ### 3.1 Strict Separation of Concerns & Rules
 
-$$\text{Showcase Publishing Eligibility} \neq \text{First Event Case Reward Eligibility}$$
+$$\text{Showcase Publishing Eligibility} \neq \text{Showcase Reward Submission Eligibility} \neq \text{Reward Approval Review}$$
 
-The platform establishes two cleanly decoupled eligibility boundaries:
+The platform establishes three cleanly decoupled workflows:
 
 1. **Showcase Creation & Publishing Eligibility** (`isEventEligibleForShowcase`):
    - **Trigger**: The event has **STARTED** (is `LIVE` or `COMPLETED`, `current_date >= start_date` in Asia/Singapore UTC+8).
@@ -156,20 +156,27 @@ The platform establishes two cleanly decoupled eligibility boundaries:
    - **Behavior**: 100% self-serve. Organizers can create the showcase, upload event photos/videos, edit descriptions, and publish immediately once the event is underway.
    - **Ineligible States**: `DRAFT`, `PENDING_PAYMENT` / unpaid, `SCHEDULED` (before event start date), `EXPIRED` (unpaid after end date), and `CANCELLED`.
 
-2. **Reward Review & Approval Eligibility** (`isEventEligibleForShowcaseReward`, `evaluateShowcaseRewardEligibility`):
-   - **Trigger**: The event has **COMPLETED** (is `COMPLETED`, `current_date > end_date` in Asia/Singapore UTC+8).
+2. **Showcase Reward Submission Eligibility** (`isEventEligibleForShowcaseRewardSubmission`):
+   - **Trigger**: The event has **STARTED** (is `LIVE` or `COMPLETED`, `current_date >= start_date` in Asia/Singapore UTC+8).
    - **Payment Rule**: The event must have `payment_status === 'PAID'`.
-   - **Behavior**: While an event is still `LIVE`, the showcase can be published and viewed publicly, but reward review remains in `NOT_ELIGIBLE` status (*"Reward review is available once the event has completed"*). Once the event concludes, the showcase is automatically evaluated for the First-Event Case Reward audit.
+   - **Core Business Rule**: **Users may submit an eligible Showcase for the RM300 reward as soon as the event is LIVE, provided it is PAID and meets all showcase content requirements. Event completion is NOT required to submit.**
+   - **Behavior**: An organizer can submit their showcase for the RM300 reward while their event is actively running. Upon submission, the request enters `reward_review_status = 'AWAITING_APPROVAL'` (`reward_status = 'PENDING'`) and immediately appears in the platform administrator's Pending Reward Approvals queue.
+   - **Ineligible States**: `SCHEDULED` (not started: `EVENT_NOT_STARTED`), `UNPAID` or pending payment (`EVENT_UNPAID`), `EXPIRED` (`EVENT_EXPIRED`), or `CANCELLED` (`EVENT_CANCELLED`).
 
-### 3.2 Reward Qualification Rules
+3. **Showcase Reward Approval & Review** (`isEventEligibleForShowcaseReward`, `approve_first_event_showcase_reward_atomic`):
+   - **Trigger**: Developer admin reviews pending submissions from the "Pending Reward Approvals" queue.
+   - **Payment Rule**: The event must have `payment_status === 'PAID'`.
+   - **Behavior**: Admin audits media authenticity, client branding, and event details. Once approved, RM300 promotional credit is atomically credited to the organization's wallet via `approve_first_event_showcase_reward_atomic()`.
 
-An Event Showcase qualifies for First Event Case Reward evaluation (`AWAITING_APPROVAL`) if and only if **ALL** of the following conditions are met:
+### 3.2 Reward Submission Qualification Rules
+
+An Event Showcase qualifies for First Event Case Reward submission (`AWAITING_APPROVAL`) if and only if **ALL** of the following conditions are met:
 1. **First-Time Account Owner Reward**: The account owner (`owner_user_id`) has never received a showcase credit across any organization (`owner_showcase_rewards` and `user_rewards` contain no completed `SHOWCASE_CREDIT`).
 2. **Paid Event Requirement**: The associated event must have `payment_status === 'PAID'` (free or test events cannot generate paid reward credits).
-3. **Completed Event Window**: The event has **COMPLETED** (`status === 'completed'` / `COMPLETED`, `current_date > end_date` in UTC+8). Live or scheduled events do not qualify for reward review until completion.
+3. **Event Has Started (Live or Completed)**: The event has started (`status === 'live'` or `completed`, `current_date >= start_date` in UTC+8). Event completion is NOT required for submission; LIVE events are fully eligible to submit.
 4. **Media Completeness**: The showcase has at least **3 high-resolution photos or 1 video clip** uploaded to its gallery.
 5. **Content Completeness**: Showcase has a non-empty `title`, `description` ($\ge 50$ characters), and verified client/event details.
-6. **Not Blocked**: The showcase is in `PUBLISHED` status (not `BLOCKED` or `DELETED`).
+6. **Not Blocked / Published**: The showcase is in `PUBLISHED` status (not `BLOCKED` or `DELETED`).
 
 ### 3.3 Reward Lifecycle States (`reward_review_status`)
 

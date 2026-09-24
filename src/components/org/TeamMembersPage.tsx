@@ -61,6 +61,18 @@ export const TeamMembersPage: React.FC = () => {
   const [savingCountry, setSavingCountry] = useState(false);
   const [countryError, setCountryError] = useState<string | null>(null);
 
+  // Close editing sub-states when navigating directly to root /team
+  useEffect(() => {
+    const handlePopState = () => {
+      setIsEditingCountry(false);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   useEffect(() => {
     if (currentOrganization?.country_code) {
       setSelectedCountryCode(currentOrganization.country_code);

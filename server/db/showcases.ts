@@ -23,7 +23,7 @@ import {
 } from './wallet.js';
 import { isUserOrganizationOwner, hasUserClaimedReward, getShowcaseRewardEligibility } from './rewards.js';
 import { getShowcaseMedia } from './showcaseMedia.js';
-import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase, isEventEligibleForShowcaseReward } from './events.js';
+import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase, isEventEligibleForShowcaseReward, isEventEligibleForShowcaseRewardSubmission } from './events.js';
 import { getThemeById } from './themes.js';
 import { getOrganizationById } from './organizations.js';
 import { getUserById } from './users.js';
@@ -376,7 +376,7 @@ export async function createShowcase(
   const eligibility = isEventEligibleForShowcase(event);
   if (!eligibility.eligible) {
     const err = new Error(eligibility.reason || 'Event is not eligible for showcase');
-    (err as any).code = eligibility.code || 'EVENT_NOT_COMPLETED';
+    (err as any).code = eligibility.code || 'SHOWCASE_NOT_ELIGIBLE';
     (err as any).status = 422;
     throw err;
   }
@@ -1376,40 +1376,21 @@ export async function evaluateShowcaseRewardEligibility(
     }
   }
 
-  // 2. Event payment and completed event check
-  // Authoritative Separation:
-  // - Showcase creation & publishing eligibility -> event has started (is LIVE or COMPLETED, and PAID)
-  // - Showcase reward review eligibility         -> event has completed (is COMPLETED and PAID)
+  // 2. Event payment and started event check
+  // Authoritative Rule:
+  // - Showcase reward submission and review eligibility allows both LIVE and COMPLETED events as long as they are PAID.
   const eventData = await getEventById(eventId, env);
+  const eventSubmissionElig = eventData
+    ? isEventEligibleForShowcaseRewardSubmission(eventData)
+    : { eligible: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found.' };
 
-  const isPaid = eventData?.payment_status === 'PAID';
-  const todayStr = getNormalizedCurrentDate();
-  const isCompleted =
-    eventData?.status === 'completed' ||
-    eventData?.event_status === 'COMPLETED' ||
-    (Boolean(eventData?.end_date) && todayStr > (eventData?.end_date || ''));
-
-  if (!isPaid) {
+  if (!eventSubmissionElig.eligible) {
     return await updateShowcase(
       eventId,
       {
         reward_review_status: 'NOT_ELIGIBLE',
         reward_status: 'NOT_ELIGIBLE',
-        reward_rejection_reason: 'Showcase reward requires a confirmed, paid event.',
-        owner_user_id: ownerUserId || undefined,
-      },
-      env,
-      true
-    );
-  }
-
-  if (!isCompleted) {
-    return await updateShowcase(
-      eventId,
-      {
-        reward_review_status: 'NOT_ELIGIBLE',
-        reward_status: 'NOT_ELIGIBLE',
-        reward_rejection_reason: 'Reward review is available once the event has completed.',
+        reward_rejection_reason: eventSubmissionElig.reason || 'Showcase reward requires a confirmed, paid, and started event.',
         owner_user_id: ownerUserId || undefined,
       },
       env,
@@ -1512,13 +1493,15 @@ export async function submitShowcaseForReview(
     throw err;
   }
 
-  // Authoritative rule: Reward review requires that the event has completed
+  // Authoritative rule: Showcase reward submission requires that the event has started (is LIVE or COMPLETED, and PAID)
   const event = await getEventById(eventId, env);
   if (event) {
-    const rewardElig = isEventEligibleForShowcaseReward(event);
-    if (!rewardElig.eligible) {
-      const err = new Error(rewardElig.reason || 'Reward review is only available after the event has completed.');
-      (err as any).code = rewardElig.code || 'EVENT_NOT_COMPLETED';
+    const rewardSubmissionElig = isEventEligibleForShowcaseRewardSubmission(event);
+    if (!rewardSubmissionElig.eligible) {
+      const err = new Error(
+        rewardSubmissionElig.reason || 'Showcase reward submission is available once the event starts.'
+      );
+      (err as any).code = rewardSubmissionElig.code || 'EVENT_NOT_STARTED';
       (err as any).status = 422;
       throw err;
     }
@@ -2158,9 +2141,11 @@ async function loadAndEnrichShowcases(
       const ownerUser = ownerUserId ? userMap.get(ownerUserId) : null;
       const media = await getShowcaseMedia(sc.id, sc.organization_id, env);
 
+      const eventSubmissionElig = event ? isEventEligibleForShowcaseRewardSubmission(event) : { eligible: false };
       const eventRewardElig = event ? isEventEligibleForShowcaseReward(event) : { eligible: false };
       const eventPaid = (event?.payment_status || '').toUpperCase() === 'PAID';
       const eventCompleted = Boolean(eventRewardElig.eligible || event?.status === 'completed' || event?.event_status === 'COMPLETED');
+      const eventStarted = Boolean(eventSubmissionElig.eligible);
 
       enrichedList.push({
         ...sc,
@@ -2169,6 +2154,8 @@ async function loadAndEnrichShowcases(
         event_payment_status: event?.payment_status || 'UNPAID',
         event_paid: eventPaid,
         event_completed: eventCompleted,
+        event_started: eventStarted,
+        event_submission_eligible: eventSubmissionElig.eligible,
         organization_name: org?.name || 'Organization #' + sc.organization_id.slice(0, 8),
         organization_slug: org?.slug || '',
         owner_user_id: ownerUserId,
@@ -2250,8 +2237,8 @@ export async function getShowcaseRewardsForAdmin(
       continue;
     }
 
-    // 4. Event must be completed
-    if (!sc.event_completed) {
+    // 4. Event must have started (LIVE or COMPLETED)
+    if (!sc.event_started && !sc.event_completed) {
       continue;
     }
 
@@ -2342,7 +2329,7 @@ export async function publishShowcase(
   const eligibility = isEventEligibleForShowcase(event);
   if (!eligibility.eligible) {
     const err = new Error(eligibility.reason || 'Event is not eligible for showcase');
-    (err as any).code = eligibility.code || 'EVENT_NOT_COMPLETED';
+    (err as any).code = eligibility.code || 'SHOWCASE_NOT_ELIGIBLE';
     (err as any).status = 422;
     throw err;
   }

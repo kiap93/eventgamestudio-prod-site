@@ -38,7 +38,7 @@ import {
   Gift,
   XCircle,
 } from 'lucide-react';
-import { isEventEligibleForShowcase } from '../../lib/dateUtils';
+import { isEventEligibleForShowcase, isEventEligibleForShowcaseRewardSubmission } from '../../lib/dateUtils';
 
 interface EventShowcasePageProps {
   eventId: string;
@@ -850,7 +850,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                   </div>
                 )}
 
-                {!rewardSubmission && rewardEligibility?.eligible && (
+                {!rewardSubmission && rewardEligibility?.eligible && (!eventData || isEventEligibleForShowcaseRewardSubmission(eventData).eligible) && (
                   <button
                     type="button"
                     onClick={handleSubmitReward}

@@ -28,7 +28,7 @@ import {
   hasUserReceivedShowcaseCredit,
 } from './wallet.js';
 import { getUserById } from './users.js';
-import { isEventEligibleForShowcaseReward } from '../../src/lib/dateUtils.js';
+import { isEventEligibleForShowcaseRewardSubmission } from './events.js';
 
 // In-memory cache for local development fallback and test environments
 export const localRewardSubmissionsCache = new Map<string, ShowcaseRewardSubmissionRecord>();
@@ -100,18 +100,13 @@ export async function createShowcaseRewardSubmission(params: {
       throw err;
     }
 
-    // 4. Verify Event Eligibility (Must be PAID and COMPLETED)
-    if ((event.payment_status || '').toUpperCase() !== 'PAID') {
-      const err = new Error('Showcase reward requires a confirmed, paid event.');
-      (err as any).code = 'EVENT_UNPAID';
-      (err as any).status = 422;
-      throw err;
-    }
-
-    const rewardElig = isEventEligibleForShowcaseReward(event);
-    if (!rewardElig.eligible) {
-      const err = new Error(rewardElig.reason || 'Reward review is only available after the event has completed.');
-      (err as any).code = rewardElig.code || 'EVENT_NOT_COMPLETED';
+    // 4. Verify Event Eligibility (Must be PAID and STARTED: LIVE or COMPLETED)
+    const rewardSubmissionElig = isEventEligibleForShowcaseRewardSubmission(event);
+    if (!rewardSubmissionElig.eligible) {
+      const err = new Error(
+        rewardSubmissionElig.reason || 'Showcase reward submission is available once the event starts.'
+      );
+      (err as any).code = rewardSubmissionElig.code || 'EVENT_NOT_STARTED';
       (err as any).status = 422;
       throw err;
     }

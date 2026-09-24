@@ -268,12 +268,12 @@ async function runTests() {
   }
   assert(unpaidBlockedFromCreation, 'Unpaid event showcase is prevented from being created/submitted for rewards');
 
-  // Incomplete event (e.g. LIVE and future end date)
-  const eventDIncomplete = `event_d_incomplete_${crypto.randomUUID()}`;
-  localEventsCache.set(eventDIncomplete, {
-    id: eventDIncomplete,
+  // Test: LIVE and PAID event CAN be submitted for review and APPEARS in pending queue
+  const eventDLive = `event_d_live_${crypto.randomUUID()}`;
+  localEventsCache.set(eventDLive, {
+    id: eventDLive,
     organization_id: orgD,
-    name: 'Live Event Not Completed',
+    name: 'Live Event Running',
     status: 'live',
     event_status: 'LIVE',
     payment_status: 'PAID',
@@ -281,23 +281,18 @@ async function runTests() {
     end_date: '2026-12-31',
   } as any);
 
-  const showcaseDIncomplete = await createShowcase({
-    event_id: eventDIncomplete,
+  const showcaseDLive = await createShowcase({
+    event_id: eventDLive,
     organization_id: orgD,
     title: 'Live Event Showcase',
   }, env);
 
-  let incompleteBlockedFromSubmit = false;
-  try {
-    await submitShowcaseForReview(showcaseDIncomplete.event_id, env);
-  } catch (err: any) {
-    incompleteBlockedFromSubmit = true;
-  }
-  assert(incompleteBlockedFromSubmit, 'Incomplete event showcase cannot be submitted for reward review');
+  const submittedLive = await submitShowcaseForReview(showcaseDLive.event_id, env);
+  assert(submittedLive.reward_review_status === 'AWAITING_APPROVAL', 'Live event showcase can be submitted for reward review');
 
   const pendingQueueD = await getShowcaseRewardsForAdmin(env, 'AWAITING_APPROVAL');
-  const foundIncomplete = pendingQueueD.find(item => item.id === showcaseDIncomplete.id);
-  assert(!foundIncomplete, 'Incomplete event showcase does NOT appear in pending reward queue');
+  const foundLive = pendingQueueD.find(item => item.id === showcaseDLive.id);
+  assert(foundLive, 'Live event showcase DOES appear in pending reward queue');
 
   // --------------------------------------------------------------------------
   // Scenario E: Review status SUBMITTED, but reward_review_status NOT_ELIGIBLE

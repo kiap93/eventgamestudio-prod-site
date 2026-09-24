@@ -34,7 +34,8 @@
     "test:fail-closed-pricing": "tsx server/db/fail_closed_pricing.test.ts",
     "test:migration": "tsx server/db/migration_integrity.test.ts",
     "test:pending-limit": "bun server/db/pending_event_limit_expiration.test.ts",
-    "test:cron": "bun test server/cloudflare_cron_trigger.test.ts"
+    "test:cron": "bun test server/cloudflare_cron_trigger.test.ts",
+    "test:global-nav": "bun server/global_navigation_active_tab.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

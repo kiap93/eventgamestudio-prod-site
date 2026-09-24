@@ -140,6 +140,20 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
   const [editingEvent, setEditingEvent] = useState<any | null>(null);
   const [cancellingEvent, setCancellingEvent] = useState<any | null>(null);
 
+  // Close modals when navigating directly to root /events
+  useEffect(() => {
+    const handlePopState = () => {
+      setIsCreateOpen(false);
+      setEditingEvent(null);
+      setCancellingEvent(null);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   const fetchEvents = async () => {
     if (!currentOrganization || !currentOrganization.id || currentOrganization.id === 'undefined' || currentOrganization.id === 'null') {
       return;

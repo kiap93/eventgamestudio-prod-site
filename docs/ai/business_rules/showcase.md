@@ -49,11 +49,11 @@ The platform strictly decouples **Public Visibility**, **Admin Event Review**, a
 ### Inviolable Invariants
 1. **No Visibility Approval Gate**: Organizers can create, upload media to, and publish their showcase immediately once the event has started (is LIVE or COMPLETED, and PAID). There is NO upfront approval required for a showcase to become publicly visible.
 2. **Reactive Content Moderation**: Showcase content is presumed valid upon publication. Platform developer admins intervene only to **block** (`BLOCKED`) or **delete** (`DELETED`) inappropriate content (TOS, copyright, illegal material).
-3. **Owner-Level First-Event Reward**: The **RM300 Showcase Reward** is tied to the **Account Owner** (`owner_user_id`), NOT the organization. An account owner is eligible for at most **one** showcase reward in their lifetime across all organizations they own or create. Reward review strictly requires that the event has **COMPLETED**.
+3. **Owner-Level First-Event Reward**: The **RM300 Showcase Reward** is tied to the **Account Owner** (`owner_user_id`), NOT the organization. An account owner is eligible for at most **one** showcase reward in their lifetime across all organizations they own or create. Users may submit an eligible Showcase for the RM300 reward as soon as the event is LIVE, provided it is PAID and meets all showcase content requirements. Event completion is NOT required to submit.
 4. **Three Fully Decoupled Workflows**:
    - **Showcase Publishing** (`status`: `DRAFT`, `PUBLISHED`, `UNPUBLISHED`, `BLOCKED`, `DELETED`) is self-serve once the event starts.
-   - **Admin Event Review** (`review_status`: `DRAFT`, `SUBMITTED`, `APPROVED`, `REJECTED`) is an editorial quality review.
-   - **Reward Approval** (`reward_status` / `reward_review_status`: `NOT_ELIGIBLE`, `AWAITING_APPROVAL`, `REWARDED`, `REJECTED`) is a financial decision tracked in `owner_showcase_rewards` evaluated after event completion.
+   - **Showcase Reward Submission** (`isEventEligibleForShowcaseRewardSubmission`): Account owners may submit their showcase for the RM300 reward as soon as the paid event is LIVE (`LIVE` or `COMPLETED`).
+   - **Reward Approval** (`reward_status` / `reward_review_status`: `NOT_ELIGIBLE`, `AWAITING_APPROVAL`, `REWARDED`, `REJECTED`): Financial decision reviewed by admin from the Pending Reward Approvals queue and granted via `approve_first_event_showcase_reward_atomic`.
    - Rejecting an event review or reward NEVER unpublishes or blocks the showcase!
 
 ---
@@ -84,20 +84,22 @@ Controls financial reward tracking at the Account Owner level:
 
 ---
 
-## 4. Showcase Reward Eligibility Criteria
+## 4. Showcase Reward Submission & Qualification Criteria
 
-To qualify for `AWAITING_APPROVAL` status and receive the **RM300 showcase credit**, all of the following rules MUST be satisfied (`evaluateShowcaseRewardEligibility` in `server/db/showcases.ts`):
+To qualify for `AWAITING_APPROVAL` status (reward submission queued for admin review) and receive the **RM300 showcase credit**, all of the following rules MUST be satisfied:
 
 1. **One Reward Per Account Owner Lifetime (`owner_user_id`)**:
-   - The account owner must NOT have previously received a showcase reward (`owner_showcase_rewards` table must have no existing record for this `owner_user_id`).
+   - The account owner must NOT have previously received a showcase reward (`owner_showcase_rewards` and `user_rewards` table must have no existing record for this `owner_user_id`).
 2. **Paid Event Only**:
    - The associated event must have `payment_status = 'PAID'`. Free or comped activations do not qualify.
-3. **Completed Event Window**:
-   - Current date must be past the event end date (`current_date > end_date` in UTC+8).
+3. **Event Has Started (Live or Completed)**:
+   - The event has started (`current_date >= start_date` in Asia/Singapore UTC+8). Users may submit an eligible Showcase for the RM300 reward as soon as the event is LIVE, provided it is PAID and meets all showcase content requirements. Event completion is NOT required to submit.
 4. **Minimum Media Quantity**:
-   - Showcase must contain at least **3 uploaded photos** or **1 video + 2 photos** in `event_showcase_media`.
+   - Showcase must contain at least **3 uploaded photos** or **1 video clip** in `event_showcase_media`.
 5. **Meaningful Content**:
-   - Non-empty client/brand name, non-empty event summary ($>50$ characters), and estimated attendee count.
+   - Non-empty title, valid description ($\ge 50$ characters), and verified client/brand name.
+6. **Published Showcase**:
+   - The showcase must be in `PUBLISHED` status (not `BLOCKED` or `DELETED`).
 
 ---
 
