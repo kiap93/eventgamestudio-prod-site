@@ -145,7 +145,7 @@ Contains the canonical timestamp migrations:
 - `20260926000000_decouple_payment_activation_from_lifecycle.sql` — Decouples payment confirmation and event activation from background lifecycle cron
 - `20260927000000_exclude_expired_unpaid_events_from_pending_limit.sql` — Excludes expired unpaid events whose end date has passed from the organization maximum 2 pending events limit in check_event_pending_limit trigger and create_event_atomic RPC
 - `20260928000000_update_pending_event_limit_to_5.sql` — Updates the maximum active unpaid/pending event limit per organization from 2 to 5 while preserving date-based expiration checks
-- `20260929000000_fix_showcase_service_role_trigger.sql` — Hardens prevent_event_showcase_unauthorized_client_mutations trigger to recognize service_role backend connections across all PostgREST versions, and adds atomic SECURITY DEFINER RPC publish_event_showcase_atomic
+- `20260929000000_fix_showcase_service_role_trigger.sql` — Hardens prevent_event_showcase_unauthorized_client_mutations trigger to recognize service_role backend connections across all PostgREST versions, and adds atomic SECURITY DEFINER RPCs save_event_showcase_atomic and publish_event_showcase_atomic with strict null semantics
 
 ### Historical Archive (`supabase/migrations_history/`)
 Preserves the complete original sequential migration chain (`001_...` through `031_...`), branch collision variants (`013`, `014`, `017b`), and `MIGRATIONS_AUDIT.md`.
