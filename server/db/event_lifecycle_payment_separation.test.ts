@@ -121,8 +121,8 @@ async function runTests() {
   assert.strictEqual(paidEvent?.public_token, event1.public_token, 'Public token / URL must remain identical');
   console.log('  ✓ PASS: Event successfully paid and activated without altering public URL');
 
-  console.log('--- Test Case 5 & 6: Enforce Max 2 PENDING_PAYMENT Limit per Org ---');
-  // Create 2 pending events
+  console.log('--- Test Case 5 & 6: Enforce Max 5 PENDING_PAYMENT Limit per Org ---');
+  // Create 5 pending events
   const pendingEventA = await createEvent({
     organization_id: orgId,
     game_theme_id: themeId,
@@ -139,40 +139,64 @@ async function runTests() {
     expires_at: expiresAt,
   }, env);
 
-  const countAfter2 = await getPendingEventsCountByOrgId(orgId, env);
-  assert.strictEqual(countAfter2, 2, 'Pending events count must be 2');
+  const pendingEventC = await createEvent({
+    organization_id: orgId,
+    game_theme_id: themeId,
+    name: 'Pending Event C',
+    starts_at: startsAt,
+    expires_at: expiresAt,
+  }, env);
 
-  let thirdCreationRejected = false;
+  const pendingEventD = await createEvent({
+    organization_id: orgId,
+    game_theme_id: themeId,
+    name: 'Pending Event D',
+    starts_at: startsAt,
+    expires_at: expiresAt,
+  }, env);
+
+  const pendingEventE = await createEvent({
+    organization_id: orgId,
+    game_theme_id: themeId,
+    name: 'Pending Event E',
+    starts_at: startsAt,
+    expires_at: expiresAt,
+  }, env);
+
+  const countAfter5 = await getPendingEventsCountByOrgId(orgId, env);
+  assert.strictEqual(countAfter5, 5, 'Pending events count must be 5');
+
+  let sixthCreationRejected = false;
   try {
     await createEvent({
       organization_id: orgId,
       game_theme_id: themeId,
-      name: 'Pending Event C (Should Fail)',
+      name: 'Pending Event F (Should Fail)',
       starts_at: startsAt,
       expires_at: expiresAt,
     }, env);
   } catch (err: any) {
-    if (err.code === 'PENDING_EVENT_LIMIT_REACHED' || err.status === 422 || err.message.includes('Maximum 2')) {
-      thirdCreationRejected = true;
+    if (err.code === 'PENDING_EVENT_LIMIT_REACHED' || err.status === 422 || err.message.includes('maximum allowed limit of 5')) {
+      sixthCreationRejected = true;
     }
   }
-  assert.strictEqual(thirdCreationRejected, true, '3rd pending event creation MUST be rejected by server');
-  console.log('  ✓ PASS: Server enforces maximum 2 PENDING_PAYMENT events limit');
+  assert.strictEqual(sixthCreationRejected, true, '6th pending event creation MUST be rejected by server');
+  console.log('  ✓ PASS: Server enforces maximum 5 PENDING_PAYMENT events limit');
 
   console.log('--- Test Case 7: Delete one PENDING_PAYMENT Event -> Slot is Freed ---');
   await deleteEvent(pendingEventA.id, env);
   const countAfterDelete = await getPendingEventsCountByOrgId(orgId, env);
-  assert.strictEqual(countAfterDelete, 1, 'Pending events count must drop to 1');
+  assert.strictEqual(countAfterDelete, 4, 'Pending events count must drop to 4');
 
-  // Now 2nd pending slot can be used
-  const pendingEventD = await createEvent({
+  // Now pending slot can be used
+  const pendingEventG = await createEvent({
     organization_id: orgId,
     game_theme_id: themeId,
-    name: 'Pending Event D (Now Allowed)',
+    name: 'Pending Event G (Now Allowed)',
     starts_at: startsAt,
     expires_at: expiresAt,
   }, env);
-  assert.ok(pendingEventD.id, 'New event creation succeeds after slot freed');
+  assert.ok(pendingEventG.id, 'New event creation succeeds after slot freed');
   console.log('  ✓ PASS: Deleting pending event immediately frees up slot');
 
   console.log('--- Test Case 8: Pay & Activate one PENDING_PAYMENT Event -> Slot is Freed ---');
@@ -189,7 +213,7 @@ async function runTests() {
   }, env);
 
   const countAfterPay = await getPendingEventsCountByOrgId(orgId, env);
-  assert.strictEqual(countAfterPay, 1, 'Pending events count must drop to 1 after payment activation');
+  assert.strictEqual(countAfterPay, 4, 'Pending events count must drop to 4 after payment activation');
   console.log('  ✓ PASS: Activating pending event frees up slot for future event creations');
 
   console.log('--- Test Case 9: Deterministic Setup Day Calculation ---');
@@ -270,6 +294,7 @@ async function runTests() {
     eventId: sep10EventPaid.id,
     paymentMode: 'FULL_PAID',
     eventName: sep10EventPaid.name,
+    now: date8Sep,
   }, env);
 
   const cancelCheckPaid = canCancelEvent(await getEventById(sep10EventPaid.id, env)!, date8Sep);
@@ -356,6 +381,7 @@ async function runTests() {
     eventId: sep10PaidEvent.id,
     paymentMode: 'FULL_PAID',
     eventName: sep10PaidEvent.name,
+    now: date8Sep,
   }, env);
 
   const balanceBeforeCase3 = await getWalletBalance(setupOrg.id, env);
@@ -401,6 +427,7 @@ async function runTests() {
     eventId: sep10EventUnpaid.id,
     paymentMode: 'FULL_PAID',
     eventName: sep10EventUnpaid.name,
+    now: date10Sep,
   }, env);
   assert.strictEqual(explicitPayResult.success, true, 'Explicit user payment is successful');
 
@@ -531,6 +558,7 @@ async function runTests() {
     eventId: case7PaidEvent.id,
     paymentMode: 'FULL_PAID',
     eventName: case7PaidEvent.name,
+    now: new Date('2026-09-14T01:00:00.000Z'),
   }, env);
 
   const date17Sep = new Date('2026-09-17T01:00:00.000Z');

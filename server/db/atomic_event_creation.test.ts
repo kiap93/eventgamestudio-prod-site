@@ -43,7 +43,7 @@ async function runAtomicEventCreationTests() {
   assert.strictEqual(pendingCount, 0, 'Initial pending count must be 0');
   console.log('  ✓ PASS: Initial pending count is 0');
 
-  console.log('--- Test 2: Create First Pending Event ---');
+  console.log('--- Test 2: Create Pending Events Up to Limit - 1 (Count = 4) ---');
   const event1 = await createEvent({
     organization_id: org.id,
     game_id: gameId,
@@ -57,20 +57,59 @@ async function runAtomicEventCreationTests() {
     created_by: user.id,
   }, testEnv);
 
+  await createEvent({
+    organization_id: org.id,
+    game_id: gameId,
+    game_theme_id: theme.id,
+    name: 'Event 2 - Pending',
+    start_date: '2026-10-03',
+    end_date: '2026-10-04',
+    event_price: 1400,
+    payment_status: 'UNPAID',
+    status: 'draft',
+    created_by: user.id,
+  }, testEnv);
+
+  await createEvent({
+    organization_id: org.id,
+    game_id: gameId,
+    game_theme_id: theme.id,
+    name: 'Event 3 - Pending',
+    start_date: '2026-10-05',
+    end_date: '2026-10-06',
+    event_price: 1400,
+    payment_status: 'UNPAID',
+    status: 'draft',
+    created_by: user.id,
+  }, testEnv);
+
+  await createEvent({
+    organization_id: org.id,
+    game_id: gameId,
+    game_theme_id: theme.id,
+    name: 'Event 4 - Pending',
+    start_date: '2026-10-07',
+    end_date: '2026-10-08',
+    event_price: 1400,
+    payment_status: 'UNPAID',
+    status: 'draft',
+    created_by: user.id,
+  }, testEnv);
+
   pendingCount = await getPendingEventsCountByOrgId(org.id, testEnv);
-  assert.strictEqual(pendingCount, 1, 'Pending count must be 1 after event 1');
-  console.log('  ✓ PASS: First pending event created successfully, pending count = 1');
+  assert.strictEqual(pendingCount, 4, 'Pending count must be 4 after 4 events');
+  console.log('  ✓ PASS: Four pending events created successfully, pending count = 4');
 
   console.log('--- Test 3: Concurrent Race Condition Simulation (Promise.all) ---');
-  // Two simultaneous requests attempt to create an event at the exact same moment when only 1 slot is remaining.
+  // Two simultaneous requests attempt to create an event at the exact same moment when only 1 slot (5th) is remaining.
   // In a distributed environment, locking guarantees that only ONE succeeds, and the other is rejected.
   const createPromiseA = createEvent({
     organization_id: org.id,
     game_id: gameId,
     game_theme_id: theme.id,
     name: 'Concurrent Event A',
-    start_date: '2026-10-03',
-    end_date: '2026-10-04',
+    start_date: '2026-10-09',
+    end_date: '2026-10-10',
     event_price: 1400,
     payment_status: 'UNPAID',
     status: 'draft',
@@ -85,8 +124,8 @@ async function runAtomicEventCreationTests() {
     game_id: gameId,
     game_theme_id: theme.id,
     name: 'Concurrent Event B',
-    start_date: '2026-10-05',
-    end_date: '2026-10-06',
+    start_date: '2026-10-11',
+    end_date: '2026-10-12',
     event_price: 1400,
     payment_status: 'UNPAID',
     status: 'draft',
@@ -109,31 +148,31 @@ async function runAtomicEventCreationTests() {
   assert.strictEqual(rejectedError.status, 422, 'Status must be 422');
 
   pendingCount = await getPendingEventsCountByOrgId(org.id, testEnv);
-  assert.strictEqual(pendingCount, 2, 'Pending count must strictly be 2, never 3');
-  console.log('  ✓ PASS: Distributed concurrency race condition prevented! Exactly 1 succeeded, 1 rejected, count = 2');
+  assert.strictEqual(pendingCount, 5, 'Pending count must strictly be 5, never 6');
+  console.log('  ✓ PASS: Distributed concurrency race condition prevented! Exactly 1 succeeded, 1 rejected, count = 5');
 
-  console.log('--- Test 4: Subsequent Pending Creation When Limit (2) is Full ---');
-  let thirdRejected = false;
+  console.log('--- Test 4: Subsequent Pending Creation When Limit (5) is Full ---');
+  let sixthRejected = false;
   try {
     await createEvent({
       organization_id: org.id,
       game_id: gameId,
       game_theme_id: theme.id,
-      name: 'Event 3 - Rejected',
-      start_date: '2026-10-07',
-      end_date: '2026-10-08',
+      name: 'Event 6 - Rejected',
+      start_date: '2026-10-13',
+      end_date: '2026-10-14',
       event_price: 1400,
       payment_status: 'UNPAID',
       status: 'draft',
       created_by: user.id,
     }, testEnv);
   } catch (err: any) {
-    thirdRejected = true;
+    sixthRejected = true;
     assert.strictEqual(err.code, 'PENDING_EVENT_LIMIT_REACHED');
     assert.strictEqual(err.status, 422);
   }
-  assert.strictEqual(thirdRejected, true, 'Third pending event must be rejected');
-  console.log('  ✓ PASS: Subsequent pending creation rejected while 2 pending events exist');
+  assert.strictEqual(sixthRejected, true, 'Sixth pending event must be rejected');
+  console.log('  ✓ PASS: Subsequent pending creation rejected while 5 pending events exist');
 
   console.log('--- Test 5: Paid Event Creation Bypasses Pending Limit ---');
   // Creating an already-paid event (or admin event with skipPendingLimitCheck) does not consume a pending slot
@@ -142,8 +181,8 @@ async function runAtomicEventCreationTests() {
     game_id: gameId,
     game_theme_id: theme.id,
     name: 'Paid Event - Bypasses Limit',
-    start_date: '2026-10-10',
-    end_date: '2026-10-11',
+    start_date: '2026-10-15',
+    end_date: '2026-10-16',
     event_price: 1400,
     payment_status: 'PAID',
     status: 'scheduled',
@@ -152,31 +191,31 @@ async function runAtomicEventCreationTests() {
   assert.ok(paidEvent.id, 'Paid event created successfully');
 
   pendingCount = await getPendingEventsCountByOrgId(org.id, testEnv);
-  assert.strictEqual(pendingCount, 2, 'Pending count remains 2 after paid event creation');
+  assert.strictEqual(pendingCount, 5, 'Pending count remains 5 after paid event creation');
   console.log('  ✓ PASS: Paid event does not count towards pending events limit');
 
   console.log('--- Test 6: Deleting an Event Frees Up Slot ---');
   await deleteEvent(event1.id, testEnv);
   pendingCount = await getPendingEventsCountByOrgId(org.id, testEnv);
-  assert.strictEqual(pendingCount, 1, 'Pending count drops to 1 after deleting event 1');
+  assert.strictEqual(pendingCount, 4, 'Pending count drops to 4 after deleting event 1');
 
   // Now creating another pending event should succeed
-  const event4 = await createEvent({
+  const eventReplacement = await createEvent({
     organization_id: org.id,
     game_id: gameId,
     game_theme_id: theme.id,
-    name: 'Event 4 - Slot Reused',
-    start_date: '2026-10-12',
-    end_date: '2026-10-13',
+    name: 'Event Replacement - Slot Reused',
+    start_date: '2026-10-17',
+    end_date: '2026-10-18',
     event_price: 1400,
     payment_status: 'UNPAID',
     status: 'draft',
     created_by: user.id,
   }, testEnv);
-  assert.ok(event4.id, 'New pending event successfully created');
+  assert.ok(eventReplacement.id, 'New pending event successfully created');
 
   pendingCount = await getPendingEventsCountByOrgId(org.id, testEnv);
-  assert.strictEqual(pendingCount, 2, 'Pending count back at 2');
+  assert.strictEqual(pendingCount, 5, 'Pending count back at 5');
   console.log('  ✓ PASS: Deletion frees slot and allows new pending event creation');
 
   console.log('\n======================================================');

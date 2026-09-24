@@ -106,7 +106,7 @@ When creating an event:
 3. **Creation State**:
    - Status: `SCHEDULED` (`status: 'scheduled'`)
    - Payment Status: `UNPAID` (`payment_status: 'PENDING_PAYMENT'`)
-   - Organization Limit: Maximum 2 unpaid/pending payment events per organization at any time.
+   - Organization Limit: Maximum 5 unpaid/pending payment events per organization at any time (events whose end date has passed or are expired/cancelled/paid do not count against this limit).
 
 ---
 

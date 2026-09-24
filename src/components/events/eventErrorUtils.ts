@@ -5,6 +5,8 @@
  * human-readable, actionable guidance for EventGameStudio users.
  */
 
+export const MAX_PENDING_EVENTS_PER_ORGANIZATION = 5;
+
 export function formatEventErrorMessage(errData: any, statusCode?: number): string {
   if (!errData && !statusCode) {
     return 'An unexpected error occurred. Please check your inputs and try again.';
@@ -112,13 +114,17 @@ export function formatEventErrorMessage(errData: any, statusCode?: number): stri
     return 'The selected theme was not found. Please choose another theme.';
   }
 
-  // 10. Pending Event Limit (max 2 unpaid events)
+  // 10. Pending Event Limit (max 5 unpaid events)
   if (
     code === 'PENDING_EVENT_LIMIT_REACHED' ||
+    lowerMsg.includes('maximum 5 pending') ||
     lowerMsg.includes('maximum 2 pending') ||
-    lowerMsg.includes('pending payment events reached')
+    lowerMsg.includes('pending payment events reached') ||
+    lowerMsg.includes('maximum allowed limit of 5 unpaid events') ||
+    lowerMsg.includes('maximum allowed limit of 2 unpaid events') ||
+    lowerMsg.includes('maximum allowed pending events limit')
   ) {
-    return 'You have reached the maximum allowed limit of 2 unpaid events. Please pay for or delete an existing pending event before creating a new one.';
+    return 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.';
   }
 
   // 11. Insufficient Wallet Balance

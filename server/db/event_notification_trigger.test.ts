@@ -188,7 +188,7 @@ async function runEventNotificationRegressionTests() {
         data: {
           success: false,
           code: 'PENDING_EVENT_LIMIT_REACHED',
-          message: 'Maximum 2 pending payment events reached.',
+          message: 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.',
         },
         error: null,
       } as any;

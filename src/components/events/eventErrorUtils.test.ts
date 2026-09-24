@@ -84,7 +84,7 @@ import { formatEventErrorMessage } from './eventErrorUtils';
   const msg = formatEventErrorMessage({ code: 'PENDING_EVENT_LIMIT_REACHED' }, 422);
   assert.strictEqual(
     msg,
-    'You have reached the maximum allowed limit of 2 unpaid events. Please pay for or delete an existing pending event before creating a new one.'
+    'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.'
   );
 }
 

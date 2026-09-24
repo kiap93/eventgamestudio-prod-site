@@ -4,6 +4,29 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-09-24] - Organization Pending Event Limit Updated from 2 to 5
+
+### Summary
+Updated the organization-level active unpaid/pending event limit from 2 to 5. Ensured that expired events (both explicitly marked `EXPIRED` and unpaid events whose scheduled end date has passed in the event business timezone) do not consume a pending-event slot.
+
+### Key Changes Implemented
+1. **Centralized Constant & Database Defaults (`server/db/events.ts`, `supabase/schema.sql`)**:
+   - Set `MAX_PENDING_EVENTS_PER_ORGANIZATION = 5` in `server/db/events.ts`.
+   - Updated `create_event_atomic` RPC parameter default `p_max_pending_events` to 5.
+   - Updated `check_event_pending_limit` trigger function to enforce the 5-event boundary (`v_pending_count >= 5`).
+   - Created consolidated migration `supabase/migrations/20260928000000_update_pending_event_limit_to_5.sql`.
+2. **Error Message & UX Alignment**:
+   - Updated user-facing message across database, API error handlers, and frontend utilities:
+     `"You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one."`
+   - Only active pending events count toward this limit; expired, cancelled, completed, paid, and past-end-date events do not count.
+3. **Concurrency & Atomicity**:
+   - Preserved row-level locking (`SELECT ... FOR UPDATE` on `organizations`) to prevent race conditions under concurrent event creations.
+4. **Verification & Regression Testing**:
+   - Updated and passed `server/db/atomic_event_creation.test.ts` verifying limits 0 through 5, 6th creation rejection, concurrency race condition prevention, and slot reclamation on deletion/payment.
+   - Updated and passed `server/db/event_lifecycle_payment_separation.test.ts` covering 5 pending event limit and complete lifecycle/payment transitions.
+
+---
+
 ## [2026-09-19] - Showcase Approval Flow Consolidation, Decoupling & Comprehensive Verification
 
 ### Summary

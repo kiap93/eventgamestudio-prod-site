@@ -363,7 +363,10 @@ export function isOperationalError(err: any): boolean {
     code === 'SHOWCASE_NOT_ELIGIBLE' ||
     code === 'MODERATION_REASON_REQUIRED' ||
     msg.includes('pending_event_limit_reached') ||
+    msg.includes('maximum 5 pending payment events reached') ||
     msg.includes('maximum 2 pending payment events reached') ||
+    msg.includes('maximum allowed limit of 5 unpaid events') ||
+    msg.includes('maximum allowed limit of 2 unpaid events') ||
     msg.includes('organization limit') ||
     msg.includes('insufficient_balance') ||
     msg.includes('insufficient balance') ||
@@ -624,7 +627,10 @@ export function handleApiError(
   const isPendingLimit =
     String(err?.code || '') === 'PENDING_EVENT_LIMIT_REACHED' ||
     String(err?.message || '').toLowerCase().includes('pending_event_limit_reached') ||
-    String(err?.message || '').toLowerCase().includes('maximum 2 pending payment events reached');
+    String(err?.message || '').toLowerCase().includes('maximum 5 pending payment events reached') ||
+    String(err?.message || '').toLowerCase().includes('maximum 2 pending payment events reached') ||
+    String(err?.message || '').toLowerCase().includes('maximum allowed limit of 5 unpaid events') ||
+    String(err?.message || '').toLowerCase().includes('maximum allowed limit of 2 unpaid events');
 
   let statusCode = Number(err?.statusCode || err?.status);
   if (!statusCode || statusCode < 400 || statusCode > 599) {
@@ -706,7 +712,7 @@ export function handleApiError(
       ? 'PENDING_EVENT_LIMIT_REACHED'
       : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : statusCode === 503 ? 'PRICING_CONFIGURATION_ERROR' : 'BAD_REQUEST'));
     const errorMessage = isPendingLimit
-      ? 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.'
+      ? 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.'
       : (err.message || (statusCode === 503 ? 'Pricing service temporarily unavailable' : 'Bad Request'));
     res.status(statusCode).json({
       error: errorMessage,
@@ -829,7 +835,10 @@ export async function handleWorkerApiError(
   const isPendingLimit =
     String(err?.code || '') === 'PENDING_EVENT_LIMIT_REACHED' ||
     String(err?.message || '').toLowerCase().includes('pending_event_limit_reached') ||
-    String(err?.message || '').toLowerCase().includes('maximum 2 pending payment events reached');
+    String(err?.message || '').toLowerCase().includes('maximum 5 pending payment events reached') ||
+    String(err?.message || '').toLowerCase().includes('maximum 2 pending payment events reached') ||
+    String(err?.message || '').toLowerCase().includes('maximum allowed limit of 5 unpaid events') ||
+    String(err?.message || '').toLowerCase().includes('maximum allowed limit of 2 unpaid events');
 
   let statusCode = Number(err?.statusCode || err?.status);
   if (!statusCode || statusCode < 400 || statusCode > 599) {
@@ -914,7 +923,7 @@ export async function handleWorkerApiError(
       ? 'PENDING_EVENT_LIMIT_REACHED'
       : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : statusCode === 503 ? 'PRICING_CONFIGURATION_ERROR' : 'BAD_REQUEST'));
     const errorMessage = isPendingLimit
-      ? 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.'
+      ? 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.'
       : (err.message || (statusCode === 503 ? 'Pricing service temporarily unavailable' : 'Bad Request'));
     return new globalThis.Response(
       JSON.stringify({

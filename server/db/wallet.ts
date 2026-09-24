@@ -2846,6 +2846,7 @@ export async function processEventPayment(
     eventName?: string;
     description?: string;
     metadata?: Record<string, any>;
+    now?: Date;
   },
   env?: Record<string, any>
 ): Promise<{
@@ -3141,7 +3142,7 @@ export async function processEventPayment(
         cachedEvent = (await getEventById(eventId, env)) || undefined;
       }
       if (cachedEvent) {
-        const nextEventStatus = deriveEventLifecycleStatus({ ...cachedEvent, payment_status: 'PAID', cancel_reason: null });
+        const nextEventStatus = deriveEventLifecycleStatus({ ...cachedEvent, payment_status: 'PAID', cancel_reason: null }, params.now);
         const nextStatus = nextEventStatus === 'LIVE' ? 'live' : (nextEventStatus === 'COMPLETED' ? 'completed' : 'scheduled');
         cachedEvent.status = nextStatus;
         cachedEvent.event_status = nextEventStatus;
@@ -3399,7 +3400,7 @@ export async function processEventPayment(
         targetEv = (await getEventById(eventId, env)) || undefined;
       }
       if (targetEv) {
-        targetLifecycle = deriveEventLifecycleStatus({ ...targetEv, payment_status: 'PAID', cancel_reason: null });
+        targetLifecycle = deriveEventLifecycleStatus({ ...targetEv, payment_status: 'PAID', cancel_reason: null }, params.now);
         targetStatus = targetLifecycle === 'LIVE' ? 'live' : (targetLifecycle === 'COMPLETED' ? 'completed' : 'scheduled');
         targetEv.status = targetStatus;
         targetEv.event_status = targetLifecycle;

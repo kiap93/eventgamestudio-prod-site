@@ -24,8 +24,14 @@ export function getSupabaseServerClient(env?: Record<string, any>): SupabaseClie
 
   const rawKey =
     (env && typeof env.SUPABASE_SERVICE_ROLE_KEY === 'string' && env.SUPABASE_SERVICE_ROLE_KEY.trim() ? env.SUPABASE_SERVICE_ROLE_KEY.trim() : undefined) ??
+    (env && typeof env.SUPABASE_SERVICE_KEY === 'string' && env.SUPABASE_SERVICE_KEY.trim() ? env.SUPABASE_SERVICE_KEY.trim() : undefined) ??
+    (env && typeof env.SERVICE_ROLE_KEY === 'string' && env.SERVICE_ROLE_KEY.trim() ? env.SERVICE_ROLE_KEY.trim() : undefined) ??
+    (env && typeof env.SUPABASE_SECRET_KEY === 'string' && env.SUPABASE_SECRET_KEY.trim() ? env.SUPABASE_SECRET_KEY.trim() : undefined) ??
     (env && typeof env.SUPABASE_KEY === 'string' && env.SUPABASE_KEY.trim() ? env.SUPABASE_KEY.trim() : undefined) ??
     (procEnv.SUPABASE_SERVICE_ROLE_KEY?.trim()) ??
+    (procEnv.SUPABASE_SERVICE_KEY?.trim()) ??
+    (procEnv.SERVICE_ROLE_KEY?.trim()) ??
+    (procEnv.SUPABASE_SECRET_KEY?.trim()) ??
     (procEnv.SUPABASE_KEY?.trim()) ??
     'placeholder-service-key';
 

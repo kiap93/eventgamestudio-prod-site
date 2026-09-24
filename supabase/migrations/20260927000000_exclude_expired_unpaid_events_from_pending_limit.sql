@@ -69,8 +69,8 @@ BEGIN
         )
       );
 
-    IF v_pending_count >= 2 THEN
-      RAISE EXCEPTION 'PENDING_EVENT_LIMIT_REACHED: Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.'
+    IF v_pending_count >= 5 THEN
+      RAISE EXCEPTION 'PENDING_EVENT_LIMIT_REACHED: You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.'
         USING ERRCODE = '23514';
     END IF;
   END IF;
@@ -111,7 +111,7 @@ CREATE OR REPLACE FUNCTION public.create_event_atomic(
   p_public_token TEXT DEFAULT NULL,
   p_created_by UUID DEFAULT NULL,
   p_event_id UUID DEFAULT NULL,
-  p_max_pending_events INT DEFAULT 2,
+  p_max_pending_events INT DEFAULT 5,
   p_skip_pending_limit_check BOOLEAN DEFAULT FALSE,
   p_event_timezone TEXT DEFAULT NULL,
   p_pricing_id UUID DEFAULT NULL,
@@ -128,7 +128,7 @@ DECLARE
   v_game RECORD;
   v_target_game_id UUID;
   v_pending_count INT;
-  v_max_limit INT := COALESCE(p_max_pending_events, 2);
+  v_max_limit INT := COALESCE(p_max_pending_events, 5);
   v_is_pending BOOLEAN;
   v_event_id UUID;
   v_token TEXT;
@@ -419,8 +419,8 @@ BEGIN
       RETURN jsonb_build_object(
         'success', false,
         'code', 'PENDING_EVENT_LIMIT_REACHED',
-        'error', 'You have reached the maximum allowed pending events limit (' || v_max_limit || '). Please complete payment or cancel an existing unpaid event before creating a new one.',
-        'message', 'You have reached the maximum allowed pending events limit (' || v_max_limit || '). Please complete payment or cancel an existing unpaid event before creating a new one.',
+        'error', 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.',
+        'message', 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.',
         'pending_count', v_pending_count,
         'max_limit', v_max_limit
       );

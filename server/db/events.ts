@@ -2228,8 +2228,10 @@ export async function resolveAuthoritativeCatchBrandConfig(
  * Create a new Event record in the database.
  * Verifies that the referenced Game exists and is active.
  * Verifies that the referenced Game Theme belongs to the chosen Game and Organization.
- * Enforces the hard limit of MAXIMUM 2 PENDING_PAYMENT events per organization.
+ * Enforces the hard limit of MAXIMUM 5 PENDING_PAYMENT events per organization.
  */
+export const MAX_PENDING_EVENTS_PER_ORGANIZATION = 5;
+
 export async function createEvent(
   params: {
     organization_id: string;
@@ -2473,11 +2475,37 @@ export async function createEvent(
     p_public_token: token,
     p_created_by: params.created_by || null,
     p_event_id: id,
-    p_max_pending_events: 2,
+    p_max_pending_events: MAX_PENDING_EVENTS_PER_ORGANIZATION,
     p_skip_pending_limit_check: Boolean(params.skipPendingLimitCheck),
     p_event_timezone: resolvedTimezone,
     p_pricing_id: pricingId,
     p_duration_days: durationDays,
+  };
+
+  const dbPayload: any = {
+    id,
+    organization_id: params.organization_id,
+    game_id: targetGameId,
+    game_theme_id: params.game_theme_id,
+    name: params.name.trim(),
+    event_date: norm.event_date,
+    start_date: norm.start_date,
+    end_date: norm.end_date,
+    starts_at: norm.starts_at,
+    expires_at: norm.expires_at,
+    status: initialStatus,
+    event_status: initialEventStatus,
+    payment_status: initialPaymentStatus,
+    cancel_reason: params.cancel_reason || null,
+    event_price: price,
+    event_currency: currency,
+    event_timezone: resolvedTimezone,
+    pricing_id: pricingId,
+    duration_days: durationDays,
+    public_token: token,
+    created_by: params.created_by || null,
+    created_at: now,
+    updated_at: now,
   };
 
   let rpcAttempted = false;
@@ -2490,13 +2518,16 @@ export async function createEvent(
         if (
           rpcData.code === 'PENDING_EVENT_LIMIT_REACHED' ||
           String(rpcData.error || '').includes('PENDING_EVENT_LIMIT_REACHED') ||
+          String(rpcData.message || '').includes('pending payment events reached') ||
+          String(rpcData.message || '').includes('maximum allowed limit of 5 unpaid events') ||
+          String(rpcData.message || '').includes('maximum allowed limit of 2 unpaid events') ||
           String(rpcData.message || '').includes('Maximum 2 pending payment events reached') ||
           String(rpcData.error || '').includes('23514')
         ) {
           // Defense-in-depth: Verify against authoritative pending count which excludes expired events
           const actualPendingCount = await getPendingEventsCountByOrgId(params.organization_id, env);
-          if (actualPendingCount >= 2) {
-            const err: any = new Error(rpcData.message || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
+          if (actualPendingCount >= MAX_PENDING_EVENTS_PER_ORGANIZATION) {
+            const err: any = new Error(rpcData.message || 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.');
             err.code = 'PENDING_EVENT_LIMIT_REACHED';
             err.status = 422;
             err.stage = 'rpc_create_event_atomic';
@@ -2507,7 +2538,7 @@ export async function createEvent(
             throw err;
           }
 
-          // If actualPendingCount < 2, the deployed database RPC/trigger is running the legacy query that counted past-end-date events.
+          // If actualPendingCount < MAX_PENDING_EVENTS_PER_ORGANIZATION, the deployed database RPC/trigger is running the legacy query that counted past-end-date events.
           // Transition any past-due unpaid events belonging to this organization to EXPIRED so legacy DB triggers/RPCs don't block.
           const { data: pastDueEvents } = await supabase
             .from('events')
@@ -2543,23 +2574,15 @@ export async function createEvent(
             return createdRecord;
           }
 
-          if (isLocalFallbackAllowed(env)) {
-            // Local test fallback allowed
-            localEventsCache.set(id, dbPayload);
-            return dbPayload;
-          }
-
-          if (!isLocalFallbackAllowed(env) && isSupabaseConfigured(env)) {
-            const err: any = new Error(rpcData.message || 'Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
-            err.code = 'PENDING_EVENT_LIMIT_REACHED';
-            err.status = 422;
-            err.stage = 'rpc_create_event_atomic';
-            err.rpcName = 'create_event_atomic';
-            err.operation = 'create_event';
-            err.fallbackAttempted = false;
-            err.eventCreated = false;
-            throw err;
-          }
+          const err: any = new Error(rpcData.message || 'You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.');
+          err.code = 'PENDING_EVENT_LIMIT_REACHED';
+          err.status = 422;
+          err.stage = 'rpc_create_event_atomic';
+          err.rpcName = 'create_event_atomic';
+          err.operation = 'create_event';
+          err.fallbackAttempted = true;
+          err.eventCreated = false;
+          throw err;
         }
 
         const isOperational =
@@ -2701,12 +2724,15 @@ export async function createEvent(
         rpcError.message?.includes('PENDING_EVENT_LIMIT_REACHED') ||
         rpcError.code === '23514' ||
         rpcError.details?.includes('PENDING_EVENT_LIMIT_REACHED') ||
-        rpcError.message?.includes('pending payment events reached')
+        rpcError.message?.includes('pending payment events reached') ||
+        rpcError.message?.includes('maximum allowed limit of 5 unpaid events') ||
+        rpcError.message?.includes('maximum allowed limit of 2 unpaid events') ||
+        rpcError.message?.includes('Maximum 2 pending payment events reached')
       ) {
         // Defense-in-depth: Verify against authoritative pending count which excludes expired events
         const actualPendingCount = await getPendingEventsCountByOrgId(params.organization_id, env);
-        if (actualPendingCount >= 2) {
-          const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
+        if (actualPendingCount >= MAX_PENDING_EVENTS_PER_ORGANIZATION) {
+          const err: any = new Error('You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.');
           err.code = 'PENDING_EVENT_LIMIT_REACHED';
           err.status = 422;
           err.stage = 'rpc_create_event_atomic';
@@ -2717,7 +2743,7 @@ export async function createEvent(
           throw err;
         }
 
-        // If actualPendingCount < 2, the deployed database RPC/trigger is running the legacy query that counted past-end-date events.
+        // If actualPendingCount < MAX_PENDING_EVENTS_PER_ORGANIZATION, the deployed database RPC/trigger is running the legacy query that counted past-end-date events.
         // Transition any past-due unpaid events belonging to this organization to EXPIRED so legacy DB triggers/RPCs don't block.
         const { data: pastDueEvents } = await supabase
           .from('events')
@@ -2760,7 +2786,7 @@ export async function createEvent(
         }
 
         if (!isLocalFallbackAllowed(env) && isSupabaseConfigured(env)) {
-          const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
+          const err: any = new Error('You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.');
           err.code = 'PENDING_EVENT_LIMIT_REACHED';
           err.status = 422;
           err.stage = 'rpc_create_event_atomic';
@@ -2818,39 +2844,13 @@ export async function createEvent(
   // 8. Fallback Path: In-process limit check + direct insert (for mock/unit test environments without live RPC)
   if (isPending && !params.skipPendingLimitCheck) {
     const pendingCount = await getPendingEventsCountByOrgId(params.organization_id, env);
-    if (pendingCount >= 2) {
-      const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
+    if (pendingCount >= MAX_PENDING_EVENTS_PER_ORGANIZATION) {
+      const err: any = new Error('You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.');
       err.code = 'PENDING_EVENT_LIMIT_REACHED';
       err.status = 422;
       throw err;
     }
   }
-
-  const dbPayload: any = {
-    id,
-    organization_id: params.organization_id,
-    game_id: targetGameId,
-    game_theme_id: params.game_theme_id,
-    name: params.name.trim(),
-    event_date: norm.event_date,
-    start_date: norm.start_date,
-    end_date: norm.end_date,
-    starts_at: norm.starts_at,
-    expires_at: norm.expires_at,
-    status: initialStatus,
-    event_status: initialEventStatus,
-    payment_status: initialPaymentStatus,
-    cancel_reason: params.cancel_reason || null,
-    event_price: price,
-    event_currency: currency,
-    event_timezone: resolvedTimezone,
-    pricing_id: pricingId,
-    duration_days: durationDays,
-    public_token: token,
-    created_by: params.created_by || null,
-    created_at: now,
-    updated_at: now,
-  };
 
   let { data, error } = await supabase
     .from('events')
@@ -2863,16 +2863,19 @@ export async function createEvent(
     if (
       error.code === '23514' ||
       error.message?.includes('PENDING_EVENT_LIMIT_REACHED') ||
-      error.message?.includes('pending payment events reached')
+      error.message?.includes('pending payment events reached') ||
+      error.message?.includes('maximum allowed limit of 5 unpaid events') ||
+      error.message?.includes('maximum allowed limit of 2 unpaid events') ||
+      error.message?.includes('Maximum 2 pending payment events reached')
     ) {
       if (isLocalFallbackAllowed(env)) {
         const pendingCount = await getPendingEventsCountByOrgId(params.organization_id, env);
-        if (pendingCount < 2) {
+        if (pendingCount < MAX_PENDING_EVENTS_PER_ORGANIZATION) {
           localEventsCache.set(id, dbPayload);
           return dbPayload;
         }
       }
-      const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
+      const err: any = new Error('You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.');
       err.code = 'PENDING_EVENT_LIMIT_REACHED';
       err.status = 422;
       throw err;
@@ -2938,9 +2941,12 @@ export async function createEvent(
         if (
           error.code === '23514' ||
           error.message?.includes('PENDING_EVENT_LIMIT_REACHED') ||
-          error.message?.includes('pending payment events reached')
+          error.message?.includes('pending payment events reached') ||
+          error.message?.includes('maximum allowed limit of 5 unpaid events') ||
+          error.message?.includes('maximum allowed limit of 2 unpaid events') ||
+          error.message?.includes('Maximum 2 pending payment events reached')
         ) {
-          const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
+          const err: any = new Error('You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.');
           err.code = 'PENDING_EVENT_LIMIT_REACHED';
           err.status = 422;
           throw err;
@@ -3037,9 +3043,12 @@ export async function createEvent(
       if (
         error.code === '23514' ||
         error.message?.includes('PENDING_EVENT_LIMIT_REACHED') ||
-        error.message?.includes('pending payment events reached')
+        error.message?.includes('pending payment events reached') ||
+        error.message?.includes('maximum allowed limit of 5 unpaid events') ||
+        error.message?.includes('maximum allowed limit of 2 unpaid events') ||
+        error.message?.includes('Maximum 2 pending payment events reached')
       ) {
-        const err: any = new Error('Maximum 2 pending payment events reached. Please pay for or delete an existing pending event.');
+        const err: any = new Error('You have reached the maximum allowed limit of 5 unpaid events. Please pay for or delete an existing pending event before creating a new one.');
         err.code = 'PENDING_EVENT_LIMIT_REACHED';
         err.status = 422;
         err.stage = 'fallback_insert';

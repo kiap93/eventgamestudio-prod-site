@@ -178,6 +178,8 @@ export interface EventQuoteOption {
   reasons: string[];
 }
 
+export const MAX_PENDING_EVENTS_PER_ORGANIZATION = 5;
+
 export type EventLifecycleStatus = 'DRAFT' | 'PAYMENT_PENDING' | 'PENDING_PAYMENT' | 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
 export type PaymentLifecycleStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
 export type EventCancelReason = 'USER_CANCELLED' | 'PAYMENT_TIMEOUT' | 'ADMIN_CANCELLED';
