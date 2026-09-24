@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import { navigateTo } from '../../hooks/useRouteContext';
@@ -197,13 +197,173 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
     }
   }, [eventId]);
 
+  // Character count & validation rules
+  const MIN_REWARD_DESC_LENGTH = 50;
+  const descriptionTrimmed = description.trim();
+  const descriptionCharCount = descriptionTrimmed.length;
+
+  const savedDescription = (showcase?.description || '').trim();
+  const savedDescriptionCharCount = savedDescription.length;
+  const isSavedDescriptionValid = savedDescriptionCharCount >= MIN_REWARD_DESC_LENGTH;
+
+  // Track whether description has unsaved edits
+  const isDescriptionDirty = useMemo(() => {
+    const savedDesc = showcase?.description || '';
+    return description !== savedDesc;
+  }, [showcase, description]);
+
+  // Track any unsaved changes across all form fields
+  const hasUnsavedChanges = useMemo(() => {
+    if (!showcase) {
+      return Boolean(
+        description.trim() ||
+        clientName.trim() ||
+        clientLogoUrl.trim() ||
+        coverImageUrl.trim() ||
+        (title.trim() && title.trim() !== (eventData?.name || 'Event Showcase').trim())
+      );
+    }
+    const currentTitle = title.trim();
+    const savedTitle = (showcase.title || '').trim();
+    const currentDesc = description;
+    const savedDesc = showcase.description || '';
+    const currentClientName = clientName.trim();
+    const savedClientName = (showcase.client_name || '').trim();
+    const currentClientLogo = clientLogoUrl.trim();
+    const savedClientLogo = (showcase.client_logo_url || '').trim();
+    const currentCover = coverImageUrl.trim();
+    const savedCover = (showcase.cover_image_url || '').trim();
+
+    return (
+      currentTitle !== savedTitle ||
+      currentDesc !== savedDesc ||
+      currentClientName !== savedClientName ||
+      currentClientLogo !== savedClientLogo ||
+      currentCover !== savedCover
+    );
+  }, [showcase, title, description, clientName, clientLogoUrl, coverImageUrl, eventData]);
+
+  // Media counts matching backend requirements (>= 3 photos or >= 1 video)
+  const photos = useMemo(() => {
+    return mediaList.filter(
+      (m) => m.media_type === 'IMAGE' || (!m.media_type && !m.mime_type?.startsWith('video/'))
+    );
+  }, [mediaList]);
+
+  const videos = useMemo(() => {
+    return mediaList.filter(
+      (m) => m.media_type === 'VIDEO' || m.mime_type?.startsWith('video/')
+    );
+  }, [mediaList]);
+
+  const hasRequiredMedia = photos.length >= 3 || videos.length >= 1;
+
+  // Event and User reward eligibility
+  const isOwner = userRole === 'owner' || Boolean(currentOrganization?.role === 'owner');
+  const eventRewardElig = useMemo(() => {
+    return eventData ? isEventEligibleForShowcaseRewardSubmission(eventData) : { eligible: true };
+  }, [eventData]);
+
+  const hasExistingSubmission = Boolean(rewardSubmission);
+  const isRewardApproved = rewardSubmission?.status === 'APPROVED' || showcase?.reward_review_status === 'REWARDED';
+  const isRewardPending = rewardSubmission?.status === 'PENDING';
+  const isRewardRejected = rewardSubmission?.status === 'REJECTED';
+  const alreadyClaimed = Boolean(rewardEligibility?.alreadyClaimed);
+
+  // Is account and event eligible for reward submission workflow
+  const isRewardAccountEligible = Boolean(
+    (rewardEligibility === null || rewardEligibility?.eligible !== false || isOwner) &&
+    eventRewardElig.eligible
+  );
+
+  // Can the user submit right now? (Save -> Validate -> Submit flow)
+  const isEligibleForRewardSubmit = Boolean(
+    isRewardAccountEligible &&
+    !hasExistingSubmission &&
+    !alreadyClaimed &&
+    !isRewardApproved &&
+    Boolean(showcase) &&
+    !hasUnsavedChanges &&
+    isSavedDescriptionValid &&
+    hasRequiredMedia
+  );
+
+  // Reason why reward submission button is disabled
+  const rewardIneligibilityReason = useMemo(() => {
+    if (!eventRewardElig.eligible) {
+      return eventRewardElig.reason || 'Showcase reward requires a confirmed, paid event that is live or completed.';
+    }
+    if (rewardEligibility && rewardEligibility.eligible === false && !isOwner) {
+      return rewardEligibility.reason || 'Only organization owners with unclaimed lifetime rewards are eligible.';
+    }
+    if (hasUnsavedChanges) {
+      return 'Save your changes before submitting for the RM300 reward.';
+    }
+    if (!showcase) {
+      return 'Save your showcase first before submitting for the RM300 reward.';
+    }
+    if (!isSavedDescriptionValid) {
+      return `Showcase description must be at least ${MIN_REWARD_DESC_LENGTH} characters.`;
+    }
+    if (!hasRequiredMedia) {
+      return `Upload at least 3 photos or 1 video to qualify for reward review (${photos.length}/3 photos, ${videos.length} videos).`;
+    }
+    return '';
+  }, [
+    eventRewardElig,
+    rewardEligibility,
+    isOwner,
+    hasUnsavedChanges,
+    showcase,
+    isSavedDescriptionValid,
+    MIN_REWARD_DESC_LENGTH,
+    hasRequiredMedia,
+    photos.length,
+    videos.length,
+  ]);
+
   // Handle Submit for RM300 Reward
   const handleSubmitReward = async () => {
     if (submittingReward) return;
+
+    // Guard: require changes to be saved first
+    if (hasUnsavedChanges) {
+      setError('Save your changes before submitting for the RM300 reward.');
+      return;
+    }
+
+    // Guard: require saved description >= 50 characters
+    const savedDesc = (showcase?.description || '').trim();
+    if (savedDesc.length < MIN_REWARD_DESC_LENGTH) {
+      setError(`Showcase description must be at least ${MIN_REWARD_DESC_LENGTH} characters to qualify for reward review.`);
+      return;
+    }
+
     try {
       setSubmittingReward(true);
       setError(null);
       setSuccessMsg(null);
+
+      // Auto-publish showcase if not published yet, so backend doesn't reject with SHOWCASE_NOT_PUBLISHED
+      if (showcase && showcase.status !== 'PUBLISHED') {
+        const pubRes = await apiFetch(`/api/events/${eventId}/showcase/publish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: showcase.title,
+            description: showcase.description,
+            client_name: showcase.client_name,
+            client_logo_url: showcase.client_logo_url,
+            cover_image_url: showcase.cover_image_url,
+          }),
+        });
+        if (pubRes.ok) {
+          const pubData = await pubRes.json();
+          if (pubData.showcase) {
+            setShowcase(pubData.showcase);
+          }
+        }
+      }
 
       const res = await apiFetch(`/api/events/${eventId}/showcase/reward-submission`, {
         method: 'POST',
@@ -283,10 +443,37 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
       }
 
       const resData = await res.json();
-      setShowcase(resData.showcase);
+      const savedSc: EventShowcase = resData.showcase;
+      setShowcase(savedSc);
+
+      // Update form fields to match saved values exactly
+      if (savedSc) {
+        setTitle(savedSc.title || '');
+        setDescription(savedSc.description || '');
+        setClientName(savedSc.client_name || '');
+        setClientLogoUrl(savedSc.client_logo_url || '');
+        setCoverImageUrl(savedSc.cover_image_url || '');
+      }
+
+      // Re-fetch reward submission & eligibility using latest saved data
+      try {
+        const subRes = await apiFetch(`/api/events/${eventId}/showcase/reward-submission`);
+        if (subRes.ok) {
+          const subData = await subRes.json();
+          if (subData.submission !== undefined) {
+            setRewardSubmission(subData.submission);
+          }
+          if (subData.eligibility !== undefined) {
+            setRewardEligibility(subData.eligibility);
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
+
       setSuccessMsg('Showcase saved successfully!');
       setTimeout(() => setSuccessMsg(null), 3500);
-      return resData.showcase;
+      return savedSc;
     } catch (err: any) {
       console.error('Save showcase error:', err);
       setError(err.message || 'Failed to save showcase');
@@ -620,9 +807,6 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
     }
   };
 
-  const photos = mediaList.filter((m) => m.media_type === 'IMAGE');
-  const videos = mediaList.filter((m) => m.media_type === 'VIDEO');
-
   const getStatusBadge = (status?: string) => {
     switch (status) {
       case 'PUBLISHED':
@@ -850,13 +1034,21 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                   </div>
                 )}
 
-                {!rewardSubmission && rewardEligibility?.eligible && (!eventData || isEventEligibleForShowcaseRewardSubmission(eventData).eligible) && (
+                {!rewardSubmission && !isRewardApproved && !alreadyClaimed && isRewardAccountEligible && (
                   <button
                     type="button"
                     onClick={handleSubmitReward}
-                    disabled={submittingReward}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer disabled:opacity-50"
-                    title="Submit this first-event showcase for RM300 Reward"
+                    disabled={!isEligibleForRewardSubmit || submittingReward}
+                    className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black transition-all shadow-md ${
+                      isEligibleForRewardSubmit && !submittingReward
+                        ? 'bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-amber-500/20 cursor-pointer'
+                        : 'bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed opacity-50'
+                    }`}
+                    title={
+                      !isEligibleForRewardSubmit
+                        ? rewardIneligibilityReason
+                        : 'Submit this first-event showcase for RM300 Reward'
+                    }
                   >
                     <Gift className="w-4 h-4 text-slate-950" />
                     <span>{submittingReward ? 'Submitting...' : 'Submit for RM300 Reward'}</span>
@@ -867,10 +1059,14 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                   type="button"
                   onClick={() => handleSave()}
                   disabled={saving}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 transition-all cursor-pointer shadow-sm"
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm disabled:opacity-50 ${
+                    hasUnsavedChanges
+                      ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20 font-black'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                  }`}
                 >
-                  <Save className="w-4 h-4 text-amber-400" />
-                  <span>{saving ? 'Saving...' : showcase ? 'Save Changes' : 'Save Draft'}</span>
+                  <Save className={`w-4 h-4 ${hasUnsavedChanges ? 'text-slate-950' : 'text-amber-400'}`} />
+                  <span>{saving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : showcase ? 'Save Changes' : 'Save Draft'}</span>
                 </button>
 
                 {showcase?.status === 'PUBLISHED' ? (
@@ -940,6 +1136,113 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             </span>
           </div>
         )}
+
+        {/* Unsubmitted Reward Submission Card (Save -> Validate -> Submit Flow) */}
+        {!rewardSubmission && !isRewardApproved && !alreadyClaimed && isRewardAccountEligible && !isViewer && (
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400">
+                  <Gift className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-black text-slate-100">
+                      Reward submission
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                      RM300 Reward
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    First-event showcase reward for account owners. Requires min. 50 characters and 3 photos / 1 video.
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="shrink-0">
+                {isEligibleForRewardSubmit ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>✓ Eligible for RM300 Reward</span>
+                  </span>
+                ) : hasUnsavedChanges ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                    <AlertCircle className="w-4 h-4 text-amber-400" />
+                    <span>Unsaved Changes</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-400">
+                    <Clock className="w-4 h-4 text-slate-500" />
+                    <span>Requirements Incomplete</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Explanatory Message & Character Counter */}
+            <div className="p-3.5 bg-slate-950/70 border border-slate-800/80 rounded-2xl space-y-2">
+              {isEligibleForRewardSubmit ? (
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>✓ Eligible for RM300 Reward</span>
+                </div>
+              ) : (
+                <div className="text-xs text-slate-300 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <span>{rewardIneligibilityReason}</span>
+                </div>
+              )}
+
+              {/* Character Counter Display */}
+              <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-800/60">
+                <span className="text-slate-400">Showcase description</span>
+                <span className={`font-mono font-bold ${
+                  descriptionCharCount >= MIN_REWARD_DESC_LENGTH ? 'text-emerald-400' : 'text-amber-400'
+                }`}>
+                  {descriptionCharCount} / {MIN_REWARD_DESC_LENGTH} characters
+                </span>
+              </div>
+            </div>
+
+            {/* Flow Buttons: [Save Changes] and [Submit for RM300 Reward] */}
+            <div className="flex items-center gap-3 pt-1 flex-wrap">
+              <button
+                type="button"
+                onClick={() => handleSave()}
+                disabled={saving}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50 ${
+                  hasUnsavedChanges
+                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20 font-black ring-2 ring-amber-400/40'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                }`}
+              >
+                <Save className={`w-4 h-4 ${hasUnsavedChanges ? 'text-slate-950' : 'text-amber-400'}`} />
+                <span>{saving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : 'Saved'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSubmitReward}
+                disabled={!isEligibleForRewardSubmit || submittingReward}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md ${
+                  isEligibleForRewardSubmit && !submittingReward
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-amber-500/25 cursor-pointer font-black'
+                    : 'bg-slate-800/80 text-slate-500 border border-slate-700/50 cursor-not-allowed opacity-50'
+                }`}
+                title={
+                  !isEligibleForRewardSubmit
+                    ? rewardIneligibilityReason
+                    : 'Submit this showcase for RM300 promotional credit review'
+                }
+              >
+                <Gift className="w-4 h-4" />
+                <span>{submittingReward ? 'Submitting...' : 'Submit for RM300 Reward'}</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Global Upload Queue Progress */}
@@ -981,17 +1284,64 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1.5">
-              Description & Highlights
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-slate-300">
+                Description & Highlights
+              </label>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`text-[11px] font-mono font-bold ${
+                    descriptionCharCount >= MIN_REWARD_DESC_LENGTH
+                      ? 'text-emerald-400'
+                      : 'text-amber-400'
+                  }`}
+                >
+                  {descriptionCharCount} / {MIN_REWARD_DESC_LENGTH} characters
+                </span>
+                {descriptionCharCount >= MIN_REWARD_DESC_LENGTH && (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                )}
+              </div>
+            </div>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
               placeholder="Detail the activation goals, attendee engagement, leaderboard performance, and key highlights..."
               disabled={isViewer}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder:text-slate-600 outline-none resize-none transition-all disabled:opacity-60"
+              className={`w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder:text-slate-600 outline-none resize-none transition-all disabled:opacity-60 ${
+                descriptionCharCount >= MIN_REWARD_DESC_LENGTH
+                  ? 'border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+                  : 'border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500'
+              }`}
             />
+            <div className="flex items-center justify-between mt-1.5 text-[11px] flex-wrap gap-2">
+              {descriptionCharCount < MIN_REWARD_DESC_LENGTH ? (
+                <span className="text-amber-400 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    Showcase description must be at least {MIN_REWARD_DESC_LENGTH} characters to qualify for reward review ({MIN_REWARD_DESC_LENGTH - descriptionCharCount} more needed).
+                  </span>
+                </span>
+              ) : isDescriptionDirty ? (
+                <span className="text-amber-400 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Save your changes before submitting for the RM300 reward.</span>
+                </span>
+              ) : (
+                <span className="text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Description meets {MIN_REWARD_DESC_LENGTH} character requirement and is saved.</span>
+                </span>
+              )}
+              <span
+                className={`font-mono text-right ml-auto ${
+                  descriptionCharCount >= MIN_REWARD_DESC_LENGTH ? 'text-emerald-400 font-bold' : 'text-slate-500'
+                }`}
+              >
+                {descriptionCharCount} / {MIN_REWARD_DESC_LENGTH} characters
+              </span>
+            </div>
           </div>
 
           {/* Client Info */}
@@ -1272,18 +1622,31 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
       {/* Bottom Sticky Save Bar if needed */}
       {!isViewer && (
         <div className="flex items-center justify-between p-4 bg-slate-900/90 border border-slate-800 rounded-2xl backdrop-blur-md">
-          <span className="text-xs text-slate-400">
-            Ready to publish or save your showcase updates?
-          </span>
+          <div className="flex items-center gap-2">
+            {hasUnsavedChanges ? (
+              <span className="text-xs text-amber-400 font-semibold flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>You have unsaved changes.</span>
+              </span>
+            ) : (
+              <span className="text-xs text-slate-400">
+                Showcase is up to date.
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => handleSave()}
               disabled={saving}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer disabled:opacity-50 ${
+                hasUnsavedChanges
+                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20 font-black'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+              }`}
             >
-              <Save className="w-4 h-4" />
-              <span>{saving ? 'Saving...' : 'Save Showcase'}</span>
+              <Save className={`w-4 h-4 ${hasUnsavedChanges ? 'text-slate-950' : 'text-amber-400'}`} />
+              <span>{saving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : showcase ? 'Save Changes' : 'Save Draft'}</span>
             </button>
           </div>
         </div>
