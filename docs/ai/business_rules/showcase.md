@@ -185,4 +185,30 @@ Managed via `server/db/showcaseMedia.ts` and Supabase Storage bucket `showcase-m
 | `public.owner_showcase_rewards` | Authoritative ledger enforcing one showcase reward per owner lifetime |
 | `public.user_rewards` | Centralized user-level promotional ledger (type: 'SHOWCASE_CREDIT') |
 | `public.showcase_moderation_logs` | Audit trail of all admin moderation and reward decisions |
-| `trg_prevent_event_showcase_unauthorized_client_mutations` | Trigger blocking direct client mutations on `event_showcases` |
+| `trg_prevent_event_showcase_unauthorized_client_mutations` | Trigger blocking direct client mutations on `event_showcases` while securely allowing `service_role` backend connections across PostgREST JWT claims, role settings, and SECURITY DEFINER RPCs |
+
+---
+
+## 9. Authoritative Backend Publish Flow (`publish_event_showcase_atomic`)
+
+To ensure atomic self-service publication and defense against race conditions, the backend uses a dedicated PostgreSQL stored procedure (`publish_event_showcase_atomic` in migration `20260929000000`):
+
+```sql
+SELECT * FROM public.publish_event_showcase_atomic(
+  p_event_id       => '...',
+  p_title          => '...',
+  p_description    => NULL,
+  p_client_name    => NULL,
+  p_client_logo_url => NULL,
+  p_cover_image_url => NULL,
+  p_owner_user_id  => '...'
+);
+```
+
+### Key Properties:
+- **SECURITY DEFINER Context**: Executes with elevated database privileges so the operation is not rejected by `trg_prevent_event_showcase_unauthorized_client_mutations`.
+- **Nullable Metadata Support**: Allows `description`, `client_name`, `client_logo_url`, and `cover_image_url` to be `null` without throwing database nullability or validation errors.
+- **Atomic Upsert Logic**: Performs a row-lock (`FOR UPDATE`) on any existing showcase for the event. If found, updates metadata and transitions status to `PUBLISHED`. If none exists, performs an atomic insert with unique-violation conflict handling.
+- **Idempotent Self-Service**: Multiple publish invocations safely update metadata and maintain `status = 'PUBLISHED'` and `publication_status = 'PUBLISHED'`.
+- **Decoupled Workflows**: Does not require editorial event review or reward approval. If an existing showcase is `BLOCKED`, publication is rejected with `SHOWCASE_BLOCKED` (HTTP 403).
+

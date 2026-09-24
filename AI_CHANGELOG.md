@@ -4,6 +4,42 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-09-24] - Event Showcase Publish 500 Fix & Atomic RPC Consolidation
+
+### Summary
+Diagnosed and resolved the production HTTP 500 error on `POST /api/events/:eventId/showcase/publish`. Replaced the direct table mutation trigger vulnerability with the canonical `publish_event_showcase_atomic` SECURITY DEFINER RPC, hardened the `prevent_event_showcase_unauthorized_client_mutations` trigger against modern PostgREST / Cloudflare Worker service-role execution patterns, accepted nullable showcase fields safely, and enriched Worker error observability.
+
+### Root Cause Analysis
+1. **Trigger Rejection of Service Role Backend Connections**:
+   - The database trigger `prevent_event_showcase_unauthorized_client_mutations` previously relied exclusively on `current_setting('request.jwt.claim.role', true)` and `auth.role()`.
+   - In modern PostgREST / Supabase environments and Cloudflare Workers executing with `SUPABASE_SERVICE_ROLE_KEY`, claims are often packaged in `request.jwt.claims` JSON or evaluated under session roles where individual claim settings are absent, causing legitimate backend operations to be misclassified as client mutations and rejected.
+2. **Missing Authoritative RPC Utilization**:
+   - Migration `20260929000000_fix_showcase_service_role_trigger.sql` existed in the repository defining `publish_event_showcase_atomic` and a hardened trigger, but the active runtime path in `worker.ts` and `server/db/showcases.ts` was still attempting direct table mutations on `event_showcases`.
+
+### Key Changes Implemented
+1. **Migration & Schema Hardening (`supabase/migrations/20260929000000_fix_showcase_service_role_trigger.sql`, `supabase/schema.sql`)**:
+   - Trigger `prevent_event_showcase_unauthorized_client_mutations` now robustly inspects:
+     - `current_user` and `session_user` in `('postgres', 'supabase_admin', 'service_role')`
+     - `current_setting('role', true) = 'service_role'`
+     - `request.jwt.claim.role`
+     - JSON parsing of `request.jwt.claims ->> 'role'`
+     - `auth.role() = 'service_role'`
+   - Added concurrency row locks (`FOR UPDATE`) and `unique_violation` exception recovery to `publish_event_showcase_atomic`.
+   - Added defense-in-depth checks requiring `payment_status = 'PAID'` and non-cancelled/non-expired lifecycle status in the RPC.
+   - Restricted RPC execution via `REVOKE ... FROM PUBLIC, anon, authenticated` and `GRANT ... TO service_role, postgres`.
+2. **Authoritative Backend Publish Path (`server/db/showcases.ts`, `worker.ts`, `server.ts`)**:
+   - Updated `publishShowcase` to invoke `supabase.rpc('publish_event_showcase_atomic', ...)` as the primary production execution path with fallback to direct table / in-memory local caching only if RPC is missing or in mock environments.
+   - Safely handles optional/nullable metadata (`description`, `client_name`, `client_logo_url`, `cover_image_url`).
+   - Maintained self-service publication: no admin approval or reward review gating required to publish.
+3. **Structured Logging & Error Observability (`worker.ts`, `server.ts`)**:
+   - Added structured error logs in the Cloudflare Worker publish route logging `requestId`, `eventId`, `userId`, `organizationId`, `existingShowcaseId`, `existingShowcaseStatus`, `publishPath`, and sanitized error codes/details.
+   - Preserved appropriate 4xx status codes (403 for blocked showcase, 404 for event not found, 422 for unstarted/unpaid event).
+4. **Verification & Regression Testing (`server/db/showcase_atomic_publish.test.ts`, `server/db/migration_integrity.test.ts`, `server/db/showcase_decoupled_flow.test.ts`)**:
+   - Created `server/db/showcase_atomic_publish.test.ts` verifying the exact production payload (`title: 'egefa'`, null metadata fields), updates to existing showcases, blocked showcase rejection (403), unpaid event rejection (422), unstarted event rejection (422), and reward decoupling.
+   - Verified that all 46 decoupled showcase scenarios and migration integrity tests pass with 0 errors.
+
+---
+
 ## [2026-09-24] - Organization Pending Event Limit Updated from 2 to 5
 
 ### Summary

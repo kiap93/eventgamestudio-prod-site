@@ -224,9 +224,20 @@ This document catalogs the verified REST API endpoints implemented across the No
 - **Auth**: `Bearer <token>`.
 
 ### `POST /api/events/:id/showcase/publish`
-- **Purpose**: Publishes showcase live immediately ("Publish First, Moderate Later").
-- **Auth**: `Bearer <token>`.
-- **Side-Effect**: Evaluates reward criteria; sets `reward_status = 'AWAITING_APPROVAL'` if eligible.
+- **Purpose**: Publishes showcase live immediately ("Publish First, Moderate Later") via atomic backend RPC (`publish_event_showcase_atomic`).
+- **Auth**: `Bearer <token>` (Org owner or admin).
+- **Request Body (Optional / Nullable)**:
+  ```json
+  {
+    "title": "Client Brand Activation",
+    "description": null,
+    "client_name": null,
+    "client_logo_url": null,
+    "cover_image_url": null
+  }
+  ```
+- **Backend Execution**: Executes `publish_event_showcase_atomic` under `SECURITY DEFINER` with row locks. Supports both new showcase creation and updating existing showcase. Nullable fields are safely accepted without failing validation.
+- **Side-Effect**: Triggers asynchronous background reward evaluation; sets `reward_status = 'AWAITING_APPROVAL'` if first-completed event criteria are met. Reward evaluation does NOT gate publication. Structured error logging records `requestId`, `eventId`, `userId`, `organizationId`, `publishPath`, and database error codes.
 
 ### `POST /api/events/:id/showcase/media`
 - **Purpose**: Uploads and attaches a photo or video to the showcase.

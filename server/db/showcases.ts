@@ -1583,6 +1583,7 @@ export async function getAllShowcasesForAdmin(
 export async function publishShowcase(
   eventId: string,
   updatesOrEnv?: {
+    owner_user_id?: string | null;
     title?: string | null;
     description?: string | null;
     client_name?: string | null;
@@ -1592,6 +1593,7 @@ export async function publishShowcase(
   possibleEnv?: Record<string, any>
 ): Promise<EventShowcaseRecord> {
   let updates: {
+    owner_user_id?: string | null;
     title?: string | null;
     description?: string | null;
     client_name?: string | null;
@@ -1639,15 +1641,137 @@ export async function publishShowcase(
   const existing = await getShowcaseByEventId(eventId, env);
   console.log(`[Showcase Publish] showcase lookup result: ${existing ? `Found existing showcase (id=${existing.id}, status=${existing.status})` : 'None found (will create and publish new showcase)'}`);
 
+  if (existing && existing.status === 'BLOCKED') {
+    const err = new Error('Cannot publish a blocked showcase. Please contact support.');
+    (err as any).code = 'SHOWCASE_BLOCKED';
+    (err as any).status = 403;
+    throw err;
+  }
+
+  const titleToUse = updates?.title !== undefined && updates.title !== null
+    ? updates.title.trim()
+    : (existing?.title || event.name?.trim() || 'Event Showcase');
+
+  // Preferred Production Path: Single Atomic PostgreSQL RPC under SECURITY DEFINER
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    try {
+      const rpcParams = {
+        p_event_id: eventId,
+        p_title: titleToUse,
+        p_description: updates?.description !== undefined ? (updates.description ? updates.description.trim() : null) : null,
+        p_client_name: updates?.client_name !== undefined ? (updates.client_name ? updates.client_name.trim() : null) : null,
+        p_client_logo_url: updates?.client_logo_url !== undefined ? (updates.client_logo_url ? updates.client_logo_url.trim() : null) : null,
+        p_cover_image_url: updates?.cover_image_url !== undefined ? (updates.cover_image_url ? updates.cover_image_url.trim() : null) : null,
+        p_owner_user_id: updates?.owner_user_id || null,
+      };
+
+      console.log(`[Showcase Publish] invoking publish_event_showcase_atomic RPC for event ${eventId}`);
+      const { data: rpcData, error: rpcError } = await supabase.rpc('publish_event_showcase_atomic', rpcParams);
+
+      if (!rpcError && rpcData) {
+        const publishedRecord = (typeof rpcData === 'string' ? JSON.parse(rpcData) : rpcData) as EventShowcaseRecord;
+        if (isLocalFallbackAllowed(env)) {
+          localShowcasesCache.set(eventId, publishedRecord);
+        }
+        await notifyShowcaseEvent('SHOWCASE_PUBLISHED', publishedRecord, env).catch((notifyErr) => {
+          console.warn('Failed to send showcase published notification:', notifyErr);
+        });
+        return publishedRecord;
+      }
+
+      if (rpcError) {
+        console.error(`[Showcase Publish] publish_event_showcase_atomic RPC returned error:`, rpcError);
+
+        // Map known database operational codes to status/code
+        if (rpcError.code === 'P0003' || String(rpcError.message || '').includes('blocked showcase')) {
+          const err = new Error('Cannot publish a blocked showcase. Please contact support.');
+          (err as any).code = 'SHOWCASE_BLOCKED';
+          (err as any).status = 403;
+          throw err;
+        }
+        if (rpcError.code === 'P0002' || String(rpcError.message || '').includes('Event not found')) {
+          const err = new Error('Event not found');
+          (err as any).code = 'EVENT_NOT_FOUND';
+          (err as any).status = 404;
+          throw err;
+        }
+        if (rpcError.code === 'P0004' || String(rpcError.message || '').includes('confirmed, paid event')) {
+          const err = new Error('Showcase requires a confirmed, paid event.');
+          (err as any).code = 'EVENT_UNPAID';
+          (err as any).status = 422;
+          throw err;
+        }
+        if (rpcError.code === 'P0005' || String(rpcError.message || '').includes('cancelled or expired')) {
+          const err = new Error(eligibility.reason || 'Showcase is not available for cancelled or expired events.');
+          (err as any).code = eligibility.code || 'SHOWCASE_NOT_ELIGIBLE';
+          (err as any).status = 422;
+          throw err;
+        }
+
+        const isMissingRpc =
+          rpcError.code === 'PGRST202' ||
+          String(rpcError.message || '').includes('Could not find the function') ||
+          String(rpcError.message || '').includes('does not exist');
+
+        const isLocalShowcaseFallback =
+          isLocalFallbackAllowed(env) &&
+          (rpcError.code === 'P0001' || String(rpcError.message || '').includes('Placeholder Supabase credentials'));
+
+        if (!isMissingRpc && !isLocalShowcaseFallback && !isLocalFallbackAllowed(env)) {
+          const dbErr = new Error(`Database error publishing showcase: ${rpcError.message || 'Unknown error'}`);
+          (dbErr as any).code = rpcError.code;
+          (dbErr as any).details = rpcError.details;
+          throw dbErr;
+        }
+
+        // If RPC is missing and direct table mutations are allowed, fall back
+        if (isMissingRpc) {
+          console.warn(`[Showcase Publish] publish_event_showcase_atomic not found in schema cache, attempting direct table mutation`);
+          let directResult: EventShowcaseRecord;
+          if (existing) {
+            directResult = await updateShowcase(
+              eventId,
+              {
+                ...(updates || {}),
+                status: 'PUBLISHED',
+                publication_status: 'PUBLISHED',
+              },
+              env
+            );
+          } else {
+            directResult = await createShowcase(
+              {
+                event_id: event.id,
+                organization_id: event.organization_id,
+                title: titleToUse,
+                description: updates?.description !== undefined ? (updates.description ? updates.description.trim() : null) : null,
+                client_name: updates?.client_name !== undefined ? (updates.client_name ? updates.client_name.trim() : null) : null,
+                client_logo_url: updates?.client_logo_url !== undefined ? (updates.client_logo_url ? updates.client_logo_url.trim() : null) : null,
+                cover_image_url: updates?.cover_image_url !== undefined ? (updates.cover_image_url ? updates.cover_image_url.trim() : null) : null,
+                status: 'PUBLISHED',
+              },
+              env
+            );
+          }
+          await notifyShowcaseEvent('SHOWCASE_PUBLISHED', directResult, env).catch(() => {});
+          return directResult;
+        }
+      }
+    } catch (err: any) {
+      if (err.status || err.code === 'SHOWCASE_BLOCKED' || err.code === 'EVENT_NOT_FOUND' || err.code === 'EVENT_UNPAID' || err.code === 'SHOWCASE_NOT_ELIGIBLE') {
+        throw err;
+      }
+      if (!isLocalFallbackAllowed(env)) {
+        throw err;
+      }
+      // Fall back to atomic in-memory execution below
+    }
+  }
+
+  // Fallback path: In-process execution (for local development and mock unit testing)
   let result: EventShowcaseRecord;
   if (existing) {
-    if (existing.status === 'BLOCKED') {
-      const err = new Error('Cannot publish a blocked showcase. Please contact support.');
-      (err as any).code = 'SHOWCASE_BLOCKED';
-      (err as any).status = 403;
-      throw err;
-    }
-
     result = await updateShowcase(
       eventId,
       {
@@ -1657,10 +1781,9 @@ export async function publishShowcase(
       },
       env
     );
-    await notifyShowcaseEvent('SHOWCASE_PUBLISHED', result, env);
+    await notifyShowcaseEvent('SHOWCASE_PUBLISHED', result, env).catch(() => {});
   } else {
     // Safe creation during publish flow if no showcase exists yet (createShowcase notifies)
-    const titleToUse = updates?.title?.trim() || event.name?.trim() || 'Event Showcase';
     result = await createShowcase(
       {
         event_id: event.id,

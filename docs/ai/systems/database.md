@@ -223,3 +223,12 @@ Migrations in `/supabase/migrations/` document the progressive security hardenin
 | `20260912010000_create_central_notifications.sql` | Centralized system notifications table (`central_notifications`) |
 | `20260913000000_add_event_timezone_to_events.sql` | Added `event_timezone` column to `events` |
 | `20260914000000_user_level_reward_security_and_reconciliation.sql` | Hardened `owner_showcase_rewards` foreign keys (`ON DELETE SET NULL`), backfilled `user_rewards`, reconciled historical duplicate transactions to `REVERSED`, and enforced RLS write blocks |
+| `20260914010000_disable_automatic_welcome_credit.sql` | Disables automatic welcome credit grant on organization creation |
+| `20260914020000_lock_topup_payment_constraints_and_idempotency.sql` | Topup payment constraints, webhook event dedup, and idempotency |
+| `20260915000000_create_api_error_logs.sql` | Centralized API error logs table, indexes, and service role / developer admin RLS policies |
+| `20260924000000_enforce_owner_organization_limit.sql` | Enforces maximum 5 organizations per user at trigger and create_organization_atomic RPC levels |
+| `20260925000000_reject_overlapping_game_pricing_tiers.sql` | Rejects overlapping duration intervals for active game pricing tiers |
+| `20260926000000_decouple_payment_activation_from_lifecycle.sql` | Decouples payment confirmation and event activation from background lifecycle cron |
+| `20260927000000_exclude_expired_unpaid_events_from_pending_limit.sql` | Excludes expired unpaid events from organization pending event limit |
+| `20260928000000_update_pending_event_limit_to_5.sql` | Updates maximum active unpaid event limit per organization from 2 to 5 |
+| `20260929000000_fix_showcase_service_role_trigger.sql` | Hardened `prevent_event_showcase_unauthorized_client_mutations` trigger to recognize `service_role` backend connections across PostgREST JWT claims, role settings, and added `publish_event_showcase_atomic` SECURITY DEFINER RPC |

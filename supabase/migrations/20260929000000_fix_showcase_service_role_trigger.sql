@@ -231,6 +231,16 @@ BEGIN
     RAISE EXCEPTION 'Event not found' USING ERRCODE = 'P0002';
   END IF;
 
+  -- Defense-in-depth: Verify event payment and lifecycle
+  IF UPPER(COALESCE(v_event.payment_status, 'UNPAID')) != 'PAID' THEN
+    RAISE EXCEPTION 'Showcase requires a confirmed, paid event.' USING ERRCODE = 'P0004';
+  END IF;
+
+  IF UPPER(COALESCE(v_event.event_status, 'DRAFT')) IN ('CANCELLED', 'EXPIRED')
+     OR LOWER(COALESCE(v_event.status, 'draft')) IN ('cancelled', 'expired') THEN
+    RAISE EXCEPTION 'Showcase is not available for cancelled or expired events.' USING ERRCODE = 'P0005';
+  END IF;
+
   -- 2. Fetch organization to resolve owner
   SELECT id, owner_id
   INTO v_org
@@ -239,11 +249,12 @@ BEGIN
 
   v_owner_id := COALESCE(p_owner_user_id, v_org.owner_id);
 
-  -- 3. Check for existing showcase
+  -- 3. Check for existing showcase with row-lock
   SELECT *
   INTO v_existing
   FROM public.event_showcases
-  WHERE event_id = p_event_id;
+  WHERE event_id = p_event_id
+  FOR UPDATE;
 
   IF FOUND THEN
     IF v_existing.status = 'BLOCKED' THEN
@@ -266,48 +277,72 @@ BEGIN
     WHERE id = v_existing.id
     RETURNING * INTO v_showcase;
   ELSE
-    INSERT INTO public.event_showcases (
-      event_id,
-      organization_id,
-      owner_user_id,
-      title,
-      description,
-      client_name,
-      client_logo_url,
-      cover_image_url,
-      status,
-      review_status,
-      publication_status,
-      reward_status,
-      reward_review_status,
-      published_at,
-      created_at,
-      updated_at
-    ) VALUES (
-      p_event_id,
-      v_event.organization_id,
-      v_owner_id,
-      COALESCE(NULLIF(TRIM(p_title), ''), v_event.name, 'Event Showcase'),
-      NULLIF(TRIM(p_description), ''),
-      NULLIF(TRIM(p_client_name), ''),
-      NULLIF(TRIM(p_client_logo_url), ''),
-      NULLIF(TRIM(p_cover_image_url), ''),
-      'PUBLISHED',
-      'DRAFT',
-      'PUBLISHED',
-      'PENDING',
-      'NOT_ELIGIBLE',
-      v_now,
-      v_now,
-      v_now
-    )
-    RETURNING * INTO v_showcase;
+    BEGIN
+      INSERT INTO public.event_showcases (
+        event_id,
+        organization_id,
+        owner_user_id,
+        title,
+        description,
+        client_name,
+        client_logo_url,
+        cover_image_url,
+        status,
+        review_status,
+        publication_status,
+        reward_status,
+        reward_review_status,
+        published_at,
+        created_at,
+        updated_at
+      ) VALUES (
+        p_event_id,
+        v_event.organization_id,
+        v_owner_id,
+        COALESCE(NULLIF(TRIM(p_title), ''), v_event.name, 'Event Showcase'),
+        NULLIF(TRIM(p_description), ''),
+        NULLIF(TRIM(p_client_name), ''),
+        NULLIF(TRIM(p_client_logo_url), ''),
+        NULLIF(TRIM(p_cover_image_url), ''),
+        'PUBLISHED',
+        'DRAFT',
+        'PUBLISHED',
+        'PENDING',
+        'NOT_ELIGIBLE',
+        v_now,
+        v_now,
+        v_now
+      )
+      RETURNING * INTO v_showcase;
+    EXCEPTION WHEN unique_violation THEN
+      -- Handle concurrent insert race condition gracefully
+      SELECT * INTO v_existing FROM public.event_showcases WHERE event_id = p_event_id FOR UPDATE;
+      IF v_existing.status = 'BLOCKED' THEN
+        RAISE EXCEPTION 'Cannot publish a blocked showcase. Please contact support.' USING ERRCODE = 'P0003';
+      END IF;
+
+      UPDATE public.event_showcases
+      SET
+        title = COALESCE(NULLIF(TRIM(p_title), ''), v_existing.title),
+        description = CASE WHEN p_description IS NOT NULL THEN NULLIF(TRIM(p_description), '') ELSE v_existing.description END,
+        client_name = CASE WHEN p_client_name IS NOT NULL THEN NULLIF(TRIM(p_client_name), '') ELSE v_existing.client_name END,
+        client_logo_url = CASE WHEN p_client_logo_url IS NOT NULL THEN NULLIF(TRIM(p_client_logo_url), '') ELSE v_existing.client_logo_url END,
+        cover_image_url = CASE WHEN p_cover_image_url IS NOT NULL THEN NULLIF(TRIM(p_cover_image_url), '') ELSE v_existing.cover_image_url END,
+        owner_user_id = COALESCE(v_existing.owner_user_id, v_owner_id),
+        status = 'PUBLISHED',
+        publication_status = 'PUBLISHED',
+        published_at = COALESCE(v_existing.published_at, v_now),
+        deleted_at = NULL,
+        updated_at = v_now
+      WHERE id = v_existing.id
+      RETURNING * INTO v_showcase;
+    END;
   END IF;
 
   RETURN to_jsonb(v_showcase);
 END;
 $$;
 
--- Grant execution to authenticated & service_role
-GRANT EXECUTE ON FUNCTION public.publish_event_showcase_atomic(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID) TO service_role;
-GRANT EXECUTE ON FUNCTION public.publish_event_showcase_atomic(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID) TO postgres;
+-- Restrict execution to service_role and postgres
+REVOKE EXECUTE ON FUNCTION public.publish_event_showcase_atomic(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.publish_event_showcase_atomic(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID) TO service_role, postgres;

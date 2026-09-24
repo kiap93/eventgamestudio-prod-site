@@ -3930,7 +3930,25 @@ app.post('/api/events/:eventId/showcase/publish', showcaseRateLimiter, authentic
     evaluateShowcaseRewardEligibility(eventId).catch((err) => console.warn('Reward evaluation notice on publish:', err));
     res.json({ showcase });
   } catch (err: any) {
-    handleApiError(err, req, res);
+    console.error(`[Server Showcase Publish Error]:`, {
+      eventId: req.params.eventId,
+      userId: req.user?.id,
+      publishPath: 'publish_event_showcase_atomic',
+      errorCode: err?.code || err?.statusCode || 'UNKNOWN_ERROR',
+      errorMessage: err?.message || 'Unknown publish error',
+      operation: 'publish_event_showcase',
+    });
+    handleApiError(err, req, res, {
+      userId: req.user?.id,
+      metadata: {
+        eventId: req.params.eventId,
+        publishPath: 'publish_event_showcase_atomic',
+        operation: 'publish_event_showcase',
+        rpcName: 'publish_event_showcase_atomic',
+        postgresCode: err?.code || null,
+        details: err?.details || err?.message || null,
+      },
+    });
   }
 });
 

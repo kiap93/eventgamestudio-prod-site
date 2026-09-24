@@ -4113,8 +4113,33 @@ export default {
           evaluateShowcaseRewardEligibility(eventId, env).catch((err) => console.warn('Reward evaluation notice on publish:', err));
           return jsonResponse({ showcase }, 200, cors);
         } catch (err: any) {
-          console.error('Publish showcase error:', err);
-          return handleWorkerApiError(err, request, cors, env);
+          const requestId = resolveCorrelationId(request);
+          console.error(`[Worker Showcase Publish Error][${requestId}]:`, {
+            requestId,
+            eventId,
+            userId: auth?.user?.id,
+            organizationId: event?.organization_id,
+            existingShowcaseId: existing?.id || null,
+            existingShowcaseStatus: existing?.status || null,
+            publishPath: 'publish_event_showcase_atomic',
+            errorCode: err?.code || err?.statusCode || 'UNKNOWN_ERROR',
+            errorMessage: err?.message || 'Unknown publish error',
+            operation: 'publish_event_showcase',
+          });
+          return handleWorkerApiError(err, request, cors, env, {
+            userId: auth?.user?.id,
+            metadata: {
+              eventId,
+              organizationId: event?.organization_id,
+              existingShowcaseId: existing?.id || null,
+              existingShowcaseStatus: existing?.status || null,
+              publishPath: 'publish_event_showcase_atomic',
+              operation: 'publish_event_showcase',
+              rpcName: 'publish_event_showcase_atomic',
+              postgresCode: err?.code || null,
+              details: err?.details || err?.message || null,
+            },
+          });
         }
       }
 
