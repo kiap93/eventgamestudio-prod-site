@@ -118,7 +118,7 @@ export async function createNotification(
   // Strictly decoupled from retention: only items with expiresByDefault: true expire automatically.
   const finalExpiresAt = calculateNotificationExpiry(type, new Date(), expiresAt);
 
-  // 1. Check deduplication in database or local fallback
+  // 1. Application-level fast check (performance optimization)
   if (deduplicationKey) {
     const existing = await getNotificationByDeduplicationKey(
       recipientUserId,
@@ -126,8 +126,8 @@ export async function createNotification(
       env
     );
     if (existing) {
-      // Deduplication key exists - return existing record idempotently
-      return existing;
+      // Deduplication key exists - return existing record idempotently marked as not newly inserted
+      return { ...existing, is_inserted: false };
     }
   }
 
@@ -157,6 +157,65 @@ export async function createNotification(
   if (isSupabaseConfigured(env)) {
     const supabase = getSupabaseServerClient(env);
     try {
+      // 1. Attempt atomic stored procedure with database-level ON CONFLICT DO NOTHING
+      const { data: rpcData, error: rpcError } = await supabase.rpc(
+        'insert_notification_idempotent',
+        {
+          p_id: newRecord.id,
+          p_recipient_user_id: newRecord.recipient_user_id,
+          p_organization_id: newRecord.organization_id,
+          p_type: newRecord.type,
+          p_category: newRecord.category,
+          p_title: newRecord.title,
+          p_message: newRecord.message,
+          p_priority: newRecord.priority,
+          p_action_url: newRecord.action_url,
+          p_entity_type: newRecord.entity_type,
+          p_entity_id: newRecord.entity_id,
+          p_metadata: newRecord.metadata,
+          p_deduplication_key: newRecord.deduplication_key,
+          p_created_at: newRecord.created_at,
+          p_expires_at: newRecord.expires_at,
+        }
+      );
+
+      if (!rpcError && rpcData) {
+        const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+        if (row) {
+          const record: NotificationRecord = {
+            id: row.id,
+            recipient_user_id: row.recipient_user_id,
+            organization_id: row.organization_id,
+            type: row.type,
+            category: row.category,
+            title: row.title,
+            message: row.message,
+            priority: row.priority,
+            action_url: row.action_url,
+            entity_type: row.entity_type,
+            entity_id: row.entity_id,
+            metadata: row.metadata,
+            is_read: row.is_read,
+            read_at: row.read_at,
+            deduplication_key: row.deduplication_key,
+            created_at: row.created_at,
+            expires_at: row.expires_at,
+            is_inserted: row.is_inserted ?? true,
+          };
+          if (isLocalFallbackAllowed(env) && record.is_inserted !== false) {
+            const locals = readLocalNotifications(env);
+            locals.unshift(record);
+            writeLocalNotifications(locals.slice(0, 500), env);
+          }
+          return record;
+        }
+      }
+
+      // 2. Direct table insert fallback with ON CONFLICT (recipient_user_id, deduplication_key) DO NOTHING
+      const insertOptions = deduplicationKey
+        ? { onConflict: 'recipient_user_id, deduplication_key', ignoreDuplicates: true }
+        : undefined;
+
       const { data, error } = await supabase
         .from('notifications')
         .insert({
@@ -177,15 +236,15 @@ export async function createNotification(
           deduplication_key: newRecord.deduplication_key,
           created_at: newRecord.created_at,
           expires_at: newRecord.expires_at,
-        })
+        }, insertOptions)
         .select('*')
-        .single();
+        .maybeSingle();
 
       if (error) {
-        // If unique constraint conflict on deduplication_key, retrieve existing
+        // If unique constraint conflict (code 23505) occurs on deduplication_key, retrieve existing
         if (error.code === '23505' && deduplicationKey) {
           const existing = await getNotificationByDeduplicationKey(recipientUserId, deduplicationKey, env);
-          if (existing) return existing;
+          if (existing) return { ...existing, is_inserted: false };
         }
 
         console.error('Error inserting notification into Supabase:', error);
@@ -193,13 +252,19 @@ export async function createNotification(
           throw new Error(`Failed to create notification in database: ${error.message}`);
         }
       } else if (data) {
-        // Also keep local fallback updated if active
+        const record: NotificationRecord = { ...(data as NotificationRecord), is_inserted: true };
         if (isLocalFallbackAllowed(env)) {
           const locals = readLocalNotifications(env);
-          locals.unshift(data as NotificationRecord);
+          locals.unshift(record);
           writeLocalNotifications(locals.slice(0, 500), env);
         }
-        return data as NotificationRecord;
+        return record;
+      } else if (deduplicationKey) {
+        // When ignoreDuplicates suppresses a conflict, PostgREST returns null data
+        const existing = await getNotificationByDeduplicationKey(recipientUserId, deduplicationKey, env);
+        if (existing) {
+          return { ...existing, is_inserted: false };
+        }
       }
     } catch (dbErr: any) {
       console.error('Supabase notification insertion exception:', dbErr);
@@ -209,12 +274,21 @@ export async function createNotification(
     }
   }
 
-  // Local fallback storage
+  // Local fallback storage with atomic deduplication check
   if (isLocalFallbackAllowed(env)) {
     const locals = readLocalNotifications(env);
-    locals.unshift(newRecord);
+    if (deduplicationKey) {
+      const existing = locals.find(
+        (n) => n.recipient_user_id === recipientUserId && n.deduplication_key === deduplicationKey
+      );
+      if (existing) {
+        return { ...existing, is_inserted: false };
+      }
+    }
+    const record: NotificationRecord = { ...newRecord, is_inserted: true };
+    locals.unshift(record);
     writeLocalNotifications(locals.slice(0, 500), env);
-    return newRecord;
+    return record;
   }
 
   throw new Error('Notification storage is unavailable');

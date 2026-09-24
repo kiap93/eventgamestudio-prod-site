@@ -8,6 +8,8 @@ import {
   checkWorkerRateLimit,
   publicEventRateLimiter,
   publicHighScoreReadRateLimiter,
+  signVenueToken,
+  verifyVenueToken,
 } from '../rateLimiter.js';
 
 describe('Public Event Token & Rate Limiting Security Hardening', () => {
@@ -51,34 +53,115 @@ describe('Public Event Token & Rate Limiting Security Hardening', () => {
     });
   });
 
-  describe('Venue Request Detection (isVenueRequest)', () => {
-    it('detects venue indicators in Express requests', () => {
-      assert.equal(isVenueRequest({ headers: { 'x-venue-mode': 'true' } }), true);
-      assert.equal(isVenueRequest({ headers: { 'x-venue-allowance': '1' } }), true);
-      assert.equal(isVenueRequest({ headers: { 'x-venue-display': 'true' } }), true);
-      assert.equal(isVenueRequest({ query: { venue: '1' } }), true);
-      assert.equal(isVenueRequest({ query: { venue: 'true' } }), true);
-      assert.equal(isVenueRequest({ query: { display: '1' } }), true);
-      assert.equal(isVenueRequest({ query: { tournament: 'true' } }), true);
+  describe('Cryptographically Authenticated Venue Detection (isVenueRequest)', () => {
+    it('strictly rejects unauthenticated client-controlled flags (X-Venue-Mode, ?venue=true, etc.)', () => {
+      // 1. Unauthenticated Express request headers must return false
+      assert.equal(isVenueRequest({ headers: { 'x-venue-mode': 'true' } }), false);
+      assert.equal(isVenueRequest({ headers: { 'x-venue-allowance': '1' } }), false);
+      assert.equal(isVenueRequest({ headers: { 'x-venue-display': 'true' } }), false);
+
+      // 2. Unauthenticated Express request query parameters must return false
+      assert.equal(isVenueRequest({ query: { venue: '1' } }), false);
+      assert.equal(isVenueRequest({ query: { venue: 'true' } }), false);
+      assert.equal(isVenueRequest({ query: { display: '1' } }), false);
+      assert.equal(isVenueRequest({ query: { tournament: 'true' } }), false);
       assert.equal(isVenueRequest({ headers: {}, query: {} }), false);
       assert.equal(isVenueRequest(null), false);
       assert.equal(isVenueRequest(undefined), false);
-    });
 
-    it('detects venue indicators in Fetch / Cloudflare Worker Request objects', () => {
+      // 3. Unauthenticated Fetch / Cloudflare Worker requests must return false
       const normalReq = new Request('https://example.com/api/public/events/7KQ2M9X4F8P3W6YJ');
       assert.equal(isVenueRequest(normalReq), false);
 
       const headerReq = new Request('https://example.com/api/public/events/7KQ2M9X4F8P3W6YJ', {
         headers: { 'X-Venue-Mode': 'true' },
       });
-      assert.equal(isVenueRequest(headerReq), true);
+      assert.equal(isVenueRequest(headerReq), false);
 
       const displayReq = new Request('https://example.com/api/public/events/7KQ2M9X4F8P3W6YJ?display=1');
-      assert.equal(isVenueRequest(displayReq), true);
+      assert.equal(isVenueRequest(displayReq), false);
 
       const venueQueryReq = new Request('https://example.com/api/public/events/7KQ2M9X4F8P3W6YJ?venue=true');
-      assert.equal(isVenueRequest(venueQueryReq), true);
+      assert.equal(isVenueRequest(venueQueryReq), false);
+    });
+
+    it('verifies and accepts cryptographically signed venue tokens', async () => {
+      const validToken = await signVenueToken({
+        eventId: 'evt_test_123',
+        publicToken: '7KQ2M9X4F8P3W6YJ',
+        organizationId: 'org_test_456',
+        expiresIn: '1h',
+      });
+
+      // 1. In Express request via X-Venue-Token header
+      assert.equal(
+        isVenueRequest({ headers: { 'x-venue-token': validToken } }),
+        true,
+        'Valid X-Venue-Token header must qualify for venue mode'
+      );
+
+      // 2. In Express request via Authorization Bearer header
+      assert.equal(
+        isVenueRequest({ headers: { authorization: `Bearer ${validToken}` } }),
+        true,
+        'Valid Bearer venue token must qualify for venue mode'
+      );
+
+      // 3. In Express request via venue_token query parameter
+      assert.equal(
+        isVenueRequest({ query: { venue_token: validToken } }),
+        true,
+        'Valid venue_token query param must qualify for venue mode'
+      );
+
+      // 4. In Fetch / Cloudflare Worker Request via header
+      const workerHeaderReq = new Request('https://example.com/api/public/events/7KQ2M9X4F8P3W6YJ', {
+        headers: { 'X-Venue-Token': validToken },
+      });
+      assert.equal(isVenueRequest(workerHeaderReq), true);
+
+      // 5. In Fetch / Cloudflare Worker Request via query param
+      const workerQueryReq = new Request(`https://example.com/api/public/events/7KQ2M9X4F8P3W6YJ?venue_token=${validToken}`);
+      assert.equal(isVenueRequest(workerQueryReq), true);
+    });
+
+    it('accepts authenticated organizer / team member sessions', () => {
+      // 1. Session with req.user populated
+      assert.equal(
+        isVenueRequest({ user: { id: 'usr_org_owner_1' } }),
+        true,
+        'Authenticated user session must qualify for venue allowance'
+      );
+
+      // 2. Session with req.jwtPayload populated
+      assert.equal(
+        isVenueRequest({ jwtPayload: { sub: 'usr_org_member_1', organizationId: 'org_123' } }),
+        true,
+        'Authenticated JWT payload must qualify for venue allowance'
+      );
+    });
+
+    it('rejects forged, tampered, or expired venue tokens', async () => {
+      // 1. Tampered token
+      const validToken = await signVenueToken({
+        eventId: 'evt_test_123',
+        publicToken: '7KQ2M9X4F8P3W6YJ',
+        expiresIn: '1h',
+      });
+      const tamperedToken = validToken.slice(0, -4) + 'abcd';
+      assert.equal(isVenueRequest({ headers: { 'x-venue-token': tamperedToken } }), false);
+
+      // 2. Malformed arbitrary string
+      assert.equal(isVenueRequest({ headers: { 'x-venue-token': 'not-a-token' } }), false);
+      assert.equal(isVenueRequest({ query: { venue_token: 'fake_token_12345' } }), false);
+
+      // 3. Expired token
+      const expiredToken = await signVenueToken({
+        eventId: 'evt_test_123',
+        publicToken: '7KQ2M9X4F8P3W6YJ',
+        expiresIn: '-10s', // Expired 10 seconds ago
+      });
+      assert.equal(isVenueRequest({ headers: { 'x-venue-token': expiredToken } }), false);
     });
   });
 
@@ -176,7 +259,7 @@ describe('Public Event Token & Rate Limiting Security Hardening', () => {
       assert.equal(jsonPayload?.error, 'Too Many Requests');
     });
 
-    it('verifies Cloudflare Worker rate limiter helper enforces venue allowance', () => {
+    it('verifies Cloudflare Worker rate limiter helper enforces venue allowance', async () => {
       const testPrefix = `test_cf_${Date.now()}`;
       const normalRequest = new Request('https://example.com/api/public/events/token123', {
         headers: { 'cf-connecting-ip': '203.0.113.50' },
@@ -193,10 +276,33 @@ describe('Public Event Token & Rate Limiting Security Hardening', () => {
       assert.equal(normalRes.allowed, true);
       assert.equal(normalRes.headers['RateLimit-Limit'], '60');
 
-      // 2. Venue request has max = 180
+      // 2. Unauthenticated spoofed request with ?venue=true must NOT receive venue allowance
+      const spoofedPrefix = `test_cf_spoofed_${Date.now()}`;
+      const spoofedRequest = new Request('https://example.com/api/public/events/token123?venue=true', {
+        headers: { 'cf-connecting-ip': '203.0.113.55' },
+      });
+      const spoofedRes = checkWorkerRateLimit(spoofedRequest, {
+        windowMs: 60 * 1000,
+        max: 60,
+        venueAllowanceMax: 180,
+        isVenueRequest,
+        keyPrefix: spoofedPrefix,
+      });
+      assert.equal(spoofedRes.allowed, true);
+      assert.equal(spoofedRes.headers['RateLimit-Limit'], '60', 'Unauthenticated ?venue=true must remain at baseline 60');
+
+      // 3. Cryptographically authenticated venue request receives max = 180
+      const validToken = await signVenueToken({
+        eventId: 'evt_cf_test',
+        publicToken: 'token123',
+        expiresIn: '2h',
+      });
       const venuePrefix = `test_cf_venue_${Date.now()}`;
-      const venueRequest = new Request('https://example.com/api/public/events/token123?venue=true', {
-        headers: { 'cf-connecting-ip': '203.0.113.60' },
+      const venueRequest = new Request('https://example.com/api/public/events/token123', {
+        headers: {
+          'cf-connecting-ip': '203.0.113.60',
+          'X-Venue-Token': validToken,
+        },
       });
 
       const venueRes = checkWorkerRateLimit(venueRequest, {
@@ -207,7 +313,7 @@ describe('Public Event Token & Rate Limiting Security Hardening', () => {
         keyPrefix: venuePrefix,
       });
       assert.equal(venueRes.allowed, true);
-      assert.equal(venueRes.headers['RateLimit-Limit'], '180');
+      assert.equal(venueRes.headers['RateLimit-Limit'], '180', 'Authenticated venue token must receive 180 allowance');
     });
   });
 });

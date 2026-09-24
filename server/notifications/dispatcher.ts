@@ -414,6 +414,13 @@ export class NotificationDispatcher {
             env
           );
 
+          // If the record was not newly inserted (e.g. concurrent worker race resolved via DB-level ON CONFLICT DO NOTHING),
+          // suppress secondary channel delivery and do not report as a newly created notification.
+          if ((record as any)?.is_inserted === false) {
+            console.log(`[DISPATCHER] Deduplication race resolved at DB level for key "${userDeduplicationKey}" (suppressed duplicate dispatch).`);
+            continue;
+          }
+
           createdNotifications.push(record);
 
           // 4. Distribute to Secondary Channel Adapters (Email, Push)

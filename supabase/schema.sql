@@ -5941,6 +5941,131 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_notifications_recipient_dedup
   ON public.notifications (recipient_user_id, deduplication_key) 
   WHERE deduplication_key IS NOT NULL;
 
+-- Database-level unique constraint for ON CONFLICT (recipient_user_id, deduplication_key) DO NOTHING
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'uq_notifications_recipient_dedup' 
+      AND conrelid = 'public.notifications'::regclass
+  ) THEN
+    ALTER TABLE public.notifications 
+      ADD CONSTRAINT uq_notifications_recipient_dedup 
+      UNIQUE (recipient_user_id, deduplication_key);
+  END IF;
+END $$;
+
+-- Atomic Stored Procedure for Idempotent Notification Creation with ON CONFLICT DO NOTHING
+CREATE OR REPLACE FUNCTION public.insert_notification_idempotent(
+  p_id UUID,
+  p_recipient_user_id UUID,
+  p_organization_id UUID,
+  p_type VARCHAR(64),
+  p_category VARCHAR(32),
+  p_title TEXT,
+  p_message TEXT,
+  p_priority VARCHAR(16),
+  p_action_url TEXT,
+  p_entity_type VARCHAR(64),
+  p_entity_id TEXT,
+  p_metadata JSONB,
+  p_deduplication_key TEXT,
+  p_created_at TIMESTAMPTZ,
+  p_expires_at TIMESTAMPTZ
+)
+RETURNS TABLE (
+  id UUID,
+  recipient_user_id UUID,
+  organization_id UUID,
+  type VARCHAR(64),
+  category VARCHAR(32),
+  title TEXT,
+  message TEXT,
+  priority VARCHAR(16),
+  action_url TEXT,
+  entity_type VARCHAR(64),
+  entity_id TEXT,
+  metadata JSONB,
+  is_read BOOLEAN,
+  read_at TIMESTAMPTZ,
+  deduplication_key TEXT,
+  created_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
+  is_inserted BOOLEAN
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_inserted_id UUID;
+BEGIN
+  IF p_deduplication_key IS NOT NULL AND trim(p_deduplication_key) != '' THEN
+    INSERT INTO public.notifications (
+      id, recipient_user_id, organization_id, type, category,
+      title, message, priority, action_url, entity_type,
+      entity_id, metadata, is_read, read_at, deduplication_key,
+      created_at, expires_at
+    ) VALUES (
+      COALESCE(p_id, gen_random_uuid()), p_recipient_user_id, p_organization_id, p_type, p_category,
+      p_title, p_message, p_priority, p_action_url, p_entity_type,
+      p_entity_id, COALESCE(p_metadata, '{}'::jsonb), false, NULL, p_deduplication_key,
+      COALESCE(p_created_at, timezone('utc'::text, now())), p_expires_at
+    )
+    ON CONFLICT (recipient_user_id, deduplication_key) DO NOTHING
+    RETURNING public.notifications.id INTO v_inserted_id;
+
+    IF v_inserted_id IS NOT NULL THEN
+      RETURN QUERY
+      SELECT n.id, n.recipient_user_id, n.organization_id, n.type, n.category,
+             n.title, n.message, n.priority, n.action_url, n.entity_type,
+             n.entity_id, n.metadata, n.is_read, n.read_at, n.deduplication_key,
+             n.created_at, n.expires_at, true AS is_inserted
+      FROM public.notifications n
+      WHERE n.id = v_inserted_id;
+      RETURN;
+    ELSE
+      RETURN QUERY
+      SELECT n.id, n.recipient_user_id, n.organization_id, n.type, n.category,
+             n.title, n.message, n.priority, n.action_url, n.entity_type,
+             n.entity_id, n.metadata, n.is_read, n.read_at, n.deduplication_key,
+             n.created_at, n.expires_at, false AS is_inserted
+      FROM public.notifications n
+      WHERE n.recipient_user_id = p_recipient_user_id
+        AND n.deduplication_key = p_deduplication_key
+      ORDER BY n.created_at ASC
+      LIMIT 1;
+      RETURN;
+    END IF;
+  ELSE
+    INSERT INTO public.notifications (
+      id, recipient_user_id, organization_id, type, category,
+      title, message, priority, action_url, entity_type,
+      entity_id, metadata, is_read, read_at, deduplication_key,
+      created_at, expires_at
+    ) VALUES (
+      COALESCE(p_id, gen_random_uuid()), p_recipient_user_id, p_organization_id, p_type, p_category,
+      p_title, p_message, p_priority, p_action_url, p_entity_type,
+      p_entity_id, COALESCE(p_metadata, '{}'::jsonb), false, NULL, NULL,
+      COALESCE(p_created_at, timezone('utc'::text, now())), p_expires_at
+    )
+    RETURNING public.notifications.id INTO v_inserted_id;
+
+    RETURN QUERY
+    SELECT n.id, n.recipient_user_id, n.organization_id, n.type, n.category,
+           n.title, n.message, n.priority, n.action_url, n.entity_type,
+           n.entity_id, n.metadata, n.is_read, n.read_at, n.deduplication_key,
+           n.created_at, n.expires_at, true AS is_inserted
+    FROM public.notifications n
+    WHERE n.id = v_inserted_id;
+    RETURN;
+  END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.insert_notification_idempotent TO service_role;
+GRANT EXECUTE ON FUNCTION public.insert_notification_idempotent TO authenticated;
+
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view their own notifications" ON public.notifications;

@@ -238,6 +238,7 @@ import {
   publicEventRateLimiter,
   publicHighScoreReadRateLimiter,
   contactRateLimiter,
+  signVenueToken,
 } from './server/rateLimiter.js';
 
 import {
@@ -3085,6 +3086,54 @@ app.get('/api/events/:eventId/preview', authenticateJWT, async (req: Authenticat
         ...event,
         is_preview: true,
       },
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/events/:eventId/venue-token
+ * Authenticated organizer endpoint to mint a cryptographically signed venue token
+ * for big-screen TV displays, tournament projectors, and on-site event kiosks.
+ * Requests using this signed venue token qualify for the elevated venue rate limit (180 req/min).
+ */
+app.post('/api/events/:eventId/venue-token', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Forbidden: Access denied to this event' });
+      return;
+    }
+
+    const expiresIn = typeof req.body?.expiresIn === 'string' ? req.body.expiresIn : '7d';
+    const venueToken = await signVenueToken({
+      eventId: event.id,
+      publicToken: event.public_token,
+      organizationId: event.organization_id,
+      issuedBy: user.id,
+      expiresIn,
+    });
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    res.json({
+      success: true,
+      eventId: event.id,
+      publicToken: event.public_token,
+      venueToken,
+      expiresAt,
+      allowanceLimit: 180,
     });
   } catch (err: any) {
     handleApiError(err, req, res);

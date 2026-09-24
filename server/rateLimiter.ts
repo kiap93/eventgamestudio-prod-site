@@ -55,7 +55,7 @@ export interface RateLimitOptions {
   skipSuccessfulRequests?: boolean;
   skipFailedRequests?: boolean;
   venueAllowanceMax?: number;
-  isVenueRequest?: (req: any) => boolean;
+  isVenueRequest?: (req: any, env?: any) => boolean | Promise<boolean>;
   cloudflareBinding?: string;
 }
 
@@ -213,58 +213,23 @@ export function getWorkerClientKey(request: Request, keyPrefix = 'ip', userId?: 
   return `${keyPrefix}:unknown`;
 }
 
-/**
- * Detects if an incoming request qualifies for venue allowances
- * (e.g., event venue kiosks, tournament display TV screens, organizer spectator projectors).
- * Supported indicators:
- *  - Header: X-Venue-Mode: true, X-Venue-Allowance: true, or X-Venue-Display: true
- *  - Query param: ?venue=true / ?venue=1 / ?display=true / ?display=1 / ?tournament=true
- */
-export function isVenueRequest(reqOrRequest: any): boolean {
-  if (!reqOrRequest) return false;
+import {
+  isVenueRequest,
+  isVenueRequestAsync,
+  signVenueToken,
+  verifyVenueToken,
+  extractCandidateToken,
+  type VenueTokenPayload,
+} from './venueAuth.js';
 
-  // 1. Fetch / Cloudflare Worker Request
-  if (typeof reqOrRequest.headers?.get === 'function') {
-    const req = reqOrRequest as Request;
-    const h = (
-      req.headers.get('x-venue-mode') ||
-      req.headers.get('x-venue-allowance') ||
-      req.headers.get('x-venue-display') ||
-      ''
-    ).toLowerCase();
-    if (h === 'true' || h === '1') return true;
-
-    try {
-      const url = new URL(req.url);
-      const q = (
-        url.searchParams.get('venue') ||
-        url.searchParams.get('display') ||
-        url.searchParams.get('tournament') ||
-        ''
-      ).toLowerCase();
-      if (q === 'true' || q === '1') return true;
-    } catch {
-      // ignore url parse error
-    }
-    return false;
-  }
-
-  // 2. Express Request
-  const headers = reqOrRequest.headers || {};
-  const h = (
-    headers['x-venue-mode'] ||
-    headers['x-venue-allowance'] ||
-    headers['x-venue-display'] ||
-    ''
-  ).toString().toLowerCase();
-  if (h === 'true' || h === '1') return true;
-
-  const query = reqOrRequest.query || {};
-  const q = (query.venue || query.display || query.tournament || '').toString().toLowerCase();
-  if (q === 'true' || q === '1') return true;
-
-  return false;
-}
+export {
+  isVenueRequest,
+  isVenueRequestAsync,
+  signVenueToken,
+  verifyVenueToken,
+  extractCandidateToken,
+  type VenueTokenPayload,
+};
 
 /**
  * Express middleware generator for rate limiting
@@ -277,10 +242,17 @@ export function createRateLimiter(options: RateLimitOptions) {
     keyPrefix = 'general',
   } = options;
 
-  return (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
+  return async (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
     let effectiveMax = max;
-    if (options.venueAllowanceMax && options.isVenueRequest && options.isVenueRequest(req)) {
-      effectiveMax = options.venueAllowanceMax;
+    if (options.venueAllowanceMax && options.isVenueRequest) {
+      try {
+        const isVenue = await options.isVenueRequest(req);
+        if (isVenue) {
+          effectiveMax = options.venueAllowanceMax;
+        }
+      } catch {
+        // Fall back to default limit
+      }
     }
 
     const clientKey = options.keyGenerator
@@ -503,7 +475,8 @@ export function resetRateLimitStores(): void {
 export function checkWorkerRateLimit(
   request: Request,
   options: RateLimitOptions,
-  userId?: string
+  userId?: string,
+  venueOverride?: boolean
 ): {
   allowed: boolean;
   headers: Record<string, string>;
@@ -517,8 +490,19 @@ export function checkWorkerRateLimit(
 
   if (isTestOrLocal && request.headers.get('x-test-rate-limit') !== 'true') {
     effectiveMax = Math.max(effectiveMax, 500);
-  } else if (options.venueAllowanceMax && options.isVenueRequest && options.isVenueRequest(request)) {
-    effectiveMax = options.venueAllowanceMax;
+  } else if (venueOverride !== undefined) {
+    if (venueOverride && options.venueAllowanceMax) {
+      effectiveMax = options.venueAllowanceMax;
+    }
+  } else if (options.venueAllowanceMax && options.isVenueRequest) {
+    try {
+      const isVenue = options.isVenueRequest(request);
+      if (isVenue === true) {
+        effectiveMax = options.venueAllowanceMax;
+      }
+    } catch {
+      // Keep default limit
+    }
   }
 
   const clientKey = getWorkerClientKey(request, options.keyPrefix || 'worker', userId);
@@ -578,6 +562,17 @@ export async function checkWorkerRateLimitWithCloudflare(
   headers: Record<string, string>;
   errorResponse?: { error: string; message: string; retryAfterSeconds: number };
 }> {
+  // 0. Verify authenticated venue mode
+  let isVenue = false;
+  if (options.venueAllowanceMax && options.isVenueRequest) {
+    try {
+      const res = await options.isVenueRequest(request, env);
+      isVenue = res === true;
+    } catch {
+      isVenue = false;
+    }
+  }
+
   const clientKey = getWorkerClientKey(request, options.keyPrefix || 'worker', userId);
 
   // 1. Resolve appropriate Cloudflare-native edge rate limiter binding
@@ -632,5 +627,5 @@ export async function checkWorkerRateLimitWithCloudflare(
   }
 
   // 3. Fall back to / execute in-memory sliding window bucket
-  return checkWorkerRateLimit(request, options, userId);
+  return checkWorkerRateLimit(request, options, userId, isVenue);
 }

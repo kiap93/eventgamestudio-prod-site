@@ -227,7 +227,7 @@ import {
 } from './server/auth.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
-import { checkWorkerRateLimit, checkWorkerRateLimitWithCloudflare, isVenueRequest, WORKER_CONTACT_RATE_LIMIT } from './server/rateLimiter.js';
+import { checkWorkerRateLimit, checkWorkerRateLimitWithCloudflare, isVenueRequest, WORKER_CONTACT_RATE_LIMIT, signVenueToken } from './server/rateLimiter.js';
 import { validateUploadedFile } from './server/fileValidation.js';
 
 export interface Env {
@@ -2691,6 +2691,54 @@ export default {
           'Pragma': 'no-cache',
           'Expires': '0',
         });
+      }
+
+      // Mint Signed Venue Token for displays/kiosks
+      const postVenueTokenParams = parseRoute('/api/events/:eventId/venue-token', pathname);
+      if (postVenueTokenParams && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = postVenueTokenParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Forbidden: Access denied to this event', 403, cors);
+        }
+
+        let body: any = {};
+        try {
+          body = await request.json();
+        } catch {
+          body = {};
+        }
+
+        const expiresIn = typeof body?.expiresIn === 'string' ? body.expiresIn : '7d';
+        const venueToken = await signVenueToken({
+          eventId: event.id,
+          publicToken: event.public_token,
+          organizationId: event.organization_id,
+          issuedBy: user.id,
+          expiresIn,
+        }, undefined, env);
+
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+        return jsonResponse({
+          success: true,
+          eventId: event.id,
+          publicToken: event.public_token,
+          venueToken,
+          expiresAt,
+          allowanceLimit: 180,
+        }, 200, cors);
       }
 
       const getEventParams = parseRoute('/api/events/:eventId', pathname);

@@ -57,6 +57,7 @@ export interface NotificationRecord {
   deduplication_key?: string | null;
   created_at: string;
   expires_at?: string | null;
+  is_inserted?: boolean;
 }
 
 export interface NotificationCatalogItem {
