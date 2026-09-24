@@ -417,6 +417,7 @@ BEGIN
         event_id,
         organization_id,
         owner_user_id,
+        created_by,
         title,
         description,
         client_name,
@@ -433,6 +434,7 @@ BEGIN
       ) VALUES (
         p_event_id,
         v_event.organization_id,
+        v_owner_id,
         v_owner_id,
         v_title,
         CASE WHEN p_payload ? 'description' THEN NULLIF(TRIM(p_payload ->> 'description'), '') ELSE NULL END,
@@ -615,6 +617,7 @@ BEGIN
         event_id,
         organization_id,
         owner_user_id,
+        created_by,
         title,
         description,
         client_name,
@@ -631,6 +634,7 @@ BEGIN
       ) VALUES (
         p_event_id,
         v_event.organization_id,
+        v_owner_id,
         v_owner_id,
         v_title,
         CASE WHEN p_payload ? 'description' THEN NULLIF(TRIM(p_payload ->> 'description'), '') ELSE NULL END,

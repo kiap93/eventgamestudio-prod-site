@@ -466,11 +466,13 @@ export async function createShowcase(
 
     if (rpcMissing) {
       try {
+        const creatorUserId = isUUID(created_by) ? created_by : (isUUID(owner_user_id) ? owner_user_id : null);
         const insertPayload: Record<string, any> = {
           id: crypto.randomUUID(),
           event_id: params.event_id,
           organization_id: params.organization_id,
           owner_user_id: isUUID(owner_user_id) ? owner_user_id : null,
+          created_by: creatorUserId,
           title: params.title.trim(),
           description: params.description ? params.description.trim() : null,
           client_name: params.client_name ? params.client_name.trim() : null,
@@ -491,6 +493,13 @@ export async function createShowcase(
           .insert(insertPayload)
           .select()
           .single();
+
+        if (insertError && isMissingColumnError(insertError, 'created_by')) {
+          delete insertPayload.created_by;
+          const retry = await supabase.from('event_showcases').insert(insertPayload).select().single();
+          insertedData = retry.data;
+          insertError = retry.error;
+        }
 
         if (insertError && isMissingColumnError(insertError, 'owner_user_id')) {
           delete insertPayload.owner_user_id;
@@ -2142,6 +2151,7 @@ export async function publishShowcase(
             event_id: eventId,
             organization_id: event.organization_id,
             owner_user_id: isUUID(ownerUserId) ? ownerUserId : null,
+            created_by: isUUID(ownerUserId) ? ownerUserId : null,
             title: titleToUse,
             description: updates?.description !== undefined ? (updates.description !== null ? updates.description.trim() : null) : null,
             client_name: updates?.client_name !== undefined ? (updates.client_name !== null ? updates.client_name.trim() : null) : null,
@@ -2162,6 +2172,13 @@ export async function publishShowcase(
             .insert(insertFields)
             .select()
             .single();
+
+          if (insertErr && isMissingColumnError(insertErr, 'created_by')) {
+            delete insertFields.created_by;
+            const retry = await supabase.from('event_showcases').insert(insertFields).select().single();
+            insertData = retry.data;
+            insertErr = retry.error;
+          }
 
           if (insertErr && isMissingColumnError(insertErr, 'owner_user_id')) {
             delete insertFields.owner_user_id;
@@ -2275,7 +2292,7 @@ export async function publishShowcase(
     await notifyShowcaseEvent('SHOWCASE_PUBLISHED', result, env).catch(() => {});
   } else {
     const org = await getOrganizationById(event.organization_id, env);
-    const owner_user_id = org?.owner_id || null;
+    const owner_user_id = updates?.owner_user_id || org?.owner_id || null;
     result = {
       id: crypto.randomUUID(),
       event_id: event.id,

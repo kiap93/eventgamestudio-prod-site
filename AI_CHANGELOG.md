@@ -4,6 +4,26 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-09-24] - Fix Event Showcases `created_by` NOT NULL Constraint in Atomic Publish RPC
+
+### Summary
+Fixed the database error:
+`Database error publishing showcase: null value in column "created_by" of relation "event_showcases" violates not-null constraint`
+when executing `POST /api/events/:eventId/showcase/publish` or calling `publish_event_showcase_atomic`. The column `created_by` was missing from the `INSERT` column list in both `publish_event_showcase_atomic` and `save_event_showcase_atomic`, causing inserts of brand-new event showcases to fail when `created_by` has a `NOT NULL` constraint in the database schema.
+
+### Key Changes Implemented
+1. **Migration & Schema Consolidation (`supabase/migrations/20260929000000_fix_showcase_service_role_trigger.sql`, `supabase/schema.sql`)**:
+   - Updated `publish_event_showcase_atomic` to include `created_by` in the `INSERT INTO public.event_showcases` column list and assign it `v_owner_id`.
+   - Updated `save_event_showcase_atomic` to include `created_by` in the `INSERT INTO public.event_showcases` column list and assign it `v_owner_id`.
+2. **Server & Fallback Handlers (`server/db/showcases.ts`)**:
+   - In `createShowcase` and `publishShowcase` direct table fallback logic, included `created_by: creatorUserId` (resolved from `updates?.owner_user_id` or organization `owner_id`).
+   - Added resilient retry handlers checking `isMissingColumnError(err, 'created_by')` for maximum forward and backward compatibility across differing database schemas.
+3. **Automated Test Verification (`server/db/showcase_atomic_publish.test.ts`)**:
+   - Verified that newly published showcases have `created_by` populated and matching the organization owner.
+   - All 28 test assertions in `server/db/showcase_atomic_publish.test.ts` passed cleanly.
+
+---
+
 ## [2026-09-24] - Environment-Controlled Error Message Mode (EXPOSE_API_ERRORS)
 
 ### Summary

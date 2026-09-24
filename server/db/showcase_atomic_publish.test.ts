@@ -104,6 +104,8 @@ async function runTests() {
   assertEqual(published1.status, 'PUBLISHED', 'status is PUBLISHED');
   assertEqual(published1.publication_status, 'PUBLISHED', 'publication_status is PUBLISHED');
   assert(!!published1.published_at, 'published_at is timestamped');
+  assert(!!published1.created_by, 'created_by is populated and not null');
+  assertEqual(published1.created_by, ownerUserId, 'created_by matches organization owner');
 
   console.log('\n--- Scenario 2: Publishing an Existing Showcase Updates and Preserves Values ---');
   const event2 = createMockEvent({ id: 'a1111111-2222-3333-4444-555555555555' });
