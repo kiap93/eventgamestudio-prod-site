@@ -4,6 +4,29 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-09-24] - Environment-Controlled Error Message Mode (EXPOSE_API_ERRORS)
+
+### Summary
+Implemented a secure, environment-controlled error-message mode across the EventGameStudio API (`worker.ts`, `server.ts`, and `server/errors.ts`). By default (safe mode), internal server errors are masked behind `"Something went wrong. Please try again."` with a correlation `requestId`. When `EXPOSE_API_ERRORS=true` is explicitly enabled for temporary production debugging, the API returns the actual underlying error message while automatically stripping stack traces and redacting sensitive credentials, tokens, and database passwords.
+
+### Key Changes Implemented
+1. **Centralized Error Handlers (`server/errors.ts`)**:
+   - Implemented `shouldExposeApiErrors(env)` adhering to strict boolean evaluation (only exact case-insensitive match for `'true'` enables debug mode; `undefined`, `false`, `0`, `yes`, etc. remain safe).
+   - Implemented `getActualErrorMessage(err)` extracting clean, informative error strings, stripping V8/Node stack frames, and redacting database passwords, JWT tokens, Bearer authorization credentials, Stripe secret keys, and Supabase service keys.
+   - Updated both `handleWorkerApiError` (Cloudflare Worker) and `handleApiError` (Express) to conditionally return the underlying error when enabled, while preserving the existing correlation `requestId` and HTTP status codes (400, 401, 403, 404, 409, 422, 500).
+2. **Environment & Worker Typing (`worker.ts`, `.env.example`)**:
+   - Added `EXPOSE_API_ERRORS?: string;` to `Env` interface in `worker.ts`.
+   - Documented `EXPOSE_API_ERRORS="false"` in `.env.example`.
+3. **Comprehensive Verification & Testing (`server/errors.test.ts`, `server/expose_api_errors.test.ts`)**:
+   - Verified default safe mode returns `"Something went wrong. Please try again."` with `requestId`.
+   - Verified debug mode returns actual underlying messages on `POST /api/events/:eventId/showcase/publish`, `POST /api/events/:eventId/showcase` (draft creation), and `PATCH /api/events/:eventId/showcase` (draft update).
+   - Verified status code preservation (400, 401, 403, 404, 409, 422, 500) and operational error routing.
+   - Verified credential redaction in debug responses.
+4. **Documentation (`docs/ai/error_handling.md`)**:
+   - Documented Wrangler CLI commands (`npx wrangler secret put EXPOSE_API_ERRORS`) and Cloudflare Dashboard instructions for temporary production debugging and reverting to safe mode.
+
+---
+
 ## [2026-09-24] - Event Showcase Publish 500 Fix & Atomic RPC Consolidation
 
 ### Summary

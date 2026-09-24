@@ -593,6 +593,86 @@ export function resolveCorrelationId(reqHeadersOrRequest: any): string {
   return crypto.randomUUID();
 }
 
+/**
+ * Determines whether detailed API error messages should be exposed based on environment configuration.
+ * Safe default: returns false unless EXPOSE_API_ERRORS is explicitly set to 'true'.
+ * Values such as undefined, '', 'false', '0', 'yes', etc. will strictly evaluate to false.
+ */
+export function shouldExposeApiErrors(env?: any): boolean {
+  let flag: any = undefined;
+  if (env && typeof env === 'object' && 'EXPOSE_API_ERRORS' in env && env.EXPOSE_API_ERRORS !== undefined) {
+    flag = env.EXPOSE_API_ERRORS;
+  } else if (typeof process !== 'undefined' && process.env && 'EXPOSE_API_ERRORS' in process.env && process.env.EXPOSE_API_ERRORS !== undefined) {
+    flag = process.env.EXPOSE_API_ERRORS;
+  }
+
+  if (typeof flag === 'string') {
+    return flag.trim().toLowerCase() === 'true';
+  }
+  return false;
+}
+
+/**
+ * Safely extracts the underlying error message for debug mode (EXPOSE_API_ERRORS=true).
+ * Ensures no stack traces, authorization tokens, passwords, database credentials, or secret keys are exposed.
+ */
+export function getActualErrorMessage(err: any): string {
+  if (!err) {
+    return 'Unknown internal error';
+  }
+
+  let rawMessage = '';
+  if (typeof err === 'string') {
+    rawMessage = err;
+  } else if (typeof err.message === 'string' && err.message.trim()) {
+    rawMessage = err.message.trim();
+    if (typeof err.details === 'string' && err.details.trim() && !rawMessage.includes(err.details.trim())) {
+      rawMessage = `${rawMessage} (${err.details.trim()})`;
+    }
+  } else if (typeof err.details === 'string' && err.details.trim()) {
+    rawMessage = err.details.trim();
+  } else if (typeof err.error === 'string' && err.error.trim()) {
+    rawMessage = err.error.trim();
+  } else if (err.toString && typeof err.toString === 'function' && err.toString() !== '[object Object]') {
+    rawMessage = err.toString();
+  } else {
+    try {
+      rawMessage = JSON.stringify(err);
+    } catch {
+      rawMessage = 'Unknown internal error';
+    }
+  }
+
+  // Strip stack trace if present in message (e.g. Node or V8 stack traces starting with "at ...")
+  if (rawMessage.includes('\n    at ') || rawMessage.includes('\nat ')) {
+    rawMessage = rawMessage.split(/\n\s*at /)[0].trim();
+  }
+
+  // Strip carriage returns and extra whitespace
+  rawMessage = rawMessage.replace(/\r\n/g, '\n').trim();
+
+  // Redact any potential credentials, secrets, tokens, or private keys
+  const sanitized = rawMessage
+    // Redact Bearer tokens
+    .replace(/Bearer\s+([A-Za-z0-9_\-\.]+)/gi, 'Bearer [REDACTED]')
+    // Redact JWT tokens (header.payload.signature)
+    .replace(/eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]+/g, '[REDACTED_JWT]')
+    // Redact Stripe keys
+    .replace(/(?:sk|pk|whsec)_(?:test|live)_[0-9a-zA-Z]{16,}/g, '[REDACTED_STRIPE_KEY]')
+    // Redact Supabase / PostgREST service keys
+    .replace(/service_role\s*[:=]\s*([A-Za-z0-9_\-\.]+)/gi, 'service_role: [REDACTED]')
+    // Redact Database connection URLs with passwords: postgres://user:pass@host...
+    .replace(/(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@)/gi, '$1[REDACTED]$3')
+    // Redact Authorization headers: Authorization: Bearer ...
+    .replace(/(authorization\s*:\s*)([^\s,]+)/gi, '$1[REDACTED]')
+    // Redact Cookie values
+    .replace(/(cookie\s*:\s*)([^\r\n;]+)/gi, '$1[REDACTED]')
+    // Redact password parameters
+    .replace(/(password\s*[:=]\s*)(['"]?)([^'"\s&,]+)\2/gi, '$1$2[REDACTED]$2');
+
+  return sanitized || 'Unknown internal error';
+}
+
 // ----------------------------------------------------------------------------
 // Express Handler: handleApiError
 // ----------------------------------------------------------------------------
@@ -602,6 +682,7 @@ export interface HandleApiErrorOptions {
   endpoint?: string;
   method?: string;
   metadata?: Record<string, any>;
+  env?: any;
 }
 
 /**
@@ -778,9 +859,16 @@ export function handleApiError(
     console.error('[ErrorLogger] Failed to persist error log in handleApiError:', loggingErr);
   });
 
-  // Client response: strictly generic internal server error + requestId
-  res.status(500).json({
-    error: 'Something went wrong. Please try again.',
+  // Client response: generic internal server error by default, or underlying error in debug mode
+  const exposeApiErrors = shouldExposeApiErrors(options?.env);
+  const clientErrorMessage = exposeApiErrors
+    ? getActualErrorMessage(err)
+    : 'Something went wrong. Please try again.';
+
+  const finalStatusCode = (statusCode >= 400 && statusCode <= 599) ? statusCode : 500;
+
+  res.status(finalStatusCode).json({
+    error: clientErrorMessage,
     requestId,
   });
 }
@@ -795,6 +883,7 @@ export interface WorkerErrorOptions {
   userId?: string;
   metadata?: Record<string, any>;
   parsedBody?: any;
+  env?: any;
 }
 
 /**
@@ -817,12 +906,16 @@ export async function handleWorkerApiError(
   } else if (envOrCors && (envOrCors['Access-Control-Allow-Origin'] !== undefined || envOrCors['Access-Control-Allow-Methods'] !== undefined)) {
     cors = envOrCors;
     env = corsOrEnv;
-  } else if (corsOrEnv && (corsOrEnv.SUPABASE_URL || corsOrEnv.SUPABASE_SERVICE_ROLE_KEY || corsOrEnv.NODE_ENV)) {
+  } else if (corsOrEnv && (corsOrEnv.SUPABASE_URL || corsOrEnv.SUPABASE_SERVICE_ROLE_KEY || corsOrEnv.NODE_ENV || corsOrEnv.EXPOSE_API_ERRORS !== undefined)) {
     env = corsOrEnv;
     cors = (envOrCors && typeof envOrCors === 'object') ? envOrCors : {};
   } else if (corsOrEnv && typeof corsOrEnv === 'object') {
     cors = corsOrEnv;
     env = envOrCors;
+  }
+
+  if (!env && options?.env) {
+    env = options.env;
   }
 
   const requestId = resolveCorrelationId(request);
@@ -1003,13 +1096,20 @@ export async function handleWorkerApiError(
     console.error('[Worker ErrorLogger] Failed to persist error log in handleWorkerApiError:', loggingErr);
   }
 
+  const exposeApiErrors = shouldExposeApiErrors(env);
+  const clientErrorMessage = exposeApiErrors
+    ? getActualErrorMessage(err)
+    : 'Something went wrong. Please try again.';
+
+  const finalStatusCode = (statusCode >= 400 && statusCode <= 599) ? statusCode : 500;
+
   return new globalThis.Response(
     JSON.stringify({
-      error: 'Something went wrong. Please try again.',
+      error: clientErrorMessage,
       requestId,
     }),
     {
-      status: 500,
+      status: finalStatusCode,
       headers: responseHeaders,
     }
   );

@@ -8,6 +8,8 @@ import {
   resolveCorrelationId,
   handleApiError,
   handleWorkerApiError,
+  shouldExposeApiErrors,
+  getActualErrorMessage,
 } from './errors.js';
 import { logApiError, listApiErrorLogs, getApiErrorLogById } from './db/errorLogs.js';
 
@@ -288,6 +290,110 @@ async function runErrorHandlingTests() {
     assert.strictEqual(retrieved?.id, logged.id);
     assert.strictEqual(retrieved?.request_id, testReqId);
     console.log('   ✓ Error log persistence & query audit passed');
+  }
+
+  // --------------------------------------------------------------------------
+  // 8. EXPOSE_API_ERRORS Environment-Controlled Debug Mode
+  // --------------------------------------------------------------------------
+  console.log('8. Testing EXPOSE_API_ERRORS environment-controlled debug mode...');
+  {
+    // A. Environment flag evaluation
+    assert.strictEqual(shouldExposeApiErrors(undefined), false, 'undefined must be false');
+    assert.strictEqual(shouldExposeApiErrors({}), false, 'empty env must be false');
+    assert.strictEqual(shouldExposeApiErrors({ EXPOSE_API_ERRORS: undefined }), false, 'undefined var must be false');
+    assert.strictEqual(shouldExposeApiErrors({ EXPOSE_API_ERRORS: 'false' }), false, 'false must be false');
+    assert.strictEqual(shouldExposeApiErrors({ EXPOSE_API_ERRORS: 'FALSE' }), false, 'FALSE must be false');
+    assert.strictEqual(shouldExposeApiErrors({ EXPOSE_API_ERRORS: '0' }), false, '0 must be false');
+    assert.strictEqual(shouldExposeApiErrors({ EXPOSE_API_ERRORS: 'yes' }), false, 'yes must be false');
+    assert.strictEqual(shouldExposeApiErrors({ EXPOSE_API_ERRORS: 'true' }), true, 'true must be true');
+    assert.strictEqual(shouldExposeApiErrors({ EXPOSE_API_ERRORS: 'TRUE' }), true, 'TRUE must be true');
+    assert.strictEqual(shouldExposeApiErrors({ EXPOSE_API_ERRORS: ' True ' }), true, 'whitespace True must be true');
+
+    // B. getActualErrorMessage message sanitization
+    const errWithStack = new Error('Database error creating showcase: syntax error at or near "SELECT"');
+    errWithStack.stack = 'Error: Database error creating showcase\n    at createShowcase (showcases.ts:500:20)\n    at Object.fetch (worker.ts:4000:10)';
+    const cleanMsg = getActualErrorMessage(errWithStack);
+    assert.ok(cleanMsg.includes('Database error creating showcase'), 'Must preserve error message');
+    assert.ok(!cleanMsg.includes('at createShowcase'), 'Must strip stack trace');
+
+    const errWithSecrets = new Error('Database connection failed: postgresql://postgres:SuperSecretPassword123@db.supabase.co:5432/postgres with Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.mySecretSignature and key sk_live_51AbcDef1234567890');
+    const sanitizedMsg = getActualErrorMessage(errWithSecrets);
+    assert.ok(!sanitizedMsg.includes('SuperSecretPassword123'), 'Must redact database password');
+    assert.ok(!sanitizedMsg.includes('mySecretSignature'), 'Must redact JWT secret signature');
+    assert.ok(!sanitizedMsg.includes('sk_live_51AbcDef1234567890'), 'Must redact Stripe live key');
+
+    // C. Worker error response: Debug OFF vs Debug ON
+    const workerReq = new Request('https://eventgamestudio.com/api/events/evt-123/showcase/publish', {
+      method: 'POST',
+      headers: { 'x-correlation-id': 'debug-test-corr-1' },
+    });
+    const sampleDbErr = new Error('Database error publishing showcase: function publish_event_showcase_atomic does not exist');
+
+    // Debug OFF (default / false)
+    const offRes = await handleWorkerApiError(
+      sampleDbErr,
+      workerReq,
+      { 'Access-Control-Allow-Origin': '*' },
+      { EXPOSE_API_ERRORS: 'false' }
+    );
+    assert.strictEqual(offRes.status, 500);
+    const offBody = await offRes.json();
+    assert.strictEqual(offBody.error, 'Something went wrong. Please try again.');
+    assert.strictEqual(offBody.requestId, 'debug-test-corr-1');
+
+    // Debug ON (true)
+    const onRes = await handleWorkerApiError(
+      sampleDbErr,
+      workerReq,
+      { 'Access-Control-Allow-Origin': '*' },
+      { EXPOSE_API_ERRORS: 'true' }
+    );
+    assert.strictEqual(onRes.status, 500);
+    const onBody = await onRes.json();
+    assert.strictEqual(onBody.error, 'Database error publishing showcase: function publish_event_showcase_atomic does not exist');
+    assert.strictEqual(onBody.requestId, 'debug-test-corr-1');
+
+    // D. Express error response: Debug OFF vs Debug ON
+    let expressStatus = 0;
+    let expressBody: any = null;
+    const mockRes: any = {
+      status(code: number) {
+        expressStatus = code;
+        return this;
+      },
+      json(payload: any) {
+        expressBody = payload;
+        return this;
+      },
+      setHeader() {},
+    };
+    const mockExpressReq: any = {
+      id: 'express-corr-999',
+      headers: {},
+      originalUrl: '/api/events/evt-456/showcase',
+      method: 'POST',
+    };
+
+    // Express Debug OFF
+    handleApiError(sampleDbErr, mockExpressReq, mockRes, { env: { EXPOSE_API_ERRORS: 'false' } });
+    assert.strictEqual(expressStatus, 500);
+    assert.strictEqual(expressBody.error, 'Something went wrong. Please try again.');
+    assert.strictEqual(expressBody.requestId, 'express-corr-999');
+
+    // Express Debug ON
+    handleApiError(sampleDbErr, mockExpressReq, mockRes, { env: { EXPOSE_API_ERRORS: 'true' } });
+    assert.strictEqual(expressStatus, 500);
+    assert.strictEqual(expressBody.error, 'Database error publishing showcase: function publish_event_showcase_atomic does not exist');
+    assert.strictEqual(expressBody.requestId, 'express-corr-999');
+
+    // E. Status code preservation
+    const notFoundErr = new AppError('Showcase not found', 404, 'SHOWCASE_NOT_FOUND');
+    const nfRes = await handleWorkerApiError(notFoundErr, workerReq, { 'Access-Control-Allow-Origin': '*' }, { EXPOSE_API_ERRORS: 'true' });
+    assert.strictEqual(nfRes.status, 404);
+    const nfBody = await nfRes.json();
+    assert.strictEqual(nfBody.error, 'Showcase not found');
+
+    console.log('   ✓ EXPOSE_API_ERRORS debug mode tests passed');
   }
 
   console.log('\n====================================================');

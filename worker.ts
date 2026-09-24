@@ -231,6 +231,7 @@ import { validateUploadedFile } from './server/fileValidation.js';
 
 export interface Env {
   NODE_ENV?: string;
+  EXPOSE_API_ERRORS?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   JWT_SECRET?: string;
