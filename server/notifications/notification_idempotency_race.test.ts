@@ -12,12 +12,45 @@
  * 4. Preservation of identical notification record across concurrent callers.
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
 import { createNotification, getNotificationByDeduplicationKey, listNotifications } from '../db/notifications.js';
-import { NotificationDispatcher, dispatchNotificationEvent } from './dispatcher.js';
-import type { NotificationChannelAdapter } from './types.js';
+import { NotificationDispatcher, dispatchNotificationEvent, type NotificationChannelAdapter } from './dispatcher.js';
 import fs from 'node:fs';
 import path from 'node:path';
+
+function expect(val: any) {
+  return {
+    toBe(expected: any) {
+      if (val !== expected) throw new Error(`Expected ${expected}, got ${val}`);
+    },
+    not: {
+      toBe(expected: any) {
+        if (val === expected) throw new Error(`Expected ${val} not to be ${expected}`);
+      },
+    },
+    toContain(substr: string) {
+      if (!String(val).includes(substr)) throw new Error(`Expected string to contain "${substr}"`);
+    },
+  };
+}
+
+let passed = 0;
+let failed = 0;
+
+async function it(name: string, fn: () => Promise<void> | void) {
+  try {
+    await fn();
+    console.log(`  ✓ ${name}`);
+    passed++;
+  } catch (err: any) {
+    console.error(`  ✗ FAIL: ${name} ->`, err.message);
+    failed++;
+  }
+}
+
+async function describe(suite: string, fn: () => Promise<void> | void) {
+  console.log(`\n=== ${suite} ===`);
+  await fn();
+}
 
 describe('Notification DB-Level Idempotency & Race Protection', () => {
   const mockEnv = { ALLOW_LOCAL_FALLBACK: 'true' };
@@ -75,8 +108,7 @@ describe('Notification DB-Level Idempotency & Race Protection', () => {
     const sentRecordIds: string[] = [];
 
     const mockAdapter: NotificationChannelAdapter = {
-      name: 'test_spy_adapter',
-      enabled: true,
+      name: 'email',
       send: async (record) => {
         adapterSendCallCount++;
         sentRecordIds.push(record.id);

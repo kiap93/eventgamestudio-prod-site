@@ -75,13 +75,19 @@ export const DeveloperShowcaseReviews: React.FC = () => {
     try {
       setPendingRewardsLoading(true);
       setPendingRewardsError(null);
-      const res = await apiFetch('/api/developer/showcase-rewards?status=AWAITING_APPROVAL');
+      const res = await apiFetch('/api/developer/showcase-reward-submissions?status=PENDING');
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to fetch pending rewards queue');
+        const fallbackRes = await apiFetch('/api/developer/showcase-rewards?status=AWAITING_APPROVAL');
+        if (!fallbackRes.ok) {
+          const data = await fallbackRes.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to fetch pending rewards queue');
+        }
+        const fallbackData = await fallbackRes.json();
+        setPendingRewards(fallbackData.showcases || []);
+        return;
       }
       const data = await res.json();
-      setPendingRewards(data.showcases || []);
+      setPendingRewards(data.submissions || data.showcases || []);
     } catch (err: any) {
       console.error('Fetch pending showcase rewards error:', err);
       setPendingRewardsError(err.message || 'Failed to load pending rewards');
@@ -162,9 +168,14 @@ export const DeveloperShowcaseReviews: React.FC = () => {
       setError(null);
       setActionSuccess(null);
 
-      const res = await apiFetch(`/api/developer/showcases/${showcaseId}/reward/approve`, {
+      let res = await apiFetch(`/api/developer/showcase-reward-submissions/${showcaseId}/approve`, {
         method: 'POST',
       });
+      if (!res.ok) {
+        res = await apiFetch(`/api/developer/showcases/${showcaseId}/reward/approve`, {
+          method: 'POST',
+        });
+      }
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -208,10 +219,16 @@ export const DeveloperShowcaseReviews: React.FC = () => {
       setError(null);
       setActionSuccess(null);
 
-      const res = await apiFetch(`/api/developer/showcases/${rejectingShowcase.id}/reward/reject`, {
+      let res = await apiFetch(`/api/developer/showcase-reward-submissions/${rejectingShowcase.id}/reject`, {
         method: 'POST',
         body: JSON.stringify({ reason: rejectionReason.trim() }),
       });
+      if (!res.ok) {
+        res = await apiFetch(`/api/developer/showcases/${rejectingShowcase.id}/reward/reject`, {
+          method: 'POST',
+          body: JSON.stringify({ reason: rejectionReason.trim() }),
+        });
+      }
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

@@ -7,6 +7,7 @@ import {
   EventShowcaseMedia,
   ShowcaseMediaType,
   UploadQueueItem,
+  ShowcaseRewardSubmissionRecord,
 } from '../../types/showcase';
 import { ShowcaseMediaCard } from './showcase/ShowcaseMediaCard';
 import { ShowcaseMediaUploadQueue } from './showcase/ShowcaseMediaUploadQueue';
@@ -34,6 +35,8 @@ import {
   Eye,
   Share2,
   Check,
+  Gift,
+  XCircle,
 } from 'lucide-react';
 import { isEventEligibleForShowcase } from '../../lib/dateUtils';
 
@@ -78,6 +81,11 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
   const [clientName, setClientName] = useState('');
   const [clientLogoUrl, setClientLogoUrl] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
+
+  // Reward Submission & Eligibility States
+  const [rewardSubmission, setRewardSubmission] = useState<ShowcaseRewardSubmissionRecord | null>(null);
+  const [rewardEligibility, setRewardEligibility] = useState<any | null>(null);
+  const [submittingReward, setSubmittingReward] = useState<boolean>(false);
 
   // Media & Upload States
   const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
@@ -135,6 +143,13 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
         const sData = await showcaseRes.json();
         const sc: EventShowcase = sData.showcase;
         setShowcase(sc);
+        if (sData.reward_submission !== undefined) {
+          setRewardSubmission(sData.reward_submission);
+        }
+        if (sData.reward_eligibility !== undefined) {
+          setRewardEligibility(sData.reward_eligibility);
+        }
+
         if (sc) {
           setTitle(sc.title || '');
           setDescription(sc.description || '');
@@ -152,6 +167,22 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
           setTitle(eData.event?.name || 'Event Showcase');
         }
       }
+
+      // Check reward submission & eligibility status
+      try {
+        const subRes = await apiFetch(`/api/events/${eventId}/showcase/reward-submission`);
+        if (subRes.ok) {
+          const subData = await subRes.json();
+          if (subData.submission !== undefined) {
+            setRewardSubmission(subData.submission);
+          }
+          if (subData.eligibility !== undefined) {
+            setRewardEligibility(subData.eligibility);
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
     } catch (err: any) {
       console.error('Load showcase page error:', err);
       setError(err.message || 'Failed to load showcase');
@@ -165,6 +196,35 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
       loadData();
     }
   }, [eventId]);
+
+  // Handle Submit for RM300 Reward
+  const handleSubmitReward = async () => {
+    if (submittingReward) return;
+    try {
+      setSubmittingReward(true);
+      setError(null);
+      setSuccessMsg(null);
+
+      const res = await apiFetch(`/api/events/${eventId}/showcase/reward-submission`, {
+        method: 'POST',
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to submit showcase for RM300 reward');
+      }
+
+      setRewardSubmission(data.submission);
+      setSuccessMsg('Your showcase has been submitted for RM300 reward review! Our team will inspect your submission shortly.');
+      setTimeout(() => setSuccessMsg(null), 5000);
+      loadData();
+    } catch (err: any) {
+      console.error('Submit reward error:', err);
+      setError(err.message || 'Failed to submit for RM300 reward');
+    } finally {
+      setSubmittingReward(false);
+    }
+  };
 
   // Handle Save (Draft or Update)
   const handleSave = async (e?: React.FormEvent) => {
@@ -757,6 +817,52 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
 
             {!isViewer && (
               <>
+                {/* Reward Submission Button / Status */}
+                {rewardSubmission?.status === 'PENDING' && (
+                  <button
+                    type="button"
+                    disabled
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300 opacity-90 cursor-not-allowed shadow-sm"
+                    title="Your RM300 reward submission is waiting for admin approval."
+                  >
+                    <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
+                    <span>Reward Submission Pending</span>
+                  </button>
+                )}
+
+                {(rewardSubmission?.status === 'APPROVED' || showcase?.reward_review_status === 'REWARDED' || rewardEligibility?.alreadyClaimed) && (
+                  <div
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shadow-sm"
+                    title="RM300 promotional reward approved"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>RM300 Reward Approved</span>
+                  </div>
+                )}
+
+                {rewardSubmission?.status === 'REJECTED' && (
+                  <div
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-rose-500/15 border border-rose-500/30 text-rose-300 shadow-sm"
+                    title={rewardSubmission.rejection_reason || 'Reward submission rejected'}
+                  >
+                    <XCircle className="w-4 h-4 text-rose-400" />
+                    <span>Reward Submission Rejected</span>
+                  </div>
+                )}
+
+                {!rewardSubmission && rewardEligibility?.eligible && (
+                  <button
+                    type="button"
+                    onClick={handleSubmitReward}
+                    disabled={submittingReward}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer disabled:opacity-50"
+                    title="Submit this first-event showcase for RM300 Reward"
+                  >
+                    <Gift className="w-4 h-4 text-slate-950" />
+                    <span>{submittingReward ? 'Submitting...' : 'Submit for RM300 Reward'}</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => handleSave()}
@@ -792,6 +898,48 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             )}
           </div>
         </div>
+
+        {/* Reward Status Notice Banners */}
+        {rewardSubmission?.status === 'PENDING' && (
+          <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between gap-3 text-xs text-amber-300">
+            <div className="flex items-center gap-2.5">
+              <Clock className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+              <span>
+                <strong>Reward Submission Pending:</strong> Your RM300 reward submission is waiting for admin approval.
+              </span>
+            </div>
+            {rewardSubmission.submitted_at && (
+              <span className="text-[11px] font-mono text-amber-400/80 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
+                Submitted on {new Date(rewardSubmission.submitted_at).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+        )}
+
+        {rewardSubmission?.status === 'REJECTED' && (
+          <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-rose-300">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-bold text-rose-200">
+                <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>Reward Submission Rejected</span>
+              </div>
+              {rewardSubmission.rejection_reason && (
+                <p className="text-slate-300 text-xs pl-6">
+                  Reason: {rewardSubmission.rejection_reason}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {(rewardSubmission?.status === 'APPROVED' || showcase?.reward_review_status === 'REWARDED') && (
+          <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-300">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>
+              <strong>RM300 Reward Approved:</strong> RM300 promotional credit has been granted to your account organization wallet.
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Global Upload Queue Progress */}

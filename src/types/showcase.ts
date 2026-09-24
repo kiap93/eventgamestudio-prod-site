@@ -101,3 +101,38 @@ export interface UploadQueueItem {
   resultMedia?: EventShowcaseMedia;
 }
 
+export type ShowcaseRewardSubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ShowcaseRewardSubmission {
+  id: string;
+  showcase_id: string;
+  event_id: string;
+  user_id: string;
+  status: ShowcaseRewardSubmissionStatus;
+  reward_amount: number;
+  submitted_at: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  rejection_reason?: string | null;
+  reward_transaction_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ShowcaseRewardSubmissionRecord = ShowcaseRewardSubmission;
+
+export interface ShowcaseRewardSubmissionAdminItem extends ShowcaseRewardSubmission {
+  showcase_title?: string;
+  event_name?: string;
+  submitter_name?: string;
+  submitter_email?: string;
+  organization_id?: string;
+  organization_name?: string;
+  cover_image_url?: string | null;
+  media_count?: {
+    images: number;
+    videos: number;
+    total: number;
+  };
+}
+

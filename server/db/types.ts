@@ -452,6 +452,24 @@ export interface OwnerShowcaseRewardRecord {
   created_at: string;
 }
 
+export type ShowcaseRewardSubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ShowcaseRewardSubmissionRecord {
+  id: string;
+  showcase_id: string;
+  event_id: string;
+  user_id: string;
+  status: ShowcaseRewardSubmissionStatus;
+  reward_amount: number;
+  submitted_at: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  rejection_reason?: string | null;
+  reward_transaction_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ShowcaseModerationLog {
   id: string;
   showcase_id: string;

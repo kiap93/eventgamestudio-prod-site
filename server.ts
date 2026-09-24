@@ -188,6 +188,13 @@ import {
   deleteGamePricingTier,
   bulkUpsertGamePricing,
   ensureDefaultGamePricing,
+  createShowcaseRewardSubmission,
+  getShowcaseRewardSubmissionForEvent,
+  getShowcaseRewardSubmissionById,
+  getPendingRewardSubmissions,
+  approveShowcaseRewardSubmission,
+  rejectShowcaseRewardSubmission,
+  getShowcaseRewardEligibility,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import {
@@ -3610,7 +3617,14 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
     if (!showcase) {
       if (isOrgMember) {
         const lifetimeRewardStatus = req.user?.id ? await getOwnerShowcaseRewardStatus(req.user.id) : null;
-        res.json({ showcase: null, lifetimeRewardStatus });
+        const rewardSubmission = await getShowcaseRewardSubmissionForEvent(eventId);
+        const rewardEligibility = req.user?.id ? await getShowcaseRewardEligibility(req.user.id) : null;
+        res.json({
+          showcase: null,
+          lifetimeRewardStatus,
+          reward_submission: rewardSubmission,
+          reward_eligibility: rewardEligibility,
+        });
         return;
       }
       res.status(404).json({ error: 'Showcase not found' });
@@ -3620,7 +3634,14 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
     // If org member, return showcase regardless of status
     if (isOrgMember) {
       const lifetimeRewardStatus = req.user?.id ? await getOwnerShowcaseRewardStatus(req.user.id) : null;
-      res.json({ showcase, lifetimeRewardStatus });
+      const rewardSubmission = await getShowcaseRewardSubmissionForEvent(eventId);
+      const rewardEligibility = req.user?.id ? await getShowcaseRewardEligibility(req.user.id) : null;
+      res.json({
+        showcase,
+        lifetimeRewardStatus,
+        reward_submission: rewardSubmission,
+        reward_eligibility: rewardEligibility,
+      });
       return;
     }
 
@@ -3631,6 +3652,49 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
     }
 
     res.status(404).json({ error: 'Showcase is not published' });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/events/:eventId/showcase/reward-submission
+ * Submit event showcase for RM300 Reward
+ */
+app.post('/api/events/:eventId/showcase/reward-submission', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const submission = await createShowcaseRewardSubmission({
+      eventId,
+      userId: user.id,
+    });
+
+    res.status(201).json({
+      success: true,
+      submission,
+      message: 'Showcase submitted for RM300 reward review',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/events/:eventId/showcase/reward-submission
+ * Get current showcase reward submission status and eligibility for an event
+ */
+app.get('/api/events/:eventId/showcase/reward-submission', authenticateOptionalJWT, async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const { eventId } = req.params;
+    const submission = await getShowcaseRewardSubmissionForEvent(eventId);
+    const eligibility = req.user?.id ? await getShowcaseRewardEligibility(req.user.id) : null;
+
+    res.json({
+      submission,
+      eligibility,
+    });
   } catch (err: any) {
     handleApiError(err, req, res);
   }
@@ -5103,12 +5167,111 @@ app.get('/api/developer/showcases', authenticateDeveloperAdmin, handleGetAdminSh
 app.get('/api/admin/showcases', authenticateDeveloperAdmin, handleGetAdminShowcases);
 
 /**
+ * GET /api/developer/showcase-reward-submissions (or /api/admin/showcase-reward-submissions)
+ * Dedicated queue for pending RM300 showcase rewards
+ */
+const handleGetShowcaseRewardSubmissions = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const statusParam = (req.query.status as string) || 'PENDING';
+    const submissions = await getPendingRewardSubmissions(undefined, statusParam);
+    res.json({
+      submissions,
+      showcases: submissions,
+      count: submissions.length,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/showcase-reward-submissions', authenticateDeveloperAdmin, handleGetShowcaseRewardSubmissions);
+app.get('/api/admin/showcase-reward-submissions', authenticateDeveloperAdmin, handleGetShowcaseRewardSubmissions);
+
+/**
+ * POST /api/developer/showcase-reward-submissions/:id/approve
+ * Approve submission and grant RM300 atomically
+ */
+const handleApproveShowcaseRewardSubmission = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const submissionId = req.params.id || req.params.submissionId;
+    const reviewerId = req.user?.id || 'admin';
+
+    const result = await approveShowcaseRewardSubmission({
+      submissionId,
+      reviewerId,
+    });
+
+    res.json({
+      success: true,
+      submission: result.submission,
+      showcase: result.showcase,
+      reward: result.reward,
+      alreadyRewarded: result.alreadyRewarded,
+      message: result.alreadyRewarded
+        ? 'Reward was already previously granted for this submission'
+        : 'Showcase reward approved successfully and RM300 credit granted',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.post('/api/developer/showcase-reward-submissions/:id/approve', authenticateDeveloperAdmin, handleApproveShowcaseRewardSubmission);
+app.post('/api/developer/showcase-reward-submissions/:submissionId/approve', authenticateDeveloperAdmin, handleApproveShowcaseRewardSubmission);
+app.post('/api/admin/showcase-reward-submissions/:id/approve', authenticateDeveloperAdmin, handleApproveShowcaseRewardSubmission);
+app.post('/api/admin/showcase-reward-submissions/:submissionId/approve', authenticateDeveloperAdmin, handleApproveShowcaseRewardSubmission);
+
+/**
+ * POST /api/developer/showcase-reward-submissions/:id/reject
+ * Reject submission with mandatory feedback reason
+ */
+const handleRejectShowcaseRewardSubmission = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const submissionId = req.params.id || req.params.submissionId;
+    const reviewerId = req.user?.id || 'admin';
+    const { reason, rejection_reason } = req.body;
+    const finalReason = rejection_reason || reason;
+
+    if (!finalReason || typeof finalReason !== 'string' || !finalReason.trim()) {
+      res.status(422).json({ error: 'Rejection reason is required' });
+      return;
+    }
+
+    const result = await rejectShowcaseRewardSubmission({
+      submissionId,
+      reviewerId,
+      rejectionReason: finalReason.trim(),
+    });
+
+    res.json({
+      success: true,
+      submission: result.submission,
+      showcase: result.showcase,
+      message: 'Showcase reward submission rejected with feedback',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.post('/api/developer/showcase-reward-submissions/:id/reject', authenticateDeveloperAdmin, handleRejectShowcaseRewardSubmission);
+app.post('/api/developer/showcase-reward-submissions/:submissionId/reject', authenticateDeveloperAdmin, handleRejectShowcaseRewardSubmission);
+app.post('/api/admin/showcase-reward-submissions/:id/reject', authenticateDeveloperAdmin, handleRejectShowcaseRewardSubmission);
+app.post('/api/admin/showcase-reward-submissions/:submissionId/reject', authenticateDeveloperAdmin, handleRejectShowcaseRewardSubmission);
+
+/**
  * GET /api/developer/showcase-rewards (or /api/admin/showcase-rewards)
  * Dedicated queue for pending RM300 showcase rewards
  */
 const handleGetShowcaseRewards = async (req: AuthenticatedRequest, res: any) => {
   try {
     const statusParam = (req.query.status as string) || 'AWAITING_APPROVAL';
+    // Load pending submissions first
+    const submissions = await getPendingRewardSubmissions(undefined, 'PENDING');
+    if (submissions.length > 0) {
+      res.json({ showcases: submissions, submissions, count: submissions.length });
+      return;
+    }
     const showcases = await getShowcaseRewardsForAdmin(undefined, statusParam);
     res.json({ showcases, count: showcases.length });
   } catch (err: any) {
@@ -5125,10 +5288,39 @@ app.get('/api/admin/showcase-rewards', authenticateDeveloperAdmin, handleGetShow
  */
 const handleApproveShowcase = async (req: AuthenticatedRequest, res: any) => {
   try {
-    const showcaseId = req.params.id || req.params.showcaseId;
+    const targetId = req.params.id || req.params.showcaseId;
     const reviewerId = req.user?.id || 'admin';
 
-    const result = await approveShowcaseReview(showcaseId, reviewerId);
+    // Check if targetId is a submission ID
+    const submission = await getShowcaseRewardSubmissionById(targetId);
+    if (submission) {
+      const subResult = await approveShowcaseRewardSubmission({
+        submissionId: submission.id,
+        reviewerId,
+      });
+      res.json({
+        success: true,
+        submission: subResult.submission,
+        showcase: subResult.showcase,
+        reward: subResult.reward,
+        alreadyRewarded: subResult.alreadyRewarded,
+        message: subResult.alreadyRewarded
+          ? 'Showcase reward was already previously granted'
+          : 'Showcase reward approved successfully and RM300 credit granted',
+      });
+      return;
+    }
+
+    const result = await approveShowcaseReview(targetId, reviewerId);
+    // Sync any pending submission for this showcase
+    const showcaseSub = await getShowcaseRewardSubmissionForEvent(result.showcase.event_id);
+    if (showcaseSub && showcaseSub.status === 'PENDING') {
+      await approveShowcaseRewardSubmission({
+        submissionId: showcaseSub.id,
+        reviewerId,
+      }).catch(() => {});
+    }
+
     res.json({
       success: true,
       showcase: result.showcase,
@@ -5154,7 +5346,7 @@ app.post('/api/admin/showcases/:showcaseId/approve', authenticateDeveloperAdmin,
  */
 const handleRejectShowcase = async (req: AuthenticatedRequest, res: any) => {
   try {
-    const showcaseId = req.params.id || req.params.showcaseId;
+    const targetId = req.params.id || req.params.showcaseId;
     const reviewerId = req.user?.id || 'admin';
     const { reason, rejection_reason } = req.body;
     const finalReason = rejection_reason || reason;
@@ -5164,7 +5356,34 @@ const handleRejectShowcase = async (req: AuthenticatedRequest, res: any) => {
       return;
     }
 
-    const updatedShowcase = await rejectShowcaseReview(showcaseId, reviewerId, finalReason.trim());
+    // Check if targetId is a submission ID
+    const submission = await getShowcaseRewardSubmissionById(targetId);
+    if (submission) {
+      const subResult = await rejectShowcaseRewardSubmission({
+        submissionId: submission.id,
+        reviewerId,
+        rejectionReason: finalReason.trim(),
+      });
+      res.json({
+        success: true,
+        submission: subResult.submission,
+        showcase: subResult.showcase,
+        message: 'Showcase reward submission rejected with feedback',
+      });
+      return;
+    }
+
+    const updatedShowcase = await rejectShowcaseReview(targetId, reviewerId, finalReason.trim());
+    // Sync any pending submission for this showcase
+    const showcaseSub = await getShowcaseRewardSubmissionForEvent(updatedShowcase.event_id);
+    if (showcaseSub && showcaseSub.status === 'PENDING') {
+      await rejectShowcaseRewardSubmission({
+        submissionId: showcaseSub.id,
+        reviewerId,
+        rejectionReason: finalReason.trim(),
+      }).catch(() => {});
+    }
+
     res.json({
       success: true,
       showcase: updatedShowcase,

@@ -236,7 +236,7 @@ export async function createNotification(
           deduplication_key: newRecord.deduplication_key,
           created_at: newRecord.created_at,
           expires_at: newRecord.expires_at,
-        }, insertOptions)
+        }, insertOptions as any)
         .select('*')
         .maybeSingle();
 

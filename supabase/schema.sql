@@ -1502,6 +1502,43 @@ CREATE TABLE IF NOT EXISTS public.owner_showcase_rewards (
 CREATE INDEX IF NOT EXISTS idx_owner_showcase_rewards_org ON public.owner_showcase_rewards (organization_id);
 CREATE INDEX IF NOT EXISTS idx_owner_showcase_rewards_event ON public.owner_showcase_rewards (event_id);
 
+-- ------------------------------------------------------------------------------
+-- SHOWCASE REWARD SUBMISSIONS (EXPLICIT USER-INITIATED SUBMISSIONS & ADMIN APPROVAL)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.showcase_reward_submissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  showcase_id UUID NOT NULL REFERENCES public.event_showcases(id) ON DELETE CASCADE,
+  event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
+  reward_amount NUMERIC(12, 2) NOT NULL DEFAULT 300.00,
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  rejection_reason TEXT,
+  reward_transaction_id UUID REFERENCES public.wallet_transactions(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_showcase_reward_submissions_user_pending
+  ON public.showcase_reward_submissions (user_id)
+  WHERE status = 'PENDING';
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_showcase_reward_submissions_showcase_pending
+  ON public.showcase_reward_submissions (showcase_id)
+  WHERE status = 'PENDING';
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_showcase_reward_submissions_user_approved
+  ON public.showcase_reward_submissions (user_id)
+  WHERE status = 'APPROVED';
+
+CREATE INDEX IF NOT EXISTS idx_showcase_reward_submissions_status ON public.showcase_reward_submissions (status);
+CREATE INDEX IF NOT EXISTS idx_showcase_reward_submissions_user_id ON public.showcase_reward_submissions (user_id);
+CREATE INDEX IF NOT EXISTS idx_showcase_reward_submissions_showcase_id ON public.showcase_reward_submissions (showcase_id);
+CREATE INDEX IF NOT EXISTS idx_showcase_reward_submissions_event_id ON public.showcase_reward_submissions (event_id);
+CREATE INDEX IF NOT EXISTS idx_showcase_reward_submissions_submitted_at ON public.showcase_reward_submissions (submitted_at ASC);
+
 CREATE TABLE IF NOT EXISTS public.event_showcase_media (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   showcase_id UUID NOT NULL REFERENCES public.event_showcases(id) ON DELETE CASCADE,
