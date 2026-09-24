@@ -4527,16 +4527,32 @@ BEGIN
   );
 
   -- 6. Atomic check of pending event limit under the organization lock
+  -- A pending event slot is consumed ONLY when the event is:
+  -- - belonging to the same organization
+  -- - unpaid / pending payment
+  -- - not explicitly cancelled, expired, or completed
+  -- - event end date has NOT already passed (inclusive of end date) in its authoritative timezone
   IF v_is_pending AND NOT COALESCE(p_skip_pending_limit_check, false) THEN
     SELECT COUNT(*) INTO v_pending_count
     FROM public.events
     WHERE organization_id = p_organization_id
-      AND status NOT IN ('cancelled', 'expired')
-      AND event_status NOT IN ('CANCELLED', 'EXPIRED')
       AND (
-        LOWER(status) = 'pending_payment'
-        OR UPPER(payment_status) = 'PENDING_PAYMENT'
-        OR UPPER(payment_status) = 'UNPAID'
+        UPPER(COALESCE(payment_status, 'UNPAID')) IN ('PENDING_PAYMENT', 'UNPAID')
+        OR LOWER(COALESCE(status, 'draft')) = 'pending_payment'
+      )
+      AND UPPER(COALESCE(payment_status, 'UNPAID')) NOT IN ('PAID', 'REFUNDED')
+      AND LOWER(COALESCE(status, 'draft')) NOT IN ('cancelled', 'expired', 'completed')
+      AND UPPER(COALESCE(event_status, 'DRAFT')) NOT IN ('CANCELLED', 'EXPIRED', 'COMPLETED')
+      AND (
+        (now() AT TIME ZONE COALESCE(NULLIF(TRIM(event_timezone), ''), 'Asia/Singapore'))::date <= COALESCE(
+          CASE
+            WHEN end_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(end_date FROM 1 FOR 10))::date
+            WHEN start_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(start_date FROM 1 FOR 10))::date
+            WHEN event_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(event_date FROM 1 FOR 10))::date
+            ELSE NULL
+          END,
+          (expires_at AT TIME ZONE COALESCE(NULLIF(TRIM(event_timezone), ''), 'Asia/Singapore'))::date
+        )
       );
 
     IF v_pending_count >= v_max_limit THEN
@@ -4645,25 +4661,59 @@ AS $$
 DECLARE
   v_pending_count INT;
   v_is_pending BOOLEAN;
+  v_new_end_date DATE;
+  v_new_is_past BOOLEAN := FALSE;
 BEGIN
   v_is_pending := (
     UPPER(COALESCE(NEW.payment_status, 'UNPAID')) IN ('PENDING_PAYMENT', 'UNPAID')
     OR LOWER(COALESCE(NEW.status, 'draft')) = 'pending_payment'
   );
 
-  IF v_is_pending AND LOWER(COALESCE(NEW.status, 'draft')) NOT IN ('cancelled', 'expired') AND UPPER(COALESCE(NEW.event_status, 'DRAFT')) NOT IN ('CANCELLED', 'EXPIRED') THEN
+  -- Determine if NEW is already past its end date in its timezone
+  v_new_end_date := COALESCE(
+    CASE
+      WHEN NEW.end_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(NEW.end_date FROM 1 FOR 10))::date
+      WHEN NEW.start_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(NEW.start_date FROM 1 FOR 10))::date
+      WHEN NEW.event_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(NEW.event_date FROM 1 FOR 10))::date
+      ELSE NULL
+    END,
+    (NEW.expires_at AT TIME ZONE COALESCE(NULLIF(TRIM(NEW.event_timezone), ''), 'Asia/Singapore'))::date
+  );
+
+  IF v_new_end_date IS NOT NULL AND (now() AT TIME ZONE COALESCE(NULLIF(TRIM(NEW.event_timezone), ''), 'Asia/Singapore'))::date > v_new_end_date THEN
+    v_new_is_past := TRUE;
+  END IF;
+
+  -- Only check if the event is entering or in pending state, not cancelled/expired/completed, and its end date has not passed
+  IF v_is_pending
+     AND NOT v_new_is_past
+     AND LOWER(COALESCE(NEW.status, 'draft')) NOT IN ('cancelled', 'expired', 'completed')
+     AND UPPER(COALESCE(NEW.event_status, 'DRAFT')) NOT IN ('CANCELLED', 'EXPIRED', 'COMPLETED')
+     AND UPPER(COALESCE(NEW.payment_status, 'UNPAID')) NOT IN ('PAID', 'REFUNDED') THEN
+
     PERFORM 1 FROM public.organizations WHERE id = NEW.organization_id FOR UPDATE;
 
     SELECT COUNT(*) INTO v_pending_count
     FROM public.events
     WHERE organization_id = NEW.organization_id
       AND id <> COALESCE(NEW.id, '00000000-0000-0000-0000-000000000000'::uuid)
-      AND status NOT IN ('cancelled', 'expired')
-      AND event_status NOT IN ('CANCELLED', 'EXPIRED')
       AND (
-        LOWER(status) = 'pending_payment'
-        OR UPPER(payment_status) = 'PENDING_PAYMENT'
-        OR UPPER(payment_status) = 'UNPAID'
+        UPPER(COALESCE(payment_status, 'UNPAID')) IN ('PENDING_PAYMENT', 'UNPAID')
+        OR LOWER(COALESCE(status, 'draft')) = 'pending_payment'
+      )
+      AND UPPER(COALESCE(payment_status, 'UNPAID')) NOT IN ('PAID', 'REFUNDED')
+      AND LOWER(COALESCE(status, 'draft')) NOT IN ('cancelled', 'expired', 'completed')
+      AND UPPER(COALESCE(event_status, 'DRAFT')) NOT IN ('CANCELLED', 'EXPIRED', 'COMPLETED')
+      AND (
+        (now() AT TIME ZONE COALESCE(NULLIF(TRIM(event_timezone), ''), 'Asia/Singapore'))::date <= COALESCE(
+          CASE
+            WHEN end_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(end_date FROM 1 FOR 10))::date
+            WHEN start_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(start_date FROM 1 FOR 10))::date
+            WHEN event_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(event_date FROM 1 FOR 10))::date
+            ELSE NULL
+          END,
+          (expires_at AT TIME ZONE COALESCE(NULLIF(TRIM(event_timezone), ''), 'Asia/Singapore'))::date
+        )
       );
 
     IF v_pending_count >= 2 THEN

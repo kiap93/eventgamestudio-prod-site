@@ -764,11 +764,23 @@ BEGIN
     FROM public.events
     WHERE organization_id = p_organization_id
       AND (
-        UPPER(payment_status) IN ('PENDING_PAYMENT', 'UNPAID')
-        OR LOWER(status) = 'pending_payment'
+        UPPER(COALESCE(payment_status, 'UNPAID')) IN ('PENDING_PAYMENT', 'UNPAID')
+        OR LOWER(COALESCE(status, 'draft')) = 'pending_payment'
       )
-      AND LOWER(status) <> 'cancelled'
-      AND UPPER(event_status) <> 'CANCELLED';
+      AND UPPER(COALESCE(payment_status, 'UNPAID')) NOT IN ('PAID', 'REFUNDED')
+      AND LOWER(COALESCE(status, 'draft')) NOT IN ('cancelled', 'expired', 'completed')
+      AND UPPER(COALESCE(event_status, 'DRAFT')) NOT IN ('CANCELLED', 'EXPIRED', 'COMPLETED')
+      AND (
+        (now() AT TIME ZONE COALESCE(NULLIF(TRIM(event_timezone), ''), 'Asia/Singapore'))::date <= COALESCE(
+          CASE
+            WHEN end_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(end_date FROM 1 FOR 10))::date
+            WHEN start_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(start_date FROM 1 FOR 10))::date
+            WHEN event_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(event_date FROM 1 FOR 10))::date
+            ELSE NULL
+          END,
+          (expires_at AT TIME ZONE COALESCE(NULLIF(TRIM(event_timezone), ''), 'Asia/Singapore'))::date
+        )
+      );
 
     IF v_pending_count >= v_max_limit THEN
       RETURN jsonb_build_object(
