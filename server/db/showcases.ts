@@ -123,7 +123,29 @@ function saveLocalModerationLog(log: ShowcaseModerationLog, env?: Record<string,
 // Initial load
 loadLocalShowcases();
 loadLocalModerationLogs();
-loadLocalShowcases();
+
+function isMissingRpcError(err: any): boolean {
+  if (!err) return false;
+  const code = String(err.code || '');
+  const msg = String(err.message || '');
+  return (
+    code === 'PGRST202' ||
+    code === '42883' ||
+    msg.includes('Could not find the function') ||
+    msg.includes('does not exist') ||
+    msg.includes('schema cache')
+  );
+}
+
+function isMissingColumnError(err: any, colName: string): boolean {
+  if (!err) return false;
+  const code = String(err.code || '');
+  const msg = String(err.message || '');
+  return (
+    (code === 'PGRST204' || code === '42703') &&
+    (msg.includes(colName) || msg.includes(`"${colName}"`))
+  );
+}
 
 /**
  * Get showcase for a specific event
@@ -350,6 +372,8 @@ export async function createShowcase(
 
   if (isSupabaseConfigured(env)) {
     const supabase = getSupabaseServerClient(env);
+    let rpcMissing = false;
+
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc('save_event_showcase_atomic', {
         p_event_id: params.event_id,
@@ -414,7 +438,10 @@ export async function createShowcase(
           throw err;
         }
 
-        if (!isLocalFallbackAllowed(env)) {
+        if (isMissingRpcError(rpcError)) {
+          console.warn('[Showcase Create] save_event_showcase_atomic RPC missing, using direct table insert:', rpcError.message);
+          rpcMissing = true;
+        } else if (!isLocalFallbackAllowed(env)) {
           const dbErr = new Error(`Database error creating showcase: ${rpcError.message}`);
           (dbErr as any).code = rpcError.code;
           throw dbErr;
@@ -432,8 +459,80 @@ export async function createShowcase(
       ) {
         throw err;
       }
-      if (!isLocalFallbackAllowed(env)) {
+      if (!rpcMissing && !isLocalFallbackAllowed(env)) {
         throw err;
+      }
+    }
+
+    if (rpcMissing) {
+      try {
+        const insertPayload: Record<string, any> = {
+          id: crypto.randomUUID(),
+          event_id: params.event_id,
+          organization_id: params.organization_id,
+          owner_user_id: isUUID(owner_user_id) ? owner_user_id : null,
+          title: params.title.trim(),
+          description: params.description ? params.description.trim() : null,
+          client_name: params.client_name ? params.client_name.trim() : null,
+          client_logo_url: params.client_logo_url ? params.client_logo_url.trim() : null,
+          cover_image_url: params.cover_image_url ? params.cover_image_url.trim() : null,
+          status,
+          review_status: 'DRAFT',
+          publication_status,
+          reward_review_status: 'NOT_ELIGIBLE',
+          reward_status: 'PENDING',
+          published_at,
+          created_at: now,
+          updated_at: now,
+        };
+
+        let { data: insertedData, error: insertError } = await supabase
+          .from('event_showcases')
+          .insert(insertPayload)
+          .select()
+          .single();
+
+        if (insertError && isMissingColumnError(insertError, 'owner_user_id')) {
+          delete insertPayload.owner_user_id;
+          const retry = await supabase.from('event_showcases').insert(insertPayload).select().single();
+          insertedData = retry.data;
+          insertError = retry.error;
+        }
+        if (insertError && isMissingColumnError(insertError, 'reward_review_status')) {
+          delete insertPayload.reward_review_status;
+          const retry = await supabase.from('event_showcases').insert(insertPayload).select().single();
+          insertedData = retry.data;
+          insertError = retry.error;
+        }
+
+        if (insertError) {
+          if (insertError.code === '23505' || String(insertError.message || '').includes('duplicate key') || String(insertError.message || '').includes('unique')) {
+            const err = new Error('An Event Showcase already exists for this event');
+            (err as any).code = 'SHOWCASE_ALREADY_EXISTS';
+            (err as any).status = 409;
+            throw err;
+          }
+          if (!isLocalFallbackAllowed(env)) {
+            const dbErr = new Error(`Database error creating showcase: ${insertError.message}`);
+            (dbErr as any).code = insertError.code;
+            throw dbErr;
+          }
+        } else if (insertedData) {
+          const saved = insertedData as EventShowcaseRecord;
+          if (isLocalFallbackAllowed(env)) {
+            localShowcasesCache.set(params.event_id, saved);
+            saveLocalShowcases(env);
+          }
+          await notifyShowcaseEvent(saved.status === 'PUBLISHED' ? 'SHOWCASE_PUBLISHED' : 'SHOWCASE_DRAFT_CREATED', saved, env).catch(() => {});
+          return saved;
+        }
+      } catch (directInsertErr: any) {
+        if (directInsertErr.status || directInsertErr.code === 'SHOWCASE_ALREADY_EXISTS') {
+          throw directInsertErr;
+        }
+        if (!isLocalFallbackAllowed(env)) {
+          throw directInsertErr;
+        }
       }
     }
   }
@@ -663,6 +762,8 @@ export async function updateShowcase(
 
   if (isSupabaseConfigured(env)) {
     const supabase = getSupabaseServerClient(env);
+    let rpcMissing = false;
+
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc('save_event_showcase_atomic', {
         p_event_id: eventId,
@@ -718,7 +819,10 @@ export async function updateShowcase(
           throw err;
         }
 
-        if (!isLocalFallbackAllowed(env)) {
+        if (isMissingRpcError(rpcError)) {
+          console.warn('[Showcase Update] save_event_showcase_atomic RPC missing, using direct table update:', rpcError.message);
+          rpcMissing = true;
+        } else if (!isLocalFallbackAllowed(env)) {
           const dbErr = new Error(`Database error updating showcase: ${rpcError.message}`);
           (dbErr as any).code = rpcError.code;
           throw dbErr;
@@ -735,8 +839,84 @@ export async function updateShowcase(
       ) {
         throw err;
       }
-      if (!isLocalFallbackAllowed(env)) {
+      if (!rpcMissing && !isLocalFallbackAllowed(env)) {
         throw err;
+      }
+    }
+
+    if (rpcMissing) {
+      try {
+        const now = new Date().toISOString();
+        const updateFields: Record<string, any> = {
+          updated_at: now,
+        };
+        if (updates.title !== undefined) updateFields.title = updates.title ? updates.title.trim() : existing.title;
+        if (updates.description !== undefined) updateFields.description = updates.description !== null ? updates.description.trim() : null;
+        if (updates.client_name !== undefined) updateFields.client_name = updates.client_name !== null ? updates.client_name.trim() : null;
+        if (updates.client_logo_url !== undefined) updateFields.client_logo_url = updates.client_logo_url !== null ? updates.client_logo_url.trim() : null;
+        if (updates.cover_image_url !== undefined) updateFields.cover_image_url = updates.cover_image_url !== null ? updates.cover_image_url.trim() : null;
+        if (updates.status !== undefined) updateFields.status = updates.status;
+        if (updates.publication_status !== undefined) updateFields.publication_status = updates.publication_status;
+        if (updates.review_status !== undefined) updateFields.review_status = updates.review_status;
+        if (updates.reward_review_status !== undefined) updateFields.reward_review_status = updates.reward_review_status;
+        if (updates.reward_reviewed_by !== undefined) updateFields.reward_reviewed_by = isUUID(updates.reward_reviewed_by) ? updates.reward_reviewed_by : null;
+        if (updates.reward_reviewed_at !== undefined) updateFields.reward_reviewed_at = updates.reward_reviewed_at;
+        if (updates.reward_rejection_reason !== undefined) updateFields.reward_rejection_reason = updates.reward_rejection_reason;
+        if (updates.moderated_by !== undefined) updateFields.moderated_by = isUUID(updates.moderated_by) ? updates.moderated_by : null;
+        if (updates.moderated_at !== undefined) updateFields.moderated_at = updates.moderated_at;
+        if (updates.moderation_reason !== undefined) updateFields.moderation_reason = updates.moderation_reason;
+        if (updates.deleted_at !== undefined) updateFields.deleted_at = updates.deleted_at;
+        if (updates.submitted_at !== undefined) updateFields.submitted_at = updates.submitted_at;
+        if (updates.reviewed_at !== undefined) updateFields.reviewed_at = updates.reviewed_at;
+        if (updates.reviewed_by !== undefined) updateFields.reviewed_by = isUUID(updates.reviewed_by) ? updates.reviewed_by : null;
+        if (updates.rejection_reason !== undefined) updateFields.rejection_reason = updates.rejection_reason;
+        if (updates.reward_transaction_id !== undefined) updateFields.reward_transaction_id = isUUID(updates.reward_transaction_id) ? updates.reward_transaction_id : null;
+        if (updates.reward_granted_at !== undefined) updateFields.reward_granted_at = updates.reward_granted_at;
+        if (updates.reward_status !== undefined) updateFields.reward_status = updates.reward_status;
+        if (updates.owner_user_id !== undefined) updateFields.owner_user_id = isUUID(updates.owner_user_id) ? updates.owner_user_id : null;
+
+        let { data: updatedData, error: updateError } = await supabase
+          .from('event_showcases')
+          .update(updateFields)
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (updateError && isMissingColumnError(updateError, 'owner_user_id')) {
+          delete updateFields.owner_user_id;
+          const retry = await supabase.from('event_showcases').update(updateFields).eq('id', existing.id).select().single();
+          updatedData = retry.data;
+          updateError = retry.error;
+        }
+        if (updateError && isMissingColumnError(updateError, 'reward_review_status')) {
+          delete updateFields.reward_review_status;
+          const retry = await supabase.from('event_showcases').update(updateFields).eq('id', existing.id).select().single();
+          updatedData = retry.data;
+          updateError = retry.error;
+        }
+
+        if (updateError && !isLocalFallbackAllowed(env)) {
+          const dbErr = new Error(`Database error updating showcase: ${updateError.message}`);
+          (dbErr as any).code = updateError.code;
+          throw dbErr;
+        }
+
+        if (updatedData) {
+          const saved = updatedData as EventShowcaseRecord;
+          if (isLocalFallbackAllowed(env)) {
+            localShowcasesCache.set(eventId, saved);
+            saveLocalShowcases(env);
+          }
+          const hasContentUpdates = updates.title !== undefined || updates.description !== undefined || updates.client_name !== undefined || updates.cover_image_url !== undefined;
+          if (hasContentUpdates && updates.status === undefined) {
+            await notifyShowcaseEvent('SHOWCASE_UPDATED', saved, env).catch(() => {});
+          }
+          return saved;
+        }
+      } catch (directUpdateErr: any) {
+        if (!isLocalFallbackAllowed(env)) {
+          throw directUpdateErr;
+        }
       }
     }
   }
@@ -1808,6 +1988,8 @@ export async function publishShowcase(
   // Authoritative Production Path: Single Atomic PostgreSQL RPC under SECURITY DEFINER
   if (isSupabaseConfigured(env)) {
     const supabase = getSupabaseServerClient(env);
+    let rpcMissing = false;
+
     try {
       console.log(`[Showcase Publish] invoking publish_event_showcase_atomic RPC for event ${eventId}`);
       const { data: rpcData, error: rpcError } = await supabase.rpc('publish_event_showcase_atomic', {
@@ -1831,7 +2013,7 @@ export async function publishShowcase(
       }
 
       if (rpcError) {
-        console.error(`[Showcase Publish] publish_event_showcase_atomic RPC returned error:`, rpcError);
+        console.warn(`[Showcase Publish] publish_event_showcase_atomic RPC returned error:`, rpcError);
 
         // Map known database operational codes to status/code
         if (rpcError.code === 'P0003' || String(rpcError.message || '').includes('blocked showcase') || String(rpcError.message || '').includes('blocked by administrators')) {
@@ -1865,7 +2047,10 @@ export async function publishShowcase(
           throw err;
         }
 
-        if (!isLocalFallbackAllowed(env)) {
+        if (isMissingRpcError(rpcError)) {
+          console.warn('[Showcase Publish] publish_event_showcase_atomic RPC missing from schema cache, falling back to direct table publish:', rpcError.message);
+          rpcMissing = true;
+        } else if (!isLocalFallbackAllowed(env)) {
           const dbErr = new Error(`Database error publishing showcase: ${rpcError.message || 'Unknown error'}`);
           (dbErr as any).code = rpcError.code;
           (dbErr as any).details = rpcError.details;
@@ -1883,10 +2068,189 @@ export async function publishShowcase(
       ) {
         throw err;
       }
-      if (!isLocalFallbackAllowed(env)) {
+      if (!rpcMissing && !isLocalFallbackAllowed(env)) {
         throw err;
       }
-      // Fall through to in-process execution below for local development only
+    }
+
+    if (rpcMissing) {
+      try {
+        console.log(`[Showcase Publish] executing direct Supabase table publish for event ${eventId}`);
+        const now = new Date().toISOString();
+        let savedRecord: EventShowcaseRecord | null = null;
+
+        if (existing) {
+          // Update existing showcase to PUBLISHED
+          const updateFields: Record<string, any> = {
+            title: titleToUse,
+            status: 'PUBLISHED',
+            publication_status: 'PUBLISHED',
+            published_at: existing.published_at || now,
+            updated_at: now,
+          };
+          if (updates?.description !== undefined) {
+            updateFields.description = updates.description !== null ? updates.description.trim() : null;
+          }
+          if (updates?.client_name !== undefined) {
+            updateFields.client_name = updates.client_name !== null ? updates.client_name.trim() : null;
+          }
+          if (updates?.client_logo_url !== undefined) {
+            updateFields.client_logo_url = updates.client_logo_url !== null ? updates.client_logo_url.trim() : null;
+          }
+          if (updates?.cover_image_url !== undefined) {
+            updateFields.cover_image_url = updates.cover_image_url !== null ? updates.cover_image_url.trim() : null;
+          }
+          if (updates?.owner_user_id !== undefined && isUUID(updates.owner_user_id)) {
+            updateFields.owner_user_id = updates.owner_user_id;
+          }
+
+          let { data: updateData, error: updateErr } = await supabase
+            .from('event_showcases')
+            .update(updateFields)
+            .eq('id', existing.id)
+            .select()
+            .single();
+
+          if (updateErr && isMissingColumnError(updateErr, 'owner_user_id')) {
+            delete updateFields.owner_user_id;
+            const retry = await supabase.from('event_showcases').update(updateFields).eq('id', existing.id).select().single();
+            updateData = retry.data;
+            updateErr = retry.error;
+          }
+
+          if (updateErr) {
+            console.error('[Showcase Publish] direct update error:', updateErr);
+            if (!isLocalFallbackAllowed(env)) {
+              const dbErr = new Error(`Database error updating showcase: ${updateErr.message}`);
+              (dbErr as any).code = updateErr.code;
+              (dbErr as any).details = updateErr.details;
+              throw dbErr;
+            }
+          } else if (updateData) {
+            savedRecord = updateData as EventShowcaseRecord;
+          }
+        } else {
+          // Create brand new showcase with PUBLISHED status
+          let ownerUserId = updates?.owner_user_id || null;
+          if (!ownerUserId) {
+            const org = await getOrganizationById(event.organization_id, env);
+            ownerUserId = org?.owner_id || null;
+          }
+
+          const insertFields: Record<string, any> = {
+            id: crypto.randomUUID(),
+            event_id: eventId,
+            organization_id: event.organization_id,
+            owner_user_id: isUUID(ownerUserId) ? ownerUserId : null,
+            title: titleToUse,
+            description: updates?.description !== undefined ? (updates.description !== null ? updates.description.trim() : null) : null,
+            client_name: updates?.client_name !== undefined ? (updates.client_name !== null ? updates.client_name.trim() : null) : null,
+            client_logo_url: updates?.client_logo_url !== undefined ? (updates.client_logo_url !== null ? updates.client_logo_url.trim() : null) : null,
+            cover_image_url: updates?.cover_image_url !== undefined ? (updates.cover_image_url !== null ? updates.cover_image_url.trim() : null) : null,
+            status: 'PUBLISHED',
+            publication_status: 'PUBLISHED',
+            review_status: 'DRAFT',
+            reward_review_status: 'NOT_ELIGIBLE',
+            reward_status: 'PENDING',
+            published_at: now,
+            created_at: now,
+            updated_at: now,
+          };
+
+          let { data: insertData, error: insertErr } = await supabase
+            .from('event_showcases')
+            .insert(insertFields)
+            .select()
+            .single();
+
+          if (insertErr && isMissingColumnError(insertErr, 'owner_user_id')) {
+            delete insertFields.owner_user_id;
+            const retry = await supabase.from('event_showcases').insert(insertFields).select().single();
+            insertData = retry.data;
+            insertErr = retry.error;
+          }
+          if (insertErr && isMissingColumnError(insertErr, 'reward_review_status')) {
+            delete insertFields.reward_review_status;
+            const retry = await supabase.from('event_showcases').insert(insertFields).select().single();
+            insertData = retry.data;
+            insertErr = retry.error;
+          }
+
+          if (insertErr) {
+            // If collision with concurrent insert, fetch existing and update
+            if (insertErr.code === '23505' || String(insertErr.message || '').includes('duplicate key') || String(insertErr.message || '').includes('unique')) {
+              console.log('[Showcase Publish] unique collision on insert, recovering by updating existing row');
+              const freshlyFound = await getShowcaseByEventId(eventId, env);
+              if (freshlyFound) {
+                const retryUpdateFields: Record<string, any> = {
+                  title: titleToUse,
+                  status: 'PUBLISHED',
+                  publication_status: 'PUBLISHED',
+                  published_at: freshlyFound.published_at || now,
+                  updated_at: now,
+                };
+                if (updates?.description !== undefined) {
+                  retryUpdateFields.description = updates.description !== null ? updates.description.trim() : null;
+                }
+                if (updates?.client_name !== undefined) {
+                  retryUpdateFields.client_name = updates.client_name !== null ? updates.client_name.trim() : null;
+                }
+                if (updates?.client_logo_url !== undefined) {
+                  retryUpdateFields.client_logo_url = updates.client_logo_url !== null ? updates.client_logo_url.trim() : null;
+                }
+                if (updates?.cover_image_url !== undefined) {
+                  retryUpdateFields.cover_image_url = updates.cover_image_url !== null ? updates.cover_image_url.trim() : null;
+                }
+                const { data: retryData, error: retryErr } = await supabase
+                  .from('event_showcases')
+                  .update(retryUpdateFields)
+                  .eq('id', freshlyFound.id)
+                  .select()
+                  .single();
+
+                if (!retryErr && retryData) {
+                  savedRecord = retryData as EventShowcaseRecord;
+                } else if (retryErr && !isLocalFallbackAllowed(env)) {
+                  throw retryErr;
+                }
+              }
+            } else if (!isLocalFallbackAllowed(env)) {
+              console.error('[Showcase Publish] direct insert error:', insertErr);
+              const dbErr = new Error(`Database error creating showcase: ${insertErr.message}`);
+              (dbErr as any).code = insertErr.code;
+              (dbErr as any).details = insertErr.details;
+              throw dbErr;
+            }
+          } else if (insertData) {
+            savedRecord = insertData as EventShowcaseRecord;
+          }
+        }
+
+        if (savedRecord) {
+          if (isLocalFallbackAllowed(env)) {
+            localShowcasesCache.set(eventId, savedRecord);
+            saveLocalShowcases(env);
+          }
+          await notifyShowcaseEvent('SHOWCASE_PUBLISHED', savedRecord, env).catch((notifyErr) => {
+            console.warn('Failed to send showcase published notification:', notifyErr);
+          });
+          return savedRecord;
+        }
+      } catch (directErr: any) {
+        if (
+          directErr.status ||
+          directErr.code === 'SHOWCASE_BLOCKED' ||
+          directErr.code === 'EVENT_NOT_FOUND' ||
+          directErr.code === 'EVENT_UNPAID' ||
+          directErr.code === 'SHOWCASE_NOT_ELIGIBLE' ||
+          directErr.code === 'SHOWCASE_DELETED'
+        ) {
+          throw directErr;
+        }
+        if (!isLocalFallbackAllowed(env)) {
+          throw directErr;
+        }
+      }
     }
   }
 

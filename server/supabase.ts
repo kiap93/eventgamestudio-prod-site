@@ -101,8 +101,14 @@ export function isSupabaseConfigured(env?: Record<string, any>): boolean {
     '';
   const serviceRoleKey =
     (env && typeof env.SUPABASE_SERVICE_ROLE_KEY === 'string' ? env.SUPABASE_SERVICE_ROLE_KEY : undefined) ??
+    (env && typeof env.SUPABASE_SERVICE_KEY === 'string' ? env.SUPABASE_SERVICE_KEY : undefined) ??
+    (env && typeof env.SERVICE_ROLE_KEY === 'string' ? env.SERVICE_ROLE_KEY : undefined) ??
+    (env && typeof env.SUPABASE_SECRET_KEY === 'string' ? env.SUPABASE_SECRET_KEY : undefined) ??
     (env && typeof env.SUPABASE_KEY === 'string' ? env.SUPABASE_KEY : undefined) ??
     procEnv.SUPABASE_SERVICE_ROLE_KEY ??
+    procEnv.SUPABASE_SERVICE_KEY ??
+    procEnv.SERVICE_ROLE_KEY ??
+    procEnv.SUPABASE_SECRET_KEY ??
     procEnv.SUPABASE_KEY ??
     '';
 

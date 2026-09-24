@@ -3933,7 +3933,7 @@ app.post('/api/events/:eventId/showcase/publish', showcaseRateLimiter, authentic
     console.error(`[Server Showcase Publish Error]:`, {
       eventId: req.params.eventId,
       userId: req.user?.id,
-      publishPath: 'publish_event_showcase_atomic',
+      publishPath: 'publish_event_showcase',
       errorCode: err?.code || err?.statusCode || 'UNKNOWN_ERROR',
       errorMessage: err?.message || 'Unknown publish error',
       operation: 'publish_event_showcase',
@@ -3942,9 +3942,8 @@ app.post('/api/events/:eventId/showcase/publish', showcaseRateLimiter, authentic
       userId: req.user?.id,
       metadata: {
         eventId: req.params.eventId,
-        publishPath: 'publish_event_showcase_atomic',
+        publishPath: 'publish_event_showcase',
         operation: 'publish_event_showcase',
-        rpcName: 'publish_event_showcase_atomic',
         postgresCode: err?.code || null,
         details: err?.details || err?.message || null,
       },
