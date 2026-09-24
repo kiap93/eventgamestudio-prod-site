@@ -1885,32 +1885,60 @@ export async function getAllShowcasesForAdmin(
 ): Promise<any[]> {
   try {
     const supabase = getSupabaseServerClient(env);
-    const { data: showcases, error } = await supabase
+    let { data: showcases, error } = await supabase
       .from('event_showcases')
       .select(`
         *,
-        events:event_id (id, name, event_type, status, date),
+        events:event_id (id, name, status, start_date, end_date),
         organizations:organization_id (id, name, slug)
       `)
       .order('created_at', { ascending: false });
 
-    if (error || !showcases) {
-      if (!isLocalFallbackAllowed(env)) {
-        throw new Error(`Database error loading showcases for admin: ${error?.message || 'No data'}`);
+    let rawShowcases = showcases;
+
+    if (error || !rawShowcases) {
+      console.warn('Join query in getAllShowcasesForAdmin failed, attempting direct table select and batch lookup:', error?.message);
+      const directResult = await supabase
+        .from('event_showcases')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (directResult.error || !directResult.data) {
+        if (!isLocalFallbackAllowed(env)) {
+          throw new Error(`Database error loading showcases for admin: ${directResult.error?.message || error?.message || 'No data'}`);
+        }
+        console.warn('Notice from direct Supabase query for admin event_showcases:', directResult.error?.message);
+        const list = Array.from(localShowcasesCache.values());
+        return list.map((sc) => ({
+          ...sc,
+          event_name: 'Event #' + sc.event_id.slice(0, 8),
+          organization_name: 'Organization #' + sc.organization_id.slice(0, 8),
+        }));
       }
-      console.warn('Notice from Supabase query for admin event_showcases:', error?.message);
-      // Fallback: build from local cache
-      const list = Array.from(localShowcasesCache.values());
-      return list.map((sc) => ({
+
+      // Batch load event and organization info for the direct showcases
+      const fetchedShowcases = directResult.data;
+      const eventIds = Array.from(new Set(fetchedShowcases.map((s: any) => s.event_id).filter(Boolean)));
+      const orgIds = Array.from(new Set(fetchedShowcases.map((s: any) => s.organization_id).filter(Boolean)));
+
+      const [eventsRes, orgsRes] = await Promise.all([
+        eventIds.length > 0 ? supabase.from('events').select('id, name, status, start_date, end_date').in('id', eventIds) : Promise.resolve({ data: [] }),
+        orgIds.length > 0 ? supabase.from('organizations').select('id, name, slug').in('id', orgIds) : Promise.resolve({ data: [] }),
+      ]);
+
+      const eventMap = new Map((eventsRes.data || []).map((e: any) => [e.id, e]));
+      const orgMap = new Map((orgsRes.data || []).map((o: any) => [o.id, o]));
+
+      rawShowcases = fetchedShowcases.map((sc: any) => ({
         ...sc,
-        event_name: 'Event #' + sc.event_id.slice(0, 8),
-        organization_name: 'Organization #' + sc.organization_id.slice(0, 8),
+        events: eventMap.get(sc.event_id) || null,
+        organizations: orgMap.get(sc.organization_id) || null,
       }));
     }
 
     // Attach media count
     const enrichedList = [];
-    for (const sc of showcases) {
+    for (const sc of rawShowcases) {
       const media = await getShowcaseMedia(sc.id, sc.organization_id, env);
       enrichedList.push({
         ...sc,
