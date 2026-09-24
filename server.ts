@@ -104,6 +104,7 @@ import {
   approveShowcaseReview,
   rejectShowcaseReview,
   getAllShowcasesForAdmin,
+  getShowcaseRewardsForAdmin,
   getShowcaseMedia,
   getShowcaseMediaById,
   createShowcaseMedia,
@@ -5051,6 +5052,23 @@ const handleGetAdminShowcases = async (req: AuthenticatedRequest, res: any) => {
 
 app.get('/api/developer/showcases', authenticateDeveloperAdmin, handleGetAdminShowcases);
 app.get('/api/admin/showcases', authenticateDeveloperAdmin, handleGetAdminShowcases);
+
+/**
+ * GET /api/developer/showcase-rewards (or /api/admin/showcase-rewards)
+ * Dedicated queue for pending RM300 showcase rewards
+ */
+const handleGetShowcaseRewards = async (req: AuthenticatedRequest, res: any) => {
+  try {
+    const statusParam = (req.query.status as string) || 'AWAITING_APPROVAL';
+    const showcases = await getShowcaseRewardsForAdmin(undefined, statusParam);
+    res.json({ showcases, count: showcases.length });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+};
+
+app.get('/api/developer/showcase-rewards', authenticateDeveloperAdmin, handleGetShowcaseRewards);
+app.get('/api/admin/showcase-rewards', authenticateDeveloperAdmin, handleGetShowcaseRewards);
 
 /**
  * POST /api/developer/showcases/:showcaseId/approve (or /api/admin/showcases/:showcaseId/approve)

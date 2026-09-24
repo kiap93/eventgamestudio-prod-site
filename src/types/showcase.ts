@@ -54,6 +54,13 @@ export interface AdminShowcaseListItem extends EventShowcase {
   media_count?: number;
   image_count?: number;
   video_count?: number;
+  owner_name?: string | null;
+  owner_email?: string | null;
+  event_status?: string | null;
+  event_payment_status?: string | null;
+  event_paid?: boolean;
+  event_completed?: boolean;
+  reward_eligibility?: any;
 }
 
 export interface ShowcaseFormData {

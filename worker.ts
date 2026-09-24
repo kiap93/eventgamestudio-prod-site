@@ -134,6 +134,7 @@ import {
   approveShowcaseReview,
   rejectShowcaseReview,
   getAllShowcasesForAdmin,
+  getShowcaseRewardsForAdmin,
   getShowcaseMedia,
   getShowcaseMediaById,
   createSignedUploadUrlForShowcase,
@@ -5280,6 +5281,24 @@ export default {
           return jsonResponse({ showcases }, 200, cors);
         } catch (err: any) {
           console.error('Admin get showcases error:', err);
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/developer/showcase-rewards & /api/admin/showcase-rewards (Pending RM300 Reward Approval Queue)
+      if ((pathname === '/api/developer/showcase-rewards' || pathname === '/api/admin/showcase-rewards') && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+        if (!isUserDeveloperAdmin(auth.user, env)) {
+          return errorResponse('Forbidden: Developer Admin access required', 403, cors);
+        }
+
+        try {
+          const statusParam = url.searchParams.get('status') || 'AWAITING_APPROVAL';
+          const showcases = await getShowcaseRewardsForAdmin(env, statusParam);
+          return jsonResponse({ showcases, count: showcases.length }, 200, cors);
+        } catch (err: any) {
+          console.error('Admin get showcase rewards error:', err);
           return handleWorkerApiError(err, request, cors, env);
         }
       }

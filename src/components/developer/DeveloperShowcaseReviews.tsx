@@ -66,6 +66,30 @@ export const DeveloperShowcaseReviews: React.FC = () => {
   const [deleteReason, setDeleteReason] = useState<string>('');
   const [copiedShowcaseId, setCopiedShowcaseId] = useState<string | null>(null);
 
+  // Dedicated Pending Reward Queue state (loaded from /api/developer/showcase-rewards?status=AWAITING_APPROVAL)
+  const [pendingRewards, setPendingRewards] = useState<AdminShowcaseListItem[]>([]);
+  const [pendingRewardsLoading, setPendingRewardsLoading] = useState<boolean>(true);
+  const [pendingRewardsError, setPendingRewardsError] = useState<string | null>(null);
+
+  const fetchPendingRewards = async () => {
+    try {
+      setPendingRewardsLoading(true);
+      setPendingRewardsError(null);
+      const res = await apiFetch('/api/developer/showcase-rewards?status=AWAITING_APPROVAL');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to fetch pending rewards queue');
+      }
+      const data = await res.json();
+      setPendingRewards(data.showcases || []);
+    } catch (err: any) {
+      console.error('Fetch pending showcase rewards error:', err);
+      setPendingRewardsError(err.message || 'Failed to load pending rewards');
+    } finally {
+      setPendingRewardsLoading(false);
+    }
+  };
+
   const handleShareShowcase = async (sc: AdminShowcaseListItem) => {
     const targetId = sc.id || sc.event_id;
     const showcaseUrl = `${window.location.origin}/showcase/${targetId}`;
@@ -109,6 +133,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
   };
 
   useEffect(() => {
+    fetchPendingRewards();
     fetchShowcases();
   }, []);
 
@@ -148,6 +173,8 @@ export const DeveloperShowcaseReviews: React.FC = () => {
 
       setActionSuccess(data.message || 'Owner first-event showcase reward approved and RM300 credit granted!');
       setApprovingShowcase(null);
+      // Immediately remove from local pending rewards list
+      setPendingRewards((prev) => prev.filter((item) => item.id !== showcaseId));
       if (selectedShowcase?.id === showcaseId) {
         setSelectedShowcase({
           ...selectedShowcase,
@@ -157,6 +184,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
         });
       }
       window.dispatchEvent(new CustomEvent('wallet_updated'));
+      fetchPendingRewards();
       fetchShowcases();
       setTimeout(() => setActionSuccess(null), 5000);
     } catch (err: any) {
@@ -191,6 +219,8 @@ export const DeveloperShowcaseReviews: React.FC = () => {
       }
 
       setActionSuccess('Showcase reward rejected with feedback sent to the organization. Showcase remains live and published.');
+      // Immediately remove from local pending rewards list
+      setPendingRewards((prev) => prev.filter((item) => item.id !== rejectingShowcase.id));
       setRejectingShowcase(null);
       setRejectionReason('');
       if (selectedShowcase?.id === rejectingShowcase.id) {
@@ -201,6 +231,7 @@ export const DeveloperShowcaseReviews: React.FC = () => {
           reward_rejection_reason: rejectionReason.trim(),
         });
       }
+      fetchPendingRewards();
       fetchShowcases();
       setTimeout(() => setActionSuccess(null), 5000);
     } catch (err: any) {
@@ -342,22 +373,23 @@ export const DeveloperShowcaseReviews: React.FC = () => {
     }
   };
 
-  // Helpers to inspect separated lifecycles
+  const handleRefreshAll = () => {
+    fetchPendingRewards();
+    fetchShowcases();
+  };
+
+  // Authoritative reward approval checks (strictly decoupled from editorial review_status)
   const isRewardPending = (sc: AdminShowcaseListItem) =>
-    (sc.reward_review_status === 'AWAITING_APPROVAL' ||
-     sc.reward_status === 'PENDING' ||
-     sc.review_status === 'SUBMITTED') &&
+    sc.reward_review_status === 'AWAITING_APPROVAL' &&
     sc.status !== 'DELETED' &&
-    sc.status !== 'BLOCKED' &&
-    sc.reward_review_status !== 'REWARDED' &&
-    sc.reward_status !== 'REWARDED';
+    sc.status !== 'BLOCKED';
 
   const isRewarded = (sc: AdminShowcaseListItem) =>
-    (sc.reward_review_status === 'REWARDED' || sc.reward_status === 'REWARDED' || sc.review_status === 'APPROVED') &&
+    sc.reward_review_status === 'REWARDED' &&
     sc.status !== 'DELETED';
 
   const isRewardRejected = (sc: AdminShowcaseListItem) =>
-    (sc.reward_review_status === 'REJECTED' || sc.review_status === 'REJECTED') &&
+    sc.reward_review_status === 'REJECTED' &&
     sc.status !== 'DELETED';
 
   // Filtered showcases
@@ -386,8 +418,8 @@ export const DeveloperShowcaseReviews: React.FC = () => {
     return true;
   });
 
-  // Quick stats
-  const countRewardPending = showcases.filter(isRewardPending).length;
+  // Authoritative quick stats
+  const countRewardPending = pendingRewards.length;
   const countRewarded = showcases.filter(isRewarded).length;
   const countRewardRejected = showcases.filter(isRewardRejected).length;
   const countPublished = showcases.filter((s) => (s.status === 'PUBLISHED' || s.publication_status === 'PUBLISHED') && s.status !== 'BLOCKED' && s.status !== 'DELETED').length;
@@ -415,12 +447,12 @@ export const DeveloperShowcaseReviews: React.FC = () => {
         </div>
 
         <button
-          onClick={fetchShowcases}
-          disabled={loading}
+          onClick={handleRefreshAll}
+          disabled={loading || pendingRewardsLoading}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors shrink-0 cursor-pointer self-start md:self-auto"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
+          <RefreshCw className={`w-4 h-4 ${loading || pendingRewardsLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh All</span>
         </button>
       </div>
 
@@ -428,10 +460,10 @@ export const DeveloperShowcaseReviews: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-1">
           <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Reward Pending</div>
-          <div className="text-2xl font-black text-blue-400 flex items-center gap-2">
+          <div className="text-2xl font-black text-amber-400 flex items-center gap-2">
             <span>{countRewardPending}</span>
             {countRewardPending > 0 && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-bold animate-pulse">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold animate-pulse">
                 Needs Action
               </span>
             )}
@@ -480,6 +512,181 @@ export const DeveloperShowcaseReviews: React.FC = () => {
           <span>{actionSuccess}</span>
         </div>
       )}
+
+      {/* Dedicated Showcase Reward Approval Queue */}
+      <div className="bg-slate-900/90 border-2 border-amber-500/30 rounded-3xl p-6 shadow-xl shadow-amber-500/5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-inner">
+              <Gift className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-base font-black text-white tracking-wide uppercase">
+                  Showcase Reward Approval Queue
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  {pendingRewardsLoading
+                    ? 'Loading...'
+                    : `${pendingRewards.length} reward${pendingRewards.length === 1 ? '' : 's'} waiting for approval`}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Eligible first-event showcase submissions awaiting owner promotional credit approval (RM300).
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchPendingRewards}
+            disabled={pendingRewardsLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors self-start sm:self-auto cursor-pointer"
+            title="Refresh Pending Reward Queue"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${pendingRewardsLoading ? 'animate-spin' : ''}`} />
+            <span>Sync Queue</span>
+          </button>
+        </div>
+
+        {pendingRewardsLoading ? (
+          <div className="py-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+            <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+            <span>Checking pending reward approvals...</span>
+          </div>
+        ) : pendingRewardsError ? (
+          <div className="py-4 px-4 rounded-2xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
+            <span>{pendingRewardsError}</span>
+            <button
+              onClick={fetchPendingRewards}
+              className="text-xs underline font-bold hover:text-white"
+            >
+              Retry
+            </button>
+          </div>
+        ) : pendingRewards.length === 0 ? (
+          <div className="py-6 px-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-center space-y-1">
+            <div className="flex justify-center text-emerald-400 mb-1">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <p className="text-xs font-bold text-slate-200">No Rewards Waiting for Approval</p>
+            <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+              All qualifying first-event showcases have been reviewed or already rewarded. New qualifying submissions with completed and paid events will appear here automatically.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pendingRewards.map((sc) => {
+              const publishedDate = sc.published_at || sc.created_at;
+              const dateStr = publishedDate ? new Date(publishedDate).toLocaleDateString() : 'N/A';
+              const ownerDisplay = sc.owner_email || sc.owner_name || (sc.owner_user_id ? `User #${sc.owner_user_id.slice(0, 8)}` : 'Account Owner');
+
+              return (
+                <div
+                  key={sc.id}
+                  className="bg-slate-950/80 border border-amber-500/30 hover:border-amber-500/50 rounded-2xl p-4 transition-all space-y-3"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-black text-white truncate max-w-md">
+                          {sc.title || 'Untitled Showcase'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                          <Gift className="w-3 h-3 text-amber-400" />
+                          RM300 Reward
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                          Paid & Completed
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-x-4 gap-y-1 text-xs text-slate-400 flex-wrap">
+                        <div>
+                          <span className="text-slate-500">Event:</span>{' '}
+                          <span className="text-slate-300 font-semibold">{sc.event_name || 'Event #' + sc.event_id.slice(0, 8)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Organization:</span>{' '}
+                          <span className="text-slate-300 font-semibold">{sc.organization_name || 'Organization #' + sc.organization_id.slice(0, 8)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Owner:</span>{' '}
+                          <span className="text-amber-300/90 font-medium">{ownerDisplay}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Published:</span>{' '}
+                          <span className="text-slate-300">{dateStr}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Media:</span>{' '}
+                          <span className="text-slate-300">
+                            {sc.image_count || 0} photos, {sc.video_count || 0} videos
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start lg:self-center shrink-0">
+                      {/* View / Inspect Button */}
+                      <button
+                        type="button"
+                        onClick={() => openPreview(sc)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+                        title="Inspect showcase details, media, and description"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                        <span>View / Inspect</span>
+                      </button>
+
+                      {/* Reject Reward Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRejectingShowcase(sc);
+                          setRejectionReason('');
+                        }}
+                        disabled={actionLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 transition-colors cursor-pointer disabled:opacity-50"
+                        title="Reject Showcase Reward (Showcase remains published)"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Reject Reward</span>
+                      </button>
+
+                      {/* Approve RM300 Button */}
+                      <button
+                        type="button"
+                        onClick={() => setApprovingShowcase(sc)}
+                        disabled={actionLoading}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50"
+                        title="Approve RM300 Showcase Reward"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Approve RM300</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Section Header for All Showcases */}
+      <div className="pt-2">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div>
+            <h2 className="text-sm font-black text-slate-300 uppercase tracking-wider">
+              All Showcases Management
+            </h2>
+            <p className="text-xs text-slate-500">
+              Visibility, moderation, history, and status of all published and archived event showcases.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Controls & Filter Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/40 border border-slate-800 rounded-2xl p-3">

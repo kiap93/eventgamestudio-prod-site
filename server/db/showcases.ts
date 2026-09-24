@@ -1,4 +1,10 @@
-import { getSupabaseServerClient, isLocalFallbackAllowed, isSupabaseConfigured } from '../supabase.js';
+import {
+  getSupabaseServerClient,
+  isLocalFallbackAllowed,
+  isSupabaseConfigured,
+  isProductionEnvironment,
+  assertProductionSafe,
+} from '../supabase.js';
 import {
   EventShowcaseRecord,
   ShowcaseStatus,
@@ -20,6 +26,7 @@ import { getShowcaseMedia } from './showcaseMedia.js';
 import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase, isEventEligibleForShowcaseReward } from './events.js';
 import { getThemeById } from './themes.js';
 import { getOrganizationById } from './organizations.js';
+import { getUserById } from './users.js';
 import { dispatchNotificationEvent } from '../notifications/dispatcher.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -125,6 +132,21 @@ function saveLocalModerationLog(log: ShowcaseModerationLog, env?: Record<string,
 loadLocalShowcases();
 loadLocalModerationLogs();
 
+/**
+ * PRODUCTION SAFETY RULE:
+ * In production or Cloudflare Workers, direct table operations and in-memory fallbacks
+ * are strictly prohibited for showcase publishing, updates, creation, and reward approval.
+ * Operations must fail closed if atomic PostgreSQL RPCs fail.
+ * Fallback is only permitted in non-production environments when explicitly allowed.
+ */
+export function isShowcaseFallbackAllowed(env?: Record<string, any>): boolean {
+  const isProduction = isProductionEnvironment(env);
+  if (isProduction) {
+    return false;
+  }
+  return isLocalFallbackAllowed(env);
+}
+
 function isMissingRpcError(err: any): boolean {
   if (!err) return false;
   const code = String(err.code || '');
@@ -148,6 +170,10 @@ function isMissingColumnError(err: any, colName: string): boolean {
   );
 }
 
+/**
+ * Detects PostgreSQL schema or missing RPC errors that may trigger fallback in DEVELOPMENT/TEST environments ONLY.
+ * In production, these errors MUST fail closed and throw immediately without fallback.
+ */
 function shouldFallbackFromRpcError(err: any): boolean {
   if (!err) return false;
   if (isMissingRpcError(err)) return true;
@@ -456,12 +482,36 @@ export async function createShowcase(
           throw err;
         }
 
+        // Production FAIL-CLOSED rule:
+        // In production, ANY database/RPC failure (missing function, schema mismatch,
+        // constraint error, return type mismatch, etc.) must throw immediately.
+        // Direct table fallback is strictly prohibited in production.
+        const isProduction = isProductionEnvironment(env);
+        const fallbackAllowed = !isProduction && isShowcaseFallbackAllowed(env);
+
+        if (!fallbackAllowed) {
+          console.error('[Showcase Create RPC Error] Production save_event_showcase_atomic RPC failed:', {
+            code: rpcError.code,
+            message: rpcError.message,
+            details: rpcError.details,
+            hint: rpcError.hint,
+          });
+          const dbErr = new Error(`Database error creating showcase: ${rpcError.message || 'Atomic RPC failed'}`);
+          (dbErr as any).code = rpcError.code;
+          (dbErr as any).details = rpcError.details;
+          (dbErr as any).postgresCode = rpcError.code;
+          throw dbErr;
+        }
+
+        // Non-production development/testing fallback only
         if (shouldFallbackFromRpcError(rpcError)) {
-          console.warn('[Showcase Create] save_event_showcase_atomic RPC failed with missing or schema error, using direct table insert:', rpcError.message);
+          console.warn('[Showcase Create] Non-production fallback enabled: save_event_showcase_atomic RPC failed with missing or schema error, using direct table insert:', rpcError.message);
           rpcMissing = true;
-        } else if (!isLocalFallbackAllowed(env)) {
+        } else {
           const dbErr = new Error(`Database error creating showcase: ${rpcError.message}`);
           (dbErr as any).code = rpcError.code;
+          (dbErr as any).details = rpcError.details;
+          (dbErr as any).postgresCode = rpcError.code;
           throw dbErr;
         }
       }
@@ -477,9 +527,16 @@ export async function createShowcase(
       ) {
         throw err;
       }
-      if (!rpcMissing && !isLocalFallbackAllowed(env)) {
+      if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
         throw err;
       }
+      if (!rpcMissing) {
+        throw err;
+      }
+    }
+
+    if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
+      rpcMissing = false;
     }
 
     if (rpcMissing) {
@@ -587,11 +644,16 @@ export async function createShowcase(
         if (directInsertErr.status || directInsertErr.code === 'SHOWCASE_ALREADY_EXISTS') {
           throw directInsertErr;
         }
-        if (!isLocalFallbackAllowed(env)) {
+        if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
           throw directInsertErr;
         }
       }
     }
+  }
+
+  // Fail-closed guard: local fallback prohibited in production
+  if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
+    throw new Error('Fatal: Direct showcase creation without configured Supabase database is prohibited in production.');
   }
 
   // Local fallback (only for development/testing without database)
@@ -876,12 +938,32 @@ export async function updateShowcase(
           throw err;
         }
 
+        // Production FAIL-CLOSED rule:
+        const isProduction = isProductionEnvironment(env);
+        const fallbackAllowed = !isProduction && isShowcaseFallbackAllowed(env);
+
+        if (!fallbackAllowed) {
+          console.error('[Showcase Update RPC Error] Production save_event_showcase_atomic RPC failed:', {
+            code: rpcError.code,
+            message: rpcError.message,
+            details: rpcError.details,
+          });
+          const dbErr = new Error(`Database error updating showcase: ${rpcError.message || 'Atomic RPC failed'}`);
+          (dbErr as any).code = rpcError.code;
+          (dbErr as any).details = rpcError.details;
+          (dbErr as any).postgresCode = rpcError.code;
+          throw dbErr;
+        }
+
+        // Non-production development/testing fallback only
         if (shouldFallbackFromRpcError(rpcError)) {
-          console.warn('[Showcase Update] save_event_showcase_atomic RPC failed with missing or schema error, using direct table update:', rpcError.message);
+          console.warn('[Showcase Update] Non-production fallback enabled: save_event_showcase_atomic RPC failed with missing or schema error, using direct table update:', rpcError.message);
           rpcMissing = true;
-        } else if (!isLocalFallbackAllowed(env)) {
+        } else {
           const dbErr = new Error(`Database error updating showcase: ${rpcError.message}`);
           (dbErr as any).code = rpcError.code;
+          (dbErr as any).details = rpcError.details;
+          (dbErr as any).postgresCode = rpcError.code;
           throw dbErr;
         }
       }
@@ -896,9 +978,16 @@ export async function updateShowcase(
       ) {
         throw err;
       }
-      if (!rpcMissing && !isLocalFallbackAllowed(env)) {
+      if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
         throw err;
       }
+      if (!rpcMissing) {
+        throw err;
+      }
+    }
+
+    if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
+      rpcMissing = false;
     }
 
     if (rpcMissing) {
@@ -971,11 +1060,16 @@ export async function updateShowcase(
           return saved;
         }
       } catch (directUpdateErr: any) {
-        if (!isLocalFallbackAllowed(env)) {
+        if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
           throw directUpdateErr;
         }
       }
     }
+  }
+
+  // Fail-closed guard: local fallback prohibited in production
+  if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
+    throw new Error('Fatal: Direct showcase update without configured Supabase database is prohibited in production.');
   }
 
   // Local fallback (only for development/testing without database)
@@ -1430,6 +1524,27 @@ export async function submitShowcaseForReview(
     }
   }
 
+  // Resolve owner user id
+  let ownerUserId = showcase.owner_user_id;
+  if (!ownerUserId) {
+    const org = await getOrganizationById(showcase.organization_id, env);
+    ownerUserId = org?.owner_id || null;
+  }
+
+  // Authoritative check: if owner has already received showcase reward, mark NOT_ELIGIBLE
+  let rewardReviewStatus: RewardReviewStatus = 'AWAITING_APPROVAL';
+  let rewardStatus: RewardStatus = 'PENDING';
+  let rewardRejectionReason: string | null = null;
+
+  if (ownerUserId) {
+    const eligibility = await getShowcaseRewardEligibility(ownerUserId, env);
+    if (!eligibility.eligible) {
+      rewardReviewStatus = 'NOT_ELIGIBLE';
+      rewardStatus = 'NOT_ELIGIBLE';
+      rewardRejectionReason = eligibility.reason || 'Owner has already received their one-time lifetime showcase reward on another event.';
+    }
+  }
+
   const now = new Date().toISOString();
   return await updateShowcase(
     eventId,
@@ -1437,11 +1552,12 @@ export async function submitShowcaseForReview(
       status: 'PUBLISHED',
       publication_status: 'PUBLISHED',
       review_status: 'SUBMITTED',
-      reward_review_status: 'AWAITING_APPROVAL',
-      reward_status: 'PENDING',
+      reward_review_status: rewardReviewStatus,
+      reward_status: rewardStatus,
       submitted_at: now,
       rejection_reason: null,
-      reward_rejection_reason: null,
+      reward_rejection_reason: rewardRejectionReason,
+      owner_user_id: ownerUserId || undefined,
     },
     env,
     true
@@ -1580,33 +1696,60 @@ export async function approveShowcaseReward(
         }
 
         if (rpcError) {
+          console.error('[Showcase Reward RPC Error]:', {
+            code: rpcError.code,
+            message: rpcError.message,
+            details: rpcError.details,
+          });
+
+          // Production FAIL-CLOSED rule:
+          const isProduction = isProductionEnvironment(env);
+          const fallbackAllowed = !isProduction && isShowcaseFallbackAllowed(env);
+
+          if (!fallbackAllowed) {
+            const err = new Error(rpcError.message || 'Reward approval failed');
+            (err as any).code = rpcError.code || 'REWARD_APPROVAL_FAILED';
+            (err as any).details = rpcError.details;
+            (err as any).postgresCode = rpcError.code;
+            throw err;
+          }
+
+          const isLocalShowcaseFallback =
+            rpcError.code === 'P0001' &&
+            rpcError.message?.includes('Showcase not found');
+
           const isMissingRpc =
             rpcError.code === 'PGRST202' ||
             rpcError.message?.includes('does not exist') ||
             rpcError.message?.includes('function');
 
-          const isLocalShowcaseFallback =
-            isLocalFallbackAllowed(env) &&
-            rpcError.code === 'P0001' &&
-            rpcError.message?.includes('Showcase not found');
-
           if (!isMissingRpc && !isLocalShowcaseFallback) {
-            console.error('Supabase approve_first_event_showcase_reward_atomic error:', rpcError);
             const err = new Error(rpcError.message || 'Reward approval failed');
             (err as any).code = rpcError.code || 'REWARD_APPROVAL_FAILED';
+            (err as any).details = rpcError.details;
+            (err as any).postgresCode = rpcError.code;
             throw err;
           }
         }
       } catch (err: any) {
-        const isLocalShowcaseFallback =
-          isLocalFallbackAllowed(env) &&
-          (err.code === 'P0001' || err.message?.includes('Showcase not found'));
-
-        if (err.code && err.code !== 'PGRST202' && !err.message?.includes('does not exist') && !isLocalShowcaseFallback) {
+        if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
           throw err;
         }
-        // Fall back to atomic in-process execution below
+        const isLocalShowcaseFallback =
+          err.code === 'P0001' || err.message?.includes('Showcase not found');
+        const isMissingRpc =
+          err.code === 'PGRST202' || err.message?.includes('does not exist');
+
+        if (!isLocalShowcaseFallback && !isMissingRpc) {
+          throw err;
+        }
+        // Fall back to atomic in-process execution below ONLY in non-production dev/test
       }
+    }
+
+    // Guard assertion: in production, in-process fallback is STRICTLY PROHIBITED
+    if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
+      throw new Error('Fatal: In-process reward fallback is prohibited in production. Showcase reward approval must use the atomic PostgreSQL RPC.');
     }
 
     // 2. Fallback Path: In-process execution under withOrganizationLock
@@ -1623,7 +1766,7 @@ export async function approveShowcaseReward(
     const evaluated = await evaluateShowcaseRewardEligibility(freshShowcase.event_id, env);
     if (evaluated.reward_review_status === 'NOT_ELIGIBLE') {
       const err = new Error(
-        'Showcase does not meet the RM300 first-event reward criteria (event must be paid and started/concluded, media must have at least 3 photos or 1 video, description must be at least 50 characters, showcase must be published, and this must be the owner\'s first eligible showcase reward).'
+        `Showcase does not meet the RM300 first-event reward criteria: ${evaluated.reward_rejection_reason || 'event must be paid and started/concluded, media must have at least 3 photos or 1 video, description must be at least 50 characters, showcase must be published, and this must be the owner\'s first eligible showcase reward.'}`
       );
       (err as any).code = 'SHOWCASE_NOT_ELIGIBLE';
       throw err;
@@ -1878,73 +2021,159 @@ export async function getOwnerShowcaseRewardStatus(
 }
 
 /**
- * List all showcases for developer admin review
+ * Shared helper to load showcases and enrich with event, organization, owner, and media details.
+ * Used by both getAllShowcasesForAdmin and getShowcaseRewardsForAdmin.
  */
-export async function getAllShowcasesForAdmin(
+async function loadAndEnrichShowcases(
+  filterStatus?: string,
   env?: Record<string, any>
 ): Promise<any[]> {
   try {
-    const supabase = getSupabaseServerClient(env);
-    let { data: showcases, error } = await supabase
-      .from('event_showcases')
-      .select(`
-        *,
-        events:event_id (id, name, status, start_date, end_date),
-        organizations:organization_id (id, name, slug)
-      `)
-      .order('created_at', { ascending: false });
+    let rawShowcases: any[] | null = null;
 
-    let rawShowcases = showcases;
-
-    if (error || !rawShowcases) {
-      console.warn('Join query in getAllShowcasesForAdmin failed, attempting direct table select and batch lookup:', error?.message);
-      const directResult = await supabase
+    if (isSupabaseConfigured(env)) {
+      const supabase = getSupabaseServerClient(env);
+      // Direct table select avoids foreign key PostgREST join issues
+      let query = supabase
         .from('event_showcases')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (directResult.error || !directResult.data) {
-        if (!isLocalFallbackAllowed(env)) {
-          throw new Error(`Database error loading showcases for admin: ${directResult.error?.message || error?.message || 'No data'}`);
-        }
-        console.warn('Notice from direct Supabase query for admin event_showcases:', directResult.error?.message);
-        const list = Array.from(localShowcasesCache.values());
-        return list.map((sc) => ({
-          ...sc,
-          event_name: 'Event #' + sc.event_id.slice(0, 8),
-          organization_name: 'Organization #' + sc.organization_id.slice(0, 8),
-        }));
+      if (filterStatus && filterStatus !== 'ALL') {
+        query = query.eq('reward_review_status', filterStatus);
       }
 
-      // Batch load event and organization info for the direct showcases
-      const fetchedShowcases = directResult.data;
-      const eventIds = Array.from(new Set(fetchedShowcases.map((s: any) => s.event_id).filter(Boolean)));
-      const orgIds = Array.from(new Set(fetchedShowcases.map((s: any) => s.organization_id).filter(Boolean)));
-
-      const [eventsRes, orgsRes] = await Promise.all([
-        eventIds.length > 0 ? supabase.from('events').select('id, name, status, start_date, end_date').in('id', eventIds) : Promise.resolve({ data: [] }),
-        orgIds.length > 0 ? supabase.from('organizations').select('id, name, slug').in('id', orgIds) : Promise.resolve({ data: [] }),
-      ]);
-
-      const eventMap = new Map((eventsRes.data || []).map((e: any) => [e.id, e]));
-      const orgMap = new Map((orgsRes.data || []).map((o: any) => [o.id, o]));
-
-      rawShowcases = fetchedShowcases.map((sc: any) => ({
-        ...sc,
-        events: eventMap.get(sc.event_id) || null,
-        organizations: orgMap.get(sc.organization_id) || null,
-      }));
+      const { data, error } = await query;
+      if (error) {
+        if (!isLocalFallbackAllowed(env)) {
+          throw new Error(`Database error loading showcases for admin: ${error.message}`);
+        }
+        console.warn('Notice from Supabase query for admin event_showcases:', error.message);
+      } else {
+        rawShowcases = data;
+      }
     }
 
-    // Attach media count
-    const enrichedList = [];
+    if (!rawShowcases) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw new Error('Database error loading showcases for admin: Supabase is not configured or returned no data');
+      }
+      let list = Array.from(localShowcasesCache.values());
+      if (filterStatus && filterStatus !== 'ALL') {
+        list = list.filter((s) => s.reward_review_status === filterStatus);
+      }
+      list.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      rawShowcases = list;
+    }
+
+    // Batch load event and organization info
+    const eventIds = Array.from(new Set(rawShowcases.map((s: any) => s.event_id).filter(Boolean)));
+    const orgIds = Array.from(new Set(rawShowcases.map((s: any) => s.organization_id).filter(Boolean)));
+
+    const eventMap = new Map<string, any>();
+    const orgMap = new Map<string, any>();
+    const userMap = new Map<string, any>();
+
+    // 1. Batch load events
+    if (isSupabaseConfigured(env) && eventIds.length > 0) {
+      try {
+        const supabase = getSupabaseServerClient(env);
+        const { data: eventsData } = await supabase
+          .from('events')
+          .select('id, name, status, event_status, payment_status, start_date, end_date')
+          .in('id', eventIds);
+        (eventsData || []).forEach((e: any) => eventMap.set(e.id, e));
+      } catch (err) {
+        console.warn('Batch event fetch notice:', err);
+      }
+    }
+    for (const eid of eventIds) {
+      if (!eventMap.has(eid)) {
+        try {
+          const ev = await getEventById(eid, env);
+          if (ev) eventMap.set(eid, ev);
+        } catch {}
+      }
+    }
+
+    // 2. Batch load organizations
+    if (isSupabaseConfigured(env) && orgIds.length > 0) {
+      try {
+        const supabase = getSupabaseServerClient(env);
+        const { data: orgsData } = await supabase
+          .from('organizations')
+          .select('id, name, slug, owner_id')
+          .in('id', orgIds);
+        (orgsData || []).forEach((o: any) => orgMap.set(o.id, o));
+      } catch (err) {
+        console.warn('Batch org fetch notice:', err);
+      }
+    }
+    for (const oid of orgIds) {
+      if (!orgMap.has(oid)) {
+        try {
+          const org = await getOrganizationById(oid, env);
+          if (org) orgMap.set(oid, org);
+        } catch {}
+      }
+    }
+
+    // 3. Collect owner user IDs
+    const ownerUserIds = Array.from(
+      new Set(
+        rawShowcases
+          .map((s: any) => s.owner_user_id || orgMap.get(s.organization_id)?.owner_id)
+          .filter(Boolean)
+      )
+    );
+
+    // Batch load users
+    if (isSupabaseConfigured(env) && ownerUserIds.length > 0) {
+      try {
+        const supabase = getSupabaseServerClient(env);
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('id, name, email')
+          .in('id', ownerUserIds);
+        (usersData || []).forEach((u: any) => userMap.set(u.id, u));
+      } catch (err) {
+        console.warn('Batch user fetch notice:', err);
+      }
+    }
+    for (const uid of ownerUserIds) {
+      if (!userMap.has(uid)) {
+        try {
+          const u = await getUserById(uid, env);
+          if (u) userMap.set(uid, u);
+        } catch {}
+      }
+    }
+
+    // 4. Attach media counts and enriched metadata
+    const enrichedList: any[] = [];
     for (const sc of rawShowcases) {
+      const event = eventMap.get(sc.event_id) || null;
+      const org = orgMap.get(sc.organization_id) || null;
+      const ownerUserId = sc.owner_user_id || org?.owner_id || null;
+      const ownerUser = ownerUserId ? userMap.get(ownerUserId) : null;
       const media = await getShowcaseMedia(sc.id, sc.organization_id, env);
+
+      const eventRewardElig = event ? isEventEligibleForShowcaseReward(event) : { eligible: false };
+      const eventPaid = (event?.payment_status || '').toUpperCase() === 'PAID';
+      const eventCompleted = Boolean(eventRewardElig.eligible || event?.status === 'completed' || event?.event_status === 'COMPLETED');
+
       enrichedList.push({
         ...sc,
-        event_name: (sc.events as any)?.name || 'Event #' + sc.event_id.slice(0, 8),
-        organization_name: (sc.organizations as any)?.name || 'Organization #' + sc.organization_id.slice(0, 8),
-        organization_slug: (sc.organizations as any)?.slug || '',
+        event_name: event?.name || 'Event #' + sc.event_id.slice(0, 8),
+        event_status: event?.event_status || event?.status || 'UNKNOWN',
+        event_payment_status: event?.payment_status || 'UNPAID',
+        event_paid: eventPaid,
+        event_completed: eventCompleted,
+        organization_name: org?.name || 'Organization #' + sc.organization_id.slice(0, 8),
+        organization_slug: org?.slug || '',
+        owner_user_id: ownerUserId,
+        owner_name: ownerUser?.name || null,
+        owner_email: ownerUser?.email || null,
         media_count: media.length,
         image_count: media.filter((m) => m.media_type === 'IMAGE').length,
         video_count: media.filter((m) => m.media_type === 'VIDEO').length,
@@ -1956,8 +2185,11 @@ export async function getAllShowcasesForAdmin(
     if (!isLocalFallbackAllowed(env)) {
       throw err;
     }
-    console.warn('Error in getAllShowcasesForAdmin, using fallback:', err);
-    const list = Array.from(localShowcasesCache.values());
+    console.warn('Error in loadAndEnrichShowcases, using fallback:', err);
+    let list = Array.from(localShowcasesCache.values());
+    if (filterStatus && filterStatus !== 'ALL') {
+      list = list.filter((s) => s.reward_review_status === filterStatus);
+    }
     return list.map((sc) => ({
       ...sc,
       event_name: 'Event #' + sc.event_id.slice(0, 8),
@@ -1967,6 +2199,86 @@ export async function getAllShowcasesForAdmin(
       video_count: 0,
     }));
   }
+}
+
+/**
+ * List all showcases for developer admin review (normal showcase table)
+ */
+export async function getAllShowcasesForAdmin(
+  env?: Record<string, any>
+): Promise<any[]> {
+  return await loadAndEnrichShowcases(undefined, env);
+}
+
+/**
+ * Dedicated server-side Pending Reward Approval Queue for RM300 Showcase Rewards.
+ *
+ * Authoritative criteria:
+ * 1. reward_review_status MUST be AWAITING_APPROVAL
+ * 2. status MUST NOT be BLOCKED or DELETED
+ * 3. Event MUST be confirmed and PAID
+ * 4. Event MUST be COMPLETED
+ * 5. Owner user account MUST be eligible for one-time lifetime reward (never received SHOWCASE_CREDIT or SHOWCASE_REWARD)
+ */
+export async function getShowcaseRewardsForAdmin(
+  env?: Record<string, any>,
+  filterStatus: string = 'AWAITING_APPROVAL'
+): Promise<any[]> {
+  const enriched = await loadAndEnrichShowcases(
+    filterStatus === 'ALL' ? undefined : filterStatus,
+    env
+  );
+
+  if (filterStatus !== 'AWAITING_APPROVAL') {
+    return enriched;
+  }
+
+  const pendingQueue: any[] = [];
+  for (const sc of enriched) {
+    // 1. Authoritative reward status check
+    if (sc.reward_review_status !== 'AWAITING_APPROVAL') {
+      continue;
+    }
+
+    // 2. Showcase must not be BLOCKED or DELETED
+    if (sc.status === 'BLOCKED' || sc.status === 'DELETED') {
+      continue;
+    }
+
+    // 3. Event must be PAID
+    if (!sc.event_paid && (sc.event_payment_status || '').toUpperCase() !== 'PAID') {
+      continue;
+    }
+
+    // 4. Event must be completed
+    if (!sc.event_completed) {
+      continue;
+    }
+
+    // 5. Owner user must be resolved and checked for lifetime reward eligibility
+    const ownerUserId = sc.owner_user_id;
+    if (!ownerUserId) {
+      continue;
+    }
+
+    // Check lifetime reward eligibility against user_rewards and wallet_transactions
+    const eligibility = await getShowcaseRewardEligibility(ownerUserId, env);
+    if (!eligibility.eligible) {
+      continue;
+    }
+
+    // Defense-in-depth: check hasUserClaimedReward
+    const alreadyClaimedReward = await hasUserClaimedReward(ownerUserId, 'SHOWCASE_REWARD', env);
+    const alreadyClaimedCredit = await hasUserClaimedReward(ownerUserId, 'SHOWCASE_CREDIT', env);
+    if (alreadyClaimedReward || alreadyClaimedCredit) {
+      continue;
+    }
+
+    sc.reward_eligibility = eligibility;
+    pendingQueue.push(sc);
+  }
+
+  return pendingQueue;
 }
 
 /**
@@ -2146,13 +2458,33 @@ export async function publishShowcase(
           throw err;
         }
 
-        if (shouldFallbackFromRpcError(rpcError)) {
-          console.warn('[Showcase Publish] publish_event_showcase_atomic RPC missing or failed with schema error, falling back to direct table publish:', rpcError.message);
-          rpcMissing = true;
-        } else if (!isLocalFallbackAllowed(env)) {
+        // Production FAIL-CLOSED rule:
+        const isProduction = isProductionEnvironment(env);
+        const fallbackAllowed = !isProduction && isShowcaseFallbackAllowed(env);
+
+        if (!fallbackAllowed) {
+          console.error('[Showcase Publish RPC Error] Production publish_event_showcase_atomic RPC failed:', {
+            code: rpcError.code,
+            message: rpcError.message,
+            details: rpcError.details,
+            hint: rpcError.hint,
+          });
           const dbErr = new Error(`Database error publishing showcase: ${rpcError.message || 'Unknown error'}`);
           (dbErr as any).code = rpcError.code;
           (dbErr as any).details = rpcError.details;
+          (dbErr as any).postgresCode = rpcError.code;
+          throw dbErr;
+        }
+
+        // Non-production development/testing fallback only
+        if (shouldFallbackFromRpcError(rpcError)) {
+          console.warn('[Showcase Publish] Non-production fallback enabled: publish_event_showcase_atomic RPC missing or failed with schema error, falling back to direct table publish:', rpcError.message);
+          rpcMissing = true;
+        } else {
+          const dbErr = new Error(`Database error publishing showcase: ${rpcError.message || 'Unknown error'}`);
+          (dbErr as any).code = rpcError.code;
+          (dbErr as any).details = rpcError.details;
+          (dbErr as any).postgresCode = rpcError.code;
           throw dbErr;
         }
       }
@@ -2167,9 +2499,16 @@ export async function publishShowcase(
       ) {
         throw err;
       }
-      if (!rpcMissing && !isLocalFallbackAllowed(env)) {
+      if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
         throw err;
       }
+      if (!rpcMissing) {
+        throw err;
+      }
+    }
+
+    if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
+      rpcMissing = false;
     }
 
     if (rpcMissing) {
@@ -2374,11 +2713,16 @@ export async function publishShowcase(
         ) {
           throw directErr;
         }
-        if (!isLocalFallbackAllowed(env)) {
+        if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
           throw directErr;
         }
       }
     }
+  }
+
+  // Fail-closed guard: local fallback prohibited in production
+  if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
+    throw new Error('Fatal: Direct showcase publication without configured Supabase database is prohibited in production.');
   }
 
   // Fallback path: In-process execution (for local development and mock unit testing ONLY)
@@ -2490,8 +2834,22 @@ export async function deleteShowcase(
         p_event_id: eventId,
       });
       if (rpcError) {
+        const isProduction = isProductionEnvironment(env);
+        const fallbackAllowed = !isProduction && isShowcaseFallbackAllowed(env);
+
+        if (!fallbackAllowed) {
+          console.error('[Showcase Delete RPC Error] Production delete_event_showcase_atomic RPC failed:', {
+            code: rpcError.code,
+            message: rpcError.message,
+          });
+          const dbErr = new Error(`Database error deleting showcase: ${rpcError.message || 'Atomic RPC failed'}`);
+          (dbErr as any).code = rpcError.code;
+          (dbErr as any).postgresCode = rpcError.code;
+          throw dbErr;
+        }
+
         const { error: deleteError } = await supabase.from('event_showcases').delete().eq('event_id', eventId);
-        if (deleteError && !isLocalFallbackAllowed(env)) {
+        if (deleteError) {
           throw new Error(`Database error deleting showcase: ${deleteError.message}`);
         }
       }
@@ -2501,7 +2859,7 @@ export async function deleteShowcase(
     saveLocalShowcases(env);
     return true;
   } catch (err: any) {
-    if (!isLocalFallbackAllowed(env)) {
+    if (isProductionEnvironment(env) || !isShowcaseFallbackAllowed(env)) {
       throw err;
     }
     console.warn('Error deleting showcase from Supabase:', err.message);
