@@ -293,6 +293,13 @@ body,
   animation: card-wobble 0.4s ease-in-out;
 }
 
+/* ================= ACTIVATION OVERVIEW TEXT WRAPPING ================= */
+.activation-overview-text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 
 
 

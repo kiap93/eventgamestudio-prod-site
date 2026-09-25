@@ -470,13 +470,13 @@ export const PublicShowcaseView: React.FC = () => {
             {showcase.description && (
               <section
                 id="showcase-story"
-                className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 sm:p-8 backdrop-blur-sm"
+                className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 sm:p-8 backdrop-blur-sm min-w-0"
               >
                 <h2 className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-3 flex items-center gap-2">
                   <Info className="w-3.5 h-3.5" />
                   Activation Overview
                 </h2>
-                <div className="prose prose-invert max-w-none text-slate-300 text-sm sm:text-base leading-relaxed whitespace-pre-line">
+                <div className="activation-overview-text prose prose-invert max-w-none text-slate-300 text-sm sm:text-base leading-relaxed whitespace-normal break-words [overflow-wrap:anywhere]">
                   {showcase.description}
                 </div>
               </section>
