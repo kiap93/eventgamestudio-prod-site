@@ -1598,6 +1598,17 @@ export async function approveShowcaseReward(
 
   // If showcase has been explicitly evaluated and rejected with a rejection reason, reject approval
   if ((showcase.reward_review_status === 'NOT_ELIGIBLE' || showcase.reward_status === 'NOT_ELIGIBLE') && showcase.reward_rejection_reason) {
+    if (
+      showcase.reward_rejection_reason.includes('already been claimed') ||
+      showcase.reward_rejection_reason.includes('already received') ||
+      showcase.reward_rejection_reason.includes('one-time lifetime')
+    ) {
+      return {
+        showcase,
+        reward: null,
+        alreadyRewarded: true,
+      };
+    }
     const err = new Error(
       showcase.reward_rejection_reason ||
         'Showcase does not meet the RM300 first-event reward criteria (owner has already received their one-time lifetime showcase reward).'

@@ -6,6 +6,9 @@ import { UserRewardRecord } from './types.js';
 
 export type PromotionRewardType = 'WELCOME_CREDIT' | 'SHOWCASE_REWARD';
 
+export type { ComprehensiveShowcaseRewardEligibility } from './showcaseRewardSubmissions.js';
+export { checkShowcaseRewardEligibility } from './showcaseRewardSubmissions.js';
+
 export interface ShowcaseRewardEligibilityResult {
   eligible: boolean;
   reason?: string;

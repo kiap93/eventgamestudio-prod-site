@@ -37,6 +37,406 @@ export function clearLocalRewardSubmissionsCache(): void {
   localRewardSubmissionsCache.clear();
 }
 
+export interface ComprehensiveShowcaseRewardEligibility {
+  eligible: boolean;
+  code: string;
+  reason: string;
+  userRewardStatus?: 'ELIGIBLE' | 'REWARDED' | 'NOT_ELIGIBLE';
+  alreadyClaimed?: boolean;
+  hasReceivedReward?: boolean;
+  hasPendingSubmission?: boolean;
+  pendingSubmissionId?: string | null;
+  details?: {
+    user_id?: string;
+    event_id?: string;
+    showcase_id?: string;
+    is_owner?: boolean;
+    event_paid?: boolean;
+    event_started?: boolean;
+    showcase_published?: boolean;
+    description_length?: number;
+    description_valid?: boolean;
+    photo_count?: number;
+    video_count?: number;
+    media_valid?: boolean;
+    user_lifetime_claimed?: boolean;
+    has_pending_submission?: boolean;
+    is_resubmission?: boolean;
+  };
+}
+
+/**
+ * Authoritative single entry-point for Showcase Reward Eligibility across the platform.
+ *
+ * Calls PostgreSQL RPC `public.check_showcase_reward_eligibility` when Supabase is configured.
+ * In local fallback/test mode, executes the identical waterfall logic:
+ *   owner eligibility
+ *         ↓
+ *   showcase eligibility
+ *         ↓
+ *   published
+ *         ↓
+ *   event started
+ *         ↓
+ *   content quality
+ *         ↓
+ *   media requirements
+ *         ↓
+ *   user lifetime eligibility (user_rewards, wallet_transactions, approved submissions)
+ *         ↓
+ *   pending submission
+ */
+export async function checkShowcaseRewardEligibility(
+  params: {
+    eventId?: string | null;
+    userId: string;
+    showcaseId?: string | null;
+  },
+  env?: Record<string, any>
+): Promise<ComprehensiveShowcaseRewardEligibility> {
+  const { eventId, userId, showcaseId } = params;
+
+  if (!userId) {
+    return {
+      eligible: false,
+      code: 'UNAUTHORIZED',
+      reason: 'Authenticated user ID is required to verify reward eligibility.',
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+    };
+  }
+
+  // 1. Authoritative check: When Supabase is configured, DATABASE RPC IS AUTHORITATIVE
+  if (isSupabaseConfigured(env)) {
+    try {
+      const supabase = getSupabaseServerClient(env);
+      const { data, error } = await supabase.rpc('check_showcase_reward_eligibility', {
+        p_event_id: eventId || null,
+        p_user_id: userId,
+        p_showcase_id: showcaseId || null,
+      });
+
+      if (!error && data) {
+        return data as ComprehensiveShowcaseRewardEligibility;
+      }
+      if (error && !isLocalFallbackAllowed(env)) {
+        throw new Error(`Database error checking showcase reward eligibility: ${error.message}`);
+      }
+    } catch (err: any) {
+      if (!isLocalFallbackAllowed(env)) {
+        throw err;
+      }
+    }
+  }
+
+  // 2. Local Fallback / Test Environment Waterfall Logic
+  // 2A. Check user exists
+  const user = await getUserById(userId, env);
+  if (!user && !isLocalFallbackAllowed(env)) {
+    return {
+      eligible: false,
+      code: 'USER_NOT_FOUND',
+      reason: 'User account could not be found.',
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+    };
+  }
+
+  // 2B. User Lifetime Invariant Check (user_rewards, wallet_transactions, approved submissions)
+  const alreadyClaimed =
+    (await hasUserReceivedShowcaseCredit(userId, env)) ||
+    (await hasUserClaimedReward(userId, 'SHOWCASE_REWARD', env)) ||
+    (await hasUserClaimedReward(userId, 'SHOWCASE_CREDIT', env));
+
+  if (alreadyClaimed) {
+    return {
+      eligible: false,
+      code: 'LIFETIME_REWARD_EXHAUSTED',
+      reason: 'RM300 Showcase Reward has already been claimed for this account.',
+      userRewardStatus: 'REWARDED',
+      alreadyClaimed: true,
+      hasReceivedReward: true,
+      hasPendingSubmission: false,
+    };
+  }
+
+  // Check local reward submissions cache for APPROVED submissions
+  for (const sub of localRewardSubmissionsCache.values()) {
+    if (sub.user_id === userId && sub.status === 'APPROVED') {
+      return {
+        eligible: false,
+        code: 'LIFETIME_REWARD_EXHAUSTED',
+        reason: 'RM300 Showcase Reward has already been claimed for this account.',
+        userRewardStatus: 'REWARDED',
+        alreadyClaimed: true,
+        hasReceivedReward: true,
+        hasPendingSubmission: false,
+      };
+    }
+  }
+
+  // 2C. User Pending Submissions Check (Max 1 active claim across platform)
+  for (const sub of localRewardSubmissionsCache.values()) {
+    if (sub.user_id === userId && sub.status === 'PENDING') {
+      if (eventId && sub.event_id === eventId) {
+        return {
+          eligible: false,
+          code: 'SUBMISSION_PENDING',
+          reason: 'Your RM300 reward submission is waiting for admin approval.',
+          userRewardStatus: 'NOT_ELIGIBLE',
+          alreadyClaimed: false,
+          hasReceivedReward: false,
+          hasPendingSubmission: true,
+          pendingSubmissionId: sub.id,
+        };
+      }
+      return {
+        eligible: false,
+        code: 'SUBMISSION_PENDING',
+        reason: 'You already have an RM300 showcase reward submission pending review for your account. Only one active claim is allowed at a time.',
+        userRewardStatus: 'NOT_ELIGIBLE',
+        alreadyClaimed: false,
+        hasReceivedReward: false,
+        hasPendingSubmission: true,
+        pendingSubmissionId: sub.id,
+      };
+    }
+  }
+
+  // If no eventId is provided, user passed user-level lifetime checks
+  if (!eventId) {
+    return {
+      eligible: true,
+      code: 'USER_ELIGIBLE',
+      reason: 'User account is eligible to submit an event showcase for RM300 reward.',
+      userRewardStatus: 'ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+    };
+  }
+
+  // 2D. Event Existence & Organization Owner Check
+  const event = await getEventById(eventId, env);
+  if (!event) {
+    return {
+      eligible: false,
+      code: 'EVENT_NOT_FOUND',
+      reason: 'Event not found.',
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+    };
+  }
+
+  const isOwner = await isUserOrganizationOwner(userId, event.organization_id, env);
+  if (!isOwner) {
+    return {
+      eligible: false,
+      code: 'OWNER_ONLY_REWARD',
+      reason: 'Only organization owners are eligible to submit for the RM300 Showcase Reward. Organization members cannot receive promotional rewards.',
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+    };
+  }
+
+  // 2E. Event Payment Status
+  if (event.payment_status !== 'PAID') {
+    return {
+      eligible: false,
+      code: 'EVENT_NOT_PAID',
+      reason: 'Showcase reward requires a confirmed, paid event that is live or completed.',
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+    };
+  }
+
+  // 2F. Event Timing / Started
+  const eventTiming = isEventEligibleForShowcaseRewardSubmission(event);
+  if (!eventTiming.eligible) {
+    return {
+      eligible: false,
+      code: eventTiming.code || 'EVENT_NOT_STARTED',
+      reason: eventTiming.reason || 'Showcase reward submission is available once the event starts.',
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+    };
+  }
+
+  // 2G. Showcase Existence & Publication Status
+  const showcase = showcaseId
+    ? await getShowcaseById(showcaseId, env)
+    : await getShowcaseByEventId(eventId, env);
+
+  if (!showcase) {
+    return {
+      eligible: false,
+      code: 'SHOWCASE_NOT_FOUND',
+      reason: 'Save your showcase first before submitting for the RM300 reward.',
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+    };
+  }
+
+  if (showcase.status === 'BLOCKED' || showcase.status === 'DELETED') {
+    return {
+      eligible: false,
+      code: 'SHOWCASE_BLOCKED',
+      reason: `Showcase is ${showcase.status.toLowerCase()} and cannot be submitted for rewards.`,
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+    };
+  }
+
+  if (showcase.status !== 'PUBLISHED' && showcase.publication_status !== 'PUBLISHED') {
+    return {
+      eligible: false,
+      code: 'SHOWCASE_NOT_PUBLISHED',
+      reason: 'Showcase must be published before submitting for the RM300 reward.',
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+    };
+  }
+
+  // 2H. Check Submission for this specific showcase
+  let thisShowcaseSub: ShowcaseRewardSubmissionRecord | null = null;
+  for (const sub of localRewardSubmissionsCache.values()) {
+    if (sub.showcase_id === showcase.id || sub.event_id === eventId) {
+      thisShowcaseSub = sub;
+      break;
+    }
+  }
+
+  if (thisShowcaseSub) {
+    if (thisShowcaseSub.status === 'APPROVED') {
+      return {
+        eligible: false,
+        code: 'LIFETIME_REWARD_EXHAUSTED',
+        reason: 'RM300 Showcase Reward has already been claimed for this account.',
+        userRewardStatus: 'REWARDED',
+        alreadyClaimed: true,
+        hasReceivedReward: true,
+        hasPendingSubmission: false,
+      };
+    }
+    if (thisShowcaseSub.status === 'PENDING') {
+      return {
+        eligible: false,
+        code: 'SUBMISSION_PENDING',
+        reason: 'Your RM300 reward submission is waiting for admin approval.',
+        userRewardStatus: 'NOT_ELIGIBLE',
+        alreadyClaimed: false,
+        hasReceivedReward: false,
+        hasPendingSubmission: true,
+        pendingSubmissionId: thisShowcaseSub.id,
+      };
+    }
+    // If REJECTED, proceed to check content quality and media so user can resubmit
+  }
+
+  // 2I. Content Quality
+  if (!showcase.title || !showcase.title.trim()) {
+    return {
+      eligible: false,
+      code: 'VALIDATION_ERROR',
+      reason: 'Showcase title is required.',
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+    };
+  }
+
+  const trimmedDesc = (showcase.description || '').trim();
+  if (trimmedDesc.length < 50) {
+    return {
+      eligible: false,
+      code: 'VALIDATION_ERROR',
+      reason: 'Showcase description must be at least 50 characters to qualify for reward review.',
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+      details: {
+        description_length: trimmedDesc.length,
+        description_valid: false,
+      },
+    };
+  }
+
+  // 2J. Media Requirements (>= 3 photos or >= 1 video)
+  const mediaList = await getShowcaseMedia(showcase.id, showcase.organization_id, env);
+  const photoCount = (mediaList || []).filter(
+    (m) => m.media_type === 'IMAGE' || (!m.media_type && !m.mime_type?.startsWith('video/'))
+  ).length;
+  const videoCount = (mediaList || []).filter(
+    (m) => m.media_type === 'VIDEO' || m.mime_type?.startsWith('video/')
+  ).length;
+
+  if (photoCount < 3 && videoCount < 1) {
+    return {
+      eligible: false,
+      code: 'INSUFFICIENT_MEDIA',
+      reason: `Showcase must have at least 3 photos or 1 video uploaded to qualify for reward review.`,
+      userRewardStatus: 'NOT_ELIGIBLE',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
+      details: {
+        photo_count: photoCount,
+        video_count: videoCount,
+        media_valid: false,
+      },
+    };
+  }
+
+  // All checks pass
+  return {
+    eligible: true,
+    code: 'ELIGIBLE',
+    reason: 'Eligible for RM300 Showcase Reward',
+    userRewardStatus: 'ELIGIBLE',
+    alreadyClaimed: false,
+    hasReceivedReward: false,
+    hasPendingSubmission: false,
+    details: {
+      user_id: userId,
+      event_id: eventId,
+      showcase_id: showcase.id,
+      is_owner: true,
+      event_paid: true,
+      event_started: true,
+      showcase_published: true,
+      description_length: trimmedDesc.length,
+      description_valid: true,
+      photo_count: photoCount,
+      video_count: videoCount,
+      media_valid: true,
+      user_lifetime_claimed: false,
+      has_pending_submission: false,
+      is_resubmission: (thisShowcaseSub?.status === 'REJECTED'),
+    },
+  };
+}
+
+
 /**
  * Creates a dedicated showcase reward submission record for a published, completed event showcase.
  * Strictly verifies owner-level eligibility, one-time lifetime rules, and locks against race conditions.
@@ -57,213 +457,49 @@ export async function createShowcaseRewardSubmission(params: {
 
   // Acquire user reward lock to prevent concurrent duplicate submissions
   return await withUserRewardLock(userId, async () => {
-    // 1. Fetch Event
+    // 1. Authoritative Database-Level / Waterfall Eligibility Check
+    const eligibility = await checkShowcaseRewardEligibility({ eventId, userId }, env);
+    if (!eligibility.eligible) {
+      const err = new Error(eligibility.reason || 'Showcase reward submission is not eligible.');
+      (err as any).code = eligibility.code || 'SHOWCASE_NOT_ELIGIBLE';
+      (err as any).status =
+        eligibility.code === 'OWNER_ONLY_REWARD' ? 403 :
+        eligibility.code === 'SUBMISSION_PENDING' ? 409 : 422;
+      throw err;
+    }
+
+    // 2. If Supabase is configured, execute atomic RPC
+    if (isSupabaseConfigured(env)) {
+      const supabase = getSupabaseServerClient(env);
+      try {
+        const { data: rpcResult, error: rpcErr } = await supabase.rpc(
+          'create_showcase_reward_submission_atomic',
+          {
+            p_event_id: eventId,
+            p_user_id: userId,
+          }
+        );
+        if (!rpcErr && rpcResult?.submission) {
+          const subRecord = rpcResult.submission as ShowcaseRewardSubmissionRecord;
+          localRewardSubmissionsCache.set(subRecord.id, subRecord);
+          return subRecord;
+        }
+      } catch {
+        // Fall back to table insert if RPC not available
+      }
+    }
+
+    // 3. Resolve Event & Showcase
     const event = await getEventById(eventId, env);
-    if (!event) {
-      const err = new Error('Event not found.');
-      (err as any).code = 'EVENT_NOT_FOUND';
-      (err as any).status = 404;
-      throw err;
-    }
-
-    // 2. Verify User is Organization Owner (strictly Owner-level promotion)
-    const isOwner = await isUserOrganizationOwner(userId, event.organization_id, env);
-    if (!isOwner) {
-      const err = new Error(
-        'Only organization owners are eligible to submit for the RM300 Showcase Reward. Organization members cannot receive promotional rewards.'
-      );
-      (err as any).code = 'OWNER_ONLY_REWARD';
-      (err as any).status = 403;
-      throw err;
-    }
-
-    // 3. Fetch Showcase
     const showcase = await getShowcaseByEventId(eventId, env);
-    if (!showcase) {
-      const err = new Error('Event showcase not found. Please create and publish the showcase first.');
+    if (!event || !showcase) {
+      const err = new Error('Event or showcase not found.');
       (err as any).code = 'SHOWCASE_NOT_FOUND';
       (err as any).status = 404;
       throw err;
     }
 
-    if (showcase.status === 'BLOCKED' || showcase.status === 'DELETED') {
-      const err = new Error(`Showcase is ${showcase.status.toLowerCase()} and cannot be submitted for rewards.`);
-      (err as any).code = 'SHOWCASE_NOT_ELIGIBLE';
-      (err as any).status = 403;
-      throw err;
-    }
-
-    if (showcase.status !== 'PUBLISHED' && showcase.publication_status !== 'PUBLISHED') {
-      const err = new Error('Showcase must be published before submitting for the RM300 reward.');
-      (err as any).code = 'SHOWCASE_NOT_PUBLISHED';
-      (err as any).status = 422;
-      throw err;
-    }
-
-    // 4. Verify Event Eligibility (Must be PAID and STARTED: LIVE or COMPLETED)
-    const rewardSubmissionElig = isEventEligibleForShowcaseRewardSubmission(event);
-    if (!rewardSubmissionElig.eligible) {
-      const err = new Error(
-        rewardSubmissionElig.reason || 'Showcase reward submission is available once the event starts.'
-      );
-      (err as any).code = rewardSubmissionElig.code || 'EVENT_NOT_STARTED';
-      (err as any).status = 422;
-      throw err;
-    }
-
-    // 5. Verify Content Quality (Title, Description >= 50 chars, Media >= 3 images or >= 1 video)
-    if (!showcase.title || !showcase.title.trim()) {
-      const err = new Error('Showcase title is required.');
-      (err as any).code = 'VALIDATION_ERROR';
-      (err as any).status = 422;
-      throw err;
-    }
-
-    const trimmedDesc = (showcase.description || '').trim();
-    if (trimmedDesc.length < 50) {
-      const err = new Error('Showcase description must be at least 50 characters to qualify for reward review.');
-      (err as any).code = 'VALIDATION_ERROR';
-      (err as any).status = 422;
-      throw err;
-    }
-
-    const mediaList = await getShowcaseMedia(showcase.id, showcase.organization_id, env);
-    const imageCount = (mediaList || []).filter(
-      (m) => m.media_type === 'IMAGE' || (!m.media_type && !m.mime_type?.startsWith('video/'))
-    ).length;
-    const videoCount = (mediaList || []).filter(
-      (m) => m.media_type === 'VIDEO' || m.mime_type?.startsWith('video/')
-    ).length;
-    const hasRequiredMedia = imageCount >= 3 || videoCount >= 1;
-
-    if (!hasRequiredMedia) {
-      const err = new Error('Showcase must have at least 3 photos or 1 video uploaded to qualify for reward review.');
-      (err as any).code = 'INSUFFICIENT_MEDIA';
-      (err as any).status = 422;
-      throw err;
-    }
-
-    // 6. Authoritative Lifetime Reward Eligibility Verification
-    const eligibility = await getShowcaseRewardEligibility(userId, env);
-    if (!eligibility.eligible) {
-      if (eligibility.alreadyClaimed || eligibility.userRewardStatus === 'REWARDED' || eligibility.code === 'LIFETIME_REWARD_EXHAUSTED') {
-        const err = new Error(
-          eligibility.reason || 'RM300 Showcase Reward has already been claimed for this account.'
-        );
-        (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
-        (err as any).status = 422;
-        throw err;
-      }
-      if (eligibility.hasPendingSubmission || eligibility.code === 'SUBMISSION_PENDING') {
-        const err = new Error(
-          eligibility.reason || 'You already have a showcase reward submission pending review. Only one active claim is allowed per account.'
-        );
-        (err as any).code = 'SUBMISSION_PENDING';
-        (err as any).status = 409;
-        throw err;
-      }
-      const err = new Error(
-        eligibility.reason || 'RM300 Showcase Reward has already been claimed for this account.'
-      );
-      (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
-      (err as any).status = 422;
-      throw err;
-    }
-
-    const alreadyReceived =
-      (await hasUserReceivedShowcaseCredit(userId, env)) ||
-      (await hasUserClaimedReward(userId, 'SHOWCASE_REWARD', env)) ||
-      (await hasUserClaimedReward(userId, 'SHOWCASE_CREDIT', env));
-
-    if (alreadyReceived) {
-      const err = new Error(
-        'RM300 Showcase Reward has already been claimed for this account.'
-      );
-      (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
-      (err as any).status = 422;
-      throw err;
-    }
-
-    // 7. Check for Existing Submissions in Database / Cache
-    if (isSupabaseConfigured(env)) {
-      const supabase = getSupabaseServerClient(env);
-
-      // Check if user already has an APPROVED submission
-      const { data: approvedSub } = await supabase
-        .from('showcase_reward_submissions')
-        .select('id, status')
-        .eq('user_id', userId)
-        .eq('status', 'APPROVED')
-        .limit(1)
-        .maybeSingle();
-
-      if (approvedSub) {
-        const err = new Error('RM300 Showcase Reward has already been claimed for this account.');
-        (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
-        (err as any).status = 422;
-        throw err;
-      }
-
-      // Check if user already has a PENDING submission
-      const { data: pendingUserSub } = await supabase
-        .from('showcase_reward_submissions')
-        .select('id, status, submitted_at')
-        .eq('user_id', userId)
-        .eq('status', 'PENDING')
-        .limit(1)
-        .maybeSingle();
-
-      if (pendingUserSub) {
-        const err = new Error(
-          'You already have a showcase reward submission pending review. Only one pending submission is allowed at a time.'
-        );
-        (err as any).code = 'SUBMISSION_PENDING';
-        (err as any).status = 409;
-        throw err;
-      }
-
-      // Check if this showcase already has a PENDING submission
-      const { data: pendingShowcaseSub } = await supabase
-        .from('showcase_reward_submissions')
-        .select('id, status, submitted_at')
-        .eq('showcase_id', showcase.id)
-        .eq('status', 'PENDING')
-        .limit(1)
-        .maybeSingle();
-
-      if (pendingShowcaseSub) {
-        const err = new Error('This showcase is already submitted and pending reward review.');
-        (err as any).code = 'SUBMISSION_PENDING';
-        (err as any).status = 409;
-        throw err;
-      }
-    }
-
-    // Local in-memory check (for development / fallback)
-    for (const sub of localRewardSubmissionsCache.values()) {
-      if (sub.user_id === userId && sub.status === 'APPROVED') {
-        const err = new Error('RM300 Showcase Reward has already been claimed for this account.');
-        (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
-        (err as any).status = 422;
-        throw err;
-      }
-      if (sub.user_id === userId && sub.status === 'PENDING') {
-        const err = new Error(
-          'You already have a showcase reward submission pending review. Only one pending submission is allowed at a time.'
-        );
-        (err as any).code = 'SUBMISSION_PENDING';
-        (err as any).status = 409;
-        throw err;
-      }
-      if (sub.showcase_id === showcase.id && sub.status === 'PENDING') {
-        const err = new Error('This showcase is already submitted and pending reward review.');
-        (err as any).code = 'SUBMISSION_PENDING';
-        (err as any).status = 409;
-        throw err;
-      }
-    }
-
-    // 8. Create Submission Record
+    // 4. Create Submission Record
     const now = new Date().toISOString();
     const submissionRecord: ShowcaseRewardSubmissionRecord = {
       id: crypto.randomUUID(),
@@ -290,7 +526,6 @@ export async function createShowcaseRewardSubmission(params: {
         .single();
 
       if (error) {
-        // Unique constraint violation check (code 23505)
         if (error.code === '23505') {
           const detail = String(error.details || error.message || '');
           if (detail.includes('ux_showcase_reward_submissions_user_approved')) {
@@ -312,25 +547,28 @@ export async function createShowcaseRewardSubmission(params: {
           (err as any).status = 409;
           throw err;
         }
-
         if (!isLocalFallbackAllowed(env)) {
-          console.error('[Showcase Reward Submission DB Error]:', error);
-          const err = new Error(`Failed to create reward submission: ${error.message}`);
-          (err as any).code = error.code || 'DATABASE_ERROR';
-          (err as any).status = 500;
-          throw err;
+          throw new Error(`Failed to create reward submission: ${error.message}`);
         }
-      }
-
-      if (data) {
+      } else if (data) {
         localRewardSubmissionsCache.set(data.id, data as ShowcaseRewardSubmissionRecord);
+        await updateShowcase(
+          eventId,
+          {
+            reward_review_status: 'AWAITING_APPROVAL',
+            reward_status: 'PENDING',
+            reward_rejection_reason: null,
+            owner_user_id: userId,
+            submitted_at: now,
+          },
+          env,
+          true
+        ).catch((e) => console.warn('Could not sync showcase reward status on submission:', e));
+        return data as ShowcaseRewardSubmissionRecord;
       }
     }
 
-    // Always keep local cache in sync
     localRewardSubmissionsCache.set(submissionRecord.id, submissionRecord);
-
-    // 9. Update showcase state to sync with submission
     await updateShowcase(
       eventId,
       {
@@ -590,6 +828,18 @@ export async function approveShowcaseRewardSubmission(params: {
   }
 
   return await withUserRewardLock(submission.user_id, async () => {
+    // Re-check current submission state INSIDE lock for concurrency protection
+    const latestSubmission = (await getShowcaseRewardSubmissionById(submissionId, env)) || submission;
+    if (latestSubmission.status === 'APPROVED') {
+      const showcase = await getShowcaseById(latestSubmission.showcase_id, env);
+      return {
+        submission: latestSubmission,
+        showcase,
+        reward: null,
+        alreadyRewarded: true,
+      };
+    }
+
     // Re-verify that user has not ALREADY received/been approved for a showcase reward
     const eligibility = await getShowcaseRewardEligibility(submission.user_id, env);
     if (eligibility.alreadyClaimed || eligibility.userRewardStatus === 'REWARDED') {

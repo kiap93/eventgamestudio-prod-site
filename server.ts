@@ -196,6 +196,7 @@ import {
   approveShowcaseRewardSubmission,
   rejectShowcaseRewardSubmission,
   getShowcaseRewardEligibility,
+  checkShowcaseRewardEligibility,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import {
@@ -3620,7 +3621,7 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
         const lifetimeRewardStatus = req.user?.id ? await getOwnerShowcaseRewardStatus(req.user.id) : null;
         const rewardSubmission = await getShowcaseRewardSubmissionForEvent(eventId);
         const userSubmission = req.user?.id ? await getActiveUserShowcaseRewardSubmission(req.user.id) : null;
-        const rewardEligibility = req.user?.id ? await getShowcaseRewardEligibility(req.user.id) : null;
+        const rewardEligibility = req.user?.id ? await checkShowcaseRewardEligibility({ eventId, userId: req.user.id }) : null;
         res.json({
           showcase: null,
           lifetimeRewardStatus,
@@ -3639,7 +3640,7 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
       const lifetimeRewardStatus = req.user?.id ? await getOwnerShowcaseRewardStatus(req.user.id) : null;
       const rewardSubmission = await getShowcaseRewardSubmissionForEvent(eventId);
       const userSubmission = req.user?.id ? await getActiveUserShowcaseRewardSubmission(req.user.id) : null;
-      const rewardEligibility = req.user?.id ? await getShowcaseRewardEligibility(req.user.id) : null;
+      const rewardEligibility = req.user?.id ? await checkShowcaseRewardEligibility({ eventId, userId: req.user.id }) : null;
       res.json({
         showcase,
         lifetimeRewardStatus,
@@ -3694,8 +3695,11 @@ app.get('/api/events/:eventId/showcase/reward-submission', authenticateOptionalJ
   try {
     const { eventId } = req.params;
     const submission = await getShowcaseRewardSubmissionForEvent(eventId);
-    const userSubmission = req.user?.id ? await getActiveUserShowcaseRewardSubmission(req.user.id) : null;
-    const eligibility = req.user?.id ? await getShowcaseRewardEligibility(req.user.id) : null;
+    const userId = req.user?.id;
+    const userSubmission = userId ? await getActiveUserShowcaseRewardSubmission(userId) : null;
+    const eligibility = userId
+      ? await checkShowcaseRewardEligibility({ eventId, userId })
+      : null;
 
     res.json({
       submission,

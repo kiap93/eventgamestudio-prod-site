@@ -37,6 +37,7 @@ import {
   Check,
   Gift,
   XCircle,
+  Info,
 } from 'lucide-react';
 import { isEventEligibleForShowcase, isEventEligibleForShowcaseRewardSubmission } from '../../lib/dateUtils';
 
@@ -914,17 +915,28 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                       </div>
                     )}
 
-                    {(!rewardSubmission || rewardSubmission?.status === 'REJECTED') && rewardEligibility?.eligible && (!eventData || isEventEligibleForShowcaseRewardSubmission(eventData).eligible) && (
-                      <button
-                        type="button"
-                        onClick={handleSubmitReward}
-                        disabled={submittingReward || saving}
-                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer disabled:opacity-50"
-                        title="Submit this first-event showcase for RM300 Reward"
-                      >
-                        <Gift className="w-4 h-4 text-slate-950" />
-                        <span>{submittingReward ? 'Submitting...' : rewardSubmission?.status === 'REJECTED' ? 'Resubmit for RM300 Reward' : 'Submit for RM300 Reward'}</span>
-                      </button>
+                    {/* Authoritative Showcase Reward Submission & Status */}
+                    {(!rewardSubmission || rewardSubmission?.status === 'REJECTED') && (
+                      rewardEligibility?.eligible ? (
+                        <button
+                          type="button"
+                          onClick={handleSubmitReward}
+                          disabled={submittingReward || saving}
+                          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer disabled:opacity-50"
+                          title="Submit this first-event showcase for RM300 Reward"
+                        >
+                          <Gift className="w-4 h-4 text-slate-950" />
+                          <span>{submittingReward ? 'Submitting...' : rewardSubmission?.status === 'REJECTED' ? 'Resubmit for RM300 Reward' : 'Submit for RM300 Reward'}</span>
+                        </button>
+                      ) : rewardEligibility?.reason ? (
+                        <div
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-slate-800/80 border border-slate-700/80 text-slate-400"
+                          title={rewardEligibility.reason}
+                        >
+                          <Info className="w-3.5 h-3.5 text-amber-400/80 shrink-0" />
+                          <span className="truncate max-w-[220px]">{rewardEligibility.reason}</span>
+                        </div>
+                      ) : null
                     )}
                   </>
                 )}
