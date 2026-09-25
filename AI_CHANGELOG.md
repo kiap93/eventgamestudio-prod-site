@@ -4,6 +4,31 @@ This changelog records major structural, architectural, business logic, and docu
 
 ---
 
+## [2026-09-24] - Fix Showcase "Submit for RM300 Reward" Flow: Autosave on Submit
+
+### Summary
+Fixed the Showcase reward submission workflow where users edit their showcase description and immediately click **“Submit for RM300 Reward”**. Previously, if the latest description had not been manually saved beforehand, the submission endpoint evaluated the stale saved record and could return a validation error (`"Showcase description must be at least 50 characters to qualify for reward review."`). The button now automatically detects unsaved showcase changes, seamlessly triggers the existing `handleSave` action first, waits for the save to succeed, and only then initiates the reward review submission.
+
+### Key Changes Implemented
+1. **Autosave Sequence in `handleSubmitReward` (`src/components/events/EventShowcasePage.tsx`)**:
+   - Integrated `hasUnsavedChanges()` verification into `handleSubmitReward`.
+   - If unsaved changes exist, calls the existing `handleSave(undefined, { silentSuccess: true })` and awaits successful completion before triggering `POST /api/events/:eventId/showcase/reward-submission`.
+   - If save fails, halts the submission pipeline, preserves user input in the form, and displays the error banner.
+   - If no unsaved changes exist, proceeds directly to reward submission without redundant save requests.
+2. **Double-Click & Concurrency Guard**:
+   - Utilizes `submittingRewardRef` and `savingRef` to immediately block concurrent duplicate clicks and prevents firing save and submit calls in parallel.
+   - Displays `"Submitting..."` on the reward button during processing with `disabled={submittingReward || saving}`.
+3. **Backend Validation Authority**:
+   - Preserves strict backend validation requiring >= 50 characters and minimum media criteria for review qualification.
+4. **Verification & Testing (`server/showcase_autosave_reward_submission.test.ts`)**:
+   - Verified direct submission when no changes are pending.
+   - Verified save-first sequence when valid edits are unsaved.
+   - Verified save-first with backend rejection when edited description is under 50 characters.
+   - Verified abort on save failure with error retention.
+   - Verified concurrent click rejection.
+
+---
+
 ## [2026-09-24] - Fix Event Showcase Publish 500 Error: null value in column "game_id" violates not-null constraint
 
 ### Summary

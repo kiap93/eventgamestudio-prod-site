@@ -31,6 +31,7 @@ import {
   localUserRewardsCache,
   localOwnerShowcaseRewardsCache,
 } from './db/wallet.js';
+import { UserRecord } from './db/types.js';
 
 let passed = 0;
 let failed = 0;
@@ -223,6 +224,7 @@ async function testBackendSubmissionValidation() {
     email: 'owner@example.com',
     name: 'Owner Alice',
     created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
     is_developer: false,
   };
 

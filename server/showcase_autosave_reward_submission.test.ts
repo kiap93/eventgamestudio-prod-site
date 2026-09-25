@@ -43,7 +43,7 @@ localOrgsCache.set(testOrgId, {
   id: testOrgId,
   name: 'Autosave Test Org',
   owner_id: testOwnerId,
-});
+} as any);
 
 localEventsCache.set(testEventId, {
   id: testEventId,
@@ -51,10 +51,10 @@ localEventsCache.set(testEventId, {
   name: 'Autosave Annual Showcase Event',
   start_date: '2026-09-20',
   end_date: '2026-09-25',
-  status: 'LIVE',
-  event_status: 'LIVE',
+  status: 'live',
+  event_status: 'live',
   payment_status: 'PAID',
-});
+} as any);
 
 // Setup mock client-side handler simulation matching EventShowcasePage logic
 interface MockClientState {
@@ -158,7 +158,7 @@ const createMockClient = (initialShowcase: any | null) => {
             cover_image_url: state.coverImageUrl.trim() || null,
           },
           {},
-          {}
+          false
         );
       }
 
@@ -301,7 +301,7 @@ async function runTests() {
     );
 
     // Verify backend received the updated description
-    const updatedInDb = await getShowcaseByEventId(testEventId, testOrgId, {});
+    const updatedInDb = await getShowcaseByEventId(testEventId, {});
     assert.strictEqual(updatedInDb?.description, newValidDesc, 'Database must have the newly saved description');
 
     // Verify submission is PENDING in backend
@@ -320,7 +320,7 @@ async function runTests() {
     clearLocalRewardSubmissionsCache();
 
     // Get current showcase which now has >50 chars description
-    const freshShowcase = await getShowcaseByEventId(testEventId, testOrgId, {});
+    const freshShowcase = await getShowcaseByEventId(testEventId, {});
     const client = createMockClient(freshShowcase);
 
     assert.strictEqual(client.hasUnsavedChanges(), false, 'Showcase has no unsaved changes');
@@ -342,7 +342,7 @@ async function runTests() {
   console.log('\n--- Case 3: Unsaved changes + invalid description (< 50 chars) -> Save first, then backend rejects ---');
   {
     clearLocalRewardSubmissionsCache();
-    const currentShowcase = await getShowcaseByEventId(testEventId, testOrgId, {});
+    const currentShowcase = await getShowcaseByEventId(testEventId, {});
     const client = createMockClient(currentShowcase);
 
     // User edits description to be too short (< 50 chars)
@@ -371,7 +371,7 @@ async function runTests() {
   console.log('\n--- Case 4: Save fails -> do not submit reward ---');
   {
     clearLocalRewardSubmissionsCache();
-    const currentShowcase = await getShowcaseByEventId(testEventId, testOrgId, {});
+    const currentShowcase = await getShowcaseByEventId(testEventId, {});
     const client = createMockClient(currentShowcase);
 
     client.state.description = 'A completely new valid description with well over fifty characters to test failure handling.';
@@ -405,10 +405,10 @@ async function runTests() {
         description: 'Restored valid description with well over fifty characters for multi-click testing.',
       },
       {},
-      {}
+      false
     );
 
-    const currentShowcase = await getShowcaseByEventId(testEventId, testOrgId, {});
+    const currentShowcase = await getShowcaseByEventId(testEventId, {});
     const client = createMockClient(currentShowcase);
     client.state.description = 'Modified valid description with well over fifty characters for concurrent test.';
 
@@ -434,7 +434,7 @@ async function runTests() {
   // ------------------------------------------------------------------------
   console.log('\n--- Case 6 & 7: Existing Save button continues working normally ---');
   {
-    const currentShowcase = await getShowcaseByEventId(testEventId, testOrgId, {});
+    const currentShowcase = await getShowcaseByEventId(testEventId, {});
     const client = createMockClient(currentShowcase);
 
     client.state.title = 'Updated Title Via Standard Save';
