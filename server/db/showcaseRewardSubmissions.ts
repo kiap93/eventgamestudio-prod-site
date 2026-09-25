@@ -146,9 +146,24 @@ export async function createShowcaseRewardSubmission(params: {
     // 6. Authoritative Lifetime Reward Eligibility Verification
     const eligibility = await getShowcaseRewardEligibility(userId, env);
     if (!eligibility.eligible) {
+      if (eligibility.alreadyClaimed || eligibility.userRewardStatus === 'REWARDED' || eligibility.code === 'LIFETIME_REWARD_EXHAUSTED') {
+        const err = new Error(
+          eligibility.reason || 'RM300 Showcase Reward has already been claimed for this account.'
+        );
+        (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
+        (err as any).status = 422;
+        throw err;
+      }
+      if (eligibility.hasPendingSubmission || eligibility.code === 'SUBMISSION_PENDING') {
+        const err = new Error(
+          eligibility.reason || 'You already have a showcase reward submission pending review. Only one active claim is allowed per account.'
+        );
+        (err as any).code = 'SUBMISSION_PENDING';
+        (err as any).status = 409;
+        throw err;
+      }
       const err = new Error(
-        eligibility.reason ||
-          'Owner has already received their one-time lifetime showcase reward credit.'
+        eligibility.reason || 'RM300 Showcase Reward has already been claimed for this account.'
       );
       (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
       (err as any).status = 422;
@@ -162,7 +177,7 @@ export async function createShowcaseRewardSubmission(params: {
 
     if (alreadyReceived) {
       const err = new Error(
-        'Owner has already received their one-time lifetime showcase reward credit.'
+        'RM300 Showcase Reward has already been claimed for this account.'
       );
       (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
       (err as any).status = 422;
@@ -183,7 +198,7 @@ export async function createShowcaseRewardSubmission(params: {
         .maybeSingle();
 
       if (approvedSub) {
-        const err = new Error('Owner has already received an approved RM300 Showcase Reward.');
+        const err = new Error('RM300 Showcase Reward has already been claimed for this account.');
         (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
         (err as any).status = 422;
         throw err;
@@ -227,7 +242,7 @@ export async function createShowcaseRewardSubmission(params: {
     // Local in-memory check (for development / fallback)
     for (const sub of localRewardSubmissionsCache.values()) {
       if (sub.user_id === userId && sub.status === 'APPROVED') {
-        const err = new Error('Owner has already received an approved RM300 Showcase Reward.');
+        const err = new Error('RM300 Showcase Reward has already been claimed for this account.');
         (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
         (err as any).status = 422;
         throw err;
@@ -277,8 +292,21 @@ export async function createShowcaseRewardSubmission(params: {
       if (error) {
         // Unique constraint violation check (code 23505)
         if (error.code === '23505') {
+          const detail = String(error.details || error.message || '');
+          if (detail.includes('ux_showcase_reward_submissions_user_approved')) {
+            const err = new Error('RM300 Showcase Reward has already been claimed for this account.');
+            (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
+            (err as any).status = 422;
+            throw err;
+          }
+          if (detail.includes('ux_showcase_reward_submissions_showcase_pending')) {
+            const err = new Error('This showcase is already submitted and pending reward review.');
+            (err as any).code = 'SUBMISSION_PENDING';
+            (err as any).status = 409;
+            throw err;
+          }
           const err = new Error(
-            'A pending reward submission already exists for this account or showcase.'
+            'You already have a showcase reward submission pending review. Only one pending submission is allowed at a time.'
           );
           (err as any).code = 'SUBMISSION_PENDING';
           (err as any).status = 409;
@@ -422,10 +450,14 @@ export async function getPendingRewardSubmissions(
     }
   }
 
-  if (submissions.length === 0 && isLocalFallbackAllowed(env)) {
-    submissions = Array.from(localRewardSubmissionsCache.values())
-      .filter((s) => (filterStatus === 'ALL' ? true : s.status === filterStatus))
-      .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
+  if (isLocalFallbackAllowed(env)) {
+    const existingIds = new Set(submissions.map((s) => s.id));
+    for (const s of localRewardSubmissionsCache.values()) {
+      if (!existingIds.has(s.id) && (filterStatus === 'ALL' || s.status === filterStatus)) {
+        submissions.push(s);
+      }
+    }
+    submissions.sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
   }
 
   // Enrich items with metadata
@@ -473,11 +505,51 @@ export async function getPendingRewardSubmissions(
 }
 
 /**
+ * Retrieves any active (PENDING or APPROVED) showcase reward submission for a user.
+ */
+export async function getActiveUserShowcaseRewardSubmission(
+  userId: string,
+  env?: Record<string, any>
+): Promise<ShowcaseRewardSubmissionRecord | null> {
+  if (!userId) return null;
+
+  if (isSupabaseConfigured(env)) {
+    const supabase = getSupabaseServerClient(env);
+    try {
+      const { data, error } = await supabase
+        .from('showcase_reward_submissions')
+        .select('*')
+        .eq('user_id', userId)
+        .in('status', ['APPROVED', 'PENDING'])
+        .order('submitted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        localRewardSubmissionsCache.set(data.id, data as ShowcaseRewardSubmissionRecord);
+        return data as ShowcaseRewardSubmissionRecord;
+      }
+    } catch (err) {
+      if (!isLocalFallbackAllowed(env)) throw err;
+    }
+  }
+
+  // Local fallback
+  const matching = Array.from(localRewardSubmissionsCache.values())
+    .filter((s) => s.user_id === userId && (s.status === 'APPROVED' || s.status === 'PENDING'))
+    .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+
+  return matching[0] || null;
+}
+
+/**
  * Approve a showcase reward submission:
  * 1. Checks that submission is in PENDING state.
- * 2. Grants RM300 atomically using approveShowcaseReward (which invokes approve_first_event_showcase_reward_atomic).
- * 3. Updates submission status to APPROVED with reviewed_at, reviewed_by, and reward_transaction_id.
- * 4. Ensures submission is removed from pending queue.
+ * 2. Locks against user reward concurrency.
+ * 3. Re-checks user lifetime eligibility across all events.
+ * 4. Grants RM300 atomically using approveShowcaseReward (which invokes approve_first_event_showcase_reward_atomic).
+ * 5. Updates submission status to APPROVED with reviewed_at, reviewed_by, and reward_transaction_id.
+ * 6. Ensures submission is removed from pending queue.
  */
 export async function approveShowcaseRewardSubmission(params: {
   submissionId: string;
@@ -499,7 +571,7 @@ export async function approveShowcaseRewardSubmission(params: {
     throw err;
   }
 
-  // Idempotency: if already approved, return cleanly
+  // Idempotency: if already approved for THIS submission, return cleanly
   if (submission.status === 'APPROVED') {
     const showcase = await getShowcaseById(submission.showcase_id, env);
     return {
@@ -517,51 +589,73 @@ export async function approveShowcaseRewardSubmission(params: {
     throw err;
   }
 
-  // Grant the RM300 showcase reward atomically
-  const result = await approveShowcaseReward(submission.showcase_id, reviewerId, env);
-
-  const now = new Date().toISOString();
-  const rewardTxnId =
-    result.showcase?.reward_transaction_id ||
-    result.reward?.transaction?.id ||
-    submission.reward_transaction_id ||
-    null;
-
-  const updatedSubmission: ShowcaseRewardSubmissionRecord = {
-    ...submission,
-    status: 'APPROVED',
-    reviewed_at: now,
-    reviewed_by: reviewerId,
-    reward_transaction_id: rewardTxnId,
-    updated_at: now,
-  };
-
-  if (isSupabaseConfigured(env)) {
-    const supabase = getSupabaseServerClient(env);
-    try {
-      await supabase
-        .from('showcase_reward_submissions')
-        .update({
-          status: 'APPROVED',
-          reviewed_at: now,
-          reviewed_by: reviewerId,
-          reward_transaction_id: rewardTxnId,
-          updated_at: now,
-        })
-        .eq('id', submissionId);
-    } catch (e) {
-      if (!isLocalFallbackAllowed(env)) throw e;
+  return await withUserRewardLock(submission.user_id, async () => {
+    // Re-verify that user has not ALREADY received/been approved for a showcase reward
+    const eligibility = await getShowcaseRewardEligibility(submission.user_id, env);
+    if (eligibility.alreadyClaimed || eligibility.userRewardStatus === 'REWARDED') {
+      const err = new Error('First-event reward invariant violation: Owner has already received a lifetime showcase reward credit.');
+      (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
+      (err as any).status = 422;
+      throw err;
     }
-  }
 
-  localRewardSubmissionsCache.set(submissionId, updatedSubmission);
+    // Grant the RM300 showcase reward atomically
+    const result = await approveShowcaseReward(submission.showcase_id, reviewerId, env);
 
-  return {
-    submission: updatedSubmission,
-    showcase: result.showcase,
-    reward: result.reward,
-    alreadyRewarded: result.alreadyRewarded,
-  };
+    const now = new Date().toISOString();
+    const rewardTxnId =
+      result.showcase?.reward_transaction_id ||
+      result.reward?.transaction?.id ||
+      submission.reward_transaction_id ||
+      null;
+
+    const updatedSubmission: ShowcaseRewardSubmissionRecord = {
+      ...submission,
+      status: 'APPROVED',
+      reviewed_at: now,
+      reviewed_by: reviewerId,
+      reward_transaction_id: rewardTxnId,
+      updated_at: now,
+    };
+
+    if (isSupabaseConfigured(env)) {
+      const supabase = getSupabaseServerClient(env);
+      try {
+        const { error: updateErr } = await supabase
+          .from('showcase_reward_submissions')
+          .update({
+            status: 'APPROVED',
+            reviewed_at: now,
+            reviewed_by: reviewerId,
+            reward_transaction_id: rewardTxnId,
+            updated_at: now,
+          })
+          .eq('id', submissionId);
+
+        if (updateErr) {
+          if (updateErr.code === '23505') {
+            const err = new Error('First-event reward invariant violation: Owner has already received a lifetime showcase reward credit.');
+            (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
+            (err as any).status = 422;
+            throw err;
+          }
+          if (!isLocalFallbackAllowed(env)) throw updateErr;
+        }
+      } catch (e: any) {
+        if (e?.code === 'LIFETIME_REWARD_EXHAUSTED') throw e;
+        if (!isLocalFallbackAllowed(env)) throw e;
+      }
+    }
+
+    localRewardSubmissionsCache.set(submissionId, updatedSubmission);
+
+    return {
+      submission: updatedSubmission,
+      showcase: result.showcase,
+      reward: result.reward,
+      alreadyRewarded: result.alreadyRewarded,
+    };
+  });
 }
 
 /**

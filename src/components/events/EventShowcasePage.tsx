@@ -84,6 +84,7 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
 
   // Reward Submission & Eligibility States
   const [rewardSubmission, setRewardSubmission] = useState<ShowcaseRewardSubmissionRecord | null>(null);
+  const [userActiveSubmission, setUserActiveSubmission] = useState<ShowcaseRewardSubmissionRecord | null>(null);
   const [rewardEligibility, setRewardEligibility] = useState<any | null>(null);
   const [submittingReward, setSubmittingReward] = useState<boolean>(false);
   const submittingRewardRef = useRef(false);
@@ -147,6 +148,9 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
         if (sData.reward_submission !== undefined) {
           setRewardSubmission(sData.reward_submission);
         }
+        if (sData.user_submission !== undefined) {
+          setUserActiveSubmission(sData.user_submission);
+        }
         if (sData.reward_eligibility !== undefined) {
           setRewardEligibility(sData.reward_eligibility);
         }
@@ -176,6 +180,9 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
           const subData = await subRes.json();
           if (subData.submission !== undefined) {
             setRewardSubmission(subData.submission);
+          }
+          if (subData.user_submission !== undefined) {
+            setUserActiveSubmission(subData.user_submission);
           }
           if (subData.eligibility !== undefined) {
             setRewardEligibility(subData.eligibility);
@@ -869,7 +876,15 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
             {!isViewer && (
               <>
                 {/* Reward Submission Button / Status */}
-                {rewardSubmission?.status === 'PENDING' && (
+                {(rewardSubmission?.status === 'APPROVED' || showcase?.reward_review_status === 'REWARDED' || rewardEligibility?.alreadyClaimed || rewardEligibility?.userRewardStatus === 'REWARDED' || rewardEligibility?.hasReceivedReward || userActiveSubmission?.status === 'APPROVED') ? (
+                  <div
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shadow-sm"
+                    title="RM300 Showcase Reward has already been claimed for this account."
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>RM300 Reward Approved</span>
+                  </div>
+                ) : rewardSubmission?.status === 'PENDING' ? (
                   <button
                     type="button"
                     disabled
@@ -879,39 +894,39 @@ export const EventShowcasePage: React.FC<EventShowcasePageProps> = ({ eventId })
                     <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
                     <span>Reward Submission Pending</span>
                   </button>
-                )}
-
-                {(rewardSubmission?.status === 'APPROVED' || showcase?.reward_review_status === 'REWARDED' || rewardEligibility?.alreadyClaimed) && (
+                ) : (!rewardSubmission && (userActiveSubmission?.status === 'PENDING' || rewardEligibility?.hasPendingSubmission)) ? (
                   <div
-                    className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shadow-sm"
-                    title="RM300 promotional reward approved"
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300 opacity-90 shadow-sm"
+                    title="You already have an RM300 showcase reward submission pending review for your account. Only one active claim is allowed at a time."
                   >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>RM300 Reward Approved</span>
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    <span>Reward Claim Pending on Another Event</span>
                   </div>
-                )}
+                ) : (
+                  <>
+                    {rewardSubmission?.status === 'REJECTED' && (
+                      <div
+                        className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-rose-500/15 border border-rose-500/30 text-rose-300 shadow-sm"
+                        title={rewardSubmission.rejection_reason || 'Reward submission rejected'}
+                      >
+                        <XCircle className="w-4 h-4 text-rose-400" />
+                        <span>Reward Submission Rejected</span>
+                      </div>
+                    )}
 
-                {rewardSubmission?.status === 'REJECTED' && (
-                  <div
-                    className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-rose-500/15 border border-rose-500/30 text-rose-300 shadow-sm"
-                    title={rewardSubmission.rejection_reason || 'Reward submission rejected'}
-                  >
-                    <XCircle className="w-4 h-4 text-rose-400" />
-                    <span>Reward Submission Rejected</span>
-                  </div>
-                )}
-
-                {!rewardSubmission && rewardEligibility?.eligible && (!eventData || isEventEligibleForShowcaseRewardSubmission(eventData).eligible) && (
-                  <button
-                    type="button"
-                    onClick={handleSubmitReward}
-                    disabled={submittingReward || saving}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer disabled:opacity-50"
-                    title="Submit this first-event showcase for RM300 Reward"
-                  >
-                    <Gift className="w-4 h-4 text-slate-950" />
-                    <span>{submittingReward ? 'Submitting...' : 'Submit for RM300 Reward'}</span>
-                  </button>
+                    {(!rewardSubmission || rewardSubmission?.status === 'REJECTED') && rewardEligibility?.eligible && (!eventData || isEventEligibleForShowcaseRewardSubmission(eventData).eligible) && (
+                      <button
+                        type="button"
+                        onClick={handleSubmitReward}
+                        disabled={submittingReward || saving}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 transition-all shadow-md shadow-amber-500/20 cursor-pointer disabled:opacity-50"
+                        title="Submit this first-event showcase for RM300 Reward"
+                      >
+                        <Gift className="w-4 h-4 text-slate-950" />
+                        <span>{submittingReward ? 'Submitting...' : rewardSubmission?.status === 'REJECTED' ? 'Resubmit for RM300 Reward' : 'Submit for RM300 Reward'}</span>
+                      </button>
+                    )}
+                  </>
                 )}
 
                 <button

@@ -9,22 +9,29 @@ export type PromotionRewardType = 'WELCOME_CREDIT' | 'SHOWCASE_REWARD';
 export interface ShowcaseRewardEligibilityResult {
   eligible: boolean;
   reason?: string;
+  code?: string;
   userRewardStatus: 'ELIGIBLE' | 'REWARDED' | 'NOT_ELIGIBLE';
   ownerUserId: string;
   rewardType: 'SHOWCASE_CREDIT';
   userReward?: UserRewardRecord | null;
+  pendingSubmission?: any | null;
+  approvedSubmission?: any | null;
+  hasReceivedReward?: boolean;
+  alreadyClaimed?: boolean;
+  hasPendingSubmission?: boolean;
 }
 
 /**
  * Authoritative single server-side eligibility function for Showcase Reward.
  *
  * Core Principles:
- * - Authoritative source of truth is `public.user_rewards` (user_id + reward_type = 'SHOWCASE_CREDIT' / 'SHOWCASE_REWARD')
- * - Primary Invariant: ONE SHOWCASE_CREDIT REWARD PER USER PER LIFETIME.
- * - Does NOT use organization_wallets.showcase_credit_granted, event_showcases.reward_status,
- *   or owner_showcase_rewards to independently authorize or grant rewards.
- * - Local in-memory caches (localUserRewardsCache, localOwnerShowcaseRewardsCache) are
- *   strictly caches or test-environment fallbacks. If cache conflicts with database, DATABASE WINS.
+ * - Authoritative source of truth is `public.user_rewards` (user_id + reward_type = 'SHOWCASE_CREDIT' / 'SHOWCASE_REWARD' / 'SHOWCASE_REWARD_RM300')
+ *   together with `public.showcase_reward_submissions` and `public.wallet_transactions`.
+ * - Primary Invariant: ONE SHOWCASE REWARD CLAIM / GRANT PER USER PER LIFETIME across ALL events & organizations.
+ * - Checks whether user has already:
+ *     1. An approved / granted showcase reward anywhere (LIFETIME_REWARD_EXHAUSTED).
+ *     2. An active pending showcase reward submission anywhere (SUBMISSION_PENDING).
+ * - Primary authority: Database. In non-production tests/local dev, caches mirror database state.
  */
 export async function getShowcaseRewardEligibility(
   userId: string,
@@ -34,9 +41,13 @@ export async function getShowcaseRewardEligibility(
     return {
       eligible: false,
       reason: 'Valid user ID is required.',
+      code: 'VALIDATION_ERROR',
       userRewardStatus: 'NOT_ELIGIBLE',
       ownerUserId: '',
       rewardType: 'SHOWCASE_CREDIT',
+      alreadyClaimed: false,
+      hasReceivedReward: false,
+      hasPendingSubmission: false,
     };
   }
 
@@ -49,7 +60,7 @@ export async function getShowcaseRewardEligibility(
         .from('user_rewards')
         .select('*')
         .eq('user_id', userId)
-        .in('reward_type', ['SHOWCASE_CREDIT', 'SHOWCASE_REWARD'])
+        .in('reward_type', ['SHOWCASE_CREDIT', 'SHOWCASE_REWARD', 'SHOWCASE_REWARD_RM300'])
         .limit(1)
         .maybeSingle();
 
@@ -60,12 +71,65 @@ export async function getShowcaseRewardEligibility(
       if (userReward) {
         return {
           eligible: false,
-          reason: 'Owner has already received a lifetime showcase reward credit (one-time lifetime limit).',
+          code: 'LIFETIME_REWARD_EXHAUSTED',
+          reason: 'RM300 Showcase Reward has already been claimed for this account.',
           userRewardStatus: 'REWARDED',
           ownerUserId: userId,
           rewardType: 'SHOWCASE_CREDIT',
           userReward: userReward as UserRewardRecord,
+          alreadyClaimed: true,
+          hasReceivedReward: true,
+          hasPendingSubmission: false,
         };
+      }
+
+      // Check showcase_reward_submissions table for APPROVED or PENDING records
+      try {
+        const { data: subRows, error: subErr } = await supabase
+          .from('showcase_reward_submissions')
+          .select('*')
+          .eq('user_id', userId)
+          .in('status', ['APPROVED', 'PENDING']);
+
+        if (subErr && !isLocalFallbackAllowed(env)) {
+          throw new Error(`Database error checking showcase_reward_submissions: ${subErr.message}`);
+        }
+
+        if (subRows && subRows.length > 0) {
+          const approvedSub = subRows.find((s: any) => s.status === 'APPROVED');
+          if (approvedSub) {
+            return {
+              eligible: false,
+              code: 'LIFETIME_REWARD_EXHAUSTED',
+              reason: 'RM300 Showcase Reward has already been claimed for this account.',
+              userRewardStatus: 'REWARDED',
+              ownerUserId: userId,
+              rewardType: 'SHOWCASE_CREDIT',
+              approvedSubmission: approvedSub,
+              alreadyClaimed: true,
+              hasReceivedReward: true,
+              hasPendingSubmission: false,
+            };
+          }
+
+          const pendingSub = subRows.find((s: any) => s.status === 'PENDING');
+          if (pendingSub) {
+            return {
+              eligible: false,
+              code: 'SUBMISSION_PENDING',
+              reason: 'You already have a showcase reward submission pending review. Only one active claim is allowed per account.',
+              userRewardStatus: 'NOT_ELIGIBLE',
+              ownerUserId: userId,
+              rewardType: 'SHOWCASE_CREDIT',
+              pendingSubmission: pendingSub,
+              alreadyClaimed: false,
+              hasReceivedReward: false,
+              hasPendingSubmission: true,
+            };
+          }
+        }
+      } catch (subCheckErr: any) {
+        if (!isLocalFallbackAllowed(env)) throw subCheckErr;
       }
 
       // Financial ledger defense-in-depth: check completed transactions
@@ -85,22 +149,57 @@ export async function getShowcaseRewardEligibility(
       if (txnData) {
         return {
           eligible: false,
-          reason: 'Owner has already received a lifetime showcase reward credit recorded in wallet transactions.',
+          code: 'LIFETIME_REWARD_EXHAUSTED',
+          reason: 'RM300 Showcase Reward has already been claimed for this account.',
           userRewardStatus: 'REWARDED',
           ownerUserId: userId,
           rewardType: 'SHOWCASE_CREDIT',
+          alreadyClaimed: true,
+          hasReceivedReward: true,
+          hasPendingSubmission: false,
         };
       }
 
-      // Neither user_rewards nor completed transactions exist -> User is eligible!
-      return {
-        eligible: true,
-        reason: 'Owner is eligible for one-time lifetime showcase reward credit.',
-        userRewardStatus: 'ELIGIBLE',
-        ownerUserId: userId,
-        rewardType: 'SHOWCASE_CREDIT',
-        userReward: null,
-      };
+      // Check owner_showcase_rewards table
+      try {
+        const { data: ownerReward } = await supabase
+          .from('owner_showcase_rewards')
+          .select('*')
+          .eq('owner_user_id', userId)
+          .limit(1)
+          .maybeSingle();
+
+        if (ownerReward) {
+          return {
+            eligible: false,
+            code: 'LIFETIME_REWARD_EXHAUSTED',
+            reason: 'RM300 Showcase Reward has already been claimed for this account.',
+            userRewardStatus: 'REWARDED',
+            ownerUserId: userId,
+            rewardType: 'SHOWCASE_CREDIT',
+            alreadyClaimed: true,
+            hasReceivedReward: true,
+            hasPendingSubmission: false,
+          };
+        }
+      } catch {
+        // Table check optional in local fallback
+      }
+
+      // Neither user_rewards, approved/pending submissions, nor completed transactions exist in DB
+      if (!isLocalFallbackAllowed(env)) {
+        return {
+          eligible: true,
+          reason: 'Owner is eligible for one-time lifetime showcase reward credit.',
+          userRewardStatus: 'ELIGIBLE',
+          ownerUserId: userId,
+          rewardType: 'SHOWCASE_CREDIT',
+          userReward: null,
+          alreadyClaimed: false,
+          hasReceivedReward: false,
+          hasPendingSubmission: false,
+        };
+      }
     } catch (err: any) {
       if (!isLocalFallbackAllowed(env)) {
         throw err;
@@ -113,18 +212,74 @@ export async function getShowcaseRewardEligibility(
   // CACHE POLICY: Never overrides an active database result; database always wins.
   if (
     localUserRewardsCache.has(`${userId}:SHOWCASE_CREDIT`) ||
-    localUserRewardsCache.has(`${userId}:SHOWCASE_REWARD`)
+    localUserRewardsCache.has(`${userId}:SHOWCASE_REWARD`) ||
+    localUserRewardsCache.has(`${userId}:SHOWCASE_REWARD_RM300`)
   ) {
     const cachedRecord =
       localUserRewardsCache.get(`${userId}:SHOWCASE_CREDIT`) ||
-      localUserRewardsCache.get(`${userId}:SHOWCASE_REWARD`);
+      localUserRewardsCache.get(`${userId}:SHOWCASE_REWARD`) ||
+      localUserRewardsCache.get(`${userId}:SHOWCASE_REWARD_RM300`);
     return {
       eligible: false,
-      reason: 'Owner has already received a lifetime showcase reward credit (local cache).',
+      code: 'LIFETIME_REWARD_EXHAUSTED',
+      reason: 'RM300 Showcase Reward has already been claimed for this account.',
       userRewardStatus: 'REWARDED',
       ownerUserId: userId,
       rewardType: 'SHOWCASE_CREDIT',
       userReward: cachedRecord,
+      alreadyClaimed: true,
+      hasReceivedReward: true,
+      hasPendingSubmission: false,
+    };
+  }
+
+  // Check local reward submissions cache
+  const { localRewardSubmissionsCache } = await import('./showcaseRewardSubmissions.js').catch(() => ({ localRewardSubmissionsCache: new Map() }));
+  if (localRewardSubmissionsCache) {
+    for (const sub of (localRewardSubmissionsCache as Map<string, any>).values()) {
+      if (sub.user_id === userId && sub.status === 'APPROVED') {
+        return {
+          eligible: false,
+          code: 'LIFETIME_REWARD_EXHAUSTED',
+          reason: 'RM300 Showcase Reward has already been claimed for this account.',
+          userRewardStatus: 'REWARDED',
+          ownerUserId: userId,
+          rewardType: 'SHOWCASE_CREDIT',
+          approvedSubmission: sub,
+          alreadyClaimed: true,
+          hasReceivedReward: true,
+          hasPendingSubmission: false,
+        };
+      }
+      if (sub.user_id === userId && sub.status === 'PENDING') {
+        return {
+          eligible: false,
+          code: 'SUBMISSION_PENDING',
+          reason: 'You already have a showcase reward submission pending review. Only one active claim is allowed per account.',
+          userRewardStatus: 'NOT_ELIGIBLE',
+          ownerUserId: userId,
+          rewardType: 'SHOWCASE_CREDIT',
+          pendingSubmission: sub,
+          alreadyClaimed: false,
+          hasReceivedReward: false,
+          hasPendingSubmission: true,
+        };
+      }
+    }
+  }
+
+  const { localOwnerShowcaseRewardsCache } = await import('./wallet.js');
+  if (localOwnerShowcaseRewardsCache?.has(userId)) {
+    return {
+      eligible: false,
+      code: 'LIFETIME_REWARD_EXHAUSTED',
+      reason: 'RM300 Showcase Reward has already been claimed for this account.',
+      userRewardStatus: 'REWARDED',
+      ownerUserId: userId,
+      rewardType: 'SHOWCASE_CREDIT',
+      alreadyClaimed: true,
+      hasReceivedReward: true,
+      hasPendingSubmission: false,
     };
   }
 
@@ -137,10 +292,14 @@ export async function getShowcaseRewardEligibility(
   if (localTxn) {
     return {
       eligible: false,
-      reason: 'Owner has already received a lifetime showcase reward credit recorded in local transactions.',
+      code: 'LIFETIME_REWARD_EXHAUSTED',
+      reason: 'RM300 Showcase Reward has already been claimed for this account.',
       userRewardStatus: 'REWARDED',
       ownerUserId: userId,
       rewardType: 'SHOWCASE_CREDIT',
+      alreadyClaimed: true,
+      hasReceivedReward: true,
+      hasPendingSubmission: false,
     };
   }
 
@@ -151,6 +310,9 @@ export async function getShowcaseRewardEligibility(
     ownerUserId: userId,
     rewardType: 'SHOWCASE_CREDIT',
     userReward: null,
+    alreadyClaimed: false,
+    hasReceivedReward: false,
+    hasPendingSubmission: false,
   };
 }
 
@@ -223,7 +385,7 @@ export async function hasUserClaimedReward(
   // Delegate showcase reward checks directly to the authoritative single eligibility function
   if (isShowcase) {
     const eligibility = await getShowcaseRewardEligibility(userId, env);
-    return !eligibility.eligible;
+    return Boolean(eligibility.alreadyClaimed || eligibility.hasReceivedReward || eligibility.userRewardStatus === 'REWARDED');
   }
 
   const rewardTypeFilter = ['WELCOME_CREDIT'];

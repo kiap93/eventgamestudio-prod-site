@@ -190,6 +190,7 @@ import {
   ensureDefaultGamePricing,
   createShowcaseRewardSubmission,
   getShowcaseRewardSubmissionForEvent,
+  getActiveUserShowcaseRewardSubmission,
   getShowcaseRewardSubmissionById,
   getPendingRewardSubmissions,
   approveShowcaseRewardSubmission,
@@ -3618,11 +3619,13 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
       if (isOrgMember) {
         const lifetimeRewardStatus = req.user?.id ? await getOwnerShowcaseRewardStatus(req.user.id) : null;
         const rewardSubmission = await getShowcaseRewardSubmissionForEvent(eventId);
+        const userSubmission = req.user?.id ? await getActiveUserShowcaseRewardSubmission(req.user.id) : null;
         const rewardEligibility = req.user?.id ? await getShowcaseRewardEligibility(req.user.id) : null;
         res.json({
           showcase: null,
           lifetimeRewardStatus,
           reward_submission: rewardSubmission,
+          user_submission: userSubmission,
           reward_eligibility: rewardEligibility,
         });
         return;
@@ -3635,11 +3638,13 @@ app.get('/api/events/:eventId/showcase', authenticateOptionalJWT, async (req: Au
     if (isOrgMember) {
       const lifetimeRewardStatus = req.user?.id ? await getOwnerShowcaseRewardStatus(req.user.id) : null;
       const rewardSubmission = await getShowcaseRewardSubmissionForEvent(eventId);
+      const userSubmission = req.user?.id ? await getActiveUserShowcaseRewardSubmission(req.user.id) : null;
       const rewardEligibility = req.user?.id ? await getShowcaseRewardEligibility(req.user.id) : null;
       res.json({
         showcase,
         lifetimeRewardStatus,
         reward_submission: rewardSubmission,
+        user_submission: userSubmission,
         reward_eligibility: rewardEligibility,
       });
       return;
@@ -3689,10 +3694,12 @@ app.get('/api/events/:eventId/showcase/reward-submission', authenticateOptionalJ
   try {
     const { eventId } = req.params;
     const submission = await getShowcaseRewardSubmissionForEvent(eventId);
+    const userSubmission = req.user?.id ? await getActiveUserShowcaseRewardSubmission(req.user.id) : null;
     const eligibility = req.user?.id ? await getShowcaseRewardEligibility(req.user.id) : null;
 
     res.json({
       submission,
+      user_submission: userSubmission,
       eligibility,
     });
   } catch (err: any) {

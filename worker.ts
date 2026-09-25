@@ -188,6 +188,7 @@ import {
   listContactEnquiries,
   createShowcaseRewardSubmission,
   getShowcaseRewardSubmissionForEvent,
+  getActiveUserShowcaseRewardSubmission,
   getShowcaseRewardSubmissionById,
   getPendingRewardSubmissions,
   approveShowcaseRewardSubmission,
@@ -3870,11 +3871,13 @@ export default {
           if (isOrgMember) {
             const lifetimeRewardStatus = auth.user?.id ? await getOwnerShowcaseRewardStatus(auth.user.id, env) : null;
             const rewardSubmission = await getShowcaseRewardSubmissionForEvent(eventId, env);
+            const userSubmission = auth.user?.id ? await getActiveUserShowcaseRewardSubmission(auth.user.id, env) : null;
             const rewardEligibility = auth.user?.id ? await getShowcaseRewardEligibility(auth.user.id, env) : null;
             return jsonResponse({
               showcase: null,
               lifetimeRewardStatus,
               reward_submission: rewardSubmission,
+              user_submission: userSubmission,
               reward_eligibility: rewardEligibility,
             }, 200, cors);
           }
@@ -3884,11 +3887,13 @@ export default {
         if (isOrgMember) {
           const lifetimeRewardStatus = auth.user?.id ? await getOwnerShowcaseRewardStatus(auth.user.id, env) : null;
           const rewardSubmission = await getShowcaseRewardSubmissionForEvent(eventId, env);
+          const userSubmission = auth.user?.id ? await getActiveUserShowcaseRewardSubmission(auth.user.id, env) : null;
           const rewardEligibility = auth.user?.id ? await getShowcaseRewardEligibility(auth.user.id, env) : null;
           return jsonResponse({
             showcase,
             lifetimeRewardStatus,
             reward_submission: rewardSubmission,
+            user_submission: userSubmission,
             reward_eligibility: rewardEligibility,
           }, 200, cors);
         }
@@ -3931,10 +3936,12 @@ export default {
           const { eventId } = showcaseRewardSubRoute;
           const auth = await authenticateOptionalJWT(request, env);
           const submission = await getShowcaseRewardSubmissionForEvent(eventId, env);
+          const userSubmission = auth.user?.id ? await getActiveUserShowcaseRewardSubmission(auth.user.id, env) : null;
           const eligibility = auth.user?.id ? await getShowcaseRewardEligibility(auth.user.id, env) : null;
 
           return jsonResponse({
             submission,
+            user_submission: userSubmission,
             eligibility,
           }, 200, cors);
         } catch (err: any) {

@@ -362,6 +362,18 @@ export function isOperationalError(err: any): boolean {
     code === 'SHOWCASE_DELETED' ||
     code === 'SHOWCASE_NOT_ELIGIBLE' ||
     code === 'MODERATION_REASON_REQUIRED' ||
+    code === 'LIFETIME_REWARD_EXHAUSTED' ||
+    code === 'SUBMISSION_PENDING' ||
+    code === 'SUBMISSION_ALREADY_REJECTED' ||
+    code === 'OWNER_ONLY_REWARD' ||
+    code === 'INSUFFICIENT_MEDIA' ||
+    code === 'SHOWCASE_NOT_PUBLISHED' ||
+    msg.includes('rm300 showcase reward') ||
+    msg.includes('already claimed the rm300 showcase reward') ||
+    msg.includes('already claimed') ||
+    msg.includes('showcase reward submission pending') ||
+    msg.includes('one-time lifetime showcase reward') ||
+    msg.includes('first-event reward invariant violation') ||
     msg.includes('pending_event_limit_reached') ||
     msg.includes('maximum 5 pending payment events reached') ||
     msg.includes('maximum 2 pending payment events reached') ||
@@ -552,7 +564,12 @@ export function isOperationalError(err: any): boolean {
     code === 'EVENT_UNPAID' ||
     code === 'EVENT_EXPIRED' ||
     code === 'EVENT_CANCELLED' ||
-    code === 'EVENT_NOT_COMPLETED'
+    code === 'EVENT_NOT_COMPLETED' ||
+    code === 'LIFETIME_REWARD_EXHAUSTED' ||
+    code === 'SUBMISSION_PENDING' ||
+    code === 'SUBMISSION_ALREADY_REJECTED' ||
+    code === 'SUBMISSION_NOT_FOUND' ||
+    code === 'OWNER_ONLY_REWARD'
   ) {
     return true;
   }
@@ -727,7 +744,8 @@ export function handleApiError(
         code === 'GAME_TYPE_ALREADY_REGISTERED' ||
         code === 'GAME_SLUG_ALREADY_REGISTERED' ||
         code === 'DUPLICATE_ORDER' ||
-        code === 'SHOWCASE_ALREADY_EXISTS'
+        code === 'SHOWCASE_ALREADY_EXISTS' ||
+        code === 'SUBMISSION_PENDING'
       ) {
         statusCode = 409;
       } else if (code === 'INSUFFICIENT_BALANCE') {
@@ -772,7 +790,10 @@ export function handleApiError(
         code === 'EVENT_EXPIRED' ||
         code === 'EVENT_CANCELLED' ||
         code === 'EVENT_NOT_COMPLETED' ||
-        code === 'SHOWCASE_NOT_ELIGIBLE'
+        code === 'SHOWCASE_NOT_ELIGIBLE' ||
+        code === 'LIFETIME_REWARD_EXHAUSTED' ||
+        code === 'SUBMISSION_ALREADY_REJECTED' ||
+        code === 'OWNER_ONLY_REWARD'
       ) {
         statusCode = 422;
       } else {
@@ -947,7 +968,8 @@ export async function handleWorkerApiError(
         code === 'GAME_TYPE_ALREADY_REGISTERED' ||
         code === 'GAME_SLUG_ALREADY_REGISTERED' ||
         code === 'DUPLICATE_ORDER' ||
-        code === 'SHOWCASE_ALREADY_EXISTS'
+        code === 'SHOWCASE_ALREADY_EXISTS' ||
+        code === 'SUBMISSION_PENDING'
       ) {
         statusCode = 409;
       } else if (code === 'INSUFFICIENT_BALANCE') {
@@ -992,7 +1014,10 @@ export async function handleWorkerApiError(
         code === 'EVENT_EXPIRED' ||
         code === 'EVENT_CANCELLED' ||
         code === 'EVENT_NOT_COMPLETED' ||
-        code === 'SHOWCASE_NOT_ELIGIBLE'
+        code === 'SHOWCASE_NOT_ELIGIBLE' ||
+        code === 'LIFETIME_REWARD_EXHAUSTED' ||
+        code === 'SUBMISSION_ALREADY_REJECTED' ||
+        code === 'OWNER_ONLY_REWARD'
       ) {
         statusCode = 422;
       } else {

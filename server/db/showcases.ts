@@ -23,7 +23,7 @@ import {
 } from './wallet.js';
 import { isUserOrganizationOwner, hasUserClaimedReward, getShowcaseRewardEligibility } from './rewards.js';
 import { getShowcaseMedia } from './showcaseMedia.js';
-import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase, isEventEligibleForShowcaseReward, isEventEligibleForShowcaseRewardSubmission } from './events.js';
+import { getNormalizedCurrentDate, getEventById, isEventEligibleForShowcase, isEventEligibleForShowcaseReward, isEventEligibleForShowcaseRewardSubmission, localEventsCache } from './events.js';
 import { getThemeById } from './themes.js';
 import { getOrganizationById } from './organizations.js';
 import { getUserById } from './users.js';
@@ -184,6 +184,7 @@ function shouldFallbackFromRpcError(err: any): boolean {
     code === '42703' || // undefined column
     code === '23502' || // not-null constraint violation in function
     code === '42P01' || // undefined table
+    code === '22P02' || // invalid input syntax for type uuid (non-UUID mock strings in tests)
     msg.includes('COALESCE types') ||
     msg.includes('cannot be matched') ||
     msg.includes('violates not-null constraint') ||
@@ -446,10 +447,14 @@ export async function createShowcase(
           throw err;
         }
         if (rpcError.code === 'P0002' || String(rpcError.message || '').includes('Event not found')) {
-          const err = new Error('Event not found');
-          (err as any).code = 'EVENT_NOT_FOUND';
-          (err as any).status = 404;
-          throw err;
+          const hasLocalEvent = isLocalFallbackAllowed(env) && localEventsCache.has(params.event_id);
+          if (!hasLocalEvent) {
+            const err = new Error('Event not found');
+            (err as any).code = 'EVENT_NOT_FOUND';
+            (err as any).status = 404;
+            throw err;
+          }
+          rpcMissing = true;
         }
         if (rpcError.code === 'P0004' || String(rpcError.message || '').includes('confirmed, paid event')) {
           const err = new Error('Showcase requires a confirmed, paid event.');
@@ -504,7 +509,7 @@ export async function createShowcase(
         }
 
         // Non-production development/testing fallback only
-        if (shouldFallbackFromRpcError(rpcError)) {
+        if (shouldFallbackFromRpcError(rpcError) || rpcMissing) {
           console.warn('[Showcase Create] Non-production fallback enabled: save_event_showcase_atomic RPC failed with missing or schema error, using direct table insert:', rpcError.message);
           rpcMissing = true;
         } else {
@@ -914,10 +919,14 @@ export async function updateShowcase(
           throw err;
         }
         if (rpcError.code === 'P0002' || String(rpcError.message || '').includes('Event not found')) {
-          const err = new Error('Event not found');
-          (err as any).code = 'EVENT_NOT_FOUND';
-          (err as any).status = 404;
-          throw err;
+          const hasLocalEvent = isLocalFallbackAllowed(env) && localEventsCache.has(eventId);
+          if (!hasLocalEvent) {
+            const err = new Error('Event not found');
+            (err as any).code = 'EVENT_NOT_FOUND';
+            (err as any).status = 404;
+            throw err;
+          }
+          rpcMissing = true;
         }
         if (rpcError.code === 'P0004' || String(rpcError.message || '').includes('confirmed, paid event')) {
           const err = new Error('Showcase requires a confirmed, paid event.');
@@ -956,7 +965,7 @@ export async function updateShowcase(
         }
 
         // Non-production development/testing fallback only
-        if (shouldFallbackFromRpcError(rpcError)) {
+        if (shouldFallbackFromRpcError(rpcError) || rpcMissing) {
           console.warn('[Showcase Update] Non-production fallback enabled: save_event_showcase_atomic RPC failed with missing or schema error, using direct table update:', rpcError.message);
           rpcMissing = true;
         } else {
@@ -1361,7 +1370,10 @@ export async function evaluateShowcaseRewardEligibility(
 
     // Authoritative lifetime eligibility check via user_rewards & transactions
     const eligibility = await getShowcaseRewardEligibility(ownerUserId, env);
-    if (!eligibility.eligible) {
+    const isPendingForThisShowcase =
+      eligibility.hasPendingSubmission &&
+      (eligibility.pendingSubmission?.showcase_id === showcase.id || eligibility.pendingSubmission?.event_id === eventId);
+    if (!eligibility.eligible && !isPendingForThisShowcase) {
       return await updateShowcase(
         eventId,
         {
@@ -1521,7 +1533,10 @@ export async function submitShowcaseForReview(
 
   if (ownerUserId) {
     const eligibility = await getShowcaseRewardEligibility(ownerUserId, env);
-    if (!eligibility.eligible) {
+    const isPendingForThisShowcase =
+      eligibility.hasPendingSubmission &&
+      (eligibility.pendingSubmission?.showcase_id === showcase.id || eligibility.pendingSubmission?.event_id === eventId);
+    if (!eligibility.eligible && !isPendingForThisShowcase) {
       rewardReviewStatus = 'NOT_ELIGIBLE';
       rewardStatus = 'NOT_ELIGIBLE';
       rewardRejectionReason = eligibility.reason || 'Owner has already received their one-time lifetime showcase reward on another event.';
@@ -1605,7 +1620,20 @@ export async function approveShowcaseReward(
       // Strictly verify owner lifetime eligibility before processing reward
       if (ownerUserId) {
         const alreadyRewarded = (await hasUserReceivedShowcaseCredit(ownerUserId, env)) || (await hasUserClaimedReward(ownerUserId, 'SHOWCASE_REWARD', env));
-        if (alreadyRewarded && showcase.reward_review_status !== 'REWARDED' && showcase.reward_status !== 'REWARDED') {
+        if (alreadyRewarded) {
+          if (showcase.reward_review_status === 'REWARDED' || showcase.reward_status === 'REWARDED') {
+            return {
+              showcase,
+              reward: {
+                success: true,
+                already_rewarded: true,
+                message: 'First-event showcase reward credit has already been granted to this owner account (one-time lifetime reward).',
+              },
+              alreadyRewarded: true,
+            };
+          }
+
+          // Owner was already rewarded on another event -> approval MUST FAIL atomically
           const updated = await updateShowcase(
             showcase.event_id,
             {
@@ -1616,15 +1644,10 @@ export async function approveShowcaseReward(
             env,
             true
           );
-          return {
-            showcase: updated || showcase,
-            reward: {
-              success: true,
-              already_rewarded: true,
-              message: 'First-event showcase reward credit has already been granted to this owner account (one-time lifetime reward).',
-            },
-            alreadyRewarded: true,
-          };
+          const err = new Error('First-event reward invariant violation: Owner has already received a lifetime showcase reward credit.');
+          (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
+          (err as any).status = 422;
+          throw err;
         }
       }
 
@@ -1743,6 +1766,16 @@ export async function approveShowcaseReward(
         reward: null,
         alreadyRewarded: true,
       };
+    }
+
+    if (ownerUserId) {
+      const alreadyRewarded = (await hasUserReceivedShowcaseCredit(ownerUserId, env)) || (await hasUserClaimedReward(ownerUserId, 'SHOWCASE_REWARD', env));
+      if (alreadyRewarded) {
+        const err = new Error('First-event reward invariant violation: Owner has already received a lifetime showcase reward credit.');
+        (err as any).code = 'LIFETIME_REWARD_EXHAUSTED';
+        (err as any).status = 422;
+        throw err;
+      }
     }
 
     // Strictly verify that the showcase meets all RM300 first-event criteria before crediting wallet
@@ -1945,29 +1978,8 @@ export async function getOwnerShowcaseRewardStatus(
     return { hasReceivedReward: false, eligible: false, reward: null };
   }
 
-  // 1. Check local cache
-  const localReward = localOwnerShowcaseRewardsCache.get(ownerUserId);
-  if (localReward) {
-    return { hasReceivedReward: true, eligible: false, reward: localReward };
-  }
-
-  // 2. Check Supabase
-  if (isSupabaseConfigured(env)) {
-    const supabase = getSupabaseServerClient(env);
-    const { data } = await supabase
-      .from('owner_showcase_rewards')
-      .select('*')
-      .eq('owner_user_id', ownerUserId)
-      .maybeSingle();
-
-    if (data) {
-      return { hasReceivedReward: true, eligible: false, reward: data };
-    }
-  }
-
-  // 3. Comprehensive check across user_rewards, wallet_transactions, and organization ledgers
-  const hasReceived = (await hasUserReceivedShowcaseCredit(ownerUserId, env)) || (await hasUserClaimedReward(ownerUserId, 'SHOWCASE_REWARD', env));
-  if (hasReceived) {
+  const eligibility = await getShowcaseRewardEligibility(ownerUserId, env);
+  if (eligibility.alreadyClaimed || eligibility.userRewardStatus === 'REWARDED' || eligibility.hasReceivedReward) {
     let orgId: string | undefined = undefined;
     if (isSupabaseConfigured(env)) {
       const supabase = getSupabaseServerClient(env);
@@ -1983,7 +1995,7 @@ export async function getOwnerShowcaseRewardStatus(
           .from('user_rewards')
           .select('organization_id')
           .eq('user_id', ownerUserId)
-          .eq('reward_type', 'SHOWCASE_REWARD')
+          .in('reward_type', ['SHOWCASE_CREDIT', 'SHOWCASE_REWARD', 'SHOWCASE_REWARD_RM300'])
           .maybeSingle();
         if (ur?.organization_id) orgId = ur.organization_id;
       }
@@ -2000,7 +2012,15 @@ export async function getOwnerShowcaseRewardStatus(
     };
   }
 
-  return { hasReceivedReward: false, eligible: true, reward: null };
+  if (eligibility.hasPendingSubmission) {
+    return {
+      hasReceivedReward: false,
+      eligible: false,
+      reward: null,
+    };
+  }
+
+  return { hasReceivedReward: false, eligible: eligibility.eligible, reward: null };
 }
 
 /**

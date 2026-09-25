@@ -4746,7 +4746,7 @@ BEGIN
   -- Verify if owner_user_id has ALREADY received a lifetime showcase reward in ANY organization
   SELECT * INTO v_user_reward
   FROM public.user_rewards
-  WHERE user_id = v_owner_id AND reward_type IN ('SHOWCASE_CREDIT', 'SHOWCASE_REWARD');
+  WHERE user_id = v_owner_id AND reward_type IN ('SHOWCASE_CREDIT', 'SHOWCASE_REWARD', 'SHOWCASE_REWARD_RM300');
 
   IF FOUND THEN
     RAISE EXCEPTION 'First-event reward invariant violation: Owner has already received a lifetime showcase reward credit.';
@@ -4760,6 +4760,14 @@ BEGIN
   LIMIT 1;
 
   IF FOUND THEN
+    RAISE EXCEPTION 'First-event reward invariant violation: Owner has already received a lifetime showcase reward credit.';
+  END IF;
+
+  -- Check if another submission for this user was already approved
+  IF EXISTS (
+    SELECT 1 FROM public.showcase_reward_submissions
+    WHERE user_id = v_owner_id AND status = 'APPROVED'
+  ) THEN
     RAISE EXCEPTION 'First-event reward invariant violation: Owner has already received a lifetime showcase reward credit.';
   END IF;
 
@@ -4926,6 +4934,17 @@ BEGIN
     updated_at = v_now
   WHERE id = v_showcase.id
   RETURNING * INTO v_showcase;
+
+  -- Synchronize showcase_reward_submissions if row exists
+  UPDATE public.showcase_reward_submissions
+  SET
+    status = 'APPROVED',
+    reviewed_at = v_now,
+    reviewed_by = p_reviewer_id,
+    reward_transaction_id = v_new_txn.id,
+    updated_at = v_now
+  WHERE showcase_id = v_showcase.id
+    AND status = 'PENDING';
 
   -- 14. Audit Log
   INSERT INTO public.showcase_moderation_logs (
@@ -5608,7 +5627,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_owner_showcase_credit_unique
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_user_rewards_showcase_lifetime_unique
   ON public.user_rewards (user_id)
-  WHERE reward_type IN ('SHOWCASE_CREDIT', 'SHOWCASE_REWARD');
+  WHERE reward_type IN ('SHOWCASE_CREDIT', 'SHOWCASE_REWARD', 'SHOWCASE_REWARD_RM300');
 
 -- Descriptive comments establishing the authoritative hierarchy
 COMMENT ON TABLE public.user_rewards IS

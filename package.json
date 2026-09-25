@@ -23,6 +23,7 @@
     "test:showcase": "tsx server/db/showcase_reward.test.ts",
     "test:showcase-decoupled": "tsx server/db/showcase_decoupled_flow.test.ts",
     "test:showcase-flow": "bun server/showcase_save_validate_submit_flow.test.ts",
+    "test:showcase-lifetime": "bun server/db/showcase_reward_user_lifetime_eligibility.test.ts",
     "test:upload-security": "tsx server/db/showcase_direct_upload_security.test.ts",
     "test:upload-validation": "tsx server/db/upload_magic_bytes_and_svg_rejection.test.ts",
     "test:bucket-limits": "tsx server/db/storage_bucket_limits.test.ts",

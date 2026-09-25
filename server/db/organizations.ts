@@ -18,6 +18,11 @@ import { getEventsByOrgId } from './events.js';
 import crypto from 'node:crypto';
 export { isValidCountryCode, getCountryByCode, getDefaultTimezoneForCountry } from '../../src/lib/countryUtils.js';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUUID(val: string): boolean {
+  return typeof val === 'string' && UUID_REGEX.test(val);
+}
+
 export const MAX_ORGANIZATIONS_PER_OWNER = 5;
 
 export async function getOwnerOrganizationCount(ownerId: string, env?: Record<string, any>): Promise<number> {
@@ -128,6 +133,11 @@ export function saveLocalOrgs(): void {
 loadLocalOrgs();
 
 export async function getOrganizationById(id: string, env?: Record<string, any>): Promise<OrganizationRecord | null> {
+  if (!id) return null;
+  if (!isUUID(id) && isLocalFallbackAllowed(env)) {
+    return localOrgsCache.get(id) || null;
+  }
+
   if (isSupabaseConfigured(env)) {
     const supabase = getSupabaseServerClient(env);
     const { data, error } = await supabase
@@ -137,13 +147,17 @@ export async function getOrganizationById(id: string, env?: Record<string, any>)
       .maybeSingle();
 
     if (error) {
-      console.error('Error in getOrganizationById:', error);
       if (!isLocalFallbackAllowed(env)) {
+        console.error('Error in getOrganizationById:', error);
         throw new Error(`Failed to fetch organization from database: ${error.message}`);
       }
+      return localOrgsCache.get(id) || null;
     }
 
     if (data) return data as OrganizationRecord;
+    if (isLocalFallbackAllowed(env)) {
+      return localOrgsCache.get(id) || null;
+    }
     return null;
   }
 
@@ -152,6 +166,7 @@ export async function getOrganizationById(id: string, env?: Record<string, any>)
 }
 
 export async function getOrganizationBySlug(slug: string, env?: Record<string, any>): Promise<OrganizationRecord | null> {
+  if (!slug) return null;
   if (isSupabaseConfigured(env)) {
     const supabase = getSupabaseServerClient(env);
     const { data, error } = await supabase
@@ -161,13 +176,22 @@ export async function getOrganizationBySlug(slug: string, env?: Record<string, a
       .maybeSingle();
 
     if (error) {
-      console.error('Error in getOrganizationBySlug:', error);
       if (!isLocalFallbackAllowed(env)) {
+        console.error('Error in getOrganizationBySlug:', error);
         throw new Error(`Failed to fetch organization from database: ${error.message}`);
       }
+      for (const org of localOrgsCache.values()) {
+        if (org.slug === slug) return org;
+      }
+      return null;
     }
 
     if (data) return data as OrganizationRecord;
+    if (isLocalFallbackAllowed(env)) {
+      for (const org of localOrgsCache.values()) {
+        if (org.slug === slug) return org;
+      }
+    }
     return null;
   }
 

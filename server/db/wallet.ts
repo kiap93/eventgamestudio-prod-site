@@ -500,11 +500,28 @@ export async function recalculateWalletBalances(
       .eq('status', 'COMPLETED');
 
     if (error) {
-      console.error('Fatal: Supabase query wallet_transactions failed:', error);
-      throw new Error(`Failed to fetch wallet transactions from database: ${error.message}`);
+      if (isLocalFallbackAllowed(env)) {
+        transactions = Array.from(localTransactionsCache.values()).filter(
+          (t) => t.organization_id === organizationId && t.status === 'COMPLETED'
+        );
+      } else {
+        console.error('Fatal: Supabase query wallet_transactions failed:', error);
+        throw new Error(`Failed to fetch wallet transactions from database: ${error.message}`);
+      }
+    } else {
+      transactions = (data || []) as WalletTransactionRecord[];
+      if (isLocalFallbackAllowed(env)) {
+        const localTxns = Array.from(localTransactionsCache.values()).filter(
+          (t) => t.organization_id === organizationId && t.status === 'COMPLETED'
+        );
+        const existingTxnIds = new Set(transactions.map((t) => t.id));
+        for (const localTx of localTxns) {
+          if (!existingTxnIds.has(localTx.id)) {
+            transactions.push(localTx);
+          }
+        }
+      }
     }
-
-    transactions = (data || []) as WalletTransactionRecord[];
   } else {
     // Development / test fallback when Supabase is not configured
     assertProductionSafe('recalculateWalletBalances', env);
@@ -736,6 +753,13 @@ export async function getOutstandingBalance(
     throw new Error('Database error querying outstanding balance: Primary database not available in production');
   }
 
+  if (!organizationId) return 0.0;
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(organizationId);
+  if (!isUUID && isLocalFallbackAllowed(env)) {
+    const cached = localWalletsCache.get(organizationId);
+    return cached?.outstanding_balance ? Math.max(0, fromCents(toCents(Number(cached.outstanding_balance)))) : 0.0;
+  }
+
   if (isSupabaseConfigured(env)) {
     try {
       const supabase = getSupabaseServerClient(env);
@@ -746,6 +770,10 @@ export async function getOutstandingBalance(
         .maybeSingle();
 
       if (error) {
+        if (isLocalFallbackAllowed(env)) {
+          const cached = localWalletsCache.get(organizationId);
+          return cached?.outstanding_balance ? Math.max(0, fromCents(toCents(Number(cached.outstanding_balance)))) : 0.0;
+        }
         console.error('Fatal: Failed to query outstanding_balance from database:', error);
         // DB read fails -> FAIL CLOSED in production or whenever Supabase is configured
         throw new Error(`Database error querying outstanding balance: ${error.message}`);
@@ -991,6 +1019,17 @@ async function appendLedgerTransaction(
     }
 
     if (error) {
+      if (
+        isLocalFallbackAllowed(env) &&
+        (error.code === '22P02' ||
+          error.code === '23503' ||
+          error.message?.includes('invalid input syntax for type uuid') ||
+          error.message?.includes('violates foreign key constraint'))
+      ) {
+        localTransactionsCache.set(id, record);
+        saveLocalStores();
+        return record;
+      }
       console.error('Fatal: Supabase insert wallet_transactions failed in production:', error);
       throw new Error(`Financial ledger transaction failed: ${error.message}`);
     }
@@ -1768,7 +1807,7 @@ export async function hasUserReceivedShowcaseCredit(
   if (!userId) return false;
   const { getShowcaseRewardEligibility } = await import('./rewards.js');
   const eligibility = await getShowcaseRewardEligibility(userId, env);
-  return !eligibility.eligible;
+  return Boolean(eligibility.alreadyClaimed || eligibility.hasReceivedReward || eligibility.userRewardStatus === 'REWARDED');
 }
 
 /**
