@@ -64,7 +64,12 @@ export const EventCard: React.FC<EventCardProps> = ({
   const isOwnerOrAdmin = ['owner', 'admin'].includes(userRole || '');
 
   const showcaseStatus = event.showcase?.status || event.showcase_status;
+  const hasExistingShowcase = Boolean(
+    (event.showcase && event.showcase.id) ||
+    (showcaseStatus && showcaseStatus !== 'NOT_CREATED')
+  );
   const isShowcasePubliclyViewable =
+    hasExistingShowcase &&
     showcaseStatus === 'PUBLISHED' &&
     event.showcase?.status !== 'BLOCKED' &&
     event.showcase?.status !== 'DELETED';
@@ -275,10 +280,10 @@ export const EventCard: React.FC<EventCardProps> = ({
         </div>
       </div>
 
-      {/* Showcase Status Button */}
-      <div className="flex items-center justify-between gap-2 bg-slate-950/60 border border-slate-800/60 rounded-xl px-3 py-2 text-xs">
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+      {/* Showcase Status & Action Buttons */}
+      <div className="flex items-center justify-between gap-2 bg-slate-950/60 border border-slate-800/60 rounded-xl px-3 py-2 text-xs flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 shrink-0">
+          <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span>Showcase:</span>
           {showcaseStatus === 'PUBLISHED' ? (
             <span className="font-bold text-emerald-400">Published</span>
@@ -286,56 +291,89 @@ export const EventCard: React.FC<EventCardProps> = ({
             <span className="font-bold text-amber-400">Draft</span>
           ) : showcaseStatus === 'UNPUBLISHED' ? (
             <span className="font-bold text-slate-400">Unpublished</span>
+          ) : hasExistingShowcase ? (
+            <span className="font-bold text-slate-400">
+              {typeof showcaseStatus === 'string' && showcaseStatus.trim()
+                ? showcaseStatus.charAt(0).toUpperCase() + showcaseStatus.slice(1).toLowerCase()
+                : 'Created'}
+            </span>
           ) : (
             <span className="text-slate-500">Not Created</span>
           )}
         </div>
 
-        {isShowcasePubliclyViewable ? (
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(`/showcase/${targetShowcaseId}`, '_blank');
-              }}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-              title="View Public Showcase"
-            >
-              <Eye className="w-3.5 h-3.5 text-emerald-400" />
-              <span>View</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleShareShowcase}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-              title="Share Public Showcase URL"
-            >
-              {copiedShowcase ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400 font-bold">Link copied</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Share</span>
-                </>
-              )}
-            </button>
+        {hasExistingShowcase ? (
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            {!isViewer && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigateTo(`/events/${event.id}/showcase`);
+                }}
+                className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-amber-300 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+                title="Manage Event Showcase"
+              >
+                <Edit2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>Manage</span>
+              </button>
+            )}
+
+            {isShowcasePubliclyViewable ? (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(`/showcase/${targetShowcaseId}`, '_blank');
+                  }}
+                  className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-300 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+                  title="View Public Showcase"
+                >
+                  <Eye className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>View</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareShowcase}
+                  className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-amber-300 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+                  title="Share Public Showcase URL"
+                >
+                  {copiedShowcase ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="text-emerald-400 font-bold">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Share</span>
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(`/showcase/${targetShowcaseId}`, '_blank');
+                }}
+                className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-amber-300 border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+                title="Preview Showcase"
+              >
+                <Eye className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>Preview</span>
+              </button>
+            )}
           </div>
-        ) : showcaseStatus && showcaseStatus !== 'NOT_CREATED' ? (
+        ) : !isViewer && isEventEligibleForShowcase(event).eligible ? (
           <button
             type="button"
-            onClick={() => navigateTo(`/events/${event.id}/showcase`)}
-            className="text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline transition-colors flex items-center gap-1 cursor-pointer"
-          >
-            <span>Showcase →</span>
-          </button>
-        ) : isEventEligibleForShowcase(event).eligible ? (
-          <button
-            type="button"
-            onClick={() => navigateTo(`/events/${event.id}/showcase`)}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigateTo(`/events/${event.id}/showcase`);
+            }}
             className="text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline transition-colors flex items-center gap-1 cursor-pointer"
           >
             <span>+ Create Showcase</span>

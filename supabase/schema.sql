@@ -1503,6 +1503,113 @@ CREATE INDEX IF NOT EXISTS idx_owner_showcase_rewards_org ON public.owner_showca
 CREATE INDEX IF NOT EXISTS idx_owner_showcase_rewards_event ON public.owner_showcase_rewards (event_id);
 
 -- ------------------------------------------------------------------------------
+-- USER REWARDS TABLE & USER-LEVEL LIFETIME WELCOME CREDIT
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_rewards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  reward_type VARCHAR(50) NOT NULL, -- e.g. 'WELCOME_CREDIT'
+  organization_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
+  transaction_id UUID,
+  amount NUMERIC(12, 2) NOT NULL DEFAULT 800.00,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT ux_user_rewards_user_reward UNIQUE (user_id, reward_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_rewards_user_type ON public.user_rewards (user_id, reward_type);
+
+ALTER TABLE public.wallet_transactions ADD COLUMN IF NOT EXISTS owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
+DROP INDEX IF EXISTS public.idx_wallet_txns_owner_user_id;
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_owner_user_id ON public.wallet_transactions (owner_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_user_welcome_credit_unique 
+  ON public.wallet_transactions (owner_user_id) 
+  WHERE transaction_type = 'WELCOME_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_owner_showcase_credit_unique
+  ON public.wallet_transactions (owner_user_id)
+  WHERE transaction_type = 'SHOWCASE_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_rewards_showcase_lifetime_unique
+  ON public.user_rewards (user_id)
+  WHERE reward_type IN ('SHOWCASE_CREDIT', 'SHOWCASE_REWARD', 'SHOWCASE_REWARD_RM300');
+
+-- Descriptive comments establishing the authoritative hierarchy
+COMMENT ON TABLE public.user_rewards IS
+  'Authoritative user-level reward entitlement and lifetime uniqueness. Showcase reward eligibility must be enforced here and through the atomic reward RPC.';
+
+COMMENT ON TABLE public.owner_showcase_rewards IS
+  'Derived/audit relationship between an owner and Showcase reward. Not an independent lifetime eligibility authority.';
+
+COMMENT ON COLUMN public.event_showcases.reward_status IS
+  'Showcase-specific reward workflow/display state. Does not determine lifetime user eligibility.';
+
+COMMENT ON COLUMN public.event_showcases.reward_review_status IS
+  'Showcase-specific reward review state. Approval alone never grants wallet credit; atomic reward RPC is required.';
+
+COMMENT ON COLUMN public.organization_wallets.showcase_credit_granted IS
+  'Legacy/derived organization-level display or compatibility state. Never use as the authoritative user-level Showcase Reward eligibility check.';
+
+-- ------------------------------------------------------------------------------
+-- REWARD TABLES ROW LEVEL SECURITY (RLS) & CLIENT MUTATION LOCKDOWN
+-- ------------------------------------------------------------------------------
+ALTER TABLE public.user_rewards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.owner_showcase_rewards ENABLE ROW LEVEL SECURITY;
+
+REVOKE INSERT, UPDATE, DELETE ON public.user_rewards FROM anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.owner_showcase_rewards FROM anon, authenticated;
+
+GRANT SELECT ON public.user_rewards TO authenticated;
+GRANT SELECT ON public.owner_showcase_rewards TO authenticated;
+
+GRANT ALL ON public.user_rewards TO service_role, postgres;
+GRANT ALL ON public.owner_showcase_rewards TO service_role, postgres;
+
+DROP POLICY IF EXISTS "Users can view own user_rewards" ON public.user_rewards;
+CREATE POLICY "Users can view own user_rewards"
+  ON public.user_rewards FOR SELECT
+  TO authenticated
+  USING (
+    user_id = auth.uid()
+    OR (SELECT public.is_developer_admin())
+  );
+
+DROP POLICY IF EXISTS "Owners can view own showcase_rewards" ON public.owner_showcase_rewards;
+CREATE POLICY "Owners can view own showcase_rewards"
+  ON public.owner_showcase_rewards FOR SELECT
+  TO authenticated
+  USING (
+    owner_user_id = auth.uid()
+    OR (SELECT public.is_developer_admin())
+  );
+
+-- Defense-in-depth anti-tamper trigger
+CREATE OR REPLACE FUNCTION public.prevent_direct_reward_tampering()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF current_user = 'postgres' OR current_user = 'service_role' OR current_setting('request.jwt.claim.role', true) = 'service_role' THEN
+    RETURN NEW;
+  END IF;
+
+  RAISE EXCEPTION 'Direct client manipulation of financial reward tables is strictly forbidden.';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_tamper_user_rewards ON public.user_rewards;
+CREATE TRIGGER trg_prevent_tamper_user_rewards
+  BEFORE INSERT OR UPDATE OR DELETE ON public.user_rewards
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_direct_reward_tampering();
+
+DROP TRIGGER IF EXISTS trg_prevent_tamper_owner_showcase_rewards ON public.owner_showcase_rewards;
+CREATE TRIGGER trg_prevent_tamper_owner_showcase_rewards
+  BEFORE INSERT OR UPDATE OR DELETE ON public.owner_showcase_rewards
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_direct_reward_tampering();
+
+-- ------------------------------------------------------------------------------
 -- SHOWCASE REWARD SUBMISSIONS (EXPLICIT USER-INITIATED SUBMISSIONS & ADMIN APPROVAL)
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.showcase_reward_submissions (
@@ -3940,6 +4047,292 @@ CREATE POLICY "Developer admins can manage google_mail_settings"
   WITH CHECK (public.is_developer_admin());
 
 -- ------------------------------------------------------------------------------
+-- GAME PRICING & EVENT PRICING SNAPSHOTS
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.game_pricing (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  game_id UUID NOT NULL REFERENCES public.games(id) ON DELETE CASCADE,
+  min_days INT NOT NULL CHECK (min_days >= 1),
+  max_days INT CHECK (max_days IS NULL OR max_days >= min_days),
+  price NUMERIC(10, 2) NOT NULL CHECK (price > 0),
+  currency TEXT NOT NULL DEFAULT 'MYR',
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  is_base BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_game_pricing_game_id ON public.game_pricing(game_id);
+CREATE INDEX IF NOT EXISTS idx_game_pricing_active ON public.game_pricing(is_active);
+CREATE INDEX IF NOT EXISTS idx_game_pricing_game_days ON public.game_pricing(game_id, min_days, max_days);
+CREATE INDEX IF NOT EXISTS idx_game_pricing_is_base ON public.game_pricing(game_id, is_base) WHERE is_base = true;
+
+ALTER TABLE public.game_pricing ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can view active game pricing" ON public.game_pricing;
+CREATE POLICY "Anyone can view active game pricing"
+  ON public.game_pricing
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "Service role can manage game pricing" ON public.game_pricing;
+CREATE POLICY "Service role can manage game pricing"
+  ON public.game_pricing
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS pricing_id UUID REFERENCES public.game_pricing(id) ON DELETE SET NULL;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS duration_days INT;
+CREATE INDEX IF NOT EXISTS idx_events_pricing_id ON public.events(pricing_id);
+
+-- ------------------------------------------------------------------------------
+-- DATABASE TRIGGER: Reject Overlapping Active Game Pricing Tiers
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.validate_game_pricing_overlap()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_conflicting RECORD;
+BEGIN
+  -- Only validate if the row being inserted or updated is active
+  IF NEW.is_active = true THEN
+    IF NEW.min_days < 1 THEN
+      RAISE EXCEPTION 'Minimum days must be an integer >= 1'
+        USING ERRCODE = 'check_violation';
+    END IF;
+
+    IF NEW.max_days IS NOT NULL AND NEW.max_days < NEW.min_days THEN
+      RAISE EXCEPTION 'Maximum days must be greater than or equal to minimum days'
+        USING ERRCODE = 'check_violation';
+    END IF;
+
+    -- Look for any other active pricing tier for the same game that overlaps
+    SELECT id, min_days, max_days, price, currency
+    INTO v_conflicting
+    FROM public.game_pricing
+    WHERE game_id = NEW.game_id
+      AND is_active = true
+      AND (NEW.id IS NULL OR id != NEW.id)
+      AND (
+        NEW.min_days <= COALESCE(max_days, 2147483647)
+        AND min_days <= COALESCE(NEW.max_days, 2147483647)
+      )
+    LIMIT 1;
+
+    IF v_conflicting.id IS NOT NULL THEN
+      RAISE EXCEPTION 'OVERLAPPING_PRICING_TIER: Pricing tier range (%–% days) overlaps with existing active tier (%–% days) for this game.',
+        NEW.min_days,
+        COALESCE(NEW.max_days::text, '+'),
+        v_conflicting.min_days,
+        COALESCE(v_conflicting.max_days::text, '+')
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_validate_game_pricing_overlap ON public.game_pricing;
+CREATE TRIGGER trg_validate_game_pricing_overlap
+  BEFORE INSERT OR UPDATE ON public.game_pricing
+  FOR EACH ROW
+  EXECUTE FUNCTION public.validate_game_pricing_overlap();
+
+-- calculate_event_authoritative_price
+CREATE OR REPLACE FUNCTION public.calculate_event_authoritative_price(
+  p_event_id UUID DEFAULT NULL,
+  p_game_id UUID DEFAULT NULL,
+  p_start_date DATE DEFAULT NULL,
+  p_end_date DATE DEFAULT NULL,
+  p_pricing_id UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_event RECORD;
+  v_target_game_id UUID;
+  v_start_date DATE;
+  v_end_date DATE;
+  v_pricing_id UUID;
+  v_duration_days INT;
+  v_pricing_record RECORD;
+  v_matching_count INT;
+  v_resolved_price NUMERIC(10, 2);
+  v_resolved_currency TEXT := 'MYR';
+  v_is_custom_price BOOLEAN := false;
+BEGIN
+  -- Load event if p_event_id provided
+  IF p_event_id IS NOT NULL THEN
+    SELECT id, game_id, start_date, end_date, starts_at, expires_at,
+           pricing_id, is_custom_price, event_price, event_currency, duration_days
+    INTO v_event
+    FROM public.events
+    WHERE id = p_event_id;
+
+    IF v_event.id IS NULL THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'EVENT_NOT_FOUND',
+        'error', 'Event not found.'
+      );
+    END IF;
+
+    v_target_game_id := COALESCE(p_game_id, v_event.game_id);
+    v_start_date := COALESCE(
+      p_start_date,
+      CASE WHEN v_event.start_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.start_date FROM 1 FOR 10))::date ELSE NULL END,
+      CASE WHEN v_event.event_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.event_date FROM 1 FOR 10))::date ELSE NULL END,
+      CASE WHEN v_event.starts_at IS NOT NULL THEN (v_event.starts_at AT TIME ZONE 'Asia/Singapore')::date ELSE NULL END
+    );
+    v_end_date := COALESCE(
+      p_end_date,
+      CASE WHEN v_event.end_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.end_date FROM 1 FOR 10))::date ELSE NULL END,
+      CASE WHEN v_event.expires_at IS NOT NULL THEN (v_event.expires_at AT TIME ZONE 'Asia/Singapore')::date ELSE NULL END,
+      v_start_date
+    );
+    v_pricing_id := COALESCE(p_pricing_id, v_event.pricing_id);
+    v_is_custom_price := COALESCE(v_event.is_custom_price, false);
+
+    IF v_is_custom_price = true AND v_event.event_price IS NOT NULL AND v_event.event_price > 0 THEN
+      RETURN jsonb_build_object(
+        'success', true,
+        'price', v_event.event_price,
+        'currency', COALESCE(v_event.event_currency, 'MYR'),
+        'duration_days', COALESCE(v_event.duration_days, 1),
+        'is_custom_price', true,
+        'pricing_id', v_event.pricing_id
+      );
+    END IF;
+  ELSE
+    v_target_game_id := p_game_id;
+    v_start_date := p_start_date;
+    v_end_date := p_end_date;
+    v_pricing_id := p_pricing_id;
+  END IF;
+
+  IF v_start_date IS NULL OR v_end_date IS NULL THEN
+    v_duration_days := 1;
+  ELSE
+    v_duration_days := GREATEST(1, (v_end_date - v_start_date) + 1);
+  END IF;
+
+  IF v_target_game_id IS NULL THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'GAME_REQUIRED',
+      'error', 'A game must be selected to calculate authoritative event pricing.'
+    );
+  END IF;
+
+  IF v_pricing_id IS NOT NULL THEN
+    SELECT id, game_id, price, currency, is_active, min_days, max_days
+    INTO v_pricing_record
+    FROM public.game_pricing
+    WHERE id = v_pricing_id;
+
+    IF v_pricing_record.id IS NULL THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_TIER_NOT_FOUND',
+        'error', 'Specified pricing tier does not exist.'
+      );
+    END IF;
+
+    IF v_pricing_record.game_id != v_target_game_id THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_GAME_MISMATCH',
+        'error', 'Specified pricing tier does not belong to the selected game.'
+      );
+    END IF;
+
+    IF v_pricing_record.is_active != true THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_TIER_INACTIVE',
+        'error', 'Specified pricing tier is inactive and cannot be used.'
+      );
+    END IF;
+
+    IF v_duration_days < v_pricing_record.min_days OR (v_pricing_record.max_days IS NOT NULL AND v_duration_days > v_pricing_record.max_days) THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'PRICING_DURATION_MISMATCH',
+        'error', 'The specified pricing tier does not cover this duration (' || v_duration_days || ' days).'
+      );
+    END IF;
+
+    v_resolved_price := v_pricing_record.price;
+    v_resolved_currency := v_pricing_record.currency;
+  ELSE
+    -- Check for ambiguous / multiple matching tiers (fails closed)
+    SELECT count(*)
+    INTO v_matching_count
+    FROM public.game_pricing
+    WHERE game_id = v_target_game_id
+      AND is_active = true
+      AND min_days <= v_duration_days
+      AND (max_days IS NULL OR max_days >= v_duration_days);
+
+    IF v_matching_count > 1 THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'AMBIGUOUS_PRICING_TIER',
+        'error', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.',
+        'message', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.'
+      );
+    END IF;
+
+    SELECT id, game_id, price, currency, is_active, min_days, max_days
+    INTO v_pricing_record
+    FROM public.game_pricing
+    WHERE game_id = v_target_game_id
+      AND is_active = true
+      AND min_days <= v_duration_days
+      AND (max_days IS NULL OR max_days >= v_duration_days);
+
+    IF v_pricing_record.id IS NOT NULL THEN
+      v_pricing_id := v_pricing_record.id;
+      v_resolved_price := v_pricing_record.price;
+      v_resolved_currency := v_pricing_record.currency;
+    ELSIF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'code', 'NO_PRICING_TIER',
+        'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.',
+        'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.'
+      );
+    END IF;
+  END IF;
+
+  IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'code', 'PRICING_CONFIGURATION_ERROR',
+      'error', 'Event price must be positive and valid. Could not resolve pricing.',
+      'message', 'Event price must be positive and valid. Could not resolve pricing.'
+    );
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'price', v_resolved_price,
+    'currency', v_resolved_currency,
+    'duration_days', v_duration_days,
+    'pricing_id', v_pricing_id,
+    'is_custom_price', false
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.calculate_event_authoritative_price(UUID, UUID, DATE, DATE, UUID) TO authenticated, service_role;
+
+-- ------------------------------------------------------------------------------
 -- 20. FINANCIAL RPC SECURITY & EXECUTE PRIVILEGES
 -- ------------------------------------------------------------------------------
 -- CRITICAL PRODUCTION SECURITY:
@@ -4574,7 +4967,7 @@ BEGIN
       'wallet', row_to_json(v_wallet),
       'message', 'Welcome Credit has already been granted to this user in their account lifetime (one-time lifetime limit).'
     );
-  END IF;
+  END;
 
   -- 6. Insert into Immutable Wallet Transactions Ledger
   v_ref_id := COALESCE(p_reference_id, 'welcome_' || p_org_id::text);
@@ -5599,113 +5992,6 @@ CREATE TRIGGER trg_check_event_pricing_game_integrity
   EXECUTE FUNCTION public.check_event_pricing_game_integrity();
 
 -- ------------------------------------------------------------------------------
--- USER REWARDS TABLE & USER-LEVEL LIFETIME WELCOME CREDIT
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.user_rewards (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  reward_type VARCHAR(50) NOT NULL, -- e.g. 'WELCOME_CREDIT'
-  organization_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL,
-  transaction_id UUID,
-  amount NUMERIC(12, 2) NOT NULL DEFAULT 800.00,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-  CONSTRAINT ux_user_rewards_user_reward UNIQUE (user_id, reward_type)
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_rewards_user_type ON public.user_rewards (user_id, reward_type);
-
-ALTER TABLE public.wallet_transactions ADD COLUMN IF NOT EXISTS owner_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
-DROP INDEX IF EXISTS public.idx_wallet_txns_owner_user_id;
-CREATE INDEX IF NOT EXISTS idx_wallet_transactions_owner_user_id ON public.wallet_transactions (owner_user_id);
-CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_user_welcome_credit_unique 
-  ON public.wallet_transactions (owner_user_id) 
-  WHERE transaction_type = 'WELCOME_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS ux_wallet_txns_owner_showcase_credit_unique
-  ON public.wallet_transactions (owner_user_id)
-  WHERE transaction_type = 'SHOWCASE_CREDIT' AND status = 'COMPLETED' AND owner_user_id IS NOT NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS ux_user_rewards_showcase_lifetime_unique
-  ON public.user_rewards (user_id)
-  WHERE reward_type IN ('SHOWCASE_CREDIT', 'SHOWCASE_REWARD', 'SHOWCASE_REWARD_RM300');
-
--- Descriptive comments establishing the authoritative hierarchy
-COMMENT ON TABLE public.user_rewards IS
-  'Authoritative user-level reward entitlement and lifetime uniqueness. Showcase reward eligibility must be enforced here and through the atomic reward RPC.';
-
-COMMENT ON TABLE public.owner_showcase_rewards IS
-  'Derived/audit relationship between an owner and Showcase reward. Not an independent lifetime eligibility authority.';
-
-COMMENT ON COLUMN public.event_showcases.reward_status IS
-  'Showcase-specific reward workflow/display state. Does not determine lifetime user eligibility.';
-
-COMMENT ON COLUMN public.event_showcases.reward_review_status IS
-  'Showcase-specific reward review state. Approval alone never grants wallet credit; atomic reward RPC is required.';
-
-COMMENT ON COLUMN public.organization_wallets.showcase_credit_granted IS
-  'Legacy/derived organization-level display or compatibility state. Never use as the authoritative user-level Showcase Reward eligibility check.';
-
--- ------------------------------------------------------------------------------
--- REWARD TABLES ROW LEVEL SECURITY (RLS) & CLIENT MUTATION LOCKDOWN
--- ------------------------------------------------------------------------------
-ALTER TABLE public.user_rewards ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.owner_showcase_rewards ENABLE ROW LEVEL SECURITY;
-
-REVOKE INSERT, UPDATE, DELETE ON public.user_rewards FROM anon, authenticated;
-REVOKE INSERT, UPDATE, DELETE ON public.owner_showcase_rewards FROM anon, authenticated;
-
-GRANT SELECT ON public.user_rewards TO authenticated;
-GRANT SELECT ON public.owner_showcase_rewards TO authenticated;
-
-GRANT ALL ON public.user_rewards TO service_role, postgres;
-GRANT ALL ON public.owner_showcase_rewards TO service_role, postgres;
-
-DROP POLICY IF EXISTS "Users can view own user_rewards" ON public.user_rewards;
-CREATE POLICY "Users can view own user_rewards"
-  ON public.user_rewards FOR SELECT
-  TO authenticated
-  USING (
-    user_id = auth.uid()
-    OR (SELECT public.is_developer_admin())
-  );
-
-DROP POLICY IF EXISTS "Owners can view own showcase_rewards" ON public.owner_showcase_rewards;
-CREATE POLICY "Owners can view own showcase_rewards"
-  ON public.owner_showcase_rewards FOR SELECT
-  TO authenticated
-  USING (
-    owner_user_id = auth.uid()
-    OR (SELECT public.is_developer_admin())
-  );
-
--- Defense-in-depth anti-tamper trigger
-CREATE OR REPLACE FUNCTION public.prevent_direct_reward_tampering()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-  IF current_user = 'postgres' OR current_user = 'service_role' OR current_setting('request.jwt.claim.role', true) = 'service_role' THEN
-    RETURN NEW;
-  END IF;
-
-  RAISE EXCEPTION 'Direct client manipulation of financial reward tables is strictly forbidden.';
-END;
-$$;
-
-DROP TRIGGER IF EXISTS trg_prevent_tamper_user_rewards ON public.user_rewards;
-CREATE TRIGGER trg_prevent_tamper_user_rewards
-  BEFORE INSERT OR UPDATE OR DELETE ON public.user_rewards
-  FOR EACH ROW
-  EXECUTE FUNCTION public.prevent_direct_reward_tampering();
-
-DROP TRIGGER IF EXISTS trg_prevent_tamper_owner_showcase_rewards ON public.owner_showcase_rewards;
-CREATE TRIGGER trg_prevent_tamper_owner_showcase_rewards
-  BEFORE INSERT OR UPDATE OR DELETE ON public.owner_showcase_rewards
-  FOR EACH ROW
-  EXECUTE FUNCTION public.prevent_direct_reward_tampering();
-
--- ------------------------------------------------------------------------------
 -- ATOMIC ORGANIZATION CREATION RPC
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.create_organization_atomic(
@@ -6190,291 +6476,6 @@ CREATE POLICY "Developer admins can view api error logs"
 GRANT ALL ON public.api_error_logs TO service_role;
 GRANT SELECT ON public.api_error_logs TO authenticated;
 
--- ------------------------------------------------------------------------------
--- GAME PRICING & EVENT PRICING SNAPSHOTS
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.game_pricing (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  game_id UUID NOT NULL REFERENCES public.games(id) ON DELETE CASCADE,
-  min_days INT NOT NULL CHECK (min_days >= 1),
-  max_days INT CHECK (max_days IS NULL OR max_days >= min_days),
-  price NUMERIC(10, 2) NOT NULL CHECK (price > 0),
-  currency TEXT NOT NULL DEFAULT 'MYR',
-  is_active BOOLEAN NOT NULL DEFAULT true,
-  is_base BOOLEAN NOT NULL DEFAULT false,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
-
-CREATE INDEX IF NOT EXISTS idx_game_pricing_game_id ON public.game_pricing(game_id);
-CREATE INDEX IF NOT EXISTS idx_game_pricing_active ON public.game_pricing(is_active);
-CREATE INDEX IF NOT EXISTS idx_game_pricing_game_days ON public.game_pricing(game_id, min_days, max_days);
-CREATE INDEX IF NOT EXISTS idx_game_pricing_is_base ON public.game_pricing(game_id, is_base) WHERE is_base = true;
-
-ALTER TABLE public.game_pricing ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Anyone can view active game pricing" ON public.game_pricing;
-CREATE POLICY "Anyone can view active game pricing"
-  ON public.game_pricing
-  FOR SELECT
-  USING (true);
-
-DROP POLICY IF EXISTS "Service role can manage game pricing" ON public.game_pricing;
-CREATE POLICY "Service role can manage game pricing"
-  ON public.game_pricing
-  FOR ALL
-  TO service_role
-  USING (true)
-  WITH CHECK (true);
-
-ALTER TABLE public.events ADD COLUMN IF NOT EXISTS pricing_id UUID REFERENCES public.game_pricing(id) ON DELETE SET NULL;
-ALTER TABLE public.events ADD COLUMN IF NOT EXISTS duration_days INT;
-CREATE INDEX IF NOT EXISTS idx_events_pricing_id ON public.events(pricing_id);
-
--- ------------------------------------------------------------------------------
--- DATABASE TRIGGER: Reject Overlapping Active Game Pricing Tiers
--- ------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.validate_game_pricing_overlap()
-RETURNS TRIGGER AS $$
-DECLARE
-  v_conflicting RECORD;
-BEGIN
-  -- Only validate if the row being inserted or updated is active
-  IF NEW.is_active = true THEN
-    IF NEW.min_days < 1 THEN
-      RAISE EXCEPTION 'Minimum days must be an integer >= 1'
-        USING ERRCODE = 'check_violation';
-    END IF;
-
-    IF NEW.max_days IS NOT NULL AND NEW.max_days < NEW.min_days THEN
-      RAISE EXCEPTION 'Maximum days must be greater than or equal to minimum days'
-        USING ERRCODE = 'check_violation';
-    END IF;
-
-    -- Look for any other active pricing tier for the same game that overlaps
-    SELECT id, min_days, max_days, price, currency
-    INTO v_conflicting
-    FROM public.game_pricing
-    WHERE game_id = NEW.game_id
-      AND is_active = true
-      AND (NEW.id IS NULL OR id != NEW.id)
-      AND (
-        NEW.min_days <= COALESCE(max_days, 2147483647)
-        AND min_days <= COALESCE(NEW.max_days, 2147483647)
-      )
-    LIMIT 1;
-
-    IF v_conflicting.id IS NOT NULL THEN
-      RAISE EXCEPTION 'OVERLAPPING_PRICING_TIER: Pricing tier range (%–% days) overlaps with existing active tier (%–% days) for this game.',
-        NEW.min_days,
-        COALESCE(NEW.max_days::text, '+'),
-        v_conflicting.min_days,
-        COALESCE(v_conflicting.max_days::text, '+')
-        USING ERRCODE = 'check_violation';
-    END IF;
-  END IF;
-
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trg_validate_game_pricing_overlap ON public.game_pricing;
-CREATE TRIGGER trg_validate_game_pricing_overlap
-  BEFORE INSERT OR UPDATE ON public.game_pricing
-  FOR EACH ROW
-  EXECUTE FUNCTION public.validate_game_pricing_overlap();
-
--- calculate_event_authoritative_price
-CREATE OR REPLACE FUNCTION public.calculate_event_authoritative_price(
-  p_event_id UUID DEFAULT NULL,
-  p_game_id UUID DEFAULT NULL,
-  p_start_date DATE DEFAULT NULL,
-  p_end_date DATE DEFAULT NULL,
-  p_pricing_id UUID DEFAULT NULL
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-DECLARE
-  v_event RECORD;
-  v_target_game_id UUID;
-  v_start_date DATE;
-  v_end_date DATE;
-  v_pricing_id UUID;
-  v_duration_days INT;
-  v_pricing_record RECORD;
-  v_matching_count INT;
-  v_resolved_price NUMERIC(10, 2);
-  v_resolved_currency TEXT := 'MYR';
-  v_is_custom_price BOOLEAN := false;
-BEGIN
-  -- Load event if p_event_id provided
-  IF p_event_id IS NOT NULL THEN
-    SELECT id, game_id, start_date, end_date, starts_at, expires_at,
-           pricing_id, is_custom_price, event_price, event_currency, duration_days
-    INTO v_event
-    FROM public.events
-    WHERE id = p_event_id;
-
-    IF v_event.id IS NULL THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'EVENT_NOT_FOUND',
-        'error', 'Event not found.'
-      );
-    END IF;
-
-    v_target_game_id := COALESCE(p_game_id, v_event.game_id);
-    v_start_date := COALESCE(
-      p_start_date,
-      CASE WHEN v_event.start_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.start_date FROM 1 FOR 10))::date ELSE NULL END,
-      CASE WHEN v_event.event_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.event_date FROM 1 FOR 10))::date ELSE NULL END,
-      CASE WHEN v_event.starts_at IS NOT NULL THEN (v_event.starts_at AT TIME ZONE 'Asia/Singapore')::date ELSE NULL END
-    );
-    v_end_date := COALESCE(
-      p_end_date,
-      CASE WHEN v_event.end_date ~ '^\d{4}-\d{2}-\d{2}' THEN (SUBSTRING(v_event.end_date FROM 1 FOR 10))::date ELSE NULL END,
-      CASE WHEN v_event.expires_at IS NOT NULL THEN (v_event.expires_at AT TIME ZONE 'Asia/Singapore')::date ELSE NULL END,
-      v_start_date
-    );
-    v_pricing_id := COALESCE(p_pricing_id, v_event.pricing_id);
-    v_is_custom_price := COALESCE(v_event.is_custom_price, false);
-
-    IF v_is_custom_price = true AND v_event.event_price IS NOT NULL AND v_event.event_price > 0 THEN
-      RETURN jsonb_build_object(
-        'success', true,
-        'price', v_event.event_price,
-        'currency', COALESCE(v_event.event_currency, 'MYR'),
-        'duration_days', COALESCE(v_event.duration_days, 1),
-        'is_custom_price', true,
-        'pricing_id', v_event.pricing_id
-      );
-    END IF;
-  ELSE
-    v_target_game_id := p_game_id;
-    v_start_date := p_start_date;
-    v_end_date := p_end_date;
-    v_pricing_id := p_pricing_id;
-  END IF;
-
-  IF v_start_date IS NULL OR v_end_date IS NULL THEN
-    v_duration_days := 1;
-  ELSE
-    v_duration_days := GREATEST(1, (v_end_date - v_start_date) + 1);
-  END IF;
-
-  IF v_target_game_id IS NULL THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'code', 'GAME_REQUIRED',
-      'error', 'A game must be selected to calculate authoritative event pricing.'
-    );
-  END IF;
-
-  IF v_pricing_id IS NOT NULL THEN
-    SELECT id, game_id, price, currency, is_active, min_days, max_days
-    INTO v_pricing_record
-    FROM public.game_pricing
-    WHERE id = v_pricing_id;
-
-    IF v_pricing_record.id IS NULL THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'PRICING_TIER_NOT_FOUND',
-        'error', 'Specified pricing tier does not exist.'
-      );
-    END IF;
-
-    IF v_pricing_record.game_id != v_target_game_id THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'PRICING_GAME_MISMATCH',
-        'error', 'Specified pricing tier does not belong to the selected game.'
-      );
-    END IF;
-
-    IF v_pricing_record.is_active != true THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'PRICING_TIER_INACTIVE',
-        'error', 'Specified pricing tier is inactive and cannot be used.'
-      );
-    END IF;
-
-    IF v_duration_days < v_pricing_record.min_days OR (v_pricing_record.max_days IS NOT NULL AND v_duration_days > v_pricing_record.max_days) THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'PRICING_DURATION_MISMATCH',
-        'error', 'The specified pricing tier does not cover this duration (' || v_duration_days || ' days).'
-      );
-    END IF;
-
-    v_resolved_price := v_pricing_record.price;
-    v_resolved_currency := v_pricing_record.currency;
-  ELSE
-    -- Check for ambiguous / multiple matching tiers (fails closed)
-    SELECT count(*)
-    INTO v_matching_count
-    FROM public.game_pricing
-    WHERE game_id = v_target_game_id
-      AND is_active = true
-      AND min_days <= v_duration_days
-      AND (max_days IS NULL OR max_days >= v_duration_days);
-
-    IF v_matching_count > 1 THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'AMBIGUOUS_PRICING_TIER',
-        'error', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.',
-        'message', 'Multiple active pricing tiers match duration of ' || v_duration_days || ' days for this game. Overlapping active tiers must be resolved in Developer Settings.'
-      );
-    END IF;
-
-    SELECT id, game_id, price, currency, is_active, min_days, max_days
-    INTO v_pricing_record
-    FROM public.game_pricing
-    WHERE game_id = v_target_game_id
-      AND is_active = true
-      AND min_days <= v_duration_days
-      AND (max_days IS NULL OR max_days >= v_duration_days);
-
-    IF v_pricing_record.id IS NOT NULL THEN
-      v_pricing_id := v_pricing_record.id;
-      v_resolved_price := v_pricing_record.price;
-      v_resolved_currency := v_pricing_record.currency;
-    ELSIF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'code', 'NO_PRICING_TIER',
-        'error', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.',
-        'message', 'No pricing tier is configured for a ' || v_duration_days || '-day event for this game. Pricing cannot be resolved.'
-      );
-    END IF;
-  END IF;
-
-  IF v_resolved_price IS NULL OR v_resolved_price <= 0 THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'code', 'PRICING_CONFIGURATION_ERROR',
-      'error', 'Event price must be positive and valid. Could not resolve pricing.',
-      'message', 'Event price must be positive and valid. Could not resolve pricing.'
-    );
-  END IF;
-
-  RETURN jsonb_build_object(
-    'success', true,
-    'price', v_resolved_price,
-    'currency', v_resolved_currency,
-    'duration_days', v_duration_days,
-    'pricing_id', v_pricing_id,
-    'is_custom_price', false
-  );
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.calculate_event_authoritative_price(UUID, UUID, DATE, DATE, UUID) TO authenticated, service_role;
 
 
 
