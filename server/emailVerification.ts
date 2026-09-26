@@ -5,6 +5,7 @@ import {
   sendEmailViaGmail,
   getFrontendBaseUrl,
 } from './email/index.js';
+import { isProductionEnvironment, isLocalFallbackAllowed } from './supabase.js';
 
 export interface VerificationTokenData {
   rawToken: string;
@@ -188,78 +189,177 @@ This link will expire in 1 hour. If you did not request a password reset, you ca
   return { subject, html, text };
 }
 
+export type EmailSendStatus = 'EMAIL_SENT' | 'EMAIL_NOT_CONFIGURED' | 'EMAIL_SEND_FAILED';
+
+export interface EmailDispatchResult {
+  success: boolean;
+  status: EmailSendStatus;
+  method?: 'gmail' | 'test_logged';
+  messageId?: string;
+  error?: string;
+  rawError?: any;
+}
+
 /**
- * Dispatches verification email using configured Gmail integration, or logs gracefully in dev/test.
+ * Checks if the platform Gmail sending integration is properly configured, enabled, and connected.
+ * In production, strictly requires real Gmail settings with non-empty refresh token and enabled status.
+ */
+export async function isEmailServiceConfigured(env?: Record<string, any>): Promise<boolean> {
+  try {
+    const isProd = isProductionEnvironment(env) || !isLocalFallbackAllowed(env);
+    const allowTestFallback = !isProd && (env?.ALLOW_EMAIL_TEST_FALLBACK === 'true' || process.env.ALLOW_EMAIL_TEST_FALLBACK === 'true');
+    if (allowTestFallback) {
+      return true;
+    }
+
+    const settings = await getGoogleMailSettings(env);
+    if (!settings) return false;
+    if (settings.enabled === false) return false;
+    if (!settings.email_address || !settings.email_address.includes('@')) return false;
+    if (!settings.refresh_token_encrypted || typeof settings.refresh_token_encrypted !== 'string' || !settings.refresh_token_encrypted.trim()) return false;
+    if (settings.status === 'disconnected') return false;
+
+    return true;
+  } catch (err: any) {
+    console.error('[Email Configuration Check Error]:', err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Dispatches verification email using configured Gmail integration.
+ * In production, strictly requires real Gmail configuration and never uses console fallback.
  */
 export async function sendVerificationEmail(params: {
   email: string;
   rawToken: string;
   env?: Record<string, any>;
   request?: any;
-}): Promise<{ sent: boolean; method: 'gmail' | 'logged' }> {
-  const { email, rawToken, env, request } = params;
+  correlationId?: string;
+}): Promise<EmailDispatchResult> {
+  const { email, rawToken, env, request, correlationId } = params;
+  const correlationTag =
+    correlationId ||
+    (typeof request?.headers?.get === 'function'
+      ? request.headers.get('x-correlation-id') || request.headers.get('x-request-id')
+      : request?.headers?.['x-correlation-id'] || request?.headers?.['x-request-id']) ||
+    crypto.randomUUID();
+  const logPrefix = `[Email Verification][${correlationTag}]`;
   const baseUrl = getFrontendBaseUrl(env, request);
   const verificationUrl = `${baseUrl}/verify-email?token=${encodeURIComponent(rawToken)}`;
 
-  try {
-    const settings = await getGoogleMailSettings(env);
-    if (settings && settings.enabled && settings.refresh_token_encrypted && settings.status !== 'disconnected') {
-      const template = generateVerificationEmailTemplate({ email, verificationUrl });
-      await sendEmailViaGmail(
-        {
-          to: email,
-          subject: template.subject,
-          html: template.html,
-          text: template.text,
-          fromName: 'EventGameStudio',
-        },
-        env
-      );
-      return { sent: true, method: 'gmail' };
-    }
-  } catch (err: any) {
-    console.error(`[Email Verification] Failed to send email via Gmail API to ${email}:`, err?.message || err);
+  const isProd = isProductionEnvironment(env) || !isLocalFallbackAllowed(env);
+  const allowTestFallback = !isProd && (env?.ALLOW_EMAIL_TEST_FALLBACK === 'true' || process.env.ALLOW_EMAIL_TEST_FALLBACK === 'true');
+
+  if (allowTestFallback) {
+    console.log(`${logPrefix} [TEST FALLBACK] Verification link for ${email}: ${verificationUrl}`);
+    return { success: true, status: 'EMAIL_SENT', method: 'test_logged' };
   }
 
-  // Graceful development / non-configured logging fallback
-  console.log(`[Email Verification] Verification link for ${email}: ${verificationUrl}`);
-  return { sent: true, method: 'logged' };
+  const configured = await isEmailServiceConfigured(env);
+  if (!configured) {
+    console.warn(`${logPrefix} Verification email cannot be sent: platform email service is not configured.`);
+    return {
+      success: false,
+      status: 'EMAIL_NOT_CONFIGURED',
+      error: 'Email verification is currently unavailable. Please contact the administrator.',
+    };
+  }
+
+  try {
+    const template = generateVerificationEmailTemplate({ email, verificationUrl });
+    const result = await sendEmailViaGmail(
+      {
+        to: email,
+        subject: template.subject,
+        html: template.html,
+        text: template.text,
+        fromName: 'EventGameStudio',
+      },
+      env
+    );
+    return {
+      success: true,
+      status: 'EMAIL_SENT',
+      method: 'gmail',
+      messageId: result.messageId,
+    };
+  } catch (err: any) {
+    console.error(`${logPrefix} Email verification send failed:`, err?.message || err);
+    return {
+      success: false,
+      status: 'EMAIL_SEND_FAILED',
+      error: "We couldn't send the verification email right now. Please try again later.",
+      rawError: err,
+    };
+  }
 }
 
 /**
- * Dispatches password reset email using configured Gmail integration, or logs gracefully in dev/test.
+ * Dispatches password reset email using configured Gmail integration.
+ * In production, strictly requires real Gmail configuration and never uses console fallback.
  */
 export async function sendPasswordResetEmail(params: {
   email: string;
   rawToken: string;
   env?: Record<string, any>;
   request?: any;
-}): Promise<{ sent: boolean; method: 'gmail' | 'logged' }> {
-  const { email, rawToken, env, request } = params;
+  correlationId?: string;
+}): Promise<EmailDispatchResult> {
+  const { email, rawToken, env, request, correlationId } = params;
+  const correlationTag =
+    correlationId ||
+    (typeof request?.headers?.get === 'function'
+      ? request.headers.get('x-correlation-id') || request.headers.get('x-request-id')
+      : request?.headers?.['x-correlation-id'] || request?.headers?.['x-request-id']) ||
+    crypto.randomUUID();
+  const logPrefix = `[Password Reset][${correlationTag}]`;
   const baseUrl = getFrontendBaseUrl(env, request);
   const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
 
-  try {
-    const settings = await getGoogleMailSettings(env);
-    if (settings && settings.enabled && settings.refresh_token_encrypted && settings.status !== 'disconnected') {
-      const template = generatePasswordResetEmailTemplate({ email, resetUrl });
-      await sendEmailViaGmail(
-        {
-          to: email,
-          subject: template.subject,
-          html: template.html,
-          text: template.text,
-          fromName: 'EventGameStudio',
-        },
-        env
-      );
-      return { sent: true, method: 'gmail' };
-    }
-  } catch (err: any) {
-    console.error(`[Password Reset] Failed to send email via Gmail API to ${email}:`, err?.message || err);
+  const isProd = isProductionEnvironment(env) || !isLocalFallbackAllowed(env);
+  const allowTestFallback = !isProd && (env?.ALLOW_EMAIL_TEST_FALLBACK === 'true' || process.env.ALLOW_EMAIL_TEST_FALLBACK === 'true');
+
+  if (allowTestFallback) {
+    console.log(`${logPrefix} [TEST FALLBACK] Reset link for ${email}: ${resetUrl}`);
+    return { success: true, status: 'EMAIL_SENT', method: 'test_logged' };
   }
 
-  // Graceful development / non-configured logging fallback
-  console.log(`[Password Reset] Reset link for ${email}: ${resetUrl}`);
-  return { sent: true, method: 'logged' };
+  const configured = await isEmailServiceConfigured(env);
+  if (!configured) {
+    console.warn(`${logPrefix} Password reset email cannot be sent: platform email service is not configured.`);
+    return {
+      success: false,
+      status: 'EMAIL_NOT_CONFIGURED',
+      error: 'Email service is currently unavailable. Please contact the administrator.',
+    };
+  }
+
+  try {
+    const template = generatePasswordResetEmailTemplate({ email, resetUrl });
+    const result = await sendEmailViaGmail(
+      {
+        to: email,
+        subject: template.subject,
+        html: template.html,
+        text: template.text,
+        fromName: 'EventGameStudio',
+      },
+      env
+    );
+    return {
+      success: true,
+      status: 'EMAIL_SENT',
+      method: 'gmail',
+      messageId: result.messageId,
+    };
+  } catch (err: any) {
+    console.error(`${logPrefix} Password reset email send failed:`, err?.message || err);
+    return {
+      success: false,
+      status: 'EMAIL_SEND_FAILED',
+      error: "We couldn't send the password reset email right now. Please try again later.",
+      rawError: err,
+    };
+  }
 }

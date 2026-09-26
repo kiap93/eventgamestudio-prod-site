@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   RefreshCw,
   Send,
+  Clock,
+  Info,
 } from 'lucide-react';
 
 declare global {
@@ -23,7 +25,7 @@ declare global {
   }
 }
 
-type AuthMode = 'signin' | 'signup' | 'forgot_password' | 'verification_pending';
+type AuthMode = 'signin' | 'signup' | 'forgot_password' | 'verification_pending' | 'unverified_recovery';
 
 export const LoginPage: React.FC = () => {
   const {
@@ -54,6 +56,17 @@ export const LoginPage: React.FC = () => {
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const [resendingVerification, setResendingVerification] = useState(false);
   const [resendStatusMessage, setResendStatusMessage] = useState<string | null>(null);
+  const [resendErrorMessage, setResendErrorMessage] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState<number>(0);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   // Google GSI state
   const [gsiLoaded, setGsiLoaded] = useState(false);
@@ -198,19 +211,26 @@ export const LoginPage: React.FC = () => {
 
     setLoading(true);
     setError(null);
-    setUnverifiedEmail(null);
     setResendStatusMessage(null);
+    setResendErrorMessage(null);
 
     try {
       const result = await loginWithEmail(email.trim(), password);
       if (result.unverified) {
         setUnverifiedEmail(result.email || email.trim());
-        setError('Please verify your email before continuing.');
+        setError(null);
+        setAuthMode('unverified_recovery');
         return;
       }
       const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '/events';
       navigateTo(redirectUrl);
     } catch (err: any) {
+      if (err.code === 'EMAIL_NOT_VERIFIED' || err.unverified) {
+        setUnverifiedEmail(err.email || email.trim());
+        setError(null);
+        setAuthMode('unverified_recovery');
+        return;
+      }
       setError(err.message || 'Invalid email or password');
     } finally {
       setLoading(false);
@@ -221,6 +241,8 @@ export const LoginPage: React.FC = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setResendStatusMessage(null);
+    setResendErrorMessage(null);
 
     if (!email.trim()) {
       setError('Please enter your email address');
@@ -253,17 +275,20 @@ export const LoginPage: React.FC = () => {
 
   // Resend verification email
   const handleResendVerification = async (targetEmail: string) => {
-    if (!targetEmail) return;
+    if (!targetEmail || resendingVerification || resendCooldown > 0) return;
     setResendingVerification(true);
     setResendStatusMessage(null);
+    setResendErrorMessage(null);
+    setError(null);
 
     try {
       const res = await resendVerificationEmail(targetEmail);
       setResendStatusMessage(
-        res.message || 'If an account requires email verification, a verification email has been sent.'
+        res.message || 'Verification email sent. Please check your inbox and Spam/Junk folder.'
       );
+      setResendCooldown(60);
     } catch (err: any) {
-      setResendStatusMessage(err.message || 'Failed to resend verification email');
+      setResendErrorMessage(err.message || "We couldn't send the verification email right now. Please try again later.");
     } finally {
       setResendingVerification(false);
     }
@@ -326,27 +351,40 @@ export const LoginPage: React.FC = () => {
 
         {/* Global Error Banner */}
         {error && (
-          <div className="mb-5 p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
-            <div className="flex-1">
-              <span>{error}</span>
-              {/* If unverified email error occurred during login, offer quick resend button */}
-              {unverifiedEmail && (
+          <div className="mb-5 p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-3 shadow-lg shadow-rose-950/20">
+            <AlertTriangle className="w-5 h-5 shrink-0 text-rose-400 mt-0.5" />
+            <div className="flex-1 space-y-1">
+              <div className="font-bold text-rose-200 text-sm">
+                {authMode === 'signup' ? 'Registration failed' : 'Authentication Notice'}
+              </div>
+              <p className="leading-relaxed text-slate-200">{error}</p>
+              {authMode === 'signup' && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setError(null)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 font-semibold rounded-lg text-[11px] transition-colors cursor-pointer"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
+              {/* If unverified email was previously encountered, provide direct link to verification recovery */}
+              {authMode === 'signin' && unverifiedEmail && (
                 <div className="mt-2.5 pt-2 border-t border-rose-500/20 flex flex-col gap-1.5">
                   <p className="text-[11px] text-slate-300">
                     Did not receive the verification email?
                   </p>
                   <button
                     type="button"
-                    onClick={() => handleResendVerification(unverifiedEmail)}
-                    disabled={resendingVerification}
-                    className="self-start text-[11px] font-semibold text-amber-400 hover:text-amber-300 underline cursor-pointer disabled:opacity-50"
+                    onClick={() => {
+                      setError(null);
+                      setAuthMode('unverified_recovery');
+                    }}
+                    className="self-start text-[11px] font-semibold text-amber-400 hover:text-amber-300 underline cursor-pointer"
                   >
-                    {resendingVerification ? 'Sending...' : 'Resend verification email'}
+                    Go to email verification recovery
                   </button>
-                  {resendStatusMessage && (
-                    <p className="text-[10px] text-emerald-300 mt-1">{resendStatusMessage}</p>
-                  )}
                 </div>
               )}
             </div>
@@ -354,9 +392,107 @@ export const LoginPage: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* VIEW 1: REGISTRATION / VERIFICATION PENDING STATE */}
+        {/* VIEW 1a: DEDICATED UNVERIFIED ACCOUNT RECOVERY STATE */}
         {/* ========================================================================= */}
-        {authMode === 'verification_pending' ? (
+        {authMode === 'unverified_recovery' ? (
+          <div className="text-center py-4 space-y-6">
+            <div className="inline-flex items-center justify-center p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400">
+              <Mail className="w-10 h-10" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-white tracking-tight">Email verification required</h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                We haven't verified your email yet. Check your inbox or resend the verification email.
+              </p>
+              {unverifiedEmail && (
+                <div className="inline-block bg-slate-950/80 border border-slate-800 px-3.5 py-1.5 rounded-lg text-amber-400 font-mono text-xs mt-1 shadow-inner">
+                  {unverifiedEmail}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-left text-xs text-slate-400 space-y-2.5">
+              <div className="text-slate-300 font-semibold flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>Mandatory Email Verification</span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                For security, accounts and promotional benefits remain inactive until your email address is verified.
+              </p>
+              <div className="pt-2 border-t border-slate-800/80 flex items-start gap-2 text-slate-300 text-[11px]">
+                <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                <span className="leading-relaxed">Didn't receive it? Check your Spam/Junk folder.</span>
+              </div>
+            </div>
+
+            {resendStatusMessage && (
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-start gap-2.5 shadow-lg shadow-emerald-950/20 text-left">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="font-semibold text-emerald-200">Verification email sent.</div>
+                  <div className="text-[11px] text-emerald-300/90 leading-relaxed">
+                    Please check your inbox and Spam/Junk folder.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {resendErrorMessage && (
+              <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-2.5 shadow-lg shadow-rose-950/20 text-left">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="font-semibold text-rose-200">Unable to send verification email</div>
+                  <div className="text-[11px] text-rose-300/90 leading-relaxed">{resendErrorMessage}</div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3 pt-2">
+              <button
+                type="button"
+                onClick={() => handleResendVerification(unverifiedEmail || email)}
+                disabled={resendingVerification || resendCooldown > 0}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {resendingVerification ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Sending verification email...</span>
+                  </>
+                ) : resendCooldown > 0 ? (
+                  <>
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Resend available in {resendCooldown}s</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Resend verification email</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('signin');
+                  setError(null);
+                  setSuccessMessage(null);
+                  setResendStatusMessage(null);
+                  setResendErrorMessage(null);
+                }}
+                className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to login</span>
+              </button>
+            </div>
+          </div>
+        ) : authMode === 'verification_pending' ? (
+          /* ========================================================================= */
+          /* VIEW 1b: REGISTRATION / VERIFICATION PENDING STATE */
+          /* ========================================================================= */
           <div className="text-center py-4 space-y-6">
             <div className="inline-flex items-center justify-center p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400">
               <Mail className="w-10 h-10" />
@@ -368,13 +504,13 @@ export const LoginPage: React.FC = () => {
                 Account created. Please check your email and click the verification link to continue.
               </p>
               {unverifiedEmail && (
-                <div className="inline-block bg-slate-950/80 border border-slate-800 px-3 py-1.5 rounded-lg text-amber-400 font-mono text-xs mt-1">
+                <div className="inline-block bg-slate-950/80 border border-slate-800 px-3.5 py-1.5 rounded-lg text-amber-400 font-mono text-xs mt-1 shadow-inner">
                   {unverifiedEmail}
                 </div>
               )}
             </div>
 
-            <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-left text-xs text-slate-400 space-y-2">
+            <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-left text-xs text-slate-400 space-y-2.5">
               <div className="text-slate-300 font-semibold flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 <span>Mandatory Email Verification</span>
@@ -382,11 +518,31 @@ export const LoginPage: React.FC = () => {
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 For security, accounts and promotional benefits remain inactive until your email address is verified. The link will expire in 24 hours.
               </p>
+              <div className="pt-2 border-t border-slate-800/80 flex items-start gap-2 text-slate-300 text-[11px]">
+                <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                <span className="leading-relaxed">Didn't receive it? Check your Spam/Junk folder.</span>
+              </div>
             </div>
 
             {resendStatusMessage && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs">
-                {resendStatusMessage}
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-start gap-2.5 shadow-lg shadow-emerald-950/20 text-left">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="font-semibold text-emerald-200">Verification email sent.</div>
+                  <div className="text-[11px] text-emerald-300/90 leading-relaxed">
+                    Please check your inbox and Spam/Junk folder.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {resendErrorMessage && (
+              <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-2.5 shadow-lg shadow-rose-950/20 text-left">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="font-semibold text-rose-200">Unable to send verification email</div>
+                  <div className="text-[11px] text-rose-300/90 leading-relaxed">{resendErrorMessage}</div>
+                </div>
               </div>
             )}
 
@@ -395,15 +551,25 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleResendVerification(unverifiedEmail)}
-                  disabled={resendingVerification}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/20 transition-colors disabled:opacity-50 cursor-pointer"
+                  disabled={resendingVerification || resendCooldown > 0}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {resendingVerification ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Sending...</span>
+                    </>
+                  ) : resendCooldown > 0 ? (
+                    <>
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Resend available in {resendCooldown}s</span>
+                    </>
                   ) : (
-                    <Send className="w-3.5 h-3.5" />
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Resend verification email</span>
+                    </>
                   )}
-                  <span>{resendingVerification ? 'Sending...' : 'Resend verification email'}</span>
                 </button>
               )}
 
@@ -413,6 +579,8 @@ export const LoginPage: React.FC = () => {
                   setAuthMode('signin');
                   setError(null);
                   setSuccessMessage(null);
+                  setResendStatusMessage(null);
+                  setResendErrorMessage(null);
                 }}
                 className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
               >

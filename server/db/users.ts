@@ -573,3 +573,28 @@ export async function updateUserPasswordResetToken(
     env
   );
 }
+
+/**
+ * Safely removes a user record from the database and local cache.
+ * Used for transactional rollback when email verification dispatch fails during registration.
+ */
+export async function deleteUser(id: string, env?: Record<string, any>): Promise<boolean> {
+  const normalizedId = (id || '').trim();
+  if (!normalizedId) return false;
+  localUsersCache.delete(normalizedId);
+
+  const supabase = getSupabaseServerClient(env);
+  const { error } = await supabase
+    .from('users')
+    .delete()
+    .eq('id', normalizedId);
+
+  if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      return true;
+    }
+    console.error('Error in deleteUser:', error);
+    throw new Error(`Failed to delete user: ${error.message}`);
+  }
+  return true;
+}

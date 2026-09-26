@@ -3,6 +3,7 @@ import {
   getUserById,
   getUserByEmail,
   createUser,
+  deleteUser,
   getUserByVerificationToken,
   getUserByPasswordResetToken,
   verifyUserEmail,
@@ -242,7 +243,7 @@ import {
 } from './server/auth.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
-import { checkWorkerRateLimit, checkWorkerRateLimitWithCloudflare, isVenueRequest, WORKER_CONTACT_RATE_LIMIT, signVenueToken } from './server/rateLimiter.js';
+import { checkWorkerRateLimit, checkWorkerRateLimitWithCloudflare, isVenueRequest, WORKER_CONTACT_RATE_LIMIT, WORKER_RESEND_RATE_LIMIT, signVenueToken } from './server/rateLimiter.js';
 import { validateUploadedFile } from './server/fileValidation.js';
 import {
   validatePassword,
@@ -256,6 +257,7 @@ import {
   generatePasswordResetToken,
   sendVerificationEmail,
   sendPasswordResetEmail,
+  isEmailServiceConfigured,
 } from './server/emailVerification.js';
 
 export interface Env {
@@ -961,6 +963,17 @@ export default {
             return jsonResponse({ error: 'Passwords do not match' }, 422, cors);
           }
 
+          // Step 1: Detect missing email configuration before creating unverified user
+          const isConfigured = await isEmailServiceConfigured(env);
+          if (!isConfigured) {
+            console.warn(`[AUTH][${correlationId}] Registration rejected: email sending service is not configured`);
+            return jsonResponse(
+              { error: 'Email verification is currently unavailable. Please contact the administrator.' },
+              503,
+              { ...cors, 'x-correlation-id': correlationId }
+            );
+          }
+
           const normalizedEmail = emailValidation.normalized;
 
           const existingUser = await getUserByEmail(normalizedEmail, env);
@@ -988,14 +1001,38 @@ export default {
             env
           );
 
-          sendVerificationEmail({
+          // Step 2: Await verification email delivery
+          const emailResult = await sendVerificationEmail({
             email: normalizedEmail,
             rawToken,
             env,
             request,
-          }).catch((emailErr) => {
-            console.error('[AUTH] Failed to send verification email:', emailErr?.message || emailErr);
+            correlationId,
           });
+
+          if (!emailResult.success) {
+            // Safe transactional rollback of newly created unverified user
+            try {
+              await deleteUser(user.id, env);
+              console.log(`[AUTH][${correlationId}] Rolled back newly created user ${user.id} due to email dispatch failure.`);
+            } catch (rollbackErr: any) {
+              console.error(`[AUTH][${correlationId}] Rollback failed for user ${user.id}:`, rollbackErr?.message);
+            }
+
+            if (emailResult.status === 'EMAIL_NOT_CONFIGURED') {
+              return jsonResponse(
+                { error: 'Email verification is currently unavailable. Please contact the administrator.' },
+                503,
+                { ...cors, 'x-correlation-id': correlationId }
+              );
+            }
+
+            return jsonResponse(
+              { error: "We couldn't send the verification email right now. Please try again later." },
+              503,
+              { ...cors, 'x-correlation-id': correlationId }
+            );
+          }
 
           return jsonResponse(
             {
@@ -1180,6 +1217,19 @@ export default {
       }
 
       if (pathname === '/api/auth/resend-verification' && method === 'POST') {
+        const rateLimitResult = await checkWorkerRateLimitWithCloudflare(request, WORKER_RESEND_RATE_LIMIT, env);
+        if (!rateLimitResult.allowed) {
+          return new Response(JSON.stringify(rateLimitResult.errorResponse), {
+            status: 429,
+            headers: { 'Content-Type': 'application/json', ...cors, ...rateLimitResult.headers },
+          });
+        }
+
+        const correlationId =
+          request.headers.get('x-correlation-id') ||
+          request.headers.get('x-request-id') ||
+          crypto.randomUUID();
+
         try {
           const body = (await request.json().catch(() => ({}))) as any;
           const { email } = body;
@@ -1187,6 +1237,17 @@ export default {
           const emailValidation = validateEmail(email);
           if (!emailValidation.valid) {
             return jsonResponse({ error: 'Valid email address is required' }, 422, cors);
+          }
+
+          // Fail-fast if email sending service is not configured (preserves anti-enumeration by failing uniformly)
+          const isConfigured = await isEmailServiceConfigured(env);
+          if (!isConfigured) {
+            console.warn(`[AUTH][${correlationId}] Resend verification rejected: email sending service is not configured`);
+            return jsonResponse(
+              { error: 'Email verification is currently unavailable. Please contact the administrator.' },
+              503,
+              { ...cors, 'x-correlation-id': correlationId }
+            );
           }
 
           const normalizedEmail = emailValidation.normalized;
@@ -1207,14 +1268,22 @@ export default {
           const { rawToken, tokenHash, expiresAt } = generateVerificationToken(24);
           await updateUserVerificationToken(user.id, tokenHash, expiresAt, env);
 
-          sendVerificationEmail({
+          const emailResult = await sendVerificationEmail({
             email: normalizedEmail,
             rawToken,
             env,
             request,
-          }).catch((emailErr) => {
-            console.error('[AUTH] Failed to resend verification email:', emailErr?.message || emailErr);
+            correlationId,
           });
+
+          if (!emailResult.success) {
+            console.error(`[AUTH][${correlationId}] Failed to resend verification email:`, emailResult.rawError || emailResult.error);
+            return jsonResponse(
+              { error: "We couldn't send the verification email right now. Please try again later." },
+              503,
+              { ...cors, 'x-correlation-id': correlationId }
+            );
+          }
 
           return jsonResponse(
             {
@@ -1230,6 +1299,11 @@ export default {
       }
 
       if (pathname === '/api/auth/forgot-password' && method === 'POST') {
+        const correlationId =
+          request.headers.get('x-correlation-id') ||
+          request.headers.get('x-request-id') ||
+          crypto.randomUUID();
+
         try {
           const body = (await request.json().catch(() => ({}))) as any;
           const { email } = body;
@@ -1239,6 +1313,17 @@ export default {
             return jsonResponse({ error: 'Valid email address is required' }, 422, cors);
           }
 
+          // Fail-fast if email sending service is not configured (preserves anti-enumeration by failing uniformly)
+          const isConfigured = await isEmailServiceConfigured(env);
+          if (!isConfigured) {
+            console.warn(`[AUTH][${correlationId}] Forgot password rejected: email sending service is not configured`);
+            return jsonResponse(
+              { error: 'Email service is currently unavailable. Please contact the administrator.' },
+              503,
+              { ...cors, 'x-correlation-id': correlationId }
+            );
+          }
+
           const normalizedEmail = emailValidation.normalized;
           const user = await getUserByEmail(normalizedEmail, env);
 
@@ -1246,14 +1331,22 @@ export default {
             const { rawToken, tokenHash, expiresAt } = generatePasswordResetToken(1);
             await updateUserPasswordResetToken(user.id, tokenHash, expiresAt, env);
 
-            sendPasswordResetEmail({
+            const emailResult = await sendPasswordResetEmail({
               email: normalizedEmail,
               rawToken,
               env,
               request,
-            }).catch((emailErr) => {
-              console.error('[AUTH] Failed to send password reset email:', emailErr?.message || emailErr);
+              correlationId,
             });
+
+            if (!emailResult.success) {
+              console.error(`[AUTH][${correlationId}] Failed to send password reset email:`, emailResult.rawError || emailResult.error);
+              return jsonResponse(
+                { error: "We couldn't send the password reset email right now. Please try again later." },
+                503,
+                { ...cors, 'x-correlation-id': correlationId }
+              );
+            }
           }
 
           return jsonResponse(
