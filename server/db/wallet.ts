@@ -27,6 +27,7 @@ import {
   UserRewardRecord,
 } from './types.js';
 import { isUserOrganizationOwner, hasUserClaimedReward } from './rewards.js';
+import { getUserById } from './users.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -1324,6 +1325,20 @@ export async function grantWelcomeCredit(
       alreadyGranted: false,
       notEligible: true,
       message: 'Valid organization owner user ID is required to evaluate and grant Welcome Credit (Welcome Credit is strictly an owner-level lifetime reward).',
+    };
+  }
+
+  // 1b. Check Email Verification Status: Unverified users cannot receive Welcome Credit
+  const ownerUser = await getUserById(targetUserId, env);
+  const isEmailVerified = Boolean(ownerUser?.email_verified === true || ownerUser?.google_id);
+  if (!isEmailVerified) {
+    const currentWallet = await getWalletBalance(organizationId, env);
+    return {
+      transaction: null,
+      wallet: currentWallet,
+      alreadyGranted: false,
+      notEligible: true,
+      message: 'Email address must be verified before claiming Welcome Credit.',
     };
   }
 

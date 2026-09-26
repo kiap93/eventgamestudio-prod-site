@@ -368,6 +368,14 @@ export function isOperationalError(err: any): boolean {
     code === 'OWNER_ONLY_REWARD' ||
     code === 'INSUFFICIENT_MEDIA' ||
     code === 'SHOWCASE_NOT_PUBLISHED' ||
+    code === 'EMAIL_NOT_VERIFIED' ||
+    code === 'INVALID_TOKEN' ||
+    code === 'EXPIRED_TOKEN' ||
+    code === 'INVALID_RESET_TOKEN' ||
+    code === 'EXPIRED_RESET_TOKEN' ||
+    msg.includes('verify your email') ||
+    msg.includes('verification link') ||
+    msg.includes('password reset') ||
     msg.includes('rm300 showcase reward') ||
     msg.includes('already claimed the rm300 showcase reward') ||
     msg.includes('already claimed') ||
@@ -569,7 +577,12 @@ export function isOperationalError(err: any): boolean {
     code === 'SUBMISSION_PENDING' ||
     code === 'SUBMISSION_ALREADY_REJECTED' ||
     code === 'SUBMISSION_NOT_FOUND' ||
-    code === 'OWNER_ONLY_REWARD'
+    code === 'OWNER_ONLY_REWARD' ||
+    code === 'EMAIL_NOT_VERIFIED' ||
+    code === 'INVALID_TOKEN' ||
+    code === 'EXPIRED_TOKEN' ||
+    code === 'INVALID_RESET_TOKEN' ||
+    code === 'EXPIRED_RESET_TOKEN'
   ) {
     return true;
   }
@@ -756,7 +769,8 @@ export function handleApiError(
         code === 'THEME_FORBIDDEN' ||
         code === 'PERMISSION_DENIED' ||
         code === 'SHOWCASE_BLOCKED' ||
-        code === 'SHOWCASE_DELETED'
+        code === 'SHOWCASE_DELETED' ||
+        code === 'EMAIL_NOT_VERIFIED'
       ) {
         statusCode = 403;
       } else if (
@@ -980,7 +994,8 @@ export async function handleWorkerApiError(
         code === 'THEME_FORBIDDEN' ||
         code === 'PERMISSION_DENIED' ||
         code === 'SHOWCASE_BLOCKED' ||
-        code === 'SHOWCASE_DELETED'
+        code === 'SHOWCASE_DELETED' ||
+        code === 'EMAIL_NOT_VERIFIED'
       ) {
         statusCode = 403;
       } else if (

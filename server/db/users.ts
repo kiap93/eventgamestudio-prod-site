@@ -103,6 +103,11 @@ export async function createUser(
     name: string;
     avatar_url?: string | null;
     is_developer?: boolean;
+    password_hash?: string | null;
+    email_verified?: boolean;
+    verified_at?: string | null;
+    verification_token_hash?: string | null;
+    verification_token_expires_at?: string | null;
   },
   env?: Record<string, any>
 ): Promise<UserRecord> {
@@ -114,19 +119,32 @@ export async function createUser(
   const normalizedName = (userData.name || '').trim() || normalizedEmail.split('@')[0] || 'User';
   const normalizedGoogleId = userData.google_id ? userData.google_id.trim() : null;
   const avatarUrl = userData.avatar_url ? userData.avatar_url.trim() : null;
+  const passwordHash = userData.password_hash || null;
+  // If user has google_id, they are automatically email_verified; otherwise respect userData.email_verified
+  const emailVerified = Boolean(normalizedGoogleId || userData.email_verified === true);
+  const verifiedAt = emailVerified ? (userData.verified_at || now) : null;
+  const verificationTokenHash = userData.verification_token_hash || null;
+  const verificationTokenExpiresAt = userData.verification_token_expires_at || null;
+
+  const insertPayload = {
+    id,
+    google_id: normalizedGoogleId,
+    email: normalizedEmail,
+    name: normalizedName,
+    avatar_url: avatarUrl,
+    is_developer: isDeveloper,
+    password_hash: passwordHash,
+    email_verified: emailVerified,
+    verified_at: verifiedAt,
+    verification_token_hash: verificationTokenHash,
+    verification_token_expires_at: verificationTokenExpiresAt,
+    created_at: now,
+    updated_at: now,
+  };
 
   const { data, error } = await supabase
     .from('users')
-    .insert({
-      id,
-      google_id: normalizedGoogleId,
-      email: normalizedEmail,
-      name: normalizedName,
-      avatar_url: avatarUrl,
-      is_developer: isDeveloper,
-      created_at: now,
-      updated_at: now,
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
@@ -146,14 +164,7 @@ export async function createUser(
         }
       }
       const user: UserRecord = {
-        id,
-        google_id: normalizedGoogleId,
-        email: normalizedEmail,
-        name: normalizedName,
-        avatar_url: avatarUrl,
-        is_developer: isDeveloper,
-        created_at: now,
-        updated_at: now,
+        ...insertPayload,
       };
       localUsersCache.set(id, user);
       return user;
@@ -174,7 +185,7 @@ export async function createUser(
 
 export async function updateUser(
   id: string,
-  updates: Partial<Pick<UserRecord, 'name' | 'avatar_url' | 'google_id'>>,
+  updates: Partial<Pick<UserRecord, 'name' | 'avatar_url' | 'google_id' | 'password_hash' | 'email_verified' | 'verified_at' | 'verification_token_hash' | 'verification_token_expires_at' | 'password_reset_token_hash' | 'password_reset_expires_at'>>,
   env?: Record<string, any>
 ): Promise<UserRecord> {
   const supabase = getSupabaseServerClient(env);
@@ -192,6 +203,27 @@ export async function updateUser(
   }
   if (updates.google_id !== undefined) {
     safePayload.google_id = updates.google_id ? updates.google_id.trim() : null;
+  }
+  if (updates.password_hash !== undefined) {
+    safePayload.password_hash = updates.password_hash;
+  }
+  if (updates.email_verified !== undefined) {
+    safePayload.email_verified = Boolean(updates.email_verified);
+  }
+  if (updates.verified_at !== undefined) {
+    safePayload.verified_at = updates.verified_at;
+  }
+  if (updates.verification_token_hash !== undefined) {
+    safePayload.verification_token_hash = updates.verification_token_hash;
+  }
+  if (updates.verification_token_expires_at !== undefined) {
+    safePayload.verification_token_expires_at = updates.verification_token_expires_at;
+  }
+  if (updates.password_reset_token_hash !== undefined) {
+    safePayload.password_reset_token_hash = updates.password_reset_token_hash;
+  }
+  if (updates.password_reset_expires_at !== undefined) {
+    safePayload.password_reset_expires_at = updates.password_reset_expires_at;
   }
 
   const { data, error } = await supabase
@@ -333,6 +365,8 @@ export async function upsertGoogleUser(
           google_id: normalizedSub,
           name: user.name || normalizedName,
           avatar_url: user.avatar_url || normalizedPicture,
+          email_verified: true,
+          verified_at: user.verified_at || new Date().toISOString(),
         },
         env
       );
@@ -357,6 +391,8 @@ export async function upsertGoogleUser(
         name: normalizedName,
         avatar_url: normalizedPicture,
         is_developer: false,
+        email_verified: true,
+        verified_at: new Date().toISOString(),
       },
       env
     );
@@ -382,6 +418,8 @@ export async function upsertGoogleUser(
               google_id: normalizedSub,
               name: existingByEmail.name || normalizedName,
               avatar_url: existingByEmail.avatar_url || normalizedPicture,
+              email_verified: true,
+              verified_at: existingByEmail.verified_at || new Date().toISOString(),
             },
             env
           );
@@ -409,4 +447,129 @@ export async function upsertGoogleUser(
     });
     throw createErr;
   }
+}
+
+export async function getUserByVerificationToken(
+  tokenHash: string,
+  env?: Record<string, any>
+): Promise<UserRecord | null> {
+  const normalized = (tokenHash || '').trim();
+  if (!normalized) return null;
+  const supabase = getSupabaseServerClient(env);
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('verification_token_hash', normalized)
+    .maybeSingle();
+
+  if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      for (const u of localUsersCache.values()) {
+        if (u.verification_token_hash === normalized) return u;
+      }
+      return null;
+    }
+    console.error('Error in getUserByVerificationToken:', error);
+    throw new Error(`Failed to get user by verification token: ${error.message}`);
+  }
+
+  if (data) {
+    localUsersCache.set(data.id, data as UserRecord);
+  }
+  return data as UserRecord | null;
+}
+
+export async function getUserByPasswordResetToken(
+  tokenHash: string,
+  env?: Record<string, any>
+): Promise<UserRecord | null> {
+  const normalized = (tokenHash || '').trim();
+  if (!normalized) return null;
+  const supabase = getSupabaseServerClient(env);
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('password_reset_token_hash', normalized)
+    .maybeSingle();
+
+  if (error) {
+    if (error.message?.includes('Placeholder') || error.code === 'PGRST000' || isLocalFallbackAllowed(env)) {
+      for (const u of localUsersCache.values()) {
+        if (u.password_reset_token_hash === normalized) return u;
+      }
+      return null;
+    }
+    console.error('Error in getUserByPasswordResetToken:', error);
+    throw new Error(`Failed to get user by password reset token: ${error.message}`);
+  }
+
+  if (data) {
+    localUsersCache.set(data.id, data as UserRecord);
+  }
+  return data as UserRecord | null;
+}
+
+export async function verifyUserEmail(
+  userId: string,
+  env?: Record<string, any>
+): Promise<UserRecord> {
+  const now = new Date().toISOString();
+  return updateUser(
+    userId,
+    {
+      email_verified: true,
+      verified_at: now,
+      verification_token_hash: null,
+      verification_token_expires_at: null,
+    },
+    env
+  );
+}
+
+export async function setUserPassword(
+  userId: string,
+  passwordHash: string,
+  env?: Record<string, any>
+): Promise<UserRecord> {
+  return updateUser(
+    userId,
+    {
+      password_hash: passwordHash,
+      password_reset_token_hash: null,
+      password_reset_expires_at: null,
+    },
+    env
+  );
+}
+
+export async function updateUserVerificationToken(
+  userId: string,
+  tokenHash: string,
+  expiresAt: string,
+  env?: Record<string, any>
+): Promise<void> {
+  await updateUser(
+    userId,
+    {
+      verification_token_hash: tokenHash,
+      verification_token_expires_at: expiresAt,
+    },
+    env
+  );
+}
+
+export async function updateUserPasswordResetToken(
+  userId: string,
+  tokenHash: string,
+  expiresAt: string,
+  env?: Record<string, any>
+): Promise<void> {
+  await updateUser(
+    userId,
+    {
+      password_reset_token_hash: tokenHash,
+      password_reset_expires_at: expiresAt,
+    },
+    env
+  );
 }

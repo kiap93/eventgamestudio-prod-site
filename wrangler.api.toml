@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 NODE_ENV = "production"
-SUPABASE_URL = "https://bnfjcgkbdluzlwadyycl.supabase.co"
+SUPABASE_URL = "https://wuucsgbhnykuqnlqlepy.supabase.co"
 
 [triggers]
 crons = ["* * * * *"]

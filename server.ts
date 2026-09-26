@@ -7,6 +7,14 @@ import { createServer as createViteServer } from 'vite';
 
 import {
   OrgRole,
+  createUser,
+  getUserByEmail,
+  getUserByVerificationToken,
+  getUserByPasswordResetToken,
+  verifyUserEmail,
+  setUserPassword,
+  updateUserVerificationToken,
+  updateUserPasswordResetToken,
   upsertGoogleUser,
   updateUserProfile,
   getUserOrganizations,
@@ -286,6 +294,21 @@ import {
   generateContactEnquiryEmailTemplate,
 } from './server/email/index.js';
 
+import {
+  validatePassword,
+  validateEmail,
+  hashPassword,
+  verifyPassword,
+  maskEmail,
+} from './server/password.js';
+
+import {
+  generateVerificationToken,
+  generatePasswordResetToken,
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} from './server/emailVerification.js';
+
 
 const app = express();
 const PORT = 3000;
@@ -493,6 +516,371 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
       hint: err?.hint,
     });
     res.status(401).json({ error: 'Google authentication failed' });
+  }
+});
+
+/**
+ * POST /api/auth/register
+ * Normal email/password registration with mandatory email verification
+ */
+app.post('/api/auth/register', authRateLimiter, async (req, res) => {
+  try {
+    const { email, password, confirmPassword } = req.body || {};
+
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      res.status(422).json({ error: emailValidation.error || 'Please enter a valid email address' });
+      return;
+    }
+
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      res.status(422).json({ error: passwordValidation.error || 'Password does not meet requirements' });
+      return;
+    }
+
+    if (!confirmPassword || password !== confirmPassword) {
+      res.status(422).json({ error: 'Passwords do not match' });
+      return;
+    }
+
+    const normalizedEmail = emailValidation.normalized;
+
+    // Check if user already exists
+    const existingUser = await getUserByEmail(normalizedEmail);
+    if (existingUser) {
+      if (existingUser.password_hash) {
+        res.status(409).json({ error: 'An account with this email address already exists. Please log in or reset your password.' });
+        return;
+      }
+      if (existingUser.google_id) {
+        res.status(409).json({ error: 'An account with this email was created using Google Sign-In. Please sign in with Google or reset your password.' });
+        return;
+      }
+    }
+
+    const passwordHash = await hashPassword(password);
+    const { rawToken, tokenHash, expiresAt } = generateVerificationToken(24);
+
+    const user = await createUser({
+      email: normalizedEmail,
+      name: normalizedEmail.split('@')[0] || 'User',
+      password_hash: passwordHash,
+      email_verified: false,
+      verification_token_hash: tokenHash,
+      verification_token_expires_at: expiresAt,
+    });
+
+    // Send verification email safely in the background
+    sendVerificationEmail({
+      email: normalizedEmail,
+      rawToken,
+      request: req,
+    }).catch((emailErr) => {
+      console.error('[AUTH] Failed to send verification email:', emailErr?.message || emailErr);
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Account created. Please check your email and click the verification link to continue.',
+      email: normalizedEmail,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/auth/login
+ * Email & password login endpoint
+ */
+app.post('/api/auth/login', authRateLimiter, async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      res.status(422).json({ error: 'Valid email address is required' });
+      return;
+    }
+    if (!password || typeof password !== 'string') {
+      res.status(422).json({ error: 'Password is required' });
+      return;
+    }
+
+    const normalizedEmail = emailValidation.normalized;
+    const user = await getUserByEmail(normalizedEmail);
+
+    if (!user) {
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
+    }
+
+    if (!user.password_hash) {
+      if (user.google_id) {
+        res.status(401).json({ error: 'This account was created using Google Sign-In. Please sign in with Google.' });
+        return;
+      }
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
+    }
+
+    const isMatch = await verifyPassword(password, user.password_hash);
+    if (!isMatch) {
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
+    }
+
+    // MANDATORY EMAIL VERIFICATION RESTRICTION:
+    // Block unverified email/password accounts from proceeding into the application
+    if (!user.email_verified && !user.google_id) {
+      res.status(403).json({
+        error: 'Please verify your email before continuing.',
+        code: 'EMAIL_NOT_VERIFIED',
+        email: user.email,
+      });
+      return;
+    }
+
+    let memberships: any[] = [];
+    try {
+      memberships = await getUserOrganizations(user.id);
+    } catch {
+      memberships = [];
+    }
+
+    let activeOrgId: string | undefined = undefined;
+    let activeRole: string | undefined = undefined;
+
+    if (memberships.length > 0) {
+      activeOrgId = memberships[0].id;
+      activeRole = memberships[0].role;
+    }
+
+    const token = await signAppToken(user.id, activeOrgId, activeRole as any);
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar_url: user.avatar_url,
+        is_developer: user.is_developer === true,
+      },
+      organizations: memberships,
+      activeOrganizationId: activeOrgId || null,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/auth/verify-email
+ * Validates verification token and activates the account
+ */
+app.post('/api/auth/verify-email', authRateLimiter, async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    if (!token || typeof token !== 'string' || !token.trim()) {
+      res.status(422).json({ error: 'Verification token is required' });
+      return;
+    }
+
+    const tokenHash = hashToken(token.trim());
+    const user = await getUserByVerificationToken(tokenHash);
+
+    if (!user) {
+      res.status(400).json({
+        error: 'This verification link is invalid or has already been used.',
+        code: 'INVALID_TOKEN',
+      });
+      return;
+    }
+
+    if (user.verification_token_expires_at && new Date(user.verification_token_expires_at) < new Date()) {
+      res.status(400).json({
+        error: 'This verification link has expired. Please request a new verification email.',
+        code: 'EXPIRED_TOKEN',
+        email: user.email,
+      });
+      return;
+    }
+
+    const verifiedUser = await verifyUserEmail(user.id);
+
+    let memberships: any[] = [];
+    try {
+      memberships = await getUserOrganizations(verifiedUser.id);
+    } catch {
+      memberships = [];
+    }
+
+    let activeOrgId: string | undefined = undefined;
+    let activeRole: string | undefined = undefined;
+    if (memberships.length > 0) {
+      activeOrgId = memberships[0].id;
+      activeRole = memberships[0].role;
+    }
+
+    const sessionToken = await signAppToken(verifiedUser.id, activeOrgId, activeRole as any);
+
+    res.json({
+      success: true,
+      message: 'Email verified successfully! You can now access your account.',
+      token: sessionToken,
+      user: {
+        id: verifiedUser.id,
+        email: verifiedUser.email,
+        name: verifiedUser.name,
+        avatar_url: verifiedUser.avatar_url,
+        is_developer: verifiedUser.is_developer === true,
+      },
+      organizations: memberships,
+      activeOrganizationId: activeOrgId || null,
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/auth/resend-verification
+ * Resends verification email without leaking whether the account exists
+ */
+app.post('/api/auth/resend-verification', authRateLimiter, async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      res.status(422).json({ error: 'Valid email address is required' });
+      return;
+    }
+
+    const normalizedEmail = emailValidation.normalized;
+    const user = await getUserByEmail(normalizedEmail);
+
+    // If user does not exist or is already verified, return generic success message to prevent account enumeration
+    if (!user || user.email_verified || user.google_id) {
+      res.json({
+        success: true,
+        message: 'If an account requires email verification, a verification email has been sent.',
+      });
+      return;
+    }
+
+    const { rawToken, tokenHash, expiresAt } = generateVerificationToken(24);
+    await updateUserVerificationToken(user.id, tokenHash, expiresAt);
+
+    sendVerificationEmail({
+      email: normalizedEmail,
+      rawToken,
+      request: req,
+    }).catch((emailErr) => {
+      console.error('[AUTH] Failed to resend verification email:', emailErr?.message || emailErr);
+    });
+
+    res.json({
+      success: true,
+      message: 'If an account requires email verification, a verification email has been sent.',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Initiates password reset flow without exposing whether an email exists
+ */
+app.post('/api/auth/forgot-password', authRateLimiter, async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      res.status(422).json({ error: 'Valid email address is required' });
+      return;
+    }
+
+    const normalizedEmail = emailValidation.normalized;
+    const user = await getUserByEmail(normalizedEmail);
+
+    // Only generate reset token if user exists and has a password
+    if (user && user.password_hash) {
+      const { rawToken, tokenHash, expiresAt } = generatePasswordResetToken(1);
+      await updateUserPasswordResetToken(user.id, tokenHash, expiresAt);
+
+      sendPasswordResetEmail({
+        email: normalizedEmail,
+        rawToken,
+        request: req,
+      }).catch((emailErr) => {
+        console.error('[AUTH] Failed to send password reset email:', emailErr?.message || emailErr);
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'If an account with that email exists, a password reset link has been sent.',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Completes password reset using valid, non-expired reset token
+ */
+app.post('/api/auth/reset-password', authRateLimiter, async (req, res) => {
+  try {
+    const { token, password, confirmPassword } = req.body || {};
+
+    if (!token || typeof token !== 'string' || !token.trim()) {
+      res.status(422).json({ error: 'Reset token is required' });
+      return;
+    }
+
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      res.status(422).json({ error: passwordValidation.error || 'Password does not meet requirements' });
+      return;
+    }
+
+    if (!confirmPassword || password !== confirmPassword) {
+      res.status(422).json({ error: 'Passwords do not match' });
+      return;
+    }
+
+    const tokenHash = hashToken(token.trim());
+    const user = await getUserByPasswordResetToken(tokenHash);
+
+    if (!user) {
+      res.status(400).json({
+        error: 'This password reset link is invalid or has already been used.',
+        code: 'INVALID_RESET_TOKEN',
+      });
+      return;
+    }
+
+    if (user.password_reset_expires_at && new Date(user.password_reset_expires_at) < new Date()) {
+      res.status(400).json({
+        error: 'This password reset link has expired. Please request a new password reset.',
+        code: 'EXPIRED_RESET_TOKEN',
+      });
+      return;
+    }
+
+    const newPasswordHash = await hashPassword(password);
+    await setUserPassword(user.id, newPasswordHash);
+
+    res.json({
+      success: true,
+      message: 'Password has been reset successfully. Please log in with your new password.',
+    });
+  } catch (err: any) {
+    handleApiError(err, req, res);
   }
 });
 

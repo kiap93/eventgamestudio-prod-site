@@ -3,6 +3,7 @@ import { getOrganizationById } from './organizations.js';
 import { getMember } from './members.js';
 import { localUserRewardsCache, localTransactionsCache } from './wallet.js';
 import { UserRewardRecord } from './types.js';
+import { getUserById } from './users.js';
 
 export type PromotionRewardType = 'WELCOME_CREDIT' | 'SHOWCASE_REWARD';
 
@@ -521,6 +522,21 @@ export async function evaluatePromotionEligibility(params: {
       ownerUserId,
       reason: `${promoName} has already been claimed by this account owner (one-time lifetime reward limit).`,
     };
+  }
+
+  // 3b. For WELCOME_CREDIT, email account must be verified
+  if (rewardType === 'WELCOME_CREDIT') {
+    const user = await getUserById(userId, env);
+    const isVerified = Boolean(user?.email_verified === true || user?.google_id);
+    if (!isVerified) {
+      return {
+        eligible: false,
+        isOwner: true,
+        alreadyClaimed: false,
+        ownerUserId,
+        reason: 'Email address must be verified before claiming Welcome Credit promotion.',
+      };
+    }
   }
 
   // 4. Fully eligible
