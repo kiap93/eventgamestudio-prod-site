@@ -665,6 +665,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         onEventCreated={handleEventCreated}
+        initialGameId={new URLSearchParams(window.location.search).get('game') || undefined}
       />
 
       {/* Edit Dialog */}

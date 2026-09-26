@@ -18,6 +18,7 @@ import {
 import { SUPPORTED_TIMEZONES, getDefaultTimezoneForCountry, resolveEventTimezone } from '../../lib/countryUtils';
 import { PaymentCheckoutModal } from '../wallet/PaymentCheckoutModal';
 import { getGameTypeIcon } from '../../games';
+import { normalizeGameType } from '../../games/gameIcons';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { formatEventErrorMessage } from './eventErrorUtils';
 import {
@@ -71,6 +72,7 @@ interface CreateEventDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onEventCreated: (newEvent: any) => void;
+  initialGameId?: string;
 }
 
 type DialogStep = 'configure' | 'created' | 'payment' | 'activated';
@@ -80,6 +82,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   isOpen,
   onClose,
   onEventCreated,
+  initialGameId,
 }) => {
   const { currentOrganization } = useAuth();
 
@@ -219,11 +222,21 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
         setThemes(validThemes);
 
         // Determine active selected game
-        let activeGameId = selectedGameId;
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryGame = initialGameId || urlParams.get('game') || urlParams.get('gameId') || urlParams.get('game_type');
+        let matchedGame = queryGame
+          ? gameList.find((g) => g.id === queryGame || g.slug === queryGame || g.game_type === queryGame)
+          : null;
+        if (!matchedGame && queryGame) {
+          const canonical = normalizeGameType(queryGame);
+          matchedGame = gameList.find((g) => g.game_type === canonical || g.slug === canonical);
+        }
+
+        let activeGameId = matchedGame ? matchedGame.id : selectedGameId;
         if (!activeGameId || !gameList.some((g) => g.id === activeGameId)) {
           activeGameId = gameList[0]?.id || '';
-          setSelectedGameId(activeGameId);
         }
+        setSelectedGameId(activeGameId);
 
         // Determine active selected theme for this chosen game
         const themesForGame = validThemes.filter((t) => t.game_id === activeGameId);

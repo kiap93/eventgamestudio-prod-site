@@ -28,10 +28,10 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_SETTINGS: PlatformContactSettings = {
-  whatsapp_number: '60162128913',
-  whatsapp_display: '+60 16-212 8913',
+  whatsapp_number: '601136783717',
+  whatsapp_display: '+60 11-3678 3717',
   whatsapp_prefill_message: "Hello Event Game Studio! I'm interested in interactive game activations for an upcoming event. Could you share more details?",
-  enquiry_email: 'contact@eventgamestudio.com',
+  enquiry_email: 'eventgamestudio@gmail.com',
   support_hours: 'Mon – Sat, 9:00 AM – 7:00 PM (UTC+8) | <15 min reply during live events',
   office_location: 'Kuala Lumpur, Malaysia (UTC+8)',
 };
@@ -136,7 +136,7 @@ export const DeveloperContactSettings: React.FC = () => {
     // Client-side validations
     const cleanDigits = whatsappNumber.replace(/\D/g, '');
     if (cleanDigits.length < 5) {
-      setError('Please provide a valid WhatsApp number including country code (e.g. 60162128913).');
+      setError('Please provide a valid WhatsApp number including country code (e.g. 601136783717).');
       return;
     }
 

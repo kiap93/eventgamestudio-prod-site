@@ -9,10 +9,10 @@ export const DEFAULT_EVENT_PRICE = 1400.00;
 export const DEFAULT_EVENT_CURRENCY = 'MYR';
 
 export const DEFAULT_CONTACT_SETTINGS: PlatformContactSettings = {
-  whatsapp_number: '60162128913',
-  whatsapp_display: '+60 16-212 8913',
+  whatsapp_number: '601136783717',
+  whatsapp_display: '+60 11-3678 3717',
   whatsapp_prefill_message: "Hello Event Game Studio! I'm interested in interactive game activations for an upcoming event. Could you share more details?",
-  enquiry_email: 'contact@eventgamestudio.com',
+  enquiry_email: 'eventgamestudio@gmail.com',
   support_hours: 'Mon – Sat, 9:00 AM – 7:00 PM (UTC+8) | <15 min reply during live events',
   office_location: 'Kuala Lumpur, Malaysia (UTC+8)',
 };

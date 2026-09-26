@@ -37,9 +37,10 @@ const AppContent: React.FC = () => {
     if (isLoading) return;
 
     if (isAuthenticated) {
-      // 1. Authenticated user visiting /login -> redirect automatically to /events
+      // 1. Authenticated user visiting /login -> redirect automatically to redirectUrl or /events
       if (isLoginRoute) {
-        navigateTo('/events');
+        const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '/events';
+        navigateTo(redirectUrl);
       } else if (routeContext.mode === 'developer_admin' && !currentUser?.is_developer) {
         // 2. Non-developer visiting /developer -> redirect to /events
         navigateTo('/events');

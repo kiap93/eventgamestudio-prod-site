@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { getAllGameDefinitions } from '../../games/registry';
 import { getGameTypeIcon } from '../../games';
 import { apiFetch } from '../../lib/api';
-import { Gamepad2, Zap, Grid3X3, HelpCircle, Users, Clock, CheckCircle2, Sparkles, X, RefreshCw } from 'lucide-react';
+import { Gamepad2, Zap, Grid3X3, HelpCircle, Users, Clock, CheckCircle2, Sparkles, X, RefreshCw, Play } from 'lucide-react';
 
 interface GameCatalogModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedGameType?: string;
   onSelectGame?: (gameId: string) => void;
+  onPlayDemo?: (gameId: string) => void;
 }
 
 interface PlatformGameItem {
@@ -27,6 +28,7 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
   onClose,
   selectedGameType = 'catch-brand',
   onSelectGame,
+  onPlayDemo,
 }) => {
   const [platformGames, setPlatformGames] = useState<PlatformGameItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -178,7 +180,7 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
                     <p className="text-xs text-slate-400 leading-relaxed">{game.description}</p>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                  <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 gap-2">
                     <span className="flex items-center gap-1">
                       <Users className="w-3.5 h-3.5 text-slate-500" />
                       {game.minPlayers === game.maxPlayers ? `${game.minPlayers} Player` : `${game.minPlayers}-${game.maxPlayers} Players`}
@@ -187,9 +189,23 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
                       <Clock className="w-3.5 h-3.5 text-slate-500" />
                       {game.duration}s Default
                     </span>
-                    <span className="uppercase text-[9px] font-bold px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
-                      {game.category}
-                    </span>
+                    {game.isAvailable && onPlayDemo ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPlayDemo(game.gameType || game.slug || game.id);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                      >
+                        <Play className="w-2.5 h-2.5 fill-slate-950" />
+                        <span>Demo</span>
+                      </button>
+                    ) : (
+                      <span className="uppercase text-[9px] font-bold px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
+                        {game.category}
+                      </span>
+                    )}
                   </div>
                 </div>
               );

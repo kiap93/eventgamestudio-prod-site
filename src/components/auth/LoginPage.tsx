@@ -20,10 +20,11 @@ export const LoginPage: React.FC = () => {
 
   const isDev = import.meta.env.DEV;
 
-  // If already authenticated, automatically navigate to /events
+  // If already authenticated, automatically navigate to redirectUrl or /events
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      navigateTo('/events');
+      const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '/events';
+      navigateTo(redirectUrl);
     }
   }, [isLoading, isAuthenticated]);
 
@@ -58,7 +59,8 @@ export const LoginPage: React.FC = () => {
                 setError(null);
                 try {
                   await login(response.credential);
-                  navigateTo('/events');
+                  const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '/events';
+                  navigateTo(redirectUrl);
                 } catch (err: any) {
                   setError(err.message || 'Google authentication failed');
                 } finally {
@@ -108,7 +110,8 @@ export const LoginPage: React.FC = () => {
     try {
       const mockToken = `mock_google_id_token_${email.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
       await login(mockToken);
-      navigateTo('/events');
+      const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '/events';
+      navigateTo(redirectUrl);
     } catch (err: any) {
       setError(err.message || 'Mock sign in failed');
     } finally {

@@ -103,13 +103,17 @@ export const LandingPage: React.FC = () => {
       <GameCatalogModal
         isOpen={catalogModalOpen}
         onClose={() => setCatalogModalOpen(false)}
+        onPlayDemo={(gameId) => {
+          setCatalogModalOpen(false);
+          handleLaunchDemo(gameId);
+        }}
       />
 
       {/* Live Interactive Game Demo Runner */}
       <LandingDemoModal
         isOpen={demoModalOpen}
         onClose={() => setDemoModalOpen(false)}
-        gameTitle="Catch the Brand (Carnival Fiesta)"
+        initialGameId={demoGameId}
       />
     </div>
   );

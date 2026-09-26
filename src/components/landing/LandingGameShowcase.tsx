@@ -170,7 +170,7 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                     <div
                       className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
                       style={{
-                        backgroundImage: `url('/assets/themes/carnival/background.png')`,
+                        backgroundImage: `url('/assets/games/catch-brand/themes/default/background.png')`,
                       }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/20 to-slate-950/40" />
@@ -188,7 +188,7 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                     {/* Animated Stage Elements */}
                     <div className="absolute top-1/3 left-1/4 animate-bounce duration-1000">
                       <img
-                        src="/assets/themes/carnival/item_normal_01.png"
+                        src="/assets/games/catch-brand/themes/default/item_normal_01.png"
                         alt="Catchable item"
                         className="w-12 h-12 sm:w-16 sm:h-16 drop-shadow-[0_12px_16px_rgba(0,0,0,0.7)] transform -rotate-6"
                         loading="lazy"
@@ -196,7 +196,7 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                     </div>
                     <div className="absolute top-1/4 right-1/4 animate-pulse">
                       <img
-                        src="/assets/themes/carnival/item_hazard_01.png"
+                        src="/assets/games/catch-brand/themes/default/item_hazard_01.png"
                         alt="Obstacle item"
                         className="w-10 h-10 sm:w-14 sm:h-14 drop-shadow-[0_12px_16px_rgba(0,0,0,0.7)] transform rotate-12 opacity-90"
                         loading="lazy"
@@ -204,7 +204,7 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                     </div>
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
                       <img
-                        src="/assets/themes/carnival/basket.png"
+                        src="/assets/games/catch-brand/themes/default/basket.png"
                         alt="Player catcher"
                         className="w-28 sm:w-36 h-auto drop-shadow-[0_20px_25px_rgba(0,0,0,0.8)]"
                         loading="lazy"
@@ -310,9 +310,15 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                       <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs group-hover:scale-105 transition-transform">
                         {iconMap[game.iconName] || <Gamepad2 className="w-6 h-6 text-amber-600" />}
                       </div>
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200">
-                        <Clock className="w-3 h-3 text-slate-500" /> COMING SOON
-                      </span>
+                      {game.isAvailable ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> PLAYABLE DEMO
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200">
+                          <Clock className="w-3 h-3 text-slate-500" /> COMING SOON
+                        </span>
+                      )}
                     </div>
 
                     <div>
@@ -328,9 +334,22 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 relative z-10">
-                    <span className="font-mono text-[11px] text-slate-500">1 - 4 Players</span>
-                    <span className="font-bold text-amber-700 text-[11px]">Roadmap 2026</span>
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 relative z-10 gap-2">
+                    <span className="font-mono text-[11px] text-slate-500">
+                      {game.minPlayers === game.maxPlayers ? `${game.minPlayers} Player` : `${game.minPlayers} - ${game.maxPlayers} Players`}
+                    </span>
+                    {game.isAvailable ? (
+                      <button
+                        type="button"
+                        onClick={() => onTryDemo(game.id)}
+                        className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer hover:-translate-y-0.5"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-slate-950" />
+                        <span>Try Demo</span>
+                      </button>
+                    ) : (
+                      <span className="font-bold text-amber-700 text-[11px]">Roadmap 2026</span>
+                    )}
                   </div>
                 </motion.div>
               );
