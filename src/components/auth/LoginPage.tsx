@@ -514,13 +514,15 @@ export const LoginPage: React.FC = () => {
 
             <div className="space-y-2">
               <h2 className="text-xl font-bold text-white tracking-tight">Check your email</h2>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Account created. Please check your email and click the verification link to continue.
-              </p>
-              {unverifiedEmail && (
-                <div className="inline-block bg-slate-950/80 border border-slate-800 px-3.5 py-1.5 rounded-lg text-amber-400 font-mono text-xs mt-1 shadow-inner">
-                  {unverifiedEmail}
-                </div>
+              {unverifiedEmail ? (
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  We sent a verification link to{' '}
+                  <span className="font-mono text-amber-400 font-semibold">{maskEmail(unverifiedEmail)}</span>.
+                </p>
+              ) : (
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Account created. Please check your email and click the verification link to continue.
+                </p>
               )}
             </div>
 
@@ -530,11 +532,11 @@ export const LoginPage: React.FC = () => {
                 <span>Mandatory Email Verification</span>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                For security, accounts and promotional benefits remain inactive until your email address is verified. The link will expire in 24 hours.
+                For security, accounts and promotional benefits remain inactive until your email address is verified.
               </p>
               <div className="pt-2 border-t border-slate-800/80 flex items-start gap-2 text-slate-300 text-[11px]">
                 <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
-                <span className="leading-relaxed">Didn't receive it? Check your Spam/Junk folder.</span>
+                <span className="leading-relaxed">Please also check your Spam/Junk folder.</span>
               </div>
             </div>
 
@@ -544,7 +546,7 @@ export const LoginPage: React.FC = () => {
                 <div className="space-y-0.5">
                   <div className="font-semibold text-emerald-200">Verification email sent.</div>
                   <div className="text-[11px] text-emerald-300/90 leading-relaxed">
-                    Please check your inbox and Spam/Junk folder.
+                    Please check your inbox and spam folder.
                   </div>
                 </div>
               </div>
@@ -560,13 +562,14 @@ export const LoginPage: React.FC = () => {
               </div>
             )}
 
-            <div className="space-y-3 pt-2">
+            <div className="bg-slate-950/40 border border-slate-800/80 rounded-xl p-4 space-y-3">
+              <p className="text-xs text-slate-300 font-medium">Didn't receive the email?</p>
               {unverifiedEmail && (
                 <button
                   type="button"
                   onClick={() => handleResendVerification(unverifiedEmail)}
                   disabled={resendingVerification || resendCooldown > 0}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {resendingVerification ? (
                     <>
@@ -581,12 +584,17 @@ export const LoginPage: React.FC = () => {
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>Resend verification email</span>
+                      <span>Resend Verification Email</span>
                     </>
                   )}
                 </button>
               )}
+              <p className="text-[11px] text-slate-400">
+                Please also check your Spam/Junk folder.
+              </p>
+            </div>
 
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={() => {
@@ -596,9 +604,10 @@ export const LoginPage: React.FC = () => {
                   setResendStatusMessage(null);
                   setResendErrorMessage(null);
                 }}
-                className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                Back to Sign In
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Login</span>
               </button>
             </div>
           </div>
