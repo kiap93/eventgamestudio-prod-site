@@ -217,16 +217,24 @@ export const LoginPage: React.FC = () => {
 
     try {
       const result = await loginWithEmail(email.trim(), password);
-      if (result.unverified) {
+      if (result.unverified || result.code === 'EMAIL_NOT_VERIFIED') {
         setUnverifiedEmail(result.email || email.trim());
         setError(null);
         setAuthMode('unverified_recovery');
         return;
       }
+      if (!result.success) {
+        setError(result.error || 'Invalid email or password');
+        return;
+      }
       const redirectUrl = new URLSearchParams(window.location.search).get('redirect') || '/events';
       navigateTo(redirectUrl);
     } catch (err: any) {
-      if (err.code === 'EMAIL_NOT_VERIFIED' || err.unverified) {
+      if (
+        err.code === 'EMAIL_NOT_VERIFIED' ||
+        err.unverified ||
+        (err.message && /verify your email/i.test(err.message))
+      ) {
         setUnverifiedEmail(err.email || email.trim());
         setError(null);
         setAuthMode('unverified_recovery');
@@ -409,14 +417,16 @@ export const LoginPage: React.FC = () => {
 
             <div className="space-y-2">
               <h2 className="text-xl font-bold text-white tracking-tight">Email verification required</h2>
-              <p className="text-xs text-amber-300 font-medium leading-relaxed">
-                Please verify your email before continuing.
+              <p className="text-xs text-amber-300 font-semibold leading-relaxed">
+                Your email address has not been verified.
+              </p>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Please check your inbox and Spam/Junk folder.
               </p>
               {unverifiedEmail && (
-                <p className="text-xs text-slate-300">
-                  We sent a verification link to{' '}
-                  <span className="font-mono text-amber-400 font-semibold">{maskEmail(unverifiedEmail)}</span>.
-                </p>
+                <div className="inline-block bg-slate-950/80 border border-slate-800 px-3.5 py-1.5 rounded-lg text-amber-400 font-mono text-xs mt-1 shadow-inner">
+                  {unverifiedEmail}
+                </div>
               )}
             </div>
 
@@ -430,7 +440,7 @@ export const LoginPage: React.FC = () => {
               </p>
               <div className="pt-2 border-t border-slate-800/80 flex items-start gap-2 text-slate-300 text-[11px]">
                 <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
-                <span className="leading-relaxed">Please also check your Spam/Junk folder.</span>
+                <span className="leading-relaxed">Please check your inbox and Spam/Junk folder.</span>
               </div>
             </div>
 
@@ -440,7 +450,7 @@ export const LoginPage: React.FC = () => {
                 <div className="space-y-0.5">
                   <div className="font-semibold text-emerald-200">Verification email sent.</div>
                   <div className="text-[11px] text-emerald-300/90 leading-relaxed">
-                    Please check your inbox and Spam/Junk folder.
+                    Please check your inbox and spam folder.
                   </div>
                 </div>
               </div>
@@ -457,7 +467,6 @@ export const LoginPage: React.FC = () => {
             )}
 
             <div className="bg-slate-950/40 border border-slate-800/80 rounded-xl p-4 space-y-3">
-              <p className="text-xs text-slate-300 font-medium">Didn't receive the email?</p>
               <button
                 type="button"
                 onClick={() => handleResendVerification(unverifiedEmail || email)}
@@ -499,7 +508,7 @@ export const LoginPage: React.FC = () => {
                 className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Login</span>
+                <span>Back to Sign In</span>
               </button>
             </div>
           </div>

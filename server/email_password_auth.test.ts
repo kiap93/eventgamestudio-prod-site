@@ -361,8 +361,9 @@ async function runTests() {
   report(
     unverifiedLoginRes.status === 403 &&
       unverifiedLoginBody.code === 'EMAIL_NOT_VERIFIED' &&
+      unverifiedLoginBody.email === 'bob@example.com' &&
       unverifiedLoginBody.error.includes('verify your email'),
-    'POST /api/auth/login blocks unverified accounts with 403 EMAIL_NOT_VERIFIED'
+    'POST /api/auth/login blocks unverified accounts with 403 EMAIL_NOT_VERIFIED and returns user email'
   );
 
   // -------------------------------------------------------------

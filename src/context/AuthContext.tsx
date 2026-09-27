@@ -45,7 +45,10 @@ interface AuthContextType {
   themes: GameTheme[];
   activeTheme: GameTheme | null;
   login: (idToken: string) => Promise<void>;
-  loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; unverified?: boolean; email?: string }>;
+  loginWithEmail: (
+    email: string,
+    password: string
+  ) => Promise<{ success: boolean; unverified?: boolean; email?: string; error?: string; code?: string }>;
   registerWithEmail: (email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; message: string; email: string }>;
   resendVerificationEmail: (email: string) => Promise<{ success: boolean; message: string; already_verified?: boolean }>;
   verifyEmail: (token: string) => Promise<{ success: boolean; message: string }>;
@@ -391,8 +394,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithEmail = async (
     email: string,
     password: string
-  ): Promise<{ success: boolean; unverified?: boolean; email?: string }> => {
-    setIsLoading(true);
+  ): Promise<{ success: boolean; unverified?: boolean; email?: string; error?: string; code?: string }> => {
+    // Note: Do NOT toggle global setIsLoading here. Global setIsLoading is used exclusively for
+    // initial session boot (initSession). Toggling it here unmounts <LoginPage /> in App.tsx
+    // and causes the unverified_recovery state to be lost when the 403 response finishes.
+    // LoginPage manages its own local button loading state (loading / setLoading).
     try {
       const res = await apiFetch('/api/auth/login', {
         method: 'POST',
@@ -402,16 +408,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (res.status === 403 && data.code === 'EMAIL_NOT_VERIFIED') {
-          return { success: false, unverified: true, email: data.email || email };
+        if (
+          res.status === 403 &&
+          (data.code === 'EMAIL_NOT_VERIFIED' ||
+            (data.error && /verify your email/i.test(data.error)))
+        ) {
+          return {
+            success: false,
+            unverified: true,
+            code: 'EMAIL_NOT_VERIFIED',
+            email: data.email || email,
+            error: data.error || 'Please verify your email before continuing.',
+          };
         }
-        throw new Error(data.error || 'Invalid email or password');
+        return {
+          success: false,
+          unverified: false,
+          code: data.code,
+          error: data.error || 'Invalid email or password',
+        };
       }
 
       await applyAuthSession(data);
       return { success: true };
-    } finally {
-      setIsLoading(false);
+    } catch (err: any) {
+      return {
+        success: false,
+        unverified: false,
+        error: err.message || 'Invalid email or password',
+      };
     }
   };
 
@@ -420,27 +445,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     password: string,
     confirmPassword: string
   ): Promise<{ success: boolean; message: string; email: string }> => {
-    setIsLoading(true);
-    try {
-      const res = await apiFetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, confirmPassword }),
-      });
+    const res = await apiFetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, confirmPassword }),
+    });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || 'Registration failed');
-      }
-
-      return {
-        success: true,
-        message: data.message || 'Account created. Please check your email and click the verification link to continue.',
-        email: data.email || email,
-      };
-    } finally {
-      setIsLoading(false);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'Registration failed');
     }
+
+    return {
+      success: true,
+      message: data.message || 'Account created. Please check your email and click the verification link to continue.',
+      email: data.email || email,
+    };
   };
 
   const resendVerificationEmail = async (
@@ -459,7 +479,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return {
       success: true,
-      message: data.message || 'Verification email sent. Please check your inbox.',
+      message: data.message || 'Verification email sent. Please check your inbox and spam folder.',
       already_verified: data.already_verified === true,
     };
   };
