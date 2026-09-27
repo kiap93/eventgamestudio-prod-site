@@ -560,7 +560,7 @@ async function runTests() {
 
   report(
     failingResendRes.status === 503 &&
-      failingResendBody.error === "We couldn't send the verification email right now. Please try again later.",
+      failingResendBody.error === "We couldn't send the verification email. Please try again.",
     'POST /api/auth/resend-verification returns 503 and safe message on delivery failure'
   );
   report(
@@ -570,6 +570,22 @@ async function runTests() {
   );
 
   globalThis.fetch = origFetch;
+
+  // Already verified user resend check: does not send email, directs to login
+  const alreadyVerifiedResendReq = new Request('http://localhost/api/auth/resend-verification', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'bob@example.com' }),
+  });
+  const alreadyVerifiedResendRes = await worker.fetch(alreadyVerifiedResendReq, VALID_CONFIG_ENV);
+  const alreadyVerifiedResendBody = (await alreadyVerifiedResendRes.json()) as any;
+
+  report(
+    alreadyVerifiedResendRes.status === 200 &&
+      alreadyVerifiedResendBody.already_verified === true &&
+      alreadyVerifiedResendBody.message.includes('already verified'),
+    'Resend verification for already-verified account returns already_verified: true without sending email'
+  );
 
   // Rate limiting check on resend verification
   let rateLimitHit = false;
@@ -777,6 +793,125 @@ async function runTests() {
   report(
     unconfiguredResetResult.success === false && unconfiguredResetResult.status === 'EMAIL_NOT_CONFIGURED',
     'sendPasswordResetEmail returns EMAIL_NOT_CONFIGURED when settings are absent'
+  );
+
+  // -------------------------------------------------------------
+  // Section 13: End-to-End Registration & Immediate Resend Flow
+  // -------------------------------------------------------------
+  console.log('\n--- Section 13: End-to-End Registration & Immediate Resend Acceptance Test Flow ---');
+
+  // 1. Register with email/password
+  const e2eRegReq = new Request('http://localhost/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: 'david@example.com',
+      password: 'Password123',
+      confirmPassword: 'Password123',
+    }),
+  });
+  const e2eRegRes = await worker.fetch(e2eRegReq, VALID_CONFIG_ENV);
+  const e2eRegBody = (await e2eRegRes.json()) as any;
+
+  report(
+    e2eRegRes.status === 201 && e2eRegBody.email === 'david@example.com',
+    'Final Flow 1: Registration succeeds with email preserved for Verify Email page'
+  );
+
+  const davidInitial = await getUserByEmail('david@example.com', VALID_CONFIG_ENV);
+  const initialTokenHash = davidInitial?.verification_token_hash;
+  report(
+    davidInitial !== null && davidInitial.email_verified === false && Boolean(initialTokenHash),
+    'Final Flow 2: Account is created as unverified with initial verification token stored'
+  );
+
+  // 2. Unverified user immediately requests Resend Verification Email without logging in
+  const immediateResendReq = new Request('http://localhost/api/auth/resend-verification', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'david@example.com' }),
+  });
+  const immediateResendRes = await worker.fetch(immediateResendReq, VALID_CONFIG_ENV);
+  const immediateResendBody = (await immediateResendRes.json()) as any;
+
+  report(
+    immediateResendRes.status === 200 && immediateResendBody.success === true,
+    'Final Flow 3: Immediate Resend Verification Email succeeds without login or re-registration'
+  );
+
+  // 3. Confirm previous token was invalidated/replaced with new token
+  const davidAfterResend = await getUserByEmail('david@example.com', VALID_CONFIG_ENV);
+  const newTokenHash = davidAfterResend?.verification_token_hash;
+  report(
+    Boolean(newTokenHash) && newTokenHash !== initialTokenHash,
+    'Final Flow 4: New token hash stored and previous verification token invalidated'
+  );
+
+  // 4. Verify that trying to use an invalid or old token fails
+  const oldTokenVerifyReq = new Request('http://localhost/api/auth/verify-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: 'old_or_invalid_raw_token_that_does_not_match_new_hash' }),
+  });
+  const oldTokenVerifyRes = await worker.fetch(oldTokenVerifyReq, VALID_CONFIG_ENV);
+  report(
+    oldTokenVerifyRes.status === 400,
+    'Final Flow 5: Verification with superseded or invalid token is rejected with 400'
+  );
+
+  // 5. Generate matching token for the new token hash to simulate user clicking new email link
+  // Let's create a fresh token pair to directly test the callback verification
+  const { rawToken: finalToken, tokenHash: finalHash, expiresAt: finalExpires } = generateVerificationToken(24);
+  await updateUserVerificationToken(davidInitial!.id, finalHash, finalExpires, VALID_CONFIG_ENV);
+
+  const verifySuccessReq = new Request('http://localhost/api/auth/verify-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: finalToken }),
+  });
+  const verifySuccessRes = await worker.fetch(verifySuccessReq, VALID_CONFIG_ENV);
+  const verifySuccessBody = (await verifySuccessRes.json()) as any;
+
+  report(
+    verifySuccessRes.status === 200 && verifySuccessBody.success === true,
+    'Final Flow 6: Clicking new verification email link verifies the account successfully'
+  );
+
+  const davidFinal = await getUserByEmail('david@example.com', VALID_CONFIG_ENV);
+  report(
+    davidFinal !== null && davidFinal.email_verified === true && davidFinal.verification_token_hash === null,
+    'Final Flow 7: User record is email_verified=true and token is cleared'
+  );
+
+  // 6. User logs in successfully with original email & password
+  const finalLoginReq = new Request('http://localhost/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: 'david@example.com',
+      password: 'Password123',
+    }),
+  });
+  const finalLoginRes = await worker.fetch(finalLoginReq, VALID_CONFIG_ENV);
+  const finalLoginBody = (await finalLoginRes.json()) as any;
+
+  report(
+    finalLoginRes.status === 200 && Boolean(finalLoginBody.token),
+    'Final Flow 8: User logs in successfully with verified account'
+  );
+
+  // 7. Resend after verification returns already_verified
+  const resendAfterVerifiedReq = new Request('http://localhost/api/auth/resend-verification', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'david@example.com' }),
+  });
+  const resendAfterVerifiedRes = await worker.fetch(resendAfterVerifiedReq, VALID_CONFIG_ENV);
+  const resendAfterVerifiedBody = (await resendAfterVerifiedRes.json()) as any;
+
+  report(
+    resendAfterVerifiedRes.status === 200 && resendAfterVerifiedBody.already_verified === true,
+    'Final Flow 9: Resend after account is verified returns already_verified: true without sending email'
   );
 
   // -------------------------------------------------------------

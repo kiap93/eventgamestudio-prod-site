@@ -47,7 +47,7 @@ interface AuthContextType {
   login: (idToken: string) => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; unverified?: boolean; email?: string }>;
   registerWithEmail: (email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; message: string; email: string }>;
-  resendVerificationEmail: (email: string) => Promise<{ success: boolean; message: string }>;
+  resendVerificationEmail: (email: string) => Promise<{ success: boolean; message: string; already_verified?: boolean }>;
   verifyEmail: (token: string) => Promise<{ success: boolean; message: string }>;
   requestPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
   resetPassword: (token: string, password: string, confirmPassword: string) => Promise<{ success: boolean; message: string }>;
@@ -443,7 +443,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const resendVerificationEmail = async (email: string): Promise<{ success: boolean; message: string }> => {
+  const resendVerificationEmail = async (
+    email: string
+  ): Promise<{ success: boolean; message: string; already_verified?: boolean }> => {
     const res = await apiFetch('/api/auth/resend-verification', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -452,12 +454,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.error || 'Failed to resend verification email');
+      throw new Error(data.error || "We couldn't send the verification email. Please try again.");
     }
 
     return {
       success: true,
-      message: data.message || 'If an account requires email verification, a verification email has been sent.',
+      message: data.message || 'Verification email sent. Please check your inbox.',
+      already_verified: data.already_verified === true,
     };
   };
 

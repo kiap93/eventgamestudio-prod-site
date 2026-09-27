@@ -807,11 +807,21 @@ app.post('/api/auth/resend-verification', resendRateLimiter, async (req, res) =>
     const normalizedEmail = emailValidation.normalized;
     const user = await getUserByEmail(normalizedEmail);
 
-    // If user does not exist or is already verified, return generic success message to prevent account enumeration
-    if (!user || user.email_verified || user.google_id) {
+    // If user does not exist or is a Google-only account, return generic success to prevent enumeration
+    if (!user || (user.google_id && !user.password_hash)) {
       res.json({
         success: true,
         message: 'If an account requires email verification, a verification email has been sent.',
+      });
+      return;
+    }
+
+    // If already verified, do not send another email; gracefully direct user toward login
+    if (user.email_verified) {
+      res.json({
+        success: true,
+        already_verified: true,
+        message: 'This email is already verified. Please sign in to your account.',
       });
       return;
     }
@@ -828,8 +838,14 @@ app.post('/api/auth/resend-verification', resendRateLimiter, async (req, res) =>
 
     if (!emailResult.success) {
       console.error(`[AUTH][${correlationId}] Failed to resend verification email:`, emailResult.rawError || emailResult.error);
+      if (emailResult.status === 'EMAIL_NOT_CONFIGURED') {
+        res.status(503).json({
+          error: 'Email verification is currently unavailable. Please contact the administrator.',
+        });
+        return;
+      }
       res.status(503).json({
-        error: "We couldn't send the verification email right now. Please try again later.",
+        error: "We couldn't send the verification email. Please try again.",
       });
       return;
     }

@@ -1253,12 +1253,25 @@ export default {
           const normalizedEmail = emailValidation.normalized;
           const user = await getUserByEmail(normalizedEmail, env);
 
-          // Prevent account enumeration: always return 200 with generic message
-          if (!user || user.email_verified || user.google_id) {
+          // Prevent account enumeration: always return 200 with generic message for non-existent or Google-only accounts
+          if (!user || (user.google_id && !user.password_hash)) {
             return jsonResponse(
               {
                 success: true,
                 message: 'If an account requires email verification, a verification email has been sent.',
+              },
+              200,
+              cors
+            );
+          }
+
+          // If already verified, do not send another email; gracefully direct user toward login
+          if (user.email_verified) {
+            return jsonResponse(
+              {
+                success: true,
+                already_verified: true,
+                message: 'This email is already verified. Please sign in to your account.',
               },
               200,
               cors
@@ -1278,8 +1291,15 @@ export default {
 
           if (!emailResult.success) {
             console.error(`[AUTH][${correlationId}] Failed to resend verification email:`, emailResult.rawError || emailResult.error);
+            if (emailResult.status === 'EMAIL_NOT_CONFIGURED') {
+              return jsonResponse(
+                { error: 'Email verification is currently unavailable. Please contact the administrator.' },
+                503,
+                { ...cors, 'x-correlation-id': correlationId }
+              );
+            }
             return jsonResponse(
-              { error: "We couldn't send the verification email right now. Please try again later." },
+              { error: "We couldn't send the verification email. Please try again." },
               503,
               { ...cors, 'x-correlation-id': correlationId }
             );
