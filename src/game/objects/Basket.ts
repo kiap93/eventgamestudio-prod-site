@@ -1,11 +1,17 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
-import { getActiveTheme, getCanonicalAssetThemeId, resolveThemeDefaultBasketImage, ThemeBasketConfig } from '../../themes';
+import {
+  getActiveTheme,
+  getCanonicalAssetThemeId,
+  resolveThemeDefaultBasketImage,
+  ThemeBasketConfig,
+  calculateCatcherSize,
+  calculateCatcherTargetY,
+} from '../../themes';
 
 export class Basket extends Phaser.Physics.Arcade.Sprite {
   private basketWidth: number = 140;
   private basketHeight: number = 70;
-  private isSizeLocked = false;
 
   private speed: number = 550;
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -47,8 +53,6 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
 
     super(scene, x, y, keyToUse);
 
-    this.basketWidth = basketConfig.width || 140;
-    this.basketHeight = basketConfig.height || 70;
     this.speed = basketConfig.speed || 550;
 
     scene.add.existing(this);
@@ -62,13 +66,14 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
     this.setRotation(0);
     this.setOrigin(0.5, 0.5);
 
-    // Set locked initial sprite size
-    super.setDisplaySize(this.basketWidth, this.basketHeight);
+    // Initial responsive sizing based on scene viewport (preserves intrinsic aspect ratio)
+    const logicalW = this.getLogicalWidth();
+    const logicalH = this.getLogicalHeight();
+    this.applyCatcherSize(logicalW, logicalH);
 
-    // Calculate collision body ONCE during creation
-    this.calculateCollisionBodyOnce();
-
-    this.isSizeLocked = true;
+    // Position correctly at target Y
+    const targetY = this.calculateTargetY(logicalH);
+    this.setPosition(x, targetY);
 
     // Input bindings
     if (scene.input.keyboard) {
@@ -79,14 +84,14 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
 
     // Pointer / Touch / Mouse setup
     scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      const halfW = Math.max(50, this.basketWidth / 2);
+      const halfW = this.basketWidth / 2;
       const maxX = this.getLogicalWidth() - halfW;
       this.targetX = Phaser.Math.Clamp(pointer.x, halfW, maxX);
     });
 
     scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.isPointerDown = true;
-      const halfW = Math.max(50, this.basketWidth / 2);
+      const halfW = this.basketWidth / 2;
       const maxX = this.getLogicalWidth() - halfW;
       this.targetX = Phaser.Math.Clamp(pointer.x, halfW, maxX);
     });
@@ -109,6 +114,9 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
     if (gameScene && typeof gameScene.getLogicalWidth === 'function') {
       return gameScene.getLogicalWidth();
     }
+    if (gameScene?.logicalWidth) {
+      return gameScene.logicalWidth;
+    }
     return this.scene.scale.width;
   }
 
@@ -117,64 +125,111 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
     if (gameScene && typeof gameScene.getLogicalHeight === 'function') {
       return gameScene.getLogicalHeight();
     }
+    if (gameScene?.logicalHeight) {
+      return gameScene.logicalHeight;
+    }
     return this.scene.scale.height;
+  }
+
+  /**
+   * Authoritative sizing method that calculates catcher dimensions from
+   * original texture aspect ratio and actual game viewport, and synchronizes
+   * the Arcade Physics collision body.
+   */
+  public applyCatcherSize(viewportWidth: number, viewportHeight: number) {
+    const theme = getActiveTheme();
+    const basketConfig = theme.basket_config || {};
+
+    const { width, height } = calculateCatcherSize(
+      viewportWidth,
+      viewportHeight,
+      this.texture,
+      basketConfig
+    );
+
+    this.basketWidth = width;
+    this.basketHeight = height;
+
+    // Apply display size (sets scaleX and scaleY from frame dimensions)
+    super.setDisplaySize(width, height);
+
+    // Synchronize physics body with the visible catcher
+    this.updateCollisionBody();
   }
 
   /**
    * Responds to orientation / dimension changes from the scene
    */
   public onSceneResize(newWidth: number, newHeight: number) {
-    const halfW = Math.max(50, this.basketWidth / 2);
     this.targetX = null;
+    this.applyCatcherSize(newWidth, newHeight);
+
+    const halfW = this.basketWidth / 2;
     this.x = Phaser.Math.Clamp(this.x, halfW, newWidth - halfW);
-    this.y = newHeight - 70;
+    this.y = this.calculateTargetY(newHeight);
   }
 
   /**
-   * Calculates the Arcade Physics body ONCE during construction based on ThemeBasketConfig
+   * Calculates the centered target Y position for the catcher based on game height
    */
-  private calculateCollisionBodyOnce() {
+  public calculateTargetY(gameHeight: number): number {
+    const isPortrait = gameHeight > this.getLogicalWidth();
+    return calculateCatcherTargetY(gameHeight, this.basketHeight, isPortrait);
+  }
+
+  /**
+   * Calculates & synchronizes the Arcade Physics collision body based on ThemeBasketConfig ratios.
+   * Because Phaser automatically scales body bounds by sprite.scaleX and sprite.scaleY,
+   * setting unscaled frame-relative coordinates ensures the on-screen collision area
+   * always corresponds exactly to the rendered catcher opening.
+   */
+  public updateCollisionBody() {
     const body = this.body as Phaser.Physics.Arcade.Body;
     if (!body || !this.texture) return;
 
     const theme = getActiveTheme();
     const basketConfig: Partial<ThemeBasketConfig> = theme.basket_config || {};
 
-    const textureWidth = this.texture.source[0]?.width || 651;
-    const textureHeight = this.texture.source[0]?.height || 383;
+    const frameWidth =
+      this.frame?.realWidth || this.frame?.width || this.texture.source[0]?.width || 1;
+    const frameHeight =
+      this.frame?.realHeight || this.frame?.height || this.texture.source[0]?.height || 1;
 
     const widthRatio = basketConfig.collisionWidthRatio ?? basketConfig.catchAreaRatio ?? 0.7235;
     const heightRatio = basketConfig.collisionHeightRatio ?? 0.13;
     const offsetYRatio = basketConfig.collisionOffsetYRatio ?? 0.3394;
 
-    const bodyWidth = textureWidth * widthRatio;
-    const bodyHeight = textureHeight * heightRatio;
+    const bodyWidth = frameWidth * widthRatio;
+    const bodyHeight = frameHeight * heightRatio;
 
-    const offsetX = (textureWidth - bodyWidth) / 2;
-    const offsetY = textureHeight * offsetYRatio;
+    const offsetX = (frameWidth - bodyWidth) / 2;
+    const offsetY = frameHeight * offsetYRatio;
 
     body.setSize(bodyWidth, bodyHeight, false);
     body.setOffset(offsetX, offsetY);
+
+    // Ensure physics engine bounds update immediately
+    body.updateFromGameObject();
   }
 
   public override setDisplaySize(width: number, height: number): this {
-    if (this.isSizeLocked) {
-      return this;
-    }
     super.setDisplaySize(width, height);
+    this.basketWidth = width;
+    this.basketHeight = height;
+    this.updateCollisionBody();
     return this;
   }
 
   public override setScale(x?: number, y?: number): this {
-    if (this.isSizeLocked) {
-      return this;
-    }
     super.setScale(x ?? 1, y ?? x ?? 1);
+    this.basketWidth = Math.round((this.frame?.realWidth || 1) * this.scaleX);
+    this.basketHeight = Math.round((this.frame?.realHeight || 1) * this.scaleY);
+    this.updateCollisionBody();
     return this;
   }
 
   public setHandTargetX(x: number) {
-    const halfW = Math.max(50, this.basketWidth / 2);
+    const halfW = this.basketWidth / 2;
     const maxX = this.getLogicalWidth() - halfW;
     this.targetX = Phaser.Math.Clamp(x, halfW, maxX);
   }
@@ -204,7 +259,7 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
       this.setVelocityX(0);
     }
 
-    const halfW = Math.max(50, this.basketWidth / 2);
+    const halfW = this.basketWidth / 2;
     const maxX = this.getLogicalWidth() - halfW;
     this.x = Phaser.Math.Clamp(this.x, halfW, maxX);
     this.setAngle(0);
@@ -212,7 +267,7 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
   }
 
   public triggerCatchBounce() {
-    const defaultY = this.getLogicalHeight() - 70;
+    const defaultY = this.calculateTargetY(this.getLogicalHeight());
     this.scene.tweens.add({
       targets: this,
       y: defaultY + 4,
@@ -222,3 +277,4 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
     });
   }
 }
+

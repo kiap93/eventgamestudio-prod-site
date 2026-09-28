@@ -8,6 +8,8 @@ import {
   getMemoryMatchConfig,
   getDropItemDisplaySize,
   DEFAULT_MAX_DROP_ITEM_SIZE,
+  calculateCatcherSize,
+  calculateCatcherTargetY,
 } from '../../themes';
 import { soundManager } from '../../game/systems/SoundManager';
 import { MemoryMatchGame } from '../../games/memory-match/MemoryMatchGame';
@@ -882,14 +884,16 @@ export const LiveThemePreview: React.FC<LiveThemePreviewProps> = ({
         ctx.restore();
       }
 
-      // 5. Basket
-      const bW = theme.basket_config?.width || 140;
-      const bH = theme.basket_config?.height || 70;
+      // 5. Basket (Aspect-ratio preserving sizing via shared calculation)
+      const basketImg = getOrLoadImage(theme.basket_config?.imageUrl);
+      const catcherDimensions = calculateCatcherSize(V_WIDTH, V_HEIGHT, basketImg, theme.basket_config);
+      const bW = catcherDimensions.width;
+      const bH = catcherDimensions.height;
       const bX = state.basketX - bW / 2;
-      const bY = V_HEIGHT - 65 - state.basketBounce * 8;
+      const targetCenterY = calculateCatcherTargetY(V_HEIGHT, bH, V_HEIGHT > V_WIDTH);
+      const bY = targetCenterY - bH / 2 - state.basketBounce * 8;
 
       ctx.save();
-      const basketImg = getOrLoadImage(theme.basket_config?.imageUrl);
       if (basketImg) {
         ctx.drawImage(basketImg, bX, bY, bW, bH);
       } else {

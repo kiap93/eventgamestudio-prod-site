@@ -141,7 +141,7 @@ export class GameScene extends Phaser.Scene {
 
     // 4. Create Player Catcher (Basket)
     const catcherKey = `theme_${theme.id}_catcher`;
-    this.basket = new Basket(this, sceneWidth / 2, sceneHeight - 70, catcherKey);
+    this.basket = new Basket(this, sceneWidth / 2, sceneHeight, catcherKey);
 
     // 5. Falling Objects Group
     this.itemsGroup = this.physics.add.group({
@@ -561,7 +561,8 @@ export class GameScene extends Phaser.Scene {
     this.itemsGroup.clear(true, true);
 
     if (this.basket) {
-      this.basket.setPosition(this.logicalWidth / 2, this.logicalHeight - 70);
+      const targetY = this.basket.calculateTargetY(this.logicalHeight);
+      this.basket.setPosition(this.logicalWidth / 2, targetY);
       this.basket.setVelocityX(0);
     }
 
@@ -612,14 +613,14 @@ export class GameScene extends Phaser.Scene {
       this.redFlashOverlay.setSize(newWidth, newHeight);
     }
 
-    // 5. Update basket position and bounds proportionally
+    // 5. Update basket position, sizing, and bounds proportionally
     if (this.basket && this.basket.active) {
-      const halfBasketW = (this.basket.getBasketWidth?.() || 140) / 2;
       const ratioX = oldWidth > 0 ? this.basket.x / oldWidth : 0.5;
-      const newX = Phaser.Math.Clamp(ratioX * newWidth, halfBasketW, newWidth - halfBasketW);
-      const newY = newHeight - 70;
-      this.basket.setPosition(newX, newY);
       this.basket.onSceneResize(newWidth, newHeight);
+      const halfBasketW = (this.basket.getBasketWidth?.() || 140) / 2;
+      const newX = Phaser.Math.Clamp(ratioX * newWidth, halfBasketW, newWidth - halfBasketW);
+      const newY = this.basket.calculateTargetY(newHeight);
+      this.basket.setPosition(newX, newY);
     }
 
     // 6. Proportional adjustment for active falling items

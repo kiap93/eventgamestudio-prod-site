@@ -13,3 +13,4 @@ export * from './memory-match';
 export * from './reaction-time';
 export * from './screenBackground';
 export * from './itemSizing';
+export * from './catcherSizing';
