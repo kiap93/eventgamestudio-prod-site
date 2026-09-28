@@ -32,7 +32,7 @@ export class TextureGenerator {
     if (!scene.textures.exists(goodKey)) {
       if (baseId === 'christmas') {
         this.createChristmasGiftTexture(scene, goodKey);
-      } else if (baseId === 'chinese-new-year') {
+      } else if (baseId === 'chinese-new-year' || baseId === 'cny') {
         this.createAngpowTexture(scene, goodKey);
       } else if (baseId === 'halloween') {
         this.createSpookyCandyTexture(scene, goodKey);
@@ -55,7 +55,7 @@ export class TextureGenerator {
     if (!scene.textures.exists(badKey)) {
       if (baseId === 'christmas') {
         this.createCoalTexture(scene, badKey);
-      } else if (baseId === 'chinese-new-year') {
+      } else if (baseId === 'chinese-new-year' || baseId === 'cny') {
         this.createFirecrackerTexture(scene, badKey);
       } else if (baseId === 'halloween') {
         this.createSpiderTexture(scene, badKey);
@@ -77,7 +77,7 @@ export class TextureGenerator {
     if (!scene.textures.exists(bonusKey)) {
       if (baseId === 'christmas') {
         this.createStarTexture(scene, bonusKey);
-      } else if (baseId === 'chinese-new-year') {
+      } else if (baseId === 'chinese-new-year' || baseId === 'cny') {
         this.createGoldIngotTexture(scene, bonusKey);
       } else if (baseId === 'halloween') {
         this.createGoldSkullTexture(scene, bonusKey);
@@ -99,7 +99,7 @@ export class TextureGenerator {
     if (!scene.textures.exists(catcherKey)) {
       if (baseId === 'christmas') {
         this.createSantaSackTexture(scene, catcherKey);
-      } else if (baseId === 'chinese-new-year') {
+      } else if (baseId === 'chinese-new-year' || baseId === 'cny') {
         this.createFortuneBasketTexture(scene, catcherKey);
       } else if (baseId === 'halloween') {
         this.createPumpkinBucketTexture(scene, catcherKey);
@@ -119,7 +119,7 @@ export class TextureGenerator {
     if (!scene.textures.exists(bgKey)) {
       if (baseId === 'christmas') {
         this.createChristmasBg(scene, bgKey);
-      } else if (baseId === 'chinese-new-year') {
+      } else if (baseId === 'chinese-new-year' || baseId === 'cny') {
         this.createCnyBg(scene, bgKey);
       } else if (baseId === 'halloween') {
         this.createHalloweenBg(scene, bgKey);
@@ -144,7 +144,7 @@ export class TextureGenerator {
               this.aliasTexture(scene, badKey, itemKey);
             } else if (baseId === 'christmas') {
               this.createCoalTexture(scene, itemKey);
-            } else if (baseId === 'chinese-new-year') {
+            } else if (baseId === 'chinese-new-year' || baseId === 'cny') {
               this.createFirecrackerTexture(scene, itemKey);
             } else if (baseId === 'halloween') {
               this.createSpiderTexture(scene, itemKey);
@@ -163,7 +163,7 @@ export class TextureGenerator {
               this.aliasTexture(scene, bonusKey, itemKey);
             } else if (baseId === 'christmas') {
               this.createStarTexture(scene, itemKey);
-            } else if (baseId === 'chinese-new-year') {
+            } else if (baseId === 'chinese-new-year' || baseId === 'cny') {
               this.createGoldIngotTexture(scene, itemKey);
             } else if (baseId === 'halloween') {
               this.createGoldSkullTexture(scene, itemKey);
@@ -182,7 +182,7 @@ export class TextureGenerator {
               this.aliasTexture(scene, goodKey, itemKey);
             } else if (baseId === 'christmas') {
               this.createChristmasGiftTexture(scene, itemKey);
-            } else if (baseId === 'chinese-new-year') {
+            } else if (baseId === 'chinese-new-year' || baseId === 'cny') {
               this.createAngpowTexture(scene, itemKey);
             } else if (baseId === 'halloween') {
               this.createSpookyCandyTexture(scene, itemKey);

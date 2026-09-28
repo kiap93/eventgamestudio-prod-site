@@ -37,13 +37,39 @@ The platform ships with pre-configured themes in `src/themes/` and `server/db/th
 | Theme ID | Associated Game | Default? | Visual Concept | Primary Asset Palette |
 | :--- | :--- | :--- | :--- | :--- |
 | `default` | `catch-brand` | **Yes (Authoritative)** | Clean corporate arcade | Dark neon backdrop, wooden basket, brand token, hazard spike, golden bonus star (`/assets/games/catch-brand/themes/default/`) |
-| `carnival` | `catch-brand` | No (Selectable theme) | Retro circus / amusement park | Striped tent background, carnival cart, golden ticket, cursed mask, cosmic star (`/assets/games/catch-brand/themes/carnival/` or `/assets/themes/carnival/`) |
-| `cny` | `catch-brand` | No (Selectable theme) | Lunar New Year | Red lantern festive night, gold ingot bowl, mandarin oranges, firecrackers |
-| `christmas` | `catch-brand` | No (Selectable theme) | Holiday winter festival | Snowy night forest, Santa's sack, candy canes, snowballs |
+| `carnival` | `catch-brand` | No (Selectable theme) | Retro circus / amusement park | Striped tent background, carnival cart, golden ticket, cursed mask, cosmic star (`/assets/games/catch-brand/themes/carnival/`) |
+| `christmas` | `catch-brand` | No (Selectable theme) | Holiday winter festival | Snowy night forest, Santa's sack, Christmas present, naughty snowball, golden star (`/assets/games/catch-brand/themes/christmas/`) |
+| `cny` | `catch-brand` | No (Selectable theme) | Lunar New Year | Red lantern festive scene, fortune basket, red packet (Angpow), firecracker, gold ingot (`/assets/games/catch-brand/themes/cny/`) |
 | `halloween` | `catch-brand` | No (Selectable theme) | Spooky haunted house | Graveyard night, pumpkin bucket, wrapped sweets, flying bats |
 | `mango` | `catch-brand` | No (Selectable theme) | Tropical summer fruit | Bright beach orchard, rattan basket, ripe mangoes, rotten fruit |
 | `memory-match`| `memory-match`| **Yes (Authoritative)** | Branded corporate puzzle | Modern geometric grid, dark corporate card back, product logo pairs (`/assets/games/memory-match/themes/default/`) |
 | `reaction-time`| `reaction-tap`| **Yes (Authoritative)** | F1 Grand Prix starting grid | Pit-lane tarmac, carbon-fiber lights chassis, 5 red F1 light bulbs (`/assets/games/reaction-tap/themes/default/`) |
+
+### Canonical Catch The Brand Asset Contract
+
+Catch The Brand themes with dedicated asset subdirectories are hosted under:
+`/assets/games/catch-brand/themes/{themeId}/`
+
+Currently supported dedicated theme folders:
+- `default`
+- `carnival`
+- `christmas`
+- `cny`
+
+Each folder strictly implements the five standard Catch The Brand visual game assets:
+1. `background.png`: Stage backdrop (16:9 landscape image)
+2. `basket.png`: Player-controlled catcher / basket avatar
+3. `item_normal_01.png`: Standard positive reward item (+10 points)
+4. `item_hazard_01.png`: Hazard obstacle penalty item (-10 points)
+5. `item_bonus_01.png`: Golden bonus item (+50 points)
+
+### Canonical Theme Aliases
+The centralized `gameAssetResolver` (`src/themes/gameAssetResolver.ts`) maps historical slugs and IDs to canonical asset folders:
+- `christmas-rush` -> `christmas`
+- `christmas` -> `christmas`
+- `cny-fortune` -> `cny`
+- `cny` -> `cny`
+- `chinese-new-year` -> `cny`
 
 ---
 

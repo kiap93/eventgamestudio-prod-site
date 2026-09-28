@@ -1,6 +1,11 @@
 import Phaser from 'phaser';
 import { TextureGenerator } from '../systems/TextureGenerator';
-import { getActiveTheme, resolveThemeDefaultItemImage } from '../../themes';
+import {
+  getActiveTheme,
+  resolveThemeDefaultBgImage,
+  resolveThemeDefaultBasketImage,
+  resolveThemeDefaultItemImage,
+} from '../../themes';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -28,8 +33,8 @@ export class BootScene extends Phaser.Scene {
 
     // 2. Preload active theme image assets
     const themeId = theme.id;
-    const bgPath = theme.background_url || theme.background;
-    const catcherPath = theme.basket_config?.imageUrl || theme.catcher;
+    const bgPath = resolveThemeDefaultBgImage(theme);
+    const catcherPath = resolveThemeDefaultBasketImage(theme);
 
     if (bgPath && bgPath !== '/assets/games/catch-brand/themes/default/background.png' && !bgPath.startsWith('theme_')) {
       this.load.image(`theme_${themeId}_bg`, bgPath);

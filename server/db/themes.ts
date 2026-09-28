@@ -690,10 +690,10 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       logoUrl: null,
       clientLogoUrl: null,
     },
-    background_url: 'theme_christmas_bg',
+    background_url: '/assets/games/catch-brand/themes/christmas/background.png',
     basket_config: {
       name: "Santa's Sack",
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/christmas/basket.png',
       width: 140,
       height: 70,
       catchAreaRatio: 0.75,
@@ -703,7 +703,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       {
         id: 'gift_box',
         name: 'Christmas Present',
-        imageUrl: null,
+        imageUrl: '/assets/games/catch-brand/themes/christmas/item_normal_01.png',
         points: 10,
         speedMultiplier: 1.0,
         spawnWeight: 75,
@@ -713,8 +713,8 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       },
       {
         id: 'coal_lump',
-        name: 'Lump of Coal',
-        imageUrl: null,
+        name: 'Naughty Snowball',
+        imageUrl: '/assets/games/catch-brand/themes/christmas/item_hazard_01.png',
         points: -10,
         speedMultiplier: 1.2,
         spawnWeight: 20,
@@ -725,7 +725,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       {
         id: 'golden_star',
         name: 'Golden Star',
-        imageUrl: null,
+        imageUrl: '/assets/games/catch-brand/themes/christmas/item_bonus_01.png',
         points: 50,
         speedMultiplier: 1.35,
         spawnWeight: 5,
@@ -774,10 +774,10 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       logoUrl: null,
       clientLogoUrl: null,
     },
-    background_url: 'theme_chinese-new-year_bg',
+    background_url: '/assets/games/catch-brand/themes/cny/background.png',
     basket_config: {
       name: 'Fortune Basket',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/cny/basket.png',
       width: 140,
       height: 70,
       catchAreaRatio: 0.75,
@@ -787,7 +787,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       {
         id: 'red_packet',
         name: 'Red Packet (Angpow)',
-        imageUrl: null,
+        imageUrl: '/assets/games/catch-brand/themes/cny/item_normal_01.png',
         points: 10,
         speedMultiplier: 1.0,
         spawnWeight: 75,
@@ -798,7 +798,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       {
         id: 'firecracker',
         name: 'Exploding Firecracker',
-        imageUrl: null,
+        imageUrl: '/assets/games/catch-brand/themes/cny/item_hazard_01.png',
         points: -10,
         speedMultiplier: 1.25,
         spawnWeight: 20,
@@ -809,7 +809,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       {
         id: 'gold_ingot',
         name: 'Gold Ingot (Yuanbao)',
-        imageUrl: null,
+        imageUrl: '/assets/games/catch-brand/themes/cny/item_bonus_01.png',
         points: 50,
         speedMultiplier: 1.3,
         spawnWeight: 5,

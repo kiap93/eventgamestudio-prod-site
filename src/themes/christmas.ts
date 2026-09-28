@@ -6,7 +6,11 @@ export const christmasTheme: GameTheme = {
   base_theme_id: 'christmas',
   name: 'Christmas',
   slug: 'christmas-rush',
-  description: 'Holiday festive arcade theme catching Christmas presents and avoiding lumps of coal.',
+  game_id: 'catch-brand',
+  game_slug: 'catch-brand',
+  game_type: 'catch-brand',
+  game_name: 'Catch the Brand',
+  description: 'Holiday festive arcade theme catching Christmas presents and avoiding naughty snowballs.',
   status: 'active',
   is_system: true,
   is_system_theme: true,
@@ -14,16 +18,16 @@ export const christmasTheme: GameTheme = {
 
   branding: {
     gameTitle: 'CHRISTMAS GIFT RUSH',
-    subtitle: 'Catch holiday presents, avoid lumps of coal!',
+    subtitle: 'Catch holiday presents, avoid naughty snowballs!',
     logoUrl: null,
     clientLogoUrl: null,
   },
 
-  background_url: 'theme_christmas_bg',
+  background_url: '/assets/games/catch-brand/themes/christmas/background.png',
 
   basket_config: {
     name: "Santa's Sack",
-    imageUrl: null,
+    imageUrl: '/assets/games/catch-brand/themes/christmas/basket.png',
     width: 140,
     height: 70,
     catchAreaRatio: 0.75,
@@ -37,7 +41,7 @@ export const christmasTheme: GameTheme = {
     {
       id: 'gift_box',
       name: 'Christmas Present',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/christmas/item_normal_01.png',
       points: 10,
       speedMultiplier: 1.0,
       spawnWeight: 75,
@@ -47,8 +51,8 @@ export const christmasTheme: GameTheme = {
     },
     {
       id: 'coal_lump',
-      name: 'Lump of Coal',
-      imageUrl: null,
+      name: 'Naughty Snowball',
+      imageUrl: '/assets/games/catch-brand/themes/christmas/item_hazard_01.png',
       points: -10,
       speedMultiplier: 1.2,
       spawnWeight: 20,
@@ -59,7 +63,7 @@ export const christmasTheme: GameTheme = {
     {
       id: 'golden_star',
       name: 'Golden Star',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/christmas/item_bonus_01.png',
       points: 50,
       speedMultiplier: 1.35,
       spawnWeight: 5,
@@ -102,15 +106,15 @@ export const christmasTheme: GameTheme = {
   layout: DEFAULT_GAME_LAYOUT,
 
   // Backward compatibility
-  background: '/assets/christmas_bg.png',
-  catcher: '/assets/santa_sack.png',
-  fallingObject: '/assets/christmas_gift.png',
-  badFallingObject: '/assets/coal.png',
-  bonusFallingObject: '/assets/golden_star.png',
+  background: '/assets/games/catch-brand/themes/christmas/background.png',
+  catcher: '/assets/games/catch-brand/themes/christmas/basket.png',
+  fallingObject: '/assets/games/catch-brand/themes/christmas/item_normal_01.png',
+  badFallingObject: '/assets/games/catch-brand/themes/christmas/item_hazard_01.png',
+  bonusFallingObject: '/assets/games/catch-brand/themes/christmas/item_bonus_01.png',
   gameTitle: 'CHRISTMAS CATCH',
-  subtitle: 'Catch falling Christmas gifts, avoid lumps of coal!',
+  subtitle: 'Catch falling Christmas gifts, avoid naughty snowballs!',
   fallingObjectName: 'GIFT BOX',
-  badFallingObjectName: 'LUMP OF COAL',
+  badFallingObjectName: 'NAUGHTY SNOWBALL',
   bonusFallingObjectName: 'GOLDEN STAR',
   catcherName: 'SANTA SACK',
   particles: {

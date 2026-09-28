@@ -64,12 +64,29 @@ export const GAME_ASSET_MANIFEST: Record<string, Partial<Record<GameAssetType, s
 };
 
 /**
+ * Canonical theme aliases map for Catch The Brand themes.
+ * Normalizes legacy slugs and alternative names to URL-safe canonical asset directories.
+ */
+export const THEME_ASSET_ALIASES: Record<string, string> = {
+  'christmas-rush': 'christmas',
+  'christmas': 'christmas',
+  'cny-fortune': 'cny',
+  'cny': 'cny',
+  'chinese-new-year': 'cny',
+};
+
+/**
  * Known themes that have dedicated asset subdirectories under
  * /assets/games/{gameType}/themes/{themeId}/
  * Any other theme ID falls back to 'default'.
  */
 const KNOWN_THEME_FOLDERS: Record<string, Set<string>> = {
-  'catch-brand': new Set(['default', 'carnival']),
+  'catch-brand': new Set([
+    'default',
+    'carnival',
+    'christmas',
+    'cny',
+  ]),
   'memory-match': new Set(['default']),
   'reaction-tap': new Set(['default']),
 };
@@ -125,7 +142,7 @@ export function getAssetThemeId(theme?: Partial<GameTheme> | any): string {
   if (rawId.startsWith('theme-') || rawId.includes('custom')) {
     return 'default';
   }
-  return rawId;
+  return THEME_ASSET_ALIASES[rawId] || rawId;
 }
 
 export interface ResolveGameAssetParams {
@@ -153,7 +170,8 @@ export function resolveGameAsset({
   const filename = manifest[assetType];
   if (!filename) return null;
 
-  const reqTheme = (themeId || 'default').toLowerCase().trim();
+  const rawTheme = (themeId || 'default').toLowerCase().trim();
+  const reqTheme = THEME_ASSET_ALIASES[rawTheme] || rawTheme;
   const knownThemes = KNOWN_THEME_FOLDERS[normGame];
   const effectiveThemeId = knownThemes && knownThemes.has(reqTheme) ? reqTheme : 'default';
 

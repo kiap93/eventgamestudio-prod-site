@@ -3,9 +3,13 @@ import { DEFAULT_GAME_LAYOUT } from './layout';
 
 export const cnyTheme: GameTheme = {
   id: 'chinese-new-year',
-  base_theme_id: 'chinese-new-year',
+  base_theme_id: 'cny',
   name: 'Lunar New Year',
   slug: 'cny-fortune',
+  game_id: 'catch-brand',
+  game_slug: 'catch-brand',
+  game_type: 'catch-brand',
+  game_name: 'Catch the Brand',
   description: 'Festive Lunar New Year theme catching red packets (Angpow) and avoiding firecrackers.',
   status: 'active',
   is_system: true,
@@ -19,11 +23,11 @@ export const cnyTheme: GameTheme = {
     clientLogoUrl: null,
   },
 
-  background_url: 'theme_chinese-new-year_bg',
+  background_url: '/assets/games/catch-brand/themes/cny/background.png',
 
   basket_config: {
     name: 'Fortune Basket',
-    imageUrl: null,
+    imageUrl: '/assets/games/catch-brand/themes/cny/basket.png',
     width: 140,
     height: 70,
     catchAreaRatio: 0.75,
@@ -37,7 +41,7 @@ export const cnyTheme: GameTheme = {
     {
       id: 'red_packet',
       name: 'Red Packet (Angpow)',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/cny/item_normal_01.png',
       points: 10,
       speedMultiplier: 1.0,
       spawnWeight: 75,
@@ -48,7 +52,7 @@ export const cnyTheme: GameTheme = {
     {
       id: 'firecracker',
       name: 'Exploding Firecracker',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/cny/item_hazard_01.png',
       points: -10,
       speedMultiplier: 1.25,
       spawnWeight: 20,
@@ -59,7 +63,7 @@ export const cnyTheme: GameTheme = {
     {
       id: 'gold_ingot',
       name: 'Gold Ingot (Yuanbao)',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/cny/item_bonus_01.png',
       points: 50,
       speedMultiplier: 1.3,
       spawnWeight: 5,
@@ -102,11 +106,11 @@ export const cnyTheme: GameTheme = {
   layout: DEFAULT_GAME_LAYOUT,
 
   // Backward compatibility
-  background: '/assets/cny_bg.png',
-  catcher: '/assets/fortune_basket.png',
-  fallingObject: '/assets/angpow.png',
-  badFallingObject: '/assets/firecracker.png',
-  bonusFallingObject: '/assets/gold_ingot.png',
+  background: '/assets/games/catch-brand/themes/cny/background.png',
+  catcher: '/assets/games/catch-brand/themes/cny/basket.png',
+  fallingObject: '/assets/games/catch-brand/themes/cny/item_normal_01.png',
+  badFallingObject: '/assets/games/catch-brand/themes/cny/item_hazard_01.png',
+  bonusFallingObject: '/assets/games/catch-brand/themes/cny/item_bonus_01.png',
   gameTitle: 'FORTUNE ANGPOW CATCH',
   subtitle: 'Catch falling red packets, avoid explosive firecrackers!',
   fallingObjectName: 'RED PACKET',

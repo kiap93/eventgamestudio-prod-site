@@ -25,6 +25,7 @@ export const THEME_REGISTRY: Record<string, GameTheme> = {
   carnival: carnivalTheme,
   christmas: christmasTheme,
   'chinese-new-year': cnyTheme,
+  cny: cnyTheme,
   halloween: halloweenTheme,
   mango: mangoTheme,
   'memory-carnival': memoryMatchTheme,
@@ -107,12 +108,13 @@ export function resolveThemeBaseId(raw: any): string {
   }
   if (
     id === 'chinese-new-year' ||
+    id === 'cny' ||
     slug.includes('cny') ||
     slug.includes('chinese-new-year') ||
     name.includes('lunar') ||
     name.includes('chinese')
   ) {
-    return 'chinese-new-year';
+    return 'cny';
   }
   if (
     id === 'halloween' ||
@@ -371,6 +373,7 @@ export function normalizeGameTheme(raw: any): GameTheme {
         id === 'carnival' ||
         id === 'christmas' ||
         id === 'chinese-new-year' ||
+        id === 'cny' ||
         id === 'halloween' ||
         id === 'mango' ||
         id === 'memory-match' ||
