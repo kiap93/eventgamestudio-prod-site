@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import {
   getActiveTheme,
   getCanonicalAssetThemeId,
+  resolveThemeAsset,
   resolveThemeDefaultBasketImage,
   ThemeBasketConfig,
   calculateCatcherSize,
@@ -41,9 +42,9 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
     } else if (scene.textures.exists(themeCatcherKey)) {
       keyToUse = themeCatcherKey;
     } else {
-      if (assetThemeId === 'christmas' || assetThemeId === 'cny') {
+      if (assetThemeId !== 'default') {
         console.error(
-          `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=catcher\nexpected=${resolveThemeDefaultBasketImage(theme)}`
+          `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=catcher\nexpected=${resolveThemeAsset(theme, 'catcher') || resolveThemeDefaultBasketImage(theme)}`
         );
       }
       if (scene.textures.exists('basket')) {

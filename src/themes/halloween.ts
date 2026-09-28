@@ -5,7 +5,11 @@ export const halloweenTheme: GameTheme = {
   id: 'halloween',
   base_theme_id: 'halloween',
   name: 'Halloween',
-  slug: 'spooky-halloween',
+  slug: 'halloween-spooky',
+  game_id: 'catch-brand',
+  game_slug: 'catch-brand',
+  game_type: 'catch-brand',
+  game_name: 'Catch the Brand',
   description: 'Haunted night arcade theme catching spooky candies and avoiding poisonous spiders.',
   status: 'active',
   is_system: true,
@@ -19,11 +23,11 @@ export const halloweenTheme: GameTheme = {
     clientLogoUrl: null,
   },
 
-  background_url: 'theme_halloween_bg',
+  background_url: '/assets/games/catch-brand/themes/halloween/background.png',
 
   basket_config: {
     name: 'Jack-o-Lantern Bucket',
-    imageUrl: null,
+    imageUrl: '/assets/games/catch-brand/themes/halloween/basket.png',
     width: 140,
     height: 70,
     catchAreaRatio: 0.75,
@@ -37,7 +41,7 @@ export const halloweenTheme: GameTheme = {
     {
       id: 'spooky_candy',
       name: 'Sweet Candy',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/halloween/item_normal_01.png',
       points: 10,
       speedMultiplier: 1.0,
       spawnWeight: 75,
@@ -48,7 +52,7 @@ export const halloweenTheme: GameTheme = {
     {
       id: 'creepy_spider',
       name: 'Creepy Spider',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/halloween/item_hazard_01.png',
       points: -10,
       speedMultiplier: 1.2,
       spawnWeight: 20,
@@ -59,7 +63,7 @@ export const halloweenTheme: GameTheme = {
     {
       id: 'gold_skull',
       name: 'Golden Skull',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/halloween/item_bonus_01.png',
       points: 50,
       speedMultiplier: 1.3,
       spawnWeight: 5,
@@ -102,11 +106,11 @@ export const halloweenTheme: GameTheme = {
   layout: DEFAULT_GAME_LAYOUT,
 
   // Backward compatibility
-  background: '/assets/halloween_bg.png',
-  catcher: '/assets/pumpkin_bucket.png',
-  fallingObject: '/assets/spooky_candy.png',
-  badFallingObject: '/assets/poison_spider.png',
-  bonusFallingObject: '/assets/golden_skull.png',
+  background: '/assets/games/catch-brand/themes/halloween/background.png',
+  catcher: '/assets/games/catch-brand/themes/halloween/basket.png',
+  fallingObject: '/assets/games/catch-brand/themes/halloween/item_normal_01.png',
+  badFallingObject: '/assets/games/catch-brand/themes/halloween/item_hazard_01.png',
+  bonusFallingObject: '/assets/games/catch-brand/themes/halloween/item_bonus_01.png',
   gameTitle: 'SPOOKY CANDY CATCH',
   subtitle: 'Catch falling sweet candies, avoid poisonous spiders!',
   fallingObjectName: 'SWEET CANDY',

@@ -40,8 +40,8 @@ The platform ships with pre-configured themes in `src/themes/` and `server/db/th
 | `carnival` | `catch-brand` | No (Selectable theme) | Retro circus / amusement park | Striped tent background, carnival cart, golden ticket, cursed mask, cosmic star (`/assets/games/catch-brand/themes/carnival/`) |
 | `christmas` | `catch-brand` | No (Selectable theme) | Holiday winter festival | Snowy night forest, Santa's sack, Christmas present, naughty snowball, golden star (`/assets/games/catch-brand/themes/christmas/`) |
 | `cny` | `catch-brand` | No (Selectable theme) | Lunar New Year | Red lantern festive scene, fortune basket, red packet (Angpow), firecracker, gold ingot (`/assets/games/catch-brand/themes/cny/`) |
-| `halloween` | `catch-brand` | No (Selectable theme) | Spooky haunted house | Graveyard night, pumpkin bucket, wrapped sweets, flying bats |
-| `mango` | `catch-brand` | No (Selectable theme) | Tropical summer fruit | Bright beach orchard, rattan basket, ripe mangoes, rotten fruit |
+| `halloween` | `catch-brand` | No (Selectable theme) | Spooky haunted night | Haunted woods backdrop, jack-o-lantern bucket, sweet candy, creepy spider, golden skull (`/assets/games/catch-brand/themes/halloween/`) |
+| `mango` | `catch-brand` | No (Selectable theme) | Tropical summer orchard | Sunny grove backdrop, fruit crate, ripe honey mango, sour rotten mango, golden mango (`/assets/games/catch-brand/themes/mango/`) |
 | `memory-match`| `memory-match`| **Yes (Authoritative)** | Branded corporate puzzle | Modern geometric grid, dark corporate card back, product logo pairs (`/assets/games/memory-match/themes/default/`) |
 | `reaction-time`| `reaction-tap`| **Yes (Authoritative)** | F1 Grand Prix starting grid | Pit-lane tarmac, carbon-fiber lights chassis, 5 red F1 light bulbs (`/assets/games/reaction-tap/themes/default/`) |
 
@@ -55,6 +55,8 @@ Currently supported dedicated theme folders:
 - `carnival`
 - `christmas`
 - `cny`
+- `halloween`
+- `mango`
 
 Each folder strictly implements the five standard Catch The Brand visual game assets:
 1. `background.png`: Stage backdrop (16:9 landscape image)
@@ -70,6 +72,13 @@ The centralized `gameAssetResolver` (`src/themes/gameAssetResolver.ts`) maps his
 - `cny-fortune` -> `cny`
 - `cny` -> `cny`
 - `chinese-new-year` -> `cny`
+- `lunar-new-year` -> `cny`
+- `halloween-spooky` -> `halloween`
+- `spooky-halloween` -> `halloween`
+- `halloween` -> `halloween`
+- `mango-festival` -> `mango`
+- `mango-harvest` -> `mango`
+- `mango` -> `mango`
 
 ---
 

@@ -6,7 +6,7 @@ import { Basket } from '../objects/Basket';
 import { FallingItem, Durian } from '../objects/Durian';
 import { soundManager } from '../systems/SoundManager';
 import { getGameSettings } from '../settings';
-import { getActiveTheme, getCanonicalAssetThemeId, resolveThemeBaseId, resolveThemeDefaultBgImage, resolveThemeDefaultItemImage } from '../../themes';
+import { getActiveTheme, getCanonicalAssetThemeId, resolveThemeBaseId, resolveThemeAsset, resolveThemeDefaultBgImage, resolveThemeDefaultItemImage } from '../../themes';
 
 export class GameScene extends Phaser.Scene {
   private basket!: Basket;
@@ -95,16 +95,16 @@ export class GameScene extends Phaser.Scene {
 
     // 1. Background Image (Theme-driven with fallback)
     const assetThemeId = getCanonicalAssetThemeId(theme);
-    const isKnownFestive = assetThemeId === 'christmas' || assetThemeId === 'cny';
+    const isDedicatedTheme = assetThemeId !== 'default';
     const bgKey = `theme_${theme.id}_bg`;
     let bgTexture = 'background';
     if (this.textures.exists(bgKey)) {
       bgTexture = bgKey;
     } else if (this.textures.exists(theme.background_url)) {
       bgTexture = theme.background_url;
-    } else if (isKnownFestive) {
+    } else if (isDedicatedTheme) {
       console.error(
-        `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=background\nexpected=${resolveThemeDefaultBgImage(theme)}`
+        `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=background\nexpected=${resolveThemeAsset(theme, 'background') || resolveThemeDefaultBgImage(theme)}`
       );
     }
 
@@ -384,7 +384,7 @@ export class GameScene extends Phaser.Scene {
     // Texture resolution
     const themeId = theme.id;
     const assetThemeId = getCanonicalAssetThemeId(theme);
-    const isKnownFestive = assetThemeId === 'christmas' || assetThemeId === 'cny';
+    const isDedicatedTheme = assetThemeId !== 'default';
     const baseId = theme.base_theme_id || resolveThemeBaseId(theme);
 
     let textureKey = `theme_${themeId}_item_${selectedItem.id}`;
@@ -392,9 +392,9 @@ export class GameScene extends Phaser.Scene {
       if (selectedItem.isHazard) {
         if (this.textures.exists(`theme_${themeId}_bad`)) {
           textureKey = `theme_${themeId}_bad`;
-        } else if (isKnownFestive) {
+        } else if (isDedicatedTheme) {
           console.error(
-            `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=hazardItem\nexpected=${resolveThemeDefaultItemImage(theme, selectedItem)}`
+            `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=hazardItem\nexpected=${resolveThemeAsset(theme, 'hazardItem') || resolveThemeDefaultItemImage(theme, selectedItem)}`
           );
           // Generic procedural emergency fallback only after reporting - never ticket/mask/star
           textureKey = this.textures.exists('orange_durian') ? 'orange_durian' : 'theme_spike';
@@ -406,9 +406,9 @@ export class GameScene extends Phaser.Scene {
       } else if (selectedItem.isBonus) {
         if (this.textures.exists(`theme_${themeId}_bonus`)) {
           textureKey = `theme_${themeId}_bonus`;
-        } else if (isKnownFestive) {
+        } else if (isDedicatedTheme) {
           console.error(
-            `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=bonusItem\nexpected=${resolveThemeDefaultItemImage(theme, selectedItem)}`
+            `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=bonusItem\nexpected=${resolveThemeAsset(theme, 'bonusItem') || resolveThemeDefaultItemImage(theme, selectedItem)}`
           );
           // Generic procedural emergency fallback only after reporting - never ticket/mask/star
           textureKey = this.textures.exists('golden_durian') ? 'golden_durian' : 'theme_star';
@@ -420,9 +420,9 @@ export class GameScene extends Phaser.Scene {
       } else {
         if (this.textures.exists(`theme_${themeId}_good`)) {
           textureKey = `theme_${themeId}_good`;
-        } else if (isKnownFestive) {
+        } else if (isDedicatedTheme) {
           console.error(
-            `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=goodItem\nexpected=${resolveThemeDefaultItemImage(theme, selectedItem)}`
+            `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=goodItem\nexpected=${resolveThemeAsset(theme, 'goodItem') || resolveThemeDefaultItemImage(theme, selectedItem)}`
           );
           // Generic procedural emergency fallback only after reporting - never ticket/mask/star
           textureKey = this.textures.exists('green_durian') ? 'green_durian' : 'theme_gold';

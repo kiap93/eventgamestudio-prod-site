@@ -36,7 +36,11 @@ export const THEME_REGISTRY: Record<string, GameTheme> = {
   'cny-fortune': cnyTheme,
   cny: cnyTheme,
   halloween: halloweenTheme,
+  'halloween-spooky': halloweenTheme,
+  'spooky-halloween': halloweenTheme,
   mango: mangoTheme,
+  'mango-festival': mangoTheme,
+  'mango-harvest': mangoTheme,
   'memory-carnival': memoryMatchTheme,
   'memory-match': memoryMatchTheme,
   'reaction-tap': reactionTheme,
@@ -253,10 +257,16 @@ export function normalizeGameTheme(raw: any): GameTheme {
       id === 'christmas' ||
       id === 'chinese-new-year' ||
       id === 'cny' ||
+      id === 'halloween' ||
+      id === 'mango' ||
       slug === 'christmas-rush' ||
       slug === 'cny-fortune' ||
       slug === 'carnival' ||
-      slug === 'default'
+      slug === 'default' ||
+      slug === 'halloween-spooky' ||
+      slug === 'spooky-halloween' ||
+      slug === 'mango-festival' ||
+      slug === 'mango-harvest'
     ))
   );
 

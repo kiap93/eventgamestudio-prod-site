@@ -77,6 +77,12 @@ export const THEME_ASSET_ALIASES: Record<string, string> = {
   'lunar-new-year-fortune': 'cny',
   'carnival': 'carnival',
   'carnival-fiesta': 'carnival',
+  'halloween': 'halloween',
+  'halloween-spooky': 'halloween',
+  'spooky-halloween': 'halloween',
+  'mango': 'mango',
+  'mango-festival': 'mango',
+  'mango-harvest': 'mango',
   'default': 'default',
   'durian': 'default',
   'catch-brand': 'default',
@@ -105,6 +111,16 @@ export function isStaleAssetUrl(url?: string | null): boolean {
     clean.startsWith('/assets/angpow') ||
     clean.startsWith('/assets/firecracker') ||
     clean.startsWith('/assets/gold_ingot') ||
+    clean.startsWith('/assets/halloween_') ||
+    clean.startsWith('/assets/mango_') ||
+    clean.startsWith('/assets/pumpkin_') ||
+    clean.startsWith('/assets/fruit_crate') ||
+    clean.startsWith('/assets/ripe_mango') ||
+    clean.startsWith('/assets/sour_mango') ||
+    clean.startsWith('/assets/honey_mango') ||
+    clean.startsWith('/assets/spooky_candy') ||
+    clean.startsWith('/assets/poison_spider') ||
+    clean.startsWith('/assets/golden_skull') ||
     clean.includes('lunar new year') ||
     clean.startsWith('theme_')
   );
@@ -120,8 +136,8 @@ export function isSystemTheme(theme?: any): boolean {
     const id = String(theme.id || '').toLowerCase();
     const slug = String(theme.slug || '').toLowerCase();
     if (
-      id === 'default' || id === 'carnival' || id === 'christmas' || id === 'chinese-new-year' || id === 'cny' ||
-      slug === 'default' || slug === 'carnival' || slug === 'christmas-rush' || slug === 'cny-fortune'
+      id === 'default' || id === 'carnival' || id === 'christmas' || id === 'chinese-new-year' || id === 'cny' || id === 'halloween' || id === 'mango' ||
+      slug === 'default' || slug === 'carnival' || slug === 'christmas-rush' || slug === 'cny-fortune' || slug === 'halloween-spooky' || slug === 'spooky-halloween' || slug === 'mango-festival' || slug === 'mango-harvest'
     ) {
       return true;
     }
@@ -131,7 +147,7 @@ export function isSystemTheme(theme?: any): boolean {
 
 /**
  * Single canonical asset theme resolver.
- * Determines the filesystem-safe canonical asset theme directory ID ('default', 'carnival', 'christmas', 'cny').
+ * Determines the filesystem-safe canonical asset theme directory ID ('default', 'carnival', 'christmas', 'cny', 'halloween', 'mango').
  * Resolves reliably from metadata, slug, name, or canonical IDs without ever returning a database UUID.
  */
 export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | any): string {
@@ -165,7 +181,7 @@ export function getCanonicalAssetThemeId(theme?: Partial<GameTheme> | string | a
     const cleanExplicit = explicitAssetTheme.trim().toLowerCase();
     if (!isUUID(cleanExplicit)) {
       if (THEME_ASSET_ALIASES[cleanExplicit]) return THEME_ASSET_ALIASES[cleanExplicit];
-      if (cleanExplicit === 'christmas' || cleanExplicit === 'cny' || cleanExplicit === 'carnival' || cleanExplicit === 'default') {
+      if (cleanExplicit === 'christmas' || cleanExplicit === 'cny' || cleanExplicit === 'carnival' || cleanExplicit === 'default' || cleanExplicit === 'halloween' || cleanExplicit === 'mango') {
         return cleanExplicit;
       }
     }
@@ -228,6 +244,8 @@ const KNOWN_THEME_FOLDERS: Record<string, Set<string>> = {
     'carnival',
     'christmas',
     'cny',
+    'halloween',
+    'mango',
   ]),
   'memory-match': new Set(['default']),
   'reaction-tap': new Set(['default']),
@@ -311,6 +329,42 @@ export function resolveGameAsset({
   const effectiveThemeId = knownThemes && knownThemes.has(canonicalTheme) ? canonicalTheme : 'default';
 
   return `/assets/games/${normGame}/themes/${effectiveThemeId}/${filename}`;
+}
+
+/**
+ * High-level theme asset resolver accepting theme or themeId/slug and assetType.
+ * Resolves standard asset contract paths (e.g. 'background', 'catcher', 'hazard', 'goodItem', etc.)
+ *
+ * Examples:
+ *   resolveThemeAsset('halloween', 'background') => '/assets/games/catch-brand/themes/halloween/background.png'
+ *   resolveThemeAsset('mango', 'hazard') => '/assets/games/catch-brand/themes/mango/item_hazard_01.png'
+ */
+export function resolveThemeAsset(
+  theme?: Partial<GameTheme> | string | any,
+  assetType?: GameAssetType | 'hazard' | 'good' | 'bonus' | 'basket' | string,
+  fallbackGameType?: string
+): string | null {
+  const normGame = typeof theme === 'object' && theme ? getThemeGameType(theme, fallbackGameType) : normalizeGameType(fallbackGameType || 'catch-brand');
+  const themeId = getCanonicalAssetThemeId(theme);
+
+  let mappedAssetType: GameAssetType = (assetType || 'background') as GameAssetType;
+  if (assetType === 'hazard' || assetType === 'bad' || assetType === 'hazardItem') {
+    mappedAssetType = 'hazardItem';
+  } else if (assetType === 'good' || assetType === 'normal' || assetType === 'goodItem') {
+    mappedAssetType = 'goodItem';
+  } else if (assetType === 'bonus' || assetType === 'bonusItem') {
+    mappedAssetType = 'bonusItem';
+  } else if (assetType === 'catcher' || assetType === 'basket') {
+    mappedAssetType = 'catcher';
+  } else if (assetType === 'background') {
+    mappedAssetType = 'background';
+  }
+
+  return resolveGameAsset({
+    gameType: normGame,
+    themeId,
+    assetType: mappedAssetType,
+  });
 }
 
 /**

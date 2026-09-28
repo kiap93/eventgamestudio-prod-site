@@ -5,7 +5,11 @@ export const mangoTheme: GameTheme = {
   id: 'mango',
   base_theme_id: 'mango',
   name: 'Mango Orchard',
-  slug: 'mango-harvest',
+  slug: 'mango-festival',
+  game_id: 'catch-brand',
+  game_slug: 'catch-brand',
+  game_type: 'catch-brand',
+  game_name: 'Catch the Brand',
   description: 'Tropical orchard arcade theme catching ripe golden mangoes and avoiding sour green ones.',
   status: 'active',
   is_system: true,
@@ -19,11 +23,11 @@ export const mangoTheme: GameTheme = {
     clientLogoUrl: null,
   },
 
-  background_url: 'theme_mango_bg',
+  background_url: '/assets/games/catch-brand/themes/mango/background.png',
 
   basket_config: {
     name: 'Fruit Crate',
-    imageUrl: null,
+    imageUrl: '/assets/games/catch-brand/themes/mango/basket.png',
     width: 140,
     height: 70,
     catchAreaRatio: 0.75,
@@ -37,7 +41,7 @@ export const mangoTheme: GameTheme = {
     {
       id: 'ripe_mango',
       name: 'Ripe Honey Mango',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/mango/item_normal_01.png',
       points: 10,
       speedMultiplier: 1.0,
       spawnWeight: 75,
@@ -48,7 +52,7 @@ export const mangoTheme: GameTheme = {
     {
       id: 'sour_mango',
       name: 'Sour Rotten Mango',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/mango/item_hazard_01.png',
       points: -10,
       speedMultiplier: 1.15,
       spawnWeight: 20,
@@ -59,7 +63,7 @@ export const mangoTheme: GameTheme = {
     {
       id: 'golden_mango',
       name: 'Golden Alphonso Mango',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/mango/item_bonus_01.png',
       points: 50,
       speedMultiplier: 1.3,
       spawnWeight: 5,
@@ -102,11 +106,11 @@ export const mangoTheme: GameTheme = {
   layout: DEFAULT_GAME_LAYOUT,
 
   // Backward compatibility
-  background: '/assets/mango_bg.png',
-  catcher: '/assets/fruit_crate.png',
-  fallingObject: '/assets/ripe_mango.png',
-  badFallingObject: '/assets/sour_mango.png',
-  bonusFallingObject: '/assets/honey_mango.png',
+  background: '/assets/games/catch-brand/themes/mango/background.png',
+  catcher: '/assets/games/catch-brand/themes/mango/basket.png',
+  fallingObject: '/assets/games/catch-brand/themes/mango/item_normal_01.png',
+  badFallingObject: '/assets/games/catch-brand/themes/mango/item_hazard_01.png',
+  bonusFallingObject: '/assets/games/catch-brand/themes/mango/item_bonus_01.png',
   gameTitle: 'MANGO CATCHER',
   subtitle: 'Catch sweet ripe yellow mangoes, avoid sour green ones!',
   fallingObjectName: 'RIPE MANGO',

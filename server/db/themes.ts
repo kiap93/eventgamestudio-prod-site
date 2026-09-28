@@ -849,7 +849,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
   },
   {
     name: 'Spooky Halloween',
-    slug: 'spooky-halloween',
+    slug: 'halloween-spooky',
     description: 'Catch delicious Halloween candy in a pumpkin bucket, avoid scary spiders!',
     status: 'active',
     branding: {
@@ -858,10 +858,10 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       logoUrl: null,
       clientLogoUrl: null,
     },
-    background_url: 'theme_halloween_bg',
+    background_url: '/assets/games/catch-brand/themes/halloween/background.png',
     basket_config: {
       name: 'Jack-o-Lantern Bucket',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/halloween/basket.png',
       width: 140,
       height: 70,
       catchAreaRatio: 0.75,
@@ -871,7 +871,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       {
         id: 'spooky_candy',
         name: 'Sweet Candy',
-        imageUrl: null,
+        imageUrl: '/assets/games/catch-brand/themes/halloween/item_normal_01.png',
         points: 10,
         speedMultiplier: 1.0,
         spawnWeight: 75,
@@ -882,7 +882,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       {
         id: 'creepy_spider',
         name: 'Creepy Spider',
-        imageUrl: null,
+        imageUrl: '/assets/games/catch-brand/themes/halloween/item_hazard_01.png',
         points: -10,
         speedMultiplier: 1.2,
         spawnWeight: 20,
@@ -893,7 +893,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       {
         id: 'gold_skull',
         name: 'Golden Skull',
-        imageUrl: null,
+        imageUrl: '/assets/games/catch-brand/themes/halloween/item_bonus_01.png',
         points: 50,
         speedMultiplier: 1.3,
         spawnWeight: 5,
@@ -933,7 +933,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
   },
   {
     name: 'Mango Orchard Harvest',
-    slug: 'mango-harvest',
+    slug: 'mango-festival',
     description: 'Catch sweet honey mangoes in a wooden crate, dodge sour rotten ones!',
     status: 'active',
     branding: {
@@ -942,10 +942,10 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       logoUrl: null,
       clientLogoUrl: null,
     },
-    background_url: 'theme_mango_bg',
+    background_url: '/assets/games/catch-brand/themes/mango/background.png',
     basket_config: {
       name: 'Fruit Crate',
-      imageUrl: null,
+      imageUrl: '/assets/games/catch-brand/themes/mango/basket.png',
       width: 140,
       height: 70,
       catchAreaRatio: 0.75,
@@ -955,7 +955,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       {
         id: 'ripe_mango',
         name: 'Ripe Honey Mango',
-        imageUrl: null,
+        imageUrl: '/assets/games/catch-brand/themes/mango/item_normal_01.png',
         points: 10,
         speedMultiplier: 1.0,
         spawnWeight: 75,
@@ -966,7 +966,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       {
         id: 'sour_mango',
         name: 'Sour Rotten Mango',
-        imageUrl: null,
+        imageUrl: '/assets/games/catch-brand/themes/mango/item_hazard_01.png',
         points: -10,
         speedMultiplier: 1.15,
         spawnWeight: 20,
@@ -977,7 +977,7 @@ export const PRESET_THEMES: Array<Omit<GameThemeRecord, 'id' | 'organization_id'
       {
         id: 'golden_mango',
         name: 'Golden Alphonso Mango',
-        imageUrl: null,
+        imageUrl: '/assets/games/catch-brand/themes/mango/item_bonus_01.png',
         points: 50,
         speedMultiplier: 1.3,
         spawnWeight: 5,
@@ -1328,6 +1328,58 @@ export function normalizeServerThemeAssets(theme: any): any {
           imageUrl = '/assets/games/catch-brand/themes/default/item_bonus_01.png';
         } else {
           imageUrl = '/assets/games/catch-brand/themes/default/item_normal_01.png';
+        }
+        return { ...item, imageUrl };
+      });
+    }
+    return updated;
+  }
+
+  // Halloween system theme
+  if (slug === 'halloween-spooky' || slug === 'spooky-halloween' || slug === 'halloween' || (isSys && name.includes('halloween'))) {
+    const updated = { ...theme };
+    updated.background_url = '/assets/games/catch-brand/themes/halloween/background.png';
+    if (updated.basket_config) {
+      updated.basket_config = {
+        ...updated.basket_config,
+        imageUrl: '/assets/games/catch-brand/themes/halloween/basket.png',
+      };
+    }
+    if (Array.isArray(updated.items_config)) {
+      updated.items_config = updated.items_config.map((item: any, idx: number) => {
+        let imageUrl = item.imageUrl;
+        if (item.isHazard || idx === 1 || item.id === 'creepy_spider') {
+          imageUrl = '/assets/games/catch-brand/themes/halloween/item_hazard_01.png';
+        } else if (item.isBonus || idx === 2 || item.id === 'gold_skull') {
+          imageUrl = '/assets/games/catch-brand/themes/halloween/item_bonus_01.png';
+        } else {
+          imageUrl = '/assets/games/catch-brand/themes/halloween/item_normal_01.png';
+        }
+        return { ...item, imageUrl };
+      });
+    }
+    return updated;
+  }
+
+  // Mango system theme
+  if (slug === 'mango-festival' || slug === 'mango-harvest' || slug === 'mango' || (isSys && name.includes('mango'))) {
+    const updated = { ...theme };
+    updated.background_url = '/assets/games/catch-brand/themes/mango/background.png';
+    if (updated.basket_config) {
+      updated.basket_config = {
+        ...updated.basket_config,
+        imageUrl: '/assets/games/catch-brand/themes/mango/basket.png',
+      };
+    }
+    if (Array.isArray(updated.items_config)) {
+      updated.items_config = updated.items_config.map((item: any, idx: number) => {
+        let imageUrl = item.imageUrl;
+        if (item.isHazard || idx === 1 || item.id === 'sour_mango') {
+          imageUrl = '/assets/games/catch-brand/themes/mango/item_hazard_01.png';
+        } else if (item.isBonus || idx === 2 || item.id === 'golden_mango') {
+          imageUrl = '/assets/games/catch-brand/themes/mango/item_bonus_01.png';
+        } else {
+          imageUrl = '/assets/games/catch-brand/themes/mango/item_normal_01.png';
         }
         return { ...item, imageUrl };
       });
