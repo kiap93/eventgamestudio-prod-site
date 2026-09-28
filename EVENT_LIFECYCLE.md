@@ -163,16 +163,34 @@ When creating an event:
 
 ---
 
-## 5. Explicit Cancellation Rules
+## 5. Explicit Deletion, Cancellation & Refund Rules
 
-An event can ONLY transition to `status = 'cancelled'` (`event_status = 'CANCELLED'`) when:
-1. **User Action**: The event organizer explicitly clicks "Cancel Event".
-2. **Admin Action**: A platform developer/admin cancels the event via the admin console.
+### Authoritative Business Rule Matrix:
+| Lifecycle | Payment | Delete | Cancel/Refund |
+| :--- | :--- | :--- | :--- |
+| **BEFORE_SETUP_DAY** | **UNPAID** | **ALLOWED** | N/A (unpaid; delete instead) |
+| **BEFORE_SETUP_DAY** | **PAID** | **FORBIDDEN** | **ALLOWED** (full ledger refund) |
+| **SETUP_DAY** | **UNPAID** | **FORBIDDEN** | **FORBIDDEN** (operationally locked) |
+| **SETUP_DAY** | **PAID** | **FORBIDDEN** | **FORBIDDEN** (operationally locked) |
+| **LIVE** | **PAID** | **FORBIDDEN** | **FORBIDDEN** |
+| **COMPLETED** | **PAID** | **FORBIDDEN** | **FORBIDDEN** |
+| **EXPIRED** | **UNPAID** | **FORBIDDEN** | **FORBIDDEN** |
+| **EXPIRED** | **PAID** | **FORBIDDEN** | **FORBIDDEN** |
+| **CANCELLED** | — | **FORBIDDEN** | **FORBIDDEN** |
 
-### Cancellation Policies:
-- Before Setup Day: Cancellation allowed with full refund if paid.
-- On or After Setup Day: Cancellation strictly disallowed if paid (non-refundable).
-- Unpaid events: Can be cancelled or deleted by the user at any time.
+### Detailed Rules:
+1. **Before Setup Day**:
+   - **Unpaid event**: Delete is allowed. No refund is applicable because nothing was paid. The event can be permanently deleted.
+   - **Paid event**: Delete is NOT allowed. "Cancel & Refund" is allowed with full audit ledger refund.
+2. **Once Setup Day Begins (Setup Day, Live, Completed, Expired, Cancelled)**:
+   - Delete is strictly NOT allowed.
+   - Cancellation is strictly NOT allowed.
+   - Refund is strictly NOT allowed.
+   - The event is operationally locked.
+3. **Cancelled Events**:
+   - Delete is NOT allowed.
+   - Second cancellation/refund is strictly rejected (idempotent, single refund guarantee).
+   - Financial audit trail and ledger entries remain intact.
 
 ---
 

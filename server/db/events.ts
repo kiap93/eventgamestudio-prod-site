@@ -15,6 +15,9 @@ import {
   EventCancellationEligibility,
   EventRefundDetermination,
   CancellationErrorCode,
+  EventDeletionEligibility,
+  DeletionErrorCode,
+  EventDetailedLifecycle,
   PublicEventDTO,
 } from './types.js';
 import { getThemeById, isUUID, enrichThemesWithGameData, getDefaultThemeForGameType, checkOrganizationThemeReadiness } from './themes.js';
@@ -45,7 +48,7 @@ import { cleanupExpiredNotifications } from './notifications.js';
 import { getOrganizationById } from './organizations.js';
 import { getDefaultTimezoneForCountry, isValidTimezone, resolveEventTimezone } from '../../src/lib/countryUtils.js';
 export { resolveEventTimezone };
-export type { EventStatus, EventLifecycleStatus };
+export type { EventStatus, EventLifecycleStatus, EventDeletionEligibility, DeletionErrorCode };
 import crypto from 'node:crypto';
 
 // In-memory cache fallback for mock / test environments
@@ -1213,42 +1216,96 @@ export function isSetupDayStarted(
  *    - Wallet balance is NOT returned
  */
 export function determineEventRefund(
-  event: EventRecord | EventWithDetails,
-  now: Date = new Date()
+  event: EventRecord | EventWithDetails | any,
+  now: Date | string = new Date()
 ): EventRefundDetermination {
-  const paymentStatus = (event.payment_status || 'UNPAID').toUpperCase();
-  const paidAmount = Number(event.paid_amount || 0);
-  const discountAmount = Number(event.discount_amount || 0);
-  const paymentMode = event.payment_mode || null;
-  const setupDayStarted = isSetupDayStarted(event, now);
+  const payStatus = (event?.payment_status || 'UNPAID').toUpperCase();
+  const paidAmount = Number(event?.paid_amount || 0);
+  const discountAmount = Number(event?.discount_amount || 0);
+  const paymentMode = event?.payment_mode || null;
+  const isPaid = payStatus === 'PAID' || paidAmount > 0;
 
-  // 1. Once Setup Day starts: strictly non-refundable
-  if (setupDayStarted) {
+  const dates = getNormalizedEventDates(event);
+  const timeZone = resolveEventTimezone(event);
+  const curDate = getNormalizedCurrentDate(now, timeZone);
+  const isCancelled =
+    isEventExplicitlyCancelled(event) ||
+    (event?.status || '').toLowerCase() === 'cancelled' ||
+    (event?.event_status || '').toUpperCase() === 'CANCELLED' ||
+    payStatus === 'REFUNDED';
+
+  // Already refunded
+  if (payStatus === 'REFUNDED') {
     return {
       canRefund: false,
       refundPaidAmount: 0,
       creditReversalAmount: 0,
       creditType: paymentMode,
-      paymentStatus,
+      paymentStatus: payStatus,
+      reason: 'Event payment has already been refunded.',
+    };
+  }
+
+  if (isCancelled) {
+    return {
+      canRefund: false,
+      refundPaidAmount: 0,
+      creditReversalAmount: 0,
+      creditType: paymentMode,
+      paymentStatus: payStatus,
+      reason: 'Event is already cancelled.',
+    };
+  }
+
+  // After event end:
+  if (dates.endDate && curDate > dates.endDate) {
+    return {
+      canRefund: false,
+      refundPaidAmount: 0,
+      creditReversalAmount: 0,
+      creditType: paymentMode,
+      paymentStatus: payStatus,
+      reason: 'This event has ended and cannot be deleted, cancelled, or refunded.',
+    };
+  }
+
+  // During Live Window:
+  if (dates.startDate && curDate >= dates.startDate && (!dates.endDate || curDate <= dates.endDate)) {
+    return {
+      canRefund: false,
+      refundPaidAmount: 0,
+      creditReversalAmount: 0,
+      creditType: paymentMode,
+      paymentStatus: payStatus,
+      reason: 'Active and live events cannot be cancelled.',
+    };
+  }
+
+  // Setup Day or later: strictly non-refundable
+  if (dates.liveOpenDate && curDate >= dates.liveOpenDate) {
+    return {
+      canRefund: false,
+      refundPaidAmount: 0,
+      creditReversalAmount: 0,
+      creditType: paymentMode,
+      paymentStatus: payStatus,
       reason: 'Once Setup Day starts, cancellation and refunds are not allowed.',
     };
   }
 
-  // 2. Unpaid or no payment recorded
-  if (paymentStatus !== 'PAID' || (paidAmount === 0 && discountAmount === 0)) {
+  // Unpaid or no payment recorded
+  if (!isPaid) {
     return {
       canRefund: false,
       refundPaidAmount: 0,
       creditReversalAmount: 0,
       creditType: paymentMode,
-      paymentStatus,
-      reason: paymentStatus === 'REFUNDED'
-        ? 'Event payment has already been refunded.'
-        : 'No payment recorded for this event.',
+      paymentStatus: payStatus,
+      reason: 'No payment recorded for this event.',
     };
   }
 
-  // 3. Prior to Setup Day with paid balance: full refund
+  // Prior to Setup Day with paid balance: full refund
   const safePaid = Number(paidAmount) || 0;
   const safeDiscount = Number(discountAmount) || 0;
   return {
@@ -1256,7 +1313,7 @@ export function determineEventRefund(
     refundPaidAmount: safePaid,
     creditReversalAmount: safeDiscount,
     creditType: paymentMode,
-    paymentStatus,
+    paymentStatus: payStatus,
     reason: `Eligible for full refund: RM${safePaid.toFixed(2)} to Paid Balance${
       safeDiscount > 0 ? ` and RM${safeDiscount.toFixed(2)} Credit Reversal` : ''
     }.`,
@@ -1264,55 +1321,213 @@ export function determineEventRefund(
 }
 
 /**
- * Dedicated cancellation policy engine: evaluates event cancellation rules.
- *
- * Cancellation Matrix:
- * DRAFT (before Setup Day, unpaid)     → YES
- * SCHEDULED (before Setup Day, unpaid) → YES
- * SCHEDULED (before Setup Day, paid)   → YES (with full refund)
- * ON / AFTER SETUP DAY (paid or unpaid) → NO
- * ACTIVE / LIVE                        → NO
- * COMPLETED / EXPIRED                  → NO
- * CANCELLED                            → NO
+ * Returns the exact detailed lifecycle phase for an event.
  */
-export function canCancelEvent(
-  event: EventRecord | EventWithDetails,
-  now: Date = new Date()
-): EventCancellationEligibility {
+export function getDetailedEventLifecycle(
+  event: any,
+  now: Date | string = new Date()
+): EventDetailedLifecycle {
+  if (isEventExplicitlyCancelled(event)) {
+    return 'CANCELLED';
+  }
+  const rawStatus = (event?.status || '').toLowerCase();
+  const eventStatus = (event?.event_status || '').toUpperCase();
+  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED') {
+    return 'CANCELLED';
+  }
+
+  const dates = getNormalizedEventDates(event);
+  const eventTimezone = resolveEventTimezone(event);
+  const curDate = getNormalizedCurrentDate(now, eventTimezone);
+  const isPaid = (event?.payment_status || '').toUpperCase() === 'PAID' || Number(event?.paid_amount || 0) > 0;
+
+  if (dates.endDate && curDate > dates.endDate) {
+    return isPaid ? 'COMPLETED' : 'EXPIRED';
+  }
+
+  if (dates.startDate && curDate >= dates.startDate && (!dates.endDate || curDate <= dates.endDate)) {
+    return isPaid ? 'LIVE' : (dates.endDate && curDate > dates.endDate ? 'EXPIRED' : 'SETUP_DAY');
+  }
+
+  if (dates.liveOpenDate && curDate >= dates.liveOpenDate) {
+    return 'SETUP_DAY';
+  }
+
+  return 'BEFORE_SETUP_DAY';
+}
+
+/**
+ * Evaluates whether an event can be permanently deleted according to platform business rules:
+ *
+ * | Lifecycle        | Payment | Delete    |
+ * | ---------------- | ------- | --------- |
+ * | BEFORE_SETUP_DAY | UNPAID  | ALLOWED   |
+ * | BEFORE_SETUP_DAY | PAID    | FORBIDDEN |
+ * | SETUP_DAY        | UNPAID  | FORBIDDEN |
+ * | SETUP_DAY        | PAID    | FORBIDDEN |
+ * | LIVE             | PAID    | FORBIDDEN |
+ * | COMPLETED        | PAID    | FORBIDDEN |
+ * | EXPIRED          | UNPAID  | FORBIDDEN |
+ * | EXPIRED          | PAID    | FORBIDDEN |
+ * | CANCELLED        | —       | FORBIDDEN |
+ */
+export function canDeleteEvent(
+  event: any,
+  now: Date | string = new Date()
+): EventDeletionEligibility {
+  if (!event) {
+    return {
+      canDelete: false,
+      code: 'EVENT_DELETE_NOT_ALLOWED',
+      reason: 'Event not found.',
+      lifecycle: 'BEFORE_SETUP_DAY',
+      paymentStatus: 'UNPAID',
+      isPaid: false,
+    };
+  }
+
   const rawStatus = (event.status || '').toLowerCase();
   const eventStatus = (event.event_status || '').toUpperCase();
   const payStatus = (event.payment_status || 'UNPAID').toUpperCase();
-  const startsAtTime = new Date(event.starts_at).getTime();
-  const expiresAtTime = new Date(event.expires_at).getTime();
-  const nowTime = now.getTime();
+  const paidAmount = Number(event.paid_amount || 0);
+  const isPaid = payStatus === 'PAID' || paidAmount > 0;
+
+  const dates = getNormalizedEventDates(event);
+  const timeZone = resolveEventTimezone(event);
+  const curDate = getNormalizedCurrentDate(now, timeZone);
+  const isCancelled =
+    isEventExplicitlyCancelled(event) ||
+    rawStatus === 'cancelled' ||
+    eventStatus === 'CANCELLED' ||
+    payStatus === 'REFUNDED';
+
+  // 1. CANCELLED -> FORBIDDEN
+  if (isCancelled) {
+    return {
+      canDelete: false,
+      code: 'ALREADY_CANCELLED',
+      reason: 'Cancelled events cannot be deleted.',
+      lifecycle: 'CANCELLED',
+      paymentStatus: payStatus,
+      isPaid,
+    };
+  }
+
+  // 2. AFTER EVENT END (COMPLETED or EXPIRED) -> FORBIDDEN
+  if (dates.endDate && curDate > dates.endDate) {
+    const lifecycle = isPaid ? 'COMPLETED' : 'EXPIRED';
+    return {
+      canDelete: false,
+      code: 'EVENT_ENDED',
+      reason: 'This event has ended and cannot be deleted, cancelled, or refunded.',
+      lifecycle,
+      paymentStatus: payStatus,
+      isPaid,
+    };
+  }
+
+  // 3. LIVE EVENT WINDOW -> FORBIDDEN
+  if (dates.startDate && curDate >= dates.startDate && (!dates.endDate || curDate <= dates.endDate)) {
+    return {
+      canDelete: false,
+      code: 'EVENT_LIVE',
+      reason: 'This live event cannot be deleted or cancelled.',
+      lifecycle: 'LIVE',
+      paymentStatus: payStatus,
+      isPaid,
+    };
+  }
+
+  // 4. ON SETUP DAY -> FORBIDDEN
+  if (dates.liveOpenDate && curDate >= dates.liveOpenDate) {
+    return {
+      canDelete: false,
+      code: 'SETUP_DAY_STARTED',
+      reason: 'This event can no longer be deleted because Setup Day has started.',
+      lifecycle: 'SETUP_DAY',
+      paymentStatus: payStatus,
+      isPaid,
+    };
+  }
+
+  // 5. BEFORE SETUP DAY + PAID -> FORBIDDEN (Must use Cancel & Refund)
+  if (isPaid) {
+    return {
+      canDelete: false,
+      code: 'EVENT_PAID',
+      reason: 'This paid event cannot be deleted. Use Cancel & Refund before Setup Day.',
+      lifecycle: 'BEFORE_SETUP_DAY',
+      paymentStatus: payStatus,
+      isPaid: true,
+    };
+  }
+
+  // 6. BEFORE SETUP DAY + UNPAID -> ALLOWED
+  return {
+    canDelete: true,
+    code: 'ELIGIBLE_FOR_DELETION',
+    reason: 'This unpaid event can be permanently deleted before Setup Day.',
+    lifecycle: 'BEFORE_SETUP_DAY',
+    paymentStatus: payStatus,
+    isPaid: false,
+  };
+}
+
+/**
+ * Dedicated cancellation policy engine: evaluates event cancellation rules.
+ *
+ * Cancellation Matrix:
+ * BEFORE_SETUP_DAY + UNPAID => REJECTED (Unpaid events should be deleted, not refunded)
+ * BEFORE_SETUP_DAY + PAID   => ALLOWED (with full refund)
+ * SETUP_DAY (paid/unpaid)   => REJECTED
+ * LIVE                      => REJECTED
+ * COMPLETED / EXPIRED       => REJECTED
+ * CANCELLED                 => REJECTED
+ */
+export function canCancelEvent(
+  event: EventRecord | EventWithDetails | any,
+  now: Date | string = new Date()
+): EventCancellationEligibility {
+  const rawStatus = (event?.status || '').toLowerCase();
+  const eventStatus = (event?.event_status || '').toUpperCase();
+  const payStatus = (event?.payment_status || 'UNPAID').toUpperCase();
+  const paidAmount = Number(event?.paid_amount || 0);
+  const isPaid = payStatus === 'PAID' || paidAmount > 0;
+
+  const dates = getNormalizedEventDates(event);
+  const timeZone = resolveEventTimezone(event);
+  const curDate = getNormalizedCurrentDate(now, timeZone);
   const setupStartTime = getSetupDayStartTime(event);
-  const setupDayStarted = isSetupDayStarted(event, now);
+  const isCancelled =
+    isEventExplicitlyCancelled(event) ||
+    rawStatus === 'cancelled' ||
+    eventStatus === 'CANCELLED' ||
+    payStatus === 'REFUNDED';
 
-  const refundInfo = determineEventRefund(event, now);
+  const setupDayStarted = Boolean(dates.liveOpenDate && curDate >= dates.liveOpenDate);
 
-  // Derive calculated status
   let calculatedStatus = rawStatus;
-  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED') {
+  if (isCancelled) {
     calculatedStatus = 'cancelled';
-  } else if (rawStatus === 'draft' || eventStatus === 'DRAFT') {
-    calculatedStatus = 'draft';
-  } else if (nowTime >= expiresAtTime || rawStatus === 'expired' || rawStatus === 'completed' || eventStatus === 'COMPLETED') {
-    calculatedStatus = 'expired';
-  } else if (nowTime >= startsAtTime || (rawStatus === 'live' && nowTime >= startsAtTime) || (rawStatus === 'active' && nowTime >= startsAtTime)) {
-    calculatedStatus = 'live';
-  } else if (setupDayStarted || rawStatus === 'testing') {
+  } else if (dates.endDate && curDate > dates.endDate) {
+    calculatedStatus = isPaid ? 'completed' : 'expired';
+  } else if (dates.startDate && curDate >= dates.startDate) {
+    calculatedStatus = isPaid ? 'live' : 'pending_payment';
+  } else if (setupDayStarted) {
     calculatedStatus = 'testing';
   } else {
     calculatedStatus = 'scheduled';
   }
+
+  const refundInfo = determineEventRefund(event, now);
 
   const baseResult = {
     rawStatus,
     calculatedStatus,
     setupDayStarted,
     setupStartsAt: setupStartTime.toISOString(),
-    startsAt: event.starts_at,
-    expiresAt: event.expires_at,
+    startsAt: event?.starts_at || (dates.startDate ? `${dates.startDate}T00:00:00.000Z` : ''),
+    expiresAt: event?.expires_at || (dates.endDate ? `${dates.endDate}T23:59:59.999Z` : ''),
     paymentStatus: payStatus,
     refundPaidAmount: refundInfo.refundPaidAmount,
     creditReversalAmount: refundInfo.creditReversalAmount,
@@ -1321,7 +1536,7 @@ export function canCancelEvent(
   };
 
   // 1. CANCELLED -> NO
-  if (rawStatus === 'cancelled' || eventStatus === 'CANCELLED') {
+  if (isCancelled) {
     return {
       ...baseResult,
       canCancel: false,
@@ -1332,7 +1547,7 @@ export function canCancelEvent(
   }
 
   // 2. COMPLETED / EXPIRED -> NO
-  if (calculatedStatus === 'expired' || rawStatus === 'expired' || rawStatus === 'completed' || nowTime >= expiresAtTime) {
+  if (dates.endDate && curDate > dates.endDate) {
     return {
       ...baseResult,
       canCancel: false,
@@ -1343,7 +1558,7 @@ export function canCancelEvent(
   }
 
   // 3. ACTIVE / LIVE -> NO
-  if (calculatedStatus === 'live' || (nowTime >= startsAtTime && nowTime < expiresAtTime)) {
+  if (dates.startDate && curDate >= dates.startDate && (!dates.endDate || curDate <= dates.endDate)) {
     return {
       ...baseResult,
       canCancel: false,
@@ -1364,14 +1579,24 @@ export function canCancelEvent(
     };
   }
 
-  // 5. BEFORE SETUP DAY (DRAFT or SCHEDULED, whether paid or unpaid) -> YES
+  // 5. BEFORE SETUP DAY:
+  // Must be PAID for Cancel & Refund
+  if (!isPaid) {
+    return {
+      ...baseResult,
+      canCancel: false,
+      canRefund: false,
+      reason: 'Unpaid events cannot be cancelled or refunded. Delete the event instead before Setup Day.',
+      code: 'EVENT_NOT_PAID',
+    };
+  }
+
+  // 6. BEFORE SETUP DAY + PAID -> YES
   return {
     ...baseResult,
     canCancel: true,
-    canRefund: refundInfo.canRefund,
-    reason: refundInfo.canRefund
-      ? 'Event is scheduled before Setup Day and is eligible for cancellation with full refund.'
-      : 'Event is scheduled before Setup Day and is eligible for cancellation.',
+    canRefund: true,
+    reason: 'Event is scheduled before Setup Day and is eligible for cancellation with full refund.',
     code: 'ELIGIBLE_FOR_CANCELLATION',
   };
 }
@@ -1503,6 +1728,7 @@ export async function getEventsByOrgId(
     const showcase = showcaseMap.get(event.id) || null;
     const setupStartTime = getSetupDayStartTime(event);
     const cancellationEligibility = canCancelEvent(event);
+    const deletionEligibility = canDeleteEvent(event);
     const storedPrice = event.event_price !== undefined && event.event_price !== null
       ? Number(event.event_price)
       : (event.paid_amount !== undefined && event.paid_amount !== null ? Number(event.paid_amount) : undefined);
@@ -1531,6 +1757,7 @@ export async function getEventsByOrgId(
       calculated_status: calculated,
       setup_starts_at: setupStartTime.toISOString(),
       cancellation_eligibility: cancellationEligibility,
+      deletion_eligibility: deletionEligibility,
       game_theme: theme,
       game: resolvedGame
         ? {
@@ -1626,6 +1853,7 @@ export async function getEventById(
   const showcase = await getShowcaseByEventId(eventId, env);
   const setupStartTime = getSetupDayStartTime(eventRecord);
   const cancellationEligibility = canCancelEvent(eventRecord);
+  const deletionEligibility = canDeleteEvent(eventRecord);
   const storedPrice = eventRecord.event_price !== undefined && eventRecord.event_price !== null
     ? Number(eventRecord.event_price)
     : (eventRecord.paid_amount !== undefined && eventRecord.paid_amount !== null ? Number(eventRecord.paid_amount) : undefined);
@@ -1664,6 +1892,7 @@ export async function getEventById(
     calculated_status: calculateEventStatus(eventRecord),
     setup_starts_at: setupStartTime.toISOString(),
     cancellation_eligibility: cancellationEligibility,
+    deletion_eligibility: deletionEligibility,
     game_theme: theme,
     game: game
       ? {
@@ -3711,64 +3940,93 @@ export async function cancelEvent(
   },
   env?: Record<string, any>
 ): Promise<EventRecord & { eligibility?: EventCancellationEligibility; refundResult?: any }> {
-  const existing = await getEventById(eventId, env);
-  if (!existing) {
+  const existingPreCheck = await getEventById(eventId, env);
+  if (!existingPreCheck) {
     throw new Error('Event not found');
   }
 
-  const now = options?.now || new Date();
-  const eligibility = canCancelEvent(existing, now);
+  // Wrap in atomic organization lock to ensure idempotency and prevent double-refund race conditions
+  return await withOrganizationLock(existingPreCheck.organization_id, async () => {
+    const existing = await getEventById(eventId, env);
+    if (!existing) {
+      throw new Error('Event not found');
+    }
 
-  if (!eligibility.canCancel && !options?.force) {
-    const err: any = new Error(`Cancellation rejected: ${eligibility.reason}`);
-    err.code = eligibility.code;
-    err.eligibility = eligibility;
-    throw err;
-  }
+    const isAlreadyCancelled =
+      isEventExplicitlyCancelled(existing) ||
+      (existing.status || '').toLowerCase() === 'cancelled' ||
+      (existing.event_status || '').toUpperCase() === 'CANCELLED' ||
+      (existing.payment_status || '').toUpperCase() === 'REFUNDED';
 
-  let refundResult: any = null;
-  const refundInfo = determineEventRefund(existing, now);
+    const now = options?.now || new Date();
+    const eligibility = canCancelEvent(existing, now);
 
-  if (refundInfo.canRefund && !options?.skipRefund) {
-    refundResult = await refundEventPayment(
-      {
-        organizationId: existing.organization_id,
-        eventId: existing.id,
-        eventName: existing.name,
-        paidAmount: refundInfo.refundPaidAmount,
-        discountAmount: refundInfo.creditReversalAmount,
-        paymentMode: refundInfo.creditType || existing.payment_mode,
-        reason: options?.reason || `Event cancellation: ${eligibility.reason}`,
-        createdBy: options?.cancelledBy,
-        now,
-      },
-      env
-    );
-  }
+    if (isAlreadyCancelled && !options?.force) {
+      const err: any = new Error('Cancellation rejected: Event is already cancelled.');
+      err.code = 'ALREADY_CANCELLED';
+      err.status = 422;
+      err.eligibility = {
+        ...eligibility,
+        canCancel: false,
+        canRefund: false,
+        code: 'ALREADY_CANCELLED',
+        reason: 'Event is already cancelled.',
+      };
+      throw err;
+    }
 
-  const determinedReason: EventCancelReason =
-    options?.cancelReason ||
-    (options?.cancelledBy === 'admin'
-      ? 'ADMIN_CANCELLED'
-      : 'USER_CANCELLED');
+    if (!eligibility.canCancel && !options?.force) {
+      const err: any = new Error(`Cancellation rejected: ${eligibility.reason}`);
+      err.code = eligibility.code;
+      err.status = 422;
+      err.eligibility = eligibility;
+      throw err;
+    }
 
-  const updatePayload: any = {
-    status: 'cancelled',
-    event_status: 'CANCELLED',
-    cancel_reason: determinedReason,
-  };
+    let refundResult: any = null;
+    const refundInfo = determineEventRefund(existing, now);
 
-  if (refundInfo.canRefund && !options?.skipRefund) {
-    updatePayload.payment_status = 'REFUNDED';
-  }
+    if (refundInfo.canRefund && !options?.skipRefund) {
+      refundResult = await refundEventPayment(
+        {
+          organizationId: existing.organization_id,
+          eventId: existing.id,
+          eventName: existing.name,
+          paidAmount: refundInfo.refundPaidAmount,
+          discountAmount: refundInfo.creditReversalAmount,
+          paymentMode: refundInfo.creditType || existing.payment_mode,
+          reason: options?.reason || `Event cancellation: ${eligibility.reason}`,
+          createdBy: options?.cancelledBy,
+          now,
+        },
+        env
+      );
+    }
 
-  const updated = await updateEvent(eventId, updatePayload, env, { isSystemLifecycle: true });
+    const determinedReason: EventCancelReason =
+      options?.cancelReason ||
+      (options?.cancelledBy === 'admin'
+        ? 'ADMIN_CANCELLED'
+        : 'USER_CANCELLED');
 
-  return {
-    ...updated,
-    eligibility,
-    refundResult,
-  };
+    const updatePayload: any = {
+      status: 'cancelled',
+      event_status: 'CANCELLED',
+      cancel_reason: determinedReason,
+    };
+
+    if (refundInfo.canRefund && !options?.skipRefund) {
+      updatePayload.payment_status = 'REFUNDED';
+    }
+
+    const updated = await updateEvent(eventId, updatePayload, env, { isSystemLifecycle: true });
+
+    return {
+      ...updated,
+      eligibility,
+      refundResult,
+    };
+  });
 }
 
 /**
@@ -4207,9 +4465,46 @@ export async function runEventLifecycleMaintenance(
 }
 
 /**
- * Delete an event from database
+ * Delete an event from database.
+ * Strictly enforces:
+ * - Unpaid + before Setup Day => ALLOWED
+ * - Paid + before Setup Day => REJECTED (must use Cancel & Refund)
+ * - Setup Day / Live / Completed / Expired / Cancelled => REJECTED
  */
-export async function deleteEvent(eventId: string, env?: Record<string, any>): Promise<void> {
+export async function deleteEvent(
+  eventId: string,
+  optionsOrEnv?: { now?: Date | string; bypassLifecycleCheck?: boolean } | Record<string, any>,
+  envParam?: Record<string, any>
+): Promise<void> {
+  let options: { now?: Date | string; bypassLifecycleCheck?: boolean } | undefined;
+  let env: Record<string, any> | undefined;
+
+  if (optionsOrEnv && ('now' in optionsOrEnv || 'bypassLifecycleCheck' in optionsOrEnv)) {
+    options = optionsOrEnv as { now?: Date | string; bypassLifecycleCheck?: boolean };
+    env = envParam;
+  } else if (optionsOrEnv) {
+    env = optionsOrEnv as Record<string, any>;
+  } else {
+    env = envParam;
+  }
+
+  const existing = await getEventById(eventId, env);
+  const targetEvent = existing || localEventsCache.get(eventId);
+  if (!targetEvent) {
+    throw new Error('Event not found');
+  }
+
+  if (!options?.bypassLifecycleCheck) {
+    const eligibility = canDeleteEvent(targetEvent, options?.now);
+    if (!eligibility.canDelete) {
+      const err: any = new Error(eligibility.reason);
+      err.code = eligibility.code;
+      err.status = 422;
+      err.eligibility = eligibility;
+      throw err;
+    }
+  }
+
   const supabase = getSupabaseServerClient(env);
   localEventsCache.delete(eventId);
   const { error } = await supabase.from('events').delete().eq('id', eventId);
@@ -4302,6 +4597,8 @@ export async function getAllAdminEvents(
       organization_name: org?.name || 'Unknown Organization',
       organization_slug: org?.slug || 'unknown',
       calculated_status: calculated,
+      cancellation_eligibility: canCancelEvent(event),
+      deletion_eligibility: canDeleteEvent(event),
       game_theme: theme,
       game: game
         ? {

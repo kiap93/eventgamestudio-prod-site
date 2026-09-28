@@ -7,15 +7,6 @@ import { createServer as createViteServer } from 'vite';
 
 import {
   OrgRole,
-  createUser,
-  deleteUser,
-  getUserByEmail,
-  getUserByVerificationToken,
-  getUserByPasswordResetToken,
-  verifyUserEmail,
-  setUserPassword,
-  updateUserVerificationToken,
-  updateUserPasswordResetToken,
   upsertGoogleUser,
   updateUserProfile,
   getUserOrganizations,
@@ -87,6 +78,7 @@ import {
   createEventWithAtomicPayment,
   updateEvent,
   deleteEvent,
+  canDeleteEvent,
   cancelEvent,
   canCancelEvent,
   determineEventRefund,
@@ -244,7 +236,6 @@ import { getSupabaseServerClient } from './server/supabase.js';
 
 import {
   authRateLimiter,
-  resendRateLimiter,
   invitationRateLimiter,
   organizationRateLimiter,
   eventRateLimiter,
@@ -295,22 +286,6 @@ import {
   generateInvitationEmailTemplate,
   generateContactEnquiryEmailTemplate,
 } from './server/email/index.js';
-
-import {
-  validatePassword,
-  validateEmail,
-  hashPassword,
-  verifyPassword,
-  maskEmail,
-} from './server/password.js';
-
-import {
-  generateVerificationToken,
-  generatePasswordResetToken,
-  sendVerificationEmail,
-  sendPasswordResetEmail,
-  isEmailServiceConfigured,
-} from './server/emailVerification.js';
 
 
 const app = express();
@@ -519,455 +494,6 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
       hint: err?.hint,
     });
     res.status(401).json({ error: 'Google authentication failed' });
-  }
-});
-
-/**
- * POST /api/auth/register
- * Normal email/password registration with mandatory email verification
- */
-app.post('/api/auth/register', authRateLimiter, async (req, res) => {
-  const correlationId = (req.headers['x-correlation-id'] || req.headers['x-request-id'] || crypto.randomUUID()) as string;
-  try {
-    const { email, password, confirmPassword } = req.body || {};
-
-    const emailValidation = validateEmail(email);
-    if (!emailValidation.valid) {
-      res.status(422).json({ error: emailValidation.error || 'Please enter a valid email address' });
-      return;
-    }
-
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.valid) {
-      res.status(422).json({ error: passwordValidation.error || 'Password does not meet requirements' });
-      return;
-    }
-
-    if (!confirmPassword || password !== confirmPassword) {
-      res.status(422).json({ error: 'Passwords do not match' });
-      return;
-    }
-
-    // Step 1: Detect missing email configuration before creating unverified user
-    const isConfigured = await isEmailServiceConfigured();
-    if (!isConfigured) {
-      console.warn(`[AUTH][${correlationId}] Registration rejected: email sending service is not configured`);
-      res.status(503).json({
-        error: 'Email verification is currently unavailable. Please contact the administrator.',
-      });
-      return;
-    }
-
-    const normalizedEmail = emailValidation.normalized;
-
-    // Check if user already exists
-    const existingUser = await getUserByEmail(normalizedEmail);
-    if (existingUser) {
-      if (existingUser.password_hash) {
-        res.status(409).json({ error: 'An account with this email address already exists. Please log in or reset your password.' });
-        return;
-      }
-      if (existingUser.google_id) {
-        res.status(409).json({ error: 'An account with this email was created using Google Sign-In. Please sign in with Google or reset your password.' });
-        return;
-      }
-    }
-
-    const passwordHash = await hashPassword(password);
-    const { rawToken, tokenHash, expiresAt } = generateVerificationToken(24);
-
-    const user = await createUser({
-      email: normalizedEmail,
-      name: normalizedEmail.split('@')[0] || 'User',
-      password_hash: passwordHash,
-      email_verified: false,
-      verification_token_hash: tokenHash,
-      verification_token_expires_at: expiresAt,
-    });
-
-    // Step 2: Await verification email delivery
-    const emailResult = await sendVerificationEmail({
-      email: normalizedEmail,
-      rawToken,
-      request: req,
-      correlationId,
-    });
-
-    if (!emailResult.success) {
-      // Safe transactional rollback of newly created unverified user
-      try {
-        await deleteUser(user.id);
-        console.log(`[AUTH][${correlationId}] Rolled back newly created user ${user.id} due to email dispatch failure.`);
-      } catch (rollbackErr: any) {
-        console.error(`[AUTH][${correlationId}] Rollback failed for user ${user.id}:`, rollbackErr?.message);
-      }
-
-      if (emailResult.status === 'EMAIL_NOT_CONFIGURED') {
-        res.status(503).json({
-          error: 'Email verification is currently unavailable. Please contact the administrator.',
-        });
-        return;
-      }
-
-      res.status(503).json({
-        error: "We couldn't send the verification email right now. Please try again later.",
-      });
-      return;
-    }
-
-    res.status(201).json({
-      success: true,
-      message: 'Account created. Please check your email and click the verification link to continue.',
-      email: normalizedEmail,
-    });
-  } catch (err: any) {
-    handleApiError(err, req, res);
-  }
-});
-
-/**
- * POST /api/auth/login
- * Email & password login endpoint
- */
-app.post('/api/auth/login', authRateLimiter, async (req, res) => {
-  try {
-    const { email, password } = req.body || {};
-
-    const emailValidation = validateEmail(email);
-    if (!emailValidation.valid) {
-      res.status(422).json({ error: 'Valid email address is required' });
-      return;
-    }
-    if (!password || typeof password !== 'string') {
-      res.status(422).json({ error: 'Password is required' });
-      return;
-    }
-
-    const normalizedEmail = emailValidation.normalized;
-    const user = await getUserByEmail(normalizedEmail);
-
-    if (!user) {
-      res.status(401).json({ error: 'Invalid email or password' });
-      return;
-    }
-
-    if (!user.password_hash) {
-      if (user.google_id) {
-        res.status(401).json({ error: 'This account was created using Google Sign-In. Please sign in with Google.' });
-        return;
-      }
-      res.status(401).json({ error: 'Invalid email or password' });
-      return;
-    }
-
-    const isMatch = await verifyPassword(password, user.password_hash);
-    if (!isMatch) {
-      res.status(401).json({ error: 'Invalid email or password' });
-      return;
-    }
-
-    // MANDATORY EMAIL VERIFICATION RESTRICTION:
-    // Block unverified email/password accounts from proceeding into the application
-    if (!user.email_verified && !user.google_id) {
-      res.status(403).json({
-        error: 'Please verify your email before continuing.',
-        code: 'EMAIL_NOT_VERIFIED',
-        email: user.email,
-      });
-      return;
-    }
-
-    let memberships: any[] = [];
-    try {
-      memberships = await getUserOrganizations(user.id);
-    } catch {
-      memberships = [];
-    }
-
-    let activeOrgId: string | undefined = undefined;
-    let activeRole: string | undefined = undefined;
-
-    if (memberships.length > 0) {
-      activeOrgId = memberships[0].id;
-      activeRole = memberships[0].role;
-    }
-
-    const token = await signAppToken(user.id, activeOrgId, activeRole as any);
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatar_url: user.avatar_url,
-        is_developer: user.is_developer === true,
-      },
-      organizations: memberships,
-      activeOrganizationId: activeOrgId || null,
-    });
-  } catch (err: any) {
-    handleApiError(err, req, res);
-  }
-});
-
-/**
- * POST /api/auth/verify-email
- * Validates verification token and activates the account
- */
-app.post('/api/auth/verify-email', authRateLimiter, async (req, res) => {
-  try {
-    const { token } = req.body || {};
-    if (!token || typeof token !== 'string' || !token.trim()) {
-      res.status(422).json({ error: 'Verification token is required' });
-      return;
-    }
-
-    const tokenHash = hashToken(token.trim());
-    const user = await getUserByVerificationToken(tokenHash);
-
-    if (!user) {
-      res.status(400).json({
-        error: 'This verification link is invalid or has already been used.',
-        code: 'INVALID_TOKEN',
-      });
-      return;
-    }
-
-    if (user.verification_token_expires_at && new Date(user.verification_token_expires_at) < new Date()) {
-      res.status(400).json({
-        error: 'This verification link has expired. Please request a new verification email.',
-        code: 'EXPIRED_TOKEN',
-        email: user.email,
-      });
-      return;
-    }
-
-    const verifiedUser = await verifyUserEmail(user.id);
-
-    let memberships: any[] = [];
-    try {
-      memberships = await getUserOrganizations(verifiedUser.id);
-    } catch {
-      memberships = [];
-    }
-
-    let activeOrgId: string | undefined = undefined;
-    let activeRole: string | undefined = undefined;
-    if (memberships.length > 0) {
-      activeOrgId = memberships[0].id;
-      activeRole = memberships[0].role;
-    }
-
-    const sessionToken = await signAppToken(verifiedUser.id, activeOrgId, activeRole as any);
-
-    res.json({
-      success: true,
-      message: 'Email verified successfully! You can now access your account.',
-      token: sessionToken,
-      user: {
-        id: verifiedUser.id,
-        email: verifiedUser.email,
-        name: verifiedUser.name,
-        avatar_url: verifiedUser.avatar_url,
-        is_developer: verifiedUser.is_developer === true,
-      },
-      organizations: memberships,
-      activeOrganizationId: activeOrgId || null,
-    });
-  } catch (err: any) {
-    handleApiError(err, req, res);
-  }
-});
-
-/**
- * POST /api/auth/resend-verification
- * Resends verification email without leaking whether the account exists
- */
-app.post('/api/auth/resend-verification', resendRateLimiter, async (req, res) => {
-  const correlationId = (req.headers['x-correlation-id'] || req.headers['x-request-id'] || crypto.randomUUID()) as string;
-  try {
-    const { email } = req.body || {};
-    const emailValidation = validateEmail(email);
-    if (!emailValidation.valid) {
-      res.status(422).json({ error: 'Valid email address is required' });
-      return;
-    }
-
-    // Fail-fast if email sending service is not configured (preserves anti-enumeration by failing uniformly)
-    const isConfigured = await isEmailServiceConfigured();
-    if (!isConfigured) {
-      console.warn(`[AUTH][${correlationId}] Resend verification rejected: email sending service is not configured`);
-      res.status(503).json({
-        error: 'Email verification is currently unavailable. Please contact the administrator.',
-      });
-      return;
-    }
-
-    const normalizedEmail = emailValidation.normalized;
-    const user = await getUserByEmail(normalizedEmail);
-
-    // If user does not exist or is a Google-only account, return generic success to prevent enumeration
-    if (!user || (user.google_id && !user.password_hash)) {
-      res.json({
-        success: true,
-        message: 'If an account requires email verification, a verification email has been sent.',
-      });
-      return;
-    }
-
-    // If already verified, do not send another email; gracefully direct user toward login
-    if (user.email_verified) {
-      res.json({
-        success: true,
-        already_verified: true,
-        message: 'This email is already verified. Please sign in to your account.',
-      });
-      return;
-    }
-
-    const { rawToken, tokenHash, expiresAt } = generateVerificationToken(24);
-    await updateUserVerificationToken(user.id, tokenHash, expiresAt);
-
-    const emailResult = await sendVerificationEmail({
-      email: normalizedEmail,
-      rawToken,
-      request: req,
-      correlationId,
-    });
-
-    if (!emailResult.success) {
-      console.error(`[AUTH][${correlationId}] Failed to resend verification email:`, emailResult.rawError || emailResult.error);
-      if (emailResult.status === 'EMAIL_NOT_CONFIGURED') {
-        res.status(503).json({
-          error: 'Email verification is currently unavailable. Please contact the administrator.',
-        });
-        return;
-      }
-      res.status(503).json({
-        error: "We couldn't send the verification email. Please try again.",
-      });
-      return;
-    }
-
-    res.json({
-      success: true,
-      message: 'If an account requires email verification, a verification email has been sent.',
-    });
-  } catch (err: any) {
-    handleApiError(err, req, res);
-  }
-});
-
-/**
- * POST /api/auth/forgot-password
- * Initiates password reset flow without exposing whether an email exists
- */
-app.post('/api/auth/forgot-password', authRateLimiter, async (req, res) => {
-  const correlationId = (req.headers['x-correlation-id'] || req.headers['x-request-id'] || crypto.randomUUID()) as string;
-  try {
-    const { email } = req.body || {};
-    const emailValidation = validateEmail(email);
-    if (!emailValidation.valid) {
-      res.status(422).json({ error: 'Valid email address is required' });
-      return;
-    }
-
-    // Fail-fast if email sending service is not configured (preserves anti-enumeration by failing uniformly)
-    const isConfigured = await isEmailServiceConfigured();
-    if (!isConfigured) {
-      console.warn(`[AUTH][${correlationId}] Forgot password rejected: email sending service is not configured`);
-      res.status(503).json({
-        error: 'Email service is currently unavailable. Please contact the administrator.',
-      });
-      return;
-    }
-
-    const normalizedEmail = emailValidation.normalized;
-    const user = await getUserByEmail(normalizedEmail);
-
-    // Only generate reset token if user exists and has a password
-    if (user && user.password_hash) {
-      const { rawToken, tokenHash, expiresAt } = generatePasswordResetToken(1);
-      await updateUserPasswordResetToken(user.id, tokenHash, expiresAt);
-
-      const emailResult = await sendPasswordResetEmail({
-        email: normalizedEmail,
-        rawToken,
-        request: req,
-        correlationId,
-      });
-
-      if (!emailResult.success) {
-        console.error(`[AUTH][${correlationId}] Failed to send password reset email:`, emailResult.rawError || emailResult.error);
-        res.status(503).json({
-          error: "We couldn't send the password reset email right now. Please try again later.",
-        });
-        return;
-      }
-    }
-
-    res.json({
-      success: true,
-      message: 'If an account with that email exists, a password reset link has been sent.',
-    });
-  } catch (err: any) {
-    handleApiError(err, req, res);
-  }
-});
-
-/**
- * POST /api/auth/reset-password
- * Completes password reset using valid, non-expired reset token
- */
-app.post('/api/auth/reset-password', authRateLimiter, async (req, res) => {
-  try {
-    const { token, password, confirmPassword } = req.body || {};
-
-    if (!token || typeof token !== 'string' || !token.trim()) {
-      res.status(422).json({ error: 'Reset token is required' });
-      return;
-    }
-
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.valid) {
-      res.status(422).json({ error: passwordValidation.error || 'Password does not meet requirements' });
-      return;
-    }
-
-    if (!confirmPassword || password !== confirmPassword) {
-      res.status(422).json({ error: 'Passwords do not match' });
-      return;
-    }
-
-    const tokenHash = hashToken(token.trim());
-    const user = await getUserByPasswordResetToken(tokenHash);
-
-    if (!user) {
-      res.status(400).json({
-        error: 'This password reset link is invalid or has already been used.',
-        code: 'INVALID_RESET_TOKEN',
-      });
-      return;
-    }
-
-    if (user.password_reset_expires_at && new Date(user.password_reset_expires_at) < new Date()) {
-      res.status(400).json({
-        error: 'This password reset link has expired. Please request a new password reset.',
-        code: 'EXPIRED_RESET_TOKEN',
-      });
-      return;
-    }
-
-    const newPasswordHash = await hashPassword(password);
-    await setUserPassword(user.id, newPasswordHash);
-
-    res.json({
-      success: true,
-      message: 'Password has been reset successfully. Please log in with your new password.',
-    });
-  } catch (err: any) {
-    handleApiError(err, req, res);
   }
 });
 
@@ -3413,7 +2939,10 @@ app.all('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
 
 /**
  * DELETE /api/events/:eventId
- * Delete an event
+ * Delete an event enforcing strict lifecycle and payment rules:
+ * - Unpaid + before Setup Day => ALLOWED
+ * - Paid + before Setup Day => FORBIDDEN (Must use Cancel & Refund)
+ * - On/After Setup Day / Live / Completed / Expired / Cancelled => FORBIDDEN
  */
 app.delete('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
@@ -3432,10 +2961,60 @@ app.delete('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReq
       return;
     }
 
+    const eligibility = canDeleteEvent(event);
+    if (!eligibility.canDelete) {
+      res.status(422).json({
+        error: eligibility.reason,
+        message: eligibility.reason,
+        reason: eligibility.reason,
+        code: eligibility.code,
+        eligibility,
+      });
+      return;
+    }
+
     await deleteEvent(eventId);
-    res.json({ success: true });
+    res.json({ success: true, message: 'Event deleted successfully' });
   } catch (err: any) {
     console.error('Delete event error:', err);
+    if (err.status === 422 || err.code === 'EVENT_PAID' || err.code === 'SETUP_DAY_STARTED' || err.code === 'EVENT_LIVE' || err.code === 'EVENT_ENDED' || err.code === 'ALREADY_CANCELLED' || err.code === 'EVENT_DELETE_NOT_ALLOWED') {
+      res.status(422).json({
+        error: err.message,
+        message: err.message,
+        reason: err.message,
+        code: err.code || 'EVENT_DELETE_NOT_ALLOWED',
+        eligibility: err.eligibility,
+      });
+      return;
+    }
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/events/:eventId/deletion-eligibility
+ * Check if event can be permanently deleted
+ */
+app.get('/api/events/:eventId/deletion-eligibility', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Permission denied' });
+      return;
+    }
+
+    const eligibility = canDeleteEvent(event);
+    res.json({ eligibility });
+  } catch (err: any) {
     handleApiError(err, req, res);
   }
 });
@@ -3494,6 +3073,8 @@ app.post('/api/events/:eventId/cancel', eventRateLimiter, authenticateJWT, async
     if (!eligibility.canCancel) {
       res.status(422).json({
         error: eligibility.reason,
+        message: eligibility.reason,
+        reason: eligibility.reason,
         code: eligibility.code,
         eligibility,
       });
@@ -3514,6 +3095,24 @@ app.post('/api/events/:eventId/cancel', eventRateLimiter, authenticateJWT, async
       refundResult: cancelled.refundResult,
     });
   } catch (err: any) {
+    if (
+      err.status === 422 ||
+      err.code === 'ALREADY_CANCELLED' ||
+      err.code === 'SETUP_DAY_STARTED' ||
+      err.code === 'EVENT_COMPLETED' ||
+      err.code === 'EVENT_ACTIVE' ||
+      err.code === 'EVENT_NOT_PAID' ||
+      err.code === 'REFUND_NOT_ALLOWED'
+    ) {
+      res.status(422).json({
+        error: err.message?.replace(/^Cancellation rejected:\s*/, '') || err.message,
+        message: err.message?.replace(/^Cancellation rejected:\s*/, '') || err.message,
+        reason: err.message?.replace(/^Cancellation rejected:\s*/, '') || err.message,
+        code: err.code,
+        eligibility: err.eligibility,
+      });
+      return;
+    }
     handleApiError(err, req, res);
   }
 });

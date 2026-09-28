@@ -30,6 +30,8 @@ import {
   isEventExplicitlyCancelled,
   calculateEventStatus,
   isEventEligibleForShowcase,
+  canDeleteEvent,
+  canCancelEvent,
 } from '../../lib/dateUtils';
 import { EventLeaderboardModal } from './EventLeaderboardModal';
 import { EventPaymentModal } from './EventPaymentModal';
@@ -89,6 +91,8 @@ export const EventCard: React.FC<EventCardProps> = ({
     effectiveStatus !== 'expired' &&
     !availability.isAfterLiveWindow;
   const isPendingPayment = isPaymentRequired || effectiveStatus === 'pending_payment';
+  const deleteEligibility = event.deletion_eligibility || canDeleteEvent(event);
+  const cancelEligibility = event.cancellation_eligibility || canCancelEvent(event);
 
   const copyLink = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -512,17 +516,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               {isPaid ? <Lock className="w-3.5 h-3.5 text-amber-400/80" /> : <Edit2 className="w-3.5 h-3.5" />}
             </button>
 
-            {!isCancelled && (
-              <button
-                onClick={() => onCancel(event.id)}
-                className="p-1.5 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg text-xs transition-colors cursor-pointer"
-                title="Cancel Event"
-              >
-                <Ban className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            {isOwnerOrAdmin && (
+            {deleteEligibility.canDelete && isOwnerOrAdmin && (
               <button
                 onClick={() => onDelete(event.id)}
                 className="p-1.5 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg text-xs transition-colors cursor-pointer"
@@ -530,6 +524,25 @@ export const EventCard: React.FC<EventCardProps> = ({
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
+            )}
+
+            {cancelEligibility.canCancel && (
+              <button
+                onClick={() => onCancel(event.id)}
+                className="p-1.5 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg text-xs transition-colors cursor-pointer"
+                title="Cancel & Refund"
+              >
+                <Ban className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {!deleteEligibility.canDelete && !cancelEligibility.canCancel && (deleteEligibility.code === 'SETUP_DAY_STARTED' || cancelEligibility.code === 'SETUP_DAY_STARTED') && (
+              <div
+                className="p-1.5 bg-slate-800/60 text-slate-500 rounded-lg text-xs cursor-not-allowed"
+                title="Event locked — cancellation and refund are unavailable after Setup Day."
+              >
+                <Lock className="w-3.5 h-3.5 text-slate-500" />
+              </div>
             )}
           </div>
         )}

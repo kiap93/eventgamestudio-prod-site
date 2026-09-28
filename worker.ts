@@ -2,14 +2,6 @@ import {
   OrgRole,
   getUserById,
   getUserByEmail,
-  createUser,
-  deleteUser,
-  getUserByVerificationToken,
-  getUserByPasswordResetToken,
-  verifyUserEmail,
-  setUserPassword,
-  updateUserVerificationToken,
-  updateUserPasswordResetToken,
   upsertGoogleUser,
   updateUserProfile,
   getUserOrganizations,
@@ -59,6 +51,7 @@ import {
   createEventWithAtomicPayment,
   updateEvent,
   deleteEvent,
+  canDeleteEvent,
   cancelEvent,
   canCancelEvent,
   determineEventRefund,
@@ -243,22 +236,8 @@ import {
 } from './server/auth.js';
 
 import { getSupabaseServerClient } from './server/supabase.js';
-import { checkWorkerRateLimit, checkWorkerRateLimitWithCloudflare, isVenueRequest, WORKER_CONTACT_RATE_LIMIT, WORKER_RESEND_RATE_LIMIT, signVenueToken } from './server/rateLimiter.js';
+import { checkWorkerRateLimit, checkWorkerRateLimitWithCloudflare, isVenueRequest, WORKER_CONTACT_RATE_LIMIT, signVenueToken } from './server/rateLimiter.js';
 import { validateUploadedFile } from './server/fileValidation.js';
-import {
-  validatePassword,
-  validateEmail,
-  hashPassword,
-  verifyPassword,
-  maskEmail,
-} from './server/password.js';
-import {
-  generateVerificationToken,
-  generatePasswordResetToken,
-  sendVerificationEmail,
-  sendPasswordResetEmail,
-  isEmailServiceConfigured,
-} from './server/emailVerification.js';
 
 export interface Env {
   NODE_ENV?: string;
@@ -933,511 +912,6 @@ export default {
             hint: err?.hint,
           });
           return errorResponse('Google authentication failed', 401, { ...cors, 'x-correlation-id': correlationId });
-        }
-      }
-
-      // ==========================================
-      // Email / Password Registration & Verification Routes
-      // ==========================================
-      if (pathname === '/api/auth/register' && method === 'POST') {
-        const correlationId =
-          request.headers.get('x-correlation-id') ||
-          request.headers.get('x-request-id') ||
-          crypto.randomUUID();
-
-        try {
-          const body = (await request.json().catch(() => ({}))) as any;
-          const { email, password, confirmPassword } = body;
-
-          const emailValidation = validateEmail(email);
-          if (!emailValidation.valid) {
-            return jsonResponse({ error: emailValidation.error || 'Please enter a valid email address' }, 422, cors);
-          }
-
-          const passwordValidation = validatePassword(password);
-          if (!passwordValidation.valid) {
-            return jsonResponse({ error: passwordValidation.error || 'Password does not meet requirements' }, 422, cors);
-          }
-
-          if (!confirmPassword || password !== confirmPassword) {
-            return jsonResponse({ error: 'Passwords do not match' }, 422, cors);
-          }
-
-          // Step 1: Detect missing email configuration before creating unverified user
-          const isConfigured = await isEmailServiceConfigured(env);
-          if (!isConfigured) {
-            console.warn(`[AUTH][${correlationId}] Registration rejected: email sending service is not configured`);
-            return jsonResponse(
-              { error: 'Email verification is currently unavailable. Please contact the administrator.' },
-              503,
-              { ...cors, 'x-correlation-id': correlationId }
-            );
-          }
-
-          const normalizedEmail = emailValidation.normalized;
-
-          const existingUser = await getUserByEmail(normalizedEmail, env);
-          if (existingUser) {
-            if (existingUser.password_hash) {
-              return jsonResponse({ error: 'An account with this email address already exists. Please log in or reset your password.' }, 409, cors);
-            }
-            if (existingUser.google_id) {
-              return jsonResponse({ error: 'An account with this email was created using Google Sign-In. Please sign in with Google or reset your password.' }, 409, cors);
-            }
-          }
-
-          const passwordHash = await hashPassword(password);
-          const { rawToken, tokenHash, expiresAt } = generateVerificationToken(24);
-
-          const user = await createUser(
-            {
-              email: normalizedEmail,
-              name: normalizedEmail.split('@')[0] || 'User',
-              password_hash: passwordHash,
-              email_verified: false,
-              verification_token_hash: tokenHash,
-              verification_token_expires_at: expiresAt,
-            },
-            env
-          );
-
-          // Step 2: Await verification email delivery
-          const emailResult = await sendVerificationEmail({
-            email: normalizedEmail,
-            rawToken,
-            env,
-            request,
-            correlationId,
-          });
-
-          if (!emailResult.success) {
-            // Safe transactional rollback of newly created unverified user
-            try {
-              await deleteUser(user.id, env);
-              console.log(`[AUTH][${correlationId}] Rolled back newly created user ${user.id} due to email dispatch failure.`);
-            } catch (rollbackErr: any) {
-              console.error(`[AUTH][${correlationId}] Rollback failed for user ${user.id}:`, rollbackErr?.message);
-            }
-
-            if (emailResult.status === 'EMAIL_NOT_CONFIGURED') {
-              return jsonResponse(
-                { error: 'Email verification is currently unavailable. Please contact the administrator.' },
-                503,
-                { ...cors, 'x-correlation-id': correlationId }
-              );
-            }
-
-            return jsonResponse(
-              { error: "We couldn't send the verification email right now. Please try again later." },
-              503,
-              { ...cors, 'x-correlation-id': correlationId }
-            );
-          }
-
-          return jsonResponse(
-            {
-              success: true,
-              message: 'Account created. Please check your email and click the verification link to continue.',
-              email: normalizedEmail,
-            },
-            201,
-            { ...cors, 'x-correlation-id': correlationId }
-          );
-        } catch (err: any) {
-          return handleWorkerApiError(err, request, cors, env, { endpoint: pathname, method });
-        }
-      }
-
-      if (pathname === '/api/auth/login' && method === 'POST') {
-        const correlationId =
-          request.headers.get('x-correlation-id') ||
-          request.headers.get('x-request-id') ||
-          crypto.randomUUID();
-
-        try {
-          const body = (await request.json().catch(() => ({}))) as any;
-          const { email, password } = body;
-
-          const emailValidation = validateEmail(email);
-          if (!emailValidation.valid) {
-            return jsonResponse({ error: 'Valid email address is required' }, 422, cors);
-          }
-          if (!password || typeof password !== 'string') {
-            return jsonResponse({ error: 'Password is required' }, 422, cors);
-          }
-
-          const normalizedEmail = emailValidation.normalized;
-          const user = await getUserByEmail(normalizedEmail, env);
-
-          if (!user) {
-            return jsonResponse({ error: 'Invalid email or password' }, 401, cors);
-          }
-
-          if (!user.password_hash) {
-            if (user.google_id) {
-              return jsonResponse({ error: 'This account was created using Google Sign-In. Please sign in with Google.' }, 401, cors);
-            }
-            return jsonResponse({ error: 'Invalid email or password' }, 401, cors);
-          }
-
-          const isMatch = await verifyPassword(password, user.password_hash);
-          if (!isMatch) {
-            return jsonResponse({ error: 'Invalid email or password' }, 401, cors);
-          }
-
-          if (!user.email_verified && !user.google_id) {
-            return jsonResponse(
-              {
-                error: 'Please verify your email before continuing.',
-                code: 'EMAIL_NOT_VERIFIED',
-                email: user.email,
-              },
-              403,
-              cors
-            );
-          }
-
-          let memberships: any[] = [];
-          try {
-            memberships = await getUserOrganizations(user.id, env);
-          } catch {
-            memberships = [];
-          }
-
-          let activeOrgId: string | undefined = undefined;
-          let activeRole: string | undefined = undefined;
-
-          if (memberships.length > 0) {
-            activeOrgId = memberships[0].id;
-            activeRole = memberships[0].role;
-          }
-
-          const token = await signAppToken(user.id, activeOrgId, activeRole as any, undefined, env);
-
-          return jsonResponse(
-            {
-              token,
-              user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                avatar_url: user.avatar_url,
-                is_developer: user.is_developer === true,
-              },
-              organizations: memberships,
-              activeOrganizationId: activeOrgId || null,
-            },
-            200,
-            { ...cors, 'x-correlation-id': correlationId }
-          );
-        } catch (err: any) {
-          return handleWorkerApiError(err, request, cors, env, { endpoint: pathname, method });
-        }
-      }
-
-      if (pathname === '/api/auth/verify-email' && method === 'POST') {
-        const correlationId =
-          request.headers.get('x-correlation-id') ||
-          request.headers.get('x-request-id') ||
-          crypto.randomUUID();
-
-        try {
-          const body = (await request.json().catch(() => ({}))) as any;
-          const { token } = body;
-
-          if (!token || typeof token !== 'string' || !token.trim()) {
-            return jsonResponse({ error: 'Verification token is required' }, 422, cors);
-          }
-
-          const tokenHash = hashToken(token.trim());
-          const user = await getUserByVerificationToken(tokenHash, env);
-
-          if (!user) {
-            return jsonResponse(
-              {
-                error: 'This verification link is invalid or has already been used.',
-                code: 'INVALID_TOKEN',
-              },
-              400,
-              cors
-            );
-          }
-
-          if (user.verification_token_expires_at && new Date(user.verification_token_expires_at) < new Date()) {
-            return jsonResponse(
-              {
-                error: 'This verification link has expired. Please request a new verification email.',
-                code: 'EXPIRED_TOKEN',
-                email: user.email,
-              },
-              400,
-              cors
-            );
-          }
-
-          const verifiedUser = await verifyUserEmail(user.id, env);
-
-          let memberships: any[] = [];
-          try {
-            memberships = await getUserOrganizations(verifiedUser.id, env);
-          } catch {
-            memberships = [];
-          }
-
-          let activeOrgId: string | undefined = undefined;
-          let activeRole: string | undefined = undefined;
-          if (memberships.length > 0) {
-            activeOrgId = memberships[0].id;
-            activeRole = memberships[0].role;
-          }
-
-          const sessionToken = await signAppToken(verifiedUser.id, activeOrgId, activeRole as any, undefined, env);
-
-          return jsonResponse(
-            {
-              success: true,
-              message: 'Email verified successfully! You can now access your account.',
-              token: sessionToken,
-              user: {
-                id: verifiedUser.id,
-                email: verifiedUser.email,
-                name: verifiedUser.name,
-                avatar_url: verifiedUser.avatar_url,
-                is_developer: verifiedUser.is_developer === true,
-              },
-              organizations: memberships,
-              activeOrganizationId: activeOrgId || null,
-            },
-            200,
-            { ...cors, 'x-correlation-id': correlationId }
-          );
-        } catch (err: any) {
-          return handleWorkerApiError(err, request, cors, env, { endpoint: pathname, method });
-        }
-      }
-
-      if (pathname === '/api/auth/resend-verification' && method === 'POST') {
-        const rateLimitResult = await checkWorkerRateLimitWithCloudflare(request, WORKER_RESEND_RATE_LIMIT, env);
-        if (!rateLimitResult.allowed) {
-          return new Response(JSON.stringify(rateLimitResult.errorResponse), {
-            status: 429,
-            headers: { 'Content-Type': 'application/json', ...cors, ...rateLimitResult.headers },
-          });
-        }
-
-        const correlationId =
-          request.headers.get('x-correlation-id') ||
-          request.headers.get('x-request-id') ||
-          crypto.randomUUID();
-
-        try {
-          const body = (await request.json().catch(() => ({}))) as any;
-          const { email } = body;
-
-          const emailValidation = validateEmail(email);
-          if (!emailValidation.valid) {
-            return jsonResponse({ error: 'Valid email address is required' }, 422, cors);
-          }
-
-          // Fail-fast if email sending service is not configured (preserves anti-enumeration by failing uniformly)
-          const isConfigured = await isEmailServiceConfigured(env);
-          if (!isConfigured) {
-            console.warn(`[AUTH][${correlationId}] Resend verification rejected: email sending service is not configured`);
-            return jsonResponse(
-              { error: 'Email verification is currently unavailable. Please contact the administrator.' },
-              503,
-              { ...cors, 'x-correlation-id': correlationId }
-            );
-          }
-
-          const normalizedEmail = emailValidation.normalized;
-          const user = await getUserByEmail(normalizedEmail, env);
-
-          // Prevent account enumeration: always return 200 with generic message for non-existent or Google-only accounts
-          if (!user || (user.google_id && !user.password_hash)) {
-            return jsonResponse(
-              {
-                success: true,
-                message: 'If an account requires email verification, a verification email has been sent.',
-              },
-              200,
-              cors
-            );
-          }
-
-          // If already verified, do not send another email; gracefully direct user toward login
-          if (user.email_verified) {
-            return jsonResponse(
-              {
-                success: true,
-                already_verified: true,
-                message: 'This email is already verified. Please sign in to your account.',
-              },
-              200,
-              cors
-            );
-          }
-
-          const { rawToken, tokenHash, expiresAt } = generateVerificationToken(24);
-          await updateUserVerificationToken(user.id, tokenHash, expiresAt, env);
-
-          const emailResult = await sendVerificationEmail({
-            email: normalizedEmail,
-            rawToken,
-            env,
-            request,
-            correlationId,
-          });
-
-          if (!emailResult.success) {
-            console.error(`[AUTH][${correlationId}] Failed to resend verification email:`, emailResult.rawError || emailResult.error);
-            if (emailResult.status === 'EMAIL_NOT_CONFIGURED') {
-              return jsonResponse(
-                { error: 'Email verification is currently unavailable. Please contact the administrator.' },
-                503,
-                { ...cors, 'x-correlation-id': correlationId }
-              );
-            }
-            return jsonResponse(
-              { error: "We couldn't send the verification email. Please try again." },
-              503,
-              { ...cors, 'x-correlation-id': correlationId }
-            );
-          }
-
-          return jsonResponse(
-            {
-              success: true,
-              message: 'If an account requires email verification, a verification email has been sent.',
-            },
-            200,
-            cors
-          );
-        } catch (err: any) {
-          return handleWorkerApiError(err, request, cors, env, { endpoint: pathname, method });
-        }
-      }
-
-      if (pathname === '/api/auth/forgot-password' && method === 'POST') {
-        const correlationId =
-          request.headers.get('x-correlation-id') ||
-          request.headers.get('x-request-id') ||
-          crypto.randomUUID();
-
-        try {
-          const body = (await request.json().catch(() => ({}))) as any;
-          const { email } = body;
-
-          const emailValidation = validateEmail(email);
-          if (!emailValidation.valid) {
-            return jsonResponse({ error: 'Valid email address is required' }, 422, cors);
-          }
-
-          // Fail-fast if email sending service is not configured (preserves anti-enumeration by failing uniformly)
-          const isConfigured = await isEmailServiceConfigured(env);
-          if (!isConfigured) {
-            console.warn(`[AUTH][${correlationId}] Forgot password rejected: email sending service is not configured`);
-            return jsonResponse(
-              { error: 'Email service is currently unavailable. Please contact the administrator.' },
-              503,
-              { ...cors, 'x-correlation-id': correlationId }
-            );
-          }
-
-          const normalizedEmail = emailValidation.normalized;
-          const user = await getUserByEmail(normalizedEmail, env);
-
-          if (user && user.password_hash) {
-            const { rawToken, tokenHash, expiresAt } = generatePasswordResetToken(1);
-            await updateUserPasswordResetToken(user.id, tokenHash, expiresAt, env);
-
-            const emailResult = await sendPasswordResetEmail({
-              email: normalizedEmail,
-              rawToken,
-              env,
-              request,
-              correlationId,
-            });
-
-            if (!emailResult.success) {
-              console.error(`[AUTH][${correlationId}] Failed to send password reset email:`, emailResult.rawError || emailResult.error);
-              return jsonResponse(
-                { error: "We couldn't send the password reset email right now. Please try again later." },
-                503,
-                { ...cors, 'x-correlation-id': correlationId }
-              );
-            }
-          }
-
-          return jsonResponse(
-            {
-              success: true,
-              message: 'If an account with that email exists, a password reset link has been sent.',
-            },
-            200,
-            cors
-          );
-        } catch (err: any) {
-          return handleWorkerApiError(err, request, cors, env, { endpoint: pathname, method });
-        }
-      }
-
-      if (pathname === '/api/auth/reset-password' && method === 'POST') {
-        try {
-          const body = (await request.json().catch(() => ({}))) as any;
-          const { token, password, confirmPassword } = body;
-
-          if (!token || typeof token !== 'string' || !token.trim()) {
-            return jsonResponse({ error: 'Reset token is required' }, 422, cors);
-          }
-
-          const passwordValidation = validatePassword(password);
-          if (!passwordValidation.valid) {
-            return jsonResponse({ error: passwordValidation.error || 'Password does not meet requirements' }, 422, cors);
-          }
-
-          if (!confirmPassword || password !== confirmPassword) {
-            return jsonResponse({ error: 'Passwords do not match' }, 422, cors);
-          }
-
-          const tokenHash = hashToken(token.trim());
-          const user = await getUserByPasswordResetToken(tokenHash, env);
-
-          if (!user) {
-            return jsonResponse(
-              {
-                error: 'This password reset link is invalid or has already been used.',
-                code: 'INVALID_RESET_TOKEN',
-              },
-              400,
-              cors
-            );
-          }
-
-          if (user.password_reset_expires_at && new Date(user.password_reset_expires_at) < new Date()) {
-            return jsonResponse(
-              {
-                error: 'This password reset link has expired. Please request a new password reset.',
-                code: 'EXPIRED_RESET_TOKEN',
-              },
-              400,
-              cors
-            );
-          }
-
-          const newPasswordHash = await hashPassword(password);
-          await setUserPassword(user.id, newPasswordHash, env);
-
-          return jsonResponse(
-            {
-              success: true,
-              message: 'Password has been reset successfully. Please log in with your new password.',
-            },
-            200,
-            cors
-          );
-        } catch (err: any) {
-          return handleWorkerApiError(err, request, cors, env, { endpoint: pathname, method });
         }
       }
 
@@ -3868,8 +3342,41 @@ export default {
           return errorResponse('Permission denied: Only owners and admins can delete events', 403, cors);
         }
 
-        await deleteEvent(eventId, env);
-        return jsonResponse({ success: true }, 200, cors);
+        const eligibility = canDeleteEvent(event);
+        if (!eligibility.canDelete) {
+          return jsonResponse({
+            error: eligibility.reason,
+            message: eligibility.reason,
+            reason: eligibility.reason,
+            code: eligibility.code,
+            eligibility,
+          }, 422, cors);
+        }
+
+        await deleteEvent(eventId, undefined, env);
+        return jsonResponse({ success: true, message: 'Event deleted successfully' }, 200, cors);
+      }
+
+      const deleteEligibilityParams = parseRoute('/api/events/:eventId/deletion-eligibility', pathname);
+      if (deleteEligibilityParams && method === 'GET') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId } = deleteEligibilityParams;
+
+        const event = await getEventById(eventId, env);
+        if (!event) {
+          return errorResponse('Event not found', 404, cors);
+        }
+
+        const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.view', env);
+        if (!isMember || !hasPermission) {
+          return errorResponse('Permission denied', 403, cors);
+        }
+
+        const eligibility = canDeleteEvent(event);
+        return jsonResponse({ eligibility }, 200, cors);
       }
 
       const cancelEligibilityParams = parseRoute('/api/events/:eventId/cancellation-eligibility', pathname);
@@ -3917,29 +3424,52 @@ export default {
         if (!eligibility.canCancel) {
           return jsonResponse({
             error: eligibility.reason,
+            message: eligibility.reason,
+            reason: eligibility.reason,
             code: eligibility.code,
             eligibility,
           }, 422, cors);
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
-        const cancelled = await cancelEvent(
-          eventId,
-          {
-            cancelledBy: user.id,
-            cancelReason: body?.cancel_reason || body?.cancelReason || 'USER_CANCELLED',
-            reason: body?.reason || 'User cancelled event before Setup Day',
-          },
-          env
-        );
+        try {
+          const cancelled = await cancelEvent(
+            eventId,
+            {
+              cancelledBy: user.id,
+              cancelReason: body?.cancel_reason || body?.cancelReason || 'USER_CANCELLED',
+              reason: body?.reason || 'User cancelled event before Setup Day',
+            },
+            env
+          );
 
-        const enriched = await getEventById(cancelled.id, env);
-        return jsonResponse({
-          success: true,
-          event: enriched,
-          eligibility: cancelled.eligibility,
-          refundResult: cancelled.refundResult,
-        }, 200, cors);
+          const enriched = await getEventById(cancelled.id, env);
+          return jsonResponse({
+            success: true,
+            event: enriched,
+            eligibility: cancelled.eligibility,
+            refundResult: cancelled.refundResult,
+          }, 200, cors);
+        } catch (err: any) {
+          if (
+            err.status === 422 ||
+            err.code === 'ALREADY_CANCELLED' ||
+            err.code === 'SETUP_DAY_STARTED' ||
+            err.code === 'EVENT_COMPLETED' ||
+            err.code === 'EVENT_ACTIVE' ||
+            err.code === 'EVENT_NOT_PAID' ||
+            err.code === 'REFUND_NOT_ALLOWED'
+          ) {
+            return jsonResponse({
+              error: err.message?.replace(/^Cancellation rejected:\s*/, '') || err.message,
+              message: err.message?.replace(/^Cancellation rejected:\s*/, '') || err.message,
+              reason: err.message?.replace(/^Cancellation rejected:\s*/, '') || err.message,
+              code: err.code,
+              eligibility: err.eligibility,
+            }, 422, cors);
+          }
+          return handleWorkerApiError(err, request, cors, env);
+        }
       }
 
       const publicEventParams = parseRoute('/api/public/events/:publicToken', pathname);

@@ -111,7 +111,7 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
               <Ban className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-100">Cancel Event Deployment</h2>
+              <h2 className="text-lg font-bold text-slate-100">Cancel & Refund Event?</h2>
               <p className="text-xs text-slate-400 font-mono truncate max-w-[280px]">
                 {event.name}
               </p>
@@ -155,11 +155,16 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
                   )}
                   <div>
                     <h4 className="font-bold text-sm text-slate-100 mb-1">
-                      {isEligible ? 'Eligible for Cancellation' : 'Cancellation Not Allowed'}
+                      {isEligible ? 'Eligible for Cancellation & Refund' : 'Cancellation & Refund Not Allowed'}
                     </h4>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      {eligibility?.reason || 'Business rule: Once Setup Day starts, ordinary cancellation and refunds are strictly not allowed.'}
+                      {eligibility?.reason || 'Once Setup Day starts, cancellation and refunds are not allowed.'}
                     </p>
+                    {isEligible && (
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                        This will cancel the event and refund the eligible payment according to the existing refund policy. This action cannot be undone.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -271,12 +276,12 @@ export const CancelEventModal: React.FC<CancelEventModalProps> = ({
               {submitting ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Processing Cancellation...</span>
+                  <span>Processing...</span>
                 </>
               ) : (
                 <>
                   <Ban className="w-3.5 h-3.5" />
-                  <span>Confirm Cancellation</span>
+                  <span>Cancel & Refund</span>
                 </>
               )}
             </button>

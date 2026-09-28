@@ -14,9 +14,7 @@ export type PresentationMode =
   | 'accept_invite'
   | 'create_org'
   | 'theme_setup'
-  | 'developer_admin'
-  | 'verify_email'
-  | 'reset_password';
+  | 'developer_admin';
 
 export interface RouteContext {
   mode: PresentationMode;
@@ -65,8 +63,6 @@ const RESERVED_PREFIXES = new Set([
   'wallet',
   'showcase',
   'showcases',
-  'verify-email',
-  'reset-password',
 ]);
 
 export function parseRoute(pathname: string): RouteContext {
@@ -252,37 +248,9 @@ export function parseRoute(pathname: string): RouteContext {
   }
 
   // 4. Check for Login
-  if (cleanPath === '/login' || cleanPath.startsWith('/login?')) {
+  if (cleanPath === '/login') {
     return {
       mode: 'login',
-      isPublicGameRoute: false,
-      isPublicEventRoute: false,
-      isEventPreviewRoute: false,
-      isStudioRoute: false,
-      isPreviewRoute: false,
-      isDeveloperAdminRoute: false,
-      pathname: cleanPath,
-    };
-  }
-
-  // 4.1. Check for Email Verification: /verify-email
-  if (cleanPath.startsWith('/verify-email')) {
-    return {
-      mode: 'verify_email',
-      isPublicGameRoute: false,
-      isPublicEventRoute: false,
-      isEventPreviewRoute: false,
-      isStudioRoute: false,
-      isPreviewRoute: false,
-      isDeveloperAdminRoute: false,
-      pathname: cleanPath,
-    };
-  }
-
-  // 4.15. Check for Password Reset: /reset-password
-  if (cleanPath.startsWith('/reset-password')) {
-    return {
-      mode: 'reset_password',
       isPublicGameRoute: false,
       isPublicEventRoute: false,
       isEventPreviewRoute: false,

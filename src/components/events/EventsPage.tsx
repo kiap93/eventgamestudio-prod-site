@@ -5,6 +5,7 @@ import { EventCard } from './EventCard';
 import { CreateEventDialog } from './CreateEventDialog';
 import { EditEventDialog } from './EditEventDialog';
 import { CancelEventModal } from './CancelEventModal';
+import { DeleteEventModal } from './DeleteEventModal';
 import { EventCalendarView } from './EventCalendarView';
 import { isEventExplicitlyCancelled, calculateEventStatus } from '../../lib/dateUtils';
 import { navigateTo } from '../../hooks/useRouteContext';
@@ -139,6 +140,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any | null>(null);
   const [cancellingEvent, setCancellingEvent] = useState<any | null>(null);
+  const [deletingEvent, setDeletingEvent] = useState<any | null>(null);
 
   // Close modals when navigating directly to root /events
   useEffect(() => {
@@ -146,6 +148,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
       setIsCreateOpen(false);
       setEditingEvent(null);
       setCancellingEvent(null);
+      setDeletingEvent(null);
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -201,19 +204,10 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
     );
   };
 
-  const handleDeleteEvent = async (eventId: string) => {
-    if (!confirm('Are you sure you want to delete this event deployment?')) return;
-    try {
-      const res = await apiFetch(`/api/events/${eventId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to delete event');
-      }
-      setEvents((prev) => prev.filter((e) => e.id !== eventId));
-    } catch (err: any) {
-      alert(err.message || 'Error deleting event');
+  const handleDeleteEvent = (eventId: string) => {
+    const ev = events.find((e) => e.id === eventId);
+    if (ev) {
+      setDeletingEvent(ev);
     }
   };
 
@@ -688,6 +682,19 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
           onSuccess={(updatedEvent) => {
             handleEventUpdated(updatedEvent);
             fetchEvents();
+          }}
+        />
+      )}
+
+      {/* Delete Event Modal with Authoritative Policy */}
+      {deletingEvent && (
+        <DeleteEventModal
+          isOpen={true}
+          event={deletingEvent}
+          onClose={() => setDeletingEvent(null)}
+          onSuccess={(deletedId) => {
+            setEvents((prev) => prev.filter((e) => e.id !== deletedId));
+            setDeletingEvent(null);
           }}
         />
       )}

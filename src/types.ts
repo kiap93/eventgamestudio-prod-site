@@ -234,7 +234,34 @@ export type CancellationErrorCode =
   | 'EVENT_COMPLETED'
   | 'EVENT_EXPIRED'
   | 'ALREADY_CANCELLED'
+  | 'EVENT_NOT_PAID'
   | 'STATUS_NOT_CANCELLABLE';
+
+export type DeletionErrorCode =
+  | 'ELIGIBLE_FOR_DELETION'
+  | 'EVENT_PAID'
+  | 'SETUP_DAY_STARTED'
+  | 'EVENT_LIVE'
+  | 'EVENT_ENDED'
+  | 'ALREADY_CANCELLED'
+  | 'EVENT_DELETE_NOT_ALLOWED';
+
+export type EventDetailedLifecycle =
+  | 'BEFORE_SETUP_DAY'
+  | 'SETUP_DAY'
+  | 'LIVE'
+  | 'COMPLETED'
+  | 'EXPIRED'
+  | 'CANCELLED';
+
+export interface EventDeletionEligibility {
+  canDelete: boolean;
+  code: DeletionErrorCode;
+  reason: string;
+  lifecycle: EventDetailedLifecycle;
+  paymentStatus: string;
+  isPaid: boolean;
+}
 
 export interface EventCancellationEligibility {
   canCancel: boolean;
@@ -251,6 +278,15 @@ export interface EventCancellationEligibility {
   creditType: PaymentMode | null;
   reason: string;
   code: CancellationErrorCode;
+}
+
+export interface EventRefundDetermination {
+  canRefund: boolean;
+  refundPaidAmount: number;
+  creditReversalAmount: number;
+  creditType: PaymentMode | null;
+  paymentStatus: string;
+  reason: string;
 }
 
 export interface PublicEventDTO {
@@ -286,6 +322,7 @@ export interface EventWithDetails extends EventRecord {
   calculated_status?: 'draft' | 'scheduled' | 'live' | 'expired' | 'cancelled' | 'pending_payment' | 'active';
   setup_starts_at?: string;
   cancellation_eligibility?: EventCancellationEligibility;
+  deletion_eligibility?: EventDeletionEligibility;
   game_theme?: any;
   game?: {
     id: string;

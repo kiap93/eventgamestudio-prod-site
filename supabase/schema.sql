@@ -16,13 +16,6 @@ CREATE TABLE IF NOT EXISTS public.users (
   name TEXT NOT NULL,
   avatar_url TEXT,
   is_developer BOOLEAN NOT NULL DEFAULT false,
-  password_hash TEXT,
-  email_verified BOOLEAN NOT NULL DEFAULT false,
-  verified_at TIMESTAMPTZ,
-  verification_token_hash TEXT,
-  verification_token_expires_at TIMESTAMPTZ,
-  password_reset_token_hash TEXT,
-  password_reset_expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
@@ -30,9 +23,6 @@ CREATE TABLE IF NOT EXISTS public.users (
 CREATE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
 CREATE INDEX IF NOT EXISTS idx_users_google_id ON public.users (google_id);
 CREATE INDEX IF NOT EXISTS idx_users_is_developer ON public.users (is_developer);
-CREATE INDEX IF NOT EXISTS idx_users_verification_token_hash ON public.users (verification_token_hash) WHERE verification_token_hash IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_users_password_reset_token_hash ON public.users (password_reset_token_hash) WHERE password_reset_token_hash IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_users_email_verified ON public.users (email_verified);
 
 -- ------------------------------------------------------------------------------
 -- 2. ORGANIZATIONS TABLE
@@ -6961,6 +6951,64 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.create_showcase_reward_submission_atomic(UUID, UUID) TO authenticated, service_role, postgres;
+
+-- ------------------------------------------------------------------------------
+-- EVENT DELETION AUTHORITATIVE BUSINESS RULES (PREVENT DELETION OF PAID OR POST-SETUP EVENTS)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.enforce_event_deletion_rules()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_is_paid boolean;
+  v_setup_day date;
+  v_today date;
+  v_tz text;
+BEGIN
+  -- 1. If event was paid, NEVER allow physical deletion through normal or direct deletion
+  v_is_paid := (UPPER(COALESCE(OLD.payment_status, '')) = 'PAID' OR COALESCE(OLD.paid_amount, 0) > 0);
+  IF v_is_paid THEN
+    RAISE EXCEPTION 'This paid event cannot be deleted. Use Cancel & Refund before Setup Day.';
+  END IF;
+
+  -- 2. If event is already refunded or explicitly cancelled, do not allow physical deletion to preserve audit history
+  IF UPPER(COALESCE(OLD.payment_status, '')) = 'REFUNDED' OR UPPER(COALESCE(OLD.event_status, '')) = 'CANCELLED' OR LOWER(COALESCE(OLD.status, '')) = 'cancelled' THEN
+    RAISE EXCEPTION 'Cancelled or refunded events cannot be deleted. Financial and event history must be preserved.';
+  END IF;
+
+  -- 3. Resolve timezone and calculate current date in event timezone
+  v_tz := COALESCE(OLD.event_timezone, 'Asia/Singapore');
+  BEGIN
+    v_today := (timezone(v_tz, now()))::date;
+  EXCEPTION WHEN OTHERS THEN
+    v_today := (timezone('Asia/Singapore', now()))::date;
+  END;
+
+  -- 4. Calculate Setup Day (startDate - 1 calendar day)
+  IF OLD.start_date IS NOT NULL AND OLD.start_date ~ '^\d{4}-\d{2}-\d{2}' THEN
+    v_setup_day := (OLD.start_date::date - 1);
+  ELSIF OLD.starts_at IS NOT NULL THEN
+    v_setup_day := ((timezone(v_tz, OLD.starts_at))::date - 1);
+  ELSE
+    v_setup_day := NULL;
+  END IF;
+
+  -- 5. If Setup Day has started, deletion is permanently locked
+  IF v_setup_day IS NOT NULL AND v_today >= v_setup_day THEN
+    RAISE EXCEPTION 'This event can no longer be deleted because Setup Day has started.';
+  END IF;
+
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_event_deletion_rules ON public.events;
+CREATE TRIGGER trg_enforce_event_deletion_rules
+  BEFORE DELETE ON public.events
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_event_deletion_rules();
+
 
 
 

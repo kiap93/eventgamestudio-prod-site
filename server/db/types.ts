@@ -5,13 +5,6 @@ export interface UserRecord {
   name: string;
   avatar_url: string | null;
   is_developer?: boolean;
-  password_hash?: string | null;
-  email_verified?: boolean;
-  verified_at?: string | null;
-  verification_token_hash?: string | null;
-  verification_token_expires_at?: string | null;
-  password_reset_token_hash?: string | null;
-  password_reset_expires_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -390,6 +383,7 @@ export interface EventWithDetails extends EventRecord {
   calculated_status?: EventStatus;
   setup_starts_at?: string;
   cancellation_eligibility?: EventCancellationEligibility;
+  deletion_eligibility?: EventDeletionEligibility;
   game_theme?: GameThemeRecord | null;
   game?: {
     id: string;
@@ -656,7 +650,34 @@ export type CancellationErrorCode =
   | 'EVENT_COMPLETED'
   | 'EVENT_EXPIRED'
   | 'ALREADY_CANCELLED'
+  | 'EVENT_NOT_PAID'
   | 'STATUS_NOT_CANCELLABLE';
+
+export type DeletionErrorCode =
+  | 'ELIGIBLE_FOR_DELETION'
+  | 'EVENT_PAID'
+  | 'SETUP_DAY_STARTED'
+  | 'EVENT_LIVE'
+  | 'EVENT_ENDED'
+  | 'ALREADY_CANCELLED'
+  | 'EVENT_DELETE_NOT_ALLOWED';
+
+export type EventDetailedLifecycle =
+  | 'BEFORE_SETUP_DAY'
+  | 'SETUP_DAY'
+  | 'LIVE'
+  | 'COMPLETED'
+  | 'EXPIRED'
+  | 'CANCELLED';
+
+export interface EventDeletionEligibility {
+  canDelete: boolean;
+  code: DeletionErrorCode;
+  reason: string;
+  lifecycle: EventDetailedLifecycle;
+  paymentStatus: string;
+  isPaid: boolean;
+}
 
 export interface EventCancellationEligibility {
   canCancel: boolean;
