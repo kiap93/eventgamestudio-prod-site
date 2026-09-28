@@ -159,10 +159,10 @@ export const DEFAULT_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organization_
     logoUrl: null,
     clientLogoUrl: null,
   },
-  background_url: '/assets/themes/carnival/background.png',
+  background_url: '/assets/games/catch-brand/themes/carnival/background.png',
   basket_config: {
     name: 'Carnival Cart',
-    imageUrl: '/assets/themes/carnival/basket.png',
+    imageUrl: '/assets/games/catch-brand/themes/carnival/basket.png',
     width: 140,
     height: 70,
     catchAreaRatio: 0.75,
@@ -175,7 +175,7 @@ export const DEFAULT_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organization_
     {
       id: 'ticket',
       name: 'Golden Carnival Ticket',
-      imageUrl: '/assets/themes/carnival/item_normal_01.png',
+      imageUrl: '/assets/games/catch-brand/themes/carnival/item_normal_01.png',
       points: 10,
       speedMultiplier: 1.0,
       spawnWeight: 75,
@@ -189,7 +189,7 @@ export const DEFAULT_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organization_
     {
       id: 'mask',
       name: 'Carnival Cursed Mask',
-      imageUrl: '/assets/themes/carnival/item_hazard_01.png',
+      imageUrl: '/assets/games/catch-brand/themes/carnival/item_hazard_01.png',
       points: -10,
       speedMultiplier: 1.15,
       spawnWeight: 20,
@@ -203,7 +203,7 @@ export const DEFAULT_CARNIVAL_THEME: Omit<GameThemeRecord, 'id' | 'organization_
     {
       id: 'star',
       name: 'Cosmic Carnival Star',
-      imageUrl: '/assets/themes/carnival/item_bonus_01.png',
+      imageUrl: '/assets/games/catch-brand/themes/carnival/item_bonus_01.png',
       points: 50,
       speedMultiplier: 1.3,
       spawnWeight: 5,
@@ -1203,14 +1203,139 @@ export async function enrichThemesWithGameData(
 
     const { games: _omittedGames, ...rest } = item;
 
-    return {
+    const baseRecord: GameThemeRecord = {
       ...rest,
       game_id: resolvedGameId,
       game_name: resolvedGameName,
       game_slug: resolvedGameSlug,
       game_type: resolvedGameType,
     } as GameThemeRecord;
+
+    return normalizeServerThemeAssets(baseRecord);
   });
+}
+
+/**
+ * Normalizes system theme record assets server-side so API responses always deliver
+ * canonical assets regardless of whether legacy database rows contain outdated paths.
+ */
+export function normalizeServerThemeAssets(theme: any): any {
+  if (!theme) return theme;
+  const isSys = Boolean(
+    theme.is_system ||
+    theme.is_system_theme ||
+    theme.ownership_type === 'system' ||
+    !theme.organization_id
+  );
+
+  const slug = String(theme.slug || '').toLowerCase().trim();
+  const name = String(theme.name || '').toLowerCase().trim();
+
+  // Christmas system theme
+  if (slug === 'christmas-rush' || slug === 'christmas' || (isSys && name.includes('christmas'))) {
+    const updated = { ...theme };
+    updated.background_url = '/assets/games/catch-brand/themes/christmas/background.png';
+    if (updated.basket_config) {
+      updated.basket_config = {
+        ...updated.basket_config,
+        imageUrl: '/assets/games/catch-brand/themes/christmas/basket.png',
+      };
+    }
+    if (Array.isArray(updated.items_config)) {
+      updated.items_config = updated.items_config.map((item: any, idx: number) => {
+        let imageUrl = item.imageUrl;
+        if (item.isHazard || idx === 1 || item.id === 'coal_lump') {
+          imageUrl = '/assets/games/catch-brand/themes/christmas/item_hazard_01.png';
+        } else if (item.isBonus || idx === 2 || item.id === 'golden_star') {
+          imageUrl = '/assets/games/catch-brand/themes/christmas/item_bonus_01.png';
+        } else {
+          imageUrl = '/assets/games/catch-brand/themes/christmas/item_normal_01.png';
+        }
+        return { ...item, imageUrl };
+      });
+    }
+    return updated;
+  }
+
+  // CNY system theme
+  if (slug === 'cny-fortune' || slug === 'cny' || slug === 'chinese-new-year' || (isSys && (name.includes('lunar') || name.includes('chinese new year')))) {
+    const updated = { ...theme };
+    updated.background_url = '/assets/games/catch-brand/themes/cny/background.png';
+    if (updated.basket_config) {
+      updated.basket_config = {
+        ...updated.basket_config,
+        imageUrl: '/assets/games/catch-brand/themes/cny/basket.png',
+      };
+    }
+    if (Array.isArray(updated.items_config)) {
+      updated.items_config = updated.items_config.map((item: any, idx: number) => {
+        let imageUrl = item.imageUrl;
+        if (item.isHazard || idx === 1 || item.id === 'firecracker') {
+          imageUrl = '/assets/games/catch-brand/themes/cny/item_hazard_01.png';
+        } else if (item.isBonus || idx === 2 || item.id === 'gold_ingot') {
+          imageUrl = '/assets/games/catch-brand/themes/cny/item_bonus_01.png';
+        } else {
+          imageUrl = '/assets/games/catch-brand/themes/cny/item_normal_01.png';
+        }
+        return { ...item, imageUrl };
+      });
+    }
+    return updated;
+  }
+
+  // Carnival system theme
+  if (slug === 'carnival' && isSys) {
+    const updated = { ...theme };
+    updated.background_url = '/assets/games/catch-brand/themes/carnival/background.png';
+    if (updated.basket_config) {
+      updated.basket_config = {
+        ...updated.basket_config,
+        imageUrl: '/assets/games/catch-brand/themes/carnival/basket.png',
+      };
+    }
+    if (Array.isArray(updated.items_config)) {
+      updated.items_config = updated.items_config.map((item: any, idx: number) => {
+        let imageUrl = item.imageUrl;
+        if (item.isHazard || idx === 1 || item.id === 'mask') {
+          imageUrl = '/assets/games/catch-brand/themes/carnival/item_hazard_01.png';
+        } else if (item.isBonus || idx === 2 || item.id === 'star') {
+          imageUrl = '/assets/games/catch-brand/themes/carnival/item_bonus_01.png';
+        } else {
+          imageUrl = '/assets/games/catch-brand/themes/carnival/item_normal_01.png';
+        }
+        return { ...item, imageUrl };
+      });
+    }
+    return updated;
+  }
+
+  // Default Catch Brand system theme
+  if (slug === 'default' && isSys) {
+    const updated = { ...theme };
+    updated.background_url = '/assets/games/catch-brand/themes/default/background.png';
+    if (updated.basket_config) {
+      updated.basket_config = {
+        ...updated.basket_config,
+        imageUrl: '/assets/games/catch-brand/themes/default/basket.png',
+      };
+    }
+    if (Array.isArray(updated.items_config)) {
+      updated.items_config = updated.items_config.map((item: any, idx: number) => {
+        let imageUrl = item.imageUrl;
+        if (item.isHazard || idx === 1 || item.id === 'item_hazard_01') {
+          imageUrl = '/assets/games/catch-brand/themes/default/item_hazard_01.png';
+        } else if (item.isBonus || idx === 2 || item.id === 'item_bonus_01') {
+          imageUrl = '/assets/games/catch-brand/themes/default/item_bonus_01.png';
+        } else {
+          imageUrl = '/assets/games/catch-brand/themes/default/item_normal_01.png';
+        }
+        return { ...item, imageUrl };
+      });
+    }
+    return updated;
+  }
+
+  return theme;
 }
 
 export async function enrichThemeWithGameData(
@@ -2823,6 +2948,52 @@ export async function ensureSystemDefaultThemesForGame(
     const isFirst = i === 0;
 
     try {
+      // Check if system theme with this slug already exists to prevent duplicates and repair legacy URLs
+      const { data: existingThemes } = await supabase
+        .from('game_themes')
+        .select('*')
+        .or('is_system.eq.true,organization_id.is.null')
+        .eq('slug', preset.slug);
+
+      if (existingThemes && existingThemes.length > 0) {
+        const existing = existingThemes[0];
+        const needsRepair =
+          existing.background_url !== preset.background_url ||
+          existing.basket_config?.imageUrl !== preset.basket_config?.imageUrl;
+
+        if (needsRepair) {
+          const { data: updatedTheme } = await supabase
+            .from('game_themes')
+            .update({
+              background_url: preset.background_url,
+              basket_config: preset.basket_config,
+              items_config: preset.items_config,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id)
+            .select()
+            .single();
+
+          if (updatedTheme) {
+            created.push({
+              ...updatedTheme,
+              is_system: true,
+              ownership_type: 'system',
+              game_id: gameId,
+            } as GameThemeRecord);
+            continue;
+          }
+        }
+
+        created.push({
+          ...existing,
+          is_system: true,
+          ownership_type: 'system',
+          game_id: gameId,
+        } as GameThemeRecord);
+        continue;
+      }
+
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
       const isMemory = gameType === 'memory-match';

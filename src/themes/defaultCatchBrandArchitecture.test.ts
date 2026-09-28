@@ -58,8 +58,8 @@ console.log('✓ PASS: normalizeGameTheme defaults to default Catch The Brand th
 const normalizedCarnival = normalizeGameTheme(carnivalTheme);
 assert.strictEqual(normalizedCarnival.id, 'carnival');
 assert.strictEqual(normalizedCarnival.base_theme_id, 'carnival');
-assert.strictEqual(normalizedCarnival.background_url, '/assets/themes/carnival/background.png');
-assert.strictEqual(normalizedCarnival.basket_config?.imageUrl, '/assets/themes/carnival/basket.png');
+assert.strictEqual(normalizedCarnival.background_url, '/assets/games/catch-brand/themes/carnival/background.png');
+assert.strictEqual(normalizedCarnival.basket_config?.imageUrl, '/assets/games/catch-brand/themes/carnival/basket.png');
 console.log('✓ PASS: Explicit Carnival theme preserves Carnival identity and assets');
 
 // 6. Frontend: resolveThemeBaseId maps default to 'default', carnival to 'carnival'

@@ -28,6 +28,11 @@ import {
   FONT_FAMILY_PRESETS,
 } from '../../../games/memory-match/ResultElementContent';
 import { GameTheme, getThemeGameType, isReactionTheme } from '../../../themes/types';
+import {
+  resolveGameAsset,
+  getCanonicalAssetThemeId,
+  normalizeGameType,
+} from '../../../themes';
 import { resolveScreenBackground } from '../../../themes/screenBackground';
 import {
   Layers,
@@ -4458,17 +4463,60 @@ export const ResultScreenVisualEditor: React.FC<ResultScreenVisualEditorProps> =
                 const currentFit = imgStyle.objectFit || imgEl.objectFit || 'contain';
                 const currentPos = imgStyle.objectPosition || imgEl.objectPosition || 'center';
 
-                // Curated game & theme assets library presets for instant selection
+                // Curated game & theme assets library presets generated dynamically from the active theme
+                const activeGameType = normalizeGameType(gameType || theme?.game_type || 'catch-brand');
+                const assetThemeId = getCanonicalAssetThemeId(theme);
+                const themeName = theme?.name || 'Theme';
+
+                const themeImagePresets = activeGameType === 'catch-brand' ? [
+                  {
+                    label: `${themeName} Background`,
+                    url: resolveGameAsset({ gameType: 'catch-brand', themeId: assetThemeId, assetType: 'background' }) || `/assets/games/catch-brand/themes/${assetThemeId}/background.png`,
+                    category: themeName,
+                  },
+                  {
+                    label: `${themeName} Catcher`,
+                    url: resolveGameAsset({ gameType: 'catch-brand', themeId: assetThemeId, assetType: 'catcher' }) || `/assets/games/catch-brand/themes/${assetThemeId}/basket.png`,
+                    category: themeName,
+                  },
+                  {
+                    label: `${themeName} Good Item`,
+                    url: resolveGameAsset({ gameType: 'catch-brand', themeId: assetThemeId, assetType: 'goodItem' }) || `/assets/games/catch-brand/themes/${assetThemeId}/item_normal_01.png`,
+                    category: themeName,
+                  },
+                  {
+                    label: `${themeName} Hazard Item`,
+                    url: resolveGameAsset({ gameType: 'catch-brand', themeId: assetThemeId, assetType: 'hazardItem' }) || `/assets/games/catch-brand/themes/${assetThemeId}/item_hazard_01.png`,
+                    category: themeName,
+                  },
+                  {
+                    label: `${themeName} Bonus Item`,
+                    url: resolveGameAsset({ gameType: 'catch-brand', themeId: assetThemeId, assetType: 'bonusItem' }) || `/assets/games/catch-brand/themes/${assetThemeId}/item_bonus_01.png`,
+                    category: themeName,
+                  },
+                ] : activeGameType === 'memory-match' ? [
+                  {
+                    label: 'Card Back',
+                    url: resolveGameAsset({ gameType: 'memory-match', themeId: assetThemeId, assetType: 'cardBack' }) || `/assets/games/memory-match/themes/${assetThemeId}/cardback.png`,
+                    category: themeName,
+                  },
+                  {
+                    label: 'Background',
+                    url: resolveGameAsset({ gameType: 'memory-match', themeId: assetThemeId, assetType: 'background' }) || `/assets/games/memory-match/themes/${assetThemeId}/background.png`,
+                    category: themeName,
+                  },
+                ] : [
+                  {
+                    label: 'Background',
+                    url: resolveGameAsset({ gameType: 'reaction-tap', themeId: assetThemeId, assetType: 'background' }) || `/assets/games/reaction-tap/themes/${assetThemeId}/background.png`,
+                    category: themeName,
+                  },
+                ];
+
                 const PRESET_IMAGE_ASSETS = [
-                  { label: 'Theme Background', url: '/assets/themes/carnival/background.png', category: 'Carnival' },
-                  { label: 'Carnival Cart / Basket', url: '/assets/themes/carnival/basket.png', category: 'Carnival' },
-                  { label: 'Golden Ticket Item', url: '/assets/themes/carnival/item_normal_01.png', category: 'Carnival' },
-                  { label: 'Cursed Mask Item', url: '/assets/themes/carnival/item_hazard_01.png', category: 'Carnival' },
-                  { label: 'Bonus Star Item', url: '/assets/themes/carnival/item_bonus_01.png', category: 'Carnival' },
-                  { label: 'Green Durian Badge', url: '/assets/durian_green.png', category: 'Durian' },
-                  { label: 'Brown Durian Badge', url: '/assets/durian_brown.png', category: 'Durian' },
+                  ...themeImagePresets,
                   { label: 'Studio Logo', url: '/logo.png', category: 'Branding' },
-                  { label: 'Default Background', url: '/assets/background.png', category: 'General' },
+                  { label: 'Default Background', url: `/assets/games/${activeGameType}/themes/default/background.png`, category: 'General' },
                 ];
 
                 const POSITION_ANCHOR_GRID = [

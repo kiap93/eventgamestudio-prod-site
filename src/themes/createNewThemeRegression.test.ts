@@ -144,12 +144,12 @@ function simulateDuplicate(sourceThemeId: string, existingThemes: any[]) {
 const duplicatedCarnival = simulateDuplicate('carnival', [carnivalTheme, defaultCatchBrandTheme]);
 assert.strictEqual(
   duplicatedCarnival.background_url,
-  '/assets/themes/carnival/background.png',
+  '/assets/games/catch-brand/themes/carnival/background.png',
   'Duplicating Carnival must preserve Carnival background'
 );
 assert.strictEqual(
   duplicatedCarnival.basket_config?.imageUrl,
-  '/assets/themes/carnival/basket.png',
+  '/assets/games/catch-brand/themes/carnival/basket.png',
   'Duplicating Carnival must preserve Carnival basket'
 );
 console.log('✓ PASS: Duplicating Carnival preserves explicit Carnival source assets');

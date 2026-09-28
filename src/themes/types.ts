@@ -216,6 +216,7 @@ export interface GameTheme {
   name: string;
   slug: string;
   base_theme_id?: string;
+  asset_theme_id?: string;
   description?: string | null;
   status: 'active' | 'archived' | 'draft';
   is_default?: boolean;

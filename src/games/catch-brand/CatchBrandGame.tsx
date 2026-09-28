@@ -9,7 +9,14 @@ import {
   DEFAULT_GAME_SETTINGS,
   saveGameSettings,
 } from '../../game/settings';
-import { GameTheme, setActiveTheme as setRegistryActiveTheme } from '../../themes';
+import {
+  GameTheme,
+  setActiveTheme as setRegistryActiveTheme,
+  getCanonicalAssetThemeId,
+  resolveThemeDefaultBgImage,
+  resolveThemeDefaultBasketImage,
+  resolveThemeDefaultItemImage,
+} from '../../themes';
 import { useResponsiveLayout } from '../../themes/responsive';
 import { GameComponentProps, CatchBrandConfig } from '../types';
 
@@ -62,6 +69,15 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
     if (initialActiveTheme) {
       setActiveThemeState(initialActiveTheme);
       setRegistryActiveTheme(initialActiveTheme);
+
+      const canonicalAssetThemeId = getCanonicalAssetThemeId(initialActiveTheme);
+      console.log(
+        `[CatchBrand Theme]\ndatabaseThemeId=${initialActiveTheme.id || 'N/A'}\nslug=${initialActiveTheme.slug || 'N/A'}\nbaseThemeId=${initialActiveTheme.base_theme_id || 'N/A'}\ncanonicalAssetThemeId=${canonicalAssetThemeId}\ngameType=${initialActiveTheme.game_type || 'catch-brand'}`
+      );
+      console.log(
+        `[CatchBrand Assets]\nbackground=${resolveThemeDefaultBgImage(initialActiveTheme)}\ncatcher=${resolveThemeDefaultBasketImage(initialActiveTheme)}\ngoodItem=${resolveThemeDefaultItemImage(initialActiveTheme, { isHazard: false, isBonus: false })}\nhazardItem=${resolveThemeDefaultItemImage(initialActiveTheme, { isHazard: true, isBonus: false })}\nbonusItem=${resolveThemeDefaultItemImage(initialActiveTheme, { isHazard: false, isBonus: true })}`
+      );
+
       if (sceneRef.current) {
         sceneRef.current.refreshTheme();
       }
@@ -292,10 +308,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
     setCameraActive(!cameraActive);
   };
 
-  const customBgUrl =
-    activeTheme?.background_url ||
-    activeTheme?.backgroundUrl ||
-    activeTheme?.theme_assets?.background;
+  const customBgUrl = resolveThemeDefaultBgImage(activeTheme);
 
   return (
     <div

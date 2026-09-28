@@ -228,6 +228,7 @@ export interface GameThemeRecord {
   is_default?: boolean;
   ownership_type?: 'system' | 'organization';
   base_theme_id?: string | null;
+  asset_theme_id?: string | null;
   branding: ThemeBrandingConfig;
   background_url: string | null;
   basket_config: ThemeBasketConfig | null;

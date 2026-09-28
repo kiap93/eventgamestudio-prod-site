@@ -24,11 +24,11 @@ export const carnivalTheme: GameTheme = {
     clientLogoUrl: null,
   },
 
-  background_url: '/assets/themes/carnival/background.png',
+  background_url: '/assets/games/catch-brand/themes/carnival/background.png',
 
   basket_config: {
     name: 'Carnival Cart',
-    imageUrl: '/assets/themes/carnival/basket.png',
+    imageUrl: '/assets/games/catch-brand/themes/carnival/basket.png',
     width: 140,
     height: 70,
     catchAreaRatio: 0.75,
@@ -42,7 +42,7 @@ export const carnivalTheme: GameTheme = {
     {
       id: 'ticket',
       name: 'Golden Carnival Ticket',
-      imageUrl: '/assets/themes/carnival/item_normal_01.png',
+      imageUrl: '/assets/games/catch-brand/themes/carnival/item_normal_01.png',
       points: 10,
       speedMultiplier: 1.0,
       spawnWeight: 75,
@@ -56,7 +56,7 @@ export const carnivalTheme: GameTheme = {
     {
       id: 'mask',
       name: 'Carnival Cursed Mask',
-      imageUrl: '/assets/themes/carnival/item_hazard_01.png',
+      imageUrl: '/assets/games/catch-brand/themes/carnival/item_hazard_01.png',
       points: -10,
       speedMultiplier: 1.15,
       spawnWeight: 20,
@@ -70,7 +70,7 @@ export const carnivalTheme: GameTheme = {
     {
       id: 'star',
       name: 'Cosmic Carnival Star',
-      imageUrl: '/assets/themes/carnival/item_bonus_01.png',
+      imageUrl: '/assets/games/catch-brand/themes/carnival/item_bonus_01.png',
       points: 50,
       speedMultiplier: 1.3,
       spawnWeight: 5,
@@ -152,11 +152,11 @@ export const carnivalTheme: GameTheme = {
   layout: DEFAULT_GAME_LAYOUT,
 
   // Backward compatibility fields
-  background: '/assets/themes/carnival/background.png',
-  catcher: '/assets/themes/carnival/basket.png',
-  fallingObject: '/assets/themes/carnival/item_normal_01.png',
-  badFallingObject: '/assets/themes/carnival/item_hazard_01.png',
-  bonusFallingObject: '/assets/themes/carnival/item_bonus_01.png',
+  background: '/assets/games/catch-brand/themes/carnival/background.png',
+  catcher: '/assets/games/catch-brand/themes/carnival/basket.png',
+  fallingObject: '/assets/games/catch-brand/themes/carnival/item_normal_01.png',
+  badFallingObject: '/assets/games/catch-brand/themes/carnival/item_hazard_01.png',
+  bonusFallingObject: '/assets/games/catch-brand/themes/carnival/item_bonus_01.png',
   gameTitle: 'CARNIVAL FIESTA',
   subtitle: 'Catch golden tickets, avoid cursed masks!',
   fallingObjectName: 'CARNIVAL TICKET',

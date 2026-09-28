@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
-import { getActiveTheme, ThemeBasketConfig } from '../../themes';
+import { getActiveTheme, getCanonicalAssetThemeId, resolveThemeDefaultBasketImage, ThemeBasketConfig } from '../../themes';
 
 export class Basket extends Phaser.Physics.Arcade.Sprite {
   private basketWidth: number = 140;
@@ -16,6 +16,7 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
 
   constructor(scene: Phaser.Scene, x: number, y: number, textureKey?: string) {
     const theme = getActiveTheme();
+    const assetThemeId = getCanonicalAssetThemeId(theme);
     const basketConfig: ThemeBasketConfig = theme.basket_config || {
       name: 'Basket',
       width: 140,
@@ -33,8 +34,15 @@ export class Basket extends Phaser.Physics.Arcade.Sprite {
       keyToUse = textureKey;
     } else if (scene.textures.exists(themeCatcherKey)) {
       keyToUse = themeCatcherKey;
-    } else if (scene.textures.exists('basket')) {
-      keyToUse = 'basket';
+    } else {
+      if (assetThemeId === 'christmas' || assetThemeId === 'cny') {
+        console.error(
+          `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=catcher\nexpected=${resolveThemeDefaultBasketImage(theme)}`
+        );
+      }
+      if (scene.textures.exists('basket')) {
+        keyToUse = 'basket';
+      }
     }
 
     super(scene, x, y, keyToUse);

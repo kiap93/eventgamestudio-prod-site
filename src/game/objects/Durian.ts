@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { DurianType } from '../../types';
-import { getActiveTheme } from '../../themes';
+import { getActiveTheme, getCanonicalAssetThemeId, resolveThemeDefaultItemImage } from '../../themes';
 import { FallingItem } from './FallingItem';
 import { ThemeDropItem } from '../../themes/types';
 
@@ -19,30 +19,53 @@ export class Durian extends FallingItem {
   ) {
     const theme = getActiveTheme();
     const themeId = theme.id;
+    const assetThemeId = getCanonicalAssetThemeId(theme);
+    const isKnownFestive = assetThemeId === 'christmas' || assetThemeId === 'cny';
 
     let textureKey = customTextureKey;
     if (!textureKey) {
       if (durianType === 'ORANGE' || durianType === 'BAD') {
         const themeKey = `theme_${themeId}_bad`;
-        textureKey = scene.textures.exists(themeKey)
-          ? themeKey
-          : scene.textures.exists('mask')
-          ? 'mask'
-          : 'orange_durian';
+        if (scene.textures.exists(themeKey)) {
+          textureKey = themeKey;
+        } else if (isKnownFestive) {
+          console.error(
+            `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=hazardItem\nexpected=${resolveThemeDefaultItemImage(theme, { isHazard: true, isBonus: false })}`
+          );
+          textureKey = scene.textures.exists('orange_durian') ? 'orange_durian' : 'theme_spike';
+        } else if (scene.textures.exists('mask')) {
+          textureKey = 'mask';
+        } else {
+          textureKey = 'orange_durian';
+        }
       } else if (durianType === 'GOLDEN' || durianType === 'BONUS') {
         const themeKey = `theme_${themeId}_bonus`;
-        textureKey = scene.textures.exists(themeKey)
-          ? themeKey
-          : scene.textures.exists('star')
-          ? 'star'
-          : 'golden_durian';
+        if (scene.textures.exists(themeKey)) {
+          textureKey = themeKey;
+        } else if (isKnownFestive) {
+          console.error(
+            `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=bonusItem\nexpected=${resolveThemeDefaultItemImage(theme, { isHazard: false, isBonus: true })}`
+          );
+          textureKey = scene.textures.exists('golden_durian') ? 'golden_durian' : 'theme_star';
+        } else if (scene.textures.exists('star')) {
+          textureKey = 'star';
+        } else {
+          textureKey = 'golden_durian';
+        }
       } else {
         const themeKey = `theme_${themeId}_good`;
-        textureKey = scene.textures.exists(themeKey)
-          ? themeKey
-          : scene.textures.exists('ticket')
-          ? 'ticket'
-          : 'green_durian';
+        if (scene.textures.exists(themeKey)) {
+          textureKey = themeKey;
+        } else if (isKnownFestive) {
+          console.error(
+            `[ThemeAssets] Missing canonical asset:\ntheme=${assetThemeId}\nassetType=goodItem\nexpected=${resolveThemeDefaultItemImage(theme, { isHazard: false, isBonus: false })}`
+          );
+          textureKey = scene.textures.exists('green_durian') ? 'green_durian' : 'theme_gold';
+        } else if (scene.textures.exists('ticket')) {
+          textureKey = 'ticket';
+        } else {
+          textureKey = 'green_durian';
+        }
       }
     }
 

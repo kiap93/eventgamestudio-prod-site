@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { TextureGenerator } from '../systems/TextureGenerator';
 import {
   getActiveTheme,
+  getCanonicalAssetThemeId,
   resolveThemeDefaultBgImage,
   resolveThemeDefaultBasketImage,
   resolveThemeDefaultItemImage,
@@ -14,6 +15,8 @@ export class BootScene extends Phaser.Scene {
 
   preload() {
     const theme = getActiveTheme();
+    const themeId = theme.id;
+    const assetThemeId = getCanonicalAssetThemeId(theme);
 
     // Suppress individual image load warnings so missing assets degrade gracefully to procedural fallbacks
     this.load.on('loaderror', (fileObj: { key: string; src: string }) => {
@@ -31,16 +34,33 @@ export class BootScene extends Phaser.Scene {
     this.load.image('star', '/assets/games/catch-brand/themes/default/item_bonus_01.png');
     this.load.image('basket', '/assets/games/catch-brand/themes/default/basket.png');
 
-    // 2. Preload active theme image assets
-    const themeId = theme.id;
+    // 2. Resolve canonical paths for active theme assets
     const bgPath = resolveThemeDefaultBgImage(theme);
     const catcherPath = resolveThemeDefaultBasketImage(theme);
+    const goodItemPath = resolveThemeDefaultItemImage(theme, { isHazard: false, isBonus: false });
+    const hazardItemPath = resolveThemeDefaultItemImage(theme, { isHazard: true, isBonus: false });
+    const bonusItemPath = resolveThemeDefaultItemImage(theme, { isHazard: false, isBonus: true });
 
-    if (bgPath && bgPath !== '/assets/games/catch-brand/themes/default/background.png' && !bgPath.startsWith('theme_')) {
+    // Development diagnostics
+    console.log(
+      `[ThemeAssets]\nthemeId=${themeId}\nassetThemeId=${assetThemeId}\nbackground=${bgPath}\ncatcher=${catcherPath}\ngoodItem=${goodItemPath}\nhazardItem=${hazardItemPath}\nbonusItem=${bonusItemPath}`
+    );
+
+    // Preload active theme image assets
+    if (bgPath && !bgPath.startsWith('theme_')) {
       this.load.image(`theme_${themeId}_bg`, bgPath);
     }
-    if (catcherPath && catcherPath !== '/assets/games/catch-brand/themes/default/basket.png') {
+    if (catcherPath) {
       this.load.image(`theme_${themeId}_catcher`, catcherPath);
+    }
+    if (goodItemPath) {
+      this.load.image(`theme_${themeId}_good`, goodItemPath);
+    }
+    if (hazardItemPath) {
+      this.load.image(`theme_${themeId}_bad`, hazardItemPath);
+    }
+    if (bonusItemPath) {
+      this.load.image(`theme_${themeId}_bonus`, bonusItemPath);
     }
 
     // Preload item images with theme fallback resolution
@@ -51,25 +71,6 @@ export class BootScene extends Phaser.Scene {
           this.load.image(`theme_${themeId}_item_${item.id || index}`, itemImg);
         }
       });
-    }
-
-    // Backward-compat keys
-    const firstGood = theme.items_config?.find((i) => !i.isHazard && !i.isBonus);
-    const firstBad = theme.items_config?.find((i) => i.isHazard);
-    const firstBonus = theme.items_config?.find((i) => i.isBonus);
-
-    const goodUrl = (firstGood && firstGood.imageUrl) || resolveThemeDefaultItemImage(theme, { isHazard: false, isBonus: false });
-    const badUrl = (firstBad && firstBad.imageUrl) || resolveThemeDefaultItemImage(theme, { isHazard: true, isBonus: false });
-    const bonusUrl = (firstBonus && firstBonus.imageUrl) || resolveThemeDefaultItemImage(theme, { isHazard: false, isBonus: true });
-
-    if (goodUrl && (goodUrl.startsWith('http') || goodUrl.startsWith('/assets/') || goodUrl.startsWith('data:'))) {
-      this.load.image(`theme_${themeId}_good`, goodUrl);
-    }
-    if (badUrl && (badUrl.startsWith('http') || badUrl.startsWith('/assets/') || badUrl.startsWith('data:'))) {
-      this.load.image(`theme_${themeId}_bad`, badUrl);
-    }
-    if (bonusUrl && (bonusUrl.startsWith('http') || bonusUrl.startsWith('/assets/') || bonusUrl.startsWith('data:'))) {
-      this.load.image(`theme_${themeId}_bonus`, bonusUrl);
     }
   }
 
