@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { GameTheme } from '../../themes/types';
 import { EventLeaderboardEntry } from '../../types';
+import { useLocalization } from '../../context/LocalizationContext';
 
 export const SIMULATED_START_LEADERBOARD_ENTRIES: EventLeaderboardEntry[] = [
   {
@@ -168,6 +169,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
   loadingLeaderboard = false,
   leaderboardError = null,
 }) => {
+  const { t } = useLocalization();
   if (!element || typeof element !== 'object') {
     return null;
   }
@@ -468,6 +470,16 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
         iconNode = <Settings className="w-[1em] h-[1em]" />;
       }
 
+      let buttonText = btnEl.text;
+      const cleanUpper = (btnEl.text || '').toUpperCase().trim();
+      if (cleanUpper === 'START' || cleanUpper === 'START GAME' || cleanUpper === 'PLAY' || cleanUpper === 'PLAY NOW') {
+        buttonText = t('game.start', undefined, btnEl.text);
+      } else if (cleanUpper === 'HOW TO PLAY' || cleanUpper === 'GUIDE' || cleanUpper === 'RULES') {
+        buttonText = t('game.instructions', undefined, btnEl.text);
+      } else if (cleanUpper === 'LEADERBOARD' || cleanUpper === 'HIGH SCORES' || cleanUpper === 'TOP SCORES') {
+        buttonText = t('game.leaderboard', undefined, btnEl.text);
+      }
+
       return (
         <button
           type="button"
@@ -495,7 +507,7 @@ export const StartElementContent: React.FC<StartElementContentProps> = ({
           }}
         >
           {iconNode}
-          <span>{btnEl.text}</span>
+          <span>{buttonText}</span>
         </button>
       );
     }

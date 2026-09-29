@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { ResultScreenStats } from './ResultScreenRenderer';
 import { EventLeaderboardEntry } from '../../types';
+import { useLocalization } from '../../context/LocalizationContext';
 
 export const SIMULATED_LEADERBOARD_ENTRIES: EventLeaderboardEntry[] = [
   {
@@ -215,11 +216,12 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
   submissionError = null,
   onSubmitScore,
 }) => {
+  const { t } = useLocalization();
   const style = lbEl.style || {};
 
   const maxRows = Math.max(1, Math.min(10, lbEl.maxRows ?? style.maxRows ?? 5));
   const showHeader = (lbEl.showHeader ?? style.showHeader) !== false;
-  const headerText = lbEl.headerText || style.headerText || 'LEADERBOARD';
+  const headerText = lbEl.headerText || style.headerText || t('game.leaderboard');
   const showRank = (lbEl.showRank ?? style.showRank) !== false;
   const showPlayerName = (lbEl.showPlayerName ?? style.showPlayerName) !== false;
   const showScore = (lbEl.showScore ?? style.showScore) !== false;
@@ -230,11 +232,11 @@ const LeaderboardElementRenderer: React.FC<LeaderboardElementRendererProps> = ({
   // Submission style & content config
   const submissionConfig = lbEl.submission || style.submission || {};
   const inputPlaceholder =
-    lbEl.inputPlaceholder || style.inputPlaceholder || submissionConfig.inputPlaceholder || 'Enter your name';
+    lbEl.inputPlaceholder || style.inputPlaceholder || submissionConfig.inputPlaceholder || t('game.enterName');
   const inputMaxLength =
     lbEl.inputMaxLength || style.inputMaxLength || submissionConfig.inputMaxLength || 20;
   const submitButtonText =
-    lbEl.submitButtonText || style.submitButtonText || submissionConfig.submitButtonText || 'SUBMIT SCORE';
+    lbEl.submitButtonText || style.submitButtonText || submissionConfig.submitButtonText || t('game.submitScore');
   const successMessage =
     lbEl.successMessage || style.successMessage || submissionConfig.successMessage || 'Score submitted!';
 
@@ -679,6 +681,7 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
   submissionError = null,
   onSubmitScore,
 }) => {
+  const { t } = useLocalization();
   switch (el.type) {
     case 'card': {
       const cardEl = el as ResultCardElement;
@@ -1204,11 +1207,18 @@ export const ResultElementContent: React.FC<ResultElementContentProps> = ({
         overflow: 'hidden',
       };
 
+      let buttonText = btnEl.text;
+      if (btnEl.action === 'playAgain' || /play again/i.test(btnEl.text || '')) {
+        buttonText = t('game.playAgain', undefined, btnEl.text);
+      } else if (btnEl.action === 'exit' || /quit|exit/i.test(btnEl.text || '')) {
+        buttonText = t('game.quit', undefined, btnEl.text);
+      }
+
       const buttonInner = (
         <>
           {btnEl.action === 'playAgain' && <RotateCcw className="w-4 h-4 shrink-0" />}
           {btnEl.action === 'exit' && <LogOut className="w-4 h-4 shrink-0" />}
-          <span className="truncate">{btnEl.text}</span>
+          <span className="truncate">{buttonText}</span>
         </>
       );
 

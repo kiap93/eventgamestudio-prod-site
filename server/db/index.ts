@@ -19,3 +19,4 @@ export * from './rewards.js';
 export * from './contactEnquiries.js';
 export * from './gamePricing.js';
 export * from './showcaseRewardSubmissions.js';
+export * from './translations.js';

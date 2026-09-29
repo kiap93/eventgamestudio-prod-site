@@ -20,6 +20,7 @@ import { PublicShowcasesIndexPage } from './components/seo/PublicShowcasesIndexP
 import { SEO } from './components/common/SEO';
 import { NotificationProvider } from './context/NotificationContext';
 import { NotificationCenterModal } from './components/notifications/NotificationCenterModal';
+import { LocalizationProvider } from './context/LocalizationContext';
 import { ShieldAlert } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -254,8 +255,10 @@ export default function App() {
   return (
     <AuthProvider>
       <NotificationProvider>
-        <AppContent />
-        <NotificationCenterModal />
+        <LocalizationProvider>
+          <AppContent />
+          <NotificationCenterModal />
+        </LocalizationProvider>
       </NotificationProvider>
     </AuthProvider>
   );

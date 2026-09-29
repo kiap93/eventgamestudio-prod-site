@@ -199,6 +199,17 @@ import {
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import { handleWorkerApiError, AppError, PricingConfigurationError, resolveCorrelationId, isOperationalError } from './server/errors.js';
+import { translationService } from './server/translation/service.js';
+import { SUPPORTED_LANGUAGES, normalizeLanguageCode } from './src/lib/i18n/languages.js';
+import {
+  getEventTranslations,
+  getEventTranslation,
+  upsertEventTranslation,
+  deleteEventTranslation,
+  getShowcaseTranslations,
+  upsertShowcaseTranslation,
+  getTranslationJob,
+} from './server/db/translations.js';
 
 import {
   buildGoogleAuthUrl,
@@ -220,6 +231,7 @@ import {
   generateWebhookSignature,
   getPaymentWebhookSecret,
   syncTopupOrderExpiration,
+  finalizeWalletTopUp,
   getStripeClient,
   SUPPORTED_PAYMENT_METHODS,
   isPaymentMethodSupported,
@@ -2839,6 +2851,200 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           'Pragma': 'no-cache',
           'Expires': '0',
         });
+      }
+
+      // ==========================================
+      // LOCALIZATION & TRANSLATION SYSTEM ENDPOINTS
+      // ==========================================
+
+      if (pathname === '/api/localization/languages' && method === 'GET') {
+        return jsonResponse({ languages: SUPPORTED_LANGUAGES }, 200, cors);
+      }
+
+      const getEventTranslationsParams = parseRoute('/api/events/:eventId/translations', pathname);
+      if (getEventTranslationsParams && method === 'GET') {
+        try {
+          const { eventId } = getEventTranslationsParams;
+          const event = await getEventById(eventId, env);
+          if (!event) {
+            return errorResponse('Event not found', 404, cors);
+          }
+          const translations = await getEventTranslations(eventId);
+          return jsonResponse({ translations }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      const putEventTranslationParams = parseRoute('/api/events/:eventId/translations/:language', pathname);
+      if (putEventTranslationParams && method === 'PUT') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId, language } = putEventTranslationParams;
+
+        try {
+          const body: any = await request.json();
+          const { title, description, game_instructions } = body || {};
+
+          if (!title || typeof title !== 'string' || title.trim().length === 0) {
+            return errorResponse('Translation title is required.', 400, cors);
+          }
+
+          const event = await getEventById(eventId, env);
+          if (!event) {
+            return errorResponse('Event not found', 404, cors);
+          }
+
+          const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit', env);
+          if (!isMember || !hasPermission) {
+            return errorResponse('Forbidden: You do not have permission to edit this event', 403, cors);
+          }
+
+          const normalizedLang = normalizeLanguageCode(language);
+          const translation = await upsertEventTranslation(eventId, normalizedLang, {
+            title,
+            description,
+            game_instructions,
+          });
+
+          return jsonResponse({ translation }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      const deleteEventTranslationParams = parseRoute('/api/events/:eventId/translations/:language', pathname);
+      if (deleteEventTranslationParams && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId, language } = deleteEventTranslationParams;
+
+        try {
+          const event = await getEventById(eventId, env);
+          if (!event) {
+            return errorResponse('Event not found', 404, cors);
+          }
+
+          const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit', env);
+          if (!isMember || !hasPermission) {
+            return errorResponse('Forbidden: You do not have permission to edit this event', 403, cors);
+          }
+
+          const normalizedLang = normalizeLanguageCode(language);
+          await deleteEventTranslation(eventId, normalizedLang);
+          return jsonResponse({ success: true }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      const getShowcaseTranslationsParams = parseRoute('/api/events/:eventId/showcase/translations', pathname);
+      if (getShowcaseTranslationsParams && method === 'GET') {
+        try {
+          const { eventId } = getShowcaseTranslationsParams;
+          const showcase = await getShowcaseByEventId(eventId, env);
+          if (!showcase) {
+            return errorResponse('Showcase not found for this event', 404, cors);
+          }
+          const translations = await getShowcaseTranslations(showcase.id);
+          return jsonResponse({ translations }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      const putShowcaseTranslationParams = parseRoute('/api/events/:eventId/showcase/translations/:language', pathname);
+      if (putShowcaseTranslationParams && method === 'PUT') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId, language } = putShowcaseTranslationParams;
+
+        try {
+          const body: any = await request.json();
+          const { title, description, cta_text } = body || {};
+
+          if (!title || typeof title !== 'string' || title.trim().length === 0) {
+            return errorResponse('Showcase translation title is required.', 400, cors);
+          }
+
+          const event = await getEventById(eventId, env);
+          if (!event) {
+            return errorResponse('Event not found', 404, cors);
+          }
+
+          const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit', env);
+          if (!isMember || !hasPermission) {
+            return errorResponse('Forbidden: Access denied to this showcase', 403, cors);
+          }
+
+          const showcase = await getShowcaseByEventId(eventId, env);
+          if (!showcase) {
+            return errorResponse('Showcase not found for this event', 404, cors);
+          }
+
+          const normalizedLang = normalizeLanguageCode(language);
+          const translation = await upsertShowcaseTranslation(showcase.id, normalizedLang, {
+            title,
+            description,
+            cta_text,
+          });
+
+          return jsonResponse({ translation }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      if (pathname === '/api/translations/translate' && method === 'POST') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        try {
+          const body: any = await request.json();
+          const {
+            sourceLanguage = 'en',
+            targetLanguage,
+            text,
+            fields,
+            glossary,
+            context,
+            entityType,
+            tone,
+          } = body || {};
+
+          if (!targetLanguage) {
+            return errorResponse('targetLanguage is required', 400, cors);
+          }
+
+          if (!text && (!fields || Object.keys(fields).length === 0)) {
+            return errorResponse('Either text or fields must be provided', 400, cors);
+          }
+
+          const result = await translationService.translate({
+            sourceLanguage: normalizeLanguageCode(sourceLanguage),
+            targetLanguage: normalizeLanguageCode(targetLanguage),
+            text,
+            fields,
+            glossary,
+            context,
+            entityType,
+            tone,
+          });
+
+          return jsonResponse({ success: true, ...result }, 200, cors);
+        } catch (err: any) {
+          console.error('[Worker /api/translations/translate error]', err);
+          return jsonResponse({
+            error: err?.message || 'Translation failed. Please try again.',
+            code: 'TRANSLATION_FAILED',
+          }, 500, cors);
+        }
       }
 
       // Mint Signed Venue Token for displays/kiosks
@@ -7162,6 +7368,19 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             order = await syncTopupOrderExpiration(order, { sessionId: sessionIdQuery, status: statusQuery }, env);
           }
 
+          // If order is PAID, run finalizeWalletTopUp to ensure missing notification repair & idempotent reconciliation
+          if (order.status === 'PAID') {
+            try {
+              const finalizeResult = await finalizeWalletTopUp(order, {
+                sessionId: sessionIdQuery,
+                origin: 'worker_handleGetTopupOrder',
+              }, env);
+              order = finalizeResult.order;
+            } catch (reconErr) {
+              console.warn(`[Worker Get Topup Order] Notification/reconciliation check warning for order ${order.id}:`, reconErr);
+            }
+          }
+
           return jsonResponse({ order }, 200, cors);
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
@@ -7294,13 +7513,15 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
 
         try {
-          const result = await reconcileTopupOrder(
+          const result = await finalizeWalletTopUp(
+            orderId,
             {
-              orderId,
               paymentReference: ref.trim(),
               paymentMethod: body.payment_method || body.paymentMethod || 'MANUAL_RECONCILIATION',
               reconciledBy: auth.user.id,
-              reason: reason.trim(),
+              reconciliationReason: reason.trim(),
+              isManualReconciliation: true,
+              reason: `Manual Admin Reconciliation: ${reason.trim()}`,
               metadata: body.metadata,
             },
             env

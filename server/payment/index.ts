@@ -28,6 +28,12 @@ import {
   dispatchNotificationEvent,
   PaymentSuccessEvent,
 } from '../notifications/dispatcher.js';
+import {
+  NotificationRecord,
+} from '../notifications/types.js';
+import {
+  getNotificationByDeduplicationKey,
+} from '../db/notifications.js';
 import { isProductionEnvironment, isSupabaseConfigured } from '../supabase.js';
 
 export {
@@ -946,6 +952,136 @@ export function formatTopupAmountNotification(amount: number, currency: string =
   return `${curr}${formatted}`;
 }
 
+/**
+ * Ensures that the "Top Up Successful" in-app notification exists exactly once.
+ * 
+ * CORE INVARIANTS & ERROR RESILIENCE:
+ * 1. Idempotency Key: Uses deterministic `payment_success_topup_${order.id}` deduplication key.
+ * 2. Recipient: Targets order.user_id.
+ * 3. Existence Check: Checks database first before creating.
+ * 4. Self-Healing / Repair: If order is already PAID but notification is missing (e.g., initial
+ *    request timeout or transient failure), it creates the missing notification.
+ * 5. Failure Truthfulness: Returns `notificationCreated: false` if creation failed and the
+ *    notification does NOT exist in DB. Does not hide failures.
+ * 6. Never Re-credits Wallet: Operates strictly on notifications; never touches balances.
+ */
+export async function ensureTopUpSuccessfulNotification(
+  order: TopupOrderRecord,
+  promoCreditAmount?: number,
+  env?: Record<string, any>
+): Promise<{
+  notificationCreated: boolean;
+  isExisting: boolean;
+  notification?: NotificationRecord | null;
+  error?: any;
+}> {
+  const recipientUserId = order.user_id;
+  const baseKey = `payment_success_topup_${order.id}`;
+  const userDeduplicationKey = `${baseKey}_${recipientUserId}`;
+
+  if (!recipientUserId) {
+    console.warn(`[ensureTopUpSuccessfulNotification] Missing user_id on order ${order.id}`);
+    return { notificationCreated: false, isExisting: false, notification: null };
+  }
+
+  // Helper to query either format of deduplication key
+  const findExisting = async (): Promise<NotificationRecord | null> => {
+    const byUserKey = await getNotificationByDeduplicationKey(recipientUserId, userDeduplicationKey, env);
+    if (byUserKey) return byUserKey;
+    return getNotificationByDeduplicationKey(recipientUserId, baseKey, env);
+  };
+
+  // 1. Fast idempotency check: check if notification already exists in database
+  try {
+    const existing = await findExisting();
+    if (existing) {
+      return {
+        notificationCreated: true,
+        isExisting: true,
+        notification: existing,
+      };
+    }
+  } catch (checkErr) {
+    console.warn(`[ensureTopUpSuccessfulNotification] Error checking existing notification for order ${order.id}:`, checkErr);
+  }
+
+  // 2. Notification does not exist yet; dispatch it
+  const amountStr = formatTopupAmountNotification(order.top_up_amount, order.currency);
+  const effectivePromoCredit =
+    promoCreditAmount !== undefined
+      ? promoCreditAmount
+      : order.expected_credit_amount !== undefined
+      ? order.expected_credit_amount
+      : 0;
+
+  const notifEvent: PaymentSuccessEvent = {
+    eventType: 'PAYMENT_SUCCESS',
+    organizationId: order.organization_id,
+    recipientUserId: order.user_id,
+    referenceId: `topup_${order.id}`,
+    amount: order.top_up_amount,
+    currency: order.currency || 'MYR',
+    subject: `Wallet Top-Up (${order.id.slice(0, 8).toUpperCase()})`,
+    paymentType: 'TOPUP',
+    customTitle: 'Top Up Successful',
+    customMessage: `Your wallet top-up of ${amountStr} has been completed successfully.`,
+    metadata: {
+      order_id: order.id,
+      top_up_amount: order.top_up_amount,
+      promo_credit: effectivePromoCredit,
+    },
+  };
+
+  try {
+    const dispatched = await dispatchNotificationEvent(notifEvent, env);
+    if (Array.isArray(dispatched) && dispatched.length > 0) {
+      return {
+        notificationCreated: true,
+        isExisting: false,
+        notification: dispatched[0],
+      };
+    }
+
+    // Double-check DB in case of concurrent insert or adapter race
+    const confirmed = await findExisting();
+    if (confirmed) {
+      return {
+        notificationCreated: true,
+        isExisting: Boolean((confirmed as any).is_inserted === false),
+        notification: confirmed,
+      };
+    }
+
+    // Dispatch finished without error, but no notification record was found
+    console.error(`[ensureTopUpSuccessfulNotification] Notification dispatch returned no records and notification does not exist in DB for order ${order.id}`);
+    return {
+      notificationCreated: false,
+      isExisting: false,
+      notification: null,
+    };
+  } catch (err: any) {
+    console.error(`[ensureTopUpSuccessfulNotification] Exception dispatching Top Up Successful notification for order ${order.id}:`, err);
+    // Double-check if DB insert succeeded despite secondary adapter failure
+    try {
+      const confirmed = await findExisting();
+      if (confirmed) {
+        return {
+          notificationCreated: true,
+          isExisting: true,
+          notification: confirmed,
+        };
+      }
+    } catch {}
+
+    return {
+      notificationCreated: false,
+      isExisting: false,
+      notification: null,
+      error: err,
+    };
+  }
+}
+
 export interface FinalizeWalletTopUpOptions {
   stripeSession?: Stripe.Checkout.Session | any;
   sessionId?: string;
@@ -1038,12 +1174,19 @@ export async function finalizeWalletTopUp(
     throw err;
   }
 
-  // 2. IMPORTANT IDEMPOTENCY: If the transaction is already PAID:
-  // - DO NOT credit the wallet again.
-  // - DO NOT create another successful notification.
-  // - Simply return the existing successful state.
+  // 2. IMPORTANT IDEMPOTENCY & REPAIR: If the transaction is already PAID:
+  // - DO NOT credit the wallet again (zero duplicate credit).
+  // - DO NOT create duplicate wallet transactions.
+  // - Check whether the "Top Up Successful" notification exists in DB.
+  // - If missing (e.g. timeout on initial confirmation, or transient DB error), REPAIR it!
+  // - Return the existing / repaired successful state.
   if (order.status === 'PAID') {
     const currentWallet = await getWalletBalance(order.organization_id, env);
+    const notifStatus = await ensureTopUpSuccessfulNotification(
+      order,
+      order.expected_credit_amount,
+      env
+    );
     return {
       success: true,
       status: 'PAID',
@@ -1051,12 +1194,16 @@ export async function finalizeWalletTopUp(
       alreadyProcessed: true,
       isDuplicate: true,
       wallet: currentWallet,
-      notificationCreated: false,
+      notificationCreated: notifStatus.notificationCreated,
       amount: order.top_up_amount,
       currency: order.currency,
       paymentReference: order.payment_reference || undefined,
       paymentMethod: order.payment_method || undefined,
-      message: 'Top-up order is already marked as PAID and credited (idempotent replay, zero duplicate credit)',
+      message: notifStatus.isExisting
+        ? 'Top-up order is already marked as PAID and credited (idempotent replay, zero duplicate credit)'
+        : notifStatus.notificationCreated
+        ? 'Top-up order was already marked as PAID; repaired missing Top Up Successful notification.'
+        : 'Top-up order is already marked as PAID (notification could not be created).',
     };
   }
 
@@ -1370,33 +1517,13 @@ export async function finalizeWalletTopUp(
 
   const updatedOrder = settleResult.order;
 
-  // 5. Create "Top Up Successful" in-app notification exactly once
-  let notificationCreated = false;
-  if (!settleResult.alreadyProcessed) {
-    const amountStr = formatTopupAmountNotification(order.top_up_amount, order.currency);
-    const notifEvent: PaymentSuccessEvent = {
-      eventType: 'PAYMENT_SUCCESS',
-      organizationId: order.organization_id,
-      recipientUserId: order.user_id,
-      referenceId: `topup_${order.id}`,
-      amount: order.top_up_amount,
-      currency: order.currency || 'MYR',
-      subject: `Wallet Top-Up (${order.id.slice(0, 8).toUpperCase()})`,
-      paymentType: 'TOPUP',
-      customTitle: 'Top Up Successful',
-      customMessage: `Your wallet top-up of ${amountStr} has been completed successfully.`,
-      metadata: {
-        order_id: order.id,
-        top_up_amount: order.top_up_amount,
-        promo_credit: updatedOrder.expected_credit_amount,
-      },
-    };
-
-    await dispatchNotificationEvent(notifEvent, env).catch((err) => {
-      console.error('[finalizeWalletTopUp] Failed to dispatch Top Up Successful notification:', err);
-    });
-    notificationCreated = true;
-  }
+  // 5. Ensure "Top Up Successful" in-app notification exists exactly once
+  const notifStatus = await ensureTopUpSuccessfulNotification(
+    updatedOrder,
+    updatedOrder.expected_credit_amount,
+    env
+  );
+  const notificationCreated = notifStatus.notificationCreated;
 
   return {
     success: true,
@@ -1661,17 +1788,29 @@ export async function verifyAndProcessPaymentWebhook(
   // If order is ALREADY 'PAID'
   if (order.status === 'PAID') {
     if (targetStatus === 'PAID') {
+      const finalizeResult = await finalizeWalletTopUp(
+        order,
+        {
+          webhookPayload: dataObject,
+          webhookEventId: payload.id,
+          paymentReference,
+          paymentMethod,
+        },
+        env
+      );
+
       return {
         success: true,
         isDuplicate: true,
         alreadyProcessed: true,
         status: 'PAID',
         orderId: order.id,
-        paymentReference: order.payment_reference || undefined,
-        paymentMethod: order.payment_method || undefined,
-        amount: order.top_up_amount,
-        currency: order.currency,
-        order,
+        paymentReference: finalizeResult.paymentReference || order.payment_reference || undefined,
+        paymentMethod: finalizeResult.paymentMethod || order.payment_method || undefined,
+        amount: finalizeResult.amount ?? order.top_up_amount,
+        currency: finalizeResult.currency ?? order.currency,
+        order: finalizeResult.order || order,
+        ledgerResult: finalizeResult.ledgerResult,
         message: 'Top-up order is already PAID (idempotent replay, zero duplicate credit)',
       };
     }
@@ -1700,7 +1839,55 @@ export async function verifyAndProcessPaymentWebhook(
     throw err;
   }
 
-  // 7. Process Status Transition via Atomic Engine
+  // 7. Process Status Transition via Authoritative Engine
+  if (targetStatus === 'PAID') {
+    const finalizeResult = await finalizeWalletTopUp(
+      order,
+      {
+        webhookPayload: dataObject,
+        webhookEventId: payload.id,
+        paymentReference,
+        paymentMethod,
+      },
+      env
+    );
+
+    // Record WEBHOOK_RECEIVED audit event
+    await recordWalletAuditEvent(
+      {
+        organizationId: order.organization_id,
+        eventType: 'WEBHOOK_RECEIVED',
+        orderId: order.id,
+        paymentReference: finalizeResult.paymentReference || paymentReference,
+        amount: receivedAmount ?? order.top_up_amount,
+        currency: receivedCurrency,
+        metadata: {
+          webhook_event_id: payload.id,
+          webhook_type: eventType,
+          status: 'PAID',
+          is_duplicate: Boolean(finalizeResult.alreadyProcessed),
+        },
+      },
+      env
+    );
+
+    return {
+      success: true,
+      isDuplicate: Boolean(finalizeResult.alreadyProcessed),
+      alreadyProcessed: Boolean(finalizeResult.alreadyProcessed),
+      status: 'PAID',
+      orderId: finalizeResult.order.id,
+      paymentReference: finalizeResult.paymentReference || undefined,
+      paymentMethod: finalizeResult.paymentMethod || undefined,
+      amount: finalizeResult.amount ?? finalizeResult.order.top_up_amount,
+      currency: finalizeResult.currency ?? finalizeResult.order.currency,
+      order: finalizeResult.order,
+      ledgerResult: finalizeResult.ledgerResult,
+      message: finalizeResult.message || 'Order successfully marked as PAID',
+    };
+  }
+
+  // For non-PAID status transitions (FAILED, EXPIRED, CANCELLED):
   const result = await processTopupOrderStatus(
     {
       orderId: order.id,
@@ -1782,6 +1969,14 @@ export async function syncTopupOrderExpiration(
 
   // 1. Terminal states (PAID, EXPIRED, CANCELLED, FAILED) are permanent and never transition again
   if (['PAID', 'EXPIRED', 'CANCELLED', 'FAILED'].includes(order.status)) {
+    if (order.status === 'PAID') {
+      // Reconcile / ensure Top Up Successful notification exists (idempotent repair for timeout recovery)
+      try {
+        await ensureTopUpSuccessfulNotification(order, order.expected_credit_amount, env);
+      } catch (notifErr) {
+        console.warn(`[Topup Sync] Failed to ensure notification on PAID order ${order.id}:`, notifErr);
+      }
+    }
     return order;
   }
 
@@ -1914,34 +2109,31 @@ export async function syncTopupOrderExpiration(
           );
 
           if (currencyMatches && amountMatches && orgMatches) {
-            console.log(`[Topup Sync] Stripe Checkout session ${cleanSessionId} is PAID. Reconciling order ${order.id} to PAID.`);
+            console.log(`[Topup Sync] Stripe Checkout session ${cleanSessionId} is PAID. Reconciling order ${order.id} to PAID via finalizeWalletTopUp.`);
             const paymentIntentId =
               typeof stripeSession.payment_intent === 'string'
                 ? stripeSession.payment_intent
                 : (stripeSession.payment_intent as any)?.id || null;
 
-            const settleResult = await processTopupOrderStatus(
+            const finalizeResult = await finalizeWalletTopUp(
+              order.id,
               {
-                orderId: order.id,
-                newStatus: 'PAID',
+                stripeSession,
+                sessionId: cleanSessionId,
                 paymentReference: paymentIntentId || `STRIPE_${stripeSession.id}`,
                 paymentMethod: stripeSession.payment_method_types?.[0] || 'card',
                 reason: 'Authoritative Stripe Checkout Session completion verified via API reconciliation',
                 metadata: {
-                  ...(order.metadata || {}),
                   stripe_session_id: cleanSessionId,
                   stripe_session_status: stripeSession.status,
                   stripe_payment_status: stripeSession.payment_status,
                   stripe_payment_intent: paymentIntentId,
-                  paid_at: new Date(now).toISOString(),
-                  reconciled_at: new Date(now).toISOString(),
                   sync_source: 'stripe_api_reconciliation',
                 },
-                isTrustedSettlement: true,
               },
               env
             );
-            return settleResult.order;
+            return finalizeResult.order;
           } else {
             console.warn(
               `[Topup Sync] Stripe session ${cleanSessionId} validation mismatch for order ${order.id}: currency=${currencyMatches}, amount=${amountMatches}, org=${orgMatches}`
@@ -1993,23 +2185,21 @@ export async function syncTopupOrderExpiration(
     // Only in non-production simulation or when explicitly marked
     if (order.metadata?.simulated_status === 'PAID') {
       try {
-        const payResult = await processTopupOrderStatus(
+        const finalizeResult = await finalizeWalletTopUp(
+          order.id,
           {
-            orderId: order.id,
-            newStatus: 'PAID',
+            isSimulation: true,
             paymentReference: order.payment_reference || `SIM_${order.id.slice(0, 8)}`,
             paymentMethod: 'simulated_card',
             reason: 'Simulation: test payment marked paid',
             metadata: {
-              ...(order.metadata || {}),
               paid_at: new Date(now).toISOString(),
               sync_source: 'simulation_paid',
             },
-            isTrustedSettlement: true,
           },
           env
         );
-        return payResult.order;
+        return finalizeResult.order;
       } catch (simErr) {
         console.warn(`[Topup Sync] Simulation paid error for order ${order.id}:`, simErr);
       }

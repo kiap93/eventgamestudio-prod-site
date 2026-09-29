@@ -26,6 +26,8 @@ import {
   X,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { LanguageSelector } from '../common/LanguageSelector';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   MAIN_NAVIGATION_ITEMS,
   matchesMainSection,
@@ -36,6 +38,7 @@ export { MAIN_NAVIGATION_ITEMS, matchesMainSection, handleMainTabNavigation };
 
 export const DashboardLayout: React.FC = () => {
   const routeContext = useRouteContext();
+  const { t } = useLocalization();
   const {
     currentUser,
     currentOrganization,
@@ -237,6 +240,16 @@ export const DashboardLayout: React.FC = () => {
             {MAIN_NAVIGATION_ITEMS.map((item) => {
               const isActive = matchesMainSection(currentPath, item.href);
               const Icon = item.icon;
+              const label =
+                item.id === 'events'
+                  ? t('nav.events')
+                  : item.id === 'games'
+                  ? t('nav.games')
+                  : item.id === 'team'
+                  ? t('nav.team')
+                  : item.id === 'wallet'
+                  ? t('nav.wallet')
+                  : item.label;
               return (
                 <button
                   key={item.id}
@@ -249,7 +262,7 @@ export const DashboardLayout: React.FC = () => {
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  <span>{item.label}</span>
+                  <span>{label}</span>
                 </button>
               );
             })}
@@ -410,6 +423,9 @@ export const DashboardLayout: React.FC = () => {
               )}
             </button>
 
+            {/* Language Selector */}
+            <LanguageSelector variant="standard" />
+
             {/* Notification Bell */}
             <NotificationBell />
 
@@ -522,6 +538,16 @@ export const DashboardLayout: React.FC = () => {
               {MAIN_NAVIGATION_ITEMS.map((item) => {
                 const isActive = matchesMainSection(currentPath, item.href);
                 const Icon = item.icon;
+                const label =
+                  item.id === 'events'
+                    ? t('nav.events')
+                    : item.id === 'games'
+                    ? t('nav.games')
+                    : item.id === 'team'
+                    ? t('nav.team')
+                    : item.id === 'wallet'
+                    ? t('nav.wallet')
+                    : item.label;
                 return (
                   <button
                     key={item.id}
@@ -537,7 +563,7 @@ export const DashboardLayout: React.FC = () => {
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5" />
-                    <span>{item.label}</span>
+                    <span>{label}</span>
                   </button>
                 );
               })}

@@ -198,7 +198,16 @@ import {
   rejectShowcaseRewardSubmission,
   getShowcaseRewardEligibility,
   checkShowcaseRewardEligibility,
+  getEventTranslations,
+  getEventTranslation,
+  upsertEventTranslation,
+  deleteEventTranslation,
+  getShowcaseTranslations,
+  upsertShowcaseTranslation,
+  getTranslationJob,
 } from './server/db/index.js';
+import { translationService } from './server/translation/service.js';
+import { SUPPORTED_LANGUAGES, normalizeLanguageCode } from './src/lib/i18n/languages.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import {
   handleApiError,
@@ -257,6 +266,7 @@ import {
   generateWebhookSignature,
   getPaymentWebhookSecret,
   syncTopupOrderExpiration,
+  finalizeWalletTopUp,
   getStripeClient,
   SUPPORTED_PAYMENT_METHODS,
   isPaymentMethodSupported,
@@ -2374,6 +2384,277 @@ app.get('/api/events/:eventId', authenticateJWT, async (req: AuthenticatedReques
     }
 
     res.json({ event });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+// ==========================================
+// LOCALIZATION & TRANSLATION SYSTEM ENDPOINTS
+// ==========================================
+
+/**
+ * GET /api/localization/languages
+ * Public configuration endpoint returning authoritative supported languages
+ */
+app.get('/api/localization/languages', (req, res) => {
+  res.json({ languages: SUPPORTED_LANGUAGES });
+});
+
+/**
+ * GET /api/events/:eventId/translations
+ * Returns all user-generated content translations for an event
+ */
+app.get('/api/events/:eventId/translations', authenticateOptionalJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { eventId } = req.params;
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const translations = await getEventTranslations(eventId);
+    res.json({ translations });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * PUT /api/events/:eventId/translations/:language
+ * Creates or updates an event translation for a specific language
+ */
+app.put('/api/events/:eventId/translations/:language', eventRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId, language } = req.params;
+    const { title, description, game_instructions } = req.body;
+
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+      res.status(400).json({ error: 'Translation title is required.' });
+      return;
+    }
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Forbidden: You do not have permission to edit this event' });
+      return;
+    }
+
+    const normalizedLang = normalizeLanguageCode(language);
+    const translation = await upsertEventTranslation(eventId, normalizedLang, {
+      title,
+      description,
+      game_instructions,
+    });
+
+    res.json({ translation });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * DELETE /api/events/:eventId/translations/:language
+ * Deletes a translation for a specific language
+ */
+app.delete('/api/events/:eventId/translations/:language', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId, language } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Forbidden: You do not have permission to edit this event' });
+      return;
+    }
+
+    const normalizedLang = normalizeLanguageCode(language);
+    await deleteEventTranslation(eventId, normalizedLang);
+    res.json({ success: true });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/events/:eventId/showcase/translations
+ * Returns all translations for an event's showcase
+ */
+app.get('/api/events/:eventId/showcase/translations', authenticateOptionalJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { eventId } = req.params;
+    const showcase = await getShowcaseByEventId(eventId);
+    if (!showcase) {
+      res.status(404).json({ error: 'Showcase not found for this event' });
+      return;
+    }
+
+    const translations = await getShowcaseTranslations(showcase.id);
+    res.json({ translations });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * PUT /api/events/:eventId/showcase/translations/:language
+ * Upserts a showcase translation for a specific language
+ */
+app.put('/api/events/:eventId/showcase/translations/:language', showcaseRateLimiter, authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId, language } = req.params;
+    const { title, description, cta_text } = req.body;
+
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+      res.status(400).json({ error: 'Showcase translation title is required.' });
+      return;
+    }
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Forbidden: Access denied to this showcase' });
+      return;
+    }
+
+    const showcase = await getShowcaseByEventId(eventId);
+    if (!showcase) {
+      res.status(404).json({ error: 'Showcase not found for this event' });
+      return;
+    }
+
+    const normalizedLang = normalizeLanguageCode(language);
+    const translation = await upsertShowcaseTranslation(showcase.id, normalizedLang, {
+      title,
+      description,
+      cta_text,
+    });
+
+    res.json({ translation });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * POST /api/translations/translate
+ * Provider-agnostic AI translation service endpoint
+ */
+app.post('/api/translations/translate', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const {
+      sourceLanguage = 'en',
+      targetLanguage,
+      text,
+      fields,
+      glossary,
+      context,
+      entityType,
+      tone,
+    } = req.body;
+
+    if (!targetLanguage) {
+      res.status(400).json({ error: 'targetLanguage is required' });
+      return;
+    }
+
+    if (!text && (!fields || Object.keys(fields).length === 0)) {
+      res.status(400).json({ error: 'Either text or fields must be provided' });
+      return;
+    }
+
+    const result = await translationService.translate({
+      sourceLanguage: normalizeLanguageCode(sourceLanguage),
+      targetLanguage: normalizeLanguageCode(targetLanguage),
+      text,
+      fields,
+      glossary,
+      context,
+      entityType,
+      tone,
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    console.error('[API /api/translations/translate error]', err);
+    res.status(500).json({
+      error: err?.message || 'Translation failed. Please try again.',
+      code: 'TRANSLATION_FAILED',
+    });
+  }
+});
+
+/**
+ * POST /api/translations/jobs
+ * Creates an asynchronous translation job
+ */
+app.post('/api/translations/jobs', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const {
+      entity_type,
+      entity_id,
+      source_language = 'en',
+      target_language,
+      fields,
+      glossary,
+      context,
+    } = req.body;
+
+    if (!entity_type || !entity_id || !target_language || !fields) {
+      res.status(400).json({ error: 'Missing required parameters for translation job' });
+      return;
+    }
+
+    const job = await translationService.queueTranslationJob({
+      entity_type,
+      entity_id,
+      source_language: normalizeLanguageCode(source_language),
+      target_language: normalizeLanguageCode(target_language),
+      fields,
+      glossary,
+      context,
+    });
+
+    res.json({ job });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/translations/jobs/:jobId
+ * Returns the status and results of a translation job
+ */
+app.get('/api/translations/jobs/:jobId', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { jobId } = req.params;
+    const job = await getTranslationJob(jobId);
+    if (!job) {
+      res.status(404).json({ error: 'Translation job not found' });
+      return;
+    }
+
+    res.json({ job });
   } catch (err: any) {
     handleApiError(err, req, res);
   }
@@ -6416,6 +6697,19 @@ const handleGetTopupOrder = async (req: AuthenticatedRequest, res: express.Respo
       order = await syncTopupOrderExpiration(order, { sessionId: sessionIdQuery, status: statusQuery });
     }
 
+    // If order is PAID, run finalizeWalletTopUp to ensure missing notification repair & idempotent reconciliation
+    if (order.status === 'PAID') {
+      try {
+        const finalizeResult = await finalizeWalletTopUp(order, {
+          sessionId: sessionIdQuery,
+          origin: 'handleGetTopupOrder',
+        });
+        order = finalizeResult.order;
+      } catch (reconErr) {
+        console.warn(`[Get Topup Order] Notification/reconciliation check warning for order ${order.id}:`, reconErr);
+      }
+    }
+
     res.json({ order });
   } catch (err: any) {
     handleApiError(err, req, res);
@@ -6760,12 +7054,13 @@ app.post('/api/developer/wallet/topups/:id/reconcile', authenticateJWT, authenti
       return;
     }
 
-    const result = await reconcileTopupOrder({
-      orderId,
+    const result = await finalizeWalletTopUp(orderId, {
       paymentReference: ref.trim(),
       paymentMethod: payment_method || paymentMethod || 'MANUAL_RECONCILIATION',
       reconciledBy: req.user!.id,
-      reason: reason.trim(),
+      reconciliationReason: reason.trim(),
+      isManualReconciliation: true,
+      reason: `Manual Admin Reconciliation: ${reason.trim()}`,
       metadata,
     });
 

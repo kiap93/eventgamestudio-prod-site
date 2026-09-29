@@ -36,6 +36,8 @@ import { ResultScreenRenderer } from '../games/shared/ResultScreenRenderer';
 import { resolveScreenBackground } from '../themes/screenBackground';
 import { getStartScreenConfig } from '../games/shared/startScreenResolver';
 import { GameControlBar } from './studio/GameControlBar';
+import { useLocalization } from '../context/LocalizationContext';
+import { LanguageSelector } from './common/LanguageSelector';
 
 interface ArcadeUIProps {
   gameState: GameState;
@@ -91,6 +93,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
   activeTheme,
   responsive: responsiveProp,
 }) => {
+  const { t } = useLocalization();
   const containerRef = useRef<HTMLDivElement>(null);
   const orientationPreference = activeTheme?.layout?.orientation || 'auto';
   const internalResponsive = useResponsiveLayout(containerRef, orientationPreference);
@@ -480,6 +483,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
         {/* Top Right Persistent Controls */}
         {gameState !== 'PLAYING' && gameState !== 'PAUSED' && (
           <div className="absolute top-4 right-4 z-50 pointer-events-auto flex items-center gap-2">
+            <LanguageSelector variant="game-hud" />
             <button
               onClick={() => setShowSettingsModal(true)}
               className="p-2.5 rounded-xl bg-[#0f2d18]/90 border-2 border-[#d4e157] hover:border-[#ffee58] text-[#ffee58] shadow-lg transition-all"
@@ -562,7 +566,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
               >
                 <div className="bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between">
                   <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
-                    <Trophy className="w-3.5 h-3.5 text-amber-400" /> SCORE
+                    <Trophy className="w-3.5 h-3.5 text-amber-400" /> {t('game.score')}
                   </span>
                   <span
                     style={{ color: activeTheme.branding?.hudColor || '#c8e038' }}
@@ -588,7 +592,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
               >
                 <div className="bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between">
                   <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
-                    <Timer className="w-3.5 h-3.5 text-teal-400" /> TIME
+                    <Timer className="w-3.5 h-3.5 text-teal-400" /> {t('game.time')}
                   </span>
                   <span className="text-base sm:text-lg font-mono font-black text-amber-400 ml-2">
                     {stats.timeRemaining}s
