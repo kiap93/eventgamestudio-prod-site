@@ -39,6 +39,7 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<GameScene | null>(null);
+  const pendingStartRef = useRef<boolean>(false);
 
   const [gameState, setGameState] = useState<GameState>('START');
   const [countdownText, setCountdownText] = useState<string | number>(3);
@@ -216,6 +217,10 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
         scene.events.once('create', () => {
           scene.resizeLayout(responsive.designWidth, responsive.designHeight);
           handleResize();
+          if (pendingStartRef.current) {
+            pendingStartRef.current = false;
+            scene.startNewGame();
+          }
         });
       }
       handleResize();
@@ -268,6 +273,8 @@ export const CatchBrandGame: React.FC<GameComponentProps<CatchBrandConfig>> = ({
   const handleStartGame = () => {
     if (sceneRef.current) {
       sceneRef.current.startNewGame();
+    } else {
+      pendingStartRef.current = true;
     }
   };
 

@@ -4,7 +4,7 @@ import { SupportedLanguage } from '../../lib/i18n/languages';
 import { Globe, Check, ChevronDown } from 'lucide-react';
 
 export interface LanguageSelectorProps {
-  variant?: 'standard' | 'compact' | 'game-hud';
+  variant?: 'standard' | 'compact';
   className?: string;
   onLanguageChange?: (lang: SupportedLanguage) => void;
 }
@@ -46,52 +46,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
     setIsOpen(false);
   };
 
-  // 1. GAME-HUD VARIANT (Minimalist, dark-glass style for in-game and preview overlays)
-  if (variant === 'game-hud') {
-    return (
-      <div className={`relative inline-block text-left ${className}`} ref={dropdownRef}>
-        <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          aria-label="Change language"
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-black/60 hover:bg-black/80 text-white/90 border border-white/20 backdrop-blur-md transition-all shadow-md cursor-pointer select-none"
-        >
-          <span className="text-sm">{currentLanguageConfig.flag}</span>
-          <span className="hidden sm:inline">{currentLanguageConfig.nativeName}</span>
-          <span className="sm:hidden">{currentLanguageConfig.code.split('-')[0].toUpperCase()}</span>
-          <ChevronDown className={`w-3.5 h-3.5 text-white/70 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-        </button>
-
-        {isOpen && (
-          <div className="absolute right-0 mt-1.5 w-44 rounded-xl bg-slate-900/95 border border-white/20 shadow-2xl backdrop-blur-lg z-50 py-1.5 animate-in fade-in zoom-in-95 duration-150">
-            {supportedLanguages.map((lang) => {
-              const isSelected = lang.code === language;
-              return (
-                <button
-                  key={lang.code}
-                  type="button"
-                  onClick={() => handleSelect(lang.code)}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
-                    isSelected
-                      ? 'bg-amber-500/20 text-amber-300'
-                      : 'text-slate-200 hover:bg-white/10'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">{lang.flag}</span>
-                    <span className="font-semibold">{lang.nativeName}</span>
-                  </div>
-                  {isSelected && <Check className="w-4 h-4 text-amber-400" />}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // 2. COMPACT VARIANT (Minimal pill for headers & toolbars)
+  // 1. COMPACT VARIANT (Minimal pill for headers, pre-game bars & toolbars)
   if (variant === 'compact') {
     return (
       <div className={`relative inline-block text-left ${className}`} ref={dropdownRef}>

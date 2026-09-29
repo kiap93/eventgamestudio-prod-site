@@ -109,7 +109,7 @@ export const DEFAULT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
   timer: {
     visible: true,
     x: 79.5,
-    y: 3.5,
+    y: 10.5,
     width: 17,
   },
   gameTitle: {
@@ -402,14 +402,15 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
         width = 17;
       }
 
-      // 3. Migrate legacy timer at (79.5, 11) or (78, 11) or (80, 11) to top row (79.5, 3.5)
+      // 3. Migrate legacy timer defaults at (79.5, 3.5), (79.5, 11), (78, 11), or (80, 11) to dedicated second-row center (41.5, 10.5)
+      // This migrates old defaults away from the top-right GameControlBar while preserving genuine custom layouts
       if (
         key === 'timer' &&
-        (Math.abs(x - 79.5) < 1.0 || Math.abs(x - 78) < 1.0 || Math.abs(x - 80) < 1.0) &&
-        Math.abs(y - 11) < 0.6
+        (Math.abs(x - 79.5) < 2.0 || Math.abs(x - 78) < 2.0 || Math.abs(x - 80) < 2.0) &&
+        (Math.abs(y - 3.5) < 1.5 || Math.abs(y - 11) < 1.5)
       ) {
         x = 79.5;
-        y = 3.5;
+        y = 10.5;
         width = 17;
       }
     }

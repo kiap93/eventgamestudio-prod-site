@@ -37,7 +37,6 @@ import { resolveScreenBackground } from '../themes/screenBackground';
 import { getStartScreenConfig } from '../games/shared/startScreenResolver';
 import { GameControlBar } from './studio/GameControlBar';
 import { useLocalization } from '../context/LocalizationContext';
-import { LanguageSelector } from './common/LanguageSelector';
 
 interface ArcadeUIProps {
   gameState: GameState;
@@ -481,9 +480,8 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
         }}
       >
         {/* Top Right Persistent Controls */}
-        {gameState !== 'PLAYING' && gameState !== 'PAUSED' && (
+        {gameState !== 'PLAYING' && gameState !== 'PAUSED' && gameState !== 'COUNTDOWN' && (
           <div className="absolute top-4 right-4 z-50 pointer-events-auto flex items-center gap-2">
-            <LanguageSelector variant="game-hud" />
             <button
               onClick={() => setShowSettingsModal(true)}
               className="p-2.5 rounded-xl bg-[#0f2d18]/90 border-2 border-[#d4e157] hover:border-[#ffee58] text-[#ffee58] shadow-lg transition-all"
@@ -509,12 +507,12 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
         )}
 
         {/* ================= IN-GAME DYNAMIC LAYOUT HUD ================= */}
-        {(gameState === 'PLAYING' || gameState === 'PAUSED') && (
+        {(gameState === 'PLAYING' || gameState === 'PAUSED' || gameState === 'COUNTDOWN') && (
           <>
             {/* Top Right In-Game Controls Dock */}
             <GameControlBar
               id="live-arcade-control-bar"
-              disabled={false}
+              disabled={gameState === 'COUNTDOWN'}
               isMuted={isMuted}
               isPaused={gameState === 'PAUSED'}
               isFullscreen={isFullscreen}
@@ -578,28 +576,35 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
               </div>
             )}
 
-            {/* 3. Timer Element */}
-            {layout.timer?.visible && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: `${layout.timer.x}%`,
-                  top: `${layout.timer.y}%`,
-                  width: `${layout.timer.width || 18}%`,
-                  zIndex: 35,
-                }}
-                className="pointer-events-none transition-all"
-              >
-                <div className="bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
-                    <Timer className="w-3.5 h-3.5 text-teal-400" /> {t('game.time')}
-                  </span>
-                  <span className="text-base sm:text-lg font-mono font-black text-amber-400 ml-2">
-                    {stats.timeRemaining}s
-                  </span>
+            {/* 3. Timer Element (Independent dedicated second-row layout avoiding top-right control HUD) */}
+            {layout.timer?.visible && (() => {
+              const isCollidingWithControlHud = !isPortrait && (layout.timer.x >= 72 && layout.timer.y < 8.5);
+              const timerX = isCollidingWithControlHud ? 79.5 : layout.timer.x;
+              const timerY = isCollidingWithControlHud ? 10.5 : layout.timer.y;
+              const timerWidth = layout.timer.width || 17;
+
+              return (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${timerX}%`,
+                    top: `${timerY}%`,
+                    width: `${timerWidth}%`,
+                    zIndex: 35,
+                  }}
+                  className="pointer-events-none transition-all"
+                >
+                  <div className="bg-[#0c2012]/85 backdrop-blur-sm border-2 border-[#b2c833] rounded-2xl px-3.5 py-1.5 shadow-lg text-white flex items-center justify-between">
+                    <span className="text-xs sm:text-sm font-mono font-bold text-slate-300 flex items-center gap-1">
+                      <Timer className="w-3.5 h-3.5 text-teal-400" /> {t('game.time')}
+                    </span>
+                    <span className="text-base sm:text-lg font-mono font-black text-amber-400 ml-2">
+                      {stats.timeRemaining}s
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* 4. Game Title Element */}
             {layout.gameTitle?.visible && (

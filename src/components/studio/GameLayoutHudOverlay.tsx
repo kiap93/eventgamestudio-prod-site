@@ -87,8 +87,11 @@ export function calculateCatchBrandHudPosition({
              (Math.abs(el.y - 11) < 0.6 || Math.abs(el.y - 12) < 0.6);
     }
     if (k === 'timer') {
-      return (Math.abs(el.x - 79.5) < 1.0 || Math.abs(el.x - 78) < 1.0 || Math.abs(el.x - 80) < 1.0) &&
-             Math.abs(el.y - 11) < 0.6;
+      return (
+        (el.x >= 70 && el.y <= 12) ||
+        (Math.abs(el.x - 79.5) < 2.0 && (Math.abs(el.y - 3.5) < 1.0 || Math.abs(el.y - 11) < 1.0)) ||
+        (Math.abs(el.x - 78) < 1.5 || Math.abs(el.x - 80) < 1.5)
+      );
     }
     if (k === 'clientLogo') {
       return (Math.abs(el.x - 3.5) < 0.2 && Math.abs(el.y - 3.5) < 0.2) ||
@@ -122,6 +125,11 @@ export function calculateCatchBrandHudPosition({
   let widthPercent = elem.width || meta.defaultWidth;
 
   if (hasCustomValue) {
+    // If a custom value in landscape places timer directly into the row 1 control bar collision zone (posY < 8.5), safeguard it to row 2
+    if (!effectiveIsPortrait && key === 'timer' && posX >= 72 && posY < 8.5) {
+      posX = 79.5;
+      posY = 10.5;
+    }
     // Follow customization position
     return {
       posX,
@@ -150,10 +158,10 @@ export function calculateCatchBrandHudPosition({
       posY = 3.5;
       widthPercent = Math.max(15, Math.min(22, widthPercent));
     } else if (key === 'timer') {
-      // Top row: top-right
-      posX = 79.5;
-      posY = 3.5;
+      // Second row: centered horizontally beneath Game Title
       widthPercent = Math.max(15, Math.min(22, widthPercent));
+      posX = 79.5;
+      posY = 10.5;
     } else if (key === 'footerSponsor') {
       widthPercent = Math.max(48, Math.min(65, widthPercent));
       posX = (100 - widthPercent) / 2;

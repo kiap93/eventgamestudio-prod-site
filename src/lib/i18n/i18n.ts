@@ -105,6 +105,13 @@ export function persistLanguage(lang: SupportedLanguage): void {
 }
 
 /**
+ * Returns the currently active/persisted language code.
+ */
+export function getCurrentLanguage(): SupportedLanguage {
+  return detectInitialLanguage();
+}
+
+/**
  * Main translation lookup function.
  * Supports dot notation, fallback chain (requested -> en -> safe key), and interpolation.
  */

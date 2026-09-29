@@ -18,6 +18,7 @@ import {
   Tv,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { LanguageSelector } from '../common/LanguageSelector';
 
 interface LandingHeaderProps {
   onExploreGames?: () => void;
@@ -241,6 +242,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
 
         {/* Right Actions */}
         <div className="hidden sm:flex items-center gap-3">
+          <LanguageSelector variant="compact" />
           {isAuthenticated ? (
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-2xl">
@@ -410,6 +412,9 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
           </div>
 
           <div className="pt-2 border-t border-slate-200 flex flex-col gap-2">
+            <div className="pb-1">
+              <LanguageSelector variant="standard" className="w-full" />
+            </div>
             {isAuthenticated ? (
               <>
                 <button

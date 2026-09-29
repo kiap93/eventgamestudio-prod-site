@@ -20,12 +20,14 @@ export interface LocalizationContextValue {
   currentLanguageConfig: LanguageConfig;
   isRtl: boolean;
   /**
-   * Helper to resolve user-generated multilingual content objects:
+   * Helper to resolve user-generated multilingual content objects or arrays:
    * e.g., { 'en': 'Corporate Fiesta', 'zh-CN': '企业嘉年华' }
+   * or [{ language_code: 'zh-CN', title: '企业嘉年华' }]
    */
   resolveContent: (
-    translations?: Record<string, string | null | undefined> | null,
-    sourceFallback?: string | null
+    translations?: Record<string, any> | Array<Record<string, any>> | null,
+    sourceFallback?: string | null,
+    field?: string
   ) => string;
 }
 
@@ -57,14 +59,40 @@ export const LocalizationProvider: React.FC<LocalizationProviderProps> = ({
     [language]
   );
 
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = language;
+      document.documentElement.dir = currentLanguageConfig.direction;
+    }
+  }, [language, currentLanguageConfig.direction]);
+
   const resolveContent = useCallback(
     (
-      translations?: Record<string, string | null | undefined> | null,
-      sourceFallback?: string | null
+      translations?: Record<string, any> | Array<Record<string, any>> | null,
+      sourceFallback?: string | null,
+      field: string = 'title'
     ): string => {
       if (!translations && !sourceFallback) return '';
       if (!translations) return sourceFallback || '';
 
+      // Array format: [{ language_code: 'zh-CN', title: '...', description: '...' }]
+      if (Array.isArray(translations)) {
+        if (translations.length === 0) return sourceFallback || '';
+        // 1. Exact match in active language
+        const match = translations.find((item) => item.language_code === language);
+        if (match && match[field] !== undefined && match[field] !== null && String(match[field]).trim().length > 0) {
+          return String(match[field]);
+        }
+        // 2. English translation fallback
+        const enMatch = translations.find((item) => item.language_code === DEFAULT_LANGUAGE || item.language_code === 'en');
+        if (enMatch && enMatch[field] !== undefined && enMatch[field] !== null && String(enMatch[field]).trim().length > 0) {
+          return String(enMatch[field]);
+        }
+        // 3. Source fallback
+        return sourceFallback || '';
+      }
+
+      // Map format: { 'zh-CN': '...', 'en': '...' }
       // 1. Exact match in current language
       const targetVal = translations[language];
       if (targetVal && typeof targetVal === 'string' && targetVal.trim().length > 0) {

@@ -31,6 +31,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { PublicEventDTO } from '../../types';
+import { LanguageSelector } from '../common/LanguageSelector';
 
 export const PublicEventGameView: React.FC = () => {
   const routeContext = useRouteContext();
@@ -565,6 +566,8 @@ export const PublicEventGameView: React.FC = () => {
                 <span>Active until {formatDateOnly(dates.endDate)}</span>
               </div>
             )}
+
+            <LanguageSelector variant="compact" />
 
             <button
               onClick={toggleFullscreen}

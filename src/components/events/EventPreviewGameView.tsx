@@ -16,6 +16,7 @@ import {
   AlertCircle,
   FlaskConical,
 } from 'lucide-react';
+import { LanguageSelector } from '../common/LanguageSelector';
 
 interface EventPreviewData {
   id: string;
@@ -369,8 +370,9 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
             </p>
           </div>
 
-          {/* Right: Fullscreen Toggle */}
+          {/* Right: Language Selector & Fullscreen Toggle */}
           <div className="flex items-center gap-2 shrink-0">
+            <LanguageSelector variant="compact" />
             <button
               type="button"
               id="preview-toggle-fullscreen-btn"

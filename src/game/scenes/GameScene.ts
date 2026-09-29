@@ -13,6 +13,9 @@ export class GameScene extends Phaser.Scene {
   private itemsGroup!: Phaser.Physics.Arcade.Group;
   private leafEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
 
+  private isSceneCreated: boolean = false;
+  private pendingStartOnCreate: boolean = false;
+
   private gameState: GameState = 'START';
   private score: number = 0;
   private highScore: number = 0;
@@ -163,8 +166,16 @@ export class GameScene extends Phaser.Scene {
     this.applySettings(settings);
     soundManager.applySettings(settings);
 
-    // Set initial state
-    this.setGameState('START');
+    // Mark scene as created and ready
+    this.isSceneCreated = true;
+
+    // Handle any start request that arrived while BootScene was loading assets
+    if (this.pendingStartOnCreate) {
+      this.pendingStartOnCreate = false;
+      this.startNewGame();
+    } else {
+      this.setGameState('START');
+    }
   }
 
   public refreshTheme() {
@@ -217,6 +228,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   public startNewGame() {
+    if (!this.isSceneCreated) {
+      this.pendingStartOnCreate = true;
+      return;
+    }
+
     this.refreshTheme();
     this.resetStats();
     this.setGameState('COUNTDOWN');
@@ -558,7 +574,9 @@ export class GameScene extends Phaser.Scene {
     this.duriansMissed = 0;
     this.itemsCaughtById = {};
 
-    this.itemsGroup.clear(true, true);
+    if (this.itemsGroup) {
+      this.itemsGroup.clear(true, true);
+    }
 
     if (this.basket) {
       const targetY = this.basket.calculateTargetY(this.logicalHeight);

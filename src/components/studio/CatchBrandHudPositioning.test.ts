@@ -54,15 +54,15 @@ assertCloseTo(scoreNoLogo.posY, 3.5, 0.01, 'A: Score remains top-left Y = 3.5%')
 
 const timerNoLogo = calculateCatchBrandHudPosition({
   key: 'timer',
-  elem: { x: 79.5, y: 3.5, width: 17, visible: true },
+  elem: { x: 79.5, y: 10.5, width: 17, visible: true },
   meta: LAYOUT_ELEMENTS_META.timer,
   layoutSource: undefined,
   effectiveIsPortrait: false,
   clientLogoUrl: null,
   isVisible: true,
 });
-assertCloseTo(timerNoLogo.posX, 79.5, 0.01, 'A: Timer remains top-right X = 79.5%');
-assertCloseTo(timerNoLogo.posY, 3.5, 0.01, 'A: Timer remains top-right Y = 3.5%');
+assertCloseTo(timerNoLogo.posX, 79.5, 0.01, 'A: Timer is in second row X = 79.5%');
+assertCloseTo(timerNoLogo.posY, 10.5, 0.01, 'A: Timer is centered in second row Y = 10.5%');
 
 const titleNoLogo = calculateCatchBrandHudPosition({
   key: 'gameTitle',
@@ -101,7 +101,7 @@ assertCloseTo(scoreWithLogo.posY, scoreNoLogo.posY, 0.001, 'B: Score Y matches e
 
 const timerWithLogo = calculateCatchBrandHudPosition({
   key: 'timer',
-  elem: { x: 79.5, y: 3.5, width: 17, visible: true },
+  elem: { x: 79.5, y: 10.5, width: 17, visible: true },
   meta: LAYOUT_ELEMENTS_META.timer,
   layoutSource: undefined,
   effectiveIsPortrait: false,
@@ -109,7 +109,7 @@ const timerWithLogo = calculateCatchBrandHudPosition({
   isVisible: true,
 });
 assertCloseTo(timerWithLogo.posX, timerNoLogo.posX, 0.001, 'B: Timer X matches exactly between with-logo and no-logo');
-assertCloseTo(timerWithLogo.posY, timerNoLogo.posY, 0.001, 'B: Timer Y matches exactly between with-logo and no-logo (3.5%)');
+assertCloseTo(timerWithLogo.posY, timerNoLogo.posY, 0.001, 'B: Timer Y matches exactly between with-logo and no-logo (10.5%)');
 
 const logoWithLogo = calculateCatchBrandHudPosition({
   key: 'clientLogo',
@@ -263,8 +263,8 @@ const legacyRawLayout1 = {
 const migratedLayout1 = normalizeGameLayout(legacyRawLayout1, 'catch-brand');
 assertCloseTo(migratedLayout1.scoreHud.x, 3.5, 0.01, 'F1: Migrated legacy scoreHud X is 3.5% (top-left)');
 assertCloseTo(migratedLayout1.scoreHud.y, 3.5, 0.01, 'F1: Migrated legacy scoreHud Y is 3.5% (top-left)');
-assertCloseTo(migratedLayout1.timer.x, 79.5, 0.01, 'F1: Migrated legacy timer X is 79.5% (top-right)');
-assertCloseTo(migratedLayout1.timer.y, 3.5, 0.01, 'F1: Migrated legacy timer Y is 3.5% (top-right)');
+assertCloseTo(migratedLayout1.timer.x, 79.5, 0.01, 'F1: Migrated legacy timer X is 79.5% (second-row right)');
+assertCloseTo(migratedLayout1.timer.y, 10.5, 0.01, 'F1: Migrated legacy timer Y is 10.5% (second-row center)');
 assertCloseTo(migratedLayout1.clientLogo.x, 3.5, 0.01, 'F1: Migrated legacy clientLogo X is 3.5% (second row)');
 assertCloseTo(migratedLayout1.clientLogo.y, 9.5, 0.01, 'F1: Migrated legacy clientLogo Y is 9.5% (second row)');
 
@@ -280,7 +280,8 @@ const legacyRawLayout2 = {
 const migratedLayout2 = normalizeGameLayout(legacyRawLayout2, 'catch-brand');
 assertCloseTo(migratedLayout2.clientLogo.x, 3.5, 0.01, 'F2: Centered logo (41, 9.5) migrates to left-side (3.5, 9.5)');
 assertCloseTo(migratedLayout2.clientLogo.y, 9.5, 0.01, 'F2: Centered logo Y remains 9.5%');
-assertCloseTo(migratedLayout2.timer.y, 3.5, 0.01, 'F2: Timer (79.5, 11) migrates to top row (79.5, 3.5)');
+assertCloseTo(migratedLayout2.timer.x, 79.5, 0.01, 'F2: Timer (79.5, 11) migrates to second-row (79.5, 10.5)');
+assertCloseTo(migratedLayout2.timer.y, 10.5, 0.01, 'F2: Timer (79.5, 11) migrates to second-row center (79.5, 10.5)');
 
 // Genuine custom layout: user placed score at (18, 22), timer at (60, 30), logo at (75, 40)
 const genuineCustomLayout = {
