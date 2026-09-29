@@ -3,6 +3,7 @@ import { LandingHeader } from '../landing/LandingHeader';
 import { LandingFooter } from '../landing/LandingFooter';
 import { SEO } from '../common/SEO';
 import { getPageSeo, SEO_PAGE_CONFIGS, PageSeoConfig } from '../../lib/seo';
+import { InternalLink } from '../common/InternalLink';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -174,13 +175,13 @@ const SOLUTION_DETAILS: Record<
         icon: Sliders,
       },
       {
-        title: 'Participant Contact Collection',
-        desc: 'Collect player nicknames and contact info upon game completion for prize redemptions and opt-in promotional follow-ups.',
+        title: 'Leaderboard Score Recognition',
+        desc: 'Players enter their nickname when submitting scores, enabling booth staff to easily verify winners on the live leaderboard and award prizes.',
         icon: Smartphone,
       },
       {
-        title: 'Instant Gift & Voucher Triggers',
-        desc: 'Set custom score thresholds (e.g. 500+ points) to automatically reward players with booth redemption coupons or swag items.',
+        title: 'Live Leaderboard Contests',
+        desc: 'Run engaging high-score challenges that encourage visitors to return to your booth and see if their ranking holds.',
         icon: Trophy,
       },
     ],
@@ -228,8 +229,8 @@ const SOLUTION_DETAILS: Record<
         icon: Zap,
       },
       {
-        title: 'Massive Crowd Throughput',
-        desc: 'Process up to 150 players per hour on a single kiosk station, keeping lines moving and eliminating visitor boredom.',
+        title: 'High Participant Throughput',
+        desc: 'Short 15-to-45 second game rounds keep lines moving and maximize the number of players who can participate during event hours.',
         icon: Users,
       },
       {
@@ -465,12 +466,12 @@ const SOLUTION_DETAILS: Record<
       },
       {
         title: 'Offline Resilient Gameplay',
-        desc: 'All game code and assets cache locally upon initial launch, ensuring 60fps frame rates even if crowded venue Wi-Fi fluctuates.',
+        desc: 'Game code and visual assets load directly in the participant browser, delivering smooth gameplay even if crowded venue Wi-Fi experiences latency.',
         icon: ShieldCheck,
       },
       {
-        title: 'Massive Scalability',
-        desc: 'Engineered to support thousands of concurrent attendees simultaneously scanning, playing, and posting scores without server lag.',
+        title: 'Scalable Event Architecture',
+        desc: 'Designed to handle event crowd rushes with rapid score submissions and live leaderboard updates without bottlenecks.',
         icon: Users,
       },
       {
@@ -503,7 +504,7 @@ const SOLUTION_DETAILS: Record<
       { step: '04', title: 'Export Live Event Analytics', desc: 'Review comprehensive participation volume, score distributions, and player rosters.' },
     ],
     recommendedGames: [
-      { id: 'catch-brand', name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'Smooth 60fps arcade physics engine optimized for web.', icon: 'ShoppingBasket' },
+      { id: 'catch-brand', name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'Fast-paced arcade item catching optimized for mobile and desktop browsers.', icon: 'ShoppingBasket' },
       { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'Precision millisecond timestamping for uncompromised fair play.', icon: 'Zap' },
       { id: 'memory-match', name: 'Brand Memory Match', slug: '/games/memory-match', desc: 'Card flip animations powered by responsive GPU canvas rendering.', icon: 'Grid3X3' },
     ],
@@ -550,12 +551,12 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
         <div className="w-full bg-slate-50 border-b border-slate-200/80 py-2.5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-              <button
-                onClick={() => navigateTo('/')}
-                className="hover:text-amber-600 transition-colors cursor-pointer"
+              <InternalLink
+                href="/"
+                className="hover:text-amber-600 transition-colors"
               >
                 Home
-              </button>
+              </InternalLink>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
               <span className="text-slate-900 font-semibold">{pageSeo.h1}</span>
             </nav>
@@ -741,31 +742,32 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
 
                   <div className="pt-4 flex items-center gap-3">
                     <button
+                      type="button"
                       onClick={() => handleLaunchDemo(game.id)}
                       className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors cursor-pointer text-center"
                     >
                       Play Demo
                     </button>
-                    <button
-                      onClick={() => navigateTo(game.slug)}
-                      className="py-2.5 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition-colors cursor-pointer text-center flex items-center gap-1"
+                    <InternalLink
+                      href={game.slug}
+                      className="py-2.5 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition-colors text-center flex items-center gap-1"
                     >
                       <span>Details</span>
                       <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    </InternalLink>
                   </div>
                 </div>
               ))}
             </div>
 
             <div className="text-center pt-10">
-              <button
-                onClick={() => navigateTo('/games')}
-                className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 hover:text-amber-300 underline underline-offset-4 cursor-pointer"
+              <InternalLink
+                href="/games"
+                className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 hover:text-amber-300 underline underline-offset-4"
               >
                 <span>View Full Event Games Catalog</span>
                 <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              </InternalLink>
             </div>
           </div>
         </section>
@@ -823,17 +825,17 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {details.relatedSolutions.map((sol, idx) => (
-                  <button
+                  <InternalLink
                     key={idx}
-                    onClick={() => navigateTo(sol.path)}
-                    className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-sm text-left transition-all cursor-pointer group"
+                    href={sol.path}
+                    className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-sm text-left transition-all group block"
                   >
                     <div className="text-sm font-bold text-slate-900 group-hover:text-amber-800 flex items-center justify-between">
                       <span>{sol.name}</span>
                       <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all" />
                     </div>
                     <p className="text-[11px] text-slate-500 mt-1">{sol.desc}</p>
-                  </button>
+                  </InternalLink>
                 ))}
               </div>
             </div>
@@ -851,17 +853,18 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <button
+                type="button"
                 onClick={handleGetStarted}
                 className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-slate-950 hover:bg-slate-900 text-white font-black text-sm transition-all shadow-xl shadow-slate-950/20 active:scale-95 cursor-pointer"
               >
                 Create Event Now
               </button>
-              <button
-                onClick={() => navigateTo('/contact')}
-                className="w-full sm:w-auto px-7 py-4 rounded-2xl bg-white/90 hover:bg-white text-slate-950 font-bold text-sm transition-all active:scale-95 cursor-pointer"
+              <InternalLink
+                href="/contact"
+                className="w-full sm:w-auto px-7 py-4 rounded-2xl bg-white/90 hover:bg-white text-slate-950 font-bold text-sm transition-all active:scale-95 text-center inline-block"
               >
                 Speak to Event Specialist
-              </button>
+              </InternalLink>
             </div>
           </div>
         </section>
@@ -873,8 +876,9 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
       {/* Interactive Demo Modal */}
       {demoModalOpen && (
         <LandingDemoModal
-          gameId={demoGameId}
+          isOpen={demoModalOpen}
           onClose={() => setDemoModalOpen(false)}
+          initialGameId={demoGameId}
         />
       )}
     </div>

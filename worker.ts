@@ -195,6 +195,7 @@ import {
   approveShowcaseRewardSubmission,
   rejectShowcaseRewardSubmission,
   getShowcaseRewardEligibility,
+  checkShowcaseRewardEligibility,
 } from './server/db/index.js';
 import { dispatchNotificationEvent } from './server/notifications/dispatcher.js';
 import { handleWorkerApiError, AppError, PricingConfigurationError, resolveCorrelationId, isOperationalError } from './server/errors.js';
@@ -618,6 +619,9 @@ Disallow: /game-themes
 Disallow: /team
 Disallow: /wallet
 Disallow: /accept-invite
+Disallow: /play/
+Disallow: /e/
+Disallow: /preview/
 Disallow: /api/
 
 Sitemap: https://eventgamestudio.com/sitemap.xml
@@ -4064,7 +4068,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             const lifetimeRewardStatus = auth.user?.id ? await getOwnerShowcaseRewardStatus(auth.user.id, env) : null;
             const rewardSubmission = await getShowcaseRewardSubmissionForEvent(eventId, env);
             const userSubmission = auth.user?.id ? await getActiveUserShowcaseRewardSubmission(auth.user.id, env) : null;
-            const rewardEligibility = auth.user?.id ? await getShowcaseRewardEligibility(auth.user.id, env) : null;
+            const rewardEligibility = auth.user?.id ? await checkShowcaseRewardEligibility({ eventId, userId: auth.user.id }, env) : null;
             return jsonResponse({
               showcase: null,
               lifetimeRewardStatus,
@@ -4080,7 +4084,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           const lifetimeRewardStatus = auth.user?.id ? await getOwnerShowcaseRewardStatus(auth.user.id, env) : null;
           const rewardSubmission = await getShowcaseRewardSubmissionForEvent(eventId, env);
           const userSubmission = auth.user?.id ? await getActiveUserShowcaseRewardSubmission(auth.user.id, env) : null;
-          const rewardEligibility = auth.user?.id ? await getShowcaseRewardEligibility(auth.user.id, env) : null;
+          const rewardEligibility = auth.user?.id ? await checkShowcaseRewardEligibility({ eventId, userId: auth.user.id }, env) : null;
           return jsonResponse({
             showcase,
             lifetimeRewardStatus,
@@ -4128,8 +4132,11 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           const { eventId } = showcaseRewardSubRoute;
           const auth = await authenticateOptionalJWT(request, env);
           const submission = await getShowcaseRewardSubmissionForEvent(eventId, env);
-          const userSubmission = auth.user?.id ? await getActiveUserShowcaseRewardSubmission(auth.user.id, env) : null;
-          const eligibility = auth.user?.id ? await getShowcaseRewardEligibility(auth.user.id, env) : null;
+          const userId = auth.user?.id;
+          const userSubmission = userId ? await getActiveUserShowcaseRewardSubmission(userId, env) : null;
+          const eligibility = userId
+            ? await checkShowcaseRewardEligibility({ eventId, userId }, env)
+            : null;
 
           return jsonResponse({
             submission,

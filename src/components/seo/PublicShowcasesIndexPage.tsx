@@ -3,6 +3,7 @@ import { LandingHeader } from '../landing/LandingHeader';
 import { LandingFooter } from '../landing/LandingFooter';
 import { SEO } from '../common/SEO';
 import { getPageSeo } from '../../lib/seo';
+import { InternalLink } from '../common/InternalLink';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
@@ -83,9 +84,9 @@ export const PublicShowcasesIndexPage: React.FC = () => {
         <div className="w-full bg-slate-50 border-b border-slate-200/80 py-2.5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-              <button onClick={() => navigateTo('/')} className="hover:text-amber-600 transition-colors cursor-pointer">
+              <InternalLink href="/" className="hover:text-amber-600 transition-colors">
                 Home
-              </button>
+              </InternalLink>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
               <span className="text-slate-900 font-semibold">Showcase</span>
             </nav>
@@ -240,13 +241,13 @@ export const PublicShowcasesIndexPage: React.FC = () => {
                         <span className="text-[11px] text-slate-400 font-medium">
                           {sc.published_at ? new Date(sc.published_at).toLocaleDateString() : 'Active Event'}
                         </span>
-                        <button
-                          onClick={() => navigateTo(`/showcase/${targetId}`)}
-                          className="font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 group-hover:translate-x-0.5 transition-all cursor-pointer"
+                        <InternalLink
+                          href={`/showcase/${targetId}`}
+                          className="font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 group-hover:translate-x-0.5 transition-all"
                         >
                           <span>View Showcase</span>
                           <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
+                        </InternalLink>
                       </div>
                     </article>
                   );

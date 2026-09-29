@@ -22,12 +22,14 @@ import {
 } from '../../games/registry';
 import { getGameTypeIconComponent, normalizeGameType } from '../../games/gameIcons';
 
-interface LandingDemoModalProps {
+export interface LandingDemoModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialGameId?: string;
   initialThemeId?: string;
   gameTitle?: string;
+  /** Explicitly disallow incorrect prop `gameId` so mistakes are caught at compile-time */
+  gameId?: never;
 }
 
 export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
@@ -49,6 +51,28 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
   const [isGameDropdownOpen, setIsGameDropdownOpen] = useState(false);
 
   const gameDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Lock body scroll when modal is open and restore on unmount/close
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
+
+  // Escape key handler to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isGameDropdownOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isOpen, isGameDropdownOpen, onClose]);
 
   // Authoritative available games from registry
   const availableGames = useMemo(() => {
@@ -268,6 +292,14 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={themePresentationTitle || 'Interactive Game Demo'}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
       className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200 ${
         isFullscreen ? 'p-0' : 'p-2 sm:p-4'
       }`}

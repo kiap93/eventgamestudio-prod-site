@@ -3,6 +3,7 @@ import { LandingHeader } from '../landing/LandingHeader';
 import { LandingFooter } from '../landing/LandingFooter';
 import { SEO } from '../common/SEO';
 import { getPageSeo } from '../../lib/seo';
+import { InternalLink } from '../common/InternalLink';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -53,7 +54,7 @@ const GAME_SPECS: Record<string, GameDetailSpec> = {
     name: 'Catch the Brand',
     category: 'Arcade Catcher',
     defaultDuration: '20 seconds (Customizable 10s-120s)',
-    inputTypes: ['Touch / Drag', 'Keyboard Arrow Keys', 'Mouse Movement', 'Mobile Device Tilt'],
+    inputTypes: ['Touch / Drag', 'Keyboard Arrow Keys', 'Mouse Movement'],
     orientations: ['Portrait 9:16 (Smartphones & Kiosks)', 'Landscape 16:9 (Tablets & Desktops)'],
     maxPlayers: 'Single-player fast rounds with real-time shared leaderboard',
     isAvailable: true,
@@ -75,7 +76,7 @@ const GAME_SPECS: Record<string, GameDetailSpec> = {
     ],
     suitableEventTypes: [
       { name: 'Shopping Mall Roadshows', why: 'Instant pickup-and-play format attracts families and shoppers of all age brackets.' },
-      { name: 'Exhibition & Trade Booths', why: 'Short 20-second rounds prevent booth queue bottlenecks while driving competitive dwell time.' },
+      { name: 'Exhibition & Trade Booths', why: 'Short 20-second rounds prevent booth queue bottlenecks while driving competitive visitor engagement.' },
       { name: 'Corporate Annual Dinners', why: 'Table-by-table competitions build tremendous dinner hall cheering and social excitement.' },
       { name: 'Product Launches', why: 'Places newly launched packaging directly into the hands and minds of prospective buyers.' },
     ],
@@ -250,13 +251,13 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
         <div className="w-full bg-slate-50 border-b border-slate-200/80 py-2.5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-              <button onClick={() => navigateTo('/')} className="hover:text-amber-600 transition-colors cursor-pointer">
+              <InternalLink href="/" className="hover:text-amber-600 transition-colors">
                 Home
-              </button>
+              </InternalLink>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-              <button onClick={() => navigateTo('/games')} className="hover:text-amber-600 transition-colors cursor-pointer">
+              <InternalLink href="/games" className="hover:text-amber-600 transition-colors">
                 Games
-              </button>
+              </InternalLink>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
               <span className="text-slate-900 font-semibold">{spec.name}</span>
             </nav>
@@ -431,10 +432,10 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {spec.relatedGames.map((rg, idx) => (
-                  <button
+                  <InternalLink
                     key={idx}
-                    onClick={() => navigateTo(rg.slug)}
-                    className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-all cursor-pointer group flex items-center justify-between"
+                    href={rg.slug}
+                    className="p-5 rounded-2xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-all group flex items-center justify-between"
                   >
                     <div>
                       <span className="text-sm font-bold text-slate-900 group-hover:text-amber-800 block">
@@ -443,7 +444,7 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
                       <span className="text-xs text-slate-500 mt-1 block">{rg.desc}</span>
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition-all shrink-0 ml-4" />
-                  </button>
+                  </InternalLink>
                 ))}
               </div>
             </div>
@@ -454,13 +455,13 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
               </span>
               <div className="flex flex-wrap gap-2 text-xs">
                 {spec.relatedSolutions.map((sol, idx) => (
-                  <button
+                  <InternalLink
                     key={idx}
-                    onClick={() => navigateTo(sol.slug)}
-                    className="px-3.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-amber-400 text-slate-700 hover:text-amber-800 transition-colors cursor-pointer"
+                    href={sol.slug}
+                    className="px-3.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-amber-400 text-slate-700 hover:text-amber-800 transition-colors"
                   >
                     {sol.name} →
-                  </button>
+                  </InternalLink>
                 ))}
               </div>
             </div>
@@ -478,17 +479,18 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
             </p>
             <div className="pt-2 flex justify-center gap-3">
               <button
+                type="button"
                 onClick={handleGetStarted}
                 className="px-7 py-3.5 rounded-2xl bg-slate-950 text-white font-black text-xs hover:bg-slate-900 transition-colors shadow-lg cursor-pointer"
               >
                 Create Event Now
               </button>
-              <button
-                onClick={() => navigateTo('/contact')}
-                className="px-6 py-3.5 rounded-2xl bg-white text-slate-950 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
+              <InternalLink
+                href="/contact"
+                className="px-6 py-3.5 rounded-2xl bg-white text-slate-950 font-bold text-xs hover:bg-slate-50 transition-colors inline-block text-center"
               >
                 Contact Sales
-              </button>
+              </InternalLink>
             </div>
           </div>
         </section>
@@ -498,8 +500,9 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
 
       {demoModalOpen && (
         <LandingDemoModal
-          gameId={spec.id}
+          isOpen={demoModalOpen}
           onClose={() => setDemoModalOpen(false)}
+          initialGameId={spec.id}
         />
       )}
     </div>

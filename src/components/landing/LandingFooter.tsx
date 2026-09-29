@@ -1,6 +1,7 @@
 import React from 'react';
 import { Gamepad2, ArrowUpRight, ShieldCheck, Sparkles, MessageSquare, Phone } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { InternalLink } from '../common/InternalLink';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatformContactSettings } from '../../hooks/usePlatformContactSettings';
 import { APP_VERSION } from '../../types';
@@ -39,68 +40,68 @@ export const LandingFooter: React.FC = () => {
             </div>
             <ul className="space-y-2 text-xs">
               <li>
-                <button
-                  onClick={() => navigateTo('/interactive-event-games')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                <InternalLink
+                  href="/interactive-event-games"
+                  className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Interactive Event Games
-                </button>
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo('/corporate-event-games')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                <InternalLink
+                  href="/corporate-event-games"
+                  className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Corporate Event Games
-                </button>
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo('/brand-activation-games')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                <InternalLink
+                  href="/brand-activation-games"
+                  className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Brand Activation Games
-                </button>
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo('/roadshow-games')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                <InternalLink
+                  href="/roadshow-games"
+                  className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Roadshow Games
-                </button>
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo('/exhibition-games')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                <InternalLink
+                  href="/exhibition-games"
+                  className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Exhibition & Booth Games
-                </button>
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo('/event-mini-games')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                <InternalLink
+                  href="/event-mini-games"
+                  className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Event Mini-Games
-                </button>
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo('/branded-event-games')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                <InternalLink
+                  href="/branded-event-games"
+                  className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Branded Event Games
-                </button>
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo('/digital-event-games')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                <InternalLink
+                  href="/digital-event-games"
+                  className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Digital Event Games
-                </button>
+                </InternalLink>
               </li>
             </ul>
           </div>
@@ -112,46 +113,46 @@ export const LandingFooter: React.FC = () => {
             </div>
             <ul className="space-y-2 text-xs">
               <li>
-                <button
-                  onClick={() => navigateTo('/games')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer font-bold text-slate-900 flex items-center gap-1"
+                <InternalLink
+                  href="/games"
+                  className="hover:text-amber-600 transition-colors text-left font-bold text-slate-900 flex items-center gap-1"
                 >
                   <span>All Games Catalog</span>
                   <ArrowUpRight className="w-3 h-3 text-slate-400" />
-                </button>
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo('/games/catch-the-brand')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                <InternalLink
+                  href="/games/catch-the-brand"
+                  className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Catch the Brand
-                </button>
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo('/games/memory-match')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                <InternalLink
+                  href="/games/memory-match"
+                  className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Brand Memory Match
-                </button>
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo('/games/reaction-challenge')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                <InternalLink
+                  href="/games/reaction-challenge"
+                  className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Formula Reaction Lights
-                </button>
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo('/showcase')}
-                  className="hover:text-amber-600 transition-colors text-left cursor-pointer font-semibold text-slate-800 flex items-center gap-1 pt-1"
+                <InternalLink
+                  href="/showcase"
+                  className="hover:text-amber-600 transition-colors text-left font-semibold text-slate-800 flex items-center gap-1 pt-1"
                 >
                   <span>Event Showcases</span>
                   <ArrowUpRight className="w-3 h-3 text-slate-400" />
-                </button>
+                </InternalLink>
               </li>
             </ul>
           </div>
@@ -218,13 +219,13 @@ export const LandingFooter: React.FC = () => {
             </div>
             <ul className="space-y-2 text-xs">
               <li>
-                <button
-                  onClick={() => navigateTo('/contact')}
-                  className="hover:text-amber-600 transition-colors flex items-center gap-1.5 text-left cursor-pointer font-bold text-slate-900"
+                <InternalLink
+                  href="/contact"
+                  className="hover:text-amber-600 transition-colors flex items-center gap-1.5 text-left font-bold text-slate-900"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
                   <span>Contact Form</span>
-                </button>
+                </InternalLink>
               </li>
               <li>
                 <a

@@ -6,6 +6,7 @@ import { EventShowcase, EventShowcaseMedia } from '../../types/showcase';
 import { GAME_REGISTRY } from '../../games/registry';
 import { formatEventDateRange } from '../../lib/dateUtils';
 import { SEO } from '../common/SEO';
+import { InternalLink } from '../common/InternalLink';
 import {
   Gamepad2,
   Share2,
@@ -274,8 +275,8 @@ export const PublicShowcaseView: React.FC = () => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-4">
           {/* Brand Logo & Back to Home */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigateTo('/')}
+            <InternalLink
+              href="/"
               className="flex items-center gap-2.5 text-left group transition-transform focus:outline-none"
               aria-label="EventGameStudio Home"
             >
@@ -290,7 +291,7 @@ export const PublicShowcaseView: React.FC = () => {
                   Public Showcase
                 </span>
               </div>
-            </button>
+            </InternalLink>
           </div>
 
           {/* Action buttons */}
@@ -401,6 +402,21 @@ export const PublicShowcaseView: React.FC = () => {
         {/* Loaded Showcase Presentation */}
         {!loading && !error && showcase && (
           <article className="space-y-8 sm:space-y-12 animate-in fade-in duration-300">
+            {/* Breadcrumb Navigation */}
+            <nav className="flex items-center gap-2 text-xs text-slate-400 font-medium pb-2">
+              <InternalLink href="/" className="hover:text-amber-400 transition-colors">
+                Home
+              </InternalLink>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+              <InternalLink href="/showcase" className="hover:text-amber-400 transition-colors">
+                Showcase
+              </InternalLink>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+              <span className="text-slate-200 font-semibold truncate max-w-[200px] sm:max-w-md">
+                {showcase.title}
+              </span>
+            </nav>
+
             {/* HERO BANNER SECTION */}
             <section
               id="showcase-hero"

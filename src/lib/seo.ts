@@ -145,7 +145,7 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
       {
         question: 'How fast can an attendee start playing at a crowded event?',
         answer:
-          'Attendees scan a QR code with their phone camera and can start playing in under 3 seconds. There are no lengthy registration forms or app installs to slow down event flow.',
+          'Attendees can scan an event QR code with their phone camera and start playing directly in their web browser. There are no app store downloads or complicated setup forms to slow down event flow.',
       },
     ],
   },
@@ -199,7 +199,7 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
       {
         question: 'How do brand activation games improve visitor dwell time?',
         answer:
-          'Gamified activations increase booth dwell time by over 300% compared to static marketing collaterals, keeping prospects engaged while brand ambassadors interact with waiting players.',
+          'Interactive mini-games give attendees an active reason to stop and play, keeping visitors engaged at your booth while brand ambassadors start conversations with players and spectators.',
       },
       {
         question: 'Can we feature our actual retail products inside the game?',
@@ -209,7 +209,7 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
       {
         question: 'Is it possible to capture participant contact details for giveaways?',
         answer:
-          'Yes. Attendees submit their player nickname and optional contact handle upon achieving a high score so marketing teams can contact winners and distribute promotional rewards.',
+          'Yes. Attendees submit their player nickname when posting a high score so marketing teams and event staff can identify winners and award prizes on the live leaderboard.',
       },
     ],
   },
@@ -231,7 +231,7 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
       {
         question: 'Why are short 15-to-60 second games best for live event crowds?',
         answer:
-          'Short round durations guarantee high throughput, preventing bottleneck queues while giving hundreds of attendees an opportunity to play and compete within event hours.',
+          'Short round durations keep queues moving efficiently, allowing many attendees to participate, compete on the leaderboard, and replay throughout your event.',
       },
       {
         question: 'What types of mini-games are available?',
@@ -249,7 +249,7 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
     canonical: `${SITE_DOMAIN}/roadshow-games`,
     h1: 'Interactive Games for Roadshows',
     subheading:
-      'Attract shoppers and passers-by at mall concourses and mobile marketing tours with vibrant touchscreen kiosk games and instant reward mechanisms.',
+      'Attract shoppers and passers-by at mall concourses and mobile marketing tours with vibrant touchscreen kiosk games and live leaderboard competitions.',
     breadcrumbs: [
       { name: 'Home', item: '/' },
       { name: 'Roadshow Games', item: '/roadshow-games' },
@@ -258,12 +258,12 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
       {
         question: 'Can Event Game Studio run on standalone touchscreen kiosks and iPads?',
         answer:
-          'Yes. Games fully support touch input, motion controls, and mouse clicks across iPads, Android tablets, touch kiosks, and large touch-enabled TVs.',
+          'Yes. Games support touch input, mouse clicks, and keyboard controls across iPads, Android tablets, touchscreen kiosks, and interactive displays.',
       },
       {
         question: 'Can the games operate across multi-day roadshows in different cities?',
         answer:
-          'Yes. Events can be scheduled for any duration from 1 day up to multi-week retail roadshows, maintaining leaderboard continuity or resetting daily for fresh winners.',
+          'Yes. Events can be scheduled for your required event duration, maintaining live leaderboard continuity across each day of your roadshow.',
       },
     ],
   },
@@ -326,11 +326,11 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
   '/digital-event-games': {
     title: 'Digital Event Games for Live Experiences | Event Game Studio',
     description:
-      'Modern HTML5 browser games engineered for zero-latency live events. Scalable cloud infrastructure supporting thousands of concurrent event players.',
+      'Modern HTML5 browser games designed for live event activations. Fast web delivery ensuring smooth participation across mobile devices and stage displays.',
     canonical: `${SITE_DOMAIN}/digital-event-games`,
     h1: 'Digital Event Games for Live Experiences',
     subheading:
-      'High-performance browser gaming built on enterprise cloud infrastructure, delivering seamless interactive participation across any mobile or stage display.',
+      'Browser-based interactive event games delivering smooth participation across mobile devices, kiosk screens, and stage displays.',
     breadcrumbs: [
       { name: 'Home', item: '/' },
       { name: 'Digital Event Games', item: '/digital-event-games' },
@@ -339,7 +339,7 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
       {
         question: 'What happens if venue Wi-Fi is slow or spotty?',
         answer:
-          'Our games are lightweight and cache all assets upon initial load. Once loaded into the player browser, gameplay runs locally with 60fps smoothness and only syncs high scores upon completion.',
+          'Our games are lightweight and load assets upfront in the player\'s browser. Gameplay runs smoothly on client devices and syncs high scores to the leaderboard upon completion.',
       },
       {
         question: 'Can games be embedded into our event microsite or virtual event platform?',
@@ -382,7 +382,7 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
       {
         question: 'How does Catch the Brand work?',
         answer:
-          'Items fall from the top of the screen at escalating speeds. The player controls a branded catcher at the bottom (via keyboard arrows, touch drag, or tilt motion) to catch positive targets (+10), dodge hazards (-10), and grab rare bonus multipliers (+50).',
+          'Items fall from the top of the screen at escalating speeds. The player controls a branded catcher at the bottom (via keyboard arrows or touch drag) to catch positive targets (+10), dodge hazards (-10), and collect bonus multipliers (+50).',
       },
       {
         question: 'What event durations and formats work best with Catch the Brand?',

@@ -12,5 +12,9 @@ Disallow: /game-themes
 Disallow: /team
 Disallow: /wallet
 Disallow: /accept-invite
+Disallow: /play/
+Disallow: /e/
+Disallow: /preview/
+Disallow: /api/
 
 Sitemap: https://eventgamestudio.com/sitemap.xml

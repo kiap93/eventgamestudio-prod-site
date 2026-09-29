@@ -68,7 +68,12 @@ const AppContent: React.FC = () => {
 
   // 1. PUBLIC EVENT ROUTE: /play/:publicToken or /e/:publicToken (Unauthenticated Public Player View)
   if (routeContext.mode === 'public_event') {
-    return <PublicEventGameView />;
+    return (
+      <>
+        <SEO robots="noindex, nofollow" title="Event Game | Event Game Studio" />
+        <PublicEventGameView />
+      </>
+    );
   }
 
   // 1.2. PUBLIC SHOWCASE SINGLE VIEW: /showcase/:showcaseId (Unauthenticated Public Showcase View)

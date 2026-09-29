@@ -3,6 +3,7 @@ import { LandingHeader } from '../landing/LandingHeader';
 import { LandingFooter } from '../landing/LandingFooter';
 import { SEO } from '../common/SEO';
 import { getPageSeo } from '../../lib/seo';
+import { InternalLink } from '../common/InternalLink';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -52,7 +53,7 @@ const PUBLIC_GAMES: PublicGameCard[] = [
       'Participants catch falling brand items while dodging hazardous obstacles and snagging golden multiplier bonuses before time expires. Ideal for high crowd turnover.',
     icon: ShoppingBasket,
     isAvailable: true,
-    features: ['Custom catcher avatar & basket', 'Branded good & hazard items', 'Golden bonus multipliers', 'Touch, mouse & motion controls'],
+    features: ['Custom catcher avatar & basket', 'Branded good & hazard items', 'Golden bonus multipliers', 'Touch, mouse & keyboard controls'],
     eventTypes: ['Roadshows', 'Exhibition Booths', 'Annual Dinners', 'Product Launches'],
     bannerBg: 'from-amber-500/20 via-orange-500/10 to-transparent',
   },
@@ -134,9 +135,9 @@ export const PublicGamesPage: React.FC = () => {
         <div className="w-full bg-slate-50 border-b border-slate-200/80 py-2.5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-              <button onClick={() => navigateTo('/')} className="hover:text-amber-600 transition-colors cursor-pointer">
+              <InternalLink href="/" className="hover:text-amber-600 transition-colors">
                 Home
-              </button>
+              </InternalLink>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
               <span className="text-slate-900 font-semibold">Games</span>
             </nav>
@@ -240,28 +241,29 @@ export const PublicGamesPage: React.FC = () => {
                       {game.isAvailable ? (
                         <>
                           <button
+                            type="button"
                             onClick={() => handleLaunchDemo(game.id)}
                             className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
                           >
                             <Play className="w-3.5 h-3.5 fill-current" />
                             <span>Play Instant Demo</span>
                           </button>
-                          <button
-                            onClick={() => navigateTo(game.slug)}
-                            className="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                          <InternalLink
+                            href={game.slug}
+                            className="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors flex items-center gap-1.5"
                           >
                             <span>Game Guide</span>
                             <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
+                          </InternalLink>
                         </>
                       ) : (
-                        <button
-                          onClick={() => navigateTo(game.slug)}
-                          className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                        <InternalLink
+                          href={game.slug}
+                          className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 text-center"
                         >
                           <span>View Roadmap Details</span>
                           <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
+                        </InternalLink>
                       )}
                     </div>
                   </div>
@@ -284,34 +286,34 @@ export const PublicGamesPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-xs font-semibold">
-              <button
-                onClick={() => navigateTo('/corporate-event-games')}
-                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors cursor-pointer"
+              <InternalLink
+                href="/corporate-event-games"
+                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
               >
                 <span className="text-slate-900 block">Corporate Event Games</span>
                 <span className="text-[11px] text-slate-500 font-normal">Annual Dinners & Galas →</span>
-              </button>
-              <button
-                onClick={() => navigateTo('/brand-activation-games')}
-                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors cursor-pointer"
+              </InternalLink>
+              <InternalLink
+                href="/brand-activation-games"
+                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
               >
                 <span className="text-slate-900 block">Brand Activations</span>
                 <span className="text-[11px] text-slate-500 font-normal">Pop-Ups & Retail Tours →</span>
-              </button>
-              <button
-                onClick={() => navigateTo('/roadshow-games')}
-                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors cursor-pointer"
+              </InternalLink>
+              <InternalLink
+                href="/roadshow-games"
+                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
               >
                 <span className="text-slate-900 block">Roadshow Games</span>
                 <span className="text-[11px] text-slate-500 font-normal">Mall Kiosks & Touchscreens →</span>
-              </button>
-              <button
-                onClick={() => navigateTo('/exhibition-games')}
-                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors cursor-pointer"
+              </InternalLink>
+              <InternalLink
+                href="/exhibition-games"
+                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors block"
               >
                 <span className="text-slate-900 block">Exhibition Games</span>
                 <span className="text-[11px] text-slate-500 font-normal">Trade Booth Crowd Magnets →</span>
-              </button>
+              </InternalLink>
             </div>
           </div>
         </section>
@@ -327,17 +329,18 @@ export const PublicGamesPage: React.FC = () => {
             </p>
             <div className="pt-2 flex justify-center gap-3">
               <button
+                type="button"
                 onClick={handleGetStarted}
                 className="px-7 py-3.5 rounded-2xl bg-slate-950 text-white font-black text-xs hover:bg-slate-900 transition-colors shadow-lg cursor-pointer"
               >
                 Get Started Now
               </button>
-              <button
-                onClick={() => navigateTo('/contact')}
-                className="px-6 py-3.5 rounded-2xl bg-white text-slate-950 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
+              <InternalLink
+                href="/contact"
+                className="px-6 py-3.5 rounded-2xl bg-white text-slate-950 font-bold text-xs hover:bg-slate-50 transition-colors inline-block text-center"
               >
                 Contact Sales
-              </button>
+              </InternalLink>
             </div>
           </div>
         </section>
@@ -347,8 +350,9 @@ export const PublicGamesPage: React.FC = () => {
 
       {demoModalOpen && (
         <LandingDemoModal
-          gameId={selectedDemoGameId}
+          isOpen={demoModalOpen}
           onClose={() => setDemoModalOpen(false)}
+          initialGameId={selectedDemoGameId}
         />
       )}
     </div>

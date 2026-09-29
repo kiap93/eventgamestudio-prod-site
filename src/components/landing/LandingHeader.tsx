@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { navigateTo, useRouteContext } from '../../hooks/useRouteContext';
+import { InternalLink } from '../common/InternalLink';
 import {
   Gamepad2,
   Sparkles,
@@ -93,9 +94,9 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-4">
         {/* Brand Logo */}
         <div className="flex items-center gap-6">
-          <button
-            onClick={() => navigateTo('/')}
-            className="flex items-center gap-3 text-left group transition-transform focus:outline-none cursor-pointer"
+          <InternalLink
+            href="/"
+            className="flex items-center gap-3 text-left group transition-transform focus:outline-none"
             aria-label="EventGameStudio Home"
           >
             <div className="relative p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 group-hover:border-amber-500 group-hover:bg-amber-500/15 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.2)] transition-all">
@@ -110,31 +111,31 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                 Interactive Games for Events
               </span>
             </div>
-          </button>
+          </InternalLink>
 
           {/* Desktop Navigation Links */}
           <nav className="hidden lg:flex items-center gap-1 ml-4 pl-4 border-l border-slate-200">
-            <button
-              onClick={() => navigateTo('/games')}
-              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+            <InternalLink
+              href="/games"
+              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all ${
                 isGamesPage
                   ? 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
               Games
-            </button>
+            </InternalLink>
 
-            <button
-              onClick={() => navigateTo('/showcase')}
-              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+            <InternalLink
+              href="/showcase"
+              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all ${
                 isShowcasePage
                   ? 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
               Showcase
-            </button>
+            </InternalLink>
 
             {/* Solutions Dropdown */}
             <div className="relative" ref={dropdownRef}>
@@ -153,66 +154,56 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
 
               {solutionsDropdownOpen && (
                 <div className="absolute top-full left-0 mt-1 w-64 p-2 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-900/10 z-50 animate-in fade-in slide-in-from-top-2 duration-150 space-y-1">
-                  <button
-                    onClick={() => {
-                      setSolutionsDropdownOpen(false);
-                      navigateTo('/corporate-event-games');
-                    }}
-                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors cursor-pointer group"
+                  <InternalLink
+                    href="/corporate-event-games"
+                    onClick={() => setSolutionsDropdownOpen(false)}
+                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group block"
                   >
                     <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
                       Corporate Events
                     </span>
                     <span className="text-[11px] text-slate-500 block">Annual dinners, summits & galas</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSolutionsDropdownOpen(false);
-                      navigateTo('/brand-activation-games');
-                    }}
-                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors cursor-pointer group"
+                  </InternalLink>
+                  <InternalLink
+                    href="/brand-activation-games"
+                    onClick={() => setSolutionsDropdownOpen(false)}
+                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group block"
                   >
                     <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
                       Brand Activations
                     </span>
                     <span className="text-[11px] text-slate-500 block">Experiential & product campaigns</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSolutionsDropdownOpen(false);
-                      navigateTo('/roadshow-games');
-                    }}
-                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors cursor-pointer group"
+                  </InternalLink>
+                  <InternalLink
+                    href="/roadshow-games"
+                    onClick={() => setSolutionsDropdownOpen(false)}
+                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group block"
                   >
                     <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
                       Roadshows & Pop-Ups
                     </span>
                     <span className="text-[11px] text-slate-500 block">Mall concourse & touch kiosks</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSolutionsDropdownOpen(false);
-                      navigateTo('/exhibition-games');
-                    }}
-                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors cursor-pointer group"
+                  </InternalLink>
+                  <InternalLink
+                    href="/exhibition-games"
+                    onClick={() => setSolutionsDropdownOpen(false)}
+                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group block"
                   >
                     <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
                       Exhibitions & Booths
                     </span>
                     <span className="text-[11px] text-slate-500 block">Trade show crowd attraction</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSolutionsDropdownOpen(false);
-                      navigateTo('/interactive-event-games');
-                    }}
-                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors cursor-pointer group border-t border-slate-100"
+                  </InternalLink>
+                  <InternalLink
+                    href="/interactive-event-games"
+                    onClick={() => setSolutionsDropdownOpen(false)}
+                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group border-t border-slate-100 block"
                   >
                     <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
                       Interactive Event Games
                     </span>
                     <span className="text-[11px] text-slate-500 block">QR browser play & live leaderboards</span>
-                  </button>
+                  </InternalLink>
                 </div>
               )}
             </div>
@@ -224,9 +215,9 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
               How It Works
             </button>
 
-            <button
-              onClick={handleContactClick}
-              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+            <InternalLink
+              href="/contact"
+              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 ${
                 isContactPage
                   ? 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -234,7 +225,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
             >
               <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
               <span>Contact</span>
-            </button>
+            </InternalLink>
 
             {onExploreGames && (
               <button
@@ -325,65 +316,60 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
       {mobileMenuOpen && (
         <div className="sm:hidden px-4 pt-2 pb-6 bg-white border-b border-slate-200 space-y-3 shadow-lg">
           <div className="flex flex-col gap-1 text-xs font-semibold">
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                navigateTo('/games');
-              }}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-900 font-bold"
+            <InternalLink
+              href="/games"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-900 font-bold block"
             >
               Interactive Games
-            </button>
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                navigateTo('/showcase');
-              }}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-900 font-bold"
+            </InternalLink>
+            <InternalLink
+              href="/showcase"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-900 font-bold block"
             >
               Event Showcases
-            </button>
+            </InternalLink>
 
             {/* Mobile Solutions Section */}
             <div className="py-1 px-2.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
               Event Solutions
             </div>
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                navigateTo('/corporate-event-games');
-              }}
-              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4"
+            <InternalLink
+              href="/corporate-event-games"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4 block"
             >
               Corporate Event Games
-            </button>
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                navigateTo('/brand-activation-games');
-              }}
-              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4"
+            </InternalLink>
+            <InternalLink
+              href="/brand-activation-games"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4 block"
             >
               Brand Activation Games
-            </button>
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                navigateTo('/roadshow-games');
-              }}
-              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4"
+            </InternalLink>
+            <InternalLink
+              href="/roadshow-games"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4 block"
             >
               Roadshow & Pop-Up Games
-            </button>
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                navigateTo('/exhibition-games');
-              }}
-              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4"
+            </InternalLink>
+            <InternalLink
+              href="/exhibition-games"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4 block"
             >
               Exhibition & Booth Games
-            </button>
+            </InternalLink>
+            <InternalLink
+              href="/interactive-event-games"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4 block"
+            >
+              Interactive Event Games
+            </InternalLink>
 
             <div className="border-t border-slate-100 my-1" />
 
@@ -393,8 +379,9 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
             >
               How It Works
             </button>
-            <button
-              onClick={handleContactClick}
+            <InternalLink
+              href="/contact"
+              onClick={() => setMobileMenuOpen(false)}
               className={`w-full text-left p-2.5 rounded-xl flex items-center gap-2 ${
                 isContactPage
                   ? 'bg-amber-50 text-amber-900 font-bold border border-amber-200'
@@ -403,7 +390,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
             >
               <MessageSquare className="w-4 h-4 text-amber-500" />
               <span>Contact Us</span>
-            </button>
+            </InternalLink>
 
             {onExploreGames && (
               <button
