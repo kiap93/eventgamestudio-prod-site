@@ -32,8 +32,10 @@ import {
 } from 'lucide-react';
 import { PublicEventDTO } from '../../types';
 import { LanguageSelector } from '../common/LanguageSelector';
+import { useLocalization } from '../../context/LocalizationContext';
 
 export const PublicEventGameView: React.FC = () => {
+  const { t, resolveContent } = useLocalization();
   const routeContext = useRouteContext();
   const publicToken = routeContext.publicToken;
   const { user, currentOrganization } = useAuth();
@@ -323,9 +325,9 @@ export const PublicEventGameView: React.FC = () => {
             <AlertTriangle className="w-8 h-8" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-xl font-bold text-slate-100">Event Cancelled</h1>
+            <h1 className="text-xl font-bold text-slate-100">{t('event.statusCancelled')}</h1>
             <p className="text-xs text-slate-400 leading-relaxed">
-              {error || 'This event has been cancelled by the organizer.'}
+              {error || t('event.cancelModalDesc')}
             </p>
           </div>
         </div>
@@ -355,11 +357,11 @@ export const PublicEventGameView: React.FC = () => {
           <div className="space-y-2">
             <h1 className="text-xl font-bold text-slate-100">{errorDetails?.event_name || 'Event Game'}</h1>
             <p className="text-xs text-slate-400">
-              This event concluded on {formatDateOnly(endDate)}.
+              {t('event.statusCompleted')} • {formatDateOnly(endDate)}
             </p>
           </div>
           <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-2xl text-xs text-slate-400">
-            Thank you for participating! Stay tuned for future events.
+            {t('event.eventNotAvailableDesc')}
           </div>
         </div>
       </div>
@@ -385,19 +387,19 @@ export const PublicEventGameView: React.FC = () => {
 
           <div className="space-y-2">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold">
-              <span>Awaiting Activation</span>
+              <span>{t('event.paymentPending')}</span>
             </div>
             <h1 className="text-2xl font-black text-slate-100 tracking-tight">
               {errorDetails?.event_name || activeEvent?.name || 'Event Game'}
             </h1>
             <p className="text-xs text-slate-400 leading-relaxed">
-              This event is currently awaiting payment and activation. Public game access will become active once paid and within the event window.
+              {t('event.packageIncludes')}
             </p>
           </div>
 
           <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl text-xs text-slate-400 space-y-3">
             <p className="text-[11px] text-slate-500">
-              Are you the event organizer? Sign in or complete payment to activate this event.
+              {t('event.organizerPrompt')}
             </p>
 
             {user && (
@@ -407,7 +409,7 @@ export const PublicEventGameView: React.FC = () => {
                 className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 cursor-pointer"
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                <span>Pay & Activate Event (Organizer)</span>
+                <span>{t('event.payAndActivateOrganizer')}</span>
               </button>
             )}
 
@@ -417,7 +419,7 @@ export const PublicEventGameView: React.FC = () => {
                 className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span>Organizer Sign In / Preview</span>
+                <span>{t('event.organizerSignIn')}</span>
               </a>
             )}
           </div>
@@ -427,7 +429,7 @@ export const PublicEventGameView: React.FC = () => {
             className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-6 py-2.5 rounded-xl text-xs transition-all border border-slate-700 cursor-pointer w-full"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Check If Live</span>
+            <span>{t('event.checkIfLive')}</span>
           </button>
         </div>
 
@@ -471,7 +473,7 @@ export const PublicEventGameView: React.FC = () => {
         <div className="max-w-md w-full bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold">
             <Calendar className="w-3.5 h-3.5" />
-            <span>Event Scheduled</span>
+            <span>{t('event.eventScheduled')}</span>
           </div>
 
           <div className="space-y-2">
@@ -482,15 +484,15 @@ export const PublicEventGameView: React.FC = () => {
 
           {/* Date Information Card */}
           <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-6 space-y-3 shadow-inner">
-            <p className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Game Opens On</p>
+            <p className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">{t('event.gameOpensOn')}</p>
             <div className="text-xl sm:text-2xl font-bold text-amber-400">
               {formatDateOnly(liveOpenDate)}
             </div>
             <div className="text-xs text-slate-400 border-t border-slate-800/80 pt-3">
-              Event Dates: <span className="font-semibold text-slate-200">{formatDateOnly(startDate)}</span> to <span className="font-semibold text-slate-200">{formatDateOnly(endDate)}</span>
+              {t('event.dateRange')}: <span className="font-semibold text-slate-200">{formatDateOnly(startDate)}</span> to <span className="font-semibold text-slate-200">{formatDateOnly(endDate)}</span>
             </div>
             <p className="text-[11px] text-slate-500">
-              Live play will automatically activate on setup day ({formatDateOnly(liveOpenDate)}) at 00:00 ({getTimezoneDisplayName(errorDetails?.event_timezone || eventData?.event_timezone)}).
+              {t('event.livePlayWillActivate')}
             </p>
           </div>
 
@@ -500,7 +502,7 @@ export const PublicEventGameView: React.FC = () => {
               className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-6 py-2.5 rounded-xl text-xs transition-all cursor-pointer w-full"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>Check If Open</span>
+              <span>{t('event.checkIfOpen')}</span>
             </button>
           </div>
         </div>
@@ -517,9 +519,9 @@ export const PublicEventGameView: React.FC = () => {
             <AlertTriangle className="w-8 h-8" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-xl font-bold text-slate-100">Event Not Available</h1>
+            <h1 className="text-xl font-bold text-slate-100">{t('event.eventNotAvailable')}</h1>
             <p className="text-xs text-slate-400 leading-relaxed">
-              {error || 'This event link is invalid or has ended.'}
+              {error || t('event.eventNotAvailableDesc')}
             </p>
           </div>
           <button
@@ -527,7 +529,7 @@ export const PublicEventGameView: React.FC = () => {
             className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Try Again</span>
+            <span>{t('common.tryAgain')}</span>
           </button>
         </div>
       </div>
@@ -538,6 +540,7 @@ export const PublicEventGameView: React.FC = () => {
   const theme = eventData.game_theme || eventData.theme;
   const gameType = eventData.game?.game_type || 'catch-brand';
   const showHeader = !isFullscreen;
+  const localizedEventName = resolveContent(eventData.translations, eventData.name, 'title') || eventData.name;
 
   return (
     <div
@@ -552,10 +555,10 @@ export const PublicEventGameView: React.FC = () => {
           <div className="flex items-center gap-3 min-w-0 truncate">
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold shrink-0">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-              <span>LIVE EVENT</span>
+              <span>{t('event.liveNowBadge')}</span>
             </div>
             <span className="font-bold text-xs text-slate-200 truncate max-w-[200px] sm:max-w-md">
-              {eventData.name}
+              {localizedEventName}
             </span>
           </div>
 
@@ -563,7 +566,7 @@ export const PublicEventGameView: React.FC = () => {
             {dates && (
               <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-medium">
                 <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                <span>Active until {formatDateOnly(dates.endDate)}</span>
+                <span>{t('event.liveDates')}: {formatDateOnly(dates.endDate)}</span>
               </div>
             )}
 
@@ -572,8 +575,8 @@ export const PublicEventGameView: React.FC = () => {
             <button
               onClick={toggleFullscreen}
               className="p-1.5 rounded-lg text-xs transition-colors cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-300 active:scale-95"
-              title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-              aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+              title={isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}
+              aria-label={isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}
             >
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>

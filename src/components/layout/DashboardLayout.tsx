@@ -314,7 +314,7 @@ export const DashboardLayout: React.FC = () => {
               {showOrgDropdown && (
                 <div className="absolute right-0 sm:left-auto mt-2 w-64 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 space-y-1 animate-in fade-in zoom-in-95 duration-150">
                   <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider font-bold text-slate-500">
-                    Your Organizations ({organizations.length})
+                    {t('nav.switchOrg')} ({organizations.length})
                   </div>
                   <div className="max-h-60 overflow-y-auto space-y-1">
                     {organizations.map((org) => (
@@ -373,7 +373,7 @@ export const DashboardLayout: React.FC = () => {
                       >
                         <span className="flex items-center gap-2">
                           <Plus className="w-4 h-4" />
-                          <span>Create New Organization</span>
+                          <span>{t('nav.createOrg')}</span>
                         </span>
                         <span className="text-[10px] font-mono text-slate-500">
                           {ownedOrgsCount}/5
@@ -399,7 +399,7 @@ export const DashboardLayout: React.FC = () => {
               
               {loadingWallet && !wallet && !walletError ? (
                 <span className="flex items-center gap-1.5 text-xs text-amber-400/80">
-                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">Balance</span>
+                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
                   <span className="inline-flex items-center gap-1 text-slate-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                     <span className="text-[11px] font-mono">...</span>
@@ -407,18 +407,18 @@ export const DashboardLayout: React.FC = () => {
                 </span>
               ) : walletError && !wallet ? (
                 <span className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
-                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">Balance</span>
-                  <span className="text-rose-400/90 font-medium">unavailable</span>
+                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
+                  <span className="text-rose-400/90 font-medium">{t('common.na')}</span>
                 </span>
               ) : wallet ? (
                 <span className="flex items-center gap-1.5 text-xs font-bold whitespace-nowrap">
-                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">Balance</span>
+                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
                   <span className="font-mono text-amber-400 font-bold">{formatCurrency(wallet.total_balance, currencyCode)}</span>
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap">
-                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">Balance</span>
-                  <span>unavailable</span>
+                  <span className="text-slate-400 font-sans font-medium hidden sm:inline">{t('payment.balance')}</span>
+                  <span>{t('common.na')}</span>
                 </span>
               )}
             </button>
@@ -471,7 +471,7 @@ export const DashboardLayout: React.FC = () => {
                   </div>
 
                   <div className="px-1 text-[11px] text-slate-400 flex items-center justify-between">
-                    <span>Role in Workspace:</span>
+                    <span>{t('common.role')}:</span>
                     <span className="uppercase text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                       {currentOrganization?.role || 'Member'}
                     </span>
@@ -485,7 +485,7 @@ export const DashboardLayout: React.FC = () => {
                     className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-amber-400 hover:bg-amber-500/10 rounded-xl transition-colors font-medium border border-amber-500/20 cursor-pointer"
                   >
                     <Wallet className="w-4 h-4" />
-                    <span>Organization Wallet</span>
+                    <span>{t('payment.wallet')}</span>
                   </button>
 
                   {currentUser?.is_developer && (
@@ -497,7 +497,7 @@ export const DashboardLayout: React.FC = () => {
                       className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-emerald-400 hover:bg-emerald-500/10 rounded-xl transition-colors font-medium border border-emerald-500/20 cursor-pointer"
                     >
                       <ShieldCheck className="w-4 h-4" />
-                      <span>Developer Admin</span>
+                      <span>{t('nav.developer')}</span>
                     </button>
                   )}
 
@@ -510,7 +510,7 @@ export const DashboardLayout: React.FC = () => {
                       className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors font-medium cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
-                      <span>Sign Out</span>
+                      <span>{t('nav.logout')}</span>
                     </button>
                   </div>
                 </div>
@@ -520,7 +520,7 @@ export const DashboardLayout: React.FC = () => {
             {/* 4. Logout Button */}
             <button
               onClick={logout}
-              title="Sign Out"
+              title={t('nav.logout')}
               className="hidden sm:flex p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer shrink-0"
             >
               <LogOut className="w-4 h-4" />
@@ -601,7 +601,7 @@ export const DashboardLayout: React.FC = () => {
                   className="flex items-center gap-1.5 text-emerald-400 font-semibold p-1 cursor-pointer"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span>Dev Admin</span>
+                  <span>{t('nav.developer')}</span>
                 </button>
               )}
 
@@ -613,7 +613,7 @@ export const DashboardLayout: React.FC = () => {
                 className="flex items-center gap-1.5 text-rose-400 font-semibold ml-auto p-1 cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Sign Out</span>
+                <span>{t('nav.logout')}</span>
               </button>
             </div>
           </div>

@@ -17,6 +17,7 @@ import {
   FlaskConical,
 } from 'lucide-react';
 import { LanguageSelector } from '../common/LanguageSelector';
+import { useLocalization } from '../../context/LocalizationContext';
 
 interface EventPreviewData {
   id: string;
@@ -55,6 +56,7 @@ interface EventPreviewGameViewProps {
 }
 
 export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ eventId: propEventId }) => {
+  const { t } = useLocalization();
   const routeContext = useRouteContext();
   const eventId = propEventId || routeContext.eventId;
   const previewShellRef = useRef<HTMLDivElement | null>(null);
@@ -338,10 +340,10 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
               id="preview-back-to-events-btn"
               onClick={() => navigateTo('/events')}
               className="p-1.5 sm:px-3 sm:py-1.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold shrink-0"
-              title="Back to Events"
+              title={t('common.back')}
             >
               <ArrowLeft className="w-4 h-4 text-slate-400" />
-              <span>Back to Events</span>
+              <span>{t('common.back')}</span>
             </button>
 
             <div className="hidden lg:flex items-center gap-2 text-xs truncate border-l border-slate-800 pl-3">
@@ -358,15 +360,15 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border-2 border-amber-400/60 text-amber-300 shadow-md shrink-0">
               <FlaskConical className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
               <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded text-xs font-black tracking-wider uppercase font-mono shadow-sm">
-                TESTING
+                {t('event.testMode')}
               </span>
               <span className="text-amber-400/70 font-bold text-sm">—</span>
               <span className="text-amber-300 font-black text-xs sm:text-sm tracking-wide">
-                PREVIEW ONLY
+                {t('common.preview').toUpperCase()}
               </span>
             </div>
             <p className="text-[10px] sm:text-xs text-amber-200/90 font-medium tracking-normal mt-1 text-center truncate max-w-lg">
-              This is a test preview. Scores are not live and this screen cannot be used as the live event.
+              {t('event.previewModeBanner')}
             </p>
           </div>
 
@@ -378,10 +380,10 @@ export const EventPreviewGameView: React.FC<EventPreviewGameViewProps> = ({ even
               id="preview-toggle-fullscreen-btn"
               onClick={toggleFullscreen}
               className="p-1.5 sm:px-3 sm:py-1.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
-              title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+              title={isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4 text-amber-400" /> : <Maximize2 className="w-4 h-4 text-slate-300" />}
-              <span className="hidden sm:inline text-xs">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+              <span className="hidden sm:inline text-xs">{isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}</span>
             </button>
           </div>
         </header>

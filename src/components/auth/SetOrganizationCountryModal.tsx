@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useAuth, Organization } from '../../context/AuthContext';
 import { CountrySelect } from '../common/CountrySelect';
 import { Globe, Building2, ArrowRight, Shield, AlertTriangle, LogOut } from 'lucide-react';
+import { useLocalization } from '../../context/LocalizationContext';
+import { LanguageSelector } from '../common/LanguageSelector';
 
 interface SetOrganizationCountryModalProps {
   organization: Organization;
@@ -11,6 +13,7 @@ export const SetOrganizationCountryModal: React.FC<SetOrganizationCountryModalPr
   organization,
 }) => {
   const { updateOrganizationCountry, logout } = useAuth();
+  const { t } = useLocalization();
   const [countryCode, setCountryCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +24,7 @@ export const SetOrganizationCountryModal: React.FC<SetOrganizationCountryModalPr
     e.preventDefault();
     if (!isOwnerOrAdmin) return;
     if (!countryCode.trim()) {
-      setError('Please select a country for your organization.');
+      setError(t('auth.selectCountry'));
       return;
     }
 
@@ -30,7 +33,7 @@ export const SetOrganizationCountryModal: React.FC<SetOrganizationCountryModalPr
     try {
       await updateOrganizationCountry(countryCode.trim());
     } catch (err: any) {
-      setError(err.message || 'Failed to update organization country.');
+      setError(err.message || t('errors.generic'));
     } finally {
       setLoading(false);
     }
@@ -46,19 +49,22 @@ export const SetOrganizationCountryModal: React.FC<SetOrganizationCountryModalPr
               <Globe className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-100">Set Organization Country</h2>
-              <p className="text-xs text-slate-400">Required setup step</p>
+              <h2 className="text-lg font-bold text-slate-100">{t('auth.setCountryTitle')}</h2>
+              <p className="text-xs text-slate-400">{t('auth.setCountryDesc')}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={logout}
-            title="Sign out"
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition-colors"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign out</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <LanguageSelector variant="compact" />
+            <button
+              type="button"
+              onClick={logout}
+              title={t('nav.logout')}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{t('nav.logout')}</span>
+            </button>
+          </div>
         </div>
 
         {/* Current Organization Info */}
@@ -87,21 +93,21 @@ export const SetOrganizationCountryModal: React.FC<SetOrganizationCountryModalPr
                 To configure regional settings for <strong className="text-slate-100">{organization.name}</strong>, please select your business country.
               </p>
               <p className="text-[11px] text-slate-400">
-                This country will be used as the default for currency, default timezone, tax, and regional payment configuration. Individual event dates and timezones can still be customized per event.
+                {t('auth.operatingCountryDesc')}
               </p>
             </div>
 
             <div>
               <CountrySelect
                 id="existing-org-country"
-                label="Organization Country"
+                label={t('auth.country')}
                 required
                 value={countryCode}
                 onChange={(code) => {
                   setCountryCode(code);
                   if (error && code) setError(null);
                 }}
-                helperText="Select the primary business country for this organization."
+                helperText={t('auth.operatingCountryDesc')}
               />
             </div>
 
@@ -110,7 +116,7 @@ export const SetOrganizationCountryModal: React.FC<SetOrganizationCountryModalPr
               disabled={loading || !countryCode}
               className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 px-5 rounded-xl transition-all shadow-lg active:scale-[0.99] disabled:opacity-50 cursor-pointer text-xs"
             >
-              <span>{loading ? 'Saving Country...' : 'Confirm Country & Continue'}</span>
+              <span>{loading ? t('common.saving') : t('auth.confirmCountry')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>

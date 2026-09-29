@@ -275,6 +275,58 @@ export async function upsertShowcaseTranslation(
   return record;
 }
 
+export async function getShowcaseTranslation(
+  showcaseId: string,
+  languageCode: string
+): Promise<ShowcaseTranslationRecord | null> {
+  if (!showcaseId || !languageCode) return null;
+
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = getSupabaseServerClient();
+      const { data, error } = await supabase
+        .from('showcase_translations')
+        .select('*')
+        .eq('showcase_id', showcaseId)
+        .eq('language_code', languageCode)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) {
+        localShowcaseTranslationsCache.set(getShowcaseTranslationKey(showcaseId, languageCode), data);
+        return data as ShowcaseTranslationRecord;
+      }
+    } catch (err) {
+      if (!isLocalFallbackAllowed()) throw err;
+    }
+  }
+
+  return localShowcaseTranslationsCache.get(getShowcaseTranslationKey(showcaseId, languageCode)) || null;
+}
+
+export async function deleteShowcaseTranslation(
+  showcaseId: string,
+  languageCode: string
+): Promise<boolean> {
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = getSupabaseServerClient();
+      const { error } = await supabase
+        .from('showcase_translations')
+        .delete()
+        .eq('showcase_id', showcaseId)
+        .eq('language_code', languageCode);
+
+      if (error) throw error;
+    } catch (err) {
+      if (!isLocalFallbackAllowed()) throw err;
+    }
+  }
+
+  localShowcaseTranslationsCache.delete(getShowcaseTranslationKey(showcaseId, languageCode));
+  return true;
+}
+
 // ============================================================================
 // TRANSLATION JOBS
 // ============================================================================

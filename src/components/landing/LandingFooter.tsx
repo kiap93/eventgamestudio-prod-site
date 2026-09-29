@@ -5,8 +5,10 @@ import { InternalLink } from '../common/InternalLink';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatformContactSettings } from '../../hooks/usePlatformContactSettings';
 import { APP_VERSION } from '../../types';
+import { useLocalization } from '../../context/LocalizationContext';
 
 export const LandingFooter: React.FC = () => {
+  const { t } = useLocalization();
   const { isAuthenticated, currentUser } = useAuth();
   const { whatsappDisplay, whatsappUrl, officeLocation } = usePlatformContactSettings();
 
@@ -36,7 +38,7 @@ export const LandingFooter: React.FC = () => {
           {/* 2. Event Solutions */}
           <div className="space-y-3">
             <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
-              Event Solutions
+              {t('landing.solutions')}
             </div>
             <ul className="space-y-2 text-xs">
               <li>
@@ -160,7 +162,7 @@ export const LandingFooter: React.FC = () => {
           {/* 4. Platform & Workspaces */}
           <div className="space-y-3">
             <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
-              Organizer Studio
+              {t('landing.platform')}
             </div>
             <ul className="space-y-2 text-xs">
               <li>
@@ -168,7 +170,7 @@ export const LandingFooter: React.FC = () => {
                   onClick={() => navigateTo(isAuthenticated ? '/events' : '/login')}
                   className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
                 >
-                  <span>Events Dashboard</span>
+                  <span>{t('nav.events')}</span>
                   <ArrowUpRight className="w-3 h-3 text-slate-400" />
                 </button>
               </li>
@@ -177,7 +179,7 @@ export const LandingFooter: React.FC = () => {
                   onClick={() => navigateTo(isAuthenticated ? '/game-themes' : '/login')}
                   className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
                 >
-                  <span>Theme Customizer</span>
+                  <span>{t('nav.themes')}</span>
                   <ArrowUpRight className="w-3 h-3 text-slate-400" />
                 </button>
               </li>
@@ -186,7 +188,7 @@ export const LandingFooter: React.FC = () => {
                   onClick={() => navigateTo(isAuthenticated ? '/team' : '/login')}
                   className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
                 >
-                  <span>Team Workspaces</span>
+                  <span>{t('nav.team')}</span>
                   <ArrowUpRight className="w-3 h-3 text-slate-400" />
                 </button>
               </li>
@@ -195,7 +197,7 @@ export const LandingFooter: React.FC = () => {
                   onClick={() => navigateTo(isAuthenticated ? '/wallet' : '/login')}
                   className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
                 >
-                  <span>Wallet & Credits</span>
+                  <span>{t('nav.wallet')}</span>
                   <ArrowUpRight className="w-3 h-3 text-slate-400" />
                 </button>
               </li>
@@ -205,7 +207,7 @@ export const LandingFooter: React.FC = () => {
                     onClick={() => navigateTo('/developer')}
                     className="hover:text-emerald-600 text-emerald-700 font-semibold transition-colors text-left cursor-pointer"
                   >
-                    Developer Admin
+                    {t('nav.developer')}
                   </button>
                 </li>
               )}
@@ -215,7 +217,7 @@ export const LandingFooter: React.FC = () => {
           {/* 5. Contact & Support */}
           <div className="space-y-3">
             <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
-              Contact & Enquiries
+              {t('nav.contact')}
             </div>
             <ul className="space-y-2 text-xs">
               <li>

@@ -316,6 +316,8 @@ export interface PublicEventDTO {
   end_date: string;
   live_open_date: string;
   event_timezone?: string | null;
+  description?: string | null;
+  translations?: Array<Record<string, any>> | Record<string, any> | null;
 }
 
 export interface EventWithDetails extends EventRecord {
@@ -323,6 +325,7 @@ export interface EventWithDetails extends EventRecord {
   setup_starts_at?: string;
   cancellation_eligibility?: EventCancellationEligibility;
   deletion_eligibility?: EventDeletionEligibility;
+  translations?: any;
   game_theme?: any;
   game?: {
     id: string;

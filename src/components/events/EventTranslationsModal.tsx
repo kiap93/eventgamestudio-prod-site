@@ -205,14 +205,20 @@ export const EventTranslationsModal: React.FC<EventTranslationsModalProps> = ({
     setStatusMessage(null);
 
     try {
-      const res = await apiFetch(`/api/events/${eventId}/translations/${selectedLanguage}`, {
+      const payload: any = {
+        title: formFields.title.trim(),
+        description: formFields.description.trim() || undefined,
+      };
+      if (isShowcase) {
+        payload.cta_text = formFields.description.trim() || undefined;
+      } else {
+        payload.game_instructions = formFields.game_instructions.trim() || undefined;
+      }
+
+      const res = await apiFetch(`${apiBasePath}/${selectedLanguage}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: formFields.title.trim(),
-          description: formFields.description.trim() || undefined,
-          game_instructions: formFields.game_instructions.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -252,7 +258,7 @@ export const EventTranslationsModal: React.FC<EventTranslationsModalProps> = ({
     setStatusMessage(null);
 
     try {
-      const res = await apiFetch(`/api/events/${eventId}/translations/${selectedLanguage}`, {
+      const res = await apiFetch(`${apiBasePath}/${selectedLanguage}`, {
         method: 'DELETE',
       });
 

@@ -2156,6 +2156,8 @@ export function toPublicEventDTO(rawEvent: any): PublicEventDTO {
     end_date: endDate || '',
     live_open_date: liveOpenDate || '',
     event_timezone: rawEvent.event_timezone || rawEvent.timezone || PLATFORM_BUSINESS_TIMEZONE,
+    description: rawEvent.description || null,
+    translations: rawEvent.translations || [],
   };
 }
 

@@ -208,6 +208,7 @@ import {
   deleteEventTranslation,
   getShowcaseTranslations,
   upsertShowcaseTranslation,
+  deleteShowcaseTranslation,
   getTranslationJob,
 } from './server/db/translations.js';
 
@@ -3001,6 +3002,39 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
       }
 
+      const deleteShowcaseTranslationParams = parseRoute('/api/events/:eventId/showcase/translations/:language', pathname);
+      if (deleteShowcaseTranslationParams && method === 'DELETE') {
+        const auth = await authenticateWorkerRequest(request, env, cors);
+        if (!auth.authenticated) return auth.errorResponse!;
+
+        const user = auth.user!;
+        const { eventId, language } = deleteShowcaseTranslationParams;
+
+        try {
+          const event = await getEventById(eventId, env);
+          if (!event) {
+            return errorResponse('Event not found', 404, cors);
+          }
+
+          const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit', env);
+          if (!isMember || !hasPermission) {
+            return errorResponse('Forbidden: Access denied to this showcase', 403, cors);
+          }
+
+          const showcase = await getShowcaseByEventId(eventId, env);
+          if (!showcase) {
+            return errorResponse('Showcase not found for this event', 404, cors);
+          }
+
+          const normalizedLang = normalizeLanguageCode(language);
+          await deleteShowcaseTranslation(showcase.id, normalizedLang);
+
+          return jsonResponse({ success: true }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
       if (pathname === '/api/translations/translate' && method === 'POST') {
         const auth = await authenticateWorkerRequest(request, env, cors);
         if (!auth.authenticated) return auth.errorResponse!;
@@ -3922,6 +3956,8 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           });
         }
 
+        const translations = await getEventTranslations(rawEvent.id);
+        rawEvent.translations = translations;
         const publicEvent = toPublicEventDTO(rawEvent);
         return jsonResponse({ event: publicEvent }, 200, {
           ...cors,

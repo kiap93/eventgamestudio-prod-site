@@ -19,12 +19,14 @@ import {
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { LanguageSelector } from '../common/LanguageSelector';
+import { useLocalization } from '../../context/LocalizationContext';
 
 interface LandingHeaderProps {
   onExploreGames?: () => void;
 }
 
 export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) => {
+  const { t } = useLocalization();
   const { isAuthenticated, currentUser, currentOrganization, logout } = useAuth();
   const routeContext = useRouteContext();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -124,7 +126,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              Games
+              {t('nav.games')}
             </InternalLink>
 
             <InternalLink
@@ -135,7 +137,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              Showcase
+              {t('nav.showcases')}
             </InternalLink>
 
             {/* Solutions Dropdown */}
@@ -149,7 +151,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                 }`}
                 aria-expanded={solutionsDropdownOpen}
               >
-                <span>Solutions</span>
+                <span>{t('landing.solutionsMenu')}</span>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${solutionsDropdownOpen ? 'rotate-180 text-amber-600' : ''}`} />
               </button>
 
@@ -171,9 +173,9 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                     className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group block"
                   >
                     <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
-                      Brand Activations
+                      {t('landing.solutionBrandActivations')}
                     </span>
-                    <span className="text-[11px] text-slate-500 block">Experiential & product campaigns</span>
+                    <span className="text-[11px] text-slate-500 block">{t('landing.solutionBrandActivationsDesc')}</span>
                   </InternalLink>
                   <InternalLink
                     href="/roadshow-games"
@@ -181,9 +183,9 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                     className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group block"
                   >
                     <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
-                      Roadshows & Pop-Ups
+                      {t('landing.solutionRoadshows')}
                     </span>
-                    <span className="text-[11px] text-slate-500 block">Mall concourse & touch kiosks</span>
+                    <span className="text-[11px] text-slate-500 block">{t('landing.solutionRoadshowsDesc')}</span>
                   </InternalLink>
                   <InternalLink
                     href="/exhibition-games"
@@ -191,9 +193,9 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                     className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group block"
                   >
                     <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
-                      Exhibitions & Booths
+                      {t('landing.solutionExhibitions')}
                     </span>
-                    <span className="text-[11px] text-slate-500 block">Trade show crowd attraction</span>
+                    <span className="text-[11px] text-slate-500 block">{t('landing.solutionExhibitionsDesc')}</span>
                   </InternalLink>
                   <InternalLink
                     href="/interactive-event-games"
@@ -201,9 +203,9 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                     className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group border-t border-slate-100 block"
                   >
                     <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
-                      Interactive Event Games
+                      {t('landing.solutionInteractive')}
                     </span>
-                    <span className="text-[11px] text-slate-500 block">QR browser play & live leaderboards</span>
+                    <span className="text-[11px] text-slate-500 block">{t('landing.solutionInteractiveDesc')}</span>
                   </InternalLink>
                 </div>
               )}
@@ -213,7 +215,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
               onClick={() => scrollToSection('how-it-works')}
               className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
             >
-              How It Works
+              {t('landing.howItWorks')}
             </button>
 
             <InternalLink
@@ -225,7 +227,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
               }`}
             >
               <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
-              <span>Contact</span>
+              <span>{t('nav.contact')}</span>
             </InternalLink>
 
             {onExploreGames && (
@@ -234,7 +236,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                 className="px-3 py-2 text-xs font-semibold text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-xl transition-all flex items-center gap-1.5 ml-1 border border-amber-200/80 cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>Catalog</span>
+                <span>{t('landing.exploreCatalog')}</span>
               </button>
             )}
           </nav>
@@ -268,7 +270,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 hover:shadow-amber-500/30 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
               >
                 <LayoutDashboard className="w-3.5 h-3.5" />
-                <span>Open Studio</span>
+                <span>{t('landing.openStudio')}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
 
@@ -276,7 +278,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
 
               <button
                 onClick={logout}
-                title="Sign Out"
+                title={t('nav.logout')}
                 className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-200"
               >
                 <LogOut className="w-4 h-4" />
@@ -288,13 +290,13 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                 onClick={handleSignInClick}
                 className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/80 rounded-xl transition-all cursor-pointer"
               >
-                Sign In
+                {t('nav.login')}
               </button>
               <button
                 onClick={handleCreateEventClick}
                 className="group relative flex items-center gap-2 px-4.5 py-2.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-amber-500/20 hover:shadow-amber-500/30 transition-all transform hover:-translate-y-0.5 cursor-pointer"
               >
-                <span>Create Your First Event</span>
+                <span>{t('landing.createFirstEvent')}</span>
                 <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </button>
             </div>
@@ -379,7 +381,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
               onClick={() => scrollToSection('how-it-works')}
               className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-700"
             >
-              How It Works
+              {t('landing.howItWorks')}
             </button>
             <InternalLink
               href="/contact"
@@ -391,7 +393,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
               }`}
             >
               <MessageSquare className="w-4 h-4 text-amber-500" />
-              <span>Contact Us</span>
+              <span>{t('nav.contact')}</span>
             </InternalLink>
 
             {onExploreGames && (
@@ -404,7 +406,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
               >
                 <span className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-500" />
-                  Explore All Games Catalog
+                  {t('landing.exploreCatalog')}
                 </span>
                 <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
               </button>
@@ -425,7 +427,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                   className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md shadow-amber-500/20"
                 >
                   <LayoutDashboard className="w-4 h-4" />
-                  <span>Open Event Studio</span>
+                  <span>{t('landing.openStudio')}</span>
                 </button>
                 <button
                   onClick={() => {
@@ -435,7 +437,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                   className="w-full py-2.5 bg-slate-100 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 text-slate-600 font-semibold text-xs rounded-xl flex items-center justify-center gap-2"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign Out</span>
+                  <span>{t('nav.logout')}</span>
                 </button>
               </>
             ) : (
@@ -447,7 +449,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                   }}
                   className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-md shadow-amber-500/20"
                 >
-                  <span>Create Your First Event</span>
+                  <span>{t('landing.createFirstEvent')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
@@ -457,7 +459,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
                   }}
                   className="w-full py-2.5 bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl flex items-center justify-center"
                 >
-                  Sign In to Studio
+                  {t('nav.login')}
                 </button>
               </>
             )}

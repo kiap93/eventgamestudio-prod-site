@@ -59,6 +59,13 @@ export const LocalizationProvider: React.FC<LocalizationProviderProps> = ({
     [language]
   );
 
+  const currentLanguageConfig = useMemo(() => {
+    return (
+      SUPPORTED_LANGUAGES.find((l) => l.code === language) ||
+      SUPPORTED_LANGUAGES[0]
+    );
+  }, [language]);
+
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.lang = language;
@@ -110,13 +117,6 @@ export const LocalizationProvider: React.FC<LocalizationProviderProps> = ({
     },
     [language]
   );
-
-  const currentLanguageConfig = useMemo(() => {
-    return (
-      SUPPORTED_LANGUAGES.find((l) => l.code === language) ||
-      SUPPORTED_LANGUAGES[0]
-    );
-  }, [language]);
 
   const value = useMemo<LocalizationContextValue>(() => {
     return {

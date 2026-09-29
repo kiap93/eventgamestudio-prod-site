@@ -7,6 +7,8 @@ import { GAME_REGISTRY } from '../../games/registry';
 import { formatEventDateRange } from '../../lib/dateUtils';
 import { SEO } from '../common/SEO';
 import { InternalLink } from '../common/InternalLink';
+import { useLocalization } from '../../context/LocalizationContext';
+import { LanguageSelector } from '../common/LanguageSelector';
 import {
   Gamepad2,
   Share2,
@@ -38,6 +40,7 @@ interface PublicShowcaseEvent {
 }
 
 export const PublicShowcaseView: React.FC = () => {
+  const { t, resolveContent } = useLocalization();
   const routeContext = useRouteContext();
   const { isAuthenticated } = useAuth();
 
@@ -239,16 +242,19 @@ export const PublicShowcaseView: React.FC = () => {
   const gameDef = event?.game_type ? GAME_REGISTRY[event.game_type] : null;
   const gameName = gameDef?.name || event?.game_type || 'Interactive Event Mini-Game';
 
+  const resolvedTitle = resolveContent(showcase?.translations, showcase?.title, 'title') || showcase?.title || '';
+  const resolvedDesc = resolveContent(showcase?.translations, showcase?.description, 'description') || showcase?.description || '';
+
   const isPublished =
     showcase &&
     (showcase.status === 'PUBLISHED' || showcase.publication_status === 'PUBLISHED') &&
     !isPreview &&
     !showcase.deleted_at;
-  const showcaseTitle = showcase?.title
-    ? `${showcase.title} | Event Game Studio Showcase`
+  const showcaseTitle = resolvedTitle
+    ? `${resolvedTitle} | Event Game Studio Showcase`
     : 'Event Game Showcase | Event Game Studio';
-  const showcaseDesc = showcase?.description
-    ? showcase.description.slice(0, 155).trim()
+  const showcaseDesc = resolvedDesc
+    ? resolvedDesc.slice(0, 155).trim()
     : 'View interactive event game showcase with live stage leaderboards, customized branding assets, and player engagement data on Event Game Studio.';
   const showcaseOgImage = showcase?.cover_image_url || media[0]?.media_url || 'https://eventgamestudio.com/og-image.jpg';
   const canonicalUrl = `https://eventgamestudio.com/showcase/${showcase?.id || showcaseParam}`;
@@ -262,9 +268,9 @@ export const PublicShowcaseView: React.FC = () => {
         ogImage={showcaseOgImage}
         robots={isPublished ? 'index, follow' : 'noindex, follow'}
         breadcrumbs={[
-          { name: 'Home', item: '/' },
-          { name: 'Showcase', item: '/showcase' },
-          { name: showcase?.title || 'Event Showcase', item: `/showcase/${showcase?.id || showcaseParam}` },
+          { name: t('common.home'), item: '/' },
+          { name: t('showcase.title'), item: '/showcase' },
+          { name: resolvedTitle || t('showcase.title'), item: `/showcase/${showcase?.id || showcaseParam}` },
         ]}
       />
       {/* 1. STICKY TOP BRAND HEADER */}
@@ -288,7 +294,7 @@ export const PublicShowcaseView: React.FC = () => {
                   EventGame<span className="text-amber-400">Studio</span>
                 </span>
                 <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase block -mt-1">
-                  Public Showcase
+                  {t('showcase.publicShowcase')}
                 </span>
               </div>
             </InternalLink>
@@ -296,21 +302,23 @@ export const PublicShowcaseView: React.FC = () => {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2.5 sm:gap-3">
+            <LanguageSelector variant="compact" />
+
             <button
               id="showcase-share-btn-top"
               onClick={handleShare}
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/70 transition-all active:scale-95 shadow-sm"
-              title="Share this showcase"
+              title={t('showcase.shareShowcase')}
             >
               {copySuccess ? (
                 <>
                   <Check className="w-4 h-4 text-emerald-400" />
-                  <span className="text-emerald-400 hidden sm:inline">Copied!</span>
+                  <span className="text-emerald-400 hidden sm:inline">{t('common.copied')}</span>
                 </>
               ) : (
                 <>
                   <Share2 className="w-4 h-4 text-amber-400" />
-                  <span className="hidden sm:inline">Share</span>
+                  <span className="hidden sm:inline">{t('common.share')}</span>
                 </>
               )}
             </button>
@@ -319,8 +327,8 @@ export const PublicShowcaseView: React.FC = () => {
               onClick={() => (isAuthenticated ? navigateTo('/events') : navigateTo('/login'))}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all active:scale-95 shadow-md shadow-amber-500/20"
             >
-              <span className="hidden sm:inline">Create Event</span>
-              <span className="sm:hidden">Create</span>
+              <span className="hidden sm:inline">{t('event.createEvent')}</span>
+              <span className="sm:hidden">{t('common.create')}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -365,7 +373,7 @@ export const PublicShowcaseView: React.FC = () => {
         {loading && (
           <div className="py-24 flex flex-col items-center justify-center space-y-4">
             <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-slate-400 font-medium">Loading event showcase...</p>
+            <p className="text-sm text-slate-400 font-medium">{t('common.loading')}</p>
           </div>
         )}
 
@@ -376,7 +384,7 @@ export const PublicShowcaseView: React.FC = () => {
               <Sparkles className="w-8 h-8 opacity-60" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white mb-3 tracking-tight">
-              Showcase Not Available
+              {t('event.eventNotAvailable')}
             </h1>
             <p className="text-sm text-slate-400 mb-8 leading-relaxed">{error}</p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -385,14 +393,14 @@ export const PublicShowcaseView: React.FC = () => {
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all shadow-lg shadow-amber-500/20"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Back to EventGameStudio
+                {t('common.home')}
               </button>
               {isAuthenticated && (
                 <button
                   onClick={() => navigateTo('/events')}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 transition-all"
                 >
-                  Go to My Events
+                  {t('event.manageEvents')}
                 </button>
               )}
             </div>
@@ -465,7 +473,7 @@ export const PublicShowcaseView: React.FC = () => {
 
                     {/* Showcase Title */}
                     <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
-                      {showcase.title}
+                      {resolvedTitle}
                     </h1>
 
                     {/* Event Metadata Badges */}
@@ -502,7 +510,7 @@ export const PublicShowcaseView: React.FC = () => {
                       className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all active:scale-95 shadow-lg shadow-amber-500/20"
                     >
                       <Share2 className="w-4 h-4" />
-                      <span>{copySuccess ? 'Link Copied!' : 'Share Showcase'}</span>
+                      <span>{copySuccess ? t('common.copied') : t('showcase.shareShowcase')}</span>
                     </button>
                   </div>
                 </div>
@@ -510,17 +518,17 @@ export const PublicShowcaseView: React.FC = () => {
             </section>
 
             {/* DESCRIPTION / STORY SECTION */}
-            {showcase.description && (
+            {(resolvedDesc || showcase.description) && (
               <section
                 id="showcase-story"
                 className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 sm:p-8 backdrop-blur-sm min-w-0"
               >
                 <h2 className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-3 flex items-center gap-2">
                   <Info className="w-3.5 h-3.5" />
-                  Activation Overview
+                  {t('showcase.description')}
                 </h2>
                 <div className="activation-overview-text prose prose-invert max-w-none text-slate-300 text-sm sm:text-base leading-relaxed whitespace-normal break-words [overflow-wrap:anywhere]">
-                  {showcase.description}
+                  {resolvedDesc || showcase.description}
                 </div>
               </section>
             )}
@@ -531,13 +539,13 @@ export const PublicShowcaseView: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800">
                 <div>
                   <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
-                    Event Gallery
+                    {t('showcase.photosAndVideos')}
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
                       {media.length}
                     </span>
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Photos and live recordings from the event activation
+                    {t('showcase.eventHighlights')}
                   </p>
                 </div>
 
@@ -552,7 +560,7 @@ export const PublicShowcaseView: React.FC = () => {
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      All ({media.length})
+                      {t('common.all')} ({media.length})
                     </button>
                     <button
                       onClick={() => setActiveTab('IMAGE')}

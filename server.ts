@@ -204,6 +204,7 @@ import {
   deleteEventTranslation,
   getShowcaseTranslations,
   upsertShowcaseTranslation,
+  deleteShowcaseTranslation,
   getTranslationJob,
 } from './server/db/index.js';
 import { translationService } from './server/translation/service.js';
@@ -2557,6 +2558,42 @@ app.put('/api/events/:eventId/showcase/translations/:language', showcaseRateLimi
 });
 
 /**
+ * DELETE /api/events/:eventId/showcase/translations/:language
+ * Deletes a showcase translation for a specific language
+ */
+app.delete('/api/events/:eventId/showcase/translations/:language', authenticateJWT, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const { eventId, language } = req.params;
+
+    const event = await getEventById(eventId);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const { isMember, hasPermission } = await verifyOrgMembershipAndPermission(user.id, event.organization_id, 'event.edit');
+    if (!isMember || !hasPermission) {
+      res.status(403).json({ error: 'Forbidden: Access denied to this showcase' });
+      return;
+    }
+
+    const showcase = await getShowcaseByEventId(eventId);
+    if (!showcase) {
+      res.status(404).json({ error: 'Showcase not found for this event' });
+      return;
+    }
+
+    const normalizedLang = normalizeLanguageCode(language);
+    await deleteShowcaseTranslation(showcase.id, normalizedLang);
+
+    res.json({ success: true });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
  * POST /api/translations/translate
  * Provider-agnostic AI translation service endpoint
  */
@@ -3605,6 +3642,8 @@ app.get('/api/public/events/:publicToken', publicEventRateLimiter, async (req, r
       return;
     }
 
+    const translations = await getEventTranslations(rawEvent.id);
+    rawEvent.translations = translations;
     const publicEvent = toPublicEventDTO(rawEvent);
     res.json({ event: publicEvent });
   } catch (err: any) {
@@ -4145,6 +4184,7 @@ app.get('/api/showcases/:id', generalApiRateLimiter, authenticateOptionalJWT, as
     }
 
     const media = await getShowcaseMedia(showcase.id, event.organization_id);
+    const translations = await getShowcaseTranslations(showcase.id);
 
     const publicEvent = {
       id: event.id,
@@ -4156,7 +4196,11 @@ app.get('/api/showcases/:id', generalApiRateLimiter, authenticateOptionalJWT, as
     };
 
     res.json({
-      showcase,
+      showcase: {
+        ...showcase,
+        translations,
+      },
+      translations,
       event: publicEvent,
       media,
       isPreview: isOrgMember && showcase.status !== 'PUBLISHED',

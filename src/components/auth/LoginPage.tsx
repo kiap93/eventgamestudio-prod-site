@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import { Gamepad2, ShieldAlert, Sparkles, Trophy, Zap, AlertCircle } from 'lucide-react';
 import { useLocalization } from '../../context/LocalizationContext';
+import { LanguageSelector } from '../common/LanguageSelector';
 
 declare global {
   interface Window {
@@ -41,7 +42,7 @@ export const LoginPage: React.FC = () => {
       await login(credential);
     } catch (err: any) {
       console.error('Google Sign-in failed:', err);
-      setError(err?.message || 'Google authentication failed. Please try again.');
+      setError(err?.message || t('errors.generic'));
     } finally {
       setLoading(false);
     }
@@ -108,6 +109,11 @@ export const LoginPage: React.FC = () => {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 left-1/3 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
+      {/* Top Language Selector */}
+      <div className="absolute top-4 right-4 z-20">
+        <LanguageSelector variant="compact" />
+      </div>
+
       <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 sm:p-10 shadow-2xl relative z-10 flex flex-col items-center text-center">
         {/* Logo and Branding */}
         <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-6 shadow-inner">
@@ -119,22 +125,22 @@ export const LoginPage: React.FC = () => {
         </h1>
 
         <p className="text-sm text-slate-400 mb-8 leading-relaxed">
-          Interactive branded mini-games, customizable visual themes, and real-time live leaderboards for your events.
+          {t('auth.signInToContinue')}
         </p>
 
         {/* Feature Highlights */}
         <div className="w-full grid grid-cols-3 gap-2.5 mb-8 text-left">
           <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 flex flex-col items-center text-center">
             <Sparkles className="w-4 h-4 text-amber-400 mb-1" />
-            <span className="text-[11px] font-bold text-slate-200">Branded Themes</span>
+            <span className="text-[11px] font-bold text-slate-200">{t('nav.themes')}</span>
           </div>
           <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 flex flex-col items-center text-center">
             <Zap className="w-4 h-4 text-emerald-400 mb-1" />
-            <span className="text-[11px] font-bold text-slate-200">Instant Setup</span>
+            <span className="text-[11px] font-bold text-slate-200">{t('landing.instantSetup')}</span>
           </div>
           <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 flex flex-col items-center text-center">
             <Trophy className="w-4 h-4 text-amber-400 mb-1" />
-            <span className="text-[11px] font-bold text-slate-200">Live Ranks</span>
+            <span className="text-[11px] font-bold text-slate-200">{t('nav.leaderboard')}</span>
           </div>
         </div>
 
@@ -155,14 +161,14 @@ export const LoginPage: React.FC = () => {
 
           {!clientId && !window.google && (
             <p className="text-xs text-slate-500 mt-2">
-              Connecting authentication service...
+              {t('common.loading')}
             </p>
           )}
 
           {loading && (
             <div className="flex items-center gap-2 text-xs text-amber-400 mt-4 animate-pulse">
               <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-              <span>Signing in...</span>
+              <span>{t('auth.signingIn')}</span>
             </div>
           )}
         </div>

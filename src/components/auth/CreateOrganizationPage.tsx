@@ -3,9 +3,12 @@ import { useAuth } from '../../context/AuthContext';
 import { CountrySelect } from '../common/CountrySelect';
 import { navigateTo, navigateBack } from '../../hooks/useRouteContext';
 import { Building2, Sparkles, ArrowRight, ArrowLeft, Shield, Loader2 } from 'lucide-react';
+import { useLocalization } from '../../context/LocalizationContext';
+import { LanguageSelector } from '../common/LanguageSelector';
 
 export const CreateOrganizationPage: React.FC = () => {
   const { createOrganization, logout, currentUser, cancelCreateOrganization, organizations } = useAuth();
+  const { t } = useLocalization();
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [countryCode, setCountryCode] = useState('');
@@ -35,17 +38,17 @@ export const CreateOrganizationPage: React.FC = () => {
     }
 
     if (!name.trim()) {
-      setError('Please enter your organization name');
+      setError(t('validation.required'));
       return;
     }
     if (!countryCode.trim()) {
-      setError("Please select your organization's country");
+      setError(t('auth.selectCountry'));
       return;
     }
 
     setLoading(true);
     setError(null);
-    setStatusMessage('Creating workspace...');
+    setStatusMessage(t('auth.creatingWorkspace'));
 
     try {
       console.log('[CreateOrganizationPage] Submitting organization creation:', {
@@ -74,7 +77,7 @@ export const CreateOrganizationPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('[CreateOrganizationPage] Organization creation failed:', err);
-      setError(err.message || 'Failed to create organization');
+      setError(err.message || t('errors.generic'));
       setLoading(false);
       setStatusMessage(null);
     }
@@ -82,8 +85,8 @@ export const CreateOrganizationPage: React.FC = () => {
 
   return (
     <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans">
-      {/* Top-left Go Back button above the form/card */}
-      <div className="w-full max-w-lg mb-4 flex items-center justify-start z-10">
+      {/* Top navigation row above the form/card */}
+      <div className="w-full max-w-lg mb-4 flex items-center justify-between z-10">
         <button
           id="create-org-go-back-btn"
           type="button"
@@ -91,8 +94,10 @@ export const CreateOrganizationPage: React.FC = () => {
           className="inline-flex items-center gap-2 px-3.5 py-2.5 min-h-[44px] bg-slate-900/90 hover:bg-slate-850 active:scale-95 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-md group focus:outline-none focus:ring-2 focus:ring-amber-500/40"
         >
           <ArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-amber-400 group-hover:-translate-x-0.5 transition-all shrink-0" />
-          <span>Go Back</span>
+          <span>{t('common.back')}</span>
         </button>
+
+        <LanguageSelector variant="compact" />
       </div>
 
       <div className="max-w-lg w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl relative z-10">
@@ -102,15 +107,15 @@ export const CreateOrganizationPage: React.FC = () => {
               <Building2 className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-100">Create Organization</h2>
-              <p className="text-xs text-slate-400">Set up your company workspace</p>
+              <h2 className="text-xl font-bold text-slate-100">{t('auth.createOrganization')}</h2>
+              <p className="text-xs text-slate-400">{t('auth.createWorkspaceSubtitle')}</p>
             </div>
           </div>
           <button
             onClick={logout}
             className="text-xs text-slate-400 hover:text-slate-200 underline"
           >
-            Sign out
+            {t('nav.logout')}
           </button>
         </div>
 
@@ -134,7 +139,7 @@ export const CreateOrganizationPage: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Organization / Company Name <span className="text-amber-400">*</span>
+              {t('auth.orgName')} <span className="text-amber-400">*</span>
             </label>
             <input
               type="text"
@@ -149,20 +154,20 @@ export const CreateOrganizationPage: React.FC = () => {
           <div>
             <CountrySelect
               id="create-org-country"
-              label="Business Country / Region"
+              label={t('auth.country')}
               required
               value={countryCode}
               onChange={(code) => {
                 setCountryCode(code);
                 if (error && code) setError(null);
               }}
-              helperText="Determines your default timezone, regional currency, and tax profile."
+              helperText={t('auth.operatingCountryDesc')}
             />
           </div>
 
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Logo Image URL (Optional)
+              Logo Image URL ({t('common.optional')})
             </label>
             <input
               type="url"
@@ -193,7 +198,7 @@ export const CreateOrganizationPage: React.FC = () => {
             <span>
               {isOrgLimitReached
                 ? 'Limit Reached (5 Organizations Max)'
-                : statusMessage || (loading ? 'Creating...' : 'Create Workspace & Launch Studio')}
+                : statusMessage || (loading ? t('common.loading') : t('auth.createWorkspace'))}
             </span>
             {!loading && !isOrgLimitReached && <ArrowRight className="w-4 h-4" />}
           </button>
