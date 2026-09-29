@@ -322,15 +322,6 @@ export function getEditableGameLayout(
       ? normalized.portraitLayout
       : {};
 
-  // Check if logo is visible in portrait:
-  // Explicit portrait override -> base element visibility -> portrait default visibility
-  const isLogoVisible =
-    (portraitCustom as any)?.clientLogo?.visible !== undefined
-      ? Boolean((portraitCustom as any).clientLogo.visible)
-      : normalized.clientLogo?.visible !== undefined
-      ? Boolean(normalized.clientLogo.visible)
-      : Boolean(portraitDefaults.clientLogo.visible);
-
   const resolveElement = (
     key: LayoutElementKey,
     defaultEl: GameLayoutElement
@@ -346,13 +337,8 @@ export function getEditableGameLayout(
         ? Boolean(baseEl.visible)
         : Boolean(defaultEl.visible);
 
-    // Smart portrait defaults for catch-brand when clientLogo is hidden:
-    // When logo is hidden and no custom portrait coordinate is provided, adjust default y
-    let defaultY = defaultEl.y;
-    if (!isMemory && !isLogoVisible) {
-      if (key === 'gameTitle') defaultY = 3;
-      if (key === 'scoreHud' || key === 'timer') defaultY = 9.5;
-    }
+    // Stable portrait defaults: score and timer do NOT move based on logo presence
+    const defaultY = defaultEl.y;
 
     const x =
       typeof customEl?.x === 'number' && !isNaN(customEl.x)

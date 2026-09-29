@@ -96,7 +96,7 @@ export function useGameUiScale(containerRef: RefObject<HTMLElement | null>): num
 export const DEFAULT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
   clientLogo: {
     visible: false,
-    x: 41,
+    x: 3.5,
     y: 9.5,
     width: 18,
   },
@@ -109,7 +109,7 @@ export const DEFAULT_CATCH_BRAND_LAYOUT: GameLayoutConfig = {
   timer: {
     visible: true,
     x: 79.5,
-    y: 11,
+    y: 3.5,
     width: 17,
   },
   gameTitle: {
@@ -235,7 +235,7 @@ export const LAYOUT_ELEMENTS_META: Record<LayoutElementKey, LayoutElementMeta> =
     key: 'clientLogo',
     label: 'Client Logo',
     shortName: 'Logo',
-    description: 'Second-row branding logo positioned below the game title',
+    description: 'Secondary branding logo positioned below the score HUD',
     iconName: 'Image',
     defaultWidth: 18,
     minWidth: 6,
@@ -375,11 +375,43 @@ export function normalizeGameLayout(raw: any, gameType?: string): GameLayoutConf
         ? Math.max(4, Math.min(100, el.width))
         : fallback.width;
 
-    // Migrate legacy Catch the Brand top-left (3.5, 3.5) logo coordinates to clean centered second row
-    if (!isMemory && key === 'clientLogo' && Math.abs(x - 3.5) < 0.1 && Math.abs(y - 3.5) < 0.1) {
-      x = 41;
-      y = 9.5;
-      width = 18;
+    // Migrate legacy Catch the Brand coordinates to new stable layout
+    if (!isMemory) {
+      // 1. Migrate legacy Catch the Brand top-left (3.5, 3.5), (4, 4), or centered (41, 9.5) logo coordinates to clean left-side second row
+      if (
+        key === 'clientLogo' &&
+        (
+          (Math.abs(x - 3.5) < 0.2 && Math.abs(y - 3.5) < 0.2) ||
+          (Math.abs(x - 41) < 0.6 && Math.abs(y - 9.5) < 0.6) ||
+          (Math.abs(x - 4) < 0.6 && Math.abs(y - 4) < 0.6)
+        )
+      ) {
+        x = 3.5;
+        y = 9.5;
+        width = 18;
+      }
+
+      // 2. Migrate legacy score below logo (x ~ 3.5 or 4, y ~ 11 or 12) to top row (3.5, 3.5)
+      if (
+        key === 'scoreHud' &&
+        (Math.abs(x - 3.5) < 0.6 || Math.abs(x - 4) < 0.6) &&
+        (Math.abs(y - 11) < 0.6 || Math.abs(y - 12) < 0.6)
+      ) {
+        x = 3.5;
+        y = 3.5;
+        width = 17;
+      }
+
+      // 3. Migrate legacy timer at (79.5, 11) or (78, 11) or (80, 11) to top row (79.5, 3.5)
+      if (
+        key === 'timer' &&
+        (Math.abs(x - 79.5) < 1.0 || Math.abs(x - 78) < 1.0 || Math.abs(x - 80) < 1.0) &&
+        Math.abs(y - 11) < 0.6
+      ) {
+        x = 79.5;
+        y = 3.5;
+        width = 17;
+      }
     }
 
     // Migrate uncustomized legacy Memory Match coordinates to the new two-row default layout

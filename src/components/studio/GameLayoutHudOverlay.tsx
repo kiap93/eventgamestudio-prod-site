@@ -69,8 +69,6 @@ export function calculateCatchBrandHudPosition({
   widthPercent: number;
   hasCustomValue: boolean;
 } {
-  const hasValidLogo = Boolean(clientLogoUrl && !logoLoadError && isVisible);
-
   const isPortraitCustom = Boolean(
     layoutSource?.portraitLayout?.[key] &&
     typeof layoutSource.portraitLayout[key].x === 'number' &&
@@ -81,12 +79,32 @@ export function calculateCatchBrandHudPosition({
 
   const baseCustomElem = (layoutSource as any)?.[key];
   const defaultRef = DEFAULT_CATCH_BRAND_LAYOUT[key];
+
+  // Helper to recognize legacy default coordinates that should be migrated rather than treated as genuine custom positions
+  const isLegacyCatchDefault = (k: LayoutElementKey, el: { x: number; y: number; width?: number }) => {
+    if (k === 'scoreHud') {
+      return (Math.abs(el.x - 3.5) < 0.6 || Math.abs(el.x - 4) < 0.6) &&
+             (Math.abs(el.y - 11) < 0.6 || Math.abs(el.y - 12) < 0.6);
+    }
+    if (k === 'timer') {
+      return (Math.abs(el.x - 79.5) < 1.0 || Math.abs(el.x - 78) < 1.0 || Math.abs(el.x - 80) < 1.0) &&
+             Math.abs(el.y - 11) < 0.6;
+    }
+    if (k === 'clientLogo') {
+      return (Math.abs(el.x - 3.5) < 0.2 && Math.abs(el.y - 3.5) < 0.2) ||
+             (Math.abs(el.x - 41) < 0.6 && Math.abs(el.y - 9.5) < 0.6) ||
+             (Math.abs(el.x - 4) < 0.6 && Math.abs(el.y - 4) < 0.6);
+    }
+    return false;
+  };
+
   const isBaseCustom = Boolean(
     baseCustomElem &&
     typeof baseCustomElem.x === 'number' &&
     !isNaN(baseCustomElem.x) &&
     typeof baseCustomElem.y === 'number' &&
     !isNaN(baseCustomElem.y) &&
+    !isLegacyCatchDefault(key, baseCustomElem) &&
     (
       !defaultRef ||
       baseCustomElem.x !== defaultRef.x ||
@@ -113,26 +131,28 @@ export function calculateCatchBrandHudPosition({
     };
   }
 
-  // Default UI positioning
+  // Stable Default UI positioning (Score HUD and Timer NEVER shift based on logo presence)
   if (!effectiveIsPortrait) {
     // Landscape simulation default UI
     if (key === 'gameTitle') {
-      // First row: centered horizontally
+      // Top row: centered horizontally
       widthPercent = Math.max(26, Math.min(36, widthPercent));
       posX = (100 - widthPercent) / 2;
       posY = 3.5;
     } else if (key === 'clientLogo') {
-      // Dedicated second row: centered horizontally below game title
+      // Second row: left-side secondary branding position below score HUD
       widthPercent = Math.max(14, Math.min(24, elem.width || 18));
-      posX = (100 - widthPercent) / 2;
+      posX = 3.5;
       posY = 9.5;
     } else if (key === 'scoreHud') {
+      // Top row: top-left
       posX = 3.5;
       posY = 3.5;
       widthPercent = Math.max(15, Math.min(22, widthPercent));
     } else if (key === 'timer') {
+      // Top row: top-right
       posX = 79.5;
-      posY = 11;
+      posY = 3.5;
       widthPercent = Math.max(15, Math.min(22, widthPercent));
     } else if (key === 'footerSponsor') {
       widthPercent = Math.max(48, Math.min(65, widthPercent));
@@ -140,29 +160,31 @@ export function calculateCatchBrandHudPosition({
       posY = 92;
     }
   } else {
-    // Portrait simulation default UI
+    // Portrait simulation default UI (stable positions regardless of logo existence)
     if (key === 'gameTitle') {
       // First row: centered horizontally
       widthPercent = Math.max(45, Math.min(60, widthPercent));
       posX = (100 - widthPercent) / 2;
-      posY = hasValidLogo ? 2.5 : 3.0;
+      posY = 2.5;
     } else if (key === 'clientLogo') {
-      // Dedicated second row: centered horizontally below game title
+      // Second row: centered horizontally below game title
       widthPercent = Math.max(24, Math.min(36, elem.width || 28));
       posX = (100 - widthPercent) / 2;
       posY = 7.5;
     } else if (key === 'scoreHud') {
+      // Fixed default: side-by-side with timer at y=13%
       posX = 4;
-      posY = hasValidLogo ? 13.5 : 9.5;
+      posY = 13;
       widthPercent = 44;
     } else if (key === 'timer') {
+      // Fixed default: side-by-side with score at y=13%
       posX = 52;
-      posY = hasValidLogo ? 13.5 : 9.5;
+      posY = 13;
       widthPercent = 44;
     } else if (key === 'footerSponsor') {
       widthPercent = Math.max(70, Math.min(88, widthPercent));
       posX = (100 - widthPercent) / 2;
-      posY = 92;
+      posY = 94;
     }
   }
 
@@ -212,7 +234,7 @@ export const GameLayoutHudOverlay: React.FC<GameLayoutHudOverlayProps> = ({
     theme?.clientLogo ||
     theme?.branding?.logoUrl ||
     theme?.logo ||
-    '/logo.png';
+    null;
 
   // Reset logo error when logo url changes
   useEffect(() => {

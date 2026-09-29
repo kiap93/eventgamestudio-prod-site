@@ -179,7 +179,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
             <div>
               <h3 className="text-sm font-bold text-slate-100">Event / Client Logo</h3>
               <p className="text-xs text-slate-400">
-                Displays in the second row next to the game title
+                Displays in the secondary row below the score HUD
               </p>
             </div>
           </div>
@@ -191,6 +191,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                 value={branding.clientLogoUrl || branding.logoUrl || theme.clientLogo || theme.logo || ''}
                 onChange={(e) => {
                   const val = e.target.value;
+                  const hasLogo = Boolean(val && val.trim());
                   handleUpdateBranding({
                     clientLogoUrl: val,
                     logoUrl: val,
@@ -204,7 +205,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                       ...theme.layout,
                       clientLogo: {
                         ...(theme.layout?.clientLogo || defaultLayout.clientLogo),
-                        visible: theme.layout?.clientLogo?.visible ?? true,
+                        visible: hasLogo,
                       },
                     },
                   });
@@ -227,15 +228,15 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
 
             {/* Visibility Toggle Switch */}
             {(() => {
-              const currentLogoUrl = branding.clientLogoUrl || branding.logoUrl || theme.clientLogo || theme.logo || '/logo.png';
+              const currentLogoUrl = branding.clientLogoUrl || branding.logoUrl || theme.clientLogo || theme.logo || null;
               const isConfigured = Boolean(currentLogoUrl && currentLogoUrl.trim());
-              const isVisible = theme.layout?.clientLogo?.visible !== false;
+              const isVisible = isConfigured && theme.layout?.clientLogo?.visible !== false;
 
               return (
                 <div className="flex items-center justify-between p-3 bg-slate-950/70 border border-slate-800/80 rounded-2xl">
                   <div className="space-y-0.5 pr-2">
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
-                      {isVisible ? (
+                      {isConfigured && isVisible ? (
                         <Eye className="w-3.5 h-3.5 text-emerald-400" />
                       ) : (
                         <EyeOff className="w-3.5 h-3.5 text-slate-400" />
@@ -245,7 +246,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                     <p className="text-[11px] text-slate-400">
                       {isConfigured
                         ? isVisible
-                          ? 'Active: displayed in second row next to game title'
+                          ? 'Active: displayed in secondary row below score HUD'
                           : 'Hidden: logo element hidden from game HUD'
                         : 'No logo configured. Upload or enter a URL first.'}
                     </p>
@@ -277,7 +278,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({
                   >
                     <span
                       className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                        isVisible ? 'translate-x-5' : 'translate-x-0'
+                        isConfigured && isVisible ? 'translate-x-5' : 'translate-x-0'
                       }`}
                     />
                   </button>

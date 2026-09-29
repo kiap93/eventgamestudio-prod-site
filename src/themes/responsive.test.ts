@@ -69,7 +69,7 @@ assert(effectivePortrait.memoryCardBoard?.y === 53, 'Memory match portrait board
 const catchBase = normalizeGameLayout(undefined, 'catch-brand');
 const effectiveCatch = getEffectiveGameLayout(catchBase, true, 'catch-brand');
 assert(effectiveCatch.scoreHud?.x === 4, 'Catch-brand portrait scoreHud x is 4');
-assert(effectiveCatch.scoreHud?.y === 9.5, 'Catch-brand portrait scoreHud y is 9.5');
+assert(effectiveCatch.scoreHud?.y === 13, 'Catch-brand portrait scoreHud y is 13 (stable default)');
 assert(effectiveCatch.footerSponsor?.y === 94, 'Catch-brand portrait footerSponsor y is 94');
 
 const customThemeLayout: GameLayoutConfig = {
