@@ -4932,6 +4932,30 @@ export async function reconcileTopupOrder(
   // If already PAID, return idempotent result without double crediting
   if (order.status === 'PAID') {
     const currentWallet = await getWalletBalance(order.organization_id, env);
+    const num = Number(order.top_up_amount);
+    const curr = (order.currency || 'MYR').toUpperCase() === 'MYR' ? 'RM' : `${(order.currency || 'MYR').toUpperCase()} `;
+    const amountStr = `${curr}${num % 1 === 0 ? num.toLocaleString('en-US') : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    await dispatchNotificationEvent(
+      {
+        eventType: 'PAYMENT_SUCCESS',
+        organizationId: order.organization_id,
+        recipientUserId: order.user_id,
+        referenceId: `topup_${order.id}`,
+        amount: order.top_up_amount,
+        currency: order.currency || 'MYR',
+        subject: `Wallet Top-Up (${order.id.slice(0, 8).toUpperCase()})`,
+        paymentType: 'TOPUP',
+        customTitle: 'Top Up Successful',
+        customMessage: `Your wallet top-up of ${amountStr} has been completed successfully.`,
+        metadata: {
+          order_id: order.id,
+          top_up_amount: order.top_up_amount,
+          promo_credit: order.expected_credit_amount,
+        },
+      },
+      env
+    ).catch(() => {});
+
     return {
       order,
       alreadyProcessed: true,

@@ -40,19 +40,30 @@ process.env.PAYMENT_WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET || 'test
 let passed = 0;
 let failed = 0;
 
-async function ensureTestOrg(orgId: string) {
+async function ensureTestOrg(orgId: string, validOwnerId: string) {
   const supabase = getSupabaseServerClient();
   try {
-    const { data: users } = await supabase.from('users').select('id').limit(1);
-    const validOwnerId = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
-    await supabase.from('organizations').upsert({
-      id: orgId,
-      name: `Test Org ${orgId.slice(0, 8)}`,
-      slug: `test-org-${orgId.slice(0, 8)}`,
-      owner_id: validOwnerId,
+    await supabase.from('users').upsert({
+      id: validOwnerId,
+      email: `test-owner-${validOwnerId.slice(0, 8)}@example.com`,
+      name: 'Test Owner',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
+    const { data: existing } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('id', orgId)
+      .maybeSingle();
+
+    if (!existing) {
+      await supabase.from('organizations').insert({
+        id: orgId,
+        name: `Test Org ${orgId.slice(0, 8)}`,
+        slug: `test-org-${orgId.slice(0, 8)}`,
+        owner_id: validOwnerId,
+      });
+    }
   } catch {
     // Ignore in local mode
   }
@@ -77,13 +88,23 @@ async function runSecurityTests() {
   const orgBId = crypto.randomUUID();
 
   const supabase = getSupabaseServerClient();
-  const { data: users } = await supabase.from('users').select('id').limit(5);
-  const userOrgAOwner = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
-  const userOrgBAdmin = users?.[1]?.id || users?.[0]?.id || '77d03383-9622-4c58-a447-3d0c6cfb9f96';
-  const devAdminUser = users?.[0]?.id || '4c857d15-ab93-45a6-8de5-7858ab4d6bd2';
+  const userOrgAOwner = crypto.randomUUID();
+  const userOrgBAdmin = crypto.randomUUID();
+  const devAdminUser = crypto.randomUUID();
 
-  await ensureTestOrg(orgAId);
-  await ensureTestOrg(orgBId);
+  try {
+    await supabase.from('users').upsert({
+      id: devAdminUser,
+      email: `test-devadmin-${devAdminUser.slice(0, 8)}@example.com`,
+      name: 'Test Dev Admin',
+      is_developer: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  } catch {}
+
+  await ensureTestOrg(orgAId, userOrgAOwner);
+  await ensureTestOrg(orgBId, userOrgBAdmin);
 
   // ----------------------------------------------------
   // TEST 1: DIRECT TOPUP MUTATION IS FORBIDDEN & REJECTED

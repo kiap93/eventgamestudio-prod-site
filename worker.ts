@@ -220,6 +220,7 @@ import {
   generateWebhookSignature,
   getPaymentWebhookSecret,
   syncTopupOrderExpiration,
+  finalizeWalletTopUp,
   getStripeClient,
   SUPPORTED_PAYMENT_METHODS,
   isPaymentMethodSupported,
@@ -7162,6 +7163,19 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             order = await syncTopupOrderExpiration(order, { sessionId: sessionIdQuery, status: statusQuery }, env);
           }
 
+          // If order is PAID, run finalizeWalletTopUp to ensure missing notification repair & idempotent reconciliation
+          if (order.status === 'PAID') {
+            try {
+              const finalizeResult = await finalizeWalletTopUp(order, {
+                sessionId: sessionIdQuery,
+                origin: 'worker_handleGetTopupOrder',
+              }, env);
+              order = finalizeResult.order;
+            } catch (reconErr) {
+              console.warn(`[Worker Get Topup Order] Notification/reconciliation check warning for order ${order.id}:`, reconErr);
+            }
+          }
+
           return jsonResponse({ order }, 200, cors);
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
@@ -7294,13 +7308,15 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         }
 
         try {
-          const result = await reconcileTopupOrder(
+          const result = await finalizeWalletTopUp(
+            orderId,
             {
-              orderId,
               paymentReference: ref.trim(),
               paymentMethod: body.payment_method || body.paymentMethod || 'MANUAL_RECONCILIATION',
               reconciledBy: auth.user.id,
-              reason: reason.trim(),
+              reconciliationReason: reason.trim(),
+              isManualReconciliation: true,
+              reason: `Manual Admin Reconciliation: ${reason.trim()}`,
               metadata: body.metadata,
             },
             env

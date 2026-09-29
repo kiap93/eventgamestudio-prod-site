@@ -257,6 +257,7 @@ import {
   generateWebhookSignature,
   getPaymentWebhookSecret,
   syncTopupOrderExpiration,
+  finalizeWalletTopUp,
   getStripeClient,
   SUPPORTED_PAYMENT_METHODS,
   isPaymentMethodSupported,
@@ -6416,6 +6417,19 @@ const handleGetTopupOrder = async (req: AuthenticatedRequest, res: express.Respo
       order = await syncTopupOrderExpiration(order, { sessionId: sessionIdQuery, status: statusQuery });
     }
 
+    // If order is PAID, run finalizeWalletTopUp to ensure missing notification repair & idempotent reconciliation
+    if (order.status === 'PAID') {
+      try {
+        const finalizeResult = await finalizeWalletTopUp(order, {
+          sessionId: sessionIdQuery,
+          origin: 'handleGetTopupOrder',
+        });
+        order = finalizeResult.order;
+      } catch (reconErr) {
+        console.warn(`[Get Topup Order] Notification/reconciliation check warning for order ${order.id}:`, reconErr);
+      }
+    }
+
     res.json({ order });
   } catch (err: any) {
     handleApiError(err, req, res);
@@ -6760,12 +6774,13 @@ app.post('/api/developer/wallet/topups/:id/reconcile', authenticateJWT, authenti
       return;
     }
 
-    const result = await reconcileTopupOrder({
-      orderId,
+    const result = await finalizeWalletTopUp(orderId, {
       paymentReference: ref.trim(),
       paymentMethod: payment_method || paymentMethod || 'MANUAL_RECONCILIATION',
       reconciledBy: req.user!.id,
-      reason: reason.trim(),
+      reconciliationReason: reason.trim(),
+      isManualReconciliation: true,
+      reason: `Manual Admin Reconciliation: ${reason.trim()}`,
       metadata,
     });
 
