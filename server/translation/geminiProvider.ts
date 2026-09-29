@@ -84,52 +84,71 @@ ${protectedTerms.map((t) => `   - "${t}"`).join('\n')}
 
     const prompt = JSON.stringify(fieldsToTranslate, null, 2);
 
-    try {
-      const response = await this.aiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-          temperature: 0.2, // Low temperature for high fidelity translations
-        },
-      });
+    const candidateModels = ['gemini-3.8-flash'];
 
-      const outputText = response.text || '{}';
-      let translatedFields: Record<string, string> = {};
-
+    for (const model of candidateModels) {
       try {
-        translatedFields = JSON.parse(outputText.trim());
-      } catch {
-        // Fallback clean extraction if JSON was wrapped in markdown
-        const match = outputText.match(/\{[\s\S]*\}/);
-        if (match) {
-          try {
-            translatedFields = JSON.parse(match[0]);
-          } catch {
+        const response = await this.aiClient.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            temperature: 0.2, // Low temperature for high fidelity translations
+          },
+        });
+
+        const outputText = response.text || '{}';
+        let translatedFields: Record<string, string> = {};
+
+        try {
+          translatedFields = JSON.parse(outputText.trim());
+        } catch {
+          // Fallback clean extraction if JSON was wrapped in markdown
+          const match = outputText.match(/\{[\s\S]*\}/);
+          if (match) {
+            try {
+              translatedFields = JSON.parse(match[0]);
+            } catch {
+              translatedFields = fieldsToTranslate;
+            }
+          } else {
             translatedFields = fieldsToTranslate;
           }
-        } else {
-          translatedFields = fieldsToTranslate;
         }
-      }
 
-      return {
-        sourceLanguage: req.sourceLanguage,
-        targetLanguage: req.targetLanguage,
-        provider: this.id,
-        fields: translatedFields,
-        translatedText: translatedFields.text || Object.values(translatedFields)[0] || '',
-      };
-    } catch (apiErr) {
-      console.warn('[GeminiTranslationProvider] API call failed, returning source text fallback:', apiErr);
-      return {
-        sourceLanguage: req.sourceLanguage,
-        targetLanguage: req.targetLanguage,
-        provider: this.id,
-        fields: fieldsToTranslate,
-        translatedText: fieldsToTranslate.text || Object.values(fieldsToTranslate)[0] || '',
-      };
+        return {
+          sourceLanguage: req.sourceLanguage,
+          targetLanguage: req.targetLanguage,
+          provider: this.id,
+          fields: translatedFields,
+          translatedText: translatedFields.text || Object.values(translatedFields)[0] || '',
+        };
+      } catch (apiErr: any) {
+        const isQuotaOrRateLimit =
+          apiErr?.status === 429 ||
+          apiErr?.status === 503 ||
+          apiErr?.message?.includes('resource_exhausted') ||
+          apiErr?.message?.includes('quota') ||
+          apiErr?.message?.includes('high demand') ||
+          apiErr?.message?.includes('rate-limits');
+
+        if (isQuotaOrRateLimit) {
+          console.warn(`[GeminiTranslationProvider] Model ${model} rate-limited or quota exhausted (${apiErr?.status || 'quota'}); falling back safely.`);
+          break;
+        }
+
+        console.warn(`[GeminiTranslationProvider] Translation API error:`, apiErr?.message || apiErr);
+      }
     }
+
+    // Fall back cleanly to source text without disrupting user flow
+    return {
+      sourceLanguage: req.sourceLanguage,
+      targetLanguage: req.targetLanguage,
+      provider: this.id,
+      fields: fieldsToTranslate,
+      translatedText: fieldsToTranslate.text || Object.values(fieldsToTranslate)[0] || '',
+    };
   }
 }
