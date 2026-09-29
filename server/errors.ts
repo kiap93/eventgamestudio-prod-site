@@ -349,6 +349,7 @@ export function isOperationalError(err: any): boolean {
     code === 'ORGANIZATION_LIMIT_REACHED' ||
     code === 'INSUFFICIENT_BALANCE' ||
     code === 'PRICING_CONFIGURATION_ERROR' ||
+    code === 'MISSING_WEBHOOK_SECRET' ||
     code === 'OVERLAPPING_PRICING_TIER' ||
     code === 'AMBIGUOUS_PRICING_TIER' ||
     code === 'INVALID_DURATION_RANGE' ||
@@ -765,6 +766,8 @@ export function handleApiError(
         code === 'PRICING_CONFIGURATION_ERROR'
       ) {
         statusCode = 503;
+      } else if (code === 'MISSING_WEBHOOK_SECRET' || code === 'MISSING_STRIPE_SECRET_KEY') {
+        statusCode = 500;
       } else if (
         code === 'NO_PRICING_TIER' ||
         code === 'MAX_DURATION_EXCEEDED' ||
@@ -809,7 +812,7 @@ export function handleApiError(
   const method = options?.method || req.method || 'GET';
 
   // 1. Operational / Safe Business Error
-  if (isOperational && (statusCode < 500 || statusCode === 503)) {
+  if (isOperational && (statusCode < 500 || statusCode === 503 || String(err?.code) === 'MISSING_WEBHOOK_SECRET')) {
     const errorCode = isPendingLimit
       ? 'PENDING_EVENT_LIMIT_REACHED'
       : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : statusCode === 503 ? 'PRICING_CONFIGURATION_ERROR' : 'BAD_REQUEST'));
@@ -989,6 +992,8 @@ export async function handleWorkerApiError(
         code === 'PRICING_CONFIGURATION_ERROR'
       ) {
         statusCode = 503;
+      } else if (code === 'MISSING_WEBHOOK_SECRET' || code === 'MISSING_STRIPE_SECRET_KEY') {
+        statusCode = 500;
       } else if (
         code === 'NO_PRICING_TIER' ||
         code === 'MAX_DURATION_EXCEEDED' ||
@@ -1036,7 +1041,7 @@ export async function handleWorkerApiError(
   };
 
   // 1. Operational Error
-  if (isOperational && (statusCode < 500 || statusCode === 503)) {
+  if (isOperational && (statusCode < 500 || statusCode === 503 || String(err?.code) === 'MISSING_WEBHOOK_SECRET')) {
     const errorCode = isPendingLimit
       ? 'PENDING_EVENT_LIMIT_REACHED'
       : (err?.code || (statusCode === 404 ? 'NOT_FOUND' : statusCode === 401 ? 'UNAUTHORIZED' : statusCode === 403 ? 'FORBIDDEN' : statusCode === 503 ? 'PRICING_CONFIGURATION_ERROR' : 'BAD_REQUEST'));

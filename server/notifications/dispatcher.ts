@@ -35,6 +35,8 @@ export interface PaymentSuccessEvent extends BaseBusinessEvent {
   subject: string;
   eventId?: string | null;
   paymentType?: 'EVENT_PAYMENT' | 'TOPUP' | 'SUBSCRIPTION';
+  customTitle?: string;
+  customMessage?: string;
 }
 
 export interface PaymentPendingEvent extends BaseBusinessEvent {
@@ -542,14 +544,26 @@ export class NotificationDispatcher {
       }
 
       case 'PAYMENT_SUCCESS': {
-        const amountStr = typeof event.amount === 'number' ? `RM${event.amount.toLocaleString()}` : String(event.amount);
+        const isTopup = (event as any).paymentType === 'TOPUP' || !(event as any).eventId;
+        const amountNum = typeof event.amount === 'number' ? event.amount : Number(event.amount);
+        const amountFormatted = !isNaN(amountNum)
+          ? (amountNum % 1 === 0 ? `RM${amountNum.toLocaleString('en-US')}` : `RM${amountNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+          : String(event.amount);
+        const customTitle = (event as any).customTitle || (isTopup ? 'Top Up Successful' : undefined);
+        const customMessage = (event as any).customMessage || (isTopup
+          ? `Your wallet top-up of ${amountFormatted} has been completed successfully.`
+          : undefined);
+
         return {
           type: 'payment_success',
+          category: isTopup ? 'wallet' : 'billing',
           actionUrl: event.eventId ? `/events` : '/wallet',
           entityType: event.eventId ? 'event' : 'wallet_transaction',
           entityId: event.eventId || event.referenceId,
+          customTitle,
+          customMessage,
           metadata: {
-            amount: amountStr,
+            amount: amountFormatted,
             subject: event.subject,
             reference_id: event.referenceId,
             event_id: event.eventId,

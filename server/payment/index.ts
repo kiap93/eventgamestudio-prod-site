@@ -5,6 +5,7 @@ import {
   findTopupOrderByReference,
   processTopupOrderStatus,
   recordWalletAuditEvent,
+  getWalletBalance,
   attachCheckoutSessionToTopupOrder,
   getOutstandingBalance,
   setOutstandingBalance,
@@ -17,7 +18,16 @@ import {
   toCents,
   fromCents,
 } from '../db/wallet.js';
-import { TopupOrderRecord } from '../db/types.js';
+import {
+  TopupOrderRecord,
+  TopupOrderStatus,
+  WalletTransactionRecord,
+  WalletBalanceSummary,
+} from '../db/types.js';
+import {
+  dispatchNotificationEvent,
+  PaymentSuccessEvent,
+} from '../notifications/dispatcher.js';
 import { isProductionEnvironment, isSupabaseConfigured } from '../supabase.js';
 
 export {
@@ -920,6 +930,488 @@ async function executeCreatePaymentSession(
     sessionCreated: true,
     status: 'SESSION_CREATED',
     message: 'Stripe Checkout Session created successfully',
+  };
+}
+
+/**
+ * Helper to format top-up currency amount for human-readable notifications.
+ * e.g., 1000 -> RM1,000 | 1400.5 -> RM1,400.50
+ */
+export function formatTopupAmountNotification(amount: number, currency: string = 'MYR'): string {
+  const curr = currency.toUpperCase() === 'MYR' ? 'RM' : `${currency.toUpperCase()} `;
+  const num = Number(amount);
+  const formatted = num % 1 === 0
+    ? num.toLocaleString('en-US')
+    : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${curr}${formatted}`;
+}
+
+export interface FinalizeWalletTopUpOptions {
+  stripeSession?: Stripe.Checkout.Session | any;
+  sessionId?: string;
+  paymentReference?: string;
+  paymentMethod?: string;
+  webhookPayload?: any;
+  webhookEventId?: string;
+  isManualReconciliation?: boolean;
+  reconciledBy?: string;
+  reconciliationReason?: string;
+  isSimulation?: boolean;
+  reason?: string;
+  metadata?: Record<string, any>;
+  origin?: string;
+}
+
+export interface FinalizeWalletTopUpResult {
+  success: boolean;
+  status: TopupOrderStatus | string;
+  order: TopupOrderRecord;
+  alreadyProcessed: boolean;
+  isDuplicate?: boolean;
+  wallet?: WalletBalanceSummary;
+  ledgerResult?: {
+    topupTransaction?: WalletTransactionRecord;
+    promoCreditTransaction?: WalletTransactionRecord | null;
+    wallet: WalletBalanceSummary;
+  };
+  notificationCreated?: boolean;
+  paymentReference?: string;
+  paymentMethod?: string;
+  amount?: number;
+  currency?: string;
+  isPending?: boolean;
+  message?: string;
+}
+
+/**
+ * Authoritative, idempotent server-side wallet top-up finalization function.
+ *
+ * All execution paths that discover or confirm a Stripe payment has succeeded MUST
+ * call this function:
+ * 1. Normal payment confirmation (return from Checkout)
+ * 2. Retry after timeout / Check Payment button
+ * 3. Payment status polling
+ * 4. Webhook reconciliation
+ * 5. Manual / admin developer reconciliation
+ *
+ * Invariant:
+ * ONE successful Stripe top-up
+ * = ONE PAID wallet transaction
+ * = ONE wallet credit
+ * = ONE "Top Up Successful" notification
+ */
+export async function finalizeWalletTopUp(
+  orderOrId: TopupOrderRecord | string,
+  options?: FinalizeWalletTopUpOptions,
+  env?: Record<string, any>
+): Promise<FinalizeWalletTopUpResult> {
+  // 1. Load the wallet top-up transaction/order
+  let order: TopupOrderRecord | null = null;
+  if (typeof orderOrId === 'string') {
+    const rawId = orderOrId.trim();
+    order = await getTopupOrderById(rawId, env);
+    if (!order) {
+      order = await findTopupOrderByReference(rawId, env);
+    }
+    if (!order && rawId.startsWith('cs_') && !rawId.startsWith('cs_egs_')) {
+      const stripe = getStripeClient(env);
+      if (stripe) {
+        try {
+          const stripeSession = await stripe.checkout.sessions.retrieve(rawId);
+          const trustedOrderId = stripeSession.metadata?.order_id || stripeSession.metadata?.orderId;
+          if (trustedOrderId) {
+            order = await getTopupOrderById(trustedOrderId, env);
+          }
+        } catch (err: any) {
+          console.warn('[finalizeWalletTopUp] Failed to retrieve Stripe session by ID:', err?.message);
+        }
+      }
+    }
+  } else {
+    order = orderOrId;
+  }
+
+  if (!order) {
+    const err: any = new Error(`Top-up order not found: ${typeof orderOrId === 'string' ? orderOrId : 'unknown'}`);
+    err.status = 404;
+    err.code = 'ORDER_NOT_FOUND';
+    throw err;
+  }
+
+  // 2. IMPORTANT IDEMPOTENCY: If the transaction is already PAID:
+  // - DO NOT credit the wallet again.
+  // - DO NOT create another successful notification.
+  // - Simply return the existing successful state.
+  if (order.status === 'PAID') {
+    const currentWallet = await getWalletBalance(order.organization_id, env);
+    return {
+      success: true,
+      status: 'PAID',
+      order,
+      alreadyProcessed: true,
+      isDuplicate: true,
+      wallet: currentWallet,
+      notificationCreated: false,
+      amount: order.top_up_amount,
+      currency: order.currency,
+      paymentReference: order.payment_reference || undefined,
+      paymentMethod: order.payment_method || undefined,
+      message: 'Top-up order is already marked as PAID and credited (idempotent replay, zero duplicate credit)',
+    };
+  }
+
+  // Reject terminal non-PAID states (unless manual reconciliation explicitly authorizes)
+  if (['FAILED', 'EXPIRED', 'CANCELLED'].includes(order.status) && !options?.isManualReconciliation) {
+    const err: any = new Error(`Cannot finalize top-up order in terminal status '${order.status}'`);
+    err.status = 409;
+    err.code = 'INVALID_STATE_TRANSITION';
+    throw err;
+  }
+
+  const effectiveOrderAmount =
+    order.total_due !== undefined && order.total_due > 0
+      ? order.total_due
+      : order.metadata?.total_due !== undefined && Number(order.metadata.total_due) > 0
+      ? Number(order.metadata.total_due)
+      : order.top_up_amount;
+  const expectedCents = toCents(effectiveOrderAmount);
+
+  // 3. Verify Stripe payment/checkout/payment intent status, amount, and currency
+  let resolvedPaymentReference = options?.paymentReference || order.payment_reference;
+  let resolvedPaymentMethod = options?.paymentMethod || order.payment_method || 'card';
+  let syncSource = 'finalize_wallet_topup';
+
+  // Case A: Webhook Payload provided
+  if (options?.webhookPayload) {
+    const dataObject = options.webhookPayload;
+    syncSource = 'webhook';
+
+    // Verify amount
+    let rawAmountValue =
+      dataObject.amount_total !== undefined
+        ? Number(dataObject.amount_total)
+        : dataObject.amount_received !== undefined
+        ? Number(dataObject.amount_received)
+        : dataObject.amount !== undefined
+        ? Number(dataObject.amount)
+        : undefined;
+
+    let receivedAmount: number | undefined = undefined;
+    if (rawAmountValue !== undefined) {
+      if (dataObject.amount_total !== undefined || dataObject.amount_received !== undefined) {
+        receivedAmount = fromCents(rawAmountValue);
+      } else if (Math.round(rawAmountValue) === expectedCents || Math.round(rawAmountValue) === toCents(order.top_up_amount)) {
+        receivedAmount = fromCents(rawAmountValue);
+      } else if (rawAmountValue === effectiveOrderAmount || rawAmountValue === order.top_up_amount) {
+        receivedAmount = rawAmountValue;
+      } else if (
+        dataObject.object === 'checkout.session' ||
+        dataObject.object === 'payment_intent' ||
+        dataObject.object === 'charge'
+      ) {
+        receivedAmount = fromCents(rawAmountValue);
+      } else {
+        receivedAmount = rawAmountValue;
+      }
+    }
+
+    if (receivedAmount !== undefined) {
+      const receivedCents = toCents(receivedAmount);
+      if (receivedCents !== expectedCents && receivedCents !== toCents(order.top_up_amount)) {
+        console.warn(
+          `[finalizeWalletTopUp] Rejected: Amount mismatch on order ${order.id}. Expected RM${effectiveOrderAmount.toFixed(2)}, received RM${receivedAmount.toFixed(2)}`
+        );
+        const err: any = new Error(
+          `Payment amount mismatch: expected RM${effectiveOrderAmount.toFixed(2)}, received RM${receivedAmount.toFixed(2)}`
+        );
+        err.status = 422;
+        err.code = 'AMOUNT_MISMATCH';
+        throw err;
+      }
+    }
+
+    // Verify currency
+    const rawCurrency = dataObject.currency;
+    if (!rawCurrency || typeof rawCurrency !== 'string') {
+      const err: any = new Error('Payment webhook payload is missing valid currency');
+      err.status = 422;
+      err.code = 'MISSING_CURRENCY';
+      throw err;
+    }
+    const receivedCurrency = rawCurrency.trim().toUpperCase();
+    if (receivedCurrency !== order.currency.toUpperCase()) {
+      console.warn(
+        `[finalizeWalletTopUp] Rejected: Currency mismatch on order ${order.id}. Expected ${order.currency}, received ${receivedCurrency}`
+      );
+      const err: any = new Error(
+        `Payment currency mismatch: expected ${order.currency}, received ${receivedCurrency}`
+      );
+      err.status = 422;
+      err.code = 'CURRENCY_MISMATCH';
+      throw err;
+    }
+
+    // Verify organization
+    const receivedOrgId =
+      dataObject.metadata?.organization_id ||
+      dataObject.metadata?.organizationId ||
+      dataObject.organization_id;
+    if (receivedOrgId && receivedOrgId !== order.organization_id) {
+      console.warn(
+        `[finalizeWalletTopUp] Rejected: Organization mismatch on order ${order.id}. Expected ${order.organization_id}, received ${receivedOrgId}`
+      );
+      const err: any = new Error('Unauthorized: Organization mismatch on top-up order');
+      err.status = 403;
+      err.code = 'ORGANIZATION_MISMATCH';
+      throw err;
+    }
+
+    resolvedPaymentReference =
+      dataObject.payment_reference ||
+      dataObject.payment_intent ||
+      dataObject.id ||
+      resolvedPaymentReference;
+    resolvedPaymentMethod =
+      dataObject.payment_method_types?.[0] || dataObject.payment_method || resolvedPaymentMethod;
+  }
+  // Case B: Developer Admin Manual Reconciliation
+  else if (options?.isManualReconciliation) {
+    syncSource = 'manual_reconciliation';
+    if (!options.paymentReference || typeof options.paymentReference !== 'string' || options.paymentReference.trim().length === 0) {
+      const err: any = new Error('Valid external payment reference is required for reconciliation');
+      err.status = 400;
+      err.code = 'PAYMENT_REFERENCE_REQUIRED';
+      throw err;
+    }
+    if (!options.reconciliationReason || typeof options.reconciliationReason !== 'string' || options.reconciliationReason.trim().length < 5) {
+      const err: any = new Error('Explicit reconciliation reason (minimum 5 characters) is required');
+      err.status = 400;
+      err.code = 'RECONCILIATION_REASON_REQUIRED';
+      throw err;
+    }
+    resolvedPaymentReference = options.paymentReference.trim();
+    resolvedPaymentMethod = options.paymentMethod || 'MANUAL_RECONCILIATION';
+  }
+  // Case C: Simulation / Sandbox Mode
+  else if (options?.isSimulation || order.metadata?.simulated_status === 'PAID') {
+    syncSource = 'simulation_paid';
+    resolvedPaymentReference = resolvedPaymentReference || `SIM_${order.id.slice(0, 8)}`;
+    resolvedPaymentMethod = options?.paymentMethod || 'simulated_card';
+  }
+  // Case D: Stripe Checkout Session / API verification (Normal, Polling, Retry, Confirm)
+  else {
+    const stripeCandidateId =
+      options?.sessionId ||
+      options?.stripeSession?.id ||
+      order.metadata?.stripe_session_id ||
+      order.metadata?.sessionId ||
+      (typeof order.payment_reference === 'string' && order.payment_reference.startsWith('STRIPE_cs_')
+        ? order.payment_reference.replace('STRIPE_', '')
+        : typeof order.payment_reference === 'string' && order.payment_reference.startsWith('cs_')
+        ? order.payment_reference
+        : null);
+
+    let stripeSession = options?.stripeSession;
+    const stripe = getStripeClient(env);
+
+    if (!stripeSession && stripe && stripeCandidateId && stripeCandidateId.startsWith('cs_') && !stripeCandidateId.startsWith('cs_egs_')) {
+      try {
+        stripeSession = await stripe.checkout.sessions.retrieve(stripeCandidateId.trim());
+      } catch (stripeErr: any) {
+        console.warn(`[finalizeWalletTopUp] Failed to retrieve Stripe session ${stripeCandidateId}:`, stripeErr?.message);
+      }
+    }
+
+    if (stripeSession) {
+      // 1. Verify Stripe payment status
+      const isStripePaid =
+        stripeSession.payment_status === 'paid' ||
+        (stripeSession.status === 'complete' && stripeSession.payment_status === 'paid');
+
+      if (!isStripePaid) {
+        const isStripeExpired =
+          stripeSession.status === 'expired' ||
+          (typeof stripeSession.expires_at === 'number' && stripeSession.expires_at * 1000 <= Date.now());
+
+        if (isStripeExpired && order.status === 'PENDING') {
+          try {
+            const expireResult = await processTopupOrderStatus(
+              {
+                orderId: order.id,
+                newStatus: 'EXPIRED',
+                reason: 'Stripe Checkout Session expired',
+                metadata: {
+                  ...(order.metadata || {}),
+                  stripe_session_id: stripeCandidateId,
+                  expired_at: new Date().toISOString(),
+                  sync_source: 'stripe_checkout_expired',
+                },
+                isTrustedSettlement: false,
+              },
+              env
+            );
+            return {
+              success: false,
+              status: 'EXPIRED',
+              order: expireResult.order,
+              alreadyProcessed: false,
+              isPending: false,
+              message: 'Stripe checkout session has expired',
+            };
+          } catch (expireErr) {
+            console.warn('[finalizeWalletTopUp] Failed to mark order expired:', expireErr);
+          }
+        }
+
+        // If Stripe payment is still pending/unpaid: DO NOT credit wallet, DO NOT create notification
+        return {
+          success: false,
+          status: order.status,
+          order,
+          alreadyProcessed: false,
+          isPending: stripeSession.status === 'open' || stripeSession.payment_status === 'unpaid',
+          message: `Stripe payment has not completed yet (status: ${stripeSession.status}, payment_status: ${stripeSession.payment_status})`,
+        };
+      }
+
+      // 2. Verify Amount
+      const stripeCents = stripeSession.amount_total;
+      if (typeof stripeCents === 'number') {
+        if (Math.round(stripeCents) !== expectedCents && Math.round(stripeCents) !== toCents(order.top_up_amount)) {
+          console.warn(
+            `[finalizeWalletTopUp] Stripe session amount mismatch for order ${order.id}: expected RM${effectiveOrderAmount.toFixed(2)} (${expectedCents} cents), got ${stripeCents} cents`
+          );
+          const err: any = new Error(
+            `Payment amount mismatch: expected RM${effectiveOrderAmount.toFixed(2)}, received RM${fromCents(stripeCents).toFixed(2)}`
+          );
+          err.status = 422;
+          err.code = 'AMOUNT_MISMATCH';
+          throw err;
+        }
+      }
+
+      // 3. Verify Currency
+      const stripeCurrency = stripeSession.currency ? String(stripeSession.currency).trim().toUpperCase() : null;
+      if (stripeCurrency && stripeCurrency !== order.currency.toUpperCase()) {
+        console.warn(
+          `[finalizeWalletTopUp] Stripe session currency mismatch for order ${order.id}: expected ${order.currency}, got ${stripeCurrency}`
+        );
+        const err: any = new Error(
+          `Payment currency mismatch: expected ${order.currency}, received ${stripeCurrency}`
+        );
+        err.status = 422;
+        err.code = 'CURRENCY_MISMATCH';
+        throw err;
+      }
+
+      // 4. Verify Organization
+      const stripeOrgId = stripeSession.metadata?.organization_id || stripeSession.metadata?.organizationId;
+      if (stripeOrgId && stripeOrgId !== order.organization_id) {
+        console.warn(
+          `[finalizeWalletTopUp] Stripe session organization mismatch for order ${order.id}: expected ${order.organization_id}, got ${stripeOrgId}`
+        );
+        const err: any = new Error('Unauthorized: Organization mismatch on top-up order');
+        err.status = 403;
+        err.code = 'ORGANIZATION_MISMATCH';
+        throw err;
+      }
+
+      const paymentIntentId =
+        typeof stripeSession.payment_intent === 'string'
+          ? stripeSession.payment_intent
+          : stripeSession.payment_intent?.id || `STRIPE_${stripeSession.id}`;
+      resolvedPaymentReference = paymentIntentId;
+      resolvedPaymentMethod = stripeSession.payment_method_types?.[0] || 'card';
+      syncSource = 'stripe_api_reconciliation';
+    } else {
+      // If no live Stripe session found: check if simulated
+      if (!isProductionEnvironment(env) && (order.metadata?.simulated_status === 'PAID' || options?.isSimulation)) {
+        syncSource = 'simulation_paid';
+        resolvedPaymentReference = resolvedPaymentReference || `SIM_${order.id.slice(0, 8)}`;
+        resolvedPaymentMethod = 'simulated_card';
+      } else if (!stripeCandidateId && !resolvedPaymentReference) {
+        return {
+          success: false,
+          status: order.status,
+          order,
+          alreadyProcessed: false,
+          isPending: true,
+          message: 'No active Stripe payment session found to finalize',
+        };
+      }
+    }
+  }
+
+  // 4. Atomically/idempotently transition the transaction to PAID via processTopupOrderStatus
+  const now = new Date().toISOString();
+  const settleResult = await processTopupOrderStatus(
+    {
+      orderId: order.id,
+      newStatus: 'PAID',
+      paymentReference: resolvedPaymentReference || `PAY_REF_${order.id.slice(0, 8)}`,
+      paymentMethod: resolvedPaymentMethod,
+      processedBy: options?.reconciledBy || order.user_id,
+      reason: options?.reason || (
+        options?.isManualReconciliation
+          ? `Manual Admin Reconciliation: ${options.reconciliationReason}`
+          : 'Stripe payment finalized successfully'
+      ),
+      metadata: {
+        ...(order.metadata || {}),
+        paid_at: now,
+        finalized_at: now,
+        sync_source: syncSource,
+        ...(options?.metadata || {}),
+      },
+      isTrustedSettlement: true,
+    },
+    env
+  );
+
+  const updatedOrder = settleResult.order;
+
+  // 5. Create "Top Up Successful" in-app notification exactly once
+  let notificationCreated = false;
+  if (!settleResult.alreadyProcessed) {
+    const amountStr = formatTopupAmountNotification(order.top_up_amount, order.currency);
+    const notifEvent: PaymentSuccessEvent = {
+      eventType: 'PAYMENT_SUCCESS',
+      organizationId: order.organization_id,
+      recipientUserId: order.user_id,
+      referenceId: `topup_${order.id}`,
+      amount: order.top_up_amount,
+      currency: order.currency || 'MYR',
+      subject: `Wallet Top-Up (${order.id.slice(0, 8).toUpperCase()})`,
+      paymentType: 'TOPUP',
+      customTitle: 'Top Up Successful',
+      customMessage: `Your wallet top-up of ${amountStr} has been completed successfully.`,
+      metadata: {
+        order_id: order.id,
+        top_up_amount: order.top_up_amount,
+        promo_credit: updatedOrder.expected_credit_amount,
+      },
+    };
+
+    await dispatchNotificationEvent(notifEvent, env).catch((err) => {
+      console.error('[finalizeWalletTopUp] Failed to dispatch Top Up Successful notification:', err);
+    });
+    notificationCreated = true;
+  }
+
+  return {
+    success: true,
+    status: 'PAID',
+    order: updatedOrder,
+    alreadyProcessed: settleResult.alreadyProcessed,
+    isDuplicate: settleResult.alreadyProcessed,
+    wallet: settleResult.wallet || settleResult.ledgerResult?.wallet,
+    ledgerResult: settleResult.ledgerResult,
+    notificationCreated,
+    paymentReference: updatedOrder.payment_reference || resolvedPaymentReference,
+    paymentMethod: updatedOrder.payment_method || resolvedPaymentMethod,
+    amount: updatedOrder.top_up_amount,
+    currency: updatedOrder.currency,
+    message: settleResult.message || 'Top-up order successfully finalized as PAID',
   };
 }
 

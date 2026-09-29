@@ -4481,6 +4481,31 @@ export async function processTopupOrderStatus(
           },
           env
         );
+
+        const num = Number(order.top_up_amount);
+        const curr = (order.currency || 'MYR').toUpperCase() === 'MYR' ? 'RM' : `${(order.currency || 'MYR').toUpperCase()} `;
+        const amountStr = `${curr}${num % 1 === 0 ? num.toLocaleString('en-US') : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        await dispatchNotificationEvent(
+          {
+            eventType: 'PAYMENT_SUCCESS',
+            organizationId: order.organization_id,
+            recipientUserId: order.user_id,
+            referenceId: `topup_${order.id}`,
+            amount: order.top_up_amount,
+            currency: order.currency || 'MYR',
+            subject: `Wallet Top-Up (${order.id.slice(0, 8).toUpperCase()})`,
+            paymentType: 'TOPUP',
+            customTitle: 'Top Up Successful',
+            customMessage: `Your wallet top-up of ${amountStr} has been completed successfully.`,
+            metadata: {
+              order_id: order.id,
+              top_up_amount: order.top_up_amount,
+              promo_credit: data.promo_credit_transaction ? data.promo_credit_transaction.amount : 0,
+            },
+          },
+          env
+        ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch PAYMENT_SUCCESS for top-up in Supabase mode:', err));
       }
 
       if (['FAILED', 'EXPIRED', 'CANCELLED'].includes(newStatus) && !data.is_idempotent_replay) {
@@ -4697,16 +4722,22 @@ export async function processTopupOrderStatus(
 
       const walletSummary = await getWalletBalance(order.organization_id, env);
 
+      const num = Number(order.top_up_amount);
+      const curr = (order.currency || 'MYR').toUpperCase() === 'MYR' ? 'RM' : `${(order.currency || 'MYR').toUpperCase()} `;
+      const amountStr = `${curr}${num % 1 === 0 ? num.toLocaleString('en-US') : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
       await dispatchNotificationEvent(
         {
           eventType: 'PAYMENT_SUCCESS',
           organizationId: order.organization_id,
           recipientUserId: order.user_id,
-          referenceId: order.payment_reference || `topup_${order.id}`,
+          referenceId: `topup_${order.id}`,
           amount: order.top_up_amount,
           currency: order.currency || 'MYR',
           subject: `Wallet Top-Up (${order.id.slice(0, 8).toUpperCase()})`,
           paymentType: 'TOPUP',
+          customTitle: 'Top Up Successful',
+          customMessage: `Your wallet top-up of ${amountStr} has been completed successfully.`,
           metadata: {
             order_id: order.id,
             top_up_amount: order.top_up_amount,
