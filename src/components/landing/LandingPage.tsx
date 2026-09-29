@@ -12,12 +12,15 @@ import { LandingFinalCta } from './LandingFinalCta';
 import { LandingFooter } from './LandingFooter';
 import { GameCatalogModal } from '../studio/GameCatalogModal';
 import { LandingDemoModal } from './LandingDemoModal';
+import { SEO } from '../common/SEO';
+import { getPageSeo } from '../../lib/seo';
 
 export const LandingPage: React.FC = () => {
   const [catalogModalOpen, setCatalogModalOpen] = useState(false);
   const [demoModalOpen, setDemoModalOpen] = useState(false);
   const [demoGameId, setDemoGameId] = useState<string>('catch-brand');
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const pageSeo = getPageSeo('/');
 
   useEffect(() => {
     const handleScroll = () => {
@@ -49,6 +52,9 @@ export const LandingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
+      {/* Central SEO Head Configuration */}
+      <SEO config={pageSeo} />
+
       {/* Sticky Global Brand Header */}
       <LandingHeader onExploreGames={() => setCatalogModalOpen(true)} />
 

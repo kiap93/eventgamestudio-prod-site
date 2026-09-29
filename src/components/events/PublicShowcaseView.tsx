@@ -5,6 +5,7 @@ import { apiFetch } from '../../lib/api';
 import { EventShowcase, EventShowcaseMedia } from '../../types/showcase';
 import { GAME_REGISTRY } from '../../games/registry';
 import { formatEventDateRange } from '../../lib/dateUtils';
+import { SEO } from '../common/SEO';
 import {
   Gamepad2,
   Share2,
@@ -237,8 +238,34 @@ export const PublicShowcaseView: React.FC = () => {
   const gameDef = event?.game_type ? GAME_REGISTRY[event.game_type] : null;
   const gameName = gameDef?.name || event?.game_type || 'Interactive Event Mini-Game';
 
+  const isPublished =
+    showcase &&
+    (showcase.status === 'PUBLISHED' || showcase.publication_status === 'PUBLISHED') &&
+    !isPreview &&
+    !showcase.deleted_at;
+  const showcaseTitle = showcase?.title
+    ? `${showcase.title} | Event Game Studio Showcase`
+    : 'Event Game Showcase | Event Game Studio';
+  const showcaseDesc = showcase?.description
+    ? showcase.description.slice(0, 155).trim()
+    : 'View interactive event game showcase with live stage leaderboards, customized branding assets, and player engagement data on Event Game Studio.';
+  const showcaseOgImage = showcase?.cover_image_url || media[0]?.media_url || 'https://eventgamestudio.com/og-image.jpg';
+  const canonicalUrl = `https://eventgamestudio.com/showcase/${showcase?.id || showcaseParam}`;
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+      <SEO
+        title={showcaseTitle}
+        description={showcaseDesc}
+        canonical={canonicalUrl}
+        ogImage={showcaseOgImage}
+        robots={isPublished ? 'index, follow' : 'noindex, follow'}
+        breadcrumbs={[
+          { name: 'Home', item: '/' },
+          { name: 'Showcase', item: '/showcase' },
+          { name: showcase?.title || 'Event Showcase', item: `/showcase/${showcase?.id || showcaseParam}` },
+        ]}
+      />
       {/* 1. STICKY TOP BRAND HEADER */}
       <header
         id="public-showcase-header"

@@ -7,6 +7,10 @@ export type PresentationMode =
   | 'public_game'
   | 'public_event'
   | 'public_showcase'
+  | 'public_showcases'
+  | 'public_games'
+  | 'public_game_detail'
+  | 'seo_landing'
   | 'event_preview'
   | 'studio'
   | 'studio_preview'
@@ -27,6 +31,8 @@ export interface RouteContext {
   isDeveloperAdminRoute: boolean;
   isShowcaseRoute?: boolean;
   showcaseId?: string;
+  seoSlug?: string;
+  publicGameSlug?: string;
   eventId?: string;
   publicToken?: string;
   organizationSlug?: string;
@@ -63,6 +69,14 @@ const RESERVED_PREFIXES = new Set([
   'wallet',
   'showcase',
   'showcases',
+  'interactive-event-games',
+  'corporate-event-games',
+  'brand-activation-games',
+  'event-mini-games',
+  'roadshow-games',
+  'exhibition-games',
+  'branded-event-games',
+  'digital-event-games',
 ]);
 
 export function parseRoute(pathname: string): RouteContext {
@@ -172,20 +186,88 @@ export function parseRoute(pathname: string): RouteContext {
     };
   }
 
-  // 1.2. Check for Public Showcase Routes: /showcase/:showcaseId or /showcases/:showcaseId
-  if (parts.length >= 2 && (parts[0].toLowerCase() === 'showcase' || parts[0].toLowerCase() === 'showcases')) {
+  // 1.2. Check for Public Showcase Routes: /showcase/:showcaseId or /showcase index
+  if (parts.length >= 1 && (parts[0].toLowerCase() === 'showcase' || parts[0].toLowerCase() === 'showcases')) {
+    if (parts.length >= 2) {
+      return {
+        mode: 'public_showcase',
+        isPublicGameRoute: false,
+        isPublicEventRoute: false,
+        isPublicShowcaseRoute: true,
+        isEventPreviewRoute: false,
+        isStudioRoute: false,
+        isPreviewRoute: false,
+        isDeveloperAdminRoute: false,
+        showcaseId: parts[1],
+        pathname: cleanPath,
+      };
+    } else {
+      return {
+        mode: 'public_showcases',
+        isPublicGameRoute: false,
+        isPublicEventRoute: false,
+        isPublicShowcaseRoute: true,
+        isEventPreviewRoute: false,
+        isStudioRoute: false,
+        isPreviewRoute: false,
+        isDeveloperAdminRoute: false,
+        pathname: cleanPath,
+      };
+    }
+  }
+
+  // 1.3. Check for Public SEO Solutions Landing Pages
+  const SEO_LANDING_SLUGS = new Set([
+    'interactive-event-games',
+    'corporate-event-games',
+    'brand-activation-games',
+    'event-mini-games',
+    'roadshow-games',
+    'exhibition-games',
+    'branded-event-games',
+    'digital-event-games',
+  ]);
+
+  if (parts.length === 1 && SEO_LANDING_SLUGS.has(parts[0].toLowerCase())) {
     return {
-      mode: 'public_showcase',
+      mode: 'seo_landing',
       isPublicGameRoute: false,
       isPublicEventRoute: false,
-      isPublicShowcaseRoute: true,
       isEventPreviewRoute: false,
       isStudioRoute: false,
       isPreviewRoute: false,
       isDeveloperAdminRoute: false,
-      showcaseId: parts[1],
+      seoSlug: parts[0].toLowerCase(),
       pathname: cleanPath,
     };
+  }
+
+  // 1.4. Check for Public Games Pages (/games or /games/:gameSlug)
+  if (parts.length >= 1 && parts[0].toLowerCase() === 'games') {
+    if (parts.length === 1) {
+      return {
+        mode: 'public_games',
+        isPublicGameRoute: false,
+        isPublicEventRoute: false,
+        isEventPreviewRoute: false,
+        isStudioRoute: false,
+        isPreviewRoute: false,
+        isDeveloperAdminRoute: false,
+        pathname: cleanPath,
+      };
+    } else if (parts.length === 2 && !['themes', 'edit', 'new'].includes(parts[1].toLowerCase())) {
+      return {
+        mode: 'public_game_detail',
+        isPublicGameRoute: false,
+        isPublicEventRoute: false,
+        isEventPreviewRoute: false,
+        isStudioRoute: false,
+        isPreviewRoute: false,
+        isDeveloperAdminRoute: false,
+        publicGameSlug: parts[1].toLowerCase(),
+        pathname: cleanPath,
+      };
+    }
   }
 
   // 1.5. Check for Authenticated Event Preview Route: /events/:eventId/preview or /events/preview/:eventId

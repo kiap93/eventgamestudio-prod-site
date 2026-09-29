@@ -12,9 +12,9 @@ export const LandingFooter: React.FC = () => {
   return (
     <footer className="w-full bg-slate-50 border-t border-slate-200 text-slate-600 text-xs py-12 md:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-8 border-b border-slate-200">
-          {/* Brand Info */}
-          <div className="md:col-span-1 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-8 pb-10 border-b border-slate-200">
+          {/* 1. Brand Info */}
+          <div className="sm:col-span-2 md:col-span-1 space-y-4">
             <div className="flex items-center gap-2.5">
               <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-600">
                 <Gamepad2 className="w-5 h-5" />
@@ -32,10 +32,134 @@ export const LandingFooter: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Platform Links */}
+          {/* 2. Event Solutions */}
           <div className="space-y-3">
             <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
-              Platform
+              Event Solutions
+            </div>
+            <ul className="space-y-2 text-xs">
+              <li>
+                <button
+                  onClick={() => navigateTo('/interactive-event-games')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                >
+                  Interactive Event Games
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/corporate-event-games')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                >
+                  Corporate Event Games
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/brand-activation-games')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                >
+                  Brand Activation Games
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/roadshow-games')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                >
+                  Roadshow Games
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/exhibition-games')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                >
+                  Exhibition & Booth Games
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/event-mini-games')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                >
+                  Event Mini-Games
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/branded-event-games')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                >
+                  Branded Event Games
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/digital-event-games')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                >
+                  Digital Event Games
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          {/* 3. Event Games */}
+          <div className="space-y-3">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
+              Game Engines
+            </div>
+            <ul className="space-y-2 text-xs">
+              <li>
+                <button
+                  onClick={() => navigateTo('/games')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer font-bold text-slate-900 flex items-center gap-1"
+                >
+                  <span>All Games Catalog</span>
+                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/games/catch-the-brand')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                >
+                  Catch the Brand
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/games/memory-match')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                >
+                  Brand Memory Match
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/games/reaction-challenge')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer"
+                >
+                  Formula Reaction Lights
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('/showcase')}
+                  className="hover:text-amber-600 transition-colors text-left cursor-pointer font-semibold text-slate-800 flex items-center gap-1 pt-1"
+                >
+                  <span>Event Showcases</span>
+                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          {/* 4. Platform & Workspaces */}
+          <div className="space-y-3">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
+              Organizer Studio
             </div>
             <ul className="space-y-2 text-xs">
               <li>
@@ -65,22 +189,41 @@ export const LandingFooter: React.FC = () => {
                   <ArrowUpRight className="w-3 h-3 text-slate-400" />
                 </button>
               </li>
+              <li>
+                <button
+                  onClick={() => navigateTo(isAuthenticated ? '/wallet' : '/login')}
+                  className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
+                >
+                  <span>Wallet & Credits</span>
+                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
+                </button>
+              </li>
+              {currentUser?.is_developer && (
+                <li>
+                  <button
+                    onClick={() => navigateTo('/developer')}
+                    className="hover:text-emerald-600 text-emerald-700 font-semibold transition-colors text-left cursor-pointer"
+                  >
+                    Developer Admin
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
 
-          {/* Contact & Support */}
+          {/* 5. Contact & Support */}
           <div className="space-y-3">
             <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
-              Contact & Support
+              Contact & Enquiries
             </div>
             <ul className="space-y-2 text-xs">
               <li>
                 <button
                   onClick={() => navigateTo('/contact')}
-                  className="hover:text-amber-600 transition-colors flex items-center gap-1.5 text-left cursor-pointer font-medium text-slate-700"
+                  className="hover:text-amber-600 transition-colors flex items-center gap-1.5 text-left cursor-pointer font-bold text-slate-900"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Contact Us & Enquiries</span>
+                  <span>Contact Form</span>
                 </button>
               </li>
               <li>
@@ -98,46 +241,6 @@ export const LandingFooter: React.FC = () => {
               <li className="text-slate-500 text-[11px] pt-1">
                 {officeLocation}
               </li>
-            </ul>
-          </div>
-
-          {/* Access & Developer */}
-          <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
-              Access
-            </div>
-            <ul className="space-y-2 text-xs">
-              {isAuthenticated ? (
-                <>
-                  <li>
-                    <button
-                      onClick={() => navigateTo('/events')}
-                      className="hover:text-amber-600 transition-colors text-left cursor-pointer"
-                    >
-                      Studio App
-                    </button>
-                  </li>
-                  {currentUser?.is_developer && (
-                    <li>
-                      <button
-                        onClick={() => navigateTo('/developer')}
-                        className="hover:text-emerald-600 text-emerald-700 font-medium transition-colors text-left cursor-pointer"
-                      >
-                        Developer Admin
-                      </button>
-                    </li>
-                  )}
-                </>
-              ) : (
-                <li>
-                  <button
-                    onClick={() => navigateTo('/login')}
-                    className="hover:text-amber-600 transition-colors text-left cursor-pointer"
-                  >
-                    Organizer Sign In
-                  </button>
-                </li>
-              )}
               <li className="pt-2">
                 <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[10px] text-slate-600 shadow-xs">
                   <ShieldCheck className="w-3 h-3 text-emerald-600" />

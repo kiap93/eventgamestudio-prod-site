@@ -1,6 +1,6 @@
 {
   "name": "Remix Event Game Studio",
-  "description": "A retro 2D pixel-art arcade game where you catch green durians and avoid orange durians in a lush forest.",
+  "description": "Create branded interactive games for corporate events, exhibitions, roadshows, product launches and brand activations. Customize games, themes and event branding with Event Game Studio.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

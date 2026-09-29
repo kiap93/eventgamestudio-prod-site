@@ -13,6 +13,11 @@ import { EventPreviewGameView } from './components/events/EventPreviewGameView';
 import { DeveloperAdminPage } from './components/developer/DeveloperAdminPage';
 import { LandingPage } from './components/landing/LandingPage';
 import { ContactPage } from './components/contact/ContactPage';
+import { SeoLandingPage } from './components/seo/SeoLandingPage';
+import { PublicGamesPage } from './components/seo/PublicGamesPage';
+import { PublicGameDetailPage } from './components/seo/PublicGameDetailPage';
+import { PublicShowcasesIndexPage } from './components/seo/PublicShowcasesIndexPage';
+import { SEO } from './components/common/SEO';
 import { NotificationProvider } from './context/NotificationContext';
 import { NotificationCenterModal } from './components/notifications/NotificationCenterModal';
 import { ShieldAlert } from 'lucide-react';
@@ -24,6 +29,10 @@ const AppContent: React.FC = () => {
   const isPublicRoute =
     routeContext.mode === 'public_event' ||
     routeContext.mode === 'public_showcase' ||
+    routeContext.mode === 'public_showcases' ||
+    routeContext.mode === 'public_games' ||
+    routeContext.mode === 'public_game_detail' ||
+    routeContext.mode === 'seo_landing' ||
     routeContext.mode === 'accept_invite' ||
     routeContext.mode === 'landing' ||
     routeContext.mode === 'contact';
@@ -62,19 +71,49 @@ const AppContent: React.FC = () => {
     return <PublicEventGameView />;
   }
 
-  // 1.2. PUBLIC SHOWCASE ROUTE: /showcase/:showcaseId (Unauthenticated Public Showcase View)
+  // 1.2. PUBLIC SHOWCASE SINGLE VIEW: /showcase/:showcaseId (Unauthenticated Public Showcase View)
   if (routeContext.mode === 'public_showcase') {
     return <PublicShowcaseView />;
   }
 
-  // 1.5. AUTHENTICATED EVENT PREVIEW ROUTE: /events/:eventId/preview
+  // 1.3. PUBLIC SHOWCASES DIRECTORY: /showcase
+  if (routeContext.mode === 'public_showcases') {
+    return <PublicShowcasesIndexPage />;
+  }
+
+  // 1.4. PUBLIC SOLUTIONS SEO PAGES (e.g. /interactive-event-games, /corporate-event-games, etc.)
+  if (routeContext.mode === 'seo_landing') {
+    return <SeoLandingPage pathname={routeContext.pathname} />;
+  }
+
+  // 1.5. PUBLIC GAMES CATALOG: /games
+  if (routeContext.mode === 'public_games') {
+    return <PublicGamesPage />;
+  }
+
+  // 1.6. PUBLIC GAME DETAIL PAGES: /games/:gameSlug (e.g. /games/catch-the-brand)
+  if (routeContext.mode === 'public_game_detail') {
+    return <PublicGameDetailPage slugKey={routeContext.publicGameSlug || ''} />;
+  }
+
+  // 1.7. AUTHENTICATED EVENT PREVIEW ROUTE: /events/:eventId/preview
   if (routeContext.mode === 'event_preview') {
-    return <EventPreviewGameView />;
+    return (
+      <>
+        <SEO robots="noindex, follow" title="Event Preview | Event Game Studio" />
+        <EventPreviewGameView />
+      </>
+    );
   }
 
   // 2. ACCEPT INVITE ROUTE
   if (routeContext.mode === 'accept_invite') {
-    return <AcceptInvitePage />;
+    return (
+      <>
+        <SEO robots="noindex, follow" title="Accept Invitation | Event Game Studio" />
+        <AcceptInvitePage />
+      </>
+    );
   }
 
   // 3. PUBLIC MARKETING LANDING PAGE: / (Accessible with or without authentication)
@@ -91,21 +130,28 @@ const AppContent: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans space-y-3">
+        <SEO robots="noindex, follow" />
         <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
         <p className="text-xs text-slate-400 font-medium">Loading Event Game Studio...</p>
       </div>
     );
   }
 
-  // 5. UNAUTHENTICATED USERS: Always show LoginPage
+  // 5. UNAUTHENTICATED USERS: Always show LoginPage with noindex
   if (!isAuthenticated) {
-    return <LoginPage />;
+    return (
+      <>
+        <SEO robots="noindex, follow" title="Sign In | Event Game Studio" />
+        <LoginPage />
+      </>
+    );
   }
 
   // 6. AUTHENTICATED GUARD FOR /login (Never render LoginPage when authenticated)
   if (isLoginRoute) {
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans space-y-3">
+        <SEO robots="noindex, follow" />
         <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
         <p className="text-xs text-slate-400 font-medium">Redirecting to Events...</p>
       </div>
@@ -117,6 +163,7 @@ const AppContent: React.FC = () => {
     if (!currentUser?.is_developer) {
       return (
         <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-4">
+          <SEO robots="noindex, follow" title="Access Denied | Event Game Studio" />
           <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-4 shadow-2xl">
             <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
               <ShieldAlert className="w-6 h-6" />
@@ -137,13 +184,23 @@ const AppContent: React.FC = () => {
         </div>
       );
     }
-    return <DeveloperAdminPage />;
+    return (
+      <>
+        <SEO robots="noindex, follow" title="Developer Admin | Event Game Studio" />
+        <DeveloperAdminPage />
+      </>
+    );
   }
 
   // 8. ONBOARDING / CREATE ORGANIZATION ROUTE
   // Once currentOrganization exists, CreateOrganizationPage must no longer render (Requirement 6).
   if (!currentOrganization) {
-    return <CreateOrganizationPage />;
+    return (
+      <>
+        <SEO robots="noindex, follow" title="Create Workspace | Event Game Studio" />
+        <CreateOrganizationPage />
+      </>
+    );
   }
 
   // If routeContext.mode === 'create_org' remains true after creation, fix the route transition
@@ -151,6 +208,7 @@ const AppContent: React.FC = () => {
   if (routeContext.mode === 'create_org') {
     return (
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans space-y-3">
+        <SEO robots="noindex, follow" />
         <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
         <p className="text-xs text-slate-400 font-medium">Entering Studio...</p>
       </div>
@@ -160,16 +218,31 @@ const AppContent: React.FC = () => {
   // 8b. EXISTING ORGANIZATION MISSING COUNTRY CODE
   // Prompt owner/admin to select organization country upon login/access
   if (!currentOrganization.country_code) {
-    return <SetOrganizationCountryModal organization={currentOrganization} />;
+    return (
+      <>
+        <SEO robots="noindex, follow" />
+        <SetOrganizationCountryModal organization={currentOrganization} />
+      </>
+    );
   }
 
   // 8c. MANDATORY THEME SETUP ONBOARDING ROUTE (/theme-setup)
   if (routeContext.mode === 'theme_setup') {
-    return <ThemeSetupOnboardingPage />;
+    return (
+      <>
+        <SEO robots="noindex, follow" title="Theme Setup | Event Game Studio" />
+        <ThemeSetupOnboardingPage />
+      </>
+    );
   }
 
   // 9. PROTECTED STUDIO / DASHBOARD ROUTE (e.g. /events, /game-themes, /team, /wallet)
-  return <DashboardLayout />;
+  return (
+    <>
+      <SEO robots="noindex, follow" />
+      <DashboardLayout />
+    </>
+  );
 };
 
 export default function App() {

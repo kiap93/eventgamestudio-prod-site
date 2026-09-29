@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { navigateTo, useRouteContext } from '../../hooks/useRouteContext';
 import {
@@ -11,6 +11,10 @@ import {
   Menu,
   X,
   MessageSquare,
+  ChevronDown,
+  Trophy,
+  Building2,
+  Tv,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 
@@ -22,8 +26,23 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
   const { isAuthenticated, currentUser, currentOrganization, logout } = useAuth();
   const routeContext = useRouteContext();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [solutionsDropdownOpen, setSolutionsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   const isContactPage = routeContext.mode === 'contact';
+  const isGamesPage = routeContext.mode === 'public_games' || routeContext.mode === 'public_game_detail';
+  const isShowcasePage = routeContext.mode === 'public_showcases' || routeContext.mode === 'public_showcase';
+  const isSolutionsPage = routeContext.mode === 'seo_landing';
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setSolutionsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleCreateEventClick = () => {
     if (isAuthenticated) {
@@ -43,9 +62,9 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
 
   const scrollToSection = (id: string) => {
     setMobileMenuOpen(false);
-    if (isContactPage) {
+    setSolutionsDropdownOpen(false);
+    if (routeContext.mode !== 'landing') {
       navigateTo('/');
-      // Allow transition then scroll
       setTimeout(() => {
         const el = document.getElementById(id);
         if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -61,6 +80,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
 
   const handleContactClick = () => {
     setMobileMenuOpen(false);
+    setSolutionsDropdownOpen(false);
     navigateTo('/contact');
   };
 
@@ -95,35 +115,115 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
           {/* Desktop Navigation Links */}
           <nav className="hidden lg:flex items-center gap-1 ml-4 pl-4 border-l border-slate-200">
             <button
+              onClick={() => navigateTo('/games')}
+              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                isGamesPage
+                  ? 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              Games
+            </button>
+
+            <button
+              onClick={() => navigateTo('/showcase')}
+              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                isShowcasePage
+                  ? 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              Showcase
+            </button>
+
+            {/* Solutions Dropdown */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setSolutionsDropdownOpen((prev) => !prev)}
+                className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1 ${
+                  isSolutionsPage
+                    ? 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+                aria-expanded={solutionsDropdownOpen}
+              >
+                <span>Solutions</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${solutionsDropdownOpen ? 'rotate-180 text-amber-600' : ''}`} />
+              </button>
+
+              {solutionsDropdownOpen && (
+                <div className="absolute top-full left-0 mt-1 w-64 p-2 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-900/10 z-50 animate-in fade-in slide-in-from-top-2 duration-150 space-y-1">
+                  <button
+                    onClick={() => {
+                      setSolutionsDropdownOpen(false);
+                      navigateTo('/corporate-event-games');
+                    }}
+                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors cursor-pointer group"
+                  >
+                    <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
+                      Corporate Events
+                    </span>
+                    <span className="text-[11px] text-slate-500 block">Annual dinners, summits & galas</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSolutionsDropdownOpen(false);
+                      navigateTo('/brand-activation-games');
+                    }}
+                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors cursor-pointer group"
+                  >
+                    <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
+                      Brand Activations
+                    </span>
+                    <span className="text-[11px] text-slate-500 block">Experiential & product campaigns</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSolutionsDropdownOpen(false);
+                      navigateTo('/roadshow-games');
+                    }}
+                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors cursor-pointer group"
+                  >
+                    <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
+                      Roadshows & Pop-Ups
+                    </span>
+                    <span className="text-[11px] text-slate-500 block">Mall concourse & touch kiosks</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSolutionsDropdownOpen(false);
+                      navigateTo('/exhibition-games');
+                    }}
+                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors cursor-pointer group"
+                  >
+                    <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
+                      Exhibitions & Booths
+                    </span>
+                    <span className="text-[11px] text-slate-500 block">Trade show crowd attraction</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSolutionsDropdownOpen(false);
+                      navigateTo('/interactive-event-games');
+                    }}
+                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors cursor-pointer group border-t border-slate-100"
+                  >
+                    <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
+                      Interactive Event Games
+                    </span>
+                    <span className="text-[11px] text-slate-500 block">QR browser play & live leaderboards</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button
               onClick={() => scrollToSection('how-it-works')}
               className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
             >
               How It Works
             </button>
-            <button
-              onClick={() => scrollToSection('game-showcase')}
-              className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
-            >
-              Games
-            </button>
-            <button
-              onClick={() => scrollToSection('brand-your-game')}
-              className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
-            >
-              Brand Customizer
-            </button>
-            <button
-              onClick={() => scrollToSection('event-showcase')}
-              className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
-            >
-              Production Formats
-            </button>
-            <button
-              onClick={() => scrollToSection('agencies')}
-              className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
-            >
-              For Agencies
-            </button>
+
             <button
               onClick={handleContactClick}
               className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -226,34 +326,72 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
         <div className="sm:hidden px-4 pt-2 pb-6 bg-white border-b border-slate-200 space-y-3 shadow-lg">
           <div className="flex flex-col gap-1 text-xs font-semibold">
             <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                navigateTo('/games');
+              }}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-900 font-bold"
+            >
+              Interactive Games
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                navigateTo('/showcase');
+              }}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-900 font-bold"
+            >
+              Event Showcases
+            </button>
+
+            {/* Mobile Solutions Section */}
+            <div className="py-1 px-2.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+              Event Solutions
+            </div>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                navigateTo('/corporate-event-games');
+              }}
+              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4"
+            >
+              Corporate Event Games
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                navigateTo('/brand-activation-games');
+              }}
+              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4"
+            >
+              Brand Activation Games
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                navigateTo('/roadshow-games');
+              }}
+              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4"
+            >
+              Roadshow & Pop-Up Games
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                navigateTo('/exhibition-games');
+              }}
+              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4"
+            >
+              Exhibition & Booth Games
+            </button>
+
+            <div className="border-t border-slate-100 my-1" />
+
+            <button
               onClick={() => scrollToSection('how-it-works')}
               className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-700"
             >
               How It Works
-            </button>
-            <button
-              onClick={() => scrollToSection('game-showcase')}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-700"
-            >
-              Game Showcase
-            </button>
-            <button
-              onClick={() => scrollToSection('brand-your-game')}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-700"
-            >
-              Brand Customization
-            </button>
-            <button
-              onClick={() => scrollToSection('event-showcase')}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-700"
-            >
-              Production Formats
-            </button>
-            <button
-              onClick={() => scrollToSection('agencies')}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-700"
-            >
-              For Event Agencies
             </button>
             <button
               onClick={handleContactClick}

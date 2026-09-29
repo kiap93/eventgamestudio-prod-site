@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+
+Disallow: /login
+Disallow: /create-organization
+Disallow: /theme-setup
+Disallow: /developer
+Disallow: /admin
+Disallow: /studio
+Disallow: /events
+Disallow: /game-themes
+Disallow: /team
+Disallow: /wallet
+Disallow: /accept-invite
+
+Sitemap: https://eventgamestudio.com/sitemap.xml

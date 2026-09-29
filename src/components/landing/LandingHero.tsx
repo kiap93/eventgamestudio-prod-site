@@ -81,17 +81,22 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
           </motion.div>
 
           {/* Dominant Display Headline */}
-          <motion.h1
+          <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.08 }}
-            className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight text-slate-900 leading-[1.05]"
+            className="space-y-3"
           >
-            Make Your Events{' '}
-            <span className="bg-gradient-to-r from-amber-500 via-amber-600 to-emerald-600 bg-clip-text text-transparent drop-shadow-xs">
-              Playable.
-            </span>
-          </motion.h1>
+            <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 leading-[1.1]">
+              Interactive Event Games &{' '}
+              <span className="bg-gradient-to-r from-amber-500 via-amber-600 to-emerald-600 bg-clip-text text-transparent drop-shadow-xs">
+                Branded Mini-Games
+              </span>
+            </h1>
+            <p className="text-xl sm:text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
+              Make Your Events Playable.
+            </p>
+          </motion.div>
 
           {/* Clear Value Supporting Text */}
           <motion.p

@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { LandingHeader } from '../landing/LandingHeader';
 import { LandingFooter } from '../landing/LandingFooter';
+import { SEO } from '../common/SEO';
+import { getPageSeo } from '../../lib/seo';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { usePlatformContactSettings } from '../../hooks/usePlatformContactSettings';
 import { apiFetch } from '../../lib/api';
@@ -78,6 +80,8 @@ export const ContactPage: React.FC = () => {
     supportHours,
     officeLocation,
   } = usePlatformContactSettings();
+
+  const pageSeo = getPageSeo('/contact');
 
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -177,6 +181,9 @@ export const ContactPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-amber-100 selection:text-amber-900 flex flex-col justify-between">
+      {/* Central SEO Head Configuration */}
+      <SEO config={pageSeo} />
+
       {/* Universal White Navigation Header */}
       <LandingHeader />
 

@@ -556,13 +556,13 @@ export class NotificationDispatcher {
 
         return {
           type: 'payment_success',
-          category: isTopup ? 'wallet' : 'billing',
           actionUrl: event.eventId ? `/events` : '/wallet',
           entityType: event.eventId ? 'event' : 'wallet_transaction',
           entityId: event.eventId || event.referenceId,
           customTitle,
           customMessage,
           metadata: {
+            category: isTopup ? 'wallet' : 'billing',
             amount: amountFormatted,
             subject: event.subject,
             reference_id: event.referenceId,

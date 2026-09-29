@@ -602,6 +602,141 @@ export default {
         return Response.redirect(redirectTarget, 302);
       }
 
+      // Serve canonical robots.txt if requested on edge worker
+      if (pathname === '/robots.txt' && method === 'GET') {
+        const robotsContent = `User-agent: *
+Allow: /
+
+Disallow: /login
+Disallow: /create-organization
+Disallow: /theme-setup
+Disallow: /developer
+Disallow: /admin
+Disallow: /studio
+Disallow: /events
+Disallow: /game-themes
+Disallow: /team
+Disallow: /wallet
+Disallow: /accept-invite
+Disallow: /api/
+
+Sitemap: https://eventgamestudio.com/sitemap.xml
+`;
+        return new Response(robotsContent, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'public, max-age=86400',
+            ...cors,
+          },
+        });
+      }
+
+      // Serve canonical sitemap.xml if requested on edge worker
+      if (pathname === '/sitemap.xml' && method === 'GET') {
+        const sitemapContent = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://eventgamestudio.com/</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/interactive-event-games</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/corporate-event-games</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/brand-activation-games</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/event-mini-games</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/roadshow-games</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/exhibition-games</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/branded-event-games</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/digital-event-games</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/games</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/games/catch-the-brand</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/games/memory-match</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/games/reaction-challenge</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/showcase</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://eventgamestudio.com/contact</loc>
+    <lastmod>2026-09-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+</urlset>`;
+        return new Response(sitemapContent, {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/xml; charset=utf-8',
+            'Cache-Control': 'public, max-age=86400',
+            ...cors,
+          },
+        });
+      }
+
       // If the request is not an API route and env.ASSETS is available, delegate to Cloudflare Assets with SPA fallback
       if (!pathname.startsWith('/api') && env.ASSETS && typeof env.ASSETS.fetch === 'function') {
         let assetResponse = await env.ASSETS.fetch(request);
