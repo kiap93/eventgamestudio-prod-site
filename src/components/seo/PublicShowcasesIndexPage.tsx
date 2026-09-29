@@ -77,7 +77,7 @@ export const PublicShowcasesIndexPage: React.FC = () => {
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
       <SEO config={pageSeo} />
 
-      <LandingHeader onExploreGames={() => navigateTo('/games')} />
+      <LandingHeader onExploreGames={() => navigateTo('/game-showcase')} />
 
       <main className="flex-1">
         {/* Breadcrumb Navigation */}

@@ -92,12 +92,12 @@ const AppContent: React.FC = () => {
     return <SeoLandingPage pathname={routeContext.pathname} />;
   }
 
-  // 1.5. PUBLIC GAMES CATALOG: /games
+  // 1.5. PUBLIC GAMES CATALOG: /game-showcase
   if (routeContext.mode === 'public_games') {
     return <PublicGamesPage />;
   }
 
-  // 1.6. PUBLIC GAME DETAIL PAGES: /games/:gameSlug (e.g. /games/catch-the-brand)
+  // 1.6. PUBLIC GAME DETAIL PAGES: /game-showcase/:gameSlug (e.g. /game-showcase/catch-the-brand)
   if (routeContext.mode === 'public_game_detail') {
     return <PublicGameDetailPage slugKey={routeContext.publicGameSlug || ''} />;
   }

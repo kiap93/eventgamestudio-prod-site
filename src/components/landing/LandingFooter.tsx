@@ -114,7 +114,7 @@ export const LandingFooter: React.FC = () => {
             <ul className="space-y-2 text-xs">
               <li>
                 <InternalLink
-                  href="/games"
+                  href="/game-showcase"
                   className="hover:text-amber-600 transition-colors text-left font-bold text-slate-900 flex items-center gap-1"
                 >
                   <span>All Games Catalog</span>
@@ -123,7 +123,7 @@ export const LandingFooter: React.FC = () => {
               </li>
               <li>
                 <InternalLink
-                  href="/games/catch-the-brand"
+                  href="/game-showcase/catch-the-brand"
                   className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Catch the Brand
@@ -131,7 +131,7 @@ export const LandingFooter: React.FC = () => {
               </li>
               <li>
                 <InternalLink
-                  href="/games/memory-match"
+                  href="/game-showcase/memory-match"
                   className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Brand Memory Match
@@ -139,7 +139,7 @@ export const LandingFooter: React.FC = () => {
               </li>
               <li>
                 <InternalLink
-                  href="/games/reaction-challenge"
+                  href="/game-showcase/reaction-challenge"
                   className="hover:text-amber-600 transition-colors text-left block"
                 >
                   Formula Reaction Lights

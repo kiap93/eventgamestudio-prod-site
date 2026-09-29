@@ -18,11 +18,20 @@ import {
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
+import { InternalLink } from '../common/InternalLink';
 
 interface LandingGameShowcaseProps {
   onTryDemo: (gameId: string) => void;
   onExploreAll: () => void;
 }
+
+const getPublicGameSlug = (id: string): string => {
+  if (id === 'catch-brand' || id === 'catch-the-brand') return '/game-showcase/catch-the-brand';
+  if (id === 'memory-match') return '/game-showcase/memory-match';
+  if (id === 'reaction-tap' || id === 'reaction-time' || id === 'reaction-challenge') return '/game-showcase/reaction-challenge';
+  if (id === 'speed-quiz') return '/game-showcase/speed-quiz';
+  return `/game-showcase/${id}`;
+};
 
 const iconMap: Record<string, React.ReactNode> = {
   Gamepad2: <Gamepad2 className="w-6 h-6 text-amber-600" />,
@@ -231,9 +240,11 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                         <span>Flagship Interactive Title</span>
                       </div>
 
-                      <h3 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
-                        {game.name}
-                      </h3>
+                      <InternalLink href="/game-showcase/catch-the-brand" className="block group/title">
+                        <h3 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight group-hover/title:text-amber-600 transition-colors">
+                          {game.name}
+                        </h3>
+                      </InternalLink>
 
                       <p className="text-sm sm:text-base text-slate-600 leading-relaxed font-normal">
                         Catch falling branded objects while avoiding penalty hazards. Fast-paced 30-second rounds that create immense crowd excitement and continuous spectator queues.
@@ -325,9 +336,11 @@ export const LandingGameShowcase: React.FC<LandingGameShowcaseProps> = ({
                       <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
                         {theme.tag}
                       </div>
-                      <h4 className="text-xl font-bold text-slate-900 mt-1 group-hover:text-amber-700 transition-colors">
-                        {game.name}
-                      </h4>
+                      <InternalLink href={getPublicGameSlug(game.id)} className="block">
+                        <h4 className="text-xl font-bold text-slate-900 mt-1 group-hover:text-amber-700 transition-colors">
+                          {game.name}
+                        </h4>
+                      </InternalLink>
                       <p className="text-xs text-slate-600 mt-2 leading-relaxed font-normal">
                         {game.description}
                       </p>

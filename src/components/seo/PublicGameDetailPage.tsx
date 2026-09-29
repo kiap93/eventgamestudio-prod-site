@@ -50,7 +50,7 @@ interface GameDetailSpec {
 const GAME_SPECS: Record<string, GameDetailSpec> = {
   'catch-the-brand': {
     id: 'catch-brand',
-    slug: '/games/catch-the-brand',
+    slug: '/game-showcase/catch-the-brand',
     name: 'Catch the Brand',
     category: 'Arcade Catcher',
     defaultDuration: '20 seconds (Customizable 10s-120s)',
@@ -81,8 +81,8 @@ const GAME_SPECS: Record<string, GameDetailSpec> = {
       { name: 'Product Launches', why: 'Places newly launched packaging directly into the hands and minds of prospective buyers.' },
     ],
     relatedGames: [
-      { name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'Motorsport-inspired millisecond reflex test.' },
-      { name: 'Brand Memory Match', slug: '/games/memory-match', desc: '16-card brand pair matching puzzle.' },
+      { name: 'Formula Reaction Lights', slug: '/game-showcase/reaction-challenge', desc: 'Motorsport-inspired millisecond reflex test.' },
+      { name: 'Brand Memory Match', slug: '/game-showcase/memory-match', desc: '16-card brand pair matching puzzle.' },
     ],
     relatedSolutions: [
       { name: 'Interactive Event Games', slug: '/interactive-event-games' },
@@ -94,7 +94,7 @@ const GAME_SPECS: Record<string, GameDetailSpec> = {
 
   'memory-match': {
     id: 'memory-match',
-    slug: '/games/memory-match',
+    slug: '/game-showcase/memory-match',
     name: 'Brand Memory Match',
     category: 'Memory & Puzzle',
     defaultDuration: '45 seconds (Customizable 20s-120s)',
@@ -124,8 +124,8 @@ const GAME_SPECS: Record<string, GameDetailSpec> = {
       { name: 'VIP Networking Lounges', why: 'Relaxed, non-stressful puzzle challenge suitable for senior executive guests.' },
     ],
     relatedGames: [
-      { name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'Fast-paced arcade item catching challenge.' },
-      { name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'Motorsport millisecond reflex test.' },
+      { name: 'Catch the Brand', slug: '/game-showcase/catch-the-brand', desc: 'Fast-paced arcade item catching challenge.' },
+      { name: 'Formula Reaction Lights', slug: '/game-showcase/reaction-challenge', desc: 'Motorsport millisecond reflex test.' },
     ],
     relatedSolutions: [
       { name: 'Corporate Event Games', slug: '/corporate-event-games' },
@@ -137,7 +137,7 @@ const GAME_SPECS: Record<string, GameDetailSpec> = {
 
   'reaction-challenge': {
     id: 'reaction-tap',
-    slug: '/games/reaction-challenge',
+    slug: '/game-showcase/reaction-challenge',
     name: 'Formula Reaction Lights',
     category: 'Reflex Speed Test',
     defaultDuration: '15 seconds default',
@@ -166,8 +166,8 @@ const GAME_SPECS: Record<string, GameDetailSpec> = {
       { name: 'VIP Gala Stage Battles', why: 'Head-to-head reflex duels create phenomenal high-stakes stage theater.' },
     ],
     relatedGames: [
-      { name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'Fast arcade catching with scoring multipliers.' },
-      { name: 'Brand Memory Match', slug: '/games/memory-match', desc: '16-card brand product pair matching puzzle.' },
+      { name: 'Catch the Brand', slug: '/game-showcase/catch-the-brand', desc: 'Fast arcade catching with scoring multipliers.' },
+      { name: 'Brand Memory Match', slug: '/game-showcase/memory-match', desc: '16-card brand product pair matching puzzle.' },
     ],
     relatedSolutions: [
       { name: 'Interactive Event Games', slug: '/interactive-event-games' },
@@ -179,7 +179,7 @@ const GAME_SPECS: Record<string, GameDetailSpec> = {
 
   'speed-quiz': {
     id: 'speed-quiz',
-    slug: '/games/speed-quiz',
+    slug: '/game-showcase/speed-quiz',
     name: 'Event Trivia Speed Quiz',
     category: 'Trivia & Knowledge (Roadmap)',
     defaultDuration: '30 seconds (Roadmap Engine)',
@@ -204,9 +204,9 @@ const GAME_SPECS: Record<string, GameDetailSpec> = {
       { name: 'Training Seminars', why: 'Interactive knowledge checkpoints during educational workshop sessions.' },
     ],
     relatedGames: [
-      { name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'Fast arcade item catching challenge.' },
-      { name: 'Brand Memory Match', slug: '/games/memory-match', desc: '16-card brand pair matching puzzle.' },
-      { name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'Motorsport millisecond reflex test.' },
+      { name: 'Catch the Brand', slug: '/game-showcase/catch-the-brand', desc: 'Fast arcade item catching challenge.' },
+      { name: 'Brand Memory Match', slug: '/game-showcase/memory-match', desc: '16-card brand pair matching puzzle.' },
+      { name: 'Formula Reaction Lights', slug: '/game-showcase/reaction-challenge', desc: 'Motorsport millisecond reflex test.' },
     ],
     relatedSolutions: [
       { name: 'Corporate Event Games', slug: '/corporate-event-games' },
@@ -223,12 +223,12 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
   const { isAuthenticated } = useAuth();
   
   // Normalize slug to match game specs
-  let normalizedKey = slugKey.replace(/^\/games\//, '').replace(/\/+$/, '');
+  let normalizedKey = slugKey.replace(/^\/(games|game-showcase)\//, '').replace(/\/+$/, '');
   if (normalizedKey === 'catch-brand') normalizedKey = 'catch-the-brand';
   if (normalizedKey === 'reaction-tap' || normalizedKey === 'reaction-time') normalizedKey = 'reaction-challenge';
 
   const spec = GAME_SPECS[normalizedKey] || GAME_SPECS['catch-the-brand'];
-  const pageSeo = getPageSeo(`/games/${normalizedKey}`);
+  const pageSeo = getPageSeo(`/game-showcase/${normalizedKey}`);
 
   const [demoModalOpen, setDemoModalOpen] = useState(false);
 
@@ -244,7 +244,7 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
       <SEO config={pageSeo} />
 
-      <LandingHeader onExploreGames={() => navigateTo('/games')} />
+      <LandingHeader onExploreGames={() => navigateTo('/game-showcase')} />
 
       <main className="flex-1">
         {/* Breadcrumb Navigation */}
@@ -255,7 +255,7 @@ export const PublicGameDetailPage: React.FC<PublicGameDetailPageProps> = ({ slug
                 Home
               </InternalLink>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-              <InternalLink href="/games" className="hover:text-amber-600 transition-colors">
+              <InternalLink href="/game-showcase" className="hover:text-amber-600 transition-colors">
                 Games
               </InternalLink>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />

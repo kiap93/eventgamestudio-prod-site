@@ -349,34 +349,34 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
     ],
   },
 
-  // 10. Games Catalog Index
-  '/games': {
+  // 10. Games Showcase Index
+  '/game-showcase': {
     title: 'Interactive Event Games Catalog | Event Game Studio',
     description:
       'Explore our curated collection of customizable event games: Catch the Brand, Brand Memory Match, Formula Reaction Lights, and upcoming Trivia Speed Quiz.',
-    canonical: `${SITE_DOMAIN}/games`,
+    canonical: `${SITE_DOMAIN}/game-showcase`,
     h1: 'Interactive Event Games',
     subheading:
       'Select from proven interactive game engines designed for corporate summits, brand activations, retail roadshows, and trade exhibitions.',
     breadcrumbs: [
       { name: 'Home', item: '/' },
-      { name: 'Games', item: '/games' },
+      { name: 'Games', item: '/game-showcase' },
     ],
   },
 
   // 11. Game Detail: Catch the Brand
-  '/games/catch-the-brand': {
+  '/game-showcase/catch-the-brand': {
     title: 'Catch the Brand Arcade Game | Event Game Studio',
     description:
       'Fast-paced arcade catching game for live events. Customize the catcher basket, falling brand items, hazards, and bonus multiplier icons for your brand activation.',
-    canonical: `${SITE_DOMAIN}/games/catch-the-brand`,
+    canonical: `${SITE_DOMAIN}/game-showcase/catch-the-brand`,
     h1: 'Catch the Brand',
     subheading:
       'Fast-paced arcade catcher where players catch positive brand items, dodge obstacles, and collect golden bonus multiplier tokens.',
     breadcrumbs: [
       { name: 'Home', item: '/' },
-      { name: 'Games', item: '/games' },
-      { name: 'Catch the Brand', item: '/games/catch-the-brand' },
+      { name: 'Games', item: '/game-showcase' },
+      { name: 'Catch the Brand', item: '/game-showcase/catch-the-brand' },
     ],
     faqs: [
       {
@@ -393,18 +393,18 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
   },
 
   // 12. Game Detail: Memory Match
-  '/games/memory-match': {
+  '/game-showcase/memory-match': {
     title: 'Brand Memory Match Puzzle Game | Event Game Studio',
     description:
       'Classic pair-matching memory puzzle customized with 8 pairs of your brand products, logos, or team portraits for corporate summits and roadshows.',
-    canonical: `${SITE_DOMAIN}/games/memory-match`,
+    canonical: `${SITE_DOMAIN}/game-showcase/memory-match`,
     h1: 'Brand Memory Match',
     subheading:
       'Engaging 16-card memory puzzle where players flip and match customized brand cards while racing against the countdown clock.',
     breadcrumbs: [
       { name: 'Home', item: '/' },
-      { name: 'Games', item: '/games' },
-      { name: 'Brand Memory Match', item: '/games/memory-match' },
+      { name: 'Games', item: '/game-showcase' },
+      { name: 'Brand Memory Match', item: '/game-showcase/memory-match' },
     ],
     faqs: [
       {
@@ -421,18 +421,18 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
   },
 
   // 13. Game Detail: Reaction Challenge
-  '/games/reaction-challenge': {
+  '/game-showcase/reaction-challenge': {
     title: 'Formula Reaction Challenge Reflex Game | Event Game Studio',
     description:
       'Test participant reflex speed down to the millisecond in an F1-style starting light sequence. Ideal for auto shows, sports activations, and VIP booth contests.',
-    canonical: `${SITE_DOMAIN}/games/reaction-challenge`,
+    canonical: `${SITE_DOMAIN}/game-showcase/reaction-challenge`,
     h1: 'Formula Reaction Challenge',
     subheading:
       'High-adrenaline reflex speed test based on motorsport starting lights. When the red lights extinguish, react as fast as humanly possible!',
     breadcrumbs: [
       { name: 'Home', item: '/' },
-      { name: 'Games', item: '/games' },
-      { name: 'Reaction Challenge', item: '/games/reaction-challenge' },
+      { name: 'Games', item: '/game-showcase' },
+      { name: 'Reaction Challenge', item: '/game-showcase/reaction-challenge' },
     ],
     faqs: [
       {
@@ -449,19 +449,19 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
   },
 
   // 14. Game Detail: Speed Quiz (Roadmap)
-  '/games/speed-quiz': {
+  '/game-showcase/speed-quiz': {
     title: 'Event Trivia Speed Quiz (Roadmap) | Event Game Studio',
     description:
       'Interactive timed multiple-choice trivia challenge for live event booths and activations. Currently in development on the Event Game Studio platform roadmap.',
-    canonical: `${SITE_DOMAIN}/games/speed-quiz`,
+    canonical: `${SITE_DOMAIN}/game-showcase/speed-quiz`,
     robots: 'noindex, follow',
     h1: 'Event Trivia Speed Quiz',
     subheading:
       'Interactive timed multiple-choice trivia challenge scheduled on the Event Game Studio development roadmap.',
     breadcrumbs: [
       { name: 'Home', item: '/' },
-      { name: 'Games', item: '/games' },
-      { name: 'Speed Quiz', item: '/games/speed-quiz' },
+      { name: 'Games', item: '/game-showcase' },
+      { name: 'Speed Quiz', item: '/game-showcase/speed-quiz' },
     ],
     faqs: [
       {
@@ -526,11 +526,16 @@ export function getPageSeo(pathname: string): PageSeoConfig {
   }
 
   // Check game alias routes
-  if (cleanPath === '/games/catch-brand') {
-    return SEO_PAGE_CONFIGS['/games/catch-the-brand'];
+  if (cleanPath === '/game-showcase/catch-brand' || cleanPath === '/games/catch-brand') {
+    return SEO_PAGE_CONFIGS['/game-showcase/catch-the-brand'];
   }
-  if (cleanPath === '/games/reaction-tap' || cleanPath === '/games/reaction-time') {
-    return SEO_PAGE_CONFIGS['/games/reaction-challenge'];
+  if (
+    cleanPath === '/game-showcase/reaction-tap' ||
+    cleanPath === '/game-showcase/reaction-time' ||
+    cleanPath === '/games/reaction-tap' ||
+    cleanPath === '/games/reaction-time'
+  ) {
+    return SEO_PAGE_CONFIGS['/game-showcase/reaction-challenge'];
   }
 
   // Fallback default

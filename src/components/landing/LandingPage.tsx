@@ -14,6 +14,7 @@ import { GameCatalogModal } from '../studio/GameCatalogModal';
 import { LandingDemoModal } from './LandingDemoModal';
 import { SEO } from '../common/SEO';
 import { getPageSeo } from '../../lib/seo';
+import { navigateTo } from '../../hooks/useRouteContext';
 
 export const LandingPage: React.FC = () => {
   const [catalogModalOpen, setCatalogModalOpen] = useState(false);
@@ -56,12 +57,12 @@ export const LandingPage: React.FC = () => {
       <SEO config={pageSeo} />
 
       {/* Sticky Global Brand Header */}
-      <LandingHeader onExploreGames={() => setCatalogModalOpen(true)} />
+      <LandingHeader onExploreGames={() => navigateTo('/game-showcase')} />
 
       {/* 7 Core Landing Sections in Exact Requested Sequence */}
       <main className="flex-1">
         {/* 1. HERO */}
-        <LandingHero onExploreGames={() => setCatalogModalOpen(true)} />
+        <LandingHero onExploreGames={() => navigateTo('/game-showcase')} />
 
         {/* 2. HOW IT WORKS */}
         <LandingHowItWorks />
@@ -69,7 +70,7 @@ export const LandingPage: React.FC = () => {
         {/* 3. GAME SHOWCASE */}
         <LandingGameShowcase
           onTryDemo={(id) => handleLaunchDemo(id)}
-          onExploreAll={() => setCatalogModalOpen(true)}
+          onExploreAll={() => navigateTo('/game-showcase')}
         />
 
         {/* 4. BRAND YOUR GAME */}

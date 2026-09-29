@@ -116,7 +116,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
           {/* Desktop Navigation Links */}
           <nav className="hidden lg:flex items-center gap-1 ml-4 pl-4 border-l border-slate-200">
             <InternalLink
-              href="/games"
+              href="/game-showcase"
               className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all ${
                 isGamesPage
                   ? 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
@@ -317,7 +317,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
         <div className="sm:hidden px-4 pt-2 pb-6 bg-white border-b border-slate-200 space-y-3 shadow-lg">
           <div className="flex flex-col gap-1 text-xs font-semibold">
             <InternalLink
-              href="/games"
+              href="/game-showcase"
               onClick={() => setMobileMenuOpen(false)}
               className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-900 font-bold block"
             >

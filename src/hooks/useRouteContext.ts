@@ -64,6 +64,7 @@ const RESERVED_PREFIXES = new Set([
   'assets',
   'play',
   'games',
+  'game-showcase',
   'developer',
   'admin',
   'wallet',
@@ -242,8 +243,8 @@ export function parseRoute(pathname: string): RouteContext {
     };
   }
 
-  // 1.4. Check for Public Games Pages (/games or /games/:gameSlug)
-  if (parts.length >= 1 && parts[0].toLowerCase() === 'games') {
+  // 1.4. Check for Public Game Showcase Pages (/game-showcase or /game-showcase/:gameSlug)
+  if (parts.length >= 1 && parts[0].toLowerCase() === 'game-showcase') {
     if (parts.length === 1) {
       return {
         mode: 'public_games',
@@ -255,7 +256,7 @@ export function parseRoute(pathname: string): RouteContext {
         isDeveloperAdminRoute: false,
         pathname: cleanPath,
       };
-    } else if (parts.length === 2 && !['themes', 'edit', 'new'].includes(parts[1].toLowerCase())) {
+    } else if (parts.length === 2) {
       return {
         mode: 'public_game_detail',
         isPublicGameRoute: false,

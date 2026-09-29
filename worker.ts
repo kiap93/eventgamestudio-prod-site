@@ -707,25 +707,25 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://eventgamestudio.com/games</loc>
+    <loc>https://eventgamestudio.com/game-showcase</loc>
     <lastmod>2026-09-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://eventgamestudio.com/games/catch-the-brand</loc>
+    <loc>https://eventgamestudio.com/game-showcase/catch-the-brand</loc>
     <lastmod>2026-09-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://eventgamestudio.com/games/memory-match</loc>
+    <loc>https://eventgamestudio.com/game-showcase/memory-match</loc>
     <lastmod>2026-09-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://eventgamestudio.com/games/reaction-challenge</loc>
+    <loc>https://eventgamestudio.com/game-showcase/reaction-challenge</loc>
     <lastmod>2026-09-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

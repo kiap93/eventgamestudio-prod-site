@@ -44,7 +44,7 @@ interface PublicGameCard {
 const PUBLIC_GAMES: PublicGameCard[] = [
   {
     id: 'catch-brand',
-    slug: '/games/catch-the-brand',
+    slug: '/game-showcase/catch-the-brand',
     name: 'Catch the Brand',
     category: 'Arcade Action',
     duration: '20 seconds default',
@@ -59,7 +59,7 @@ const PUBLIC_GAMES: PublicGameCard[] = [
   },
   {
     id: 'memory-match',
-    slug: '/games/memory-match',
+    slug: '/game-showcase/memory-match',
     name: 'Brand Memory Match',
     category: 'Memory Puzzle',
     duration: '45 seconds default',
@@ -74,7 +74,7 @@ const PUBLIC_GAMES: PublicGameCard[] = [
   },
   {
     id: 'reaction-tap',
-    slug: '/games/reaction-challenge',
+    slug: '/game-showcase/reaction-challenge',
     name: 'Formula Reaction Lights',
     category: 'Reflex Challenge',
     duration: '15 seconds default',
@@ -89,7 +89,7 @@ const PUBLIC_GAMES: PublicGameCard[] = [
   },
   {
     id: 'speed-quiz',
-    slug: '/games/speed-quiz',
+    slug: '/game-showcase/speed-quiz',
     name: 'Event Trivia Speed Quiz',
     category: 'Trivia Challenge',
     duration: '30 seconds (Roadmap)',
@@ -107,7 +107,7 @@ const PUBLIC_GAMES: PublicGameCard[] = [
 
 export const PublicGamesPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
-  const pageSeo = getPageSeo('/games');
+  const pageSeo = getPageSeo('/game-showcase');
   const [demoModalOpen, setDemoModalOpen] = useState(false);
   const [selectedDemoGameId, setSelectedDemoGameId] = useState<string>('catch-brand');
 

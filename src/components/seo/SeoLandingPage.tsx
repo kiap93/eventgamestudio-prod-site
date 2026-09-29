@@ -90,9 +90,9 @@ const SOLUTION_DETAILS: Record<
       { step: '04', title: 'Celebrate Top Scorers', desc: 'Award prizes to top ranked leaderboard champions and export event participation records.' },
     ],
     recommendedGames: [
-      { id: 'catch-brand', name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'Fast arcade item-catching with high-score multiplier combos.', icon: 'ShoppingBasket' },
-      { id: 'memory-match', name: 'Brand Memory Match', slug: '/games/memory-match', desc: 'Pair matching card puzzle showcasing product lines and sponsor logos.', icon: 'Grid3X3' },
-      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'Millisecond reflex test inspired by motorsport starting sequences.', icon: 'Zap' },
+      { id: 'catch-brand', name: 'Catch the Brand', slug: '/game-showcase/catch-the-brand', desc: 'Fast arcade item-catching with high-score multiplier combos.', icon: 'ShoppingBasket' },
+      { id: 'memory-match', name: 'Brand Memory Match', slug: '/game-showcase/memory-match', desc: 'Pair matching card puzzle showcasing product lines and sponsor logos.', icon: 'Grid3X3' },
+      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/game-showcase/reaction-challenge', desc: 'Millisecond reflex test inspired by motorsport starting sequences.', icon: 'Zap' },
     ],
     relatedSolutions: [
       { name: 'Corporate Event Games', path: '/corporate-event-games', desc: 'Games for annual dinners and corporate conferences.' },
@@ -150,9 +150,9 @@ const SOLUTION_DETAILS: Record<
       { step: '04', title: 'Present Grand Stage Awards', desc: 'Call top leaderboard finalists to the main stage for ceremonial trophy and prize presentations.' },
     ],
     recommendedGames: [
-      { id: 'memory-match', name: 'Brand Memory Match', slug: '/games/memory-match', desc: 'Showcase corporate values, product icons, and leadership team faces.', icon: 'Grid3X3' },
-      { id: 'catch-brand', name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'Catch company achievements and dodge office hazard items.', icon: 'ShoppingBasket' },
-      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'Fierce millisecond reflex competition for executive bragging rights.', icon: 'Zap' },
+      { id: 'memory-match', name: 'Brand Memory Match', slug: '/game-showcase/memory-match', desc: 'Showcase corporate values, product icons, and leadership team faces.', icon: 'Grid3X3' },
+      { id: 'catch-brand', name: 'Catch the Brand', slug: '/game-showcase/catch-the-brand', desc: 'Catch company achievements and dodge office hazard items.', icon: 'ShoppingBasket' },
+      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/game-showcase/reaction-challenge', desc: 'Fierce millisecond reflex competition for executive bragging rights.', icon: 'Zap' },
     ],
     relatedSolutions: [
       { name: 'Interactive Event Games', path: '/interactive-event-games', desc: 'Live event participation and big-screen displays.' },
@@ -209,9 +209,9 @@ const SOLUTION_DETAILS: Record<
       { step: '04', title: 'Analyze Engagement & Hand Out Swag', desc: 'Track real-time player counts and hand out promotional samples to high scorers.' },
     ],
     recommendedGames: [
-      { id: 'catch-brand', name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'Feature product bottles, cans, and packaged goods as falling targets.', icon: 'ShoppingBasket' },
-      { id: 'memory-match', name: 'Brand Memory Match', slug: '/games/memory-match', desc: 'Spotlight product features and lifestyle campaign imagery.', icon: 'Grid3X3' },
-      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'High-adrenaline contest suited for energy drink and automotive campaigns.', icon: 'Zap' },
+      { id: 'catch-brand', name: 'Catch the Brand', slug: '/game-showcase/catch-the-brand', desc: 'Feature product bottles, cans, and packaged goods as falling targets.', icon: 'ShoppingBasket' },
+      { id: 'memory-match', name: 'Brand Memory Match', slug: '/game-showcase/memory-match', desc: 'Spotlight product features and lifestyle campaign imagery.', icon: 'Grid3X3' },
+      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/game-showcase/reaction-challenge', desc: 'High-adrenaline contest suited for energy drink and automotive campaigns.', icon: 'Zap' },
     ],
     relatedSolutions: [
       { name: 'Roadshow Games', path: '/roadshow-games', desc: 'Mall activations and consumer tours.' },
@@ -268,9 +268,9 @@ const SOLUTION_DETAILS: Record<
       { step: '04', title: 'Track Live Scoreboards', desc: 'Watch leaderboard rankings shift in real-time as competitive spirit builds.' },
     ],
     recommendedGames: [
-      { id: 'catch-brand', name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'The quintessential casual arcade catch experience.', icon: 'ShoppingBasket' },
-      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'Lightning-fast 15-second reaction duel.', icon: 'Zap' },
-      { id: 'memory-match', name: 'Brand Memory Match', slug: '/games/memory-match', desc: 'Accessible memory puzzle suitable for all age brackets.', icon: 'Grid3X3' },
+      { id: 'catch-brand', name: 'Catch the Brand', slug: '/game-showcase/catch-the-brand', desc: 'The quintessential casual arcade catch experience.', icon: 'ShoppingBasket' },
+      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/game-showcase/reaction-challenge', desc: 'Lightning-fast 15-second reaction duel.', icon: 'Zap' },
+      { id: 'memory-match', name: 'Brand Memory Match', slug: '/game-showcase/memory-match', desc: 'Accessible memory puzzle suitable for all age brackets.', icon: 'Grid3X3' },
     ],
     relatedSolutions: [
       { name: 'Interactive Event Games', path: '/interactive-event-games', desc: 'Live event experiences and stage leaderboards.' },
@@ -327,9 +327,9 @@ const SOLUTION_DETAILS: Record<
       { step: '04', title: 'Reward Daily High Scorers', desc: 'Hand out product gift hampers or shopping vouchers to top leaderboard leaders.' },
     ],
     recommendedGames: [
-      { id: 'catch-brand', name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'Great for family-friendly mall foot traffic.', icon: 'ShoppingBasket' },
-      { id: 'memory-match', name: 'Brand Memory Match', slug: '/games/memory-match', desc: 'Engaging puzzle that keeps shoppers at your booth longer.', icon: 'Grid3X3' },
-      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'Exciting reflex challenge that sparks friendly crowd rivalry.', icon: 'Zap' },
+      { id: 'catch-brand', name: 'Catch the Brand', slug: '/game-showcase/catch-the-brand', desc: 'Great for family-friendly mall foot traffic.', icon: 'ShoppingBasket' },
+      { id: 'memory-match', name: 'Brand Memory Match', slug: '/game-showcase/memory-match', desc: 'Engaging puzzle that keeps shoppers at your booth longer.', icon: 'Grid3X3' },
+      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/game-showcase/reaction-challenge', desc: 'Exciting reflex challenge that sparks friendly crowd rivalry.', icon: 'Zap' },
     ],
     relatedSolutions: [
       { name: 'Brand Activation Games', path: '/brand-activation-games', desc: 'Consumer activations and marketing campaigns.' },
@@ -386,9 +386,9 @@ const SOLUTION_DETAILS: Record<
       { step: '04', title: 'Announce 5 PM Prize Winners', desc: 'Gather crowds at your booth before expo closing for daily prize awards.' },
     ],
     recommendedGames: [
-      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'High-prestige reflex test favored by engineering & corporate delegates.', icon: 'Zap' },
-      { id: 'catch-brand', name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'High-energy item catcher featuring brand assets and sponsor tokens.', icon: 'ShoppingBasket' },
-      { id: 'memory-match', name: 'Brand Memory Match', slug: '/games/memory-match', desc: 'Highlights complex product matrices through visual pair discovery.', icon: 'Grid3X3' },
+      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/game-showcase/reaction-challenge', desc: 'High-prestige reflex test favored by engineering & corporate delegates.', icon: 'Zap' },
+      { id: 'catch-brand', name: 'Catch the Brand', slug: '/game-showcase/catch-the-brand', desc: 'High-energy item catcher featuring brand assets and sponsor tokens.', icon: 'ShoppingBasket' },
+      { id: 'memory-match', name: 'Brand Memory Match', slug: '/game-showcase/memory-match', desc: 'Highlights complex product matrices through visual pair discovery.', icon: 'Grid3X3' },
     ],
     relatedSolutions: [
       { name: 'Corporate Event Games', path: '/corporate-event-games', desc: 'Engagement for conferences and annual summits.' },
@@ -445,9 +445,9 @@ const SOLUTION_DETAILS: Record<
       { step: '04', title: 'Lock To Your Live Event', desc: 'Assign your finalized custom theme to your event license with one click.' },
     ],
     recommendedGames: [
-      { id: 'catch-brand', name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'Customize catcher basket, positive targets, hazards, and bonus items.', icon: 'ShoppingBasket' },
-      { id: 'memory-match', name: 'Brand Memory Match', slug: '/games/memory-match', desc: 'Customize 8 distinct card faces plus branded card back cover.', icon: 'Grid3X3' },
-      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'Customize starting light graphics, backgrounds, and reflex audio cues.', icon: 'Zap' },
+      { id: 'catch-brand', name: 'Catch the Brand', slug: '/game-showcase/catch-the-brand', desc: 'Customize catcher basket, positive targets, hazards, and bonus items.', icon: 'ShoppingBasket' },
+      { id: 'memory-match', name: 'Brand Memory Match', slug: '/game-showcase/memory-match', desc: 'Customize 8 distinct card faces plus branded card back cover.', icon: 'Grid3X3' },
+      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/game-showcase/reaction-challenge', desc: 'Customize starting light graphics, backgrounds, and reflex audio cues.', icon: 'Zap' },
     ],
     relatedSolutions: [
       { name: 'Interactive Event Games', path: '/interactive-event-games', desc: 'Browser-based gameplay and live leaderboards.' },
@@ -504,9 +504,9 @@ const SOLUTION_DETAILS: Record<
       { step: '04', title: 'Export Live Event Analytics', desc: 'Review comprehensive participation volume, score distributions, and player rosters.' },
     ],
     recommendedGames: [
-      { id: 'catch-brand', name: 'Catch the Brand', slug: '/games/catch-the-brand', desc: 'Fast-paced arcade item catching optimized for mobile and desktop browsers.', icon: 'ShoppingBasket' },
-      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/games/reaction-challenge', desc: 'Precision millisecond timestamping for uncompromised fair play.', icon: 'Zap' },
-      { id: 'memory-match', name: 'Brand Memory Match', slug: '/games/memory-match', desc: 'Card flip animations powered by responsive GPU canvas rendering.', icon: 'Grid3X3' },
+      { id: 'catch-brand', name: 'Catch the Brand', slug: '/game-showcase/catch-the-brand', desc: 'Fast-paced arcade item catching optimized for mobile and desktop browsers.', icon: 'ShoppingBasket' },
+      { id: 'reaction-tap', name: 'Formula Reaction Lights', slug: '/game-showcase/reaction-challenge', desc: 'Precision millisecond timestamping for uncompromised fair play.', icon: 'Zap' },
+      { id: 'memory-match', name: 'Brand Memory Match', slug: '/game-showcase/memory-match', desc: 'Card flip animations powered by responsive GPU canvas rendering.', icon: 'Grid3X3' },
     ],
     relatedSolutions: [
       { name: 'Interactive Event Games', path: '/interactive-event-games', desc: 'QR gameplay and live venue displays.' },
@@ -544,7 +544,7 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
       <SEO config={pageSeo} />
 
       {/* Global Header */}
-      <LandingHeader onExploreGames={() => navigateTo('/games')} />
+      <LandingHeader onExploreGames={() => navigateTo('/game-showcase')} />
 
       <main className="flex-1">
         {/* Breadcrumb Navigation Bar */}
@@ -762,7 +762,7 @@ export const SeoLandingPage: React.FC<SeoLandingPageProps> = ({ pathname }) => {
 
             <div className="text-center pt-10">
               <InternalLink
-                href="/games"
+                href="/game-showcase"
                 className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 hover:text-amber-300 underline underline-offset-4"
               >
                 <span>View Full Event Games Catalog</span>
