@@ -77,6 +77,7 @@ export const LoginPage: React.FC = () => {
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
+  const [gsiLoaded, setGsiLoaded] = useState(false);
   const [clientId, setClientId] = useState<string>(
     import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
   );
@@ -122,6 +123,7 @@ export const LoginPage: React.FC = () => {
 
     const initGsi = () => {
       if (window.google?.accounts?.id) {
+        setGsiLoaded(true);
         try {
           window.google.accounts.id.initialize({
             client_id: clientId,
