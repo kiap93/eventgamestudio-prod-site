@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import {
   PaymentMode,
@@ -38,6 +39,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
   onPaymentSuccess,
 }) => {
   const { currentOrganization } = useAuth();
+  const { t } = useLocalization();
 
   const [wallet, setWallet] = useState<WalletBalanceSummary | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(true);
@@ -300,8 +302,8 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
               <CreditCard className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-100">Pay & Activate Event</h2>
-              <p className="text-xs text-slate-400">Complete payment to make this event live</p>
+              <h2 className="text-xl font-bold text-slate-100">{t('payment.payAndActivate', undefined, 'Pay & Activate Event')}</h2>
+              <p className="text-xs text-slate-400">{t('payment.completePaymentDesc', undefined, 'Complete payment to make this event live')}</p>
             </div>
           </div>
           <button
@@ -323,21 +325,21 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <h3 className="text-2xl font-black text-slate-100">Event Activated!</h3>
+                <h3 className="text-2xl font-black text-slate-100">{t('payment.paymentSuccessful', undefined, 'Event Activated!')}</h3>
                 <p className="text-xs text-slate-400">
-                  Payment was confirmed and <strong className="text-slate-200">{event.name}</strong> is now officially live.
+                  {t('payment.paymentConfirmedNotice', { eventName: event.name }, `Payment was confirmed and ${event.name} is now officially live.`)}
                 </p>
               </div>
 
               <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs space-y-2 text-left">
                 <div className="flex items-center justify-between text-slate-400">
-                  <span>Status:</span>
+                  <span>{t('common.status', undefined, 'Status')}:</span>
                   <span className="font-bold text-emerald-400 uppercase tracking-wider">
-                    {successEvent.calculated_status || successEvent.status || 'Active'}
+                    {successEvent.calculated_status || successEvent.status || t('event.statusLive', undefined, 'Active')}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-slate-400">
-                  <span>Total Paid:</span>
+                  <span>{t('payment.totalPaid', undefined, 'Total Paid')}:</span>
                   <span className="font-bold text-slate-200 font-mono">
                     {formatCurrency(amountRequired)}
                   </span>
@@ -349,7 +351,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                 onClick={onClose}
                 className="w-full py-3 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-xl transition-all cursor-pointer"
               >
-                Close & View Event
+                {t('payment.closeAndViewEvent', undefined, 'Close & View Event')}
               </button>
             </div>
           ) : (
@@ -373,7 +375,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-200 truncate">{event.name}</span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                    Pending Payment
+                    {t('event.filterNeedsPayment', undefined, 'Pending Payment')}
                   </span>
                 </div>
                 <div className="text-[11px] text-slate-400 flex items-center gap-2">
@@ -385,9 +387,9 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                 {event.start_date && (
                   <div className="text-[11px] text-slate-400 flex items-center gap-1.5 pt-0.5 border-t border-slate-850">
                     <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>{event.start_date} {event.end_date && event.end_date !== event.start_date ? `to ${event.end_date}` : ''}</span>
+                    <span>{event.start_date} {event.end_date && event.end_date !== event.start_date ? `${t('common.to', undefined, 'to')} ${event.end_date}` : ''}</span>
                     {event.duration_days && (
-                      <span className="text-slate-500 font-mono font-medium">({event.duration_days} days)</span>
+                      <span className="text-slate-500 font-mono font-medium">({event.duration_days} {t('common.days', undefined, 'days')})</span>
                     )}
                   </div>
                 )}
@@ -397,7 +399,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
               {loadingQuote ? (
                 <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-6 flex items-center justify-center gap-2 text-xs text-slate-400">
                   <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                  <span>Loading payment details...</span>
+                  <span>{t('common.loading', undefined, 'Loading payment details...')}</span>
                 </div>
               ) : quoteError ? (
                 <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 text-xs text-rose-400 flex items-center justify-between">
@@ -407,7 +409,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                     onClick={() => fetchWallet()}
                     className="underline text-rose-300 font-bold ml-2 cursor-pointer"
                   >
-                    Retry
+                    {t('common.retry', undefined, 'Retry')}
                   </button>
                 </div>
               ) : (
@@ -415,9 +417,9 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                   {/* Apply Credits Section */}
                   <div className="space-y-2.5">
                     <div>
-                      <h4 className="text-xs font-bold text-slate-200">Apply Credits</h4>
+                      <h4 className="text-xs font-bold text-slate-200">{t('payment.applyCredits', undefined, 'Apply Credits')}</h4>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        Select the credits you want to use for this event.
+                        {t('payment.selectCreditsDesc', undefined, 'Select the credits you want to use for this event.')}
                       </p>
                     </div>
 
@@ -459,18 +461,18 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 font-bold text-xs text-slate-200">
                               <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                              <span>Welcome Credit</span>
+                              <span>{t('payment.welcomeCredits', undefined, 'Welcome Credit')}</span>
                             </div>
                             <div className="text-[11px] text-slate-400 mt-0.5 truncate">
-                              Available: <span className="font-mono text-slate-300 font-medium">{formatCurrency(availableWelcomeCredit)}</span>
-                              {availableWelcomeCredit <= 0 && <span className="text-slate-400 ml-1.5">(No balance)</span>}
+                              {t('common.available', undefined, 'Available')}: <span className="font-mono text-slate-300 font-medium">{formatCurrency(availableWelcomeCredit)}</span>
+                              {availableWelcomeCredit <= 0 && <span className="text-slate-400 ml-1.5">({t('payment.noBalance', undefined, 'No balance')})</span>}
                             </div>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0">
                           <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                            {useWelcomeCredit && welcomeCreditUsed > 0 ? 'Applied' : 'Deduction'}
+                            {useWelcomeCredit && welcomeCreditUsed > 0 ? t('payment.applied', undefined, 'Applied') : t('payment.deduction', undefined, 'Deduction')}
                           </div>
                           <div className={`font-mono font-bold text-xs sm:text-sm ${useWelcomeCredit && welcomeCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
                             {useWelcomeCredit && welcomeCreditUsed > 0 ? `-${formatCurrency(welcomeCreditUsed)}` : 'RM0.00'}
@@ -515,23 +517,23 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 font-bold text-xs text-slate-200">
                               <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                              <span>Event Credit</span>
+                              <span>{t('payment.eventCredit', undefined, 'Event Credit')}</span>
                             </div>
                             <div className="text-[11px] text-slate-400 mt-0.5 truncate">
-                              Available: <span className="font-mono text-slate-300 font-medium">{formatCurrency(availableEventCredit)}</span>
+                              {t('common.available', undefined, 'Available')}: <span className="font-mono text-slate-300 font-medium">{formatCurrency(availableEventCredit)}</span>
                               {availableEventCredit > 0 && (
                                 <span className="text-slate-400 ml-1.5">
-                                  (Max 20%: {formatCurrency(maxEventCredit)})
+                                  ({t('payment.max20Percent', undefined, 'Max 20%')}: {formatCurrency(maxEventCredit)})
                                 </span>
                               )}
-                              {availableEventCredit <= 0 && <span className="text-slate-400 ml-1.5">(No balance)</span>}
+                              {availableEventCredit <= 0 && <span className="text-slate-400 ml-1.5">({t('payment.noBalance', undefined, 'No balance')})</span>}
                             </div>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0">
                           <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                            {useEventCredit && eventCreditUsed > 0 ? 'Applied' : 'Deduction'}
+                            {useEventCredit && eventCreditUsed > 0 ? t('payment.applied', undefined, 'Applied') : t('payment.deduction', undefined, 'Deduction')}
                           </div>
                           <div className={`font-mono font-bold text-xs sm:text-sm ${useEventCredit && eventCreditUsed > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
                             {useEventCredit && eventCreditUsed > 0 ? `-${formatCurrency(eventCreditUsed)}` : 'RM0.00'}
@@ -545,7 +547,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                   <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
                     {/* Event Price */}
                     <div className="flex items-center justify-between text-slate-300">
-                      <span>Event Price</span>
+                      <span>{t('payment.pricingTier', undefined, 'Event Price')}</span>
                       <span className="font-mono font-bold text-slate-100 text-sm">{formatCurrency(eventPrice)}</span>
                     </div>
 
@@ -554,7 +556,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                       <div className="flex items-center justify-between text-emerald-400">
                         <span className="flex items-center gap-1.5">
                           <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                          <span>Welcome Credit Applied</span>
+                          <span>{t('payment.welcomeCreditsApplied', undefined, 'Welcome Credit Applied')}</span>
                         </span>
                         <span className="font-mono font-bold">-{formatCurrency(welcomeCreditUsed)}</span>
                       </div>
@@ -565,7 +567,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                       <div className="flex items-center justify-between text-emerald-400">
                         <span className="flex items-center gap-1.5">
                           <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                          <span>Event Credit Applied</span>
+                          <span>{t('payment.eventCreditApplied', undefined, 'Event Credit Applied')}</span>
                         </span>
                         <span className="font-mono font-bold">-{formatCurrency(eventCreditUsed)}</span>
                       </div>
@@ -573,7 +575,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
 
                     {/* Amount Required */}
                     <div className="flex items-center justify-between pt-2 border-t border-slate-800 font-semibold text-slate-100">
-                      <span>Amount Required</span>
+                      <span>{t('payment.amountRequired', undefined, 'Amount Required')}</span>
                       <span className="font-mono font-bold text-amber-400 text-sm sm:text-base">
                         {formatCurrency(amountRequired)}
                       </span>
@@ -583,7 +585,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                     <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-slate-400">
                       <span className="flex items-center gap-1.5">
                         <Wallet className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Available Paid Balance</span>
+                        <span>{t('payment.availablePaidBalance', undefined, 'Available Paid Balance')}</span>
                       </span>
                       <span className="font-mono font-bold text-slate-200">
                         {formatCurrency(availablePaidBalance)}
@@ -595,7 +597,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                       <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-rose-400 font-semibold">
                         <span className="flex items-center gap-1.5">
                           <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                          <span>Additional Payment Required</span>
+                          <span>{t('payment.additionalPaymentRequired', undefined, 'Additional Payment Required')}</span>
                         </span>
                         <span className="font-mono font-bold text-rose-400">
                           {formatCurrency(shortfall)}
@@ -609,10 +611,10 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                     <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 space-y-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
                         <AlertCircle className="w-4 h-4 shrink-0" />
-                        <span>Insufficient Balance</span>
+                        <span>{t('payment.insufficientFunds', undefined, 'Insufficient Balance')}</span>
                       </div>
                       <p className="text-xs text-slate-300">
-                        You need <span className="font-mono font-bold text-amber-300">{formatCurrency(shortfall)}</span> more to activate this event.
+                        {t('payment.shortfallNotice', { amount: formatCurrency(shortfall) }, `You need ${formatCurrency(shortfall)} more to activate this event.`)}
                       </p>
                       <button
                         type="button"
@@ -623,12 +625,12 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
                         {isSubmittingTopUp ? (
                           <>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Connecting to Gateway...</span>
+                            <span>{t('payment.connectingToGateway', undefined, 'Connecting to Gateway...')}</span>
                           </>
                         ) : (
                           <>
                             <PlusCircle className="w-3.5 h-3.5" />
-                            <span>Top Up {formatCurrency(shortfall)}</span>
+                            <span>{t('payment.topUp', undefined, 'Top Up')} {formatCurrency(shortfall)}</span>
                           </>
                         )}
                       </button>
@@ -648,7 +650,7 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
               onClick={onClose}
               className="px-4 py-2.5 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
             >
-              Cancel
+              {t('common.cancel', undefined, 'Cancel')}
             </button>
 
             <button
@@ -660,11 +662,11 @@ export const EventPaymentModal: React.FC<EventPaymentModalProps> = ({
               {submittingPayment ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Processing Payment...</span>
+                  <span>{t('common.processing', undefined, 'Processing Payment...')}</span>
                 </>
               ) : (
                 <>
-                  <span>{amountRequired === 0 ? 'Activate Event (RM0.00)' : `Pay ${formatCurrency(amountRequired)} & Activate`}</span>
+                  <span>{amountRequired === 0 ? t('payment.activateEventFree', undefined, 'Activate Event (RM0.00)') : `${t('payment.pay', undefined, 'Pay')} ${formatCurrency(amountRequired)} & ${t('payment.activate', undefined, 'Activate')}`}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

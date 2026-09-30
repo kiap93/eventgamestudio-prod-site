@@ -16,6 +16,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { formatEventDateRange, formatDateOnly, calculateEventStatus } from '../../lib/dateUtils';
+import { useLocalization } from '../../context/LocalizationContext';
 
 export type CalendarViewType = 'month' | 'week' | 'day';
 
@@ -83,6 +84,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
   onEditEvent,
   onCreateEvent,
 }) => {
+  const { t, language } = useLocalization();
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [viewType, setViewType] = useState<CalendarViewType>('month');
 
@@ -198,11 +200,11 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
 
   // Compute Header Title based on view type
   const headerTitle = useMemo(() => {
+    const localeCode = language === 'zh-CN' ? 'zh-CN' : language === 'ms-MY' ? 'ms-MY' : 'en-US';
     const year = currentDate.getFullYear();
-    const month = MONTH_NAMES[currentDate.getMonth()];
 
     if (viewType === 'month') {
-      return `${month} ${year}`;
+      return currentDate.toLocaleDateString(localeCode, { month: 'long', year: 'numeric' });
     }
 
     if (viewType === 'week') {
@@ -211,27 +213,19 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-      const startMonth = MONTH_NAMES[startOfWeek.getMonth()].slice(0, 3);
-      const endMonth = MONTH_NAMES[endOfWeek.getMonth()].slice(0, 3);
-
-      if (startOfWeek.getMonth() === endOfWeek.getMonth()) {
-        return `${startMonth} ${startOfWeek.getDate()} – ${endOfWeek.getDate()}, ${year}`;
-      }
-      return `${startMonth} ${startOfWeek.getDate()} – ${endMonth} ${endOfWeek.getDate()}, ${year}`;
+      const startPart = startOfWeek.toLocaleDateString(localeCode, { month: 'short', day: 'numeric' });
+      const endPart = endOfWeek.toLocaleDateString(localeCode, { month: 'short', day: 'numeric', year: 'numeric' });
+      return `${startPart} – ${endPart}`;
     }
 
     // Day view
-    const dayName = [
-      'Sunday',
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-    ][currentDate.getDay()];
-    return `${dayName}, ${month} ${currentDate.getDate()}, ${year}`;
-  }, [currentDate, viewType]);
+    return currentDate.toLocaleDateString(localeCode, {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }, [currentDate, viewType, language]);
 
   // Generate Month Grid Dates (e.g. 35 or 42 days)
   const monthGridDays = useMemo(() => {
@@ -294,48 +288,48 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Live
+            {t('event.statusLive', undefined, 'Live')}
           </span>
         );
       case 'scheduled':
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/40">
             <CalendarIcon className="w-2.5 h-2.5" />
-            Scheduled
+            {t('event.statusScheduled', undefined, 'Scheduled')}
           </span>
         );
       case 'completed':
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
             <CheckCircle2 className="w-2.5 h-2.5" />
-            Completed
+            {t('event.statusCompleted', undefined, 'Completed')}
           </span>
         );
       case 'expired':
         return (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700">
-            Expired
+            {t('event.statusExpired', undefined, 'Expired')}
           </span>
         );
       case 'pending_payment':
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/40">
             <AlertCircle className="w-2.5 h-2.5" />
-            Pending
+            {t('event.filterNeedsPayment', undefined, 'Pending')}
           </span>
         );
       case 'cancelled':
         return (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40">
             <Ban className="w-2.5 h-2.5" />
-            Cancelled
+            {t('event.filterCancelled', undefined, 'Cancelled')}
           </span>
         );
       case 'draft':
       default:
         return (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/40">
-            Draft
+            {t('event.statusDraft', undefined, 'Draft')}
           </span>
         );
     }
@@ -391,20 +385,20 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
             <Filter className="w-4 h-4 text-amber-400" />
-            <span>Filter Calendar Events</span>
+            <span>{t('event.filterCalendarEvents', undefined, 'Filter Calendar Events')}</span>
             {hasActiveFilters && (
               <button
                 onClick={handleResetFilters}
                 className="text-[11px] font-semibold text-amber-400 hover:text-amber-300 underline ml-2 cursor-pointer"
               >
-                Clear all filters
+                {t('event.clearFilters', undefined, 'Clear all filters')}
               </button>
             )}
           </div>
 
           <span className="text-[11px] font-medium text-slate-400">
-            Showing <strong className="text-slate-100">{filteredEvents.length}</strong> of{' '}
-            {events.length} events
+            {t('common.showing', undefined, 'Showing')} <strong className="text-slate-100">{filteredEvents.length}</strong> {t('common.of', undefined, 'of')}{' '}
+            {events.length} {t('common.events', undefined, 'events')}
           </span>
         </div>
 
@@ -416,7 +410,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search event name..."
+              placeholder={t('event.searchPlaceholder', undefined, 'Search event name...')}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 outline-none focus:border-amber-500 transition-colors"
             />
           </div>
@@ -434,7 +428,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                 }}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 transition-colors cursor-pointer"
               >
-                <option value="all">All Organizations</option>
+                <option value="all">{t('organization.allOrganizations', undefined, 'All Organizations')}</option>
                 {organizations.map((org) => (
                   <option key={org.id} value={org.id}>
                     {org.name}
@@ -451,7 +445,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
               onChange={(e) => setSelectedGame(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 transition-colors cursor-pointer"
             >
-              <option value="all">All Games</option>
+              <option value="all">{t('event.allGames', undefined, 'All Games')}</option>
               {uniqueGames.map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.name}
@@ -467,7 +461,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
               onChange={(e) => setSelectedTheme(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 transition-colors cursor-pointer"
             >
-              <option value="all">All Themes</option>
+              <option value="all">{t('event.allThemes', undefined, 'All Themes')}</option>
               {uniqueThemes.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
@@ -483,14 +477,14 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 transition-colors cursor-pointer"
             >
-              <option value="all">All Status</option>
-              <option value="live">Live Now</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="pending_payment">Pending Payment</option>
-              <option value="completed">Completed</option>
-              <option value="expired">Expired</option>
-              <option value="draft">Draft</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="all">{t('event.filterAll', undefined, 'All Status')}</option>
+              <option value="live">{t('event.filterLive', undefined, 'Live Now')}</option>
+              <option value="scheduled">{t('event.filterUpcoming', undefined, 'Scheduled')}</option>
+              <option value="pending_payment">{t('event.filterNeedsPayment', undefined, 'Pending Payment')}</option>
+              <option value="completed">{t('event.filterCompleted', undefined, 'Completed')}</option>
+              <option value="expired">{t('event.statusExpired', undefined, 'Expired')}</option>
+              <option value="draft">{t('event.statusDraft', undefined, 'Draft')}</option>
+              <option value="cancelled">{t('event.filterCancelled', undefined, 'Cancelled')}</option>
             </select>
           </div>
         </div>
@@ -504,7 +498,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
             <button
               onClick={handlePrevious}
               className="p-2 hover:bg-slate-800 rounded-xl text-slate-300 hover:text-slate-100 transition-colors"
-              title="Previous"
+              title={t('common.previous', undefined, 'Previous')}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -512,12 +506,12 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
               onClick={handleToday}
               className="px-3 py-1.5 text-xs font-bold text-slate-200 hover:text-amber-400 hover:bg-slate-800 rounded-xl transition-colors"
             >
-              Today
+              {t('common.today', undefined, 'Today')}
             </button>
             <button
               onClick={handleNext}
               className="p-2 hover:bg-slate-800 rounded-xl text-slate-300 hover:text-slate-100 transition-colors"
-              title="Next"
+              title={t('common.next', undefined, 'Next')}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -538,6 +532,12 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
           <div className="flex items-center bg-slate-950 border border-slate-800 p-1 rounded-2xl">
             {(['month', 'week', 'day'] as const).map((view) => {
               const isActive = viewType === view;
+              const label =
+                view === 'month'
+                  ? t('common.month', undefined, 'month')
+                  : view === 'week'
+                  ? t('common.week', undefined, 'week')
+                  : t('common.day', undefined, 'day');
               return (
                 <button
                   key={view}
@@ -548,7 +548,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                   }`}
                 >
-                  {view}
+                  {label}
                 </button>
               );
             })}
@@ -563,29 +563,29 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
             <CalendarIcon className="w-7 h-7" />
           </div>
           <div className="space-y-1 max-w-md mx-auto">
-            <h3 className="text-base font-bold text-slate-200">No events found</h3>
+            <h3 className="text-base font-bold text-slate-200">{t('event.noEventsMatching', undefined, 'No events found')}</h3>
             <p className="text-xs text-slate-400">
               {hasActiveFilters
-                ? 'No events match your current filter criteria. Try adjusting or clearing your filters.'
-                : 'No event deployments exist in this workspace yet.'}
+                ? t('event.tryAdjustingFilters', undefined, 'No events match your current filter criteria. Try adjusting or clearing your filters.')
+                : t('event.noEventsDesc', undefined, 'No event deployments exist in this workspace yet.')}
             </p>
           </div>
           <div className="flex items-center justify-center gap-3">
             {hasActiveFilters && (
               <button
                 onClick={handleResetFilters}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold cursor-pointer"
               >
-                Reset Filters
+                {t('event.clearFilters', undefined, 'Reset Filters')}
               </button>
             )}
             {!isViewer && (
               <button
                 onClick={onCreateEvent}
-                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-sm"
+                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-sm cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>Create Event</span>
+                <span>{t('event.createEvent', undefined, 'Create Event')}</span>
               </button>
             )}
           </div>
@@ -693,9 +693,9 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                               setCurrentDate(date);
                               setViewType('day');
                             }}
-                            className="w-full text-center py-0.5 text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded border border-amber-500/30 transition-colors"
+                            className="w-full text-center py-0.5 text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 rounded border border-amber-500/30 transition-colors cursor-pointer"
                           >
-                            +{dayEvents.length - 3} more
+                            +{dayEvents.length - 3} {t('common.more', undefined, 'more')}
                           </button>
                         )}
                       </div>
@@ -749,7 +749,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                     <div className="p-2.5 flex-1 space-y-2 overflow-y-auto max-h-[500px]">
                       {dayEvents.length === 0 ? (
                         <div className="py-8 text-center text-[11px] text-slate-600 font-medium italic">
-                          No events
+                          {t('event.noEvents', undefined, 'No events')}
                         </div>
                       ) : (
                         dayEvents.map((ev) => {
@@ -790,7 +790,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                               <div className="mt-2.5 flex items-center justify-between gap-1 pt-1 border-t border-slate-700/40">
                                 {getStatusBadge(effectiveStatus)}
                                 <span className="text-[10px] text-amber-400 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
-                                  Edit ↗
+                                  {t('common.edit', undefined, 'Edit')} ↗
                                 </span>
                               </div>
                             </div>
@@ -813,13 +813,13 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
             <div>
               <h3 className="text-xl font-black text-slate-100">{headerTitle}</h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Active deployments and campaigns running on this date.
+                {t('event.dayViewDesc', undefined, 'Active deployments and campaigns running on this date.')}
               </p>
             </div>
 
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs font-bold text-amber-400">
-                {filteredEvents.filter((ev) => isEventOnDay(ev, currentDate)).length} Active Events
+                {filteredEvents.filter((ev) => isEventOnDay(ev, currentDate)).length} {t('event.activeEvents', undefined, 'Active Events')}
               </span>
             </div>
           </div>
@@ -835,18 +835,18 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                     <CalendarIcon className="w-6 h-6" />
                   </div>
                   <h4 className="text-sm font-bold text-slate-300">
-                    No events scheduled for this day
+                    {t('event.noEventsScheduledDay', undefined, 'No events scheduled for this day')}
                   </h4>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    There are no event deployments active on this specific date.
+                    {t('event.noEventsScheduledDayDesc', undefined, 'There are no event deployments active on this specific date.')}
                   </p>
                   {!isViewer && (
                     <button
                       onClick={onCreateEvent}
-                      className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-all mt-2 shadow-sm"
+                      className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-all mt-2 shadow-sm cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Create Event for This Day</span>
+                      <span>{t('event.createEvent', undefined, 'Create Event for This Day')}</span>
                     </button>
                   )}
                 </div>
@@ -873,7 +873,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                             {ev.name}
                           </h4>
                           <span className="text-[10px] text-slate-400 font-mono">
-                            Token: {ev.public_token}
+                            {t('event.token', undefined, 'Token')}: {ev.public_token}
                           </span>
                         </div>
                         {getStatusBadge(effectiveStatus)}
@@ -884,7 +884,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-slate-400 flex items-center gap-1.5 font-medium">
                             <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
-                            Game:
+                            {t('common.game', undefined, 'Game')}:
                           </span>
                           <span className="font-bold text-slate-200">
                             {ev.game?.name || 'Catch The Brand'}
@@ -894,7 +894,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-slate-400 flex items-center gap-1.5 font-medium">
                             <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                            Theme:
+                            {t('common.theme', undefined, 'Theme')}:
                           </span>
                           <span className="font-bold text-slate-200">
                             {ev.game_theme?.name || 'Theme'}
@@ -904,7 +904,7 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                         <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-800">
                           <span className="text-slate-400 flex items-center gap-1.5 font-medium">
                             <CalendarIcon className="w-3.5 h-3.5 text-blue-400" />
-                            Schedule:
+                            {t('common.schedule', undefined, 'Schedule')}:
                           </span>
                           <span className="font-mono text-[10px] text-slate-300">
                             {formatEventDates(ev)}
@@ -919,10 +919,10 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                             e.stopPropagation();
                             window.open(publicUrl, '_blank');
                           }}
-                          className="flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-amber-400 transition-colors"
+                          className="flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-amber-400 transition-colors cursor-pointer"
                         >
                           <ExternalLink className="w-3 h-3" />
-                          <span>Open Game</span>
+                          <span>{t('event.openGame', undefined, 'Open Game')}</span>
                         </button>
 
                         <button
@@ -930,9 +930,9 @@ export const EventCalendarView: React.FC<EventCalendarViewProps> = ({
                             e.stopPropagation();
                             onEditEvent(ev);
                           }}
-                          className="text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline"
+                          className="text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline cursor-pointer"
                         >
-                          Edit Details →
+                          {t('event.editDetails', undefined, 'Edit Details →')}
                         </button>
                       </div>
                     </div>

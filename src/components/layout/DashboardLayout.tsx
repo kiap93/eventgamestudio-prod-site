@@ -214,16 +214,16 @@ export const DashboardLayout: React.FC = () => {
             <button
               id="dashboard-mobile-nav-btn"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              title="Toggle Navigation Menu"
+              title={t('common.toggleMenu', undefined, 'Toggle Navigation Menu')}
               className="md:hidden p-2 -ml-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl cursor-pointer shrink-0"
-              aria-label="Toggle navigation menu"
+              aria-label={t('common.toggleMenu', undefined, 'Toggle Navigation Menu')}
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
 
             <button
               onClick={() => navigateTo('/')}
-              title="View Public Landing Page"
+              title={t('nav.home')}
               className="flex items-center gap-2 group text-left transition-transform focus:outline-none cursor-pointer"
             >
               <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 group-hover:border-amber-400/60 group-hover:bg-amber-500/20 transition-all">
@@ -274,11 +274,11 @@ export const DashboardLayout: React.FC = () => {
             {currentUser?.is_developer && (
               <button
                 onClick={() => navigateTo('/developer')}
-                title="Open Developer Admin"
+                title={t('nav.developer')}
                 className="hidden xl:flex items-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-sm cursor-pointer"
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Dev Admin</span>
+                <span>{t('developer.admin', undefined, 'Dev Admin')}</span>
               </button>
             )}
 
@@ -289,14 +289,14 @@ export const DashboardLayout: React.FC = () => {
                   setShowOrgDropdown(!showOrgDropdown);
                   setShowUserDropdown(false);
                 }}
-                title="Select Organization Workspace"
+                title={t('auth.chooseSlug', undefined, 'Select Organization Workspace')}
                 className={`flex items-center gap-1.5 sm:gap-2 bg-slate-950 hover:bg-slate-800 border ${
                   showOrgDropdown ? 'border-amber-500/50 bg-slate-850' : 'border-slate-800'
                 } px-2 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-200 transition-colors cursor-pointer`}
               >
                 <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
                 <span className="max-w-[75px] xs:max-w-[95px] sm:max-w-[120px] lg:max-w-[150px] truncate">
-                  {currentOrganization?.name || 'Select Workspace'}
+                  {currentOrganization?.name || t('auth.createWorkspace', undefined, 'Select Workspace')}
                 </span>
                 {currentOrganization?.country_code && (
                   <span className="text-xs shrink-0" title={getCountryByCode(currentOrganization.country_code)?.name}>
@@ -351,11 +351,11 @@ export const DashboardLayout: React.FC = () => {
                       <div
                         id="org-dropdown-limit-notice"
                         className="px-3 py-2 text-[11px] text-slate-400 bg-slate-950/60 rounded-xl flex items-center justify-between"
-                        title="You have reached the maximum of 5 owned organizations allowed per account."
+                        title={t('auth.maxOrgsReachedDesc', undefined, 'You have reached the maximum of 5 owned organizations allowed per account.')}
                       >
                         <span className="flex items-center gap-1.5 text-slate-400">
                           <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Max 5 Orgs Reached</span>
+                          <span>{t('auth.maxOrgsReached', undefined, 'Max 5 Orgs Reached')}</span>
                         </span>
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-amber-400 font-bold">
                           {ownedOrgsCount}/5
@@ -574,7 +574,7 @@ export const DashboardLayout: React.FC = () => {
               <div className="flex items-center gap-2 min-w-0">
                 <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
                 <span className="font-semibold text-slate-200 truncate">
-                  {currentOrganization?.name || 'My Workspace'}
+                  {currentOrganization?.name || t('auth.createWorkspace', undefined, 'My Workspace')}
                 </span>
               </div>
 

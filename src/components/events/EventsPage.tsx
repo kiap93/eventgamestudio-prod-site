@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { EventCard } from './EventCard';
 import { CreateEventDialog } from './CreateEventDialog';
@@ -37,6 +38,7 @@ export interface EventsPageProps {
 
 export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardStatus }) => {
   const { currentOrganization, organizations, switchOrganization, currentUser } = useAuth();
+  const { t } = useLocalization();
 
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -252,22 +254,22 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-black text-slate-100 tracking-tight">
-              Event Deployments
+              {t('event.title', undefined, 'Event Deployments')}
             </h1>
             {loading ? (
               <div className="h-5 w-16 bg-slate-800 rounded-full animate-pulse border border-slate-700/40" />
             ) : error ? (
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-500/10 border border-red-500/30 text-red-400">
-                Error
+                {t('common.error', undefined, 'Error')}
               </span>
             ) : (
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                {totalCount} Total
+                {totalCount} {t('common.all', undefined, 'Total')}
               </span>
             )}
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Deploy playable Game Themes to dedicated public links for events, campaigns, and corporate activations.
+            {t('event.manageEvents', undefined, 'Deploy playable Game Themes to dedicated public links for events, campaigns, and corporate activations.')}
           </p>
         </div>
 
@@ -281,10 +283,10 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
                   ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
-              title="List View"
+              title={t('event.listView', undefined, 'List View')}
             >
               <LayoutList className="w-3.5 h-3.5" />
-              <span>List</span>
+              <span>{t('common.list', undefined, 'List')}</span>
             </button>
             <button
               onClick={() => setViewMode('calendar')}
@@ -293,10 +295,10 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
                   ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
-              title="Calendar View"
+              title={t('event.calendarView', undefined, 'Calendar View')}
             >
               <CalendarIcon className="w-3.5 h-3.5" />
-              <span>Calendar</span>
+              <span>{t('common.calendar', undefined, 'Calendar')}</span>
             </button>
           </div>
 
@@ -312,7 +314,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
               className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Create Event</span>
+              <span>{t('event.createEvent', undefined, 'Create Event')}</span>
             </button>
           )}
         </div>
@@ -328,17 +330,17 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-amber-500">
-                  Required Onboarding Step
+                  {t('event.themeRequiredNotice', undefined, 'Required Onboarding Step')}
                 </span>
                 <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
-                  Theme Setup Required
+                  {t('event.themeRequiredTitle', undefined, 'Theme Setup Required')}
                 </span>
               </div>
               <h2 className="text-base font-extrabold text-white mt-1">
-                Customize your brand theme before creating events
+                {t('event.themeRequiredTitle', undefined, 'Customize your brand theme before creating events')}
               </h2>
               <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                Before creating your first event, customize your theme to match your brand. Event creation remains locked until your theme is saved.
+                {t('event.themeRequiredDesc', undefined, 'Before creating your first event, customize your theme to match your brand. Event creation remains locked until your theme is saved.')}
               </p>
             </div>
           </div>
@@ -346,7 +348,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
             onClick={() => navigateTo('/theme-setup')}
             className="w-full sm:w-auto px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
           >
-            <span>Set Up Theme</span>
+            <span>{t('event.setUpTheme', undefined, 'Set Up Theme')}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -355,7 +357,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
       {/* Metrics Summary Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Live</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('event.metricLive', undefined, 'Live')}</span>
           {loading ? (
             <div className="h-8 w-12 bg-slate-800/80 rounded-xl animate-pulse mt-0.5" />
           ) : error ? (
@@ -366,7 +368,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Scheduled</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('event.metricUpcoming', undefined, 'Scheduled')}</span>
           {loading ? (
             <div className="h-8 w-12 bg-slate-800/80 rounded-xl animate-pulse mt-0.5" />
           ) : error ? (
@@ -377,7 +379,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending Payment</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('event.filterNeedsPayment', undefined, 'Pending Payment')}</span>
           {loading ? (
             <div className="h-8 w-12 bg-slate-800/80 rounded-xl animate-pulse mt-0.5" />
           ) : error ? (
@@ -388,7 +390,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Completed</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('event.metricCompleted', undefined, 'Completed')}</span>
           {loading ? (
             <div className="h-8 w-12 bg-slate-800/80 rounded-xl animate-pulse mt-0.5" />
           ) : error ? (
@@ -399,7 +401,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-1 shadow-sm col-span-2 sm:col-span-1">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Expired</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{t('event.statusExpired', undefined, 'Expired')}</span>
           {loading ? (
             <div className="h-8 w-12 bg-slate-800/80 rounded-xl animate-pulse mt-0.5" />
           ) : error ? (
@@ -424,15 +426,15 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
               <div className="space-y-2">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h2 className="text-base sm:text-lg font-black text-slate-100 tracking-tight">
-                    Account Owner First-Event Showcase Reward
+                    {t('showcase.firstEventRewardBanner', undefined, 'Account Owner First-Event Showcase Reward')}
                   </h2>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400">
                     <Sparkles className="w-3 h-3 text-amber-400" />
-                    <span>RM300 Lifetime Bonus</span>
+                    <span>RM300 {t('showcase.rewardStatus', undefined, 'Lifetime Bonus')}</span>
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-3xl">
-                  As an organization owner, your first live event activation is eligible for an RM300 Showcase Credit. After your event runs, simply upload event photos/videos to the Showcase tab. Upon review, RM300 is deposited into your wallet. (Limit one first-event reward per account owner).
+                  {t('showcase.ownerRewardNotice', undefined, 'As an organization owner, your first live event activation is eligible for an RM300 Showcase Credit. After your event runs, simply upload event photos/videos to the Showcase tab. Upon review, RM300 is deposited into your wallet. (Limit one first-event reward per account owner).')}
                 </p>
               </div>
             </div>
@@ -444,7 +446,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
                 className="w-full sm:w-auto flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-2xl text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer whitespace-nowrap"
               >
                 <Plus className="w-4 h-4" />
-                <span>Deploy First Event</span>
+                <span>{t('event.createEvent', undefined, 'Deploy First Event')}</span>
               </button>
             </div>
           </div>
@@ -458,7 +460,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
             <AlertCircle className="w-6 h-6" />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-base font-bold text-slate-100">Unable to load events</h3>
+            <h3 className="text-base font-bold text-slate-100">{t('common.error', undefined, 'Unable to load events')}</h3>
             <p className="text-xs text-slate-400 leading-relaxed max-w-md mx-auto">
               We couldn't retrieve your event deployments. Please check your connection and try again.
             </p>
@@ -473,7 +475,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
               onClick={fetchEvents}
               className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 cursor-pointer"
             >
-              <span>Try Again</span>
+              <span>{t('common.tryAgain', undefined, 'Try Again')}</span>
             </button>
           </div>
         </div>
@@ -482,7 +484,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
           <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-10 text-center space-y-4">
             <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
             <div className="space-y-1">
-              <h3 className="text-sm font-bold text-slate-200">Loading your events...</h3>
+              <h3 className="text-sm font-bold text-slate-200">{t('common.loading', undefined, 'Loading your events...')}</h3>
               <p className="text-xs text-slate-400">Retrieving your event deployments. This may take a moment.</p>
             </div>
             <div className="h-96 bg-slate-950/40 rounded-2xl border border-slate-800/60 animate-pulse mt-6" />
@@ -511,7 +513,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
                 value={searchQuery}
                 disabled={loading}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={loading ? 'Loading events...' : 'Search by event name, game, theme, or token...'}
+                placeholder={loading ? t('common.loading', undefined, 'Loading events...') : t('event.searchPlaceholder', undefined, 'Search by event name, game, theme, or token...')}
                 className={`w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-600 outline-none focus:border-amber-500 transition-opacity ${
                   loading ? 'opacity-60 cursor-not-allowed' : ''
                 }`}
@@ -522,13 +524,13 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
             <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
               {(
                 [
-                  { key: 'all', label: 'All' },
-                  { key: 'live', label: 'Live' },
-                  { key: 'scheduled', label: 'Scheduled' },
-                  { key: 'pending_payment', label: 'Pending Payment' },
-                  { key: 'completed', label: 'Completed' },
-                  { key: 'expired', label: 'Expired' },
-                  { key: 'cancelled', label: 'Cancelled' },
+                  { key: 'all', label: t('event.filterAll', undefined, 'All') },
+                  { key: 'live', label: t('event.filterLive', undefined, 'Live') },
+                  { key: 'scheduled', label: t('event.filterUpcoming', undefined, 'Scheduled') },
+                  { key: 'pending_payment', label: t('event.filterNeedsPayment', undefined, 'Pending Payment') },
+                  { key: 'completed', label: t('event.filterCompleted', undefined, 'Completed') },
+                  { key: 'expired', label: t('event.statusExpired', undefined, 'Expired') },
+                  { key: 'cancelled', label: t('event.filterCancelled', undefined, 'Cancelled') },
                 ] as const
               ).map(({ key, label }) => {
                 const isSelected = statusFilter === key;
@@ -559,7 +561,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
               <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-8 text-center space-y-3">
                 <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
                 <div className="space-y-1">
-                  <h3 className="text-sm font-bold text-slate-200">Loading your events...</h3>
+                  <h3 className="text-sm font-bold text-slate-200">{t('common.loading', undefined, 'Loading your events...')}</h3>
                   <p className="text-xs text-slate-400">Retrieving your event deployments. This may take a moment.</p>
                 </div>
               </div>
@@ -599,13 +601,13 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
               <div className="space-y-1 max-w-sm mx-auto">
                 <h3 className="text-base font-bold text-slate-200">
                   {searchQuery || statusFilter !== 'all'
-                    ? 'No matching events found'
-                    : 'No events yet'}
+                    ? t('event.noEventsMatching', undefined, 'No matching events found')
+                    : t('event.noEvents', undefined, 'No events yet')}
                 </h3>
                 <p className="text-xs text-slate-400">
                   {searchQuery || statusFilter !== 'all'
                     ? 'Try clearing your search query or status filter.'
-                    : 'Create your first event to start deploying interactive games.'}
+                    : t('event.createFirstEvent', undefined, 'Create your first event to start deploying interactive games.')}
                 </p>
               </div>
               {searchQuery || statusFilter !== 'all' ? (
@@ -616,7 +618,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
                   }}
                   className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer"
                 >
-                  <span>Clear Filters</span>
+                  <span>{t('event.clearFilters', undefined, 'Clear Filters')}</span>
                 </button>
               ) : !isViewer ? (
                 <button
@@ -630,7 +632,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ initialLifetimeRewardSta
                   className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-2xl text-xs transition-all shadow-md shadow-amber-500/20 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>{themeReadiness && !themeReadiness.hasValidTheme ? 'Set Up Theme First' : 'Create Event'}</span>
+                  <span>{themeReadiness && !themeReadiness.hasValidTheme ? t('event.setUpTheme', undefined, 'Set Up Theme First') : t('event.createEvent', undefined, 'Create Event')}</span>
                 </button>
               ) : null}
             </div>

@@ -35,6 +35,7 @@ import {
 } from '../../lib/dateUtils';
 import { EventLeaderboardModal } from './EventLeaderboardModal';
 import { EventPaymentModal } from './EventPaymentModal';
+import { useLocalization } from '../../context/LocalizationContext';
 
 interface EventCardProps {
   event: any;
@@ -53,6 +54,8 @@ export const EventCard: React.FC<EventCardProps> = ({
   onCancel,
   onRefresh,
 }) => {
+  const { t } = useLocalization();
+
   const [copied, setCopied] = useState(false);
   const [copiedShowcase, setCopiedShowcase] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -142,7 +145,7 @@ export const EventCard: React.FC<EventCardProps> = ({
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 border border-red-500/30 text-red-400">
           <Ban className="w-3 h-3" />
-          Cancelled
+          {t('event.statusCancelled', undefined, 'Cancelled')}
         </span>
       );
     }
@@ -150,7 +153,7 @@ export const EventCard: React.FC<EventCardProps> = ({
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
           <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-          Completed
+          {t('event.statusCompleted', undefined, 'Completed')}
         </span>
       );
     }
@@ -158,7 +161,7 @@ export const EventCard: React.FC<EventCardProps> = ({
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 border border-slate-700 text-slate-400">
           <Clock className="w-3 h-3 text-slate-500" />
-          Expired
+          {t('event.statusExpired', undefined, 'Expired')}
         </span>
       );
     }
@@ -166,7 +169,7 @@ export const EventCard: React.FC<EventCardProps> = ({
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-400">
           <AlertCircle className="w-3 h-3" />
-          Pending Payment
+          {t('event.filterNeedsPayment', undefined, 'Pending Payment')}
         </span>
       );
     }
@@ -174,14 +177,14 @@ export const EventCard: React.FC<EventCardProps> = ({
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-          Live Now
+          {t('event.liveNowBadge', undefined, 'Live Now')}
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 border border-blue-500/30 text-blue-400">
         <Calendar className="w-3 h-3" />
-        Scheduled
+        {t('event.statusUpcoming', undefined, 'Scheduled')}
       </span>
     );
   };
@@ -224,7 +227,7 @@ export const EventCard: React.FC<EventCardProps> = ({
         <div className="flex items-center justify-between text-slate-400">
           <span className="flex items-center gap-1">
             <Calendar className="w-3 h-3 text-amber-400" />
-            Event Dates:
+            {t('event.liveDates', undefined, 'Event Dates')}:
           </span>
           <span className="text-slate-200 font-bold">{dateRangeFormatted}</span>
         </div>
@@ -232,7 +235,7 @@ export const EventCard: React.FC<EventCardProps> = ({
         <div className="flex items-center justify-between text-slate-400">
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3 text-slate-500" />
-            Live Window Opens:
+            {t('event.liveWindow', undefined, 'Live Window Opens')}:
           </span>
           <span className="text-slate-300 font-mono">{formatDateOnly(availability.liveOpenDate)}</span>
         </div>
@@ -240,7 +243,7 @@ export const EventCard: React.FC<EventCardProps> = ({
         <div className="flex items-center justify-between text-slate-400">
           <span className="flex items-center gap-1">
             <Globe className="w-3 h-3 text-slate-500" />
-            Timezone:
+            {t('event.timezone', undefined, 'Timezone')}:
           </span>
           <span className="text-slate-300 font-mono text-[10px]">{event.event_timezone || event.timezone || 'Asia/Singapore'}</span>
         </div>
@@ -248,7 +251,7 @@ export const EventCard: React.FC<EventCardProps> = ({
         <div className="flex items-center justify-between pt-1.5 border-t border-slate-900 text-slate-400">
           <span className="flex items-center gap-1">
             <ShieldCheck className={`w-3 h-3 ${isPaid ? 'text-emerald-400' : isRefunded ? 'text-amber-400' : 'text-amber-500'}`} />
-            Payment:
+            {t('event.paymentStatus', undefined, 'Payment')}:
           </span>
           <span className={`text-[10px] font-mono font-semibold ${
             isPaid
@@ -288,13 +291,13 @@ export const EventCard: React.FC<EventCardProps> = ({
       <div className="flex items-center justify-between gap-2 bg-slate-950/60 border border-slate-800/60 rounded-xl px-3 py-2 text-xs flex-wrap sm:flex-nowrap">
         <div className="flex items-center gap-1.5 text-[11px] text-slate-400 shrink-0">
           <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span>Showcase:</span>
+          <span>{t('showcase.title', undefined, 'Showcase')}:</span>
           {showcaseStatus === 'PUBLISHED' ? (
-            <span className="font-bold text-emerald-400">Published</span>
+            <span className="font-bold text-emerald-400">{t('showcase.published', undefined, 'Published')}</span>
           ) : showcaseStatus === 'DRAFT' ? (
-            <span className="font-bold text-amber-400">Draft</span>
+            <span className="font-bold text-amber-400">{t('showcase.draft', undefined, 'Draft')}</span>
           ) : showcaseStatus === 'UNPUBLISHED' ? (
-            <span className="font-bold text-slate-400">Unpublished</span>
+            <span className="font-bold text-slate-400">{t('showcase.unpublish', undefined, 'Unpublished')}</span>
           ) : hasExistingShowcase ? (
             <span className="font-bold text-slate-400">
               {typeof showcaseStatus === 'string' && showcaseStatus.trim()
@@ -319,7 +322,7 @@ export const EventCard: React.FC<EventCardProps> = ({
                 title="Manage Event Showcase"
               >
                 <Edit2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>Manage</span>
+                <span>{t('common.manage', undefined, 'Manage')}</span>
               </button>
             )}
 
@@ -335,7 +338,7 @@ export const EventCard: React.FC<EventCardProps> = ({
                   title="View Public Showcase"
                 >
                   <Eye className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>View</span>
+                  <span>{t('common.view', undefined, 'View')}</span>
                 </button>
                 <button
                   type="button"
@@ -346,12 +349,12 @@ export const EventCard: React.FC<EventCardProps> = ({
                   {copiedShowcase ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span className="text-emerald-400 font-bold">Copied</span>
+                      <span className="text-emerald-400 font-bold">{t('common.copied', undefined, 'Copied')}</span>
                     </>
                   ) : (
                     <>
                       <Share2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span>Share</span>
+                      <span>{t('common.share', undefined, 'Share')}</span>
                     </>
                   )}
                 </button>
@@ -367,7 +370,7 @@ export const EventCard: React.FC<EventCardProps> = ({
                 title="Preview Showcase"
               >
                 <Eye className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>Preview</span>
+                <span>{t('common.preview', undefined, 'Preview')}</span>
               </button>
             )}
           </div>
@@ -380,7 +383,7 @@ export const EventCard: React.FC<EventCardProps> = ({
             }}
             className="text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline transition-colors flex items-center gap-1 cursor-pointer"
           >
-            <span>+ Create Showcase</span>
+            <span>+ {t('showcase.title', undefined, 'Showcase')}</span>
           </button>
         ) : (
           <span
@@ -439,17 +442,17 @@ export const EventCard: React.FC<EventCardProps> = ({
         <button
           onClick={copyLink}
           className="flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 shrink-0 transition-colors cursor-pointer"
-          title="Copy Public Link"
+          title={t('event.copyPublicUrl', undefined, 'Copy Public Link')}
         >
           {copied ? (
             <>
               <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-emerald-400">Copied</span>
+              <span className="text-emerald-400">{t('common.copied', undefined, 'Copied')}</span>
             </>
           ) : (
             <>
               <Copy className="w-3.5 h-3.5" />
-              <span>Copy</span>
+              <span>{t('common.copy', undefined, 'Copy')}</span>
             </>
           )}
         </button>
@@ -468,7 +471,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shadow-sm shadow-amber-500/20 cursor-pointer"
             >
               <CreditCard className="w-3.5 h-3.5 text-slate-950" />
-              <span>Pay & Activate</span>
+              <span>{t('event.payToActivate', undefined, 'Pay & Activate')}</span>
             </button>
           ) : availability.liveUrlAvailable ? (
             <button
@@ -476,7 +479,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-500/20 cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>Play Live</span>
+              <span>{t('event.playLive', undefined, 'Play Live')}</span>
             </button>
           ) : null}
 
@@ -485,10 +488,10 @@ export const EventCard: React.FC<EventCardProps> = ({
             <button
               onClick={openPreviewGame}
               className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
-              title="Open Authenticated Test Preview"
+              title={t('event.previewGame', undefined, 'Open Authenticated Test Preview')}
             >
               <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
-              <span className="hidden sm:inline">Preview</span>
+              <span className="hidden sm:inline">{t('common.preview', undefined, 'Preview')}</span>
             </button>
           )}
 
@@ -499,10 +502,10 @@ export const EventCard: React.FC<EventCardProps> = ({
               setShowLeaderboard(true);
             }}
             className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
-            title="View Event High Scores"
+            title={t('event.openLeaderboard', undefined, 'View Event High Scores')}
           >
             <Trophy className="w-3.5 h-3.5" />
-            <span>Scores</span>
+            <span>{t('game.scores', undefined, 'Scores')}</span>
           </button>
         </div>
 
@@ -511,7 +514,7 @@ export const EventCard: React.FC<EventCardProps> = ({
             <button
               onClick={() => onEdit(event)}
               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 rounded-lg text-xs transition-colors cursor-pointer"
-              title={isPaid ? 'View Event Setup (Locked - Paid)' : 'Edit Event'}
+              title={isPaid ? t('event.lockedPaid', undefined, 'View Event Setup (Locked - Paid)') : t('event.editEvent', undefined, 'Edit Event')}
             >
               {isPaid ? <Lock className="w-3.5 h-3.5 text-amber-400/80" /> : <Edit2 className="w-3.5 h-3.5" />}
             </button>
@@ -520,7 +523,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               <button
                 onClick={() => onDelete(event.id)}
                 className="p-1.5 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg text-xs transition-colors cursor-pointer"
-                title="Delete Event"
+                title={t('event.deleteEvent', undefined, 'Delete Event')}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -530,7 +533,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               <button
                 onClick={() => onCancel(event.id)}
                 className="p-1.5 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg text-xs transition-colors cursor-pointer"
-                title="Cancel & Refund"
+                title={t('event.cancelEvent', undefined, 'Cancel & Refund')}
               >
                 <Ban className="w-3.5 h-3.5" />
               </button>
@@ -539,7 +542,7 @@ export const EventCard: React.FC<EventCardProps> = ({
             {!deleteEligibility.canDelete && !cancelEligibility.canCancel && (deleteEligibility.code === 'SETUP_DAY_STARTED' || cancelEligibility.code === 'SETUP_DAY_STARTED') && (
               <div
                 className="p-1.5 bg-slate-800/60 text-slate-500 rounded-lg text-xs cursor-not-allowed"
-                title="Event locked — cancellation and refund are unavailable after Setup Day."
+                title={t('event.lockedSetupDay', undefined, 'Event locked — cancellation and refund are unavailable after Setup Day.')}
               >
                 <Lock className="w-3.5 h-3.5 text-slate-500" />
               </div>

@@ -736,7 +736,7 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                           <span className="text-rose-400 font-bold text-xs sm:text-sm">-{stats.orangeCaught}</span>
                         </div>
                         <div>
-                          <span className="text-slate-400 block text-[10px]">BEST</span>
+                          <span className="text-slate-400 block text-[10px]">{t('game.best', undefined, 'BEST')}</span>
                           <span className="text-amber-400 font-bold text-xs sm:text-sm">{stats.highScore}</span>
                         </div>
                       </div>
@@ -747,14 +747,14 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                       <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-2.5 sm:p-3 mb-3 text-left">
                         <div className="flex items-center justify-between mb-1">
                           <span className="flex items-center gap-1.5 text-amber-400 font-black text-xs uppercase tracking-wider">
-                            <Trophy className="w-3.5 h-3.5" /> TEST SCORE: {stats.score}
+                            <Trophy className="w-3.5 h-3.5" /> {t('game.score')}: {stats.score}
                           </span>
                           <span className="text-[9px] text-amber-300/80 font-mono uppercase bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                            Studio Preview
+                            {t('common.preview')}
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-300 leading-snug">
-                          This is a studio preview score. It will not be added to the live event leaderboard.
+                          {t('game.simulated')}
                         </p>
                       </div>
                     ) : !scoreSubmitted ? (
@@ -763,23 +763,23 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                           <div className="mb-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-300">
                             <div className="font-bold flex items-center gap-1">
                               <Trophy className="w-3 h-3 text-amber-400 shrink-0" />
-                              <span>PRE-EVENT TEST MODE</span>
+                              <span>{t('game.testMode', undefined, 'PRE-EVENT TEST MODE')}</span>
                             </div>
-                            <p className="text-slate-300 mt-0.5">Test scores are saved for validation and will be cleared when the event starts.</p>
+                            <p className="text-slate-300 mt-0.5">{t('game.testScoresNotice', undefined, 'Test scores are saved for validation and will be cleared when the event starts.')}</p>
                           </div>
                         )}
                         <div className="flex items-center justify-between text-xs text-slate-300 font-bold mb-1.5">
                           <span className="flex items-center gap-1.5 text-amber-400">
-                            <Trophy className="w-3.5 h-3.5" /> {isEventTest ? 'Submit Test Score' : 'High Score Submission'}
+                            <Trophy className="w-3.5 h-3.5" /> {isEventTest ? t('game.submitTestScore', undefined, 'Submit Test Score') : t('game.submitScore')}
                           </span>
-                          <span className="text-[10px] text-slate-500 font-mono">{isEventTest ? 'Test Leaderboard' : 'Leaderboard'}</span>
+                          <span className="text-[10px] text-slate-500 font-mono">{isEventTest ? t('game.testLeaderboard', undefined, 'Test Leaderboard') : t('game.leaderboard')}</span>
                         </div>
                         <div className="flex gap-2">
                           <input
                             type="text"
                             value={playerName}
                             onChange={(e) => setPlayerName(e.target.value)}
-                            placeholder="Enter your nickname..."
+                            placeholder={t('game.enterNickname', undefined, 'Enter your nickname...')}
                             maxLength={25}
                             disabled={isSubmittingScore}
                             className="flex-1 bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 outline-none font-mono"
@@ -789,12 +789,12 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                             disabled={isSubmittingScore}
                             className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 text-slate-950 font-black text-xs rounded-lg transition-all flex items-center gap-1 shrink-0 shadow"
                           >
-                            {isSubmittingScore ? 'Saving...' : <><Send className="w-3 h-3" /> SUBMIT</>}
+                            {isSubmittingScore ? t('common.saving') : <><Send className="w-3 h-3" /> {t('common.submit')}</>}
                           </button>
                         </div>
                         {leaderboardError && (
                           <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold mt-2 text-left">
-                            <p className="font-bold text-rose-400">Submission Notice</p>
+                            <p className="font-bold text-rose-400">{t('game.submissionNotice', undefined, 'Submission Notice')}</p>
                             <p className="text-[11px] text-rose-300 mt-0.5">{leaderboardError}</p>
                           </div>
                         )}
@@ -806,16 +806,16 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                           </div>
                           <div>
-                            <span className="text-emerald-300 font-bold text-xs block">Score Recorded!</span>
-                            <span className="text-emerald-400 text-[10px]">Ranked #{submittedRank ?? 1} on this Event's Board</span>
+                            <span className="text-emerald-300 font-bold text-xs block">{t('game.scoreRecorded', undefined, 'Score Recorded!')}</span>
+                            <span className="text-emerald-400 text-[10px]">{t('game.rankedOnBoard', { rank: submittedRank ?? 1 }, "Ranked #{{rank}} on this Event's Board")}</span>
                           </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => setGameOverTab('leaderboard')}
-                          className="px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[11px] rounded-lg transition-all shrink-0"
+                          className="px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-[11px] rounded-lg transition-all shrink-0 cursor-pointer"
                         >
-                          View Board
+                          {t('game.viewBoard', undefined, 'View Board')}
                         </button>
                       </div>
                     )}
@@ -824,16 +824,16 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                   <div className="flex items-center gap-2.5 pt-1">
                     <button
                       onClick={handlePlayAgain}
-                      className="flex-1 py-2 sm:py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm sm:text-base rounded-xl border-2 border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5"
+                      className="flex-1 py-2 sm:py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm sm:text-base rounded-xl border-2 border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <RotateCcw className="w-4 h-4 stroke-[3]" /> PLAY AGAIN
+                      <RotateCcw className="w-4 h-4 stroke-[3]" /> {t('game.playAgain')}
                     </button>
                     <button
                       onClick={handleRequestStop}
-                      className="py-2 sm:py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5"
-                      title="Return to Main Menu"
+                      className="py-2 sm:py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      title={t('common.menu', undefined, 'Return to Main Menu')}
                     >
-                      <Home className="w-3.5 h-3.5" /> MENU
+                      <Home className="w-3.5 h-3.5" /> {t('common.menu', undefined, 'MENU')}
                     </button>
                   </div>
                 </div>
@@ -846,13 +846,13 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                     {loadingLeaderboard ? (
                       <div className="py-8 text-slate-400 text-xs flex flex-col items-center gap-2">
                         <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-                        <span>Loading Leaderboard...</span>
+                        <span>{t('game.loadingLeaderboard', undefined, 'Loading Leaderboard...')}</span>
                       </div>
                     ) : leaderboardScores.length === 0 ? (
                       <div className="py-8 text-center text-slate-400 text-xs">
                         <Trophy className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
-                        <p className="font-bold text-slate-300">No Scores Yet!</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">Be the first to submit a high score!</p>
+                        <p className="font-bold text-slate-300">{t('game.noScoresYetTitle', undefined, 'No Scores Yet!')}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{t('game.beFirstToPlay')}</p>
                       </div>
                     ) : (
                       leaderboardScores.map((entry) => {
@@ -1182,15 +1182,17 @@ export const ArcadeUI: React.FC<ArcadeUIProps> = ({
                   </div>
                   <div>
                     <h3 className="text-base sm:text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-emerald-400">
-                      EVENT HIGH SCORES
+                      {t('game.leaderboard')}
                     </h3>
-                    <p className="text-[10px] text-slate-400">Official Leaderboard Rankings</p>
+                    <p className="text-[10px] text-slate-400">{t('game.topPlayers')}</p>
                   </div>
                 </div>
 
                 <button
                   onClick={() => setShowLeaderboardModal(false)}
-                  className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
+                  className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+                  aria-label={t('common.close')}
+                  title={t('common.close')}
                 >
                   <X className="w-4 h-4" />
                 </button>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import { EventShowcase, ShowcaseStatus } from '../../types/showcase';
 import { isEventEligibleForShowcase } from '../../lib/dateUtils';
@@ -38,6 +39,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
   userRole,
   onShowcaseChanged,
 }) => {
+  const { t } = useLocalization();
   const [showcase, setShowcase] = useState<EventShowcase | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -305,7 +307,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
     return (
       <div className="py-16 text-center space-y-3">
         <div className="w-7 h-7 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-xs text-slate-400">Loading showcase details...</p>
+        <p className="text-xs text-slate-400">{t('common.loading', undefined, 'Loading showcase details...')}</p>
       </div>
     );
   }
@@ -316,21 +318,21 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
             <Globe className="w-3.5 h-3.5 text-emerald-400" />
-            PUBLISHED (PUBLIC)
+            {t('showcase.statusPublished', undefined, 'PUBLISHED (PUBLIC)')}
           </span>
         );
       case 'BLOCKED':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/15 border border-rose-500/30 text-rose-400">
             <XCircle className="w-3.5 h-3.5 text-rose-400" />
-            BLOCKED BY MODERATION
+            {t('showcase.statusBlocked', undefined, 'BLOCKED BY MODERATION')}
           </span>
         );
       case 'DRAFT':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400">
             <FileText className="w-3.5 h-3.5 text-amber-400" />
-            DRAFT
+            {t('showcase.statusDraft', undefined, 'DRAFT')}
           </span>
         );
       case 'UNPUBLISHED':
@@ -338,7 +340,7 @@ export const EventShowcaseTab: React.FC<EventShowcaseTabProps> = ({
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 border border-slate-700 text-slate-400">
             <EyeOff className="w-3.5 h-3.5 text-slate-500" />
-            UNPUBLISHED (PRIVATE)
+            {t('showcase.statusUnpublished', undefined, 'UNPUBLISHED (PRIVATE)')}
           </span>
         );
     }

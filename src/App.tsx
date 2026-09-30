@@ -22,11 +22,12 @@ import { PublicShowcasesIndexPage } from './components/seo/PublicShowcasesIndexP
 import { SEO } from './components/common/SEO';
 import { NotificationProvider } from './context/NotificationContext';
 import { NotificationCenterModal } from './components/notifications/NotificationCenterModal';
-import { LocalizationProvider } from './context/LocalizationContext';
+import { LocalizationProvider, useLocalization } from './context/LocalizationContext';
 import { ShieldAlert } from 'lucide-react';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, currentOrganization, currentUser } = useAuth();
+  const { t } = useLocalization();
   const routeContext = useRouteContext();
 
   const isPublicRoute =
@@ -152,7 +153,7 @@ const AppContent: React.FC = () => {
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans space-y-3">
         <SEO robots="noindex, follow" />
         <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-slate-400 font-medium">Loading Event Game Studio...</p>
+        <p className="text-xs text-slate-400 font-medium">{t('common.loadingApp', undefined, 'Loading Event Game Studio...')}</p>
       </div>
     );
   }
@@ -173,7 +174,7 @@ const AppContent: React.FC = () => {
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans space-y-3">
         <SEO robots="noindex, follow" />
         <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-slate-400 font-medium">Redirecting to Events...</p>
+        <p className="text-xs text-slate-400 font-medium">{t('common.redirecting', undefined, 'Redirecting to Events...')}</p>
       </div>
     );
   }
@@ -188,16 +189,16 @@ const AppContent: React.FC = () => {
             <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
               <ShieldAlert className="w-6 h-6" />
             </div>
-            <h1 className="text-xl font-bold text-white">Access Denied</h1>
+            <h1 className="text-xl font-bold text-white">{t('common.accessDenied', undefined, 'Access Denied')}</h1>
             <p className="text-sm text-slate-400 leading-relaxed">
-              You do not have developer permissions to access the Developer Admin portal.
+              {t('developer.accessDeniedDesc', undefined, 'You do not have developer permissions to access the Developer Admin portal.')}
             </p>
             <div className="pt-2">
               <button
                 onClick={() => navigateTo('/events')}
                 className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition-colors cursor-pointer"
               >
-                Return to Events
+                {t('common.returnToEvents', undefined, 'Return to Events')}
               </button>
             </div>
           </div>
@@ -230,7 +231,7 @@ const AppContent: React.FC = () => {
       <div className="min-w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans space-y-3">
         <SEO robots="noindex, follow" />
         <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-slate-400 font-medium">Entering Studio...</p>
+        <p className="text-xs text-slate-400 font-medium">{t('common.enteringStudio', undefined, 'Entering Studio...')}</p>
       </div>
     );
   }

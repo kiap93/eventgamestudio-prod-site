@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { apiFetch } from '../../lib/api';
 import {
   PaymentMode,
@@ -85,6 +86,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
   initialGameId,
 }) => {
   const { currentOrganization } = useAuth();
+  const { t } = useLocalization();
 
   // Wizard Step
   const [step, setStep] = useState<DialogStep>('configure');
@@ -649,8 +651,8 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   <Gamepad2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-100">Create Event</h2>
-                  <p className="text-xs text-slate-400">Create and store your event deployment before payment</p>
+                  <h2 className="text-xl font-bold text-slate-100">{t('event.createEvent', undefined, 'Create Event')}</h2>
+                  <p className="text-xs text-slate-400">{t('event.description', undefined, 'Create and store your event deployment before payment')}</p>
                 </div>
               </div>
               <button
@@ -679,7 +681,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                       }}
                       className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shrink-0 transition-colors cursor-pointer"
                     >
-                      Set Up Theme
+                      {t('event.setUpTheme', undefined, 'Set Up Theme')}
                     </button>
                   )}
                 </div>
@@ -688,7 +690,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               {/* 1. Event Name */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-300">
-                  Event Name <span className="text-amber-400">*</span>
+                  {t('event.eventName', undefined, 'Event Name')} <span className="text-amber-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -704,7 +706,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-300">
-                    Game & Theme Selection <span className="text-amber-400">*</span>
+                    {t('event.selectGame', undefined, 'Game & Theme Selection')} <span className="text-amber-400">*</span>
                   </span>
                   {games.length > 0 && (
                     <span className="text-[11px] text-slate-400 font-medium">
@@ -716,7 +718,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 {loadingCatalog ? (
                   <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
                     <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                    <span>Loading registered games and themes...</span>
+                    <span>{t('common.loading', undefined, 'Loading registered games and themes...')}</span>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -724,7 +726,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                     <div className="space-y-1.5">
                       <label htmlFor="event-game-dropdown" className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
                         {getGameTypeIcon(games.find((g) => g.id === selectedGameId)?.game_type || games.find((g) => g.id === selectedGameId)?.icon_name || games.find((g) => g.id === selectedGameId)?.slug, 'w-3.5 h-3.5 text-amber-400')}
-                        <span>1. Select Game Engine</span>
+                        <span>1. {t('event.selectGame', undefined, 'Select Game Engine')}</span>
                         <span className="text-amber-400">*</span>
                       </label>
 
@@ -737,7 +739,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                           className="w-full appearance-none px-3.5 py-3 pl-10 pr-9 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-slate-100 text-sm focus:outline-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {games.length === 0 ? (
-                            <option value="">No registered games found</option>
+                            <option value="">{t('game.noThemesFound', undefined, 'No registered games found')}</option>
                           ) : (
                             games.map((g) => (
                               <option key={g.id} value={g.id} className="bg-slate-900 text-slate-100 py-1">
@@ -766,7 +768,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                       <div className="flex items-center justify-between">
                         <label htmlFor="event-theme-dropdown" className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
                           <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                          <span>2. Select Theme</span>
+                          <span>2. {t('event.selectTheme', undefined, 'Select Theme')}</span>
                           <span className="text-amber-400">*</span>
                         </label>
                         {selectedGameId && (
@@ -785,9 +787,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                           className="w-full appearance-none px-3.5 py-3 pl-10 pr-9 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl text-slate-100 text-sm focus:outline-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {!selectedGameId ? (
-                            <option value="">Select a game first</option>
+                            <option value="">{t('event.selectGame', undefined, 'Select a game first')}</option>
                           ) : themes.filter((t) => t.game_id === selectedGameId).length === 0 ? (
-                            <option value="">No active themes for this game</option>
+                            <option value="">{t('game.noThemesFound', undefined, 'No active themes for this game')}</option>
                           ) : (
                             themes
                               .filter((t) => t.game_id === selectedGameId)
@@ -810,7 +812,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                         <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between gap-3 text-xs">
                           <div className="flex items-center gap-2 text-amber-300">
                             <Palette className="w-4 h-4 text-amber-400 shrink-0" />
-                            <span>Theme setup required before creating an event.</span>
+                            <span>{t('event.themeRequiredNotice', undefined, 'Theme setup required before creating an event.')}</span>
                           </div>
                           <button
                             type="button"
@@ -820,7 +822,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                             }}
                             className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg shrink-0 cursor-pointer"
                           >
-                            Set Up Theme
+                            {t('event.setUpTheme', undefined, 'Set Up Theme')}
                           </button>
                         </div>
                       )}
@@ -832,7 +834,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               {/* 3. Event Schedule & Duration */}
               <div className="space-y-3">
                 <label className="text-xs font-bold text-slate-300">
-                  Event Schedule (Date Only) <span className="text-amber-400">*</span>
+                  {t('event.dateRange', undefined, 'Event Schedule (Date Only)')} <span className="text-amber-400">*</span>
                 </label>
 
                 {/* Duration Presets */}
@@ -840,11 +842,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   {(['1day', '2days', '3days', '7days', 'custom'] as DurationPreset[]).map((preset) => {
                     const isSelected = durationPreset === preset;
                     const labels: Record<DurationPreset, string> = {
-                      '1day': '1 Day',
-                      '2days': '2 Days',
-                      '3days': '3 Days',
-                      '7days': '7 Days',
-                      'custom': 'Custom',
+                      '1day': '1 ' + t('common.days', undefined, 'Day'),
+                      '2days': '2 ' + t('common.days', undefined, 'Days'),
+                      '3days': '3 ' + t('common.days', undefined, 'Days'),
+                      '7days': '7 ' + t('common.days', undefined, 'Days'),
+                      'custom': t('common.custom', undefined, 'Custom'),
                     };
                     return (
                       <button
@@ -867,7 +869,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div className="space-y-1.5">
                     <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> Start Date
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> {t('event.startDate', undefined, 'Start Date')}
                     </span>
                     <input
                       type="date"
@@ -886,7 +888,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
                   <div className="space-y-1.5">
                     <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> End Date
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> {t('event.endDate', undefined, 'End Date')}
                     </span>
                     <input
                       type="date"
@@ -922,7 +924,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 <div className="space-y-1.5 pt-1">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-slate-300">
-                      Event Timezone
+                      {t('event.timezone', undefined, 'Event Timezone')}
                     </label>
                     <span className="text-[10px] text-slate-500">
                       Evaluates setup day & midnight cutoffs
@@ -964,7 +966,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 onClick={handleClose}
                 className="px-4 py-2.5 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
               >
-                Cancel
+                {t('common.cancel', undefined, 'Cancel')}
               </button>
               <button
                 type="submit"
@@ -974,11 +976,11 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 {isCreatingEvent ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Creating Event...</span>
+                    <span>{t('event.createEvent', undefined, 'Creating Event...')}</span>
                   </>
                 ) : (
                   <>
-                    <span>Create Event</span>
+                    <span>{t('event.createEvent', undefined, 'Create Event')}</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -997,28 +999,28 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               <div className="inline-flex p-4 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 mx-auto">
                 <CheckCircle2 className="w-10 h-10 stroke-[2.5]" />
               </div>
-              <h2 className="text-2xl font-black text-slate-100 tracking-tight">Event Created (Draft)</h2>
+              <h2 className="text-2xl font-black text-slate-100 tracking-tight">{t('event.statusDraft', undefined, 'Event Created (Draft)')}</h2>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Your event has been saved as a Draft with a private preview link.
+                {t('event.description', undefined, 'Your event has been saved as a Draft with a private preview link.')}
               </p>
             </div>
 
             {/* Event Details Card */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3 text-xs">
               <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
-                <span className="text-slate-400">Event Name:</span>
+                <span className="text-slate-400">{t('event.eventName', undefined, 'Event Name')}:</span>
                 <span className="font-bold text-slate-100">{createdEvent.name}</span>
               </div>
               <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
-                <span className="text-slate-400">Game / Theme:</span>
+                <span className="text-slate-400">{t('event.selectGame', undefined, 'Game / Theme')}:</span>
                 <span className="font-semibold text-amber-300">
                   {selectedTheme?.game_name || 'Game'} / {selectedTheme?.name || 'Theme'}
                 </span>
               </div>
               <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
-                <span className="text-slate-400">Scheduled Duration:</span>
+                <span className="text-slate-400">{t('event.dateRange', undefined, 'Scheduled Duration')}:</span>
                 <span className="font-bold text-slate-200">
-                  {calculateEventCalendarDays(createdEvent.start_date || startDate, createdEvent.end_date || endDate)} calendar days
+                  {calculateEventCalendarDays(createdEvent.start_date || startDate, createdEvent.end_date || endDate)} {t('common.days', undefined, 'calendar days')}
                   {createdEvent.start_date && (
                     <span className="text-[11px] font-normal text-slate-400 ml-1.5">
                       ({createdEvent.start_date} to {createdEvent.end_date || createdEvent.start_date})
@@ -1027,25 +1029,25 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 </span>
               </div>
               <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
-                <span className="text-slate-400">Event Price:</span>
+                <span className="text-slate-400">{t('event.priceQuote', undefined, 'Event Price')}:</span>
                 <span className="font-mono font-bold text-amber-400">
                   {createdEvent.event_price
                     ? formatCurrency(createdEvent.event_price)
                     : standardPrice !== null
                     ? formatCurrency(standardPrice)
                     : loadingQuote
-                    ? 'Calculating quote...'
+                    ? t('common.loading', undefined, 'Calculating quote...')
                     : 'Pending Quote'}
                 </span>
               </div>
               <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
-                <span className="text-slate-400">Event Status:</span>
+                <span className="text-slate-400">{t('event.status', undefined, 'Event Status')}:</span>
                 <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold text-[10px] uppercase">
                   {createdEvent.event_status || 'DRAFT'}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Payment Status:</span>
+                <span className="text-slate-400">{t('event.paymentStatus', undefined, 'Payment Status')}:</span>
                 <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold text-[10px] uppercase">
                   {createdEvent.payment_status || 'UNPAID'}
                 </span>
@@ -1057,7 +1059,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Private Preview URL</span>
+                  <span>{t('event.previewGame', undefined, 'Private Preview URL')}</span>
                 </span>
                 <span className="text-[10px] text-purple-400 font-medium">Owner & Tester Access Only</span>
               </label>
@@ -1073,12 +1075,12 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   {copiedLink ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400">Copied</span>
+                      <span className="text-emerald-400">{t('common.copied', undefined, 'Copied')}</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Preview</span>
+                      <span>{t('common.copy', undefined, 'Copy Preview')}</span>
                     </>
                   )}
                 </button>
@@ -1104,7 +1106,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 className="w-full py-3.5 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <CreditCard className="w-4 h-4" />
-                <span>Pay & Activate Event</span>
+                <span>{t('event.payToActivate', undefined, 'Pay & Activate Event')}</span>
               </button>
 
               <div className="grid grid-cols-2 gap-2">
@@ -1114,7 +1116,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   className="py-2.5 px-4 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-200 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Gamepad2 className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Test Play Preview</span>
+                  <span>{t('event.previewGame', undefined, 'Test Play Preview')}</span>
                 </button>
 
                 <button
@@ -1122,7 +1124,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   onClick={handleClose}
                   className="py-2.5 px-4 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors cursor-pointer text-center"
                 >
-                  Save as Draft
+                  {t('common.save', undefined, 'Save as Draft')}
                 </button>
               </div>
             </div>
@@ -1141,12 +1143,12 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   type="button"
                   onClick={() => setStep('created')}
                   className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
-                  title="Back to Event Summary"
+                  title={t('common.back', undefined, 'Back to Event Summary')}
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-100">Pay & Activate</h2>
+                  <h2 className="text-xl font-bold text-slate-100">{t('event.payToActivate', undefined, 'Pay & Activate')}</h2>
                   <p className="text-xs text-slate-400">Review quote and activate {createdEvent?.name || 'Event'}</p>
                 </div>
               </div>
@@ -1193,7 +1195,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               {loadingQuote ? (
                 <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-6 flex items-center justify-center gap-2 text-xs text-slate-400">
                   <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                  <span>Calculating payment quote...</span>
+                  <span>{t('common.loading', undefined, 'Calculating payment quote...')}</span>
                 </div>
               ) : quoteError ? (
                 <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 text-xs text-rose-400 flex items-center justify-between">
@@ -1203,7 +1205,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                     onClick={() => fetchWalletAndQuote(createdEvent?.game_theme_id, selectedPaymentMode)}
                     className="underline text-rose-300 font-bold ml-2 cursor-pointer"
                   >
-                    Retry
+                    {t('common.retry', undefined, 'Retry')}
                   </button>
                 </div>
               ) : (
@@ -1211,7 +1213,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   {/* Apply Credits Section */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-300">Apply Credits</label>
+                      <label className="text-xs font-bold text-slate-300">{t('payment.credits', undefined, 'Apply Credits')}</label>
                       <span className="text-[11px] text-slate-400">Select the credits you want to use for this event.</span>
                     </div>
 
@@ -1251,7 +1253,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                             <div>
                               <div className="font-bold text-xs text-slate-200 flex items-center gap-1.5">
                                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                                <span>Welcome Credit</span>
+                                <span>{t('payment.welcomeCredits', undefined, 'Welcome Credit')}</span>
                               </div>
                               <div className="text-[11px] text-slate-400 mt-0.5">
                                 Available: <span className="font-mono text-slate-300">{formatCurrency(availableWelcomeCredit)}</span>
@@ -1271,7 +1273,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                         <div className="p-3 rounded-xl border border-slate-800/60 bg-slate-950/30 flex items-center justify-between text-xs text-slate-400">
                           <span className="flex items-center gap-1.5">
                             <Sparkles className="w-3.5 h-3.5 text-slate-400" />
-                            Welcome Credit
+                            {t('payment.welcomeCredits', undefined, 'Welcome Credit')}
                           </span>
                           <span className="text-[11px]">RM0.00 Available</span>
                         </div>
@@ -1312,7 +1314,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                             <div>
                               <div className="font-bold text-xs text-slate-200 flex items-center gap-1.5">
                                 <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                                <span>Event Credit</span>
+                                <span>{t('payment.credits', undefined, 'Event Credit')}</span>
                               </div>
                               <div className="text-[11px] text-slate-400 mt-0.5">
                                 Available: <span className="font-mono text-slate-300">{formatCurrency(availableEventCredit)}</span> (max 20%: {formatCurrency(maxEventCredit)})
@@ -1332,7 +1334,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                         <div className="p-3 rounded-xl border border-slate-800/60 bg-slate-950/30 flex items-center justify-between text-xs text-slate-400">
                           <span className="flex items-center gap-1.5">
                             <Sparkles className="w-3.5 h-3.5 text-slate-400" />
-                            Event Credit
+                            {t('payment.credits', undefined, 'Event Credit')}
                           </span>
                           <span className="text-[11px]">RM0.00 Available</span>
                         </div>
@@ -1343,7 +1345,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   {/* Itemized Payment Summary */}
                   <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
                     <div className="flex items-center justify-between text-slate-300">
-                      <span>Event Price</span>
+                      <span>{t('event.priceQuote', undefined, 'Event Price')}</span>
                       <span className="font-mono font-bold">
                         {formatCurrency(eventPrice)}
                       </span>
@@ -1353,7 +1355,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                       <div className="flex items-center justify-between text-emerald-400">
                         <span className="flex items-center gap-1">
                           <Sparkles className="w-3.5 h-3.5" />
-                          Welcome Credit Applied
+                          {t('payment.welcomeCredits', undefined, 'Welcome Credit Applied')}
                         </span>
                         <span className="font-mono font-bold">-{formatCurrency(welcomeCreditUsed)}</span>
                       </div>
@@ -1363,14 +1365,14 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                       <div className="flex items-center justify-between text-blue-400">
                         <span className="flex items-center gap-1">
                           <Sparkles className="w-3.5 h-3.5" />
-                          Event Credit Applied
+                          {t('payment.credits', undefined, 'Event Credit Applied')}
                         </span>
                         <span className="font-mono font-bold">-{formatCurrency(eventCreditUsed)}</span>
                       </div>
                     )}
 
                     <div className="flex items-center justify-between pt-2 border-t border-slate-800 font-semibold text-slate-100">
-                      <span>Amount Required</span>
+                      <span>{t('payment.totalAmount', undefined, 'Amount Required')}</span>
                       <span className="font-mono font-bold text-amber-400 text-sm">
                         {formatCurrency(amountRequired)}
                       </span>
@@ -1379,7 +1381,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                     <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-slate-400">
                       <span className="flex items-center gap-1.5">
                         <Wallet className="w-3.5 h-3.5" />
-                        Available Paid Balance
+                        {t('payment.balance', undefined, 'Available Paid Balance')}
                       </span>
                       <span className="font-mono font-bold text-slate-200">
                         {formatCurrency(availablePaidBalance)}
@@ -1388,7 +1390,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
                     {shortfall > 0 && (
                       <div className="flex items-center justify-between pt-1 border-t border-slate-900 text-amber-300 font-medium">
-                        <span>Additional Payment Required</span>
+                        <span>{t('payment.finalPrice', undefined, 'Additional Payment Required')}</span>
                         <span className="font-mono font-bold text-amber-400">
                           {formatCurrency(shortfall)}
                         </span>
@@ -1401,7 +1403,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                     <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 space-y-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
                         <AlertCircle className="w-4 h-4 shrink-0" />
-                        <span>Insufficient Balance</span>
+                        <span>{t('payment.insufficientFunds', undefined, 'Insufficient Balance')}</span>
                       </div>
                       <p className="text-xs text-slate-300">
                         You need <span className="font-mono font-bold text-amber-300">{formatCurrency(shortfall)}</span> more to activate this event.
@@ -1419,12 +1421,12 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                         {isSubmittingTopUp ? (
                           <>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Connecting to Gateway...</span>
+                            <span>{t('common.loading', undefined, 'Connecting to Gateway...')}</span>
                           </>
                         ) : (
                           <>
                             <PlusCircle className="w-3.5 h-3.5" />
-                            <span>Top Up {formatCurrency(shortfall)}</span>
+                            <span>{t('payment.topUp', undefined, 'Top Up')} {formatCurrency(shortfall)}</span>
                           </>
                         )}
                       </button>
@@ -1441,7 +1443,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 onClick={() => setStep('created')}
                 className="px-4 py-2.5 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
               >
-                Back
+                {t('common.back', undefined, 'Back')}
               </button>
 
               <button
@@ -1453,12 +1455,12 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 {submittingPayment ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Processing Payment...</span>
+                    <span>{t('common.loading', undefined, 'Processing Payment...')}</span>
                   </>
                 ) : (
                   <>
                     <span>
-                      {amountRequired === 0 ? 'Activate Event (RM0.00)' : `Pay ${formatCurrency(amountRequired)} & Activate`}
+                      {amountRequired === 0 ? t('event.activateNow', undefined, 'Activate Event (RM0.00)') : `${t('event.payToActivate', undefined, 'Pay')} ${formatCurrency(amountRequired)} & ${t('event.activateNow', undefined, 'Activate')}`}
                     </span>
                     <ArrowRight className="w-4 h-4" />
                   </>
@@ -1478,7 +1480,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <h2 className="text-2xl font-black text-slate-100">Event Activated & Live!</h2>
+              <h2 className="text-2xl font-black text-slate-100">{t('payment.paymentSuccessful', undefined, 'Event Activated & Live!')}</h2>
               <p className="text-xs text-slate-400">Payment confirmed. Your event is now LIVE and the public player URL is ready.</p>
             </div>
 
@@ -1487,9 +1489,9 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
               <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Public Game URL</span>
+                  <span>{t('event.publicUrl', undefined, 'Public Game URL')}</span>
                 </span>
-                <span className="text-[10px] text-emerald-400 font-bold uppercase">LIVE</span>
+                <span className="text-[10px] text-emerald-400 font-bold uppercase">{t('event.statusLive', undefined, 'LIVE')}</span>
               </label>
               <div className="flex items-center gap-2 bg-slate-950 border border-emerald-500/40 rounded-xl p-2.5">
                 <span className="font-mono text-xs text-emerald-300 truncate flex-1 pl-1">
@@ -1503,12 +1505,12 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                   {copiedLink ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400">Copied</span>
+                      <span className="text-emerald-400">{t('common.copied', undefined, 'Copied')}</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy</span>
+                      <span>{t('common.copy', undefined, 'Copy')}</span>
                     </>
                   )}
                 </button>
@@ -1517,19 +1519,19 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
 
             <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 text-left text-xs space-y-2.5 max-w-sm mx-auto w-full">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Event</span>
+                <span className="text-slate-400">{t('event.eventName', undefined, 'Event')}</span>
                 <span className="font-bold text-slate-100">{activatedEvent?.name || createdEvent?.name}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Event Status</span>
-                <span className="font-bold text-emerald-400 uppercase">LIVE</span>
+                <span className="text-slate-400">{t('event.status', undefined, 'Event Status')}</span>
+                <span className="font-bold text-emerald-400 uppercase">{t('event.statusLive', undefined, 'LIVE')}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Payment Status</span>
-                <span className="font-bold text-emerald-400 uppercase">PAID</span>
+                <span className="text-slate-400">{t('event.paymentStatus', undefined, 'Payment Status')}</span>
+                <span className="font-bold text-emerald-400 uppercase">{t('event.paymentPaid', undefined, 'PAID')}</span>
               </div>
               <div className="flex items-center justify-between border-t border-slate-900 pt-2">
-                <span className="text-slate-400">Paid Amount</span>
+                <span className="text-slate-400">{t('payment.amount', undefined, 'Paid Amount')}</span>
                 <span className="font-mono font-bold text-slate-200">{formatCurrency(paidAmount)}</span>
               </div>
             </div>
@@ -1541,7 +1543,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 className="py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                <span>Open Live Game</span>
+                <span>{t('event.openLiveUrl', undefined, 'Open Live Game')}</span>
               </button>
 
               <button
@@ -1549,7 +1551,7 @@ export const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
                 onClick={handleClose}
                 className="py-3 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <span>Done</span>
+                <span>{t('common.done', undefined, 'Done')}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>

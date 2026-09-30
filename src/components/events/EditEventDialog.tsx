@@ -8,6 +8,7 @@ import {
 } from '../../lib/dateUtils';
 import { SUPPORTED_TIMEZONES, resolveEventTimezone } from '../../lib/countryUtils';
 import { getGameTypeIcon } from '../../games';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   X,
   Calendar,
@@ -51,6 +52,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
   onClose,
   onEventUpdated,
 }) => {
+  const { t } = useLocalization();
   const [name, setName] = useState('');
   const [selectedThemeId, setSelectedThemeId] = useState<string>('');
   const [startDate, setStartDate] = useState('');
@@ -194,11 +196,11 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-slate-100">
-                  {isPaid ? 'Event Setup' : 'Edit Event Setup'}
+                  {isPaid ? t('event.title', undefined, 'Event Setup') : t('event.editEvent', undefined, 'Edit Event Setup')}
                 </h2>
                 {isPaid && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                    <Lock className="w-2.5 h-2.5" /> Paid & Locked
+                    <Lock className="w-2.5 h-2.5" /> {t('event.lockedPaid', undefined, 'Paid & Locked')}
                   </span>
                 )}
               </div>
@@ -225,7 +227,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
               </div>
               <div className="space-y-1">
                 <div className="text-xs font-bold text-amber-300">
-                  🔒 Paid — Event Setup Locked
+                  🔒 {t('event.lockedPaid', undefined, 'Paid — Event Setup Locked')}
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   This event has been paid and activated. Event details (name, game theme, event dates, and status) are locked to protect event integrity.
@@ -242,7 +244,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
             <div className="flex items-center gap-2.5">
               <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
               <div className="text-xs text-slate-300">
-                <span className="font-semibold text-slate-100">Event Showcase Page</span>
+                <span className="font-semibold text-slate-100">{t('showcase.showcasePage', undefined, 'Event Showcase Page')}</span>
                 <p className="text-[11px] text-slate-400">
                   Manage branding, photos, and video media on the dedicated full-page showcase.
                 </p>
@@ -253,7 +255,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
               onClick={handleOpenShowcase}
               className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer"
             >
-              <span>Open Showcase</span>
+              <span>{t('showcase.title', undefined, 'Open Showcase')}</span>
               <ExternalLink className="w-3 h-3" />
             </button>
           </div>
@@ -270,7 +272,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
             {/* Event Name */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-300">
-                Event Name {isPaid ? '' : <span className="text-amber-400">*</span>}
+                {t('event.eventName', undefined, 'Event Name')} {isPaid ? '' : <span className="text-amber-400">*</span>}
               </label>
               <input
                 type="text"
@@ -291,16 +293,16 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-300">
-                  Assigned Game Theme {isPaid ? '' : <span className="text-amber-400">*</span>}
+                  {t('event.selectTheme', undefined, 'Assigned Game Theme')} {isPaid ? '' : <span className="text-amber-400">*</span>}
                 </label>
                 <span className="text-[11px] text-slate-500">
-                  {isPaid ? 'Theme locked after payment' : 'Switch live theme without breaking URL'}
+                  {isPaid ? t('event.lockedPaid', undefined, 'Theme locked after payment') : 'Switch live theme without breaking URL'}
                 </span>
               </div>
 
               {loadingThemes ? (
                 <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl text-center text-xs text-slate-400">
-                  Loading game themes...
+                  {t('common.loading', undefined, 'Loading game themes...')}
                 </div>
               ) : (
                 <div className="space-y-4 max-h-52 overflow-y-auto pr-1">
@@ -403,7 +405,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                    <span>End Date</span>
+                    <span>{t('event.endDate', undefined, 'End Date')}</span>
                   </label>
                   <input
                     type="date"
@@ -431,10 +433,10 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
               <div className="space-y-1.5 pt-1">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-300">
-                    Event Timezone
+                    {t('event.timezone', undefined, 'Event Timezone')}
                   </label>
                   <span className="text-[10px] text-slate-500">
-                    {isPaid ? 'Locked after payment' : 'Evaluates setup day & midnight cutoffs'}
+                    {isPaid ? t('event.lockedPaid', undefined, 'Locked after payment') : 'Evaluates setup day & midnight cutoffs'}
                   </span>
                 </div>
                 <div className="relative">
@@ -462,7 +464,7 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
             {/* Manual Status Override */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-300">
-                Event Status
+                {t('event.status', undefined, 'Event Status')}
               </label>
               <select
                 value={status}
@@ -474,9 +476,9 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                     : 'border-slate-800 focus:border-amber-500'
                 }`}
               >
-                <option value="scheduled">Scheduled / Auto-time window</option>
-                <option value="draft">Draft (Hidden)</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="scheduled">{t('event.statusUpcoming', undefined, 'Scheduled / Auto-time window')}</option>
+                <option value="draft">{t('event.statusDraft', undefined, 'Draft (Hidden)')}</option>
+                <option value="cancelled">{t('event.statusCancelled', undefined, 'Cancelled')}</option>
               </select>
             </div>
 
@@ -495,17 +497,17 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                 onClick={onClose}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
               >
-                {isPaid ? 'Close' : 'Cancel'}
+                {isPaid ? t('common.close', undefined, 'Close') : t('common.cancel', undefined, 'Cancel')}
               </button>
               {isPaid ? (
                 <button
                   type="button"
                   disabled={true}
                   className="px-5 py-2 bg-slate-800/80 text-slate-500 border border-slate-700/50 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-not-allowed"
-                  title="Event setup is locked after payment"
+                  title={t('event.lockedPaid', undefined, 'Event setup is locked after payment')}
                 >
                   <Lock className="w-3.5 h-3.5 text-amber-400/60" />
-                  <span>Locked (Paid)</span>
+                  <span>{t('event.lockedPaid', undefined, 'Locked (Paid)')}</span>
                 </button>
               ) : (
                 <button
@@ -516,12 +518,12 @@ export const EditEventDialog: React.FC<EditEventDialogProps> = ({
                   {submitting ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                      <span>Saving...</span>
+                      <span>{t('common.saving', undefined, 'Saving...')}</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>Save Changes</span>
+                      <span>{t('common.save', undefined, 'Save Changes')}</span>
                     </>
                   )}
                 </button>

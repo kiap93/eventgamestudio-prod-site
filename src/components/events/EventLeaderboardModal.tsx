@@ -16,6 +16,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
+import { useLocalization } from '../../context/LocalizationContext';
 import { EventLeaderboardEntry, EventScoreStats } from '../../types';
 import { isEventBeforeStartDate } from '../../lib/dateUtils';
 
@@ -32,6 +33,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
   event,
   userRole,
 }) => {
+  const { t } = useLocalization();
   const [scores, setScores] = useState<EventLeaderboardEntry[]>([]);
   const [stats, setStats] = useState<EventScoreStats | null>(null);
   const [testScoresCount, setTestScoresCount] = useState<number | null>(null);
@@ -193,10 +195,10 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
             <div>
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <span>{event.name}</span>
-                <span className="text-xs font-normal text-slate-400 font-mono">Leaderboard</span>
+                <span className="text-xs font-normal text-slate-400 font-mono">{t('event.leaderboard', undefined, 'Leaderboard')}</span>
               </h2>
               <p className="text-xs text-slate-400">
-                Independent High Score rankings for this event
+                {t('game.leaderboard', undefined, 'Independent High Score rankings for this event')}
               </p>
             </div>
           </div>
@@ -206,7 +208,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
               onClick={fetchScores}
               disabled={loading}
               className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
-              title="Refresh Leaderboard"
+              title={t('common.refresh', undefined, 'Refresh Leaderboard')}
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -224,7 +226,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
             <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-1">
               <Users className="w-3.5 h-3.5 text-blue-400" />
-              <span>Total Entries</span>
+              <span>{t('common.all', undefined, 'Total Entries')}</span>
             </div>
             <div className="text-lg font-bold text-white font-mono">
               {stats?.totalEntries ?? scores.length}
@@ -234,7 +236,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
             <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-1">
               <Award className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Unique Players</span>
+              <span>{t('game.rank', undefined, 'Unique Players')}</span>
             </div>
             <div className="text-lg font-bold text-emerald-400 font-mono">
               {stats?.uniquePlayers ?? new Set(scores.map((s) => s.player_name.toLowerCase())).size}
@@ -244,7 +246,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
             <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-1">
               <Trophy className="w-3.5 h-3.5 text-amber-400" />
-              <span>Top Score</span>
+              <span>{t('game.best', undefined, 'Top Score')}</span>
             </div>
             <div className="text-lg font-bold text-amber-400 font-mono">
               {stats?.highScore ?? (scores.length > 0 ? Math.max(...scores.map((s) => s.score)) : 0)}
@@ -254,7 +256,7 @@ export const EventLeaderboardModal: React.FC<EventLeaderboardModalProps> = ({
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
             <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-1">
               <Zap className="w-3.5 h-3.5 text-teal-400" />
-              <span>Average Score</span>
+              <span>{t('game.score', undefined, 'Average Score')}</span>
             </div>
             <div className="text-lg font-bold text-teal-400 font-mono">
               {stats?.averageScore ?? (scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b.score, 0) / scores.length) : 0)}

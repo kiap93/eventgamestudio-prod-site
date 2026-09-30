@@ -259,11 +259,11 @@ export const LandingPricing: React.FC = () => {
                 />
 
                 <div className="flex justify-between text-[11px] font-semibold text-slate-400">
-                  <span>1 Day</span>
-                  <span>7 Days</span>
-                  <span>14 Days</span>
-                  <span>30 Days</span>
-                  <span>31+ Days</span>
+                  <span>{t('common.daysPreset1', undefined, '1 Day')}</span>
+                  <span>{t('common.daysPreset7', undefined, '7 Days')}</span>
+                  <span>{t('common.daysPreset14', undefined, '14 Days')}</span>
+                  <span>{t('common.daysPreset30', undefined, '30 Days')}</span>
+                  <span>{t('common.daysPreset31Plus', undefined, '31+ Days')}</span>
                 </div>
 
                 <p className="text-xs text-slate-500 flex items-center gap-1.5">
