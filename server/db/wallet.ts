@@ -1007,8 +1007,12 @@ async function appendLedgerTransaction(
       .select()
       .single();
 
-    // Graceful backward-compatibility fallback if owner_user_id column migration is pending
+    // Graceful backward-compatibility fallback if owner_user_id column migration is pending (development only)
     if (error && error.code === 'PGRST204' && error.message?.includes('owner_user_id')) {
+      if (!isLocalFallbackAllowed(env)) {
+        console.error('[Production Schema Error] Column owner_user_id missing in wallet_transactions in production:', error);
+        throw new Error(`Financial ledger transaction failed: Required column 'owner_user_id' missing from wallet_transactions table in production (${error.message}). Operation failed closed.`);
+      }
       const { owner_user_id, ...recordWithoutOwner } = record;
       const retryResult = await supabase
         .from('wallet_transactions')

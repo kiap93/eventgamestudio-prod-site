@@ -54,7 +54,7 @@ interface AuthContextType {
   verifyEmail: (token: string) => Promise<{ success: boolean; message: string }>;
   requestPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
   resetPassword: (token: string, password: string, confirmPassword: string) => Promise<{ success: boolean; message: string }>;
-  logout: () => void;
+  logout: () => Promise<void> | void;
   switchOrganization: (orgId: string) => Promise<void>;
   createOrganization: (name: string, logoUrl?: string, countryCode?: string) => Promise<string>;
   startCreateOrganization: () => void;
@@ -99,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const authFetch = useCallback(
     async (url: string, options: RequestInit = {}) => {
-      const currentToken = token || localStorage.getItem('app_token');
+      const currentToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('app_token') : null);
       const headers = new Headers(options.headers || {});
       if (currentToken && !headers.has('Authorization')) {
         headers.set('Authorization', `Bearer ${currentToken}`);
@@ -110,9 +110,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const fetchThemes = useCallback(async (gameId?: string): Promise<GameTheme[]> => {
-    const currentToken = localStorage.getItem('app_token');
-    if (!currentToken) return [];
-
     try {
       const url = gameId ? `/api/themes?gameId=${encodeURIComponent(gameId)}` : '/api/themes';
       const res = await authFetch(url);
@@ -233,23 +230,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchSystemThemes = useCallback(
     async (gameId?: string): Promise<GameTheme[]> => {
-      const currentToken = localStorage.getItem('app_token');
-      if (!currentToken) return [];
+      try {
+        const url = gameId ? `/api/themes/system?gameId=${encodeURIComponent(gameId)}` : '/api/themes/system';
+        const res = await authFetch(url);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Failed to load system themes (${res.status})`);
+        }
 
-      const url = gameId ? `/api/themes/system?gameId=${encodeURIComponent(gameId)}` : '/api/themes/system';
-      const res = await authFetch(url);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Failed to load system themes (${res.status})`);
-      }
-
-      const data = await res.json();
-      if (Array.isArray(data.themes)) {
-        return data.themes.map((t: any) => ({
-          ...normalizeGameTheme(t),
-          is_system: true,
-          ownership_type: 'system',
-        }));
+        const data = await res.json();
+        if (Array.isArray(data.themes)) {
+          return data.themes.map((t: any) => ({
+            ...normalizeGameTheme(t),
+            is_system: true,
+            ownership_type: 'system',
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch system themes:', err);
       }
       return [];
     },
@@ -295,8 +293,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const fetchActiveGame = useCallback(async () => {
-    const currentToken = localStorage.getItem('app_token');
-    if (!currentToken) return;
     try {
       const res = await authFetch('/api/games');
       if (res.ok) {
@@ -311,12 +307,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [authFetch]);
 
   const refreshSession = useCallback(async () => {
-    const currentToken = localStorage.getItem('app_token');
-    if (!currentToken) {
-      setIsLoading(false);
-      return;
-    }
-
     try {
       const res = await authFetch('/api/auth/me');
 
@@ -330,7 +320,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           fetchThemes();
         }
       } else {
-        localStorage.removeItem('app_token');
+        try { localStorage.removeItem('app_token'); } catch {}
         try { localStorage.removeItem('durian_app_token'); } catch {}
         setToken(null);
         setCurrentUser(null);
@@ -564,8 +554,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
 
-  const logout = () => {
-    localStorage.removeItem('app_token');
+  const logout = async () => {
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.warn('[AuthContext] Backend logout request failed:', err);
+    }
+    try { localStorage.removeItem('app_token'); } catch {}
     try { localStorage.removeItem('durian_app_token'); } catch {}
     setToken(null);
     setCurrentUser(null);

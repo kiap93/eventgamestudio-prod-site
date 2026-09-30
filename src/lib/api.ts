@@ -126,6 +126,7 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
 
   return fetch(fullUrl, {
     ...options,
+    credentials: options.credentials || 'include',
     headers,
     body,
   });

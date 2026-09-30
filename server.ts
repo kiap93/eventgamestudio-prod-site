@@ -324,7 +324,14 @@ import {
   generateInvitationEmailTemplate,
   generateContactEnquiryEmailTemplate,
 } from './server/email/index.js';
-import { securityHeadersMiddleware } from './server/securityHeaders.js';
+import {
+  securityHeadersMiddleware,
+  buildAuthCookie,
+  buildClearAuthCookie,
+  setAuthCookieOnResponse,
+  clearAuthCookieOnResponse,
+  getCookieOptionsFromRequest,
+} from './server/securityHeaders.js';
 
 const app = express();
 const PORT = 3000;
@@ -505,6 +512,7 @@ app.post('/api/auth/google', authRateLimiter, async (req, res) => {
 
     stage = 'GOOGLE_SIGN_TOKEN';
     const token = await signAppToken(user.id, activeOrgId, activeRole as any);
+    setAuthCookieOnResponse(res, token, getCookieOptionsFromRequest(req));
 
     res.json({
       token,
@@ -711,6 +719,7 @@ app.post('/api/auth/login', authRateLimiter, async (req, res) => {
     }
 
     const token = await signAppToken(user.id, activeOrgId, activeRole as any);
+    setAuthCookieOnResponse(res, token, getCookieOptionsFromRequest(req));
 
     res.json({
       token,
@@ -778,6 +787,7 @@ app.post('/api/auth/verify-email', authRateLimiter, async (req, res) => {
     }
 
     const sessionToken = await signAppToken(verifiedUser.id, activeOrgId, activeRole as any);
+    setAuthCookieOnResponse(res, sessionToken, getCookieOptionsFromRequest(req));
 
     res.json({
       success: true,
@@ -1067,6 +1077,7 @@ app.post('/api/auth/switch-org', authRateLimiter, authenticateJWT, async (req: A
 
     const memberships = await getUserOrganizations(user.id);
     const newToken = await signAppToken(user.id, organizationId, role);
+    setAuthCookieOnResponse(res, newToken, getCookieOptionsFromRequest(req));
     res.json({
       token: newToken,
       activeOrganization: {
@@ -1082,6 +1093,15 @@ app.post('/api/auth/switch-org', authRateLimiter, authenticateJWT, async (req: A
   } catch (err: any) {
     handleApiError(err, req, res);
   }
+});
+
+/**
+ * POST /api/auth/logout
+ * Clears the HttpOnly session cookie and signals the client to reset auth state.
+ */
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookieOnResponse(res, getCookieOptionsFromRequest(req));
+  res.json({ success: true, message: 'Logged out successfully' });
 });
 
 /**
@@ -1200,6 +1220,7 @@ app.post('/api/organizations', organizationRateLimiter, authenticateJWT, async (
     }
 
     const token = await signAppToken(user.id, organization.id, 'owner');
+    setAuthCookieOnResponse(res, token, getCookieOptionsFromRequest(req));
 
     res.json({
       organization: {
@@ -1878,7 +1899,8 @@ app.post('/api/invitations/accept', invitationRateLimiter, async (req, res) => {
       role: invite.role,
     }).catch((err) => console.error('[NOTIFICATION] Failed to dispatch MEMBER_JOINED in server:', err));
 
-    const appToken = signAppToken(user.id, invite.organization_id, invite.role);
+    const appToken = await signAppToken(user.id, invite.organization_id, invite.role);
+    setAuthCookieOnResponse(res, appToken, getCookieOptionsFromRequest(req));
 
     res.json({
       token: appToken,

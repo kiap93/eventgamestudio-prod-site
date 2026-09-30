@@ -8,7 +8,13 @@ import {
   buildClearAuthCookie,
   parseCookie,
   AUTH_COOKIE_NAME,
+  setAuthCookieOnResponse,
+  clearAuthCookieOnResponse,
+  getCookieOptionsFromRequest,
+  getWorkerCookieOptions,
 } from './securityHeaders.js';
+import worker from '../worker.js';
+import { signAppToken, extractAuthTokenFromRequest } from './auth.js';
 
 console.log('Running Security Headers & CSP Hardening Tests...');
 
@@ -189,5 +195,107 @@ console.log('Running Security Headers & CSP Hardening Tests...');
   console.log('✓ Cookie helper tests passed');
 }
 
-console.log('🎉 All Security Headers and CSP Tests Passed!');
+// 6. Express Response Cookie Set/Clear Helpers
+{
+  const mockHeaders: Record<string, string> = {};
+  const mockRes: any = {
+    setHeader(name: string, val: string) {
+      mockHeaders[name.toLowerCase()] = val;
+    },
+  };
+
+  setAuthCookieOnResponse(mockRes, 'jwt-session-abc', { isProduction: true, secure: true });
+  assert.ok(mockHeaders['set-cookie'], 'Set-Cookie header must be present');
+  assert.ok(mockHeaders['set-cookie'].includes('app_token=jwt-session-abc'));
+  assert.ok(mockHeaders['set-cookie'].includes('HttpOnly'));
+  assert.ok(mockHeaders['set-cookie'].includes('Secure'));
+  assert.ok(mockHeaders['set-cookie'].includes('SameSite=Lax'));
+
+  clearAuthCookieOnResponse(mockRes, { isProduction: true, secure: true });
+  assert.ok(mockHeaders['set-cookie'].includes('app_token=;'));
+  assert.ok(mockHeaders['set-cookie'].includes('Max-Age=0'));
+
+  // Verify Express extractAuthTokenFromRequest extracts token from Cookie header
+  const reqWithCookie: any = {
+    headers: {
+      cookie: 'other_cookie=123; app_token=express-session-cookie-token; session_id=abc',
+    },
+  };
+  assert.strictEqual(
+    extractAuthTokenFromRequest(reqWithCookie),
+    'express-session-cookie-token',
+    'extractAuthTokenFromRequest must extract token from Cookie header when no Authorization header is present'
+  );
+
+  console.log('✓ Express Response cookie set/clear and request extraction tests passed');
+}
+
+// 7. Request Cookie Options Resolution
+{
+  const reqHttps: any = {
+    secure: true,
+    headers: {},
+  };
+  const optsHttps = getCookieOptionsFromRequest(reqHttps);
+  assert.strictEqual(optsHttps.secure, true);
+  assert.strictEqual(optsHttps.sameSite, 'Lax');
+
+  const reqForwarded: any = {
+    secure: false,
+    headers: { 'x-forwarded-proto': 'https' },
+  };
+  const optsForwarded = getCookieOptionsFromRequest(reqForwarded);
+  assert.strictEqual(optsForwarded.secure, true);
+
+  const workerReq = new Request('https://eventgamestudio.com/api/test');
+  const workerOpts = getWorkerCookieOptions(workerReq, { NODE_ENV: 'production' });
+  assert.strictEqual(workerOpts.secure, true);
+  assert.strictEqual(workerOpts.isProduction, true);
+  console.log('✓ Request Cookie Options resolution tests passed');
+}
+
+// 8. Cloudflare Worker Cookie Auth & Logout Integration
+{
+  const workerEnv = {
+    JWT_SECRET: 'test-secret-key-at-least-32-chars-long-for-jwt!',
+    NODE_ENV: 'test',
+  };
+
+  // Verify Worker /api/auth/logout clears cookie with Set-Cookie header
+  const logoutReq = new Request('https://api.eventgamestudio.local/api/auth/logout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const logoutRes = await worker.fetch(logoutReq, workerEnv as any, {} as any);
+  assert.strictEqual(logoutRes.status, 200);
+  const setCookie = logoutRes.headers.get('Set-Cookie');
+  assert.ok(setCookie, 'Worker /api/auth/logout must set Set-Cookie header');
+  assert.ok(setCookie.includes('app_token=;'));
+  assert.ok(setCookie.includes('Max-Age=0'));
+  assert.ok(setCookie.includes('HttpOnly'));
+
+  // Verify Worker accepts authentication via HttpOnly cookie
+  const validToken = await signAppToken('user-cookie-test-uuid', 'org-123', 'owner', undefined, workerEnv as any);
+  const authReqWithCookie = new Request('https://api.eventgamestudio.local/api/auth/switch-org', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      // Notice: NO Authorization: Bearer header! Only Cookie header!
+      'Cookie': `session=xyz; app_token=${validToken}; pref=dark`,
+    },
+    body: JSON.stringify({ organizationId: 'nonexistent-org' }),
+  });
+  const authResWithCookie = await worker.fetch(authReqWithCookie, workerEnv as any, {} as any);
+  const authData: any = await authResWithCookie.json();
+  // If cookie was not parsed, it would fail with "Missing or invalid Authorization header or session cookie"
+  // Having "User no longer exists" proves the token was extracted from the Cookie header and its JWT signature was verified!
+  assert.strictEqual(
+    authData.error,
+    'Unauthenticated: User no longer exists',
+    'HttpOnly cookie token was successfully extracted and signature-verified'
+  );
+  console.log('✓ Cloudflare Worker HttpOnly cookie auth and logout verified');
+}
+
+console.log('🎉 All Security Headers, CSP, and HttpOnly Cookie Tests Passed!');
 

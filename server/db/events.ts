@@ -3218,6 +3218,14 @@ export async function createEvent(
       error.message?.includes('schema cache') ||
       error.message?.includes('column')
     ) {
+      // PRODUCTION SAFETY RULE: Missing schema fields MUST FAIL CLOSED immediately.
+      // Never silently downgrade or insert a degraded event record missing event_timezone, duration_days, pricing_id, etc.
+      if (!isLocalFallbackAllowed(env)) {
+        console.error('[Production Schema Error] Missing columns in events table schema in production:', error);
+        throw new Error(`Database schema error: Required columns missing from events table in production (${error.message || error.code}). Operation failed closed.`);
+      }
+
+      // Development / test fallback only:
       // Create a compatible payload with core columns
       const compatiblePayload: any = {
         id,
@@ -3263,6 +3271,10 @@ export async function createEvent(
     }
 
     if (error) {
+      if (!isLocalFallbackAllowed(env)) {
+        console.error('Fatal: Failed to create event in Supabase in production:', error);
+        throw new Error(`Failed to create event in database: ${error.message || error.code}`);
+      }
       if (
         error.message?.includes('Placeholder') ||
         error.code === 'PGRST000' ||
@@ -3907,6 +3919,10 @@ export async function updateEvent(
     .single();
 
   if (error) {
+    if (!isLocalFallbackAllowed(env)) {
+      console.error('[Production Schema Error] Failed to update event in Supabase in production:', error);
+      throw new Error(`Failed to update event in database: ${error.message || error.code}`);
+    }
     if (
       error.message?.includes('Placeholder') ||
       error.code === 'PGRST000' ||

@@ -276,7 +276,14 @@ import {
   sendPasswordResetEmail,
   isEmailServiceConfigured,
 } from './server/emailVerification.js';
-import { applySecurityHeadersToResponse } from './server/securityHeaders.js';
+import {
+  applySecurityHeadersToResponse,
+  buildAuthCookie,
+  buildClearAuthCookie,
+  parseCookie,
+  AUTH_COOKIE_NAME,
+  getWorkerCookieOptions,
+} from './server/securityHeaders.js';
 
 export interface Env {
   NODE_ENV?: string;
@@ -529,10 +536,18 @@ async function authenticateWorkerRequest(
     token = authHeader.substring(7).trim();
   }
 
+  // Fallback to HttpOnly session cookie
+  if (!token) {
+    const rawCookie = request.headers.get('Cookie');
+    if (rawCookie) {
+      token = parseCookie(rawCookie, AUTH_COOKIE_NAME) || '';
+    }
+  }
+
   if (!token) {
     return {
       authenticated: false,
-      errorResponse: errorResponse('Unauthenticated: Missing or invalid Authorization header (Bearer token required)', 401, cors),
+      errorResponse: errorResponse('Unauthenticated: Missing or invalid Authorization header or session cookie', 401, cors),
     };
   }
 
@@ -583,6 +598,14 @@ async function authenticateOptionalJWT(
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7).trim();
+  }
+
+  // Fallback to HttpOnly session cookie
+  if (!token) {
+    const rawCookie = request.headers.get('Cookie');
+    if (rawCookie) {
+      token = parseCookie(rawCookie, AUTH_COOKIE_NAME) || '';
+    }
   }
 
   if (!token) {
@@ -1061,6 +1084,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
           stage = 'GOOGLE_SIGN_TOKEN';
           const token = await signAppToken(user.id, activeOrgId, activeRole as any, undefined, env);
+          const authCookie = buildAuthCookie(token, getWorkerCookieOptions(request, env));
 
           return jsonResponse(
             {
@@ -1076,7 +1100,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               activeOrganizationId: activeOrgId || null,
             },
             200,
-            { ...cors, 'x-correlation-id': correlationId }
+            { ...cors, 'x-correlation-id': correlationId, 'Set-Cookie': authCookie }
           );
         } catch (err: any) {
           const stageTag =
@@ -1277,6 +1301,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           }
 
           const token = await signAppToken(user.id, activeOrgId, activeRole as any, undefined, env);
+          const authCookie = buildAuthCookie(token, getWorkerCookieOptions(request, env));
 
           return jsonResponse(
             {
@@ -1292,7 +1317,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               activeOrganizationId: activeOrgId || null,
             },
             200,
-            { ...cors, 'x-correlation-id': correlationId }
+            { ...cors, 'x-correlation-id': correlationId, 'Set-Cookie': authCookie }
           );
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env, { endpoint: pathname, method });
@@ -1356,6 +1381,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           }
 
           const sessionToken = await signAppToken(verifiedUser.id, activeOrgId, activeRole as any, undefined, env);
+          const authCookie = buildAuthCookie(sessionToken, getWorkerCookieOptions(request, env));
 
           return jsonResponse(
             {
@@ -1373,7 +1399,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               activeOrganizationId: activeOrgId || null,
             },
             200,
-            { ...cors, 'x-correlation-id': correlationId }
+            { ...cors, 'x-correlation-id': correlationId, 'Set-Cookie': authCookie }
           );
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env, { endpoint: pathname, method });
@@ -1683,6 +1709,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
 
         const memberships = await getUserOrganizations(user.id, env);
         const newToken = await signAppToken(user.id, organizationId, role, undefined, env);
+        const authCookie = buildAuthCookie(newToken, getWorkerCookieOptions(request, env));
         return jsonResponse(
           {
             token: newToken,
@@ -1697,7 +1724,16 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             organizations: memberships,
           },
           200,
-          cors
+          { ...cors, 'Set-Cookie': authCookie }
+        );
+      }
+
+      if (pathname === '/api/auth/logout' && method === 'POST') {
+        const clearCookie = buildClearAuthCookie(getWorkerCookieOptions(request, env));
+        return jsonResponse(
+          { success: true, message: 'Logged out successfully' },
+          200,
+          { ...cors, 'Set-Cookie': clearCookie }
         );
       }
 
@@ -1799,6 +1835,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
           }
 
           const token = await signAppToken(user.id, organization.id, 'owner', undefined, env);
+          const authCookie = buildAuthCookie(token, getWorkerCookieOptions(request, env));
 
           return jsonResponse(
             {
@@ -1816,7 +1853,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
               welcome_credit_amount: organization.welcome_credit_amount || 0,
             },
             200,
-            cors
+            { ...cors, 'Set-Cookie': authCookie }
           );
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
@@ -2442,6 +2479,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         ).catch((err) => console.error('[NOTIFICATION] Failed to dispatch MEMBER_JOINED in worker:', err));
 
         const appToken = await signAppToken(user.id, invite.organization_id, invite.role, undefined, env);
+        const authCookie = buildAuthCookie(appToken, getWorkerCookieOptions(request, env));
 
         return jsonResponse(
           {
@@ -2461,7 +2499,7 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
             },
           },
           200,
-          cors
+          { ...cors, 'Set-Cookie': authCookie }
         );
       }
 

@@ -341,3 +341,58 @@ export function parseCookie(
 
   return null;
 }
+
+/**
+ * Resolves standard CookieOptions based on an incoming Express Request.
+ */
+export function getCookieOptionsFromRequest(req: Request): CookieOptions {
+  const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    isProduction: isProd,
+    secure: isHttps || isProd,
+    sameSite: 'Lax',
+    path: '/',
+  };
+}
+
+/**
+ * Sets the HttpOnly session auth cookie on an Express Response object.
+ */
+export function setAuthCookieOnResponse(
+  res: Response,
+  token: string,
+  options: CookieOptions = {}
+): void {
+  const cookieStr = buildAuthCookie(token, options);
+  res.setHeader('Set-Cookie', cookieStr);
+}
+
+/**
+ * Clears the HttpOnly session auth cookie on an Express Response object.
+ */
+export function clearAuthCookieOnResponse(
+  res: Response,
+  options: CookieOptions = {}
+): void {
+  const cookieStr = buildClearAuthCookie(options);
+  res.setHeader('Set-Cookie', cookieStr);
+}
+
+/**
+ * Resolves standard CookieOptions for Cloudflare Worker environment.
+ */
+export function getWorkerCookieOptions(
+  request: globalThis.Request,
+  env?: { NODE_ENV?: string }
+): CookieOptions {
+  const isProd = env?.NODE_ENV === 'production';
+  const isHttps = request.url.startsWith('https://') || isProd;
+  return {
+    isProduction: isProd,
+    secure: isHttps,
+    sameSite: 'Lax',
+    path: '/',
+  };
+}
+
