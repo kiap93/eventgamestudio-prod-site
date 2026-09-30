@@ -16,6 +16,13 @@ CREATE TABLE IF NOT EXISTS public.users (
   name TEXT NOT NULL,
   avatar_url TEXT,
   is_developer BOOLEAN NOT NULL DEFAULT false,
+  password_hash TEXT,
+  email_verified BOOLEAN NOT NULL DEFAULT false,
+  verified_at TIMESTAMPTZ,
+  verification_token_hash TEXT,
+  verification_token_expires_at TIMESTAMPTZ,
+  password_reset_token_hash TEXT,
+  password_reset_expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
@@ -23,6 +30,9 @@ CREATE TABLE IF NOT EXISTS public.users (
 CREATE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
 CREATE INDEX IF NOT EXISTS idx_users_google_id ON public.users (google_id);
 CREATE INDEX IF NOT EXISTS idx_users_is_developer ON public.users (is_developer);
+CREATE INDEX IF NOT EXISTS idx_users_verification_token_hash ON public.users (verification_token_hash) WHERE verification_token_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_password_reset_token_hash ON public.users (password_reset_token_hash) WHERE password_reset_token_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_email_verified ON public.users (email_verified);
 
 -- ------------------------------------------------------------------------------
 -- 2. ORGANIZATIONS TABLE

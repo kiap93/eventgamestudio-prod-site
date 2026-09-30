@@ -299,6 +299,24 @@ export const authRateLimiter = createRateLimiter({
 });
 
 /**
+ * 1b. Resend Verification Rate Limiter:
+ * Protects POST /api/auth/resend-verification from email bombing and repeated spamming.
+ * 5 requests per 60 seconds per IP/email.
+ */
+export const resendRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 5,
+  keyPrefix: 'resend_email',
+  keyGenerator: (req) => {
+    const email = req.body?.email;
+    const norm = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const ip = getExpressClientKey(req, 'ip');
+    return `${ip}:${norm}`;
+  },
+  message: 'Too many verification email requests. Please wait a moment before trying again.',
+});
+
+/**
  * 2. Invitation Rate Limiter:
  * Protects POST /api/organizations/:id/invitations from email bombing/spamming.
  * 15 requests per 60 seconds.
@@ -464,6 +482,16 @@ export const WORKER_CONTACT_RATE_LIMIT: RateLimitOptions = {
   keyPrefix: 'contact',
   message: 'Too many enquiry submissions from this connection. Please wait a few minutes before submitting again.',
 };
+
+
+export const WORKER_RESEND_RATE_LIMIT: RateLimitOptions = {
+  windowMs: 60 * 1000,
+  max: 5,
+  keyPrefix: 'resend_email',
+  message: 'Too many verification email requests. Please wait a moment before trying again.',
+};
+
+
 
 /**
  * Worker / Edge Rate Limiter Helper (Synchronous In-Memory First Layer)

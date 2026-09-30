@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useRouteContext, navigateTo } from './hooks/useRouteContext';
 import { LoginPage } from './components/auth/LoginPage';
+import { VerifyEmailPage } from './components/auth/VerifyEmailPage';
+import { ResetPasswordPage } from './components/auth/ResetPasswordPage';
 import { CreateOrganizationPage } from './components/auth/CreateOrganizationPage';
 import { SetOrganizationCountryModal } from './components/auth/SetOrganizationCountryModal';
 import { ThemeSetupOnboardingPage } from './components/onboarding/ThemeSetupOnboardingPage';
@@ -36,7 +38,9 @@ const AppContent: React.FC = () => {
     routeContext.mode === 'seo_landing' ||
     routeContext.mode === 'accept_invite' ||
     routeContext.mode === 'landing' ||
-    routeContext.mode === 'contact';
+    routeContext.mode === 'contact' ||
+    routeContext.mode === 'verify_email' ||
+    routeContext.mode === 'reset_password';
 
   const isLoginRoute = routeContext.mode === 'login';
   const isProtectedRoute = !isPublicRoute && !isLoginRoute;
@@ -130,6 +134,16 @@ const AppContent: React.FC = () => {
   // 3.5. PUBLIC CONTACT PAGE: /contact (Accessible with or without authentication)
   if (routeContext.mode === 'contact') {
     return <ContactPage />;
+  }
+
+  // 3.6. PUBLIC EMAIL VERIFICATION PAGE: /verify-email
+  if (routeContext.mode === 'verify_email') {
+    return <VerifyEmailPage />;
+  }
+
+  // 3.7. PUBLIC PASSWORD RESET PAGE: /reset-password
+  if (routeContext.mode === 'reset_password') {
+    return <ResetPasswordPage />;
   }
 
   // 4. AUTH & SESSION INITIALIZATION LOADING STATE
