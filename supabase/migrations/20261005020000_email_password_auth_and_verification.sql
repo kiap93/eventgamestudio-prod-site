@@ -1,5 +1,5 @@
 -- ==============================================================================
--- Migration: 20261005000000_email_password_auth_and_verification.sql
+-- Migration: 20261005020000_email_password_auth_and_verification.sql
 -- Description: Adds email/password registration, email verification, and password reset
 --              to public.users while preserving existing Google OAuth identities.
 --

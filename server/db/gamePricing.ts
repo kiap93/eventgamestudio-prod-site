@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { getSupabaseServerClient, isSupabaseConfigured, isLocalFallbackAllowed, assertProductionPricingSafe } from '../supabase.js';
 import { GamePricingRecord, GamePricingTier } from './types.js';
+import { getAllPlatformGames } from './games.js';
 
 export interface CreateGamePricingParams {
   min_days: number;
@@ -95,7 +96,7 @@ export function formatPricingDurationLabel(minDays: number, maxDays: number | nu
  * Build default pricing tiers for a game
  */
 export function buildDefaultPricingTiers(gameId: string, gameTypeOrSlug?: string): GamePricingRecord[] {
-  const normKey = String(gameTypeOrSlug || 'catch-brand').toLowerCase();
+  const normKey = String(gameTypeOrSlug || gameId || 'catch-brand').toLowerCase();
   let templateKey = 'catch-brand';
   if (normKey.includes('memory')) {
     templateKey = 'memory-match';
@@ -185,7 +186,7 @@ export async function getGamePricing(gameId: string, env?: any): Promise<GamePri
       const canonicalGames = ['catch-brand', 'memory-match', 'reaction-tap'];
       const rawSlug = gameId.replace(/^game-/, '');
       if (canonicalGames.includes(gameId) || canonicalGames.includes(rawSlug)) {
-        const defaults = buildDefaultPricingTiers(gameId);
+        const defaults = buildDefaultPricingTiers(gameId, rawSlug);
         localGamePricingCache.set(gameId, defaults);
       } else {
         localGamePricingCache.set(gameId, []);
@@ -269,7 +270,7 @@ export async function getGamePricingTierById(tierId: string, env?: any): Promise
     const canonicalGames = ['catch-brand', 'memory-match', 'reaction-tap'];
     for (const gid of canonicalGames) {
       if (!localGamePricingCache.has(gid)) {
-        const defaults = buildDefaultPricingTiers(gid);
+        const defaults = buildDefaultPricingTiers(gid, gid);
         localGamePricingCache.set(gid, defaults);
         const found = defaults.find((t) => t.id === tierId);
         if (found) return found;
@@ -885,3 +886,98 @@ export async function ensureDefaultGamePricing(
   }
   return localGamePricingCache.get(gameId) || [];
 }
+
+// ============================================================================
+// PUBLIC GAME PRICING INTERFACES & RETRIEVAL (LANDING PAGE)
+// ============================================================================
+
+export interface PublicGamePricingTier {
+  id?: string;
+  min_days: number;
+  max_days: number | null;
+  price: number;
+  currency: string;
+  is_base?: boolean;
+}
+
+export interface PublicGamePricingItem {
+  id: string;
+  slug: string;
+  name: string;
+  game_type: string;
+  status: string;
+  tiers: PublicGamePricingTier[];
+}
+
+export interface PublicGamesPricingResponse {
+  success: boolean;
+  games: PublicGamePricingItem[];
+}
+
+/**
+ * Public read-only method for returning active public games and their active pricing tiers.
+ * Used exclusively by public landing page game showcase & pricing calculator.
+ * Strictly exposes only public game catalog & tier data without admin/developer details.
+ */
+export async function getPublicGamesPricing(env?: any): Promise<PublicGamesPricingResponse> {
+  const games = await getAllPlatformGames(env);
+  const activeGames = (games || []).filter((g) => g.status === 'active' || !g.status);
+
+  // Preferred catalog ordering: catch-brand, memory-match, reaction-tap
+  const canonicalOrder = ['catch-brand', 'memory-match', 'reaction-tap'];
+  activeGames.sort((a, b) => {
+    const aType = a.game_type || a.slug;
+    const bType = b.game_type || b.slug;
+    const aIdx = canonicalOrder.indexOf(aType);
+    const bIdx = canonicalOrder.indexOf(bType);
+    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+    if (aIdx !== -1) return -1;
+    if (bIdx !== -1) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  const results: PublicGamePricingItem[] = [];
+
+  for (const game of activeGames) {
+    let activeTiers: GamePricingRecord[] = [];
+    try {
+      activeTiers = await getActiveGamePricing(game.id, env);
+      if (!activeTiers || activeTiers.length === 0) {
+        activeTiers = await ensureDefaultGamePricing(game.id, game.slug || game.game_type, env);
+        activeTiers = activeTiers.filter((t) => t.is_active && t.price > 0);
+      }
+    } catch (err: any) {
+      console.warn(`[getPublicGamesPricing] Could not fetch pricing for game ${game.id}:`, err?.message || err);
+      if (isLocalFallbackAllowed(env)) {
+        const fallback = buildDefaultPricingTiers(game.id, game.slug || game.game_type);
+        activeTiers = fallback.filter((t) => t.is_active && t.price > 0);
+      }
+    }
+
+    const sortedTiers = activeTiers
+      .filter((t) => t.is_active !== false && t.price > 0)
+      .sort((a, b) => a.min_days - b.min_days);
+
+    results.push({
+      id: game.id,
+      slug: game.slug,
+      name: game.name,
+      game_type: game.game_type || game.slug,
+      status: game.status || 'active',
+      tiers: sortedTiers.map((t) => ({
+        id: t.id,
+        min_days: t.min_days,
+        max_days: t.max_days ?? null,
+        price: Number(t.price),
+        currency: t.currency || 'MYR',
+        is_base: Boolean(t.is_base),
+      })),
+    });
+  }
+
+  return {
+    success: true,
+    games: results,
+  };
+}
+

@@ -1,333 +1,247 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { navigateTo } from '../../hooks/useRouteContext';
 import {
   Gamepad2,
   Sparkles,
   ArrowRight,
+  Play,
   QrCode,
-  Trophy,
-  Sliders,
-  CheckCircle2,
   Tv,
-  Zap,
+  Smartphone,
+  CheckCircle2,
+  Trophy,
 } from 'lucide-react';
 
 interface LandingHeroProps {
   onExploreGames: () => void;
+  onLaunchDemo?: (gameId?: string) => void;
 }
 
-export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames }) => {
+export const LandingHero: React.FC<LandingHeroProps> = ({ onExploreGames, onLaunchDemo }) => {
+  const { t } = useLocalization();
   const { isAuthenticated } = useAuth();
-  const [interactiveBasketX, setInteractiveBasketX] = useState(50);
-  const [score, setScore] = useState(14820);
-  const [caughtAnim, setCaughtAnim] = useState(false);
 
   const handleCreateEvent = () => {
     if (isAuthenticated) {
       navigateTo('/events');
     } else {
-      navigateTo('/login');
+      navigateTo('/login?redirect=/events');
     }
   };
 
-  const handleStageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const pct = Math.max(12, Math.min(88, (x / rect.width) * 100));
-    setInteractiveBasketX(pct);
-  };
-
-  const triggerBonusCatch = () => {
-    setScore((prev) => prev + 50);
-    setCaughtAnim(true);
-    setTimeout(() => setCaughtAnim(false), 700);
+  const handlePlayDemo = () => {
+    if (onLaunchDemo) {
+      onLaunchDemo('catch-brand');
+    } else {
+      onExploreGames();
+    }
   };
 
   return (
-    <section className="relative w-full pt-12 pb-20 md:pt-20 md:pb-28 overflow-hidden bg-white">
-      {/* Light Ambient Atmosphere */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1100px] h-[500px] bg-gradient-to-b from-amber-500/10 via-emerald-500/5 to-transparent blur-3xl pointer-events-none rounded-full" />
-      <div className="absolute top-1/4 -left-48 w-[450px] h-[450px] bg-amber-200/30 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/3 -right-48 w-[450px] h-[450px] bg-emerald-200/30 rounded-full blur-3xl pointer-events-none" />
+    <section className="relative w-full pt-10 pb-16 sm:pt-16 sm:pb-24 lg:pt-20 lg:pb-32 overflow-hidden bg-white">
+      {/* Ambient Lighting Gradients */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[400px] bg-gradient-to-b from-amber-500/10 via-amber-200/5 to-transparent blur-3xl pointer-events-none rounded-full" />
+      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-amber-100/40 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/3 -right-32 w-96 h-96 bg-emerald-100/40 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Subtle Light Grid */}
+      {/* Grid Pattern */}
       <div
-        className="absolute inset-0 opacity-60 pointer-events-none"
+        className="absolute inset-0 opacity-40 pointer-events-none"
         style={{
           backgroundImage: `linear-gradient(to right, #f1f5f9 1px, transparent 1px), linear-gradient(to bottom, #f1f5f9 1px, transparent 1px)`,
-          backgroundSize: '40px 40px',
+          backgroundSize: '48px 48px',
         }}
       />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Main Hero Header Block */}
-        <div className="text-center max-w-4xl mx-auto space-y-6 md:space-y-7">
-          {/* Positioning Pill */}
+        <div className="text-center max-w-4xl mx-auto space-y-6 sm:space-y-8">
+          {/* Badge */}
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200/80 shadow-xs backdrop-blur-md"
+            transition={{ duration: 0.4 }}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 border border-amber-200/80 shadow-xs"
           >
             <span className="flex h-2 w-2 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
             </span>
-            <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-amber-800">
-              Interactive Games for Events
+            <span className="text-xs font-bold text-amber-900 tracking-wide">
+              {t('landing.heroBadge')}
             </span>
           </motion.div>
 
-          {/* Dominant Display Headline */}
+          {/* Main Headline */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.08 }}
-            className="space-y-3"
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="space-y-4"
           >
-            <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 leading-[1.1]">
-              Interactive Event Games &{' '}
-              <span className="bg-gradient-to-r from-amber-500 via-amber-600 to-emerald-600 bg-clip-text text-transparent drop-shadow-xs">
-                Branded Mini-Games
-              </span>
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-slate-900 leading-[1.12]">
+              {t('landing.heroMainTitle')}
             </h1>
-            <p className="text-xl sm:text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
-              Make Your Events Playable.
+            <p className="text-base sm:text-lg md:text-xl font-normal text-slate-600 max-w-3xl mx-auto leading-relaxed">
+              {t('landing.heroMainSubtitle')}
             </p>
           </motion.div>
 
-          {/* Clear Value Supporting Text */}
-          <motion.p
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.16 }}
-            className="text-base sm:text-xl md:text-2xl text-slate-600 leading-relaxed max-w-3xl mx-auto font-normal"
-          >
-            Create branded interactive arcade games for corporate events, product launches, roadshows, exhibitions, and brand activations.
-          </motion.p>
-
-          {/* CTA Buttons Hierarchy */}
+          {/* Primary Action Buttons */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.24 }}
-            className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3.5 sm:gap-4"
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2"
           >
-            {/* Primary CTA */}
             <button
               onClick={handleCreateEvent}
-              className="w-full sm:w-auto min-h-[48px] px-8 py-4 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-sm uppercase tracking-wider rounded-2xl shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-3 group cursor-pointer"
+              className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
             >
-              <Gamepad2 className="w-5 h-5" />
-              <span>Create Your First Event</span>
-              <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+              <span>{t('landing.createYourEvent')}</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
 
-            {/* Secondary CTA */}
             <button
-              onClick={onExploreGames}
-              className="w-full sm:w-auto min-h-[48px] px-8 py-4 bg-white hover:bg-slate-50 border border-slate-300 hover:border-amber-400 text-slate-700 hover:text-slate-900 font-bold text-sm rounded-2xl shadow-xs transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2.5 cursor-pointer"
+              onClick={handlePlayDemo}
+              className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
             >
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Explore Games</span>
+              <Play className="w-4 h-4 text-amber-400 fill-amber-400" />
+              <span>{t('landing.tryLiveDemo')}</span>
             </button>
           </motion.div>
 
-          {/* Trust & Event Readiness Badges */}
+          {/* Key Value Proof Points */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.32 }}
-            id="hero-features"
-            className="pt-3 flex flex-wrap items-center justify-center gap-y-2.5 gap-x-6 text-xs text-slate-600 font-medium"
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="pt-4 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-3xl mx-auto text-left"
           >
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-              Zero App Downloads
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-amber-500 shrink-0" />
-              Instant Brand Customization
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-              Mainstage 4K & Mobile QR Ready
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-amber-500 shrink-0" />
-              Real-time Live Leaderboards
-            </span>
-          </motion.div>
-        </div>
-
-        {/* Hero Interactive Stage Showcase: Large Visual Centerpiece */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.35 }}
-          className="mt-12 md:mt-16 max-w-5xl mx-auto"
-        >
-          <div className="relative rounded-3xl p-1.5 bg-gradient-to-b from-slate-200 via-slate-100 to-amber-100/50 shadow-2xl shadow-slate-300/50">
-            {/* Outer Frame */}
-            <div className="bg-slate-950 rounded-[22px] border border-slate-200 overflow-hidden shadow-inner">
-              {/* Event Showcase Top Bar */}
-              <div className="bg-slate-900 px-4 sm:px-6 py-3.5 border-b border-slate-800 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
-                    <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
-                    <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
-                  </div>
-                  <div className="h-4 w-px bg-slate-800" />
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                      <Tv className="w-3 h-3" /> LIVE ARENA
-                    </span>
-                    <span className="text-xs font-semibold text-slate-300 truncate hidden sm:inline">
-                      TechSummit Expo 2026 • Interactive Brand Stage
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 text-xs">
-                  <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1 rounded-xl border border-slate-800 text-slate-300 font-mono text-[11px]">
-                    <QrCode className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Scan QR to Play</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Interactive Game Stage Viewport */}
-              <div
-                onMouseMove={handleStageMouseMove}
-                onClick={triggerBonusCatch}
-                className="relative h-[320px] sm:h-[440px] md:h-[500px] w-full cursor-crosshair overflow-hidden select-none"
-                style={{
-                  backgroundImage: `url('/assets/games/catch-brand/themes/default/background.png')`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }}
-              >
-                {/* Dark Vignette Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-slate-950/40 pointer-events-none" />
-
-                {/* Floating In-Game HUD */}
-                <div className="absolute top-3 sm:top-4 left-3 sm:left-4 right-3 sm:right-4 flex items-center justify-between pointer-events-none gap-2">
-                  {/* Score & Combo */}
-                  <div className="bg-slate-950/85 backdrop-blur-md border border-amber-500/40 px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl shadow-xl flex items-center gap-3 sm:gap-4">
-                    <div>
-                      <div className="text-[9px] sm:text-[10px] uppercase font-bold text-amber-400/90 tracking-wider">Score</div>
-                      <div className="text-lg sm:text-2xl font-black text-amber-300 font-mono tracking-tight">
-                        {score.toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="h-6 sm:h-7 w-px bg-slate-800" />
-                    <div>
-                      <div className="text-[9px] sm:text-[10px] uppercase font-bold text-emerald-400/90 tracking-wider">Combo</div>
-                      <div className="text-xs sm:text-base font-bold text-emerald-300 font-mono">x5 BONUS</div>
-                    </div>
-                  </div>
-
-                  {/* Brand Stage Badge */}
-                  <div className="hidden md:flex bg-slate-950/85 backdrop-blur-md border border-slate-800 px-3.5 py-1.5 rounded-2xl shadow-xl items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                    <span className="text-xs font-bold text-slate-100">Official Brand Activation</span>
-                  </div>
-
-                  {/* Timer */}
-                  <div className="bg-slate-950/85 backdrop-blur-md border border-slate-800 px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl shadow-xl flex items-center gap-2">
-                    <div className="text-right">
-                      <div className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400">Time Left</div>
-                      <div className="text-base sm:text-lg font-bold text-rose-400 font-mono">00:18</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Animated Falling Collectibles */}
-                <div className="absolute top-16 left-[25%] animate-bounce duration-1000 pointer-events-none">
-                  <img
-                    src="/assets/games/catch-brand/themes/default/item_normal_01.png"
-                    alt="Brand Object"
-                    className="w-12 h-12 sm:w-16 sm:h-16 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] transform -rotate-12"
-                    loading="eager"
-                  />
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/90 text-slate-950 font-black text-[10px] shadow absolute -top-2 -right-2">
-                    +50
-                  </span>
-                </div>
-
-                <div className="absolute top-28 right-[30%] animate-pulse pointer-events-none">
-                  <img
-                    src="/assets/games/catch-brand/themes/default/item_hazard_01.png"
-                    alt="Obstacle Object"
-                    className="w-10 h-10 sm:w-14 sm:h-14 drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] transform rotate-12 opacity-90"
-                    loading="eager"
-                  />
-                </div>
-
-                {/* Catch Popup Animation */}
-                {caughtAnim && (
-                  <div
-                    className="absolute bottom-28 transition-all pointer-events-none transform -translate-x-1/2"
-                    style={{ left: `${interactiveBasketX}%` }}
-                  >
-                    <span className="px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-xs shadow-xl animate-ping inline-block">
-                      GREAT CATCH! +50
-                    </span>
-                  </div>
-                )}
-
-                {/* Interactive Player Basket (Controlled by mouse hover) */}
+            {[
+              { text: t('landing.statNoApp'), icon: Smartphone },
+              { text: t('landing.statInstantQr'), icon: QrCode },
+              { text: t('landing.stat60Fps'), icon: Tv },
+              { text: t('landing.statCustomBranded'), icon: Sparkles },
+            ].map((item, idx) => {
+              const IconComp = item.icon;
+              return (
                 <div
-                  className="absolute bottom-6 transition-all duration-75 pointer-events-none transform -translate-x-1/2 flex flex-col items-center"
-                  style={{ left: `${interactiveBasketX}%` }}
+                  key={idx}
+                  className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/60"
                 >
-                  <img
-                    src="/assets/games/catch-brand/themes/default/basket.png"
-                    alt="Player Catcher"
-                    className="w-24 sm:w-32 h-auto drop-shadow-[0_15px_20px_rgba(0,0,0,0.6)]"
-                    loading="eager"
-                  />
-                  <div className="mt-1 px-2.5 py-0.5 bg-slate-950/85 border border-amber-500/40 rounded-full text-[10px] font-bold text-amber-300 whitespace-nowrap shadow-md">
-                    Hover to steer catcher
+                  <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <IconComp className="w-3.5 h-3.5" />
                   </div>
+                  <span className="text-xs font-semibold text-slate-700 leading-tight">
+                    {item.text}
+                  </span>
                 </div>
+              );
+            })}
+          </motion.div>
 
-                {/* Floating Feature Pills Over Stage */}
-                <div className="absolute bottom-4 left-4 right-4 hidden sm:flex items-center justify-between pointer-events-none">
-                  <div className="flex items-center gap-2 bg-slate-950/90 backdrop-blur-md border border-slate-800 px-3.5 py-2 rounded-xl text-xs text-slate-300">
-                    <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Real-time Custom Theme Engine</span>
+          {/* Interactive Hero Visual Showcase Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 25 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.35 }}
+            className="pt-6 sm:pt-8"
+          >
+            <div className="relative mx-auto max-w-4xl rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-slate-950 p-2 sm:p-3 shadow-2xl overflow-hidden group">
+              {/* Top Window Bar */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 text-xs text-slate-400">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
                   </div>
-
-                  <div className="flex items-center gap-2 bg-slate-950/90 backdrop-blur-md border border-slate-800 px-3.5 py-2 rounded-xl text-xs text-slate-300">
-                    <Trophy className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Instant Live Leaderboard Sync</span>
-                  </div>
+                  <span className="ml-2 font-mono text-[11px] text-slate-500 hidden sm:inline">
+                    catch-the-brand.live-stage.eventgamestudio.com
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    STAGE READY 60 FPS
+                  </span>
                 </div>
               </div>
 
-              {/* Stage Sub-bar */}
-              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span className="font-semibold text-slate-800">
-                    Turn your booth or venue into an interactive gaming experience in minutes.
-                  </span>
+              {/* Stage Viewport */}
+              <div className="relative aspect-16/9 w-full rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center">
+                {/* Background Game Scenery */}
+                <img
+                  src="/assets/games/catch-brand/themes/carnival/background.png"
+                  alt="Catch the Brand Stage Preview"
+                  className="absolute inset-0 w-full h-full object-cover opacity-85"
+                />
+
+                {/* Ambient vignette */}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none" />
+
+                {/* Score & HUD simulation */}
+                <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-10">
+                  <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-3.5 py-1.5 flex items-center gap-2.5 shadow-md">
+                    <Trophy className="w-4 h-4 text-amber-400" />
+                    <div className="text-left">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Score</div>
+                      <div className="text-sm sm:text-base font-black text-white font-mono leading-none">18,450</div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-3.5 py-1.5 flex items-center gap-2.5 shadow-md">
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Time Left</div>
+                      <div className="text-sm sm:text-base font-black text-amber-400 font-mono leading-none">00:18</div>
+                    </div>
+                  </div>
                 </div>
-                <button
-                  onClick={handleCreateEvent}
-                  className="font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 transition-colors self-end sm:self-auto cursor-pointer"
-                >
-                  <span>Launch Event Now</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+
+                {/* Falling Objects Animation Decor */}
+                <div className="absolute top-1/4 left-1/4 w-12 h-12 animate-bounce duration-1000">
+                  <img
+                    src="/assets/games/catch-brand/themes/carnival/item_normal_01.png"
+                    alt="Collectible Item"
+                    className="w-full h-full object-contain drop-shadow-lg"
+                  />
+                </div>
+                <div className="absolute top-1/3 right-1/4 w-14 h-14 animate-pulse">
+                  <img
+                    src="/assets/games/catch-brand/themes/carnival/item_bonus_01.png"
+                    alt="Bonus Item"
+                    className="w-full h-full object-contain drop-shadow-xl"
+                  />
+                </div>
+
+                {/* Catcher at bottom */}
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-28 sm:w-36 h-14 sm:h-18">
+                  <img
+                    src="/assets/games/catch-brand/themes/carnival/basket.png"
+                    alt="Player Catcher"
+                    className="w-full h-full object-contain drop-shadow-2xl"
+                  />
+                </div>
+
+                {/* Center Hover Action: Instant Live Demo Trigger */}
+                <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center transition-opacity duration-200">
+                  <button
+                    onClick={handlePlayDemo}
+                    className="px-6 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm sm:text-base flex items-center gap-2.5 shadow-xl hover:scale-105 transition-all cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-xl bg-slate-950 text-amber-400 flex items-center justify-center">
+                      <Play className="w-4 h-4 fill-amber-400 ml-0.5" />
+                    </div>
+                    <span>{t('landing.playDemo')} — Catch the Brand</span>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </div>
     </section>
   );

@@ -1,353 +1,233 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
 import { THEME_REGISTRY } from '../../themes/registry';
-import { GameTheme } from '../../themes/types';
 import {
   Palette,
   Sparkles,
-  Building2,
   Image,
-  Type,
+  ArrowRight,
   Sliders,
   CheckCircle2,
-  ArrowRight,
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
-
-interface ThemePresetDisplay {
-  id: string;
-  name: string;
-  clientMock: string;
-  tagline: string;
-  badge: string;
-  accentColor: string;
-  bgGradient: string;
-  goodItemLabel: string;
-  hazardItemLabel: string;
-  bonusItemLabel: string;
-  catcherLabel: string;
-}
-
-const THEME_PRESETS: ThemePresetDisplay[] = [
-  {
-    id: 'carnival',
-    name: 'Carnival Fiesta',
-    clientMock: 'Grand Carnival Expo 2026',
-    tagline: 'Catch Golden Tickets & Cosmic Stars, dodge Cursed Masks!',
-    badge: 'Carnival Celebration',
-    accentColor: '#f59e0b',
-    bgGradient: 'from-amber-950/70 via-slate-900 to-purple-950/50',
-    goodItemLabel: 'Golden Carnival Ticket (+10 pts)',
-    hazardItemLabel: 'Carnival Cursed Mask (-10 pts)',
-    bonusItemLabel: 'Cosmic Carnival Star (+50 pts)',
-    catcherLabel: 'Carnival Cart',
-  },
-  {
-    id: 'chinese-new-year',
-    name: 'Lunar New Year',
-    clientMock: 'Bank of Asia Gala Dinner',
-    tagline: 'Catch lucky Red Packets (Angpow), avoid fireworks!',
-    badge: 'Spring Festival',
-    accentColor: '#ef4444',
-    bgGradient: 'from-red-950/70 via-slate-900 to-amber-950/50',
-    goodItemLabel: 'Lucky Red Packet (+10 pts)',
-    hazardItemLabel: 'Exploding Firecracker (-10 pts)',
-    bonusItemLabel: 'Golden Yuanbao Ingot (+50 pts)',
-    catcherLabel: 'Golden Fortune Catcher',
-  },
-  {
-    id: 'christmas',
-    name: 'Winter Holiday',
-    clientMock: 'MegaMall Year-End Carnival',
-    tagline: 'Catch Holiday Presents, dodge Melting Snowballs!',
-    badge: 'Winter Wonderland',
-    accentColor: '#06b6d4',
-    bgGradient: 'from-cyan-950/70 via-slate-900 to-emerald-950/50',
-    goodItemLabel: 'Wrapped Gift Box (+10 pts)',
-    hazardItemLabel: 'Melting Snow Hazard (-10 pts)',
-    bonusItemLabel: 'Golden Holiday Star (+50 pts)',
-    catcherLabel: 'Santa Festive Sack',
-  },
-  {
-    id: 'halloween',
-    name: 'Spooky Night',
-    clientMock: 'Night Festival Activation',
-    tagline: 'Collect sweet Candy Corn, avoid Spooky Ghosts!',
-    badge: 'Halloween Special',
-    accentColor: '#a855f7',
-    bgGradient: 'from-purple-950/70 via-slate-900 to-orange-950/50',
-    goodItemLabel: 'Treat Candy Corn (+10 pts)',
-    hazardItemLabel: 'Haunted Skull Hazard (-10 pts)',
-    bonusItemLabel: 'Glowing Jack-o-Lantern (+50 pts)',
-    catcherLabel: 'Witch Cauldron',
-  },
-  {
-    id: 'mango',
-    name: 'Summer Orchard',
-    clientMock: 'Juice Bar Brand Launch',
-    tagline: 'Catch sweet Honey Mangoes, avoid Tree Thorns!',
-    badge: 'Summer Launch',
-    accentColor: '#eab308',
-    bgGradient: 'from-yellow-950/70 via-slate-900 to-emerald-950/50',
-    goodItemLabel: 'Ripe Honey Mango (+10 pts)',
-    hazardItemLabel: 'Thorny Branch (-10 pts)',
-    bonusItemLabel: 'Golden Mango Nectar (+50 pts)',
-    catcherLabel: 'Fruit Crate',
-  },
-];
+import { useLocalization } from '../../context/LocalizationContext';
 
 export const LandingBrandYourGame: React.FC = () => {
+  const { t } = useLocalization();
   const { isAuthenticated } = useAuth();
-  const [selectedPresetId, setSelectedPresetId] = useState<string>('carnival');
+  const [activePresetId, setActivePresetId] = useState('carnival');
 
-  const currentPreset = THEME_PRESETS.find((p) => p.id === selectedPresetId) || THEME_PRESETS[0];
-  const registeredTheme: GameTheme = THEME_REGISTRY[selectedPresetId] || THEME_REGISTRY['carnival'];
+  const presets = [
+    {
+      id: 'carnival',
+      name: t('landing.themePresetCarnival'),
+      tagline: t('landing.themePresetCarnivalTagline'),
+      bgPath: '/assets/games/catch-brand/themes/carnival/background.png',
+      basketPath: '/assets/games/catch-brand/themes/carnival/basket.png',
+      itemNormal: '/assets/games/catch-brand/themes/carnival/item_normal_01.png',
+      itemBonus: '/assets/games/catch-brand/themes/carnival/item_bonus_01.png',
+      itemHazard: '/assets/games/catch-brand/themes/carnival/item_hazard_01.png',
+      color: 'bg-amber-500',
+    },
+    {
+      id: 'chinese-new-year',
+      name: t('landing.themePresetCny'),
+      tagline: t('landing.themePresetCnyTagline'),
+      bgPath: '/assets/games/catch-brand/themes/cny/background.png',
+      basketPath: '/assets/games/catch-brand/themes/cny/basket.png',
+      itemNormal: '/assets/games/catch-brand/themes/cny/item_normal_01.png',
+      itemBonus: '/assets/games/catch-brand/themes/cny/item_bonus_01.png',
+      itemHazard: '/assets/games/catch-brand/themes/cny/item_hazard_01.png',
+      color: 'bg-red-500',
+    },
+    {
+      id: 'christmas',
+      name: t('landing.themePresetHoliday'),
+      tagline: t('landing.themePresetHolidayTagline'),
+      bgPath: '/assets/games/catch-brand/themes/christmas/background.png',
+      basketPath: '/assets/games/catch-brand/themes/christmas/basket.png',
+      itemNormal: '/assets/games/catch-brand/themes/christmas/item_normal_01.png',
+      itemBonus: '/assets/games/catch-brand/themes/christmas/item_bonus_01.png',
+      itemHazard: '/assets/games/catch-brand/themes/christmas/item_hazard_01.png',
+      color: 'bg-emerald-500',
+    },
+    {
+      id: 'halloween',
+      name: t('landing.themePresetHalloween'),
+      tagline: t('landing.themePresetHalloweenTagline'),
+      bgPath: '/assets/games/catch-brand/themes/halloween/background.png',
+      basketPath: '/assets/games/catch-brand/themes/halloween/basket.png',
+      itemNormal: '/assets/games/catch-brand/themes/halloween/item_normal_01.png',
+      itemBonus: '/assets/games/catch-brand/themes/halloween/item_bonus_01.png',
+      itemHazard: '/assets/games/catch-brand/themes/halloween/item_hazard_01.png',
+      color: 'bg-purple-500',
+    },
+    {
+      id: 'mango',
+      name: t('landing.themePresetMango'),
+      tagline: t('landing.themePresetMangoTagline'),
+      bgPath: '/assets/games/catch-brand/themes/mango/background.png',
+      basketPath: '/assets/games/catch-brand/themes/mango/basket.png',
+      itemNormal: '/assets/games/catch-brand/themes/mango/item_normal_01.png',
+      itemBonus: '/assets/games/catch-brand/themes/mango/item_bonus_01.png',
+      itemHazard: '/assets/games/catch-brand/themes/mango/item_hazard_01.png',
+      color: 'bg-yellow-500',
+    },
+  ];
 
-  const handleCustomizeClick = () => {
+  const current = presets.find((p) => p.id === activePresetId) || presets[0];
+
+  const handleOpenStudio = () => {
     if (isAuthenticated) {
       navigateTo('/game-themes');
     } else {
-      navigateTo('/login');
+      navigateTo('/login?redirect=/game-themes');
     }
   };
 
-  return (
-    <section id="brand-your-game" className="relative scroll-mt-16 sm:scroll-mt-20 py-20 md:py-32 bg-slate-50 border-t border-b border-slate-200/80 overflow-hidden">
-      {/* Dynamic Background Glow */}
-      <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] blur-3xl opacity-10 pointer-events-none transition-all duration-700 rounded-full"
-        style={{ backgroundColor: currentPreset.accentColor }}
-      />
+  const assetSlots = [
+    t('landing.assetBackgroundLabel'),
+    t('landing.assetCatcherLabel'),
+    t('landing.assetCollectiblesLabel'),
+    t('landing.assetBonusLabel'),
+    t('landing.assetHazardsLabel'),
+    t('landing.assetAudioLabel'),
+  ];
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  return (
+    <section className="w-full py-16 sm:py-24 bg-white border-b border-slate-200/80">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold text-amber-800 uppercase tracking-widest shadow-xs">
-            <Palette className="w-3.5 h-3.5 text-amber-500" />
-            <span>Theme & Branding Engine</span>
+        <div className="text-center max-w-3xl mx-auto space-y-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold uppercase tracking-wider">
+            <Palette className="w-3.5 h-3.5" />
+            <span>{t('landing.brandYourGameBadge')}</span>
           </div>
-          <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight">
-            Your Client's Brand. Their Game.
+          <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
+            {t('landing.brandYourGameTitle')}
           </h2>
-          <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
-            Every visual element is customizable. Turn any game into an exclusive, branded corporate experience in seconds without writing a line of code.
+          <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
+            {t('landing.brandYourGameDesc')}
           </p>
         </div>
 
-        {/* Interactive Theme Switcher Pills */}
-        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-12">
-          {THEME_PRESETS.map((preset) => {
-            const isSelected = preset.id === selectedPresetId;
+        {/* Theme Segmented Switcher */}
+        <div className="flex flex-wrap items-center justify-center gap-2 max-w-4xl mx-auto">
+          {presets.map((preset) => {
+            const isActive = preset.id === activePresetId;
             return (
               <button
                 key={preset.id}
-                onClick={() => setSelectedPresetId(preset.id)}
-                className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
-                  isSelected
-                    ? 'bg-white text-slate-900 border-2 border-amber-500 shadow-md scale-105'
-                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-100 shadow-xs'
+                onClick={() => setActivePresetId(preset.id)}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-slate-900 text-white shadow-md'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                <span
-                  className="w-2.5 h-2.5 rounded-full inline-block"
-                  style={{ backgroundColor: preset.accentColor }}
-                />
                 <span>{preset.name}</span>
-                <span className="hidden md:inline text-[10px] uppercase font-semibold text-slate-500">
-                  • {preset.badge}
-                </span>
               </button>
             );
           })}
         </div>
 
-        {/* Interactive Brand Transformer Card */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          {/* Left Column: Brand Customization Specs */}
-          <div className="lg:col-span-5 space-y-4">
-            <div className="rounded-3xl bg-white border border-slate-200 p-6 sm:p-8 space-y-6 shadow-xs">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="flex items-center gap-2 text-xs font-bold text-amber-800 uppercase tracking-wider">
-                  <Sliders className="w-4 h-4 text-amber-500" />
-                  <span>Customization Controls</span>
-                </div>
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                  Live Preview
-                </span>
+        {/* Studio Showcase Two-Column Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center max-w-6xl mx-auto">
+          {/* Left Column: Asset Specification & Controls */}
+          <div className="lg:col-span-5 space-y-6">
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">
+                {current.name}
+              </span>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug">
+                {current.tagline}
+              </h3>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                {t('landing.customizableAssetsTitle')}
               </div>
 
-              {/* Key Customization Points */}
-              <div className="space-y-4 text-xs">
-                {/* 1. Client Logo & Branding */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                  <Building2 className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <span className="font-bold text-slate-900 block text-xs">Client Logo & Event Title</span>
-                    <span className="text-slate-600 text-[11px] block mt-0.5">
-                      Current client header: <strong className="text-amber-800 font-bold">{currentPreset.clientMock}</strong>
-                    </span>
+              <div className="space-y-2.5">
+                {assetSlots.map((slot, idx) => (
+                  <div key={idx} className="flex items-center gap-2.5 text-xs sm:text-sm text-slate-700 font-medium">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>{slot}</span>
                   </div>
-                </div>
+                ))}
+              </div>
+            </div>
 
-                {/* 2. Custom Game Theme & Rules */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                  <Type className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <span className="font-bold text-slate-900 block text-xs">Custom Gameplay Rules</span>
-                    <span className="text-slate-600 text-[11px] block mt-0.5">
-                      {registeredTheme.branding.subtitle || currentPreset.tagline}
-                    </span>
-                  </div>
+            {/* Sprites Row */}
+            <div className="pt-2">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                Active Theme Sprites
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="w-10 h-10 p-1 bg-white rounded-lg border border-slate-200 flex items-center justify-center shrink-0">
+                  <img src={current.itemNormal} alt="Collect item" className="w-full h-full object-contain" />
                 </div>
-
-                {/* 3. Branded Collectibles & Items */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                  <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <span className="font-bold text-slate-900 block text-xs">Custom Brand Collectibles</span>
-                    <div className="mt-1.5 space-y-1 text-[11px]">
-                      <div className="text-emerald-700 font-mono font-medium">✓ {currentPreset.goodItemLabel}</div>
-                      <div className="text-rose-700 font-mono font-medium">✕ {currentPreset.hazardItemLabel}</div>
-                      <div className="text-amber-700 font-mono font-medium">★ {currentPreset.bonusItemLabel}</div>
-                    </div>
-                  </div>
+                <div className="w-10 h-10 p-1 bg-white rounded-lg border border-slate-200 flex items-center justify-center shrink-0">
+                  <img src={current.itemBonus} alt="Bonus item" className="w-full h-full object-contain" />
                 </div>
-
-                {/* 4. Custom Catcher & Background Artwork */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                  <Image className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <span className="font-bold text-slate-900 block text-xs">Catcher & Background Artwork</span>
-                    <span className="text-slate-600 text-[11px] block mt-0.5">
-                      Catcher asset: <strong className="text-slate-800">{currentPreset.catcherLabel}</strong>
-                    </span>
-                  </div>
+                <div className="w-10 h-10 p-1 bg-white rounded-lg border border-slate-200 flex items-center justify-center shrink-0">
+                  <img src={current.itemHazard} alt="Hazard item" className="w-full h-full object-contain" />
+                </div>
+                <div className="w-14 h-10 p-1 bg-white rounded-lg border border-slate-200 flex items-center justify-center shrink-0">
+                  <img src={current.basketPath} alt="Catcher" className="w-full h-full object-contain" />
                 </div>
               </div>
+            </div>
 
-              <div className="pt-2">
-                <button
-                  onClick={handleCustomizeClick}
-                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Palette className="w-4 h-4" />
-                  <span>Customize Themes in Studio</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+            <div className="pt-2">
+              <button
+                onClick={handleOpenStudio}
+                className="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <span>{t('landing.customizeThemesCta')}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          {/* Right Column: Visual Mockup of Branded Game Display */}
+          {/* Right Column: Live Mockup Viewport */}
           <div className="lg:col-span-7">
-            <div className="relative rounded-3xl p-1.5 bg-gradient-to-b from-slate-200 via-slate-100 to-amber-100/50 shadow-xl shadow-slate-200/60">
-              <div className="rounded-[22px] bg-slate-950 border border-slate-200 overflow-hidden">
-                {/* Event Stage Display Header */}
-                <div className="bg-slate-900 px-6 py-3.5 border-b border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-xs font-bold text-slate-200">
-                      {currentPreset.clientMock}
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-amber-400">
-                    STAGE MODE: 16:9 4K READY
-                  </span>
-                </div>
+            <div className="relative aspect-16/10 rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-xl">
+              {/* Background Art */}
+              <img
+                src={current.bgPath}
+                alt={current.name}
+                className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
+              />
 
-                {/* Branded Game Stage Frame */}
-                <div className={`relative h-[340px] sm:h-[420px] bg-gradient-to-b ${currentPreset.bgGradient} p-6 flex flex-col justify-between overflow-hidden transition-all duration-500`}>
-                  {/* Subtle Grid Accent */}
-                  <div className="absolute inset-0 opacity-[0.05] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+              {/* Dark subtle overlay for contrast */}
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40" />
 
-                  {/* Top Game Banner */}
-                  <div className="relative z-10 flex items-center justify-between">
-                    <div className="bg-slate-950/80 backdrop-blur-md border border-slate-800 px-4 py-2 rounded-2xl shadow-lg">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        {registeredTheme.branding.gameTitle || currentPreset.name}
-                      </div>
-                      <div className="text-xs font-semibold text-amber-300">
-                        {currentPreset.clientMock}
-                      </div>
-                    </div>
+              {/* Mock HUD */}
+              <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-xs text-white z-10">
+                <span className="px-3 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700 font-mono font-bold">
+                  Score: 12,500
+                </span>
+                <span className="px-3 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700 font-mono font-bold text-amber-400">
+                  00:24
+                </span>
+              </div>
 
-                    <div className="bg-slate-950/80 backdrop-blur-md border border-slate-800 px-4 py-2 rounded-2xl shadow-lg text-right">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase">Target Score</div>
-                      <div className="text-lg font-black text-amber-400 font-mono">15,000 PTS</div>
-                    </div>
-                  </div>
+              {/* Floating Items */}
+              <div className="absolute top-1/4 left-1/3 w-12 h-12">
+                <img src={current.itemNormal} alt="Normal item" className="w-full h-full object-contain drop-shadow-md" />
+              </div>
+              <div className="absolute top-1/3 right-1/4 w-14 h-14">
+                <img src={current.itemBonus} alt="Bonus item" className="w-full h-full object-contain drop-shadow-lg" />
+              </div>
+              <div className="absolute top-1/2 left-1/4 w-10 h-10">
+                <img src={current.itemHazard} alt="Hazard item" className="w-full h-full object-contain drop-shadow-md" />
+              </div>
 
-                  {/* Center Collectibles Showcase */}
-                  <div className="relative z-10 flex items-center justify-around py-4">
-                    <motion.div
-                      key={`good-${selectedPresetId}`}
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="flex flex-col items-center gap-2 bg-slate-950/70 backdrop-blur-sm border border-slate-800 p-3 sm:p-4 rounded-2xl"
-                    >
-                      <span className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 font-black text-xs sm:text-sm shadow-md">
-                        +10
-                      </span>
-                      <span className="text-[10px] sm:text-xs font-bold text-emerald-300 text-center max-w-[100px]">
-                        {currentPreset.goodItemLabel.split('(')[0]}
-                      </span>
-                    </motion.div>
-
-                    <motion.div
-                      key={`bonus-${selectedPresetId}`}
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: 0.1 }}
-                      className="flex flex-col items-center gap-2 bg-slate-950/70 backdrop-blur-sm border border-amber-500/40 p-3 sm:p-4 rounded-2xl shadow-lg shadow-amber-500/10"
-                    >
-                      <span className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-300 font-black text-sm sm:text-base shadow-md animate-pulse">
-                        ★ +50
-                      </span>
-                      <span className="text-[10px] sm:text-xs font-bold text-amber-300 text-center max-w-[100px]">
-                        {currentPreset.bonusItemLabel.split('(')[0]}
-                      </span>
-                    </motion.div>
-
-                    <motion.div
-                      key={`hazard-${selectedPresetId}`}
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: 0.2 }}
-                      className="flex flex-col items-center gap-2 bg-slate-950/70 backdrop-blur-sm border border-slate-800 p-3 sm:p-4 rounded-2xl"
-                    >
-                      <span className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-300 font-black text-xs sm:text-sm shadow-md">
-                        -10
-                      </span>
-                      <span className="text-[10px] sm:text-xs font-bold text-rose-300 text-center max-w-[100px]">
-                        {currentPreset.hazardItemLabel.split('(')[0]}
-                      </span>
-                    </motion.div>
-                  </div>
-
-                  {/* Bottom Catcher Representation */}
-                  <div className="relative z-10 flex flex-col items-center">
-                    <div className="px-6 py-2 rounded-2xl bg-slate-950/90 border border-slate-700/80 shadow-2xl flex items-center gap-3">
-                      <span className="text-xs font-black text-slate-100 uppercase tracking-wide">
-                        [ {currentPreset.catcherLabel} ]
-                      </span>
-                      <span className="text-[10px] font-bold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded-full">
-                        ACTIVE CATCHER
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bottom Frame Spec Bar */}
-                <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span className="font-semibold text-slate-800">Real-time Asset Swapping</span>
-                  </span>
-                  <span className="text-slate-500">
-                    Zero game engine reload required
-                  </span>
-                </div>
+              {/* Bottom Catcher */}
+              <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-32 h-16">
+                <img src={current.basketPath} alt="Catcher" className="w-full h-full object-contain drop-shadow-2xl" />
               </div>
             </div>
           </div>

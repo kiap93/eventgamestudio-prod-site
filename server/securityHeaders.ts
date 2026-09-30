@@ -21,33 +21,122 @@ export interface SecurityHeadersOptions {
   isProduction?: boolean;
   isHttps?: boolean;
   customFrameAncestors?: string[];
+  customScriptSrc?: string[];
+  customConnectSrc?: string[];
 }
 
 /**
  * Builds the canonical Content-Security-Policy directive string.
+ * Hardened for production:
+ * - Omits 'unsafe-inline' and 'unsafe-eval' in script-src in production
+ * - Eliminates broad wildcards ('http:', 'https:', '*.run.app', '*.pages.dev')
+ * - Enforces specific origin whitelisting for scripts, styles, images, and API connections
  */
 export function buildContentSecurityPolicy(options: SecurityHeadersOptions = {}): string {
+  const isProd =
+    options.isProduction !== undefined
+      ? options.isProduction
+      : typeof process !== 'undefined' && process.env.NODE_ENV === 'production';
+
+  // Frame-ancestors: restrict clickjacking protection to self, Google AI Studio, and official domains.
+  // Wildcards such as *.run.app and *.pages.dev are strictly excluded in production.
   const allowedFrameAncestors = [
     "'self'",
     'https://ai.studio',
     'https://*.google.com',
-    'https://*.run.app',
     'https://eventgamestudio.com',
     'https://*.eventgamestudio.com',
-    'https://*.pages.dev',
     ...(options.customFrameAncestors || []),
-  ].join(' ');
+  ];
+
+  // In non-production development environments ONLY, allow preview staging domains if not explicitly overridden
+  if (!isProd && !options.customFrameAncestors) {
+    allowedFrameAncestors.push('https://*.run.app', 'https://*.pages.dev');
+  }
+
+  // Extract hostname from configured Supabase URL if present
+  const configuredSupabaseOrigin: string[] = [];
+  try {
+    const sbUrl = typeof process !== 'undefined' && (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
+    if (sbUrl) {
+      const parsed = new URL(sbUrl);
+      if (parsed.protocol === 'https:' && !parsed.hostname.endsWith('.supabase.co')) {
+        configuredSupabaseOrigin.push(parsed.origin);
+      }
+    }
+  } catch {
+    // Ignore invalid URL
+  }
+
+  // Script sources:
+  // In production, strictly omit 'unsafe-inline' and 'unsafe-eval'.
+  // Only allow self and verified 3P CDNs (Google Identity Services for login, Stripe for checkout).
+  const scriptSrc = [
+    "'self'",
+    'https://accounts.google.com',
+    'https://apis.google.com',
+    'https://js.stripe.com',
+    ...(options.customScriptSrc || []),
+  ];
+
+  if (!isProd) {
+    // Vite HMR development server requires inline module execution
+    scriptSrc.push("'unsafe-inline'", "'unsafe-eval'");
+  }
+
+  // Image sources:
+  // Exclude unencrypted 'http:' and wildcard 'https:'.
+  // Whitelist self, data/blob for local canvas/previews, Supabase Storage for assets, Google for avatars, Unsplash for presets.
+  const imgSrc = [
+    "'self'",
+    'data:',
+    'blob:',
+    'https://*.supabase.co',
+    'https://*.googleusercontent.com',
+    'https://images.unsplash.com',
+    'https://eventgamestudio.com',
+    'https://*.eventgamestudio.com',
+    ...configuredSupabaseOrigin,
+  ];
+
+  // Media sources:
+  // Whitelist self, data/blob, and Supabase Storage for audio SFX / video showcases.
+  const mediaSrc = [
+    "'self'",
+    'data:',
+    'blob:',
+    'https://*.supabase.co',
+    'https://eventgamestudio.com',
+    'https://*.eventgamestudio.com',
+    ...configuredSupabaseOrigin,
+  ];
+
+  // Connect sources:
+  // Strictly eliminate wildcard 'https:' and 'wss:'.
+  const connectSrc = [
+    "'self'",
+    'https://*.supabase.co',
+    'wss://*.supabase.co',
+    'https://accounts.google.com',
+    'https://apis.google.com',
+    'https://identitytoolkit.googleapis.com',
+    'https://api.stripe.com',
+    'https://eventgamestudio.com',
+    'https://*.eventgamestudio.com',
+    'wss://eventgamestudio.com',
+    'wss://*.eventgamestudio.com',
+    ...configuredSupabaseOrigin,
+    ...(options.customConnectSrc || []),
+  ];
+
+  if (!isProd) {
+    // Vite HMR development websockets
+    connectSrc.push('ws:', 'wss:');
+  }
 
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
-    'script-src': [
-      "'self'",
-      "'unsafe-inline'",
-      "'unsafe-eval'",
-      'https://accounts.google.com',
-      'https://apis.google.com',
-      'https://js.stripe.com',
-    ],
+    'script-src': scriptSrc,
     'style-src': [
       "'self'",
       "'unsafe-inline'",
@@ -58,34 +147,19 @@ export function buildContentSecurityPolicy(options: SecurityHeadersOptions = {})
       'data:',
       'https://fonts.gstatic.com',
     ],
-    'img-src': [
-      "'self'",
-      'data:',
-      'blob:',
-      'https:',
-      'http:',
-    ],
-    'media-src': [
-      "'self'",
-      'data:',
-      'blob:',
-      'https:',
-    ],
-    'connect-src': [
-      "'self'",
-      'https:',
-      'wss:',
-    ],
+    'img-src': imgSrc,
+    'media-src': mediaSrc,
+    'connect-src': connectSrc,
     'frame-src': [
       "'self'",
       'https://accounts.google.com',
       'https://js.stripe.com',
       'https://hooks.stripe.com',
     ],
-    'frame-ancestors': [allowedFrameAncestors],
+    'frame-ancestors': [allowedFrameAncestors.join(' ')],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
-    'form-action': ["'self'"],
+    'form-action': ["'self'", 'https://accounts.google.com'],
   };
 
   return Object.entries(directives)
@@ -167,7 +241,8 @@ export function applySecurityHeadersToResponse(
     }
   }
 
-  return new globalThis.Response(response.body, {
+  const isNullBodyStatus = [101, 204, 205, 304].includes(response.status);
+  return new globalThis.Response(isNullBodyStatus ? null : response.body, {
     status: response.status,
     statusText: response.statusText,
     headers: newHeaders,

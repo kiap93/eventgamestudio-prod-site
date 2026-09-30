@@ -486,7 +486,7 @@ export const LoginPage: React.FC = () => {
                 ) : (
                   <>
                     <Send className="w-3.5 h-3.5" />
-                    <span>Resend Verification Email</span>
+                    <span>{t('common.resendVerificationEmail')}</span>
                   </>
                 )}
               </button>
@@ -593,7 +593,7 @@ export const LoginPage: React.FC = () => {
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>Resend Verification Email</span>
+                      <span>{t('common.resendVerificationEmail')}</span>
                     </>
                   )}
                 </button>
@@ -616,7 +616,7 @@ export const LoginPage: React.FC = () => {
                 className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Login</span>
+                <span>{t('common.backToLogin')}</span>
               </button>
             </div>
           </div>
@@ -647,7 +647,7 @@ export const LoginPage: React.FC = () => {
                   }}
                   className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/20 transition-colors"
                 >
-                  Return to Sign In
+                  {t('common.returnToSignIn')}
                 </button>
               </div>
             ) : (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../../lib/api';
+import { useLocalization } from '../../context/LocalizationContext';
 import { PlatformContactSettings, ContactEnquiry } from '../../types/developer';
 import {
   MessageCircle,
@@ -37,6 +38,7 @@ const DEFAULT_SETTINGS: PlatformContactSettings = {
 };
 
 export const DeveloperContactSettings: React.FC = () => {
+  const { t } = useLocalization();
   const [settings, setSettings] = useState<PlatformContactSettings>(DEFAULT_SETTINGS);
   const [initialSettings, setInitialSettings] = useState<PlatformContactSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState<boolean>(true);
@@ -237,7 +239,7 @@ export const DeveloperContactSettings: React.FC = () => {
               className="px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Discard</span>
+              <span>{t('common.discard')}</span>
             </button>
           )}
 
@@ -256,7 +258,7 @@ export const DeveloperContactSettings: React.FC = () => {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            <span>Save Settings</span>
+            <span>{t('common.saveSettings')}</span>
           </button>
         </div>
       </div>

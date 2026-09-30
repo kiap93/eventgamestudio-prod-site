@@ -11,11 +11,13 @@ import {
   LayoutDashboard,
   Menu,
   X,
-  MessageSquare,
   ChevronDown,
-  Trophy,
   Building2,
   Tv,
+  Store,
+  QrCode,
+  Coins,
+  Send,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { LanguageSelector } from '../common/LanguageSelector';
@@ -35,8 +37,6 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
 
   const isContactPage = routeContext.mode === 'contact';
   const isGamesPage = routeContext.mode === 'public_games' || routeContext.mode === 'public_game_detail';
-  const isShowcasePage = routeContext.mode === 'public_showcases' || routeContext.mode === 'public_showcase';
-  const isSolutionsPage = routeContext.mode === 'seo_landing';
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -52,7 +52,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
     if (isAuthenticated) {
       navigateTo('/events');
     } else {
-      navigateTo('/login');
+      navigateTo('/login?redirect=/events');
     }
   };
 
@@ -82,234 +82,213 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
     }
   };
 
-  const handleContactClick = () => {
-    setMobileMenuOpen(false);
-    setSolutionsDropdownOpen(false);
-    navigateTo('/contact');
-  };
+  const solutionsList = [
+    {
+      title: t('landing.solutionCorporateEvents'),
+      desc: t('landing.solutionCorporateEventsDesc'),
+      href: '/corporate-event-games',
+      icon: Building2,
+    },
+    {
+      title: t('landing.solutionBrandActivations'),
+      desc: t('landing.solutionBrandActivationsDesc'),
+      href: '/brand-activation-games',
+      icon: Sparkles,
+    },
+    {
+      title: t('landing.solutionRoadshows'),
+      desc: t('landing.solutionRoadshowsDesc'),
+      href: '/roadshow-games',
+      icon: Store,
+    },
+    {
+      title: t('landing.solutionExhibitions'),
+      desc: t('landing.solutionExhibitionsDesc'),
+      href: '/exhibition-games',
+      icon: Tv,
+    },
+    {
+      title: t('landing.solutionInteractive'),
+      desc: t('landing.solutionInteractiveDesc'),
+      href: '/interactive-event-games',
+      icon: QrCode,
+    },
+  ];
 
   return (
     <header
       id="landing-header"
-      className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-xl border-b border-slate-200/90 shadow-xs transition-all"
-      style={{ position: 'sticky', top: 0 }}
+      className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs transition-all"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-4">
-        {/* Brand Logo */}
+        {/* Brand Logo Zone */}
         <div className="flex items-center gap-6">
           <InternalLink
-            href="/"
-            className="flex items-center gap-3 text-left group transition-transform focus:outline-none"
+            to="/"
+            className="flex items-center gap-3 group focus:outline-hidden"
             aria-label="EventGameStudio Home"
           >
-            <div className="relative p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 group-hover:border-amber-500 group-hover:bg-amber-500/15 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.2)] transition-all">
-              <Gamepad2 className="w-6 h-6 transform group-hover:scale-110 transition-transform text-amber-600" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white animate-pulse" />
+            <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-amber-400 shadow-xs group-hover:scale-105 transition-transform duration-200">
+              <Gamepad2 className="w-5 h-5" />
             </div>
-            <div className="flex flex-col">
-              <span className="text-lg font-black tracking-tight text-slate-900 group-hover:text-amber-600 transition-colors flex items-center gap-1.5">
-                EventGameStudio
-              </span>
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest -mt-0.5">
-                Interactive Games for Events
-              </span>
-            </div>
+            <span className="text-lg sm:text-xl font-black tracking-tight text-slate-900 flex items-center">
+              EventGame<span className="text-amber-500">Studio</span>
+            </span>
           </InternalLink>
-
-          {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-1 ml-4 pl-4 border-l border-slate-200">
-            <InternalLink
-              href="/game-showcase"
-              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all ${
-                isGamesPage
-                  ? 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              {t('nav.games')}
-            </InternalLink>
-
-            <InternalLink
-              href="/showcase"
-              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all ${
-                isShowcasePage
-                  ? 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              {t('nav.showcases')}
-            </InternalLink>
-
-            {/* Solutions Dropdown */}
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setSolutionsDropdownOpen((prev) => !prev)}
-                className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-1 ${
-                  isSolutionsPage
-                    ? 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-                aria-expanded={solutionsDropdownOpen}
-              >
-                <span>{t('landing.solutionsMenu')}</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${solutionsDropdownOpen ? 'rotate-180 text-amber-600' : ''}`} />
-              </button>
-
-              {solutionsDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 w-64 p-2 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-900/10 z-50 animate-in fade-in slide-in-from-top-2 duration-150 space-y-1">
-                  <InternalLink
-                    href="/corporate-event-games"
-                    onClick={() => setSolutionsDropdownOpen(false)}
-                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group block"
-                  >
-                    <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
-                      Corporate Events
-                    </span>
-                    <span className="text-[11px] text-slate-500 block">Annual dinners, summits & galas</span>
-                  </InternalLink>
-                  <InternalLink
-                    href="/brand-activation-games"
-                    onClick={() => setSolutionsDropdownOpen(false)}
-                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group block"
-                  >
-                    <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
-                      {t('landing.solutionBrandActivations')}
-                    </span>
-                    <span className="text-[11px] text-slate-500 block">{t('landing.solutionBrandActivationsDesc')}</span>
-                  </InternalLink>
-                  <InternalLink
-                    href="/roadshow-games"
-                    onClick={() => setSolutionsDropdownOpen(false)}
-                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group block"
-                  >
-                    <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
-                      {t('landing.solutionRoadshows')}
-                    </span>
-                    <span className="text-[11px] text-slate-500 block">{t('landing.solutionRoadshowsDesc')}</span>
-                  </InternalLink>
-                  <InternalLink
-                    href="/exhibition-games"
-                    onClick={() => setSolutionsDropdownOpen(false)}
-                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group block"
-                  >
-                    <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
-                      {t('landing.solutionExhibitions')}
-                    </span>
-                    <span className="text-[11px] text-slate-500 block">{t('landing.solutionExhibitionsDesc')}</span>
-                  </InternalLink>
-                  <InternalLink
-                    href="/interactive-event-games"
-                    onClick={() => setSolutionsDropdownOpen(false)}
-                    className="w-full p-2.5 text-left rounded-xl hover:bg-amber-50/70 transition-colors group border-t border-slate-100 block"
-                  >
-                    <span className="text-xs font-bold text-slate-900 group-hover:text-amber-800 block">
-                      {t('landing.solutionInteractive')}
-                    </span>
-                    <span className="text-[11px] text-slate-500 block">{t('landing.solutionInteractiveDesc')}</span>
-                  </InternalLink>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => scrollToSection('how-it-works')}
-              className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
-            >
-              {t('landing.howItWorks')}
-            </button>
-
-            <InternalLink
-              href="/contact"
-              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 ${
-                isContactPage
-                  ? 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
-              <span>{t('nav.contact')}</span>
-            </InternalLink>
-
-            {onExploreGames && (
-              <button
-                onClick={onExploreGames}
-                className="px-3 py-2 text-xs font-semibold text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-xl transition-all flex items-center gap-1.5 ml-1 border border-amber-200/80 cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>{t('landing.exploreCatalog')}</span>
-              </button>
-            )}
-          </nav>
         </div>
 
-        {/* Right Actions */}
-        <div className="hidden sm:flex items-center gap-3">
-          <LanguageSelector variant="compact" />
-          {isAuthenticated ? (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-2xl">
-                <div className="w-7 h-7 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-700 text-xs font-bold overflow-hidden">
-                  {currentUser?.avatar_url ? (
-                    <img src={currentUser.avatar_url} alt={currentUser.name} className="w-full h-full object-cover" />
-                  ) : (
-                    currentUser?.name?.charAt(0).toUpperCase() || <UserIcon className="w-3.5 h-3.5" />
-                  )}
-                </div>
-                <div className="flex flex-col text-left">
-                  <span className="text-xs font-bold text-slate-900 leading-tight max-w-[120px] truncate">
-                    {currentUser?.name || 'User'}
-                  </span>
-                  <span className="text-[10px] text-amber-700 font-medium leading-none max-w-[120px] truncate">
-                    {currentOrganization?.name || 'Workspace'}
-                  </span>
+        {/* Desktop Navigation Links */}
+        <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
+          {/* Games */}
+          <button
+            onClick={() => scrollToSection('games')}
+            className={`px-3 py-2 text-sm font-semibold rounded-lg transition-colors cursor-pointer ${
+              isGamesPage ? 'text-amber-600 bg-amber-50/80' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+            }`}
+          >
+            {t('landing.navGames')}
+          </button>
+
+          {/* Solutions Dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setSolutionsDropdownOpen(!solutionsDropdownOpen)}
+              className="px-3 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+              aria-expanded={solutionsDropdownOpen}
+            >
+              <span>{t('landing.navSolutions')}</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+                  solutionsDropdownOpen ? 'rotate-180 text-slate-700' : ''
+                }`}
+              />
+            </button>
+
+            {solutionsDropdownOpen && (
+              <div className="absolute top-full left-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="space-y-1">
+                  {solutionsList.map((sol) => {
+                    const IconComponent = sol.icon;
+                    return (
+                      <InternalLink
+                        key={sol.href}
+                        to={sol.href}
+                        onClick={() => setSolutionsDropdownOpen(false)}
+                        className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:bg-amber-100 transition-colors">
+                          <IconComponent className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 group-hover:text-amber-600 transition-colors">
+                            {sol.title}
+                          </div>
+                          <div className="text-[11px] text-slate-500 leading-tight">
+                            {sol.desc}
+                          </div>
+                        </div>
+                      </InternalLink>
+                    );
+                  })}
                 </div>
               </div>
+            )}
+          </div>
 
-              <button
-                onClick={handleDashboardClick}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 hover:shadow-amber-500/30 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
-              >
-                <LayoutDashboard className="w-3.5 h-3.5" />
-                <span>{t('landing.openStudio')}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+          {/* How It Works */}
+          <button
+            onClick={() => scrollToSection('how-it-works')}
+            className="px-3 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 rounded-lg transition-colors cursor-pointer"
+          >
+            {t('landing.navHowItWorks')}
+          </button>
+
+          {/* Pricing */}
+          <button
+            onClick={() => scrollToSection('pricing')}
+            className="px-3 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 rounded-lg transition-colors cursor-pointer"
+          >
+            {t('landing.navPricing')}
+          </button>
+
+          {/* Contact */}
+          <InternalLink
+            to="/contact"
+            className={`px-3 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+              isContactPage ? 'text-amber-600 bg-amber-50/80' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+            }`}
+          >
+            <span>{t('landing.navContact')}</span>
+          </InternalLink>
+        </nav>
+
+        {/* Right Zone: Language Selector & Auth CTAs */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="hidden sm:block">
+            <LanguageSelector variant="compact" />
+          </div>
+
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200/80">
+                <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-slate-600">
+                  <UserIcon className="w-3 h-3" />
+                </div>
+                <div className="text-left text-xs">
+                  <span className="font-semibold text-slate-800 line-clamp-1 max-w-[120px]">
+                    {currentUser?.name || currentUser?.email || 'User'}
+                  </span>
+                  {currentOrganization && (
+                    <span className="block text-[10px] text-slate-500 font-medium line-clamp-1 max-w-[120px]">
+                      {currentOrganization.name}
+                    </span>
+                  )}
+                </div>
+              </div>
 
               <NotificationBell />
 
               <button
-                onClick={logout}
+                onClick={handleDashboardClick}
+                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5 text-amber-400" />
+                <span>{t('landing.openStudio')}</span>
+              </button>
+
+              <button
+                onClick={() => logout()}
+                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
                 title={t('nav.logout')}
-                className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-200"
+                aria-label={t('nav.logout')}
               >
                 <LogOut className="w-4 h-4" />
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={handleSignInClick}
-                className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/80 rounded-xl transition-all cursor-pointer"
+                className="px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors cursor-pointer"
               >
-                {t('nav.login')}
+                {t('landing.signIn')}
               </button>
+
               <button
                 onClick={handleCreateEventClick}
-                className="group relative flex items-center gap-2 px-4.5 py-2.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-amber-500/20 hover:shadow-amber-500/30 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+                className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs hover:shadow-sm"
               >
-                <span>{t('landing.createFirstEvent')}</span>
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                <span>{t('landing.createYourEvent')}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
-        </div>
 
-        {/* Mobile Menu Toggle & Actions */}
-        <div className="sm:hidden flex items-center gap-2">
-          {isAuthenticated && <NotificationBell />}
+          {/* Mobile Menu Hamburger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 cursor-pointer"
-            aria-label="Toggle menu"
+            className="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+            aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -318,150 +297,94 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({ onExploreGames }) 
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="sm:hidden px-4 pt-2 pb-6 bg-white border-b border-slate-200 space-y-3 shadow-lg">
-          <div className="flex flex-col gap-1 text-xs font-semibold">
-            <InternalLink
-              href="/game-showcase"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-900 font-bold block"
-            >
-              Interactive Games
-            </InternalLink>
-            <InternalLink
-              href="/showcase"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-900 font-bold block"
-            >
-              Event Showcases
-            </InternalLink>
+        <div className="lg:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-4 shadow-lg animate-in slide-in-from-top-4 duration-200">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Language</span>
+            <LanguageSelector variant="compact" />
+          </div>
 
-            {/* Mobile Solutions Section */}
-            <div className="py-1 px-2.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
-              Event Solutions
-            </div>
-            <InternalLink
-              href="/corporate-event-games"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4 block"
+          <div className="space-y-1">
+            <button
+              onClick={() => scrollToSection('games')}
+              className="w-full text-left px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 rounded-xl"
             >
-              Corporate Event Games
-            </InternalLink>
-            <InternalLink
-              href="/brand-activation-games"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4 block"
-            >
-              Brand Activation Games
-            </InternalLink>
-            <InternalLink
-              href="/roadshow-games"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4 block"
-            >
-              Roadshow & Pop-Up Games
-            </InternalLink>
-            <InternalLink
-              href="/exhibition-games"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4 block"
-            >
-              Exhibition & Booth Games
-            </InternalLink>
-            <InternalLink
-              href="/interactive-event-games"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-left p-2 rounded-xl hover:bg-slate-100 text-slate-700 pl-4 block"
-            >
-              Interactive Event Games
-            </InternalLink>
-
-            <div className="border-t border-slate-100 my-1" />
-
+              {t('landing.navGames')}
+            </button>
             <button
               onClick={() => scrollToSection('how-it-works')}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-100 text-slate-700"
+              className="w-full text-left px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 rounded-xl"
             >
-              {t('landing.howItWorks')}
+              {t('landing.navHowItWorks')}
+            </button>
+            <button
+              onClick={() => scrollToSection('pricing')}
+              className="w-full text-left px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 rounded-xl"
+            >
+              {t('landing.navPricing')}
             </button>
             <InternalLink
-              href="/contact"
+              to="/contact"
               onClick={() => setMobileMenuOpen(false)}
-              className={`w-full text-left p-2.5 rounded-xl flex items-center gap-2 ${
-                isContactPage
-                  ? 'bg-amber-50 text-amber-900 font-bold border border-amber-200'
-                  : 'hover:bg-slate-100 text-slate-700'
-              }`}
+              className="block px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 rounded-xl"
             >
-              <MessageSquare className="w-4 h-4 text-amber-500" />
-              <span>{t('nav.contact')}</span>
+              {t('landing.navContact')}
             </InternalLink>
+          </div>
 
-            {onExploreGames && (
+          {/* Mobile Solutions List */}
+          <div className="pt-2 border-t border-slate-100">
+            <div className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400">
+              {t('landing.navSolutions')}
+            </div>
+            <div className="grid grid-cols-1 gap-1 mt-1">
+              {solutionsList.map((sol) => (
+                <InternalLink
+                  key={sol.href}
+                  to={sol.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-3 py-2 text-xs text-slate-600 hover:text-amber-600 hover:bg-amber-50/50 rounded-lg flex items-center justify-between"
+                >
+                  <span>{sol.title}</span>
+                  <ArrowRight className="w-3 h-3 text-slate-300" />
+                </InternalLink>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100">
+            {isAuthenticated ? (
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  onExploreGames();
+                  handleDashboardClick();
                 }}
-                className="w-full flex items-center justify-between p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs font-semibold text-amber-800 mt-1"
+                className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
               >
-                <span className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  {t('landing.exploreCatalog')}
-                </span>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
+                <LayoutDashboard className="w-4 h-4 text-amber-400" />
+                <span>{t('landing.openStudio')}</span>
               </button>
-            )}
-          </div>
-
-          <div className="pt-2 border-t border-slate-200 flex flex-col gap-2">
-            <div className="pb-1">
-              <LanguageSelector variant="standard" className="w-full" />
-            </div>
-            {isAuthenticated ? (
-              <>
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    handleDashboardClick();
-                  }}
-                  className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md shadow-amber-500/20"
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span>{t('landing.openStudio')}</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    logout();
-                  }}
-                  className="w-full py-2.5 bg-slate-100 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 text-slate-600 font-semibold text-xs rounded-xl flex items-center justify-center gap-2"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>{t('nav.logout')}</span>
-                </button>
-              </>
             ) : (
-              <>
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    handleCreateEventClick();
-                  }}
-                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-md shadow-amber-500/20"
-                >
-                  <span>{t('landing.createFirstEvent')}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
                     handleSignInClick();
                   }}
-                  className="w-full py-2.5 bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl flex items-center justify-center"
+                  className="w-full py-2.5 border border-slate-300 text-slate-800 rounded-xl text-sm font-semibold"
                 >
-                  {t('nav.login')}
+                  {t('landing.signIn')}
                 </button>
-              </>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleCreateEventClick();
+                  }}
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5"
+                >
+                  <span>{t('landing.createYourEvent')}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             )}
           </div>
         </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GameTheme } from '../../themes/types';
 import { getDefaultUILayout } from '../../themes/layout';
 import { X, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useLocalization } from '../../context/LocalizationContext';
 
 interface CreateDefaultThemeModalProps {
   gameId: string;
@@ -18,6 +19,7 @@ export const CreateDefaultThemeModal: React.FC<CreateDefaultThemeModalProps> = (
   onClose,
   onSave,
 }) => {
+  const { t } = useLocalization();
   const [name, setName] = useState<string>('');
   const [description, setDescription] = useState<string>('');
   const [status, setStatus] = useState<'active' | 'draft'>('active');
@@ -157,21 +159,21 @@ export const CreateDefaultThemeModal: React.FC<CreateDefaultThemeModalProps> = (
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
+              className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center space-x-2 px-5 py-2 text-xs font-semibold text-slate-950 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 disabled:opacity-50 rounded-xl shadow-lg shadow-amber-950/30 transition-colors"
+              className="flex items-center space-x-2 px-5 py-2 text-xs font-semibold text-slate-950 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 disabled:opacity-50 rounded-xl shadow-lg shadow-amber-950/30 transition-colors cursor-pointer"
             >
               {saving ? (
-                <span>Creating...</span>
+                <span>{t('common.saving')}</span>
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Create System Theme</span>
+                  <span>{t('common.createSystemTheme')}</span>
                 </>
               )}
             </button>

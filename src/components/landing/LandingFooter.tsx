@@ -6,154 +6,153 @@ import { useAuth } from '../../context/AuthContext';
 import { usePlatformContactSettings } from '../../hooks/usePlatformContactSettings';
 import { APP_VERSION } from '../../types';
 import { useLocalization } from '../../context/LocalizationContext';
+import { LanguageSelector } from '../common/LanguageSelector';
 
 export const LandingFooter: React.FC = () => {
   const { t } = useLocalization();
   const { isAuthenticated, currentUser } = useAuth();
-  const { whatsappDisplay, whatsappUrl, officeLocation } = usePlatformContactSettings();
+  const { whatsappDisplay, whatsappUrl, officeLocation, supportHours } = usePlatformContactSettings();
 
   return (
-    <footer className="w-full bg-slate-50 border-t border-slate-200 text-slate-600 text-xs py-12 md:py-16">
+    <footer className="w-full bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-12 md:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-8 pb-10 border-b border-slate-200">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-8 pb-10 border-b border-slate-800">
           {/* 1. Brand Info */}
           <div className="sm:col-span-2 md:col-span-1 space-y-4">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-600">
-                <Gamepad2 className="w-5 h-5" />
+              <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400">
+                <Gamepad2 className="w-4 h-4" />
               </div>
-              <span className="text-base font-black text-slate-900 tracking-tight">
-                EventGameStudio
+              <span className="text-base font-black text-white tracking-tight">
+                EventGame<span className="text-amber-500">Studio</span>
               </span>
             </div>
-            <p className="text-slate-600 text-xs leading-relaxed max-w-sm">
-              The premier interactive event gaming platform. Create branded arcade games, custom themes, and live stage leaderboards for corporate summits, product launches, exhibitions, and brand activations.
+            <p className="text-slate-400 text-xs leading-relaxed max-w-sm">
+              {t('landing.footerDescription')}
             </p>
             <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Interactive Games for Events</span>
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>{t('landing.heroBadge')}</span>
             </div>
           </div>
 
           {/* 2. Event Solutions */}
           <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-white">
               {t('landing.solutions')}
             </div>
             <ul className="space-y-2 text-xs">
               <li>
                 <InternalLink
-                  href="/interactive-event-games"
-                  className="hover:text-amber-600 transition-colors text-left block"
+                  to="/corporate-event-games"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  Interactive Event Games
+                  {t('landing.solutionCorporateEvents')}
                 </InternalLink>
               </li>
               <li>
                 <InternalLink
-                  href="/corporate-event-games"
-                  className="hover:text-amber-600 transition-colors text-left block"
+                  to="/brand-activation-games"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  Corporate Event Games
+                  {t('landing.solutionBrandActivations')}
                 </InternalLink>
               </li>
               <li>
                 <InternalLink
-                  href="/brand-activation-games"
-                  className="hover:text-amber-600 transition-colors text-left block"
+                  to="/roadshow-games"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  Brand Activation Games
+                  {t('landing.solutionRoadshows')}
                 </InternalLink>
               </li>
               <li>
                 <InternalLink
-                  href="/roadshow-games"
-                  className="hover:text-amber-600 transition-colors text-left block"
+                  to="/exhibition-games"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  Roadshow Games
+                  {t('landing.solutionExhibitions')}
                 </InternalLink>
               </li>
               <li>
                 <InternalLink
-                  href="/exhibition-games"
-                  className="hover:text-amber-600 transition-colors text-left block"
+                  to="/interactive-event-games"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  Exhibition & Booth Games
+                  {t('landing.solutionInteractive')}
                 </InternalLink>
               </li>
               <li>
                 <InternalLink
-                  href="/event-mini-games"
-                  className="hover:text-amber-600 transition-colors text-left block"
+                  to="/event-mini-games"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  Event Mini-Games
+                  {t('landing.eventMiniGames')}
                 </InternalLink>
               </li>
               <li>
                 <InternalLink
-                  href="/branded-event-games"
-                  className="hover:text-amber-600 transition-colors text-left block"
+                  to="/branded-event-games"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  Branded Event Games
+                  {t('landing.brandedEventGames')}
                 </InternalLink>
               </li>
               <li>
                 <InternalLink
-                  href="/digital-event-games"
-                  className="hover:text-amber-600 transition-colors text-left block"
+                  to="/digital-event-games"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  Digital Event Games
+                  {t('landing.digitalEventGames')}
                 </InternalLink>
               </li>
             </ul>
           </div>
 
-          {/* 3. Event Games */}
+          {/* 3. Game Engines */}
           <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
-              Game Engines
+            <div className="text-[11px] uppercase tracking-wider font-bold text-white">
+              {t('landing.gameEngines')}
             </div>
             <ul className="space-y-2 text-xs">
               <li>
                 <InternalLink
-                  href="/game-showcase"
-                  className="hover:text-amber-600 transition-colors text-left font-bold text-slate-900 flex items-center gap-1"
+                  to="/game-showcase"
+                  className="hover:text-amber-400 transition-colors font-semibold text-slate-300 block"
                 >
-                  <span>All Games Catalog</span>
-                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
+                  {t('landing.allGamesCatalog')}
                 </InternalLink>
               </li>
               <li>
                 <InternalLink
-                  href="/game-showcase/catch-the-brand"
-                  className="hover:text-amber-600 transition-colors text-left block"
+                  to="/game-showcase/catch-the-brand"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  Catch the Brand
+                  {t('landing.catchBrandName')}
                 </InternalLink>
               </li>
               <li>
                 <InternalLink
-                  href="/game-showcase/memory-match"
-                  className="hover:text-amber-600 transition-colors text-left block"
+                  to="/game-showcase/memory-match"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  Brand Memory Match
+                  {t('landing.memoryMatchName')}
                 </InternalLink>
               </li>
               <li>
                 <InternalLink
-                  href="/game-showcase/reaction-challenge"
-                  className="hover:text-amber-600 transition-colors text-left block"
+                  to="/game-showcase/reaction-challenge"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  Formula Reaction Lights
+                  {t('landing.reactionTapName')}
                 </InternalLink>
               </li>
               <li>
                 <InternalLink
-                  href="/showcase"
-                  className="hover:text-amber-600 transition-colors text-left font-semibold text-slate-800 flex items-center gap-1 pt-1"
+                  to="/showcase"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  <span>Event Showcases</span>
-                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
+                  {t('landing.browseShowcases')}
                 </InternalLink>
               </li>
             </ul>
@@ -161,54 +160,50 @@ export const LandingFooter: React.FC = () => {
 
           {/* 4. Platform & Workspaces */}
           <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
+            <div className="text-[11px] uppercase tracking-wider font-bold text-white">
               {t('landing.platform')}
             </div>
             <ul className="space-y-2 text-xs">
               <li>
-                <button
-                  onClick={() => navigateTo(isAuthenticated ? '/events' : '/login')}
-                  className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
+                <InternalLink
+                  to="/events"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  <span>{t('nav.events')}</span>
-                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
-                </button>
+                  {t('nav.events')}
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo(isAuthenticated ? '/game-themes' : '/login')}
-                  className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
+                <InternalLink
+                  to="/game-themes"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  <span>{t('nav.themes')}</span>
-                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
-                </button>
+                  {t('nav.themes')}
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo(isAuthenticated ? '/team' : '/login')}
-                  className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
+                <InternalLink
+                  to="/team"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  <span>{t('nav.team')}</span>
-                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
-                </button>
+                  {t('nav.team')}
+                </InternalLink>
               </li>
               <li>
-                <button
-                  onClick={() => navigateTo(isAuthenticated ? '/wallet' : '/login')}
-                  className="hover:text-amber-600 transition-colors flex items-center gap-1 text-left cursor-pointer"
+                <InternalLink
+                  to="/wallet"
+                  className="hover:text-amber-400 transition-colors block"
                 >
-                  <span>{t('nav.wallet')}</span>
-                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
-                </button>
+                  {t('nav.wallet')}
+                </InternalLink>
               </li>
               {currentUser?.is_developer && (
                 <li>
-                  <button
-                    onClick={() => navigateTo('/developer')}
-                    className="hover:text-emerald-600 text-emerald-700 font-semibold transition-colors text-left cursor-pointer"
+                  <InternalLink
+                    to="/developer"
+                    className="text-amber-400 hover:text-amber-300 font-semibold block"
                   >
                     {t('nav.developer')}
-                  </button>
+                  </InternalLink>
                 </li>
               )}
             </ul>
@@ -216,51 +211,56 @@ export const LandingFooter: React.FC = () => {
 
           {/* 5. Contact & Support */}
           <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-bold text-slate-900">
-              {t('nav.contact')}
+            <div className="text-[11px] uppercase tracking-wider font-bold text-white">
+              {t('landing.contact')}
             </div>
-            <ul className="space-y-2 text-xs">
+            <ul className="space-y-2.5 text-xs">
               <li>
                 <InternalLink
-                  href="/contact"
-                  className="hover:text-amber-600 transition-colors flex items-center gap-1.5 text-left font-bold text-slate-900"
+                  to="/contact"
+                  className="hover:text-amber-400 transition-colors flex items-center gap-1.5"
                 >
-                  <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Contact Form</span>
+                  <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{t('landing.contactForm')}</span>
                 </InternalLink>
               </li>
-              <li>
-                <a
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-emerald-600 transition-colors flex items-center gap-1.5 text-left cursor-pointer font-medium text-slate-700"
-                >
-                  <Phone className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>WhatsApp: {whatsappDisplay}</span>
-                  <ArrowUpRight className="w-3 h-3 text-slate-400" />
-                </a>
-              </li>
-              <li className="text-slate-500 text-[11px] pt-1">
-                {officeLocation}
-              </li>
+              {whatsappUrl && (
+                <li>
+                  <a
+                    href={whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-amber-400 transition-colors flex items-center gap-1.5"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>WhatsApp: {whatsappDisplay}</span>
+                  </a>
+                </li>
+              )}
+              {officeLocation && (
+                <li className="text-[11px] text-slate-400 leading-tight">
+                  {officeLocation}
+                </li>
+              )}
               <li className="pt-2">
-                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[10px] text-slate-600 shadow-xs">
-                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                  <span>Enterprise Ready</span>
-                </div>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-[10px] text-slate-300 font-semibold">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  <span>{t('landing.enterpriseReady')}</span>
+                </span>
               </li>
             </ul>
           </div>
         </div>
 
-        {/* Bottom Bar */}
+        {/* Bottom Bar: Copyright, Language, Version */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
           <div>
-            © {new Date().getFullYear()} EventGameStudio · v{APP_VERSION}
+            &copy; {new Date().getFullYear()} EventGameStudio. All rights reserved.
           </div>
-          <div className="flex items-center gap-6">
-            <span>Make Your Events Playable.</span>
+
+          <div className="flex items-center gap-4">
+            <LanguageSelector variant="compact" />
+            <span>v{APP_VERSION}</span>
           </div>
         </div>
       </div>

@@ -13,8 +13,10 @@ import {
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 
 export const LandingEventShowcase: React.FC = () => {
+  const { t } = useLocalization();
   const { isAuthenticated } = useAuth();
 
   const handleLaunchEvent = () => {
@@ -36,13 +38,13 @@ export const LandingEventShowcase: React.FC = () => {
         <div className="text-center max-w-3xl mx-auto space-y-4 mb-16 md:mb-20">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs font-black text-amber-800 uppercase tracking-widest shadow-xs">
             <Camera className="w-3.5 h-3.5 text-amber-600" />
-            <span>Event Production Formats</span>
+            <span>{t('landing.eventProductionFormats')}</span>
           </div>
           <h2 className="text-3xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tight leading-[1.1]">
-            See It In Action
+            {t('landing.seeItInAction')}
           </h2>
           <p className="text-base sm:text-lg text-slate-600 leading-relaxed font-normal">
-            From 50-foot LED arena screens to compact booth touch totems and crowd smartphones, EventGameStudio powers live venue engagement at any scale.
+            {t('landing.seeItInActionDesc')}
           </p>
         </div>
 
@@ -64,16 +66,16 @@ export const LandingEventShowcase: React.FC = () => {
                 </div>
                 <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5">
                   <Radio className="w-3 h-3 animate-pulse text-rose-500" />
-                  16:9 4K Mainstage
+                  {t('landing.mainstageLabel')}
                 </span>
               </div>
 
               <h3 className="text-2xl font-bold text-slate-900 group-hover:text-amber-700 transition-colors tracking-tight">
-                Mainstage LED & Video Walls
+                {t('landing.mainstageTitle')}
               </h3>
 
               <p className="text-sm text-slate-600 leading-relaxed font-normal">
-                Connect any AV laptop via HDMI to beam high-FPS arcade action directly onto convention center video walls and stage backdrops.
+                {t('landing.mainstageDesc')}
               </p>
             </div>
 
@@ -95,16 +97,16 @@ export const LandingEventShowcase: React.FC = () => {
                 <div className="absolute inset-0 p-3.5 flex flex-col justify-between">
                   <div className="flex items-center justify-between">
                     <span className="px-2 py-0.5 rounded bg-rose-500 text-white font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
-                      <Zap className="w-2.5 h-2.5" /> STAGE LIVE
+                      <Zap className="w-2.5 h-2.5" /> {t('landing.stageLive')}
                     </span>
                     <span className="text-[10px] font-mono text-amber-300 font-bold bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800">
-                      HALL A • AUDIENCE: 800+
+                      {t('landing.hallAudience')}
                     </span>
                   </div>
 
                   <div className="text-center space-y-1 my-auto">
                     <div className="text-xs uppercase font-black text-amber-400 tracking-widest">
-                      FINALS ARENA MATCH
+                      {t('landing.finalsArenaMatch')}
                     </div>
                     <div className="text-xl sm:text-2xl font-black text-white font-mono drop-shadow-md">
                       18,450 PTS
@@ -112,7 +114,7 @@ export const LandingEventShowcase: React.FC = () => {
                   </div>
 
                   <div className="flex items-center justify-between text-[10px] text-slate-300 bg-slate-950/80 backdrop-blur-sm p-1.5 rounded-lg border border-slate-800">
-                    <span className="font-semibold text-emerald-400">Zero Latency Browser Mode</span>
+                    <span className="font-semibold text-emerald-400">{t('landing.zeroLatencyBrowser')}</span>
                     <span className="text-slate-400">60 FPS Sync</span>
                   </div>
                 </div>
@@ -135,16 +137,16 @@ export const LandingEventShowcase: React.FC = () => {
                   <Layers className="w-6 h-6" />
                 </div>
                 <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                  Touch Kiosks & iPads
+                  {t('landing.touchKiosksLabel')}
                 </span>
               </div>
 
               <h3 className="text-2xl font-bold text-slate-900 group-hover:text-emerald-700 transition-colors tracking-tight">
-                Exhibition Booth Kiosks
+                {t('landing.exhibitionKiosksTitle')}
               </h3>
 
               <p className="text-sm text-slate-600 leading-relaxed font-normal">
-                Deploy 20-second fast-throughput games on vertical touch totems or iPads to stop aisle traffic and gather qualified brand leads.
+                {t('landing.exhibitionKiosksDesc')}
               </p>
             </div>
 
@@ -157,20 +159,20 @@ export const LandingEventShowcase: React.FC = () => {
                 <div className="absolute inset-0 flex items-center justify-center p-3">
                   <div className="w-44 h-full bg-slate-900 rounded-xl border border-slate-700 p-2 flex flex-col justify-between shadow-2xl">
                     <div className="flex items-center justify-between text-[8px] text-slate-400 border-b border-slate-800 pb-1">
-                      <span className="font-bold text-emerald-400">TOUCH TOTEM #03</span>
-                      <span>AUTO-RESET</span>
+                      <span className="font-bold text-emerald-400">{t('landing.touchTotemLabel')}</span>
+                      <span>{t('landing.autoReset')}</span>
                     </div>
 
                     <div className="text-center space-y-1 my-auto">
-                      <span className="text-[9px] font-bold text-slate-300 block">TAP TO START</span>
+                      <span className="text-[9px] font-bold text-slate-300 block">{t('landing.tapToStart')}</span>
                       <div className="w-10 h-10 mx-auto rounded-full bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 text-xs font-bold animate-bounce">
                         20s
                       </div>
-                      <span className="text-[8px] text-amber-300 font-mono block">Average Queue: 12s</span>
+                      <span className="text-[8px] text-amber-300 font-mono block">{t('landing.avgQueue')}</span>
                     </div>
 
                     <div className="text-[8px] bg-slate-950 p-1 rounded text-center text-slate-400 font-mono">
-                      Over 450 plays / day
+                      {t('landing.over450Plays')}
                     </div>
                   </div>
                 </div>
@@ -193,16 +195,16 @@ export const LandingEventShowcase: React.FC = () => {
                   <QrCode className="w-6 h-6" />
                 </div>
                 <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                  Instant Smartphone QR
+                  {t('landing.instantQrLabel')}
                 </span>
               </div>
 
               <h3 className="text-2xl font-bold text-slate-900 group-hover:text-blue-700 transition-colors tracking-tight">
-                Crowd QR Code Play
+                {t('landing.crowdQrTitle')}
               </h3>
 
               <p className="text-sm text-slate-600 leading-relaxed font-normal">
-                Print QR codes on badges, flyers, or stage screens. Attendees scan with their camera to play in Safari or Chrome without installing apps.
+                {t('landing.crowdQrDesc')}
               </p>
             </div>
 
@@ -215,8 +217,8 @@ export const LandingEventShowcase: React.FC = () => {
                 <div className="absolute inset-0 flex items-center justify-center p-3">
                   <div className="w-48 h-full bg-slate-900 rounded-2xl border border-slate-700 p-2.5 flex flex-col justify-between shadow-2xl">
                     <div className="flex items-center justify-between text-[8px] text-slate-400 border-b border-slate-800 pb-1">
-                      <span className="font-bold text-blue-400">MOBILE BROWSER</span>
-                      <span className="text-emerald-400">ONLINE</span>
+                      <span className="font-bold text-blue-400">{t('landing.mobileBrowser')}</span>
+                      <span className="text-emerald-400">{t('landing.onlineStatus')}</span>
                     </div>
 
                     <div className="flex items-center justify-center gap-3 my-auto">
@@ -224,14 +226,14 @@ export const LandingEventShowcase: React.FC = () => {
                         <QrCode className="w-9 h-9 text-slate-950" />
                       </div>
                       <div className="text-left">
-                        <div className="text-[10px] font-black text-white">SCAN & PLAY</div>
-                        <div className="text-[8px] text-slate-400">iOS & Android</div>
-                        <div className="text-[8px] text-amber-400 font-bold mt-0.5">No App Store</div>
+                        <div className="text-[10px] font-black text-white">{t('landing.scanAndPlay')}</div>
+                        <div className="text-[8px] text-slate-400">{t('landing.iosAndroid')}</div>
+                        <div className="text-[8px] text-amber-400 font-bold mt-0.5">{t('landing.noAppStore')}</div>
                       </div>
                     </div>
 
                     <div className="text-[8px] bg-slate-950 p-1 rounded text-center text-slate-400 font-mono">
-                      Direct Web Link Activated
+                      {t('landing.directWebLink')}
                     </div>
                   </div>
                 </div>
@@ -254,17 +256,17 @@ export const LandingEventShowcase: React.FC = () => {
 
           <div className="space-y-2 max-w-lg mx-auto">
             <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              Community Event Showcase
+              {t('landing.communityShowcaseTitle')}
             </h3>
             <p className="text-sm text-slate-600 leading-relaxed font-normal">
-              Have you run an event with EventGameStudio? Share photos or video of your stage setup and booth activation to get featured on the platform.
+              {t('landing.communityShowcaseDesc')}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 pt-1">
             <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-amber-200 text-xs text-amber-900 font-medium shadow-xs">
               <Coins className="w-4 h-4 text-amber-600" />
-              <span>Earn RM 300 platform credits on approved showcase review</span>
+              <span>{t('landing.earnShowcaseReward')}</span>
             </div>
           </div>
 
@@ -273,7 +275,7 @@ export const LandingEventShowcase: React.FC = () => {
               onClick={handleLaunchEvent}
               className="min-h-[44px] px-8 py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-amber-500/20 transition-all inline-flex items-center gap-2 cursor-pointer hover:-translate-y-0.5"
             >
-              <span>Create Event & Submit Showcase</span>
+              <span>{t('landing.createEventSubmitShowcase')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

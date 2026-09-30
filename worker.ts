@@ -121,6 +121,7 @@ import {
   deleteGamePricingTier,
   bulkUpsertGamePricing,
   ensureDefaultGamePricing,
+  getPublicGamesPricing,
   getAllAdminEvents,
   updateEventPrice,
   getShowcaseByEventId,
@@ -275,6 +276,7 @@ import {
   sendPasswordResetEmail,
   isEmailServiceConfigured,
 } from './server/emailVerification.js';
+import { applySecurityHeadersToResponse } from './server/securityHeaders.js';
 
 export interface Env {
   NODE_ENV?: string;
@@ -605,7 +607,15 @@ async function authenticateOptionalJWT(
 }
 
 export default {
-  async fetch(request: Request, env: Env, _ctx?: any): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx?: any): Promise<Response> {
+    const response = await this.handleFetch(request, env, ctx);
+    return applySecurityHeadersToResponse(response, {
+      isProduction: env.NODE_ENV === 'production',
+      isHttps: request.url.startsWith('https://') || env.NODE_ENV === 'production',
+    });
+  },
+
+  async handleFetch(request: Request, env: Env, _ctx?: any): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
     const method = request.method.toUpperCase();
@@ -3286,6 +3296,16 @@ Sitemap: https://eventgamestudio.com/sitemap.xml
         try {
           const tiers = await getActiveGamePricing(gameId, env);
           return jsonResponse({ success: true, tiers, game_id: gameId }, 200, cors);
+        } catch (err: any) {
+          return handleWorkerApiError(err, request, cors, env);
+        }
+      }
+
+      // GET /api/public/games/pricing (Public landing page endpoint)
+      if (pathname === '/api/public/games/pricing' && method === 'GET') {
+        try {
+          const data = await getPublicGamesPricing(env);
+          return jsonResponse(data, 200, cors);
         } catch (err: any) {
           return handleWorkerApiError(err, request, cors, env);
         }

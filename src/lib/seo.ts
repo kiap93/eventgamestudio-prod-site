@@ -489,13 +489,13 @@ export const SEO_PAGE_CONFIGS: Record<string, PageSeoConfig> = {
 
   // 16. Contact Page
   '/contact': {
-    title: 'Contact Event Game Studio | Enquiries & Custom Event Quotes',
+    title: 'Contact Catch The Brand & Event Game Studio | Event Enquiries',
     description:
-      'Get in touch with the Event Game Studio team for customized event game activations, agency partnerships, WhatsApp support, or multi-day roadshow licensing.',
+      'Connect with our team for Catch The Brand setup, interactive event games, custom branding, enterprise quotes, and rapid WhatsApp support.',
     canonical: `${SITE_DOMAIN}/contact`,
-    h1: 'Contact Event Game Studio',
+    h1: "Let's Make Your Event Playable.",
     subheading:
-      'Ready to make your upcoming event playable? Connect with our team for event consultation, custom quotes, or instant WhatsApp support.',
+      'Connect with our event specialists about event setup, game customization, transparent pricing, large-scale deployments, or custom requirements.',
     breadcrumbs: [
       { name: 'Home', item: '/' },
       { name: 'Contact', item: '/contact' },

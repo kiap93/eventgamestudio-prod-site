@@ -3,11 +3,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowUp } from 'lucide-react';
 import { LandingHeader } from './LandingHeader';
 import { LandingHero } from './LandingHero';
-import { LandingHowItWorks } from './LandingHowItWorks';
 import { LandingGameShowcase } from './LandingGameShowcase';
+import { LandingHowItWorks } from './LandingHowItWorks';
 import { LandingBrandYourGame } from './LandingBrandYourGame';
-import { LandingEventShowcase } from './LandingEventShowcase';
-import { LandingAgencies } from './LandingAgencies';
+import { LandingEventDeployment } from './LandingEventDeployment';
+import { LandingPricing } from './LandingPricing';
+import { LandingTopUpPromotion } from './LandingTopUpPromotion';
+import { LandingBuiltForEvents } from './LandingBuiltForEvents';
+import { LandingFaq } from './LandingFaq';
 import { LandingFinalCta } from './LandingFinalCta';
 import { LandingFooter } from './LandingFooter';
 import { GameCatalogModal } from '../studio/GameCatalogModal';
@@ -15,8 +18,10 @@ import { LandingDemoModal } from './LandingDemoModal';
 import { SEO } from '../common/SEO';
 import { getPageSeo } from '../../lib/seo';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { useLocalization } from '../../context/LocalizationContext';
 
 export const LandingPage: React.FC = () => {
+  const { t } = useLocalization();
   const [catalogModalOpen, setCatalogModalOpen] = useState(false);
   const [demoModalOpen, setDemoModalOpen] = useState(false);
   const [demoGameId, setDemoGameId] = useState<string>('catch-brand');
@@ -56,16 +61,19 @@ export const LandingPage: React.FC = () => {
       {/* Central SEO Head Configuration */}
       <SEO config={pageSeo} />
 
-      {/* Sticky Global Brand Header */}
+      {/* 1. HEADER */}
       <LandingHeader onExploreGames={() => navigateTo('/game-showcase')} />
 
-      {/* 7 Core Landing Sections in Exact Requested Sequence */}
+      {/* Main Sections in Required Order */}
       <main className="flex-1">
-        {/* 1. HERO */}
-        <LandingHero onExploreGames={() => navigateTo('/game-showcase')} />
-
-        {/* 2. HOW IT WORKS */}
-        <LandingHowItWorks />
+        {/* 2. HERO */}
+        <LandingHero
+          onExploreGames={() => {
+            const el = document.getElementById('games');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
+          onLaunchDemo={(id) => handleLaunchDemo(id || 'catch-brand')}
+        />
 
         {/* 3. GAME SHOWCASE */}
         <LandingGameShowcase
@@ -73,20 +81,32 @@ export const LandingPage: React.FC = () => {
           onExploreAll={() => navigateTo('/game-showcase')}
         />
 
-        {/* 4. BRAND YOUR GAME */}
+        {/* 4. HOW IT WORKS */}
+        <LandingHowItWorks />
+
+        {/* 5. BRAND YOUR GAME */}
         <LandingBrandYourGame />
 
-        {/* 5. EVENT SHOWCASE */}
-        <LandingEventShowcase />
+        {/* 6. EVENT DEPLOYMENT */}
+        <LandingEventDeployment />
 
-        {/* 6. BUILT FOR EVENT AGENCIES */}
-        <LandingAgencies />
+        {/* 7. EVENT PRICING */}
+        <LandingPricing />
 
-        {/* 7. FINAL CTA */}
+        {/* 8. TOP-UP PROMOTION */}
+        <LandingTopUpPromotion />
+
+        {/* 9. BUILT FOR EVENTS */}
+        <LandingBuiltForEvents />
+
+        {/* 10. FAQ */}
+        <LandingFaq />
+
+        {/* 11. FINAL CTA */}
         <LandingFinalCta />
       </main>
 
-      {/* Global Landing Footer */}
+      {/* 12. FOOTER */}
       <LandingFooter />
 
       {/* Landing Page Back-to-Top Floating Button */}
@@ -98,8 +118,8 @@ export const LandingPage: React.FC = () => {
             exit={{ opacity: 0, scale: 0.8, y: 16 }}
             transition={{ duration: 0.2 }}
             onClick={scrollToHeader}
-            aria-label="Back to top of landing page"
-            className="fixed bottom-6 right-6 z-40 p-3 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 hover:text-amber-600 border border-slate-200 hover:border-amber-400 shadow-xl shadow-slate-900/10 backdrop-blur-md cursor-pointer transition-all active:scale-95 group focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+            aria-label={t('landing.backToTop')}
+            className="fixed bottom-6 right-6 z-40 p-3 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 hover:text-amber-600 border border-slate-200 hover:border-amber-400 shadow-xl shadow-slate-900/10 backdrop-blur-md cursor-pointer transition-all active:scale-95 group focus:outline-hidden"
           >
             <ArrowUp className="w-5 h-5 group-hover:-translate-y-0.5 transition-transform" />
           </motion.button>

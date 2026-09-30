@@ -3,6 +3,7 @@ import { getAllGameDefinitions } from '../../games/registry';
 import { getGameTypeIcon } from '../../games';
 import { apiFetch } from '../../lib/api';
 import { Gamepad2, Zap, Grid3X3, HelpCircle, Users, Clock, CheckCircle2, Sparkles, X, RefreshCw, Play } from 'lucide-react';
+import { useLocalization } from '../../context/LocalizationContext';
 
 interface GameCatalogModalProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
   onSelectGame,
   onPlayDemo,
 }) => {
+  const { t } = useLocalization();
   const [platformGames, setPlatformGames] = useState<PlatformGameItem[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -121,6 +123,7 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label={t('common.close')}
             className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -199,7 +202,7 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
                         className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                       >
                         <Play className="w-2.5 h-2.5 fill-slate-950" />
-                        <span>Demo</span>
+                        <span>{t('landing.tryDemo')}</span>
                       </button>
                     ) : (
                       <span className="uppercase text-[9px] font-bold px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
@@ -219,7 +222,7 @@ export const GameCatalogModal: React.FC<GameCatalogModalProps> = ({
             onClick={onClose}
             className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-colors cursor-pointer"
           >
-            Close
+            {t('common.close')}
           </button>
         </div>
       </div>

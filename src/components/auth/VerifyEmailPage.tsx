@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { maskEmail } from '../../lib/maskEmail';
 import {
   CheckCircle2,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 
 export const VerifyEmailPage: React.FC = () => {
+  const { t } = useLocalization();
   const { verifyEmail, resendVerificationEmail, isAuthenticated, currentOrganization } = useAuth();
 
   const [searchParams] = useState(() => new URLSearchParams(window.location.search));
@@ -147,7 +149,7 @@ export const VerifyEmailPage: React.FC = () => {
           className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-amber-400 transition-colors py-2 px-3 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-amber-500/30 group cursor-pointer shadow-md"
         >
           <ArrowLeft className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform text-amber-400" />
-          <span>Back to Login</span>
+          <span>{t('common.backToLogin')}</span>
         </button>
       </div>
 
@@ -195,7 +197,7 @@ export const VerifyEmailPage: React.FC = () => {
               onClick={handleContinue}
               className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
             >
-              <span>{isAuthenticated ? 'Continue to Event Game Studio' : 'Sign In to Your Account'}</span>
+              <span>{isAuthenticated ? 'Continue to Event Game Studio' : t('common.signInToAccount')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -275,7 +277,7 @@ export const VerifyEmailPage: React.FC = () => {
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>Resend Verification Email</span>
+                      <span>{t('common.resendVerificationEmail')}</span>
                     </>
                   )}
                 </button>
@@ -285,9 +287,9 @@ export const VerifyEmailPage: React.FC = () => {
             <div className="text-center pt-2">
               <button
                 onClick={() => navigateTo('/login')}
-                className="text-xs text-slate-400 hover:text-amber-400 underline transition-colors"
+                className="text-xs text-slate-400 hover:text-amber-400 underline transition-colors cursor-pointer"
               >
-                Back to Login
+                {t('common.backToLogin')}
               </button>
             </div>
           </div>
@@ -354,7 +356,7 @@ export const VerifyEmailPage: React.FC = () => {
                 onClick={() => navigateTo('/login')}
                 className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 cursor-pointer"
               >
-                Sign In to Your Account
+                {t('common.signInToAccount')}
               </button>
             )}
 
@@ -405,7 +407,7 @@ export const VerifyEmailPage: React.FC = () => {
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>Resend Verification Email</span>
+                      <span>{t('common.resendVerificationEmail')}</span>
                     </>
                   )}
                 </button>
@@ -423,7 +425,7 @@ export const VerifyEmailPage: React.FC = () => {
                 className="w-full py-2.5 text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Login</span>
+                <span>{t('common.backToLogin')}</span>
               </button>
             </div>
           </div>

@@ -10,59 +10,62 @@ import {
   Building2,
   CheckCircle2,
 } from 'lucide-react';
-
-const benefits = [
-  {
-    title: 'Brand Every Game',
-    description: "Replace logos, background artwork, collectibles, hazards, and color palettes to mirror your client's exact brand identity.",
-    icon: Palette,
-    iconBg: 'bg-amber-50',
-    iconColor: 'text-amber-600',
-    borderColor: 'border-amber-200',
-  },
-  {
-    title: 'Launch in Minutes',
-    description: 'No custom code development or lengthy software cycles. Pick a game, customize theme assets, and produce an event link in under 5 minutes.',
-    icon: Zap,
-    iconBg: 'bg-emerald-50',
-    iconColor: 'text-emerald-600',
-    borderColor: 'border-emerald-200',
-  },
-  {
-    title: 'Manage Multiple Events',
-    description: 'Organize simultaneous roadshows, annual dinners, conferences, and weekend brand activations from a single unified agency workspace.',
-    icon: CalendarDays,
-    iconBg: 'bg-blue-50',
-    iconColor: 'text-blue-600',
-    borderColor: 'border-blue-200',
-  },
-  {
-    title: 'Reuse Your Games',
-    description: 'Retain your custom themes, asset libraries, and setups. Clone and adapt existing high-performing games for future pitches and activations.',
-    icon: Repeat,
-    iconBg: 'bg-purple-50',
-    iconColor: 'text-purple-600',
-    borderColor: 'border-purple-200',
-  },
-  {
-    title: 'Create Client Experiences',
-    description: 'Deliver high-engagement experiential tech that wows corporate stakeholders, VIP guests, and audience crowds.',
-    icon: Sparkles,
-    iconBg: 'bg-amber-50',
-    iconColor: 'text-amber-600',
-    borderColor: 'border-amber-200',
-  },
-  {
-    title: 'Track Event Results',
-    description: 'View real-time gameplay participation, high scores, leaderboards, and guest activity counts throughout your event.',
-    icon: BarChart3,
-    iconBg: 'bg-cyan-50',
-    iconColor: 'text-cyan-600',
-    borderColor: 'border-cyan-200',
-  },
-];
+import { useLocalization } from '../../context/LocalizationContext';
 
 export const LandingAgencies: React.FC = () => {
+  const { t } = useLocalization();
+
+  const benefits = [
+    {
+      title: t('landing.agencyBenefit1Title'),
+      description: t('landing.agencyBenefit1Desc'),
+      icon: Palette,
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      borderColor: 'border-amber-200',
+    },
+    {
+      title: t('landing.agencyBenefit2Title'),
+      description: t('landing.agencyBenefit2Desc'),
+      icon: Zap,
+      iconBg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+      borderColor: 'border-emerald-200',
+    },
+    {
+      title: t('landing.agencyBenefit3Title'),
+      description: t('landing.agencyBenefit3Desc'),
+      icon: CalendarDays,
+      iconBg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+      borderColor: 'border-blue-200',
+    },
+    {
+      title: t('landing.agencyBenefit4Title'),
+      description: t('landing.agencyBenefit4Desc'),
+      icon: Repeat,
+      iconBg: 'bg-purple-50',
+      iconColor: 'text-purple-600',
+      borderColor: 'border-purple-200',
+    },
+    {
+      title: t('landing.agencyBenefit5Title'),
+      description: t('landing.agencyBenefit5Desc'),
+      icon: Sparkles,
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      borderColor: 'border-amber-200',
+    },
+    {
+      title: t('landing.agencyBenefit6Title'),
+      description: t('landing.agencyBenefit6Desc'),
+      icon: BarChart3,
+      iconBg: 'bg-cyan-50',
+      iconColor: 'text-cyan-600',
+      borderColor: 'border-cyan-200',
+    },
+  ];
+
   return (
     <section id="agencies" className="relative scroll-mt-16 sm:scroll-mt-20 py-20 md:py-32 bg-slate-50 border-t border-b border-slate-200/80 overflow-hidden">
       {/* Background Ambience */}
@@ -73,13 +76,13 @@ export const LandingAgencies: React.FC = () => {
         <div className="text-center max-w-3xl mx-auto space-y-4 mb-16 md:mb-20">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold text-amber-800 uppercase tracking-widest shadow-xs">
             <Building2 className="w-3.5 h-3.5 text-amber-600" />
-            <span>Event Production & Agency Ready</span>
+            <span>{t('landing.agencyReadyBadge')}</span>
           </div>
           <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight">
-            Built for Event Agencies
+            {t('landing.builtForAgenciesTitle')}
           </h2>
           <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
-            Everything your agency needs to pitch, customize, and execute interactive game activations for demanding corporate clients.
+            {t('landing.builtForAgenciesDesc')}
           </p>
         </div>
 
@@ -117,7 +120,7 @@ export const LandingAgencies: React.FC = () => {
 
                 <div className="pt-4 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-600 font-medium">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Production Tested</span>
+                  <span>{t('landing.productionTested')}</span>
                 </div>
               </motion.div>
             );

@@ -28,6 +28,7 @@ import {
   Coins,
 } from 'lucide-react';
 import { DeveloperGamePricingManager } from './DeveloperGamePricingManager';
+import { useLocalization } from '../../context/LocalizationContext';
 
 interface DeveloperGameDetailProps {
   gameId: string;
@@ -52,6 +53,7 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
   onSetPrimaryDefaultTheme,
   onUnsetPrimaryDefaultTheme,
 }) => {
+  const { t } = useLocalization();
   const [game, setGame] = useState<PlatformGame | null>(null);
   const [themes, setThemes] = useState<GameTheme[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -98,10 +100,10 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
         <p className="text-xs text-slate-400 mb-4">The specified platform game could not be retrieved.</p>
         <button
           onClick={onBack}
-          className="inline-flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl"
+          className="inline-flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Games</span>
+          <span>{t('common.backToGames')}</span>
         </button>
       </div>
     );
@@ -232,10 +234,10 @@ export const DeveloperGameDetail: React.FC<DeveloperGameDetailProps> = ({
               </p>
               <button
                 onClick={() => setIsThemeModalOpen(true)}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl"
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>Create First Theme</span>
+                <span>{t('common.createFirstTheme')}</span>
               </button>
             </div>
           ) : (

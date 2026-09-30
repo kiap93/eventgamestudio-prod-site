@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { navigateTo } from '../../hooks/useRouteContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   KeyRound,
   CheckCircle2,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 
 export const ResetPasswordPage: React.FC = () => {
+  const { t } = useLocalization();
   const { resetPassword, requestPasswordReset } = useAuth();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -145,9 +147,9 @@ export const ResetPasswordPage: React.FC = () => {
             </p>
             <button
               onClick={() => navigateTo('/login')}
-              className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/20 transition-colors"
+              className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-semibold rounded-xl border border-amber-500/20 transition-colors cursor-pointer"
             >
-              Return to Sign In
+              {t('common.returnToSignIn')}
             </button>
           </div>
         ) : (
@@ -257,7 +259,7 @@ export const ResetPasswordPage: React.FC = () => {
                     <span>Resetting Password...</span>
                   </>
                 ) : (
-                  <span>Update Password</span>
+                  <span>{t('common.updatePassword')}</span>
                 )}
               </button>
             </form>

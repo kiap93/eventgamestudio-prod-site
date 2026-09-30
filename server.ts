@@ -198,6 +198,7 @@ import {
   deleteGamePricingTier,
   bulkUpsertGamePricing,
   ensureDefaultGamePricing,
+  getPublicGamesPricing,
   createShowcaseRewardSubmission,
   getShowcaseRewardSubmissionForEvent,
   getActiveUserShowcaseRewardSubmission,
@@ -323,10 +324,15 @@ import {
   generateInvitationEmailTemplate,
   generateContactEnquiryEmailTemplate,
 } from './server/email/index.js';
-
+import { securityHeadersMiddleware } from './server/securityHeaders.js';
 
 const app = express();
 const PORT = 3000;
+
+// ==========================================
+// Security Headers Middleware
+// ==========================================
+app.use(securityHeadersMiddleware());
 
 // Production security checks: fail-fast on insecure configuration
 if (process.env.NODE_ENV === 'production') {
@@ -2798,6 +2804,20 @@ app.get('/api/games/:gameId/pricing', authenticateJWT, async (req: Authenticated
     const { gameId } = req.params;
     const tiers = await getActiveGamePricing(gameId);
     res.json({ success: true, tiers, game_id: gameId });
+  } catch (err: any) {
+    handleApiError(err, req, res);
+  }
+});
+
+/**
+ * GET /api/public/games/pricing
+ * Public read-only endpoint returning active public games and their active pricing tiers.
+ * Used exclusively by public landing page game showcase & pricing calculator.
+ */
+app.get('/api/public/games/pricing', async (req, res) => {
+  try {
+    const data = await getPublicGamesPricing();
+    res.json(data);
   } catch (err: any) {
     handleApiError(err, req, res);
   }

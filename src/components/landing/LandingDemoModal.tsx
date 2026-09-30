@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { navigateTo } from '../../hooks/useRouteContext';
 import { useAuth } from '../../context/AuthContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import {
   getAvailableGameDefinitions,
   getGameDefinition,
@@ -39,6 +40,7 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
   initialThemeId = DEFAULT_ACTIVE_THEME_ID,
   gameTitle,
 }) => {
+  const { t } = useLocalization();
   const { isAuthenticated } = useAuth();
 
   // Canonical Game & Theme state
@@ -275,12 +277,12 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
   const getGameInstructions = (gameId: string) => {
     const canonical = normalizeGameType(gameId);
     if (canonical === 'memory-match') {
-      return 'Click or tap cards to flip and match all 8 pairs before time runs out.';
+      return t('landing.memoryMatchInstructions');
     }
     if (canonical === 'reaction-tap') {
-      return 'Wait for the 5 red lights to turn off, then tap as fast as you can!';
+      return t('landing.reactionTapInstructions');
     }
-    return 'Use mouse, keyboard arrows, or touch to catch high-value objects.';
+    return t('landing.catchBrandInstructions');
   };
 
   // Display presentation title: e.g. "Mango Orchard Arcade" or "Brand Memory Match"
@@ -294,7 +296,7 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={themePresentationTitle || 'Interactive Game Demo'}
+      aria-label={themePresentationTitle || t('landing.demoModalTitle')}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -321,7 +323,7 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
             <div className="min-w-0">
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 uppercase tracking-wider shrink-0">
-                  INTERACTIVE DEMO
+                  {t('landing.interactiveDemoBadge')}
                 </span>
                 <span className="text-xs text-slate-500 font-semibold truncate hidden md:inline">
                   {currentGameDef.name}
@@ -342,10 +344,10 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
                 onClick={() => setIsGameDropdownOpen(!isGameDropdownOpen)}
                 aria-expanded={isGameDropdownOpen}
                 aria-haspopup="true"
-                aria-label="Select Game Engine"
+                aria-label={t('landing.selectGameEngine')}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 shadow-xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/40"
               >
-                <span className="text-[10px] uppercase font-bold text-amber-600 tracking-wider">GAME:</span>
+                <span className="text-[10px] uppercase font-bold text-amber-600 tracking-wider">{t('landing.gameLabel')}</span>
                 <span className="max-w-[130px] sm:max-w-[160px] truncate text-slate-900">
                   {currentGameDef.name}
                 </span>
@@ -364,9 +366,9 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
                   className="absolute left-0 sm:left-auto sm:right-0 mt-1.5 w-64 sm:w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100"
                 >
                   <div className="px-3 py-1.5 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    <span>Select Game</span>
+                    <span>{t('landing.selectGame')}</span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-mono">
-                      {availableGames.length} Engines
+                      {t('landing.enginesCount', { count: availableGames.length })}
                     </span>
                   </div>
                   <div className="py-1 max-h-64 overflow-y-auto">
@@ -418,7 +420,7 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
             {availableGameThemes.length > 0 && (
               <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200 max-w-full overflow-x-auto">
                 <span className="text-[10px] font-semibold text-slate-500 uppercase px-2 flex items-center gap-1 shrink-0">
-                  <Palette className="w-3 h-3 text-amber-500" /> Theme:
+                  <Palette className="w-3 h-3 text-amber-500" /> {t('landing.themeLabel')}
                 </span>
                 {availableGameThemes.map((th) => (
                   <button
@@ -443,18 +445,18 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
                 type="button"
                 onClick={handleRestart}
                 className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors cursor-pointer"
-                title="Restart Game Session"
+                title={t('landing.restartSession')}
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Restart</span>
+                <span className="hidden sm:inline">{t('common.restart')}</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleToggleFullscreen}
                 className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                aria-label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                title={isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}
+                aria-label={isFullscreen ? t('common.exitFullscreen') : t('common.fullscreen')}
               >
                 {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </button>
@@ -463,7 +465,7 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
                 type="button"
                 onClick={onClose}
                 className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-                aria-label="Close Demo"
+                aria-label={t('landing.closeDemo')}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -499,7 +501,7 @@ export const LandingDemoModal: React.FC<LandingDemoModalProps> = ({
               onClick={handleCreateEvent}
               className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black rounded-xl shadow-md shadow-amber-500/20 transition-all text-xs cursor-pointer flex items-center gap-1.5"
             >
-              <span>Create Event With This Game</span>
+              <span>{t('landing.createEventWithGame')}</span>
             </button>
           </div>
         </div>
